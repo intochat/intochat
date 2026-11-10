@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -17,4 +18,8 @@ public sealed record UnitNeeds(IReadOnlyList<SlotNeed> Slots, string? Schedule, 
 public sealed record SlotNeed(string Name, string Capability, IReadOnlyList<string> Hosts);
 
 // Given is the slots' fakes, When the stimuli and Then the expectations, in the grammar ScenarioSteps.Parse reads.
-public sealed record Scenario(string Name, JsonElement Given, IReadOnlyList<string> When, IReadOnlyList<string> Then);
+// Supersedes: on a new scenario, the name of the earlier one the person's sentence contradicts.
+// Superseded: on a kept scenario, the change sentence that retired it. Both are omitted from JSON when null.
+public sealed record Scenario(string Name, JsonElement Given, IReadOnlyList<string> When, IReadOnlyList<string> Then,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Supersedes = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Superseded = null);
