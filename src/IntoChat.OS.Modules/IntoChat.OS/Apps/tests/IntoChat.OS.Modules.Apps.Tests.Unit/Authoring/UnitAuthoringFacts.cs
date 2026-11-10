@@ -80,7 +80,7 @@ public sealed class UnitAuthoringFacts
     {
         var model = new ScriptedModel();
         model.Completions.Enqueue(Authored);
-        return await Creator(model).Author("b", "watch elonmusk on X", Ct);
+        return await Creator(model).Author("b", "watch elonmusk on X", null, Ct);
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class UnitAuthoringFacts
         var model = new ScriptedModel();
         model.Reply("not json", "{\"alias\": \"X Watch\", \"title\": \"t\", \"spec\": \"s\", \"state\": {}, \"signals\": [], \"needs\": {\"slots\": [], \"view\": false}, \"scenarios\": []}", Authored);
 
-        var unit = await Creator(model).Author("b", "watch elonmusk on X", Ct);
+        var unit = await Creator(model).Author("b", "watch elonmusk on X", null, Ct);
 
         Assert.Equal("x.watch", unit.Alias);
         Assert.Equal("int", unit.State["Unseen"]);
@@ -109,7 +109,7 @@ public sealed class UnitAuthoringFacts
     {
         var model = new ScriptedModel();
         model.Reply("no", "no", "no");
-        await Assert.ThrowsAsync<InvalidDataException>(() => Creator(model).Author("b", "watch elonmusk", Ct));
+        await Assert.ThrowsAsync<InvalidDataException>(() => Creator(model).Author("b", "watch elonmusk", null, Ct));
     }
 
     [Fact]
@@ -260,7 +260,7 @@ public sealed class UnitAuthoringFacts
         bare["scenarios"] = JsonElement.Parse("[]");
         model.Reply(JsonSerializer.Serialize(bare), Authored);
 
-        var unit = await Creator(model).Author("b", "watch elonmusk on X", Ct);
+        var unit = await Creator(model).Author("b", "watch elonmusk on X", null, Ct);
 
         Assert.Equal(2, unit.Scenarios.Count);
         Assert.Equal(2, model.Prompts.Count);
@@ -327,7 +327,33 @@ public sealed class UnitAuthoringFacts
         var bare = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(Authored)!;
         bare["scenarios"] = JsonElement.Parse("""[{"name": "old", "given": {}, "when": ["tick 6m"], "then": ["signal x.polled"], "superseded": "change"}]""");
         model.Reply(JsonSerializer.Serialize(bare), Authored);
-        await Creator(model).Author("b", "watch elonmusk on X", Ct);
+        await Creator(model).Author("b", "watch elonmusk on X", null, Ct);
         Assert.Contains("no scenarios", model.Prompts[1], StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task TheAuthorOfAChangeIsGivenTheCurrentFiles()
+    {
+        var model = new ScriptedModel();
+        model.Reply(Authored);
+        var existing = new Dictionary<string, string> { ["XWatch.cs"] = "// code before", [UnitFiles.Scenarios] = """[{"name": "kept one", "given": {}, "when": ["tick 6m"], "then": ["signal x.polled"]}]""" };
+        await Creator(model).Author("b", "change x.watch: red over ten", existing, Ct);
+        Assert.Contains("Current files:", model.Prompts[0], StringComparison.Ordinal);
+        Assert.Contains("kept one", model.Prompts[0], StringComparison.Ordinal);
+        Assert.Contains("// code before", model.Prompts[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnAuthorThatSupersedesAnUnknownScenarioIsRetried()
+    {
+        var model = new ScriptedModel();
+        var wrong = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(Authored)!;
+        wrong["scenarios"] = JsonElement.Parse("""[{"name": "new", "given": {}, "when": ["tick 6m"], "then": ["signal x.polled"], "supersedes": "no such"}]""");
+        model.Reply(JsonSerializer.Serialize(wrong), Authored);
+        await Creator(model).Author("b", "change x.watch: the opposite", null, Ct);
+        Assert.Equal(2, model.Prompts.Count);
+        Assert.Contains("which the unit does not have", model.Prompts[1], StringComparison.Ordinal);
+    }
+
+    [Fact] public void TheAuthorIsToldEarlierScenariosStay() => Assert.Contains("\"supersedes\"", AgentPrompts.AuthorUnit, StringComparison.Ordinal);
 }

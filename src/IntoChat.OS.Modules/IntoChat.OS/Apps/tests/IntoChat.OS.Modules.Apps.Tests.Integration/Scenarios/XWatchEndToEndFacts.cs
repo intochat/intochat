@@ -55,7 +55,7 @@ public sealed class XWatchEndToEndFacts
     {
         private int _drafts;
 
-        public Task<AuthoredUnit> Author(string brainId, string request, CancellationToken ct) => Task.FromResult(Creator.Parse<AuthoredUnit>(Authored));
+        public Task<AuthoredUnit> Author(string brainId, string request, IReadOnlyDictionary<string, string>? existing, CancellationToken ct) => Task.FromResult(Creator.Parse<AuthoredUnit>(Authored));
 
         public Task<BuildDraft> Draft(string brainId, AuthoredUnit unit, IReadOnlyDictionary<string, string>? existing, CancellationToken ct)
             => Task.FromResult(new BuildDraft(new Dictionary<string, string>(StringComparer.Ordinal)

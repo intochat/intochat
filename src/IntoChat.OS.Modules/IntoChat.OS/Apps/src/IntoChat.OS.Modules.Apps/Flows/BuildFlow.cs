@@ -100,6 +100,18 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
         => JsonSerializer.Deserialize<AuthoredUnit>(inner.UnitJson ?? throw new FlowFailed("draft", "the build has no authored unit"), Json)
             ?? throw new FlowFailed("draft", "the authored unit is empty");
 
+    // The alias when the goal starts with "change <alias>:" and <alias> is a valid unit alias, else null.
+    internal static string? ChangeAlias(string goal)
+    {
+        var trimmed = (goal ?? "").Trim();
+        if (!trimmed.StartsWith("change ", StringComparison.Ordinal)) { return null; }
+        var colon = trimmed.IndexOf(':', 7);
+        if (colon < 0) { return null; }
+        var alias = trimmed[7..colon].Trim();
+        try { Creator.ValidateAlias(alias); return alias; }
+        catch (InvalidDataException) { return null; }
+    }
+
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await Context.Synapses.EnsureBrainWide(typeof(Installed), typeof(InstallDenied), typeof(ConnectionsChanged));
@@ -136,8 +148,14 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
                     if (inner.UnitJson is null || inner.GoalHash != goalHash)
                     {
                         var drafter = Context.Services.GetRequiredService<IDrafter>();
+                        var changing = ChangeAlias(inner.Goal);
+                        if (changing is not null) { inner.Existing ??= await Current(changing, ct); }
                         // The Author's model call runs off the flow's scheduler.
-                        var unit = await Task.Run(() => drafter.Author(Id.Brain.Value, inner.Goal, ct), ct);
+                        var unit = await Task.Run(() => drafter.Author(Id.Brain.Value, inner.Goal, inner.Existing, ct), ct);
+                        if (changing is not null && unit.Alias != changing) { throw new FlowFailed("author", $"a change keeps the alias: the Author answered {unit.Alias} for a change of {changing}"); }
+                        inner.Existing ??= await Current(unit.Alias, ct);
+                        try { unit = unit with { Scenarios = [.. KeptScenarios.Merge(inner.Existing, unit.Scenarios, inner.Goal)] }; }
+                        catch (InvalidDataException error) { throw new FlowFailed("author", error.Message); }
                         inner.UnitJson = JsonSerializer.Serialize(unit, Json);
                         inner.GoalHash = goalHash;
                         inner.Alias = unit.Alias;

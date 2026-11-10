@@ -128,6 +128,11 @@ internal static class AgentPrompts
           (a dotted path reaches nested fields, "Last.Count"; a string value is quoted: state x.watch Latest = "hi"),
           "signal <signal.alias>" (said by the last "when" line). To check a state in between, write a separate scenario.
 
+        When you change a unit you are given its current files, with its earlier scenarios in scenarios.json. Keep the alias.
+        Keep the state fields, signals and needs unless the change needs otherwise. The earlier scenarios stay and are checked
+        again: do not repeat them; add a scenario for what changes. Only when the person's sentence says the opposite of an
+        earlier scenario, give the new scenario "supersedes": "<the earlier scenario's name>".
+
         Reply with JSON only, no prose and no code fences, for example:
         {"alias": "x.watch", "title": "X watch",
          "spec": "Watches mentions of @elonmusk on X...",

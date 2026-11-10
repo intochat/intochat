@@ -7,7 +7,7 @@ internal sealed record BuildDraft(Dictionary<string, string> Files, AppManifest?
 // progress; the flow's step signals are the progress.
 internal interface IDrafter
 {
-    Task<AuthoredUnit> Author(string brainId, string request, CancellationToken ct);
+    Task<AuthoredUnit> Author(string brainId, string request, IReadOnlyDictionary<string, string>? existing, CancellationToken ct);
 
     Task<BuildDraft> Draft(string brainId, AuthoredUnit unit, IReadOnlyDictionary<string, string>? existing, CancellationToken ct);
 }

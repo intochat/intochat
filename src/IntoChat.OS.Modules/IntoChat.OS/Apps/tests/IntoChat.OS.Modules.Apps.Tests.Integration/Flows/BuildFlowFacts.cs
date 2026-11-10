@@ -57,9 +57,39 @@ public sealed class BuildFlowFacts
         // The existing files each Draft was handed, in call order.
         public List<IReadOnlyDictionary<string, string>?> Existing { get; } = [];
 
-        public Task<AuthoredUnit> Author(string brainId, string request, CancellationToken ct)
-            => sources.Length == 0 ? throw new InvalidOperationException("the drafter failed") : Task.FromResult(Creator.Parse<AuthoredUnit>(request.Contains("every five minutes", StringComparison.Ordinal)
-                ? Authored.Replace("\"schedule\": \"every 6m\"", "\"schedule\": \"every 5m\"", StringComparison.Ordinal) : Authored));
+        public List<IReadOnlyDictionary<string, string>?> AuthorExisting { get; } = [];
+
+        public Task<AuthoredUnit> Author(string brainId, string request, IReadOnlyDictionary<string, string>? existing, CancellationToken ct)
+        {
+            if (sources.Length == 0) { throw new InvalidOperationException("the drafter failed"); }
+            lock (AuthorExisting) { AuthorExisting.Add(existing); }
+            var unit = Creator.Parse<AuthoredUnit>(request.Contains("every five minutes", StringComparison.Ordinal)
+                ? Authored.Replace("\"schedule\": \"every 6m\"", "\"schedule\": \"every 5m\"", StringComparison.Ordinal) : Authored);
+            if (request.Contains("count faster", StringComparison.Ordinal))
+            {
+                unit = unit with
+                {
+                    Scenarios = [new Scenario("a second poll of the same post adds nothing",
+                        JsonElement.Parse("""{"http": {"x": {"mentions": {"data": [{"id": "1", "text": "hi"}]}}}}"""),
+                        ["tick 6m", "tick 6m"], ["state x.watch Unseen = 1"])],
+                };
+            }
+            else if (request.Contains("count one more", StringComparison.Ordinal))
+            {
+                unit = unit with
+                {
+                    Scenarios = [new Scenario("a poll counts two",
+                        JsonElement.Parse("""{"http": {"x": {"mentions": {"data": [{"id": "1", "text": "hi"}]}}}}"""),
+                        ["tick 6m"], ["state x.watch Unseen = 2"],
+                        Supersedes: request.Contains("instead", StringComparison.Ordinal) ? "a poll counts the new posts" : null)],
+                };
+            }
+            else if (request.Contains("rename", StringComparison.Ordinal))
+            {
+                unit = unit with { Alias = "y.watch" };
+            }
+            return Task.FromResult(unit);
+        }
 
         public Task<BuildDraft> Draft(string brainId, AuthoredUnit unit, IReadOnlyDictionary<string, string>? existing, CancellationToken ct)
         {
@@ -595,6 +625,77 @@ public sealed class BuildFlowFacts
 
     [Fact]
     public void TheRedBuilderDiffersFromTheExample() => Assert.NotEqual(AgentPrompts.XWatchExample, Red);
+
+    private static async Task FirstLive(INeuronRuntime runtime)
+    {
+        var first = await Start(runtime);
+        await Eventually(() => Flows(runtime).Read(first, Ct), v => v.WaitingStep == "install");
+        await runtime.ApproveAsPerson((await Inner(runtime, first)).PlanId!, Ct);
+        await Eventually(() => Flows(runtime).Read(first, Ct), v => v.Status == FlowStatus.Completed);
+    }
+
+    private static async Task<Scenario[]> Kept(ISynapseStudio studio)
+        => JsonSerializer.Deserialize<Scenario[]>((await studio.Sidecars("x.watch"))[UnitFiles.Scenarios], JsonSerializerOptions.Web)!;
+
+    [Fact]
+    public async Task AChangeKeepsTheEarlierScenariosAndShowsThemToTheAuthor()
+    {
+        var drafter = new ScriptedDrafter(AgentPrompts.XWatchExample);
+        await using var fixture = new BuildFixture(drafter, OneCovering());
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
+        await FirstLive(runtime);
+
+        var second = await Start(runtime, "change x.watch: count faster");
+        Assert.Equal(FlowStatus.Completed, (await Settled(runtime, second)).Status);
+        Assert.Equal(["a poll counts the new posts", "seen clears the count", "a second poll of the same post adds nothing"], (await Kept(studio)).Select(s => s.Name));
+        Assert.Equal(["XWatch.cs", UnitFiles.Scenarios, UnitFiles.Spec], drafter.AuthorExisting[^1]!.Keys.Order(StringComparer.Ordinal));
+        Assert.Null(drafter.AuthorExisting[0]);
+    }
+
+    [Fact]
+    public async Task AChangeThatBreaksAnEarlierScenarioFailsVerifyAndNamesIt()
+    {
+        var drafter = new ScriptedDrafter(AgentPrompts.XWatchExample, Red);
+        await using var fixture = new BuildFixture(drafter, OneCovering());
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
+        await FirstLive(runtime);
+
+        var view = await Settled(runtime, await Start(runtime, "change x.watch: count one more"));
+        Assert.Equal(FlowStatus.Failed, view.Status);
+        Assert.Contains("a poll counts the new posts", view.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ASupersedingChangeGoesLiveAndKeepsTheRetiredScenario()
+    {
+        var drafter = new ScriptedDrafter(AgentPrompts.XWatchExample, Red);
+        await using var fixture = new BuildFixture(drafter, OneCovering());
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
+        await FirstLive(runtime);
+
+        Assert.Equal(FlowStatus.Completed, (await Settled(runtime, await Start(runtime, "change x.watch: count one more instead"))).Status);
+        var kept = await Kept(studio);
+        Assert.Equal("change x.watch: count one more instead", kept.Single(s => s.Name == "a poll counts the new posts").Superseded);
+        Assert.Equal("a poll counts the new posts", kept.Single(s => s.Name == "a poll counts two").Supersedes);
+    }
+
+    [Fact]   // Review Focus 4
+    public async Task AChangeThatRenamesTheUnitFails()
+    {
+        var drafter = new ScriptedDrafter(AgentPrompts.XWatchExample);
+        await using var fixture = new BuildFixture(drafter, OneCovering());
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
+        await FirstLive(runtime);
+
+        var view = await Settled(runtime, await Start(runtime, "change x.watch: rename it"));
+        Assert.Equal(FlowStatus.Failed, view.Status);
+        Assert.Contains("a change keeps the alias", view.Detail, StringComparison.Ordinal);
+        Assert.Single(await studio.List());
+    }
 
     // The app's status once it leaves Building, or Building after ten seconds.
     private static async Task<AppSnapshot> SettledApp(IApp app)

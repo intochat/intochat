@@ -120,11 +120,13 @@ internal sealed class Creator(
     }
 
     // The Author for a unit: one request in, one described unit out. A reply that is not a valid unit is asked for again, twice.
-    public async Task<AuthoredUnit> Author(string brainId, string request, CancellationToken ct)
+    public async Task<AuthoredUnit> Author(string brainId, string request, IReadOnlyDictionary<string, string>? existing, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(request);
         if (request.Length > MaxRequestLength) { throw new ArgumentException($"Describe the unit in at most {MaxRequestLength} characters."); }
-        var prompt = $"Describe the unit for this.\n\nWhat the person wants:\n{request.Trim()}";
+        var builder = new StringBuilder($"Describe the unit for this.\n\nWhat the person wants:\n{request.Trim()}");
+        AppendFiles(builder, existing ?? new Dictionary<string, string>());
+        var prompt = builder.ToString();
         for (var retry = 0; ; retry++)
         {
             ct.ThrowIfCancellationRequested();
@@ -132,6 +134,7 @@ internal sealed class Creator(
             {
                 var unit = Parse<AuthoredUnit>(await Complete(brainId, AuthorModel, AgentPrompts.AuthorUnit, prompt, ct));
                 Validate(unit);
+                _ = KeptScenarios.Merge(existing, unit.Scenarios, request);
                 return unit;
             }
             catch (Exception error) when (error is JsonException or InvalidDataException or ArgumentException or FormatException && retry < MaxAuthorRetries)
