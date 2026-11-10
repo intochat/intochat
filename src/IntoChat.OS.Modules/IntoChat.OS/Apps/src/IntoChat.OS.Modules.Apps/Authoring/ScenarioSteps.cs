@@ -192,20 +192,21 @@ internal static class ScenarioSteps
 
     private static bool TryJsonString(string text, out string value)
     {
-        if (text.Length >= 2 && text[0] == '"')
-        {
-            try
-            {
-                if (JsonElement.Parse(text) is { ValueKind: JsonValueKind.String } parsed && parsed.GetString() is { } s)
-                {
-                    value = s;
-                    return true;
-                }
-            }
-            catch (JsonException) { }
-        }
         value = "";
-        return false;
+        if (text.Length < 2 || text[0] != '"') { return false; }
+        try
+        {
+            if (JsonElement.Parse(text) is { ValueKind: JsonValueKind.String } parsed && parsed.GetString() is { } s)
+            {
+                value = s;
+                return true;
+            }
+            return false;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private static TimeSpan Duration(string text, string line)
