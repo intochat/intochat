@@ -280,7 +280,7 @@ internal sealed class Creator(
         if (string.IsNullOrWhiteSpace(unit.Spec)) { throw new InvalidDataException("The unit has no spec."); }
         if (unit.State is null || unit.Needs is null || unit.Signals is null || unit.Scenarios is null)
         { throw new InvalidDataException("The unit needs state, signals, needs and scenarios."); }
-        if (unit.Scenarios.Count == 0) { throw new InvalidDataException("The unit has no scenarios; write at least one."); }
+        if (!KeptScenarios.Live(unit.Scenarios).Any()) { throw new InvalidDataException("The unit has no scenarios; write at least one."); }
         foreach (var signal in unit.Signals) { ValidateAlias(signal.Alias); }
         foreach (var slot in unit.Needs.Slots ?? [])
         {

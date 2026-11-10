@@ -11,7 +11,7 @@ namespace IntoChat.OS.Modules.Apps.Debugger;
 public static class ScenarioTranscripts
 {
     // The most scenarios one run executes.
-    public const int MaxScenarios = 8;
+    public const int MaxScenarios = 32;
 
     public static async Task<string> Run(string alias, IReadOnlyDictionary<string, string> files, string? scenario, CancellationToken ct)
     {
@@ -27,8 +27,14 @@ public static class ScenarioTranscripts
         if (matching.Length == 0) { return string.IsNullOrWhiteSpace(scenario) ? $"{alias} has no scenarios." : $"{alias} has no scenario '{scenario}'."; }
         var source = new SynapseSource(alias, code, null);
         var text = new StringBuilder();
-        foreach (var each in matching.Take(MaxScenarios))
+        var live = 0;
+        var ran = 0;
+        foreach (var each in matching)
         {
+            if (each.Superseded is not null) { text.Append($"- {each.Name}: superseded\n"); continue; }
+            live++;
+            if (ran >= MaxScenarios) { continue; }
+            ran++;
             ScenarioSteps.Parsed parsed;
             try { parsed = ScenarioSteps.Parse(each); }
             catch (FormatException error) { text.Append($"✗ {each.Name}: {error.Message}\n"); continue; }
@@ -41,7 +47,7 @@ public static class ScenarioTranscripts
             }
             foreach (var failure in transcript.Failures) { text.Append($"  failed: {failure}\n"); }
         }
-        if (matching.Length > MaxScenarios) { text.Append($"(ran {MaxScenarios} of {matching.Length} scenarios)\n"); }
+        if (live > MaxScenarios) { text.Append($"(ran {MaxScenarios} of {live} scenarios)\n"); }
         return text.ToString().TrimEnd();
     }
 }

@@ -73,7 +73,7 @@ internal static partial class BuilderTools
         if (!build.Success) { return new UnitCheck(false, diagnostics, []); }
         var failures = new List<string>();
         if (needs is not null && ScheduleMismatch(needs.Schedule, code) is { } mismatch) { failures.Add(mismatch); }
-        foreach (var scenario in scenarios)
+        foreach (var scenario in KeptScenarios.Live(scenarios))
         {
             ScenarioSteps.Parsed parsed;
             try { parsed = ScenarioSteps.Parse(scenario); }

@@ -299,4 +299,35 @@ public sealed class UnitAuthoringFacts
         Assert.Contains("counts only newer ones", AgentPrompts.AuthorUnit, StringComparison.Ordinal);
         Assert.Contains("\"when\": [\"tick 6m\", \"tick 6m\"]", AgentPrompts.AuthorUnit, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task ASupersededScenarioIsKeptAndNotRun()
+    {
+        var wrong = new Scenario("a poll counts two", JsonElement.Parse("""{"http": {"x": {"*": {"data": [{"id": "1", "text": "hi"}]}}}}"""),
+            ["tick 6m"], ["state x.watch Unseen = 2"]) { Superseded = "change x.watch: count once" };
+        var right = new Scenario("a poll counts one", wrong.Given, ["tick 6m"], ["state x.watch Unseen = 1"]);
+        var files = new Dictionary<string, string> { ["XWatch.cs"] = AgentPrompts.XWatchExample };
+
+        var check = await BuilderTools.Check(HostCompiler, "x.watch", files, XNeeds, [wrong, right], Ct);
+        Assert.True(check.Passed, string.Join("; ", check.Failures));
+
+        files[UnitFiles.Scenarios] = JsonSerializer.Serialize(new[] { wrong, right }, JsonSerializerOptions.Web);
+        var transcript = await IntoChat.OS.Modules.Apps.Debugger.ScenarioTranscripts.Run("x.watch", files, null, Ct);
+        Assert.Contains("- a poll counts two: superseded", transcript, StringComparison.Ordinal);
+        Assert.Contains("✓ a poll counts one", transcript, StringComparison.Ordinal);
+        Assert.DoesNotContain("✗", transcript, StringComparison.Ordinal);
+    }
+
+    [Fact] public void TheRunnerRunsUpToThirtyTwoScenarios() => Assert.Equal(32, IntoChat.OS.Modules.Apps.Debugger.ScenarioTranscripts.MaxScenarios);
+
+    [Fact]
+    public async Task AUnitWhoseScenariosAreAllSupersededIsNotAUnit()
+    {
+        var model = new ScriptedModel();
+        var bare = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(Authored)!;
+        bare["scenarios"] = JsonElement.Parse("""[{"name": "old", "given": {}, "when": ["tick 6m"], "then": ["signal x.polled"], "superseded": "change"}]""");
+        model.Reply(JsonSerializer.Serialize(bare), Authored);
+        await Creator(model).Author("b", "watch elonmusk on X", Ct);
+        Assert.Contains("no scenarios", model.Prompts[1], StringComparison.Ordinal);
+    }
 }
