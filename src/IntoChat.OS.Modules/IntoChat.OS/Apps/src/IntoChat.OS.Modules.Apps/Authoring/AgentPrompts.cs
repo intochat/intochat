@@ -56,22 +56,29 @@ internal static class AgentPrompts
         public sealed record Polled(int Fresh) : Signal;
 
         [State("x.watch")]
-        public sealed record Watch(int Unseen = 0, string Latest = "")
+        public sealed record Watch(int Unseen = 0, string Latest = "", string LastId = "")
         {
-            public Watch() : this(0, "") { }
+            public Watch() : this(0, "", "") { }
         }
 
         public static class XWatch
         {
-            // Every six minutes: read the mentions through the "x" slot, count them and say so.
+            // Every six minutes: read the mentions through the "x" slot and count the ones not counted before.
+            // The feed is newest first; LastId is the newest post already counted, so a post is counted once.
             [Synapse(typeof(Tick), "x.watch", Every = "every 6m")]
             public static async Task<Reaction<Watch>> Poll(Tick tick, Watch watch, [Slot] IHttpRead x, CancellationToken ct)
             {
                 var feed = await x.GetJson("https://api.x.com/2/users/elonmusk/mentions", ct);
                 var posts = feed.GetProperty("data");
-                var fresh = posts.GetArrayLength();
+                var fresh = 0;
+                foreach (var post in posts.EnumerateArray())
+                {
+                    if (post.GetProperty("id").GetString() == watch.LastId) { break; }
+                    fresh++;
+                }
                 var latest = fresh > 0 ? posts[0].GetProperty("text").GetString() ?? "" : watch.Latest;
-                return Reaction<Watch>.Of(watch with { Unseen = watch.Unseen + fresh, Latest = latest }, new Polled(fresh));
+                var lastId = fresh > 0 ? posts[0].GetProperty("id").GetString() ?? watch.LastId : watch.LastId;
+                return Reaction<Watch>.Of(watch with { Unseen = watch.Unseen + fresh, Latest = latest, LastId = lastId }, new Polled(fresh));
             }
 
             // The view's button emits "x.seen" to this unit's own alias; it arrives as an envelope.
@@ -110,6 +117,8 @@ internal static class AgentPrompts
 
         State and signal fields map a field name (PascalCase) to a C# type: int, long, double, bool, string,
         or an array of those (string[]). No status or state-machine strings: keep counts, times and values.
+        A unit that polls a list keeps the newest item it has counted in its state and counts only newer ones.
+        Write one scenario with two ticks over the same body.
 
         Every unit has at least one scenario, and every reaction is covered by one. A scenario's "given" fakes the slots:
           {"http": {"<slot>": {"<url part>": <json body>, "*": <json body>}}, "tools": {"<slot>": {"<tool>": <json result>}}}
@@ -122,13 +131,17 @@ internal static class AgentPrompts
         Reply with JSON only, no prose and no code fences, for example:
         {"alias": "x.watch", "title": "X watch",
          "spec": "Watches mentions of @elonmusk on X...",
-         "state": {"Unseen": "int", "Latest": "string"},
+         "state": {"Unseen": "int", "Latest": "string", "LastId": "string"},
          "signals": [{"alias": "x.polled", "fields": {"Fresh": "int"}}],
          "needs": {"slots": [{"name": "x", "capability": "http", "hosts": ["api.x.com"]}], "schedule": "every 6m", "view": true},
          "scenarios": [{"name": "a poll counts the new posts",
                         "given": {"http": {"x": {"mentions": {"data": [{"id": "1", "text": "hi"}]}}}},
                         "when": ["tick 6m"],
-                        "then": ["state x.watch Unseen = 1", "signal x.polled"]}]}
+                        "then": ["state x.watch Unseen = 1", "signal x.polled"]},
+                       {"name": "two polls of the same post count it once",
+                        "given": {"http": {"x": {"mentions": {"data": [{"id": "1", "text": "hi"}]}}}},
+                        "when": ["tick 6m", "tick 6m"],
+                        "then": ["state x.watch Unseen = 1"]}]}
         """;
 
     // The Builder for a unit: the AuthoredUnit in, the unit's .cs files out, checked with check_unit until green.

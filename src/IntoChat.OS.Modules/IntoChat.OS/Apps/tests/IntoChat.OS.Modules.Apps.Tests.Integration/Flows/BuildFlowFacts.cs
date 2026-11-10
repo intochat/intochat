@@ -30,7 +30,7 @@ public sealed class BuildFlowFacts
     private const string Authored = """
         {"alias": "x.watch", "title": "X watch",
          "spec": "Watches mentions of @elonmusk on X and counts the unseen ones.",
-         "state": {"Unseen": "int", "Latest": "string"},
+         "state": {"Unseen": "int", "Latest": "string", "LastId": "string"},
          "signals": [{"alias": "x.polled", "fields": {"Fresh": "int"}}],
          "needs": {"slots": [{"name": "x", "capability": "http", "hosts": ["api.x.com"]}], "schedule": "every 6m", "view": true},
          "scenarios": [{"name": "a poll counts the new posts",
@@ -592,6 +592,9 @@ public sealed class BuildFlowFacts
         Assert.Equal(AppStatus.Failed, snapshot.Status);
         Assert.Contains("the drafter failed", snapshot.Activity[^1], StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void TheRedBuilderDiffersFromTheExample() => Assert.NotEqual(AgentPrompts.XWatchExample, Red);
 
     // The app's status once it leaves Building, or Building after ten seconds.
     private static async Task<AppSnapshot> SettledApp(IApp app)

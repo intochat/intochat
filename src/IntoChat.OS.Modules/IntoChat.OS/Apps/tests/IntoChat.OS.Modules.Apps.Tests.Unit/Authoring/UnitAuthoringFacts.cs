@@ -18,7 +18,7 @@ public sealed class UnitAuthoringFacts
     private const string Authored = """
         {"alias": "x.watch", "title": "X watch",
          "spec": "Watches mentions of @elonmusk on X and counts the unseen ones.",
-         "state": {"Unseen": "int", "Latest": "string"},
+         "state": {"Unseen": "int", "Latest": "string", "LastId": "string"},
          "signals": [{"alias": "x.polled", "fields": {"Fresh": "int"}}],
          "needs": {"slots": [{"name": "x", "capability": "http", "hosts": ["api.x.com"]}], "schedule": "every 6m", "view": true},
          "scenarios": [{"name": "a poll counts the new posts",
@@ -280,5 +280,23 @@ public sealed class UnitAuthoringFacts
         Assert.Equal(SynapseStudioNeuron.Unavailable, error.Message);
         // The tool call already told the model; the final check is the build's end.
         Assert.Contains(SynapseStudioNeuron.Unavailable, ToolResult(model.Requests[1]), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheTeachingExampleCountsAPostOnce()
+    {
+        var twoPolls = new Scenario("two polls of the same post count it once",
+            JsonElement.Parse("""{"http": {"x": {"mentions": {"data": [{"id": "1", "text": "hi"}]}}}}"""),
+            ["tick 6m", "tick 6m"], ["state x.watch Unseen = 1", "state x.watch LastId = \"1\""]);
+        var check = await BuilderTools.Check(HostCompiler, "x.watch", new Dictionary<string, string> { ["XWatch.cs"] = AgentPrompts.XWatchExample }, XNeeds, [twoPolls], Ct);
+        Assert.True(check.Passed, string.Join("; ", check.Failures));
+    }
+
+    [Fact]
+    public void TheAuthorIsToldToRememberTheNewestItem()
+    {
+        Assert.Contains("\"LastId\": \"string\"", AgentPrompts.AuthorUnit, StringComparison.Ordinal);
+        Assert.Contains("counts only newer ones", AgentPrompts.AuthorUnit, StringComparison.Ordinal);
+        Assert.Contains("\"when\": [\"tick 6m\", \"tick 6m\"]", AgentPrompts.AuthorUnit, StringComparison.Ordinal);
     }
 }
