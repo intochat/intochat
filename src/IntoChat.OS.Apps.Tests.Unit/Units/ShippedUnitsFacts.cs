@@ -17,7 +17,7 @@ public sealed class ShippedUnitsFacts
         { "organizer.work.notes", "WorkNotesOrganizer.cs", "Workspace Markdown Organizer", 2 },
         { "fx.rates.monitor", "FxRatesMonitor.cs", "Live Currency & Crypto Monitor", 2 },
         { "circleroom", "CircleRoom.cs", "Circle room", 2 },
-        { "watch.web", "WebWatch.cs", "Web watch", 2 },
+        { "watch.web", "WebWatch.cs", "Web watch", 4 },
         { "brief.daily", "DailyBrief.cs", "Daily brief", 2 },
         { "data.csv", "CsvExplorer.cs", "CSV explorer", 2 },
         { "relay.webhook", "WebhookRelay.cs", "Webhook relay", 2 },

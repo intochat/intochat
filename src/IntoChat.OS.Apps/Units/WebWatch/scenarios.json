@@ -38,5 +38,17 @@
       "state watch.web Unseen = 0",
       "state watch.web Latest = \"Release 1.0\""
     ]
+  },
+  {
+    "name": "two polls of the same items count them once",
+    "given": { "http": { "http": { "feed.json": { "items": [ { "title": "Release 1.0" }, { "title": "Patch 1.0.1" } ] } } } },
+    "when": ["tick 6m", "tick 6m"],
+    "then": ["state watch.web Unseen = 2", "state watch.web LastKey = \"Release 1.0\""]
+  },
+  {
+    "name": "an item is known by its id before its title",
+    "given": { "http": { "http": { "feed.json": { "items": [ { "id": 7, "url": "https://example.com/a", "title": "Same title" } ] } } } },
+    "when": ["tick 6m", "tick 6m"],
+    "then": ["state watch.web Unseen = 1", "state watch.web LastKey = \"7\""]
   }
 ]
