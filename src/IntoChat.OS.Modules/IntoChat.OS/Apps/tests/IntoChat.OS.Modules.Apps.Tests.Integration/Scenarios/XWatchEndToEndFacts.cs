@@ -36,7 +36,7 @@ public sealed class XWatchEndToEndFacts
     private const string Authored = """
         {"alias": "watch.x.elonmusk", "title": "X watch",
          "spec": "Watches mentions of @elonmusk on X and counts the unseen ones.",
-         "state": {"Unseen": "int", "Latest": "string"},
+         "state": {"Unseen": "int", "Latest": "string", "LastId": "string"},
          "signals": [{"alias": "x.polled", "fields": {"Fresh": "int"}}],
          "needs": {"slots": [{"name": "x", "capability": "http@1", "hosts": ["api.x.com"]}], "schedule": "every 6m", "view": true},
          "scenarios": [{"name": "a poll counts the new posts",
@@ -66,16 +66,17 @@ public sealed class XWatchEndToEndFacts
             }, null));
     }
 
-    // One post at api.x.com, and refuses every other host.
+    // A feed that grows by one post per poll at api.x.com; refuses every other host.
     private sealed class FakeX : IHttpRead
     {
         public int Calls;
 
         public Task<JsonElement> GetJson(string url, CancellationToken ct)
         {
-            Interlocked.Increment(ref Calls);
+            var n = Interlocked.Increment(ref Calls);
             if (new Uri(url).Host != "api.x.com") { throw new HostNotAllowedException(new Uri(url).Host); }
-            return Task.FromResult(JsonDocument.Parse("""{"data": [{"id": "1", "text": "hi from X"}]}""").RootElement.Clone());
+            var posts = string.Join(", ", Enumerable.Range(1, n).Reverse().Select(id => $$"""{"id": "{{id}}", "text": "post {{id}}"}"""));
+            return Task.FromResult(JsonDocument.Parse($$"""{"data": [{{posts}}]}""").RootElement.Clone());
         }
 
         public Task<string> GetText(string url, CancellationToken ct) => throw new NotSupportedException();
@@ -234,7 +235,7 @@ public sealed class XWatchEndToEndFacts
         Assert.NotEqual(inner.Hash, second.Hash);
         Assert.Empty(await Installs(runtime).Pending(Ct));
 
-        // The next tick renders through the edited view (11 unseen after ten more polls: red).
+        // Ten more polls bring ten new posts: 11 unseen, red.
         for (var i = 0; i < 10; i++) { await runtime.Elapse(TimeSpan.FromMinutes(6), Ct); }
         await runtime.Idle();
         var after = await Badge(runtime);
