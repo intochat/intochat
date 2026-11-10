@@ -420,4 +420,12 @@ public sealed class UnitAuthoringFacts
         var check = await BuilderTools.Check(HostCompiler, "x.watch", new Dictionary<string, string> { ["XWatch.cs"] = AgentPrompts.XWatchExample }, XNeeds, [red], Ct);
         Assert.Contains(check.Failures, f => f.Contains("ExpectView", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void TheAuthorIsTaughtTheWholeGrammar()
+    {
+        foreach (var taught in new[] { "\"$each\"", "\"$fail\"", "then state x.watch Unseen = 1", "never signal", "contains \"1 unseen\"", "failed <Function>" })
+        { Assert.Contains(taught, AgentPrompts.AuthorUnit, StringComparison.Ordinal); }
+        Assert.DoesNotContain("write a separate scenario", AgentPrompts.AuthorUnit, StringComparison.Ordinal);
+    }
 }

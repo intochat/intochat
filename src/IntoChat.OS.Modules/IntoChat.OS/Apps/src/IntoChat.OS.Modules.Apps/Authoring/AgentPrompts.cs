@@ -118,15 +118,19 @@ internal static class AgentPrompts
         State and signal fields map a field name (PascalCase) to a C# type: int, long, double, bool, string,
         or an array of those (string[]). No status or state-machine strings: keep counts, times and values.
         A unit that polls a list keeps the newest item it has counted in its state and counts only newer ones.
-        Write one scenario with two ticks over the same body.
+        Write one scenario with two ticks over the same body, and one where a later poll finds a new item ("$each").
 
         Every unit has at least one scenario, and every reaction is covered by one. A scenario's "given" fakes the slots:
           {"http": {"<slot>": {"<url part>": <json body>, "*": <json body>}}, "tools": {"<slot>": {"<tool>": <json result>}}}
-        "when" lines are stimuli, in order: "tick 6m" (the clock moves on; ticks add up),
-          "publish <signal.alias> {json}".
-        "then" lines are expectations, all checked once after the LAST "when" line: "state <alias> <Field> = <json>"
+        A body may instead be {"$each": [<body>, <body>]}: one body per GET of that url, the last one repeats; or
+          {"$fail": 503} (a status from 400 to 599) or {"$fail": "timeout"}: that GET fails. Both may sit inside "$each".
+        "when" lines are stimuli, in order: "tick 6m" (the clock moves on; ticks add up), "publish <signal.alias> {json}".
+          A "when" line that starts with "then " is an expectation checked right there: "then state x.watch Unseen = 1".
+        "then" lines are expectations checked after the LAST "when" line: "state <alias> <Field> = <json>"
           (a dotted path reaches nested fields, "Last.Count"; a string value is quoted: state x.watch Latest = "hi"),
-          "signal <signal.alias>" (said by the last "when" line). To check a state in between, write a separate scenario.
+          "signal <signal.alias>" (said by the "when" line just before), "never signal <signal.alias>" (not said so far),
+          "view <alias> contains "1 unseen"" (some text of the unit's view contains it),
+          "failed" or "failed <Function>" (the reaction to the "when" line just before failed; without it a failure fails the scenario).
 
         When you change a unit you are given its current files, with its earlier scenarios in scenarios.json. Keep the alias.
         Keep the state fields, signals and needs unless the change needs otherwise. The earlier scenarios stay and are checked

@@ -42,5 +42,11 @@
     "given": { "http": { "x": { "https://api.x.com/2/users/elonmusk/mentions": { "data": [ { "id": "1", "text": "Post 1" } ] } } } },
     "when": ["tick 6m", "tick 6m"],
     "then": ["state watch.x.elonmusk Unseen = 1", "state watch.x.elonmusk LastId = \"1\""]
+  },
+  {
+    "name": "a new post after a poll adds one",
+    "given": { "http": { "x": { "mentions": { "$each": [ { "data": [ { "id": "1", "text": "Post 1" } ] }, { "data": [ { "id": "2", "text": "Post 2" }, { "id": "1", "text": "Post 1" } ] } ] } } } },
+    "when": ["tick 6m", "then state watch.x.elonmusk Unseen = 1", "tick 6m"],
+    "then": ["state watch.x.elonmusk Unseen = 2", "view watch.x.elonmusk contains \"2 unseen\"", "view watch.x.elonmusk contains \"Post 2\""]
   }
 ]
