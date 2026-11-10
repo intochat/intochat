@@ -4,6 +4,7 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Spi;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.AspNetCore.Http;
@@ -256,6 +257,18 @@ public sealed class AppUiEventFacts
         await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("field", "owner/apps/tasks/title", Value: "Ship docs"), brain, Scope, Hosted, Ct);
 
         Assert.Equal(("owner/apps/tasks/title", "Ship docs"), Assert.Single(brain.Field.Inputs));
+    }
+
+    [Fact]
+    public void AUnitViewportNamesTheFailedReaction()
+    {
+        var view = new PublishedView("x.watch", 3, JsonElement.Parse("""{"title": "X", "root": {"kind": "text", "value": "1 unseen"}}"""));
+        var failing = new TraceEntry("owner/x.watch/default", 9, "synapse.failed", DateTimeOffset.UnixEpoch, null, null,
+            """{"alias":"x.watch","function":"Units.XWatch.XWatch.Poll","cause":"time.tick","causeId":null,"error":"HttpRequestException","message":"api.x.com did not return JSON"}""");
+        Assert.Equal("Poll failed: api.x.com did not return JSON", AppUiEndpoints.UnitError(view, failing));
+        Assert.Null(AppUiEndpoints.UnitError(view, null));
+        Assert.Equal("This unit has not published a view.", AppUiEndpoints.UnitError(null, failing));
+        Assert.Equal("The last reaction failed.", AppUiEndpoints.UnitError(view, failing with { Payload = "SynapseFailed" }));
     }
 
     private static Task<string> Body(IResult result)

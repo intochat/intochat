@@ -6,6 +6,8 @@ using DigitalBrain.Errors;
 using System.Text.Json;
 using DigitalBrain.Confirmation;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Debugger;
+using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Views;
@@ -56,12 +58,13 @@ internal static class AppUiEndpoints
             if (unit is not null)
             {
                 var unitView = await brain.Get<IViewReader>(UnitState(scope, unit)).Read(unit).WaitAsync(ct);
+                var failing = unitView is null ? null : await brain.Get<IDebuggerReads>(IDebuggerReads.Key(scope)).Failing(unit).WaitAsync(ct);
                 return Results.Ok(new
                 {
                     Revision = unitView?.Generation ?? 0L,
                     Target = (IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef?)null,
                     Root = unitView is null ? null : new ViewRef(UIVocabulary.ViewType, $"{scope}/{unit}"),
-                    Error = unitView is null ? "This unit has not published a view." : null,
+                    Error = UnitError(unitView, failing),
                 });
             }
             var viewport = await brain.Get<IViewport>(name).Read().WaitAsync(ct);
@@ -239,6 +242,29 @@ internal static class AppUiEndpoints
 
     // The alias's state neuron, {scope}/{alias}/default.
     private static NeuronId UnitState(string scope, string alias) => new(new BrainId(scope), alias, "default");
+
+    internal static string? UnitError(PublishedView? view, TraceEntry? failing)
+    {
+        if (view is null) { return "This unit has not published a view."; }
+        if (failing is null) { return null; }
+        try
+        {
+            using var doc = JsonDocument.Parse(failing.Payload);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                var function = doc.RootElement.TryGetProperty("function", out var fn) && fn.ValueKind == JsonValueKind.String ? fn.GetString() ?? "" : "";
+                var dot = function.LastIndexOf('.');
+                var method = dot >= 0 ? function[(dot + 1)..] : function;
+                var message = doc.RootElement.TryGetProperty("message", out var msg) && msg.ValueKind == JsonValueKind.String ? msg.GetString() ?? "" : "";
+                return method.Length == 0 ? "The last reaction failed." : $"{method} failed: {message}";
+            }
+            return "The last reaction failed.";
+        }
+        catch (JsonException)
+        {
+            return "The last reaction failed.";
+        }
+    }
 
     private static bool OwnsUi(string scope, string name) =>
         new[] { "/apps/", "/images/", "/applications/" }.Any(area => name.StartsWith(scope + area, StringComparison.Ordinal));

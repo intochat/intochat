@@ -279,10 +279,31 @@ class _ViewHostState extends State<ViewHost> {
       case 'viewport':
         final root = data['root'];
         if (root is Map && root['kind'] is String && root['name'] is String) {
-          return UiMotion(
+          final motion = UiMotion(
             contentKey: '${root['kind']}:${root['name']}',
             child: _child(root),
           );
+          final error = data['error'];
+          if (error is String && error.isNotEmpty) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Text(
+                    error,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+                Expanded(child: motion),
+              ],
+            );
+          }
+          return motion;
         }
         return Center(child: Text('${data['error'] ?? ''}'));
       case 'webbrowser':
