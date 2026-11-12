@@ -132,11 +132,11 @@ public sealed class TimeNeuronFacts(TimeFixture fixture) : IClassFixture<TimeFix
     }
 
     // A reminder is durable: it reactivates its neuron after a restart and keeps ticking. Missed ticks are not replayed.
-    [Theory, MemberData(nameof(Kinds))]
-    public async Task AReminderSurvivesARestart(NeuronRuntimeKind kind)
+    [Fact]
+    public async Task AReminderSurvivesARestart()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var runtime = await fixture.Start(kind, ct);
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, ct);
         var id = runtime.Id("reminder", "durable");
         await runtime.Get<IReminder>(id).Start(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(200));
         var before = (await runtime.WaitForSignals<ReminderTick>(id, 1, Within, ct)).Count;

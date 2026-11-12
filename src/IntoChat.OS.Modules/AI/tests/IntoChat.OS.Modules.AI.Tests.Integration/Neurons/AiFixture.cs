@@ -1,5 +1,6 @@
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Testing;
+using IntoChat.OS.Connections.Platform.Secrets;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.AI.Tests;
@@ -14,7 +15,11 @@ public sealed class AiFixture : BothRuntimesFixture
     protected override IReadOnlyList<Type> Modules { get; } = [typeof(AIModule), typeof(IntoChat.OS.Authority.IdentityModule)];
 
     protected override void ConfigureTestOS(IServiceCollection services)
-        => services.AddSingleton<IntoChat.OS.Modules.AI.Models.IModelInference>(Inference);
+    {
+        services.AddSingleton<IntoChat.OS.Modules.AI.Models.IModelInference>(Inference);
+        services.AddSingleton<ISecretRedactor, NoSecrets>();
+        services.AddSingleton(TimeProvider.System);
+    }
 
     // The AI neurons' [Signal] records live in the contracts assembly, beside the module's.
     protected override void ConfigureSilo(IServiceCollection services)
@@ -23,5 +28,13 @@ public sealed class AiFixture : BothRuntimesFixture
         // The security posture neuron listens to the identity module's grants signal.
         services.AddJournalPayloads(typeof(IntoChat.OS.Authority.Identity.Grants.GrantsChanged).Assembly);
         services.AddSingleton<IntoChat.OS.Modules.AI.Models.IModelInference>(Inference);
+        services.AddSingleton<ISecretRedactor, NoSecrets>();
+    }
+
+    private sealed class NoSecrets : ISecretRedactor
+    {
+        public ValueTask<string?> Redact(string? text, CancellationToken cancellationToken) => ValueTask.FromResult(text);
+
+        public ValueTask<int> TailLength(CancellationToken cancellationToken) => ValueTask.FromResult(0);
     }
 }
