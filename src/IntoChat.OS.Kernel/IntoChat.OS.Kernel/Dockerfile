@@ -60,7 +60,7 @@ RUN flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub \
       && rm -rf "/tmp/artcraft-${app}" "/tmp/artcraft-${app}.zip"; \
     done
 
-FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS build
 WORKDIR /src
 
 COPY nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props Intochat.OS.slnx global.json VERSION .editorconfig ./
@@ -77,7 +77,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
       --nologo \
     && rm -rf /src/artifacts
 
-FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.3 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0.0 AS final
 WORKDIR /app
 
 COPY --from=build /out/silo /app/silo
