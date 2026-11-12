@@ -14,8 +14,6 @@ public sealed partial class NoSignalLoopFacts
         "IntoChat.OS/Runtime/Watch/Sources.cs",
         "IntoChat.OS.Modules.Flutter/Workspace/LiveSignalEndpoints.cs",
         "IntoChat.OS.Modules.Apps/Authoring/AgentPrompts.cs",
-        // Host infrastructure that drives app turns from declared watches; not module logic.
-        "IntoChat.OS.Modules.Apps/Hosting/HostedAppWatches.cs",
     ];
 
     [GeneratedRegex(@"WatchRenewing\(|\bObserverManager\b|\bINeuronObserver\b|\bI?LocalSignalHub\b|\bSignalNudge\b|\.Watch\(|\.Unwatch\(", RegexOptions.CultureInvariant)]

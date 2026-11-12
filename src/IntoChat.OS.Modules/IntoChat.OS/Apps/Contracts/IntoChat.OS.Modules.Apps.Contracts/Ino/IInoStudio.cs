@@ -12,6 +12,6 @@ public interface IInoStudio
     Task<InoToolResult> Launch(string appId);
 
     // The studios and the deployed units, each with whether its spec.md and scenarios.json are kept.
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<InoToolResult> List();
 }

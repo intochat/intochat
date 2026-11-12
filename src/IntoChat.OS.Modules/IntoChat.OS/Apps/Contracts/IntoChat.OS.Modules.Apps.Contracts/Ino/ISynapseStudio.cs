@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Contracts;
+using DigitalBrain.Units;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -39,28 +40,28 @@ public interface ISynapseStudio
 
     Task<InoToolResult> Retire(string alias);
 
-    [DigitalBrain.ReadOnlyCall]
-    Task<DigitalBrain.DeployedSource[]> List();
+    [DigitalBrain.Contracts.ReadOnlyCall]
+    Task<DigitalBrain.Units.DeployedSource[]> List();
 
     // The non-.cs files (spec.md, scenarios.json) the last deploy of alias carried; the host compiles every file it is given, so the
     // studio keeps them beside the source. Empty for an alias never deployed or retired.
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<Dictionary<string, string>> Sidecars(string alias);
 
     // Any app in the brain may read a unit's source and sidecars: units are the person's own.
     // The files of the source the host stores for alias (its compiled .cs files); empty when nothing is stored there.
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<Dictionary<string, string>> SourceFiles(string alias);
 
     // What failed in the unit lately, for a person: "<alias> has no recorded failures." or up to five lines "<time> <Method> on <cause>: <Error>: <Message>", newest last.
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<InoToolResult> Failures(string alias);
 }
 
 // One DeployFiles outcome: Ok with the host's status and build hash, else Text is why. Installs is the host's install outcome per
-// state alias (DigitalBrain.InstallOutcome.Reason is the confirmation plan id while Pending).
-public sealed record UnitDeployResult(bool Ok, string Text, DigitalBrain.DeployStatus Status, string? Hash,
-    IReadOnlyDictionary<string, DigitalBrain.InstallOutcome> Installs);
+// state alias (DigitalBrain.Units.InstallOutcome.Reason is the confirmation plan id while Pending).
+public sealed record UnitDeployResult(bool Ok, string Text, DigitalBrain.Units.DeployStatus Status, string? Hash,
+    IReadOnlyDictionary<string, DigitalBrain.Units.InstallOutcome> Installs);
 
 // The step keys deployed so far, each with the build hash it produced.
 // Sidecars[alias][file] are the non-.cs files of alias's last deploy (added field; null in state saved before it).

@@ -22,8 +22,8 @@ public sealed record QuietRepositoryState(bool Merged = false)
 public sealed record QuietlyMerged : Signal;
 
 // A repository that opens pull request 7 and can merge it without publishing PullRequestChanged, as a missed signal.
-[DigitalBrain.Neuron("github")]
-public sealed class QuietRepository : DigitalBrain.Neuron<QuietRepositoryState>, IRepository, IQuietRepository
+[DigitalBrain.Neurons.Neuron("github")]
+public sealed class QuietRepository : DigitalBrain.Neurons.Neuron<QuietRepositoryState>, IRepository, IQuietRepository
 {
     public Task<PullRequestView> CreatePullRequest(CreatePullRequest request)
         => Task.FromResult(new PullRequestView(7, request?.Title ?? "", "https://example.test/pr/7", "head", "base", true, false));

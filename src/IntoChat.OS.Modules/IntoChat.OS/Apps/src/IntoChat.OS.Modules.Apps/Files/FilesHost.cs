@@ -10,7 +10,7 @@ using Orleans.Runtime;
 namespace IntoChat.OS.Modules.Apps;
 
 // Hosts Files in this process. The workspace neuron still publishes the same views; the script folder no longer does.
-internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClusterListeners listeners, ILogger<FilesHost> logger) : IStartupTask
+internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.IClusterListeners listeners, ILogger<FilesHost> logger) : IStartupTask
 {
     public async Task Execute(CancellationToken cancellationToken)
     {
@@ -35,10 +35,7 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClu
         RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
         try
         {
-            if (await HostCaller.ForBrain(services, brain) is { } caller && caller.BrainId == brain)
-            {
-                RuntimeCallerContext.Stamp(caller);
-            }
+            using var _ = InProcessCallerScope.Enter();
             await EnsureDefaultLocalRootsAsync(services, brain);
             var key = IApp.Key(brain, "files");
             var app = SiloNeurons.Get<IApp>(services, key);
@@ -49,24 +46,9 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClu
                 snapshot = await app.Read();
             }
             var workspace = SiloNeurons.Get<IFilesWorkspace>(services, key + "/workspace");
-            if (RuntimeCallerContext.TryGet(out var stamped))
-            {
-                RuntimeCallerContext.Stamp(HostCaller.AsApp(stamped, key));
-                try
-                {
-                    await workspace.Open(CancellationToken.None);
-                    snapshot = await app.Read();
-                    await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
-                }
-                finally
-                {
-                    RuntimeCallerContext.Stamp(stamped);
-                }
-            }
-            else
-            {
-                await workspace.Open(CancellationToken.None);
-            }
+            await workspace.Open(CancellationToken.None);
+            snapshot = await app.Read();
+            await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         { logger.LogWarning(error, "The files app was not installed in {Brain}.", brain); }
@@ -98,28 +80,19 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Spi.IClu
         RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
         try
         {
-            if (await HostCaller.ForBrain(services, brain) is not { } caller || caller.BrainId != brain) { return; }
-            RuntimeCallerContext.Stamp(caller);
+            using var _ = InProcessCallerScope.Enter();
             await EnsureDefaultLocalRootsAsync(services, brain);
             var key = IApp.Key(brain, "files");
             var app = SiloNeurons.Get<IApp>(services, key);
             var workspace = SiloNeurons.Get<IFilesWorkspace>(services, key + "/workspace");
-            RuntimeCallerContext.Stamp(HostCaller.AsApp(caller, key));
-            try
+            if (request.Operation == "open")
             {
-                if (request.Operation == "open")
-                {
-                    await workspace.Open(cancellationToken);
-                    var snapshot = await app.Read();
-                    await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
-                }
-                if (await FilesRequests.Forward(workspace, request, cancellationToken) is { } failure)
-                { await app.Progress("attention", failure); }
+                await workspace.Open(cancellationToken);
+                var snapshot = await app.Read();
+                await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
             }
-            finally
-            {
-                RuntimeCallerContext.Stamp(caller);
-            }
+            if (await FilesRequests.Forward(workspace, request, cancellationToken) is { } failure)
+            { await app.Progress("attention", failure); }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         { logger.LogWarning(error, "Files did not answer {Operation} in {Brain}.", request.Operation, brain); }

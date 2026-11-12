@@ -1,12 +1,14 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Errors;
 using System.Globalization;
 using DigitalBrain;
+using DigitalBrain.Access;
+using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Errors;
+using DigitalBrain.Kernel;
+using DigitalBrain.Neurons;
 using DigitalBrain.Operations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Runtime.Orleans.Operations;
 using IntoChat.Files;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -40,7 +42,13 @@ internal sealed record FilesWorkspaceState
 
 // The provider-neutral app owns navigation; this host owns durable request receipts, runtime operations and UI delivery.
 [Neuron("apps.files", State = "files-workspace")]
-internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : Neuron<FilesWorkspaceState>, IFilesWorkspace
+internal sealed partial class FilesWorkspaceNeuron(
+    ICapabilityBroker broker,
+    IOperations operations,
+    IOperationsQuery operationsQuery,
+    ISignalHistory history,
+    ILogger<FilesWorkspaceNeuron> logger,
+    IServiceProvider services) : Neuron<FilesWorkspaceState>, IFilesWorkspace
 {
     private string AppPath => Id.Key.EndsWith("/workspace", StringComparison.Ordinal) && Id.Key.StartsWith("apps/", StringComparison.Ordinal)
         ? Id.Key[..^"/workspace".Length] : throw new InvalidOperationException("Files workspace keys belong to an app.");
@@ -160,15 +168,14 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                     try
                     {
                         var enrichedPrompt = !string.IsNullOrWhiteSpace(app.Snapshot.Preview) && !string.Equals(app.Snapshot.Preview, FilesCopy.PreviewUnavailable, StringComparison.Ordinal) ? $"{prompt}\n\n[File Preview]\n{(app.Snapshot.Preview.Length <= 1200 ? app.Snapshot.Preview : app.Snapshot.Preview[..1200])}" : prompt;
-                        var hadCaller = RuntimeCallerContext.TryGet(out var prevCaller);
-                        if (await HostCaller.ForBrain(Context.Services, Id.Brain.Value) is { } hostCaller) { RuntimeCallerContext.Stamp(hostCaller); }
-                        try { await DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<IApp>(Context.Services, IApp.Key(Id.Brain.Value, ShippedApps.Ino)).Request("send", enrichedPrompt); }
-                        finally { if (hadCaller && prevCaller is not null) { RuntimeCallerContext.Stamp(prevCaller); } else { Orleans.Runtime.RequestContext.Remove(RuntimeCallerContext.RequestContextKey); } }
-
+                        using (InProcessCallerScope.Enter())
+                        {
+                            await DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<IApp>(services, IApp.Key(Id.Brain.Value, ShippedApps.Ino)).Request("send", enrichedPrompt);
+                        }
                     }
                     catch (Exception error) when (error is not OperationCanceledException)
                     {
-                        Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "Ino handoff signal could not be forwarded in-process.");
+                        logger.LogDebug(error, "Ino handoff signal could not be forwarded in-process.");
                     }
                     break;
                 case "fail": app.Options(ConflictPolicy.Fail, State.Files.DryRun); await Store(app); break;
@@ -182,7 +189,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                     if (System.Text.Encoding.UTF8.GetByteCount(text) > 256 * 1024) { throw new InvalidOperationException("Text files entered here are limited to 256 KiB."); }
                     var plan = app.Plan(operation, name, text);
                     await Persist(State with { PendingRequest = operation });
-                    var started = await Context.Operations.Start(plan, ct);
+                    var started = await operations.Start(plan, ct);
                     await Persist(State with
                     {
                         PendingRequest = null,
@@ -192,7 +199,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                     await FollowOperation(started.Id.Value, ct); break;
                 case "cancel":
                     var cancelling = At(State.Started, input.Index);
-                    if (!cancelling.Done) { await Context.Operations.Cancel(new(cancelling.Id), ct); }
+                    if (!cancelling.Done) { await operations.Cancel(new(cancelling.Id), ct); }
                     break;
                 case "filter": app.Filter(input.Query ?? (await Field("filter").Read()).Value ?? ""); await Store(app); break;
                 case "clear-filter": app.Filter(""); await Store(app); break;
@@ -207,7 +214,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                     else { await app.Open(new(), ct); }
                     await Store(app, resetPage: true); break;
                 case "open-settings":
-                    await FilesHost.EnsureDefaultLocalRootsAsync(Context.Services, Id.Brain.Value);
+                    await FilesHost.EnsureDefaultLocalRootsAsync(services, Id.Brain.Value);
                     await app.Open(new(), ct);
                     if (app.Snapshot.Storages.FirstOrDefault(s => s.Error is null) is { } healthyStorage)
                     {
@@ -240,7 +247,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                 try { await Request("filter", new(Query: value), State.Files.Revision, Guid.NewGuid()); }
                 catch (StaleActionException error)
                 {
-                    Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "A files filter action was stale.");
+                    logger.LogDebug(error, "A files filter action was stale.");
                 }
             });
         }
@@ -252,7 +259,7 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
                 try { await Request("search", new(Query: value, Everywhere: true), State.Files.Revision, Guid.NewGuid()); }
                 catch (StaleActionException error)
                 {
-                    Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "A files search action was stale.");
+                    logger.LogDebug(error, "A files search action was stale.");
                 }
             });
         }
@@ -293,20 +300,9 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
 
     private async Task WithAppCallerAsync(Func<Task> action)
     {
-        var hadPrevious = RuntimeCallerContext.TryGet(out var previous);
-        var baseCaller = hadPrevious && previous is not null && previous.BrainId == Id.Brain.Value
-            ? previous
-            : await HostCaller.ForBrain(Context.Services, Id.Brain.Value);
-        if (baseCaller is null) { return; }
-        RuntimeCallerContext.Stamp(HostCaller.AsApp(baseCaller, AppKey));
-        try
+        using (InProcessCallerScope.Enter())
         {
             await action();
-        }
-        finally
-        {
-            if (hadPrevious && previous is not null) { RuntimeCallerContext.Stamp(previous); }
-            else { Orleans.Runtime.RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
         }
     }
 
@@ -316,12 +312,12 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
         // Ensure starts a fresh cursor at the tail. Read durable history after subscribing so a fast completion cannot fall
         // between Start and Watch; subsequent delivery is harmless because completed operations are applied only once.
         await Context.Synapses.Ensure(source, typeof(OperationProgress), typeof(OperationDone));
-        await Context.Operations.Reconcile(new(operation), ct);
+        await operations.Reconcile(new(operation), ct);
         long since = 0;
         OperationProgress? latest = null;
         while (true)
         {
-            var page = await Context.History.Read(source, since, 128, ct);
+            var page = await history.Read(source, since, 128, ct);
             foreach (var entry in page.Signals)
             {
                 if (entry.Signal is OperationDone done && done.Operation.Value == operation) { await On(done); return; }
@@ -338,7 +334,14 @@ internal sealed partial class FilesWorkspaceNeuron(ICapabilityBroker broker) : N
 
     private void RequireAccess()
     {
-        _ = RuntimeCallerContext.Require();
-        CallerAdmission.RequireSameBrain(Id.Brain.Value, AppKey, "this Files workspace");
+        var caller = Context.Caller ?? throw new UnauthorizedAccessException("No caller context was stamped at a trusted edge.");
+        if (caller.Actor is not Actor.Kernel && !string.Equals(caller.Brain.Value, Id.Brain.Value, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException($"A caller of brain {caller.Brain.Value} may not touch this Files workspace.");
+        }
+        if (caller.Actor is Actor.App app && !string.Equals(app.Key, AppKey, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException($"An app caller {app.Key} may not touch this Files workspace.");
+        }
     }
 }

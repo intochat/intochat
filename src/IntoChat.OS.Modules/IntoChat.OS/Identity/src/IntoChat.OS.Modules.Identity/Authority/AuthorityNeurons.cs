@@ -29,7 +29,7 @@ internal sealed class AuthorityNeurons(IGrainFactory grains, IServiceProvider se
     public IIdentityDirectory Passwords() => Resolve<IIdentityDirectory>((identity?.Value ?? new()).DirectoryKey);
 
     public IIntegration Integration(string integrationId) => Resolve<IIntegration>(IntegrationNeuron.KeyPrefix + integrationId);
-    public IConnectionIndex Connections(string brainId) => SiloNeurons.Get<IConnectionIndex>(services, IConnectionIndex.Key(brainId));
+    public DigitalBrain.Capabilities.Connections.Catalog.IConnectionCatalog Connections(string brainId) => SiloNeurons.Get<DigitalBrain.Capabilities.Connections.Catalog.IConnectionCatalog>(services, DigitalBrain.Capabilities.Connections.Catalog.IConnectionCatalog.Key(brainId));
     public IntoChat.OS.Connections.Platform.Entries.IBrainEntries Entries(string brainId) => Resolve<IntoChat.OS.Connections.Platform.Entries.IBrainEntries>(brainId);
     public DigitalBrain.Capabilities.Connections.Requests.IConnectionRequests ConnectionRequests(string brainId) => SiloNeurons.Get<DigitalBrain.Capabilities.Connections.Requests.IConnectionRequests>(services, DigitalBrain.Capabilities.Connections.Requests.IConnectionRequests.Key(brainId));
     // Connection neurons keep the Framework's connector-aware resolution; a key from a caller goes

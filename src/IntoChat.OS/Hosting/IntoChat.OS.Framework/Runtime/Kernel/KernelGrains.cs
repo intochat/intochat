@@ -1,5 +1,6 @@
 // os-only: the os kernel type-table grain contract, which carries Feature.
 using DigitalBrain;
+using DigitalBrain.Kernel;
 
 // The type-table contract stays with the product kernel: it carries Feature, which the runtime does not.
 // Instance directory keys and the compiled type table live in DigitalBrain.Runtime.Orleans.

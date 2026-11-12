@@ -1,7 +1,8 @@
+using DigitalBrain.Access;
 using DigitalBrain.Brains;
-using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -37,7 +38,7 @@ internal sealed partial class AppNeuron
         await Check("Import", new AppNameIsFree(Name(), State.Manifest is not null));
         var next = State.Clone();
         next.BrainScopeId = BrainId();
-        next.Principal = RuntimeCallerContext.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
+        next.Principal = Context.Caller.ToCapabilityCaller() ?? CapabilityCallers.Of(BrainId(), BrainId(), BrainId());
         next.Manifest = bundle.Manifest.Validated();
         next.Spec = bundle.Spec;
         next.Files = bundle.Files;
@@ -96,9 +97,12 @@ internal sealed partial class AppNeuron
 
     // An origin marks the copy unedited and from its publisher, which every ShippedApps.Is guard trusts: an app behind the proxy
     // (itself included) never writes one; the kernel's host, the installer and a person do.
-    private static void RequireOriginWriter(AppOrigin? origin)
+    private void RequireOriginWriter(AppOrigin? origin)
     {
-        if (origin is not null) { CallerAdmission.RequireNotAppCaller("Only the kernel or a person records where an app came from."); }
+        if (origin is not null && Context.Caller?.Actor is Actor.App)
+        {
+            throw new UnauthorizedAccessException("Only the kernel or a person records where an app came from.");
+        }
     }
 
     private static void Adopt(AppState next, AppOrigin? origin)
@@ -112,7 +116,7 @@ internal sealed partial class AppNeuron
     // only the runtime's answer makes it Live. Landing again is cheap: Assign is idempotent per program.
     private async Task<AppSnapshot> Land(AppState next)
     {
-        next.Principal ??= RuntimeCallerContext.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
+        next.Principal ??= Context.Caller.ToCapabilityCaller() ?? CapabilityCallers.Of(BrainId(), BrainId(), BrainId());
         next.Status = AppStatus.Deploying;
         next.Refused = null;
         AdvanceProgram(next);
@@ -146,7 +150,7 @@ internal sealed partial class AppNeuron
         try { await RestoreProgram(); }
         catch (Exception error)
         {
-            ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogError(error,
+            ServiceProvider?.GetService<ILogger<AppNeuron>>()?.LogError(error,
                 "Could not restore the program of app {App} against the current contracts.", Key);
             try
             {
@@ -159,7 +163,7 @@ internal sealed partial class AppNeuron
             }
             catch (Exception recording)
             {
-                ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogError(recording, "Could not record the restore failure of app {App}.", Key);
+                ServiceProvider?.GetService<ILogger<AppNeuron>>()?.LogError(recording, "Could not record the restore failure of app {App}.", Key);
             }
         }
     }
@@ -168,24 +172,15 @@ internal sealed partial class AppNeuron
     {
         if (State.Manifest is null || !HasProgram(State)) { return; }
         var configuration = Configuration(State);
-        var inherited = RequestContext.Get(RuntimeCallerContext.RequestContextKey);
-        try
+        using (InProcessCallerScope.Enter())
         {
-            var principal = State.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
-            if (principal is not null) { RuntimeCallerContext.Stamp(principal); }
-            else { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
             // Reassign the source on activation so a new host's contracts replace old calls, even when the app's version did not change.
             await Runtime.Deploy(Key, configuration, CancellationToken.None);
-        }
-        finally
-        {
-            if (inherited is null) { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
-            else { RequestContext.Set(RuntimeCallerContext.RequestContextKey, inherited); }
         }
     }
 
     // The in-process host is the only runtime; it holds nothing, so each call takes a fresh one.
-    private InProcessAppRuntime Runtime => new(ServiceProvider);
+    private InProcessAppRuntime Runtime => new(services ?? throw new InvalidOperationException("No services"));
 
     // An app runs only when it names a compiled module type; anything else is data.
     private static bool HasProgram(AppState state)
@@ -196,17 +191,9 @@ internal sealed partial class AppNeuron
     {
         await RecordFeature();
         if (!HasProgram(State)) { await Runtime.Retire(Key, CancellationToken.None); return; }
-        var inherited = RequestContext.Get(RuntimeCallerContext.RequestContextKey);
-        var principal = State.Principal ?? await HostCaller.ForBrain(ServiceProvider, BrainId());
-        if (principal is not null) { RuntimeCallerContext.Stamp(principal); }
-        try
+        using (InProcessCallerScope.Enter())
         {
             await Runtime.Deploy(Key, Configuration(State), CancellationToken.None);
-        }
-        finally
-        {
-            if (inherited is null) { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
-            else { RequestContext.Set(RuntimeCallerContext.RequestContextKey, inherited); }
         }
     }
 
@@ -214,7 +201,7 @@ internal sealed partial class AppNeuron
     // the shipped catalog, the Marketplace or the Creator. Owner is where it came from.
     private async Task RecordFeature()
     {
-        if (ServiceProvider.GetService<IKernel>() is not { } kernel || State.Manifest is null || BrainId().Length == 0) { return; }
+        if (ServiceProvider?.GetService<IKernel>() is not { } kernel || State.Manifest is null || BrainId().Length == 0) { return; }
         var feature = new Feature(Name(), State.Version, State.Origin?.Publisher ?? BrainId());
         await kernel.LoadFeature(BrainId(), feature, []);
     }
@@ -229,7 +216,7 @@ internal sealed partial class AppNeuron
         values["Brain"] = state.BrainScopeId ?? "";
         values["ProgramRevision"] = state.ProgramRevision.ToString(System.Globalization.CultureInfo.InvariantCulture);
         // The host's public origin (empty when unset): Settings opens the account page there, Apps builds share links.
-        var configuration = ServiceProvider.GetService<IConfiguration>();
+        var configuration = ServiceProvider?.GetService<IConfiguration>();
         values["PublicOrigin"] = configuration?[DigitalBrain.Modules.Configuration.ModuleConfiguration.ConnectionsPublicOriginKey] ?? "";
         // Cloud sign-in contributes an account surface. The literal matches AuthIdentityProvider.AccountSurfaceSetting (view|surface).
         if (WritesAccountSurface(Name(), configuration?["IntoChatOS:Topology"]))
@@ -261,30 +248,30 @@ internal sealed partial class AppNeuron
     // authority, or a brain nobody owns yet, records none; the app proxy still stamps the app principal.
     private async Task EnsureAppPrincipal()
     {
-        if (ServiceProvider.GetService<ICapabilityBroker>() is not { } broker || State.Manifest is not { } manifest) { return; }
+        if (services?.GetService<ICapabilityBroker>() is not { } broker || State.Manifest is not { } manifest) { return; }
         var brain = BrainId();
         IIdentity directory;
         Account? account;
         try { directory = await broker.Identity(); account = await directory.OwnerOfBrain(brain); }
         catch (Exception error) when (error is InvalidOperationException or UnauthorizedAccessException) { return; }
         if (account is null) { return; }
-        // Host install runs with the caller removed. Membership changes require the brain owner.
-        // AppId stays empty: the directory accepts the owner, and a platform sentinel is not the owner.
-        using var owner = RuntimeCallerContext.Stamp(CapabilityCallers.Of(account.OwnerPrincipalId, account.AccountId, brain));
-        await directory.EnsureMember(new Member
+        using (InProcessCallerScope.Enter())
         {
-            PrincipalId = AppPrincipal.Id(Key),
-            AccountId = account.AccountId,
-            BrainId = brain,
-            Role = MemberRole.App,
-            DisplayName = manifest.Title,
-            JoinedAt = clock.GetUtcNow(),
-        });
+            await directory.EnsureMember(new Member
+            {
+                PrincipalId = AppPrincipal.Id(Key),
+                AccountId = account.AccountId,
+                BrainId = brain,
+                Role = MemberRole.App,
+                DisplayName = manifest.Title,
+                JoinedAt = clock.GetUtcNow(),
+            });
+        }
     }
 
     private async Task RemoveAppPrincipal()
     {
-        if (ServiceProvider.GetService<ICapabilityBroker>() is not { } broker) { return; }
+        if (services?.GetService<ICapabilityBroker>() is not { } broker) { return; }
         var brain = BrainId();
         var principal = AppPrincipal.Id(Key);
         IIdentity directory;
@@ -293,8 +280,10 @@ internal sealed partial class AppNeuron
         catch (Exception error) when (error is InvalidOperationException or UnauthorizedAccessException) { return; }
         if (account is null) { return; }
         if (await directory.Membership(brain, principal) is not { Role: MemberRole.App }) { return; }
-        using var owner = RuntimeCallerContext.Stamp(CapabilityCallers.Of(account.OwnerPrincipalId, account.AccountId, brain));
-        await directory.RemovePrincipalMember(brain, principal);
+        using (InProcessCallerScope.Enter())
+        {
+            await directory.RemovePrincipalMember(brain, principal);
+        }
     }
 
 

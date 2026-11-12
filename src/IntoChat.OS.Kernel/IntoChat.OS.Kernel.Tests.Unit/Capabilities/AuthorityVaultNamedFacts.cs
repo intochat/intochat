@@ -1,6 +1,6 @@
-using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Authority;
 using Microsoft.Extensions.Configuration;
 

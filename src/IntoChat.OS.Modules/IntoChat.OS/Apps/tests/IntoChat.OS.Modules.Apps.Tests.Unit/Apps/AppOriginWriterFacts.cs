@@ -30,7 +30,7 @@ public sealed class AppOriginWriterFacts
             catch (Exception error) when (error is not UnauthorizedAccessException) { /* no program runtime here; the record lands */ }
         }
 
-        using (RuntimeCallerContext.Stamp(new CapabilityCaller("app:owner/apps/notes", "a1", "owner", "owner/apps/notes")))
+        using (os.Edge.Enter(os.Edge.App("owner/apps/notes", new DigitalBrain.Access.Actor.Person("a1", "owner"), new BrainId("owner"))))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => call == "import" ? app.Import(Bundle(), Shipped) : app.Replace(Bundle(), Shipped));
         }

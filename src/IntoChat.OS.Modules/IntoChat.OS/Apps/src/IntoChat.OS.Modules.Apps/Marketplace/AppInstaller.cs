@@ -1,8 +1,9 @@
 using DigitalBrain.Brains;
-using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Units;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Connections.Platform.Identity;

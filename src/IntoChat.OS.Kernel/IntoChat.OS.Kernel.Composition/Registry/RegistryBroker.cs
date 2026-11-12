@@ -91,32 +91,32 @@ public sealed class RegistryBroker : IRegistryBroker
         switch (tier)
         {
             case RegistryTier.Settings:
-            {
-                var state = await SiloNeurons.Get<IUserSettings>(_services, $"{brainId}/settings").Read().ConfigureAwait(false);
-                var val = ResolveSettingProperty(state, key);
-                return val is null ? null : new RegistryEntryDescriptor(uri, key, RegistryTier.Settings, val, null, true, null);
-            }
+                {
+                    var state = await SiloNeurons.Get<IUserSettings>(_services, $"{brainId}/settings").Read().ConfigureAwait(false);
+                    var val = ResolveSettingProperty(state, key);
+                    return val is null ? null : new RegistryEntryDescriptor(uri, key, RegistryTier.Settings, val, null, true, null);
+                }
             case RegistryTier.Environment:
-            {
-                var items = await SiloNeurons.Get<IBrainEntries>(_services, brainId).List().ConfigureAwait(false);
-                var match = items.FirstOrDefault(e => e.Kind == EntryKind.Variable && string.Equals(e.Name, key, StringComparison.OrdinalIgnoreCase));
-                return match is null || !match.IsSet ? null : new RegistryEntryDescriptor(uri, match.Name, RegistryTier.Environment, match.Value, null, true, match.UpdatedAt);
-            }
+                {
+                    var items = await SiloNeurons.Get<IBrainEntries>(_services, brainId).List().ConfigureAwait(false);
+                    var match = items.FirstOrDefault(e => e.Kind == EntryKind.Variable && string.Equals(e.Name, key, StringComparison.OrdinalIgnoreCase));
+                    return match is null || !match.IsSet ? null : new RegistryEntryDescriptor(uri, match.Name, RegistryTier.Environment, match.Value, null, true, match.UpdatedAt);
+                }
             case RegistryTier.Vault:
-            {
-                // ZERO-RAW-TOKEN LEAKAGE ENFORCEMENT:
-                // Non-platform callers NEVER receive raw secrets. Only trusted platform code carrying
-                // the Platform stamp receives plaintext from Release.
-                var entries = SiloNeurons.Get<IBrainEntries>(_services, brainId);
-                var items = await entries.List().ConfigureAwait(false);
-                var match = items.FirstOrDefault(e => e.Kind == EntryKind.Secret && string.Equals(e.Name, key, StringComparison.OrdinalIgnoreCase));
-                if (match is null || !match.IsSet) { return null; }
+                {
+                    // ZERO-RAW-TOKEN LEAKAGE ENFORCEMENT:
+                    // Non-platform callers NEVER receive raw secrets. Only trusted platform code carrying
+                    // the Platform stamp receives plaintext from Release.
+                    var entries = SiloNeurons.Get<IBrainEntries>(_services, brainId);
+                    var items = await entries.List().ConfigureAwait(false);
+                    var match = items.FirstOrDefault(e => e.Kind == EntryKind.Secret && string.Equals(e.Name, key, StringComparison.OrdinalIgnoreCase));
+                    if (match is null || !match.IsSet) { return null; }
 
-                var val = isPlatform
-                    ? await entries.Release(caller!, match.Name).ConfigureAwait(false)
-                    : MaskTail(match.Tail);
-                return new RegistryEntryDescriptor(uri, match.Name, RegistryTier.Vault, val, match.Tail, true, match.UpdatedAt);
-            }
+                    var val = isPlatform
+                        ? await entries.Release(caller!, match.Name).ConfigureAwait(false)
+                        : MaskTail(match.Tail);
+                    return new RegistryEntryDescriptor(uri, match.Name, RegistryTier.Vault, val, match.Tail, true, match.UpdatedAt);
+                }
             default:
                 return null;
         }
@@ -134,12 +134,12 @@ public sealed class RegistryBroker : IRegistryBroker
         switch (tier)
         {
             case RegistryTier.Settings:
-            {
-                var settings = SiloNeurons.Get<IUserSettings>(_services, $"{brainId}/settings");
-                if (IsKnownProfileSetting(key)) { await UpdateProfileSettingAsync(settings, key, value).ConfigureAwait(false); }
-                else { await settings.SetVariable(key, value).ConfigureAwait(false); }
-                break;
-            }
+                {
+                    var settings = SiloNeurons.Get<IUserSettings>(_services, $"{brainId}/settings");
+                    if (IsKnownProfileSetting(key)) { await UpdateProfileSettingAsync(settings, key, value).ConfigureAwait(false); }
+                    else { await settings.SetVariable(key, value).ConfigureAwait(false); }
+                    break;
+                }
             case RegistryTier.Environment:
                 await SiloNeurons.Get<IBrainEntries>(_services, brainId).Put(key, EntryKind.Variable, value).ConfigureAwait(false);
                 break;

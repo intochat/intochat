@@ -1,9 +1,9 @@
+using DigitalBrain.Kernel;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
-
 using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 

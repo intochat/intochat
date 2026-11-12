@@ -34,7 +34,7 @@ public sealed class PrFlowFacts
         var done = await Eventually(() => flows.Read(id, Ct), v => v.Status == FlowStatus.Completed);
         Assert.Equal(["open", "merged"], done.Done);
         Assert.Equal(1, await script.Created());
-    
+
     }
 
     [Fact]

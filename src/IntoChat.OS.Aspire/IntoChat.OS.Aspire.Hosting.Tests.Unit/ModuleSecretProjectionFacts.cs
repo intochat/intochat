@@ -1,22 +1,23 @@
-using DigitalBrain.Capabilities.Connections.Connectors;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 
 public sealed class ModuleSecretProjectionFacts
 {
-    [DigitalBrain.Module("dual-secrets")]
-    private sealed class DualSecretsModule : DigitalBrain.Module
+    [DigitalBrain.Modules.Module("dual-secrets")]
+    private sealed class DualSecretsModule : DigitalBrain.Modules.Module
     {
         public static IntegrationSchema Integration { get; } = new("dual-oauth", "Dual OAuth", ["ClientId", "ClientSecret"], []);
 
-        public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+        public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
             Provides: [],
             Requires: [],
             Needs: [],
             Settings: [],
-            Secrets: [DigitalBrain.Secret.Named("signing-key")]);
+            Secrets: [DigitalBrain.Modules.Secret.Named("signing-key")]);
     }
 
     [Fact]

@@ -14,7 +14,6 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
-using DigitalBrain.Runtime.Orleans.Confirmations;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
@@ -188,7 +187,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F3")]
     public void F3_02_ConfirmationOptions_DefaultPolicy_IsConfigured()
     {
-        var options = new ConfirmationOptions();
+        var options = new DigitalBrain.Confirmation.ConfirmationPolicies();
         options.Brains["brain-test"] = ConfirmationPolicy.Never;
         Assert.Equal(ConfirmationPolicy.Never, options.For("brain-test"));
     }
@@ -356,12 +355,12 @@ public sealed class Tier1_FeatureCoverageFacts
         var caller = CapabilityCallers.Of("usr_9", "acc_1", "brain_1", CallerKind.User);
         var request = new CallRequest
         {
-            Caller = caller,
+            Caller = caller.ToCaller(),
             TargetNeuron = "brain_1/apps/calc",
             Operation = "execute"
         };
 
-        Assert.Equal("usr_9", request.Caller.PrincipalId);
+        Assert.Equal("usr_9", request.Caller.For?.Principal ?? (request.Caller.Actor as Actor.Person)?.Principal);
         Assert.Equal("brain_1/apps/calc", request.TargetNeuron);
         Assert.Equal("execute", request.Operation);
         Assert.False(request.PublicOperation);
@@ -560,9 +559,9 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F9")]
     public void F9_01_FilmCraftApp_Manifest_DeclaresUniqueId()
     {
-        var manifest = FilmCraftApp.Definition;
-        Assert.NotNull(manifest);
-        Assert.Equal("filmcraft", manifest.Id);
+        var bundle = FilmCraftApp.Bundle;
+        Assert.NotNull(bundle);
+        Assert.Equal("filmcraft", bundle.Name);
     }
 
     [Fact]
@@ -570,9 +569,9 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F9")]
     public void F9_02_PhotoCraftApp_Manifest_DeclaresUniqueId()
     {
-        var manifest = PhotoCraftApp.Definition;
-        Assert.NotNull(manifest);
-        Assert.Equal("photocraft", manifest.Id);
+        var bundle = PhotoCraftApp.Bundle;
+        Assert.NotNull(bundle);
+        Assert.Equal("photocraft", bundle.Name);
     }
 
     [Fact]
@@ -580,7 +579,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F9")]
     public void F9_03_StudioApps_HaveDistinctManifestIdentities()
     {
-        Assert.NotEqual(FilmCraftApp.Definition.Id, PhotoCraftApp.Definition.Id);
+        Assert.NotEqual(FilmCraftApp.Bundle.Name, PhotoCraftApp.Bundle.Name);
     }
 
     [Fact]
@@ -588,8 +587,8 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F9")]
     public void F9_04_FilmCraftApp_AccentAndCategory_AreConfigured()
     {
-        Assert.Equal("#8B5CF6", FilmCraftApp.Definition.Accent);
-        Assert.Equal("Studio", FilmCraftApp.Definition.Category);
+        Assert.True(FilmCraftApp.Bundle.Manifest.Studio);
+        Assert.Equal("filmcraft", FilmCraftApp.Bundle.Name);
     }
 
     [Fact]
@@ -597,8 +596,8 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F9")]
     public void F9_05_PhotoCraftApp_AccentAndCategory_AreConfigured()
     {
-        Assert.Equal("#06B6D4", PhotoCraftApp.Definition.Accent);
-        Assert.Equal("Studio", PhotoCraftApp.Definition.Category);
+        Assert.True(PhotoCraftApp.Bundle.Manifest.Studio);
+        Assert.Equal("photocraft", PhotoCraftApp.Bundle.Name);
     }
 
     #endregion

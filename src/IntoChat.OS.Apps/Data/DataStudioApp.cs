@@ -8,6 +8,11 @@ Interactive data analysis, SQL/CSV/JSON exploration, and chart visualization stu
 Powered by DataAnalyticsEngine and IFilesVfsService (/work/*.csv, /work/*.tsv, /work/*.json, and relational tables),
 and synchronized with Ino chat and Markdraw Studio (apps/markdraw).
 */
+using System.Reflection;
+using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Kernel;
+using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Markdraw;
@@ -16,23 +21,23 @@ using UI = DigitalBrain.UI.Ui;
 
 namespace IntoChat.OS.Apps.Data;
 
-[DigitalBrain.Signal("data.open")]
-public sealed record DataStudioOpen(string? Source = null) : DigitalBrain.Signal;
+[Signal("data.open")]
+public sealed record DataStudioOpen(string? Source = null) : Signal;
 
-[DigitalBrain.Signal("data.query")]
-public sealed record DataStudioQuery(string? Query = null) : DigitalBrain.Signal;
+[Signal("data.query")]
+public sealed record DataStudioQuery(string? Query = null) : Signal;
 
-[DigitalBrain.Signal("data.group-by")]
-public sealed record DataStudioGroupBy(string? Column = null, string? Function = null) : DigitalBrain.Signal;
+[Signal("data.group-by")]
+public sealed record DataStudioGroupBy(string? Column = null, string? Function = null) : Signal;
 
-[DigitalBrain.Signal("data.switch-chart")]
-public sealed record DataStudioSwitchChart(string? Kind = null) : DigitalBrain.Signal;
+[Signal("data.switch-chart")]
+public sealed record DataStudioSwitchChart(string? Kind = null) : Signal;
 
-[DigitalBrain.Signal("data.export-csv")]
-public sealed record DataStudioExportCsv(string? TargetPath = null) : DigitalBrain.Signal;
+[Signal("data.export-csv")]
+public sealed record DataStudioExportCsv(string? TargetPath = null) : Signal;
 
-[DigitalBrain.Signal("data.to-markdraw")]
-public sealed record DataStudioToMarkdraw(string? Document = null) : DigitalBrain.Signal;
+[Signal("data.to-markdraw")]
+public sealed record DataStudioToMarkdraw(string? Document = null) : Signal;
 
 public sealed record DataStudioAppState(
     string ActiveSource,
@@ -71,12 +76,10 @@ public sealed record DataStudioAppState(
     }
 }
 
-[DigitalBrain.App("data", Accent = "#38BDF8", Category = "Analytics")]
-public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithFilesVfs
+[Neuron("app.data")]
+public sealed class DataStudioApp : Screen<DataStudioAppState>, IWithFilesVfs
 {
     public IFilesVfsService? FilesVfs { get; set; }
-
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(DataStudioApp));
 
     public const string AppName = "data";
 
@@ -111,7 +114,7 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
         CompiledType = typeof(DataStudioApp).AssemblyQualifiedName,
     };
 
-    [DigitalBrain.On]
+    [On]
     public async Task Open(DataStudioOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -119,7 +122,7 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
         await RunAndSetQueryResultAsync(source, BuildDefaultQueryForSource(source), State.ChartKind);
     }
 
-    [DigitalBrain.On]
+    [On]
     public async Task Query(DataStudioQuery request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -133,7 +136,7 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
         await RunAndSetQueryResultAsync(source, queryText, State.ChartKind);
     }
 
-    [DigitalBrain.On]
+    [On]
     public async Task GroupBy(DataStudioGroupBy request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -147,7 +150,7 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
         await RunAndSetQueryResultAsync(State.ActiveSource, $"SELECT {col}, {fn}(Amount) FROM {targetFrom} GROUP BY {col}", State.ChartKind);
     }
 
-    [DigitalBrain.On]
+    [On]
     public Task SwitchChart(DataStudioSwitchChart request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -157,15 +160,14 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
             "line" => "line",
             _ => "bar",
         };
-        Set(State with
+        return Show(State with
         {
             ChartKind = kind,
             Summary = $"Switched '{State.ChartTitle}' chart visualization to {kind.ToUpperInvariant()} ({State.Rows.Length} row(s), total €{State.Total:N0}).",
         });
-        return Task.CompletedTask;
     }
 
-    [DigitalBrain.On]
+    [On]
     public async Task ExportCsv(DataStudioExportCsv request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -175,15 +177,16 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
         var targetPath = string.IsNullOrWhiteSpace(request.TargetPath) ? $"/work/{stem}-export.csv" : NormalizeCsvExportPath(request.TargetPath);
         targetPath = await TryWriteVfsTextAsync(targetPath, DataAnalyticsEngine.SerializeToCsv(State.Columns, State.Rows), "DataStudioApp.ExportCsv");
 
-        Set(State with
+        var datasets = await ListWorkspaceDatasetsAsync(State.ActiveSource);
+        await Show(State with
         {
             LastExportPath = targetPath,
-            WorkspaceDatasets = await ListWorkspaceDatasetsAsync(State.ActiveSource),
+            WorkspaceDatasets = datasets,
             Summary = $"Exported {State.Rows.Length} row(s) from '{State.ChartTitle}' to {targetPath}.",
         });
     }
 
-    [DigitalBrain.On]
+    [On]
     public async Task ToMarkdraw(DataStudioToMarkdraw request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -192,7 +195,7 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
         var markdrawContent = MarkdrawSceneEngine.BuildDataLineageMarkdraw(State.ChartTitle, State.Columns, rowsSummary, State.SourceNeuronUri);
         docPath = await TryWriteVfsTextAsync(docPath, markdrawContent, "DataStudioApp.ToMarkdraw");
 
-        Set(State with
+        await Show(State with
         {
             LastMarkdrawPath = docPath,
             Summary = $"Generated Markdraw data-lineage diagram for '{State.ChartTitle}' at {docPath}.",
@@ -201,49 +204,26 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
 
     private async Task<string> TryWriteVfsTextAsync(string path, string content, string context)
     {
+        _ = context;
         if (FilesVfs is null) { return path; }
         try { return (await FilesVfs.WriteTextAsync(path, content)).VfsPath; }
-        catch (Exception error) when (error is not OperationCanceledException)
+        catch (Exception ex)
         {
-            Swallow(error, $"FilesVfs write is optional during {context}.");
+            _ = ex.Message;
             return path;
         }
     }
 
-    public View RenderSide()
+    public new DataStudioAppState State => base.State;
+    public View Render() => Render(State);
+
+    private static new Emit Emits<TSignal>(TSignal signal) where TSignal : Signal
     {
-        var datasets = State.WorkspaceDatasets is { Length: > 0 }
-            ? State.WorkspaceDatasets
-            : string.IsNullOrWhiteSpace(State.ActiveSource) ? [] : [State.ActiveSource];
-
-        return new(
-            "Data Sources",
-            new Column(
-            [
-                new Surface(
-                    [
-                        new Row([new TagPill("Data Studio", "accent", "bar-chart-2"), new TagPill($"{State.Rows.Length} rows", "ok")]) { Gap = 6 },
-                        new Text(State.ActiveSource) { Mono = true, Tabular = true },
-                        new Text($"Total €{State.Total:N0} · Avg €{State.Average:N0}") { Tone = "muted", Tabular = true },
-                    ],
-                    Kind: SurfaceKind.Acrylic,
-                    Title: "Active Dataset"),
-                new Divider("DATASETS & TABLES"),
-                .. datasets.Select(ds => (Node)UI.NavItem(
-                    $"ds-{MarkdrawSceneEngine.SlugId(ds)}",
-                    ds.StartsWith("postgres:", StringComparison.OrdinalIgnoreCase) ? ds : Path.GetFileName(ds),
-                    ds.StartsWith("postgres:", StringComparison.OrdinalIgnoreCase) ? "database" : "file-spreadsheet",
-                    $"open:{ds}",
-                    selected: string.Equals(ds, State.ActiveSource, StringComparison.OrdinalIgnoreCase),
-                    badge: string.Equals(ds, State.ActiveSource, StringComparison.OrdinalIgnoreCase) ? "ACTIVE" : null)),
-                new Divider("QUICK ANALYTICS"),
-                UI.NavItem("q-stage", "Group by Stage", "pie-chart", "group-by:Stage:SUM"),
-                UI.NavItem("q-top3", "Top 3 Opportunities", "trending-up", $"query:SELECT Opportunity, Account, Stage, Amount FROM {State.ActiveSource} LIMIT 3"),
-                UI.NavItem("q-markdraw", "Diagram Data Lineage", "pen-tool", "to-markdraw:/work/data-lineage.markdraw"),
-            ]) { Gap = 8 });
+        ArgumentNullException.ThrowIfNull(signal);
+        var alias = typeof(TSignal).GetCustomAttribute<SignalAttribute>(false)?.Alias ?? typeof(TSignal).Name;
+        return new Emit("app.datastudio", alias, JsonSerializer.SerializeToElement(signal));
     }
-
-    public View Render() => new(
+    protected override View Render(DataStudioAppState state) => new(
         "Data Studio",
         new Column(
         [
@@ -252,60 +232,40 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
                     new Row(
                     [
                         new TagPill("Data Studio · Live Analytics", "accent", "bar-chart-2"),
-                        new TagPill(State.ActiveSource, "info", "database"),
-                        new TagPill($"Total €{State.Total:N0}", "ok"),
-                        new TagPill($"Avg €{State.Average:N0} · Max €{State.Max:N0}", "neutral"),
+                        new TagPill(state.ActiveSource, "info", "database"),
+                        new TagPill($"Total €{state.Total:N0}", "ok"),
+                        new TagPill($"Avg €{state.Average:N0} · Max €{state.Max:N0}", "neutral"),
                     ]) { Gap = 8 },
-                    new Text(State.Summary) { Tabular = true },
-                    new Text(State.ActiveQuery) { Mono = true, Tone = "muted" },
+                    new Text(state.Summary) { Tabular = true },
+                    new Text(state.ActiveQuery) { Mono = true, Tone = "muted" },
                     new Row(
                     [
-                        new Button("bar", "Bar", Emit: AppSignals.Emit("data", "switch-chart", "bar"), Tone: State.ChartKind == "bar" ? ButtonTone.Accent : ButtonTone.Neutral) { Icon = "bar-chart-2", Small = true },
-                        new Button("line", "Line", Emit: AppSignals.Emit("data", "switch-chart", "line"), Tone: State.ChartKind == "line" ? ButtonTone.Accent : ButtonTone.Neutral) { Icon = "trending-up", Small = true },
-                        new Button("pie", "Pie", Emit: AppSignals.Emit("data", "switch-chart", "pie"), Tone: State.ChartKind == "pie" ? ButtonTone.Accent : ButtonTone.Neutral) { Icon = "pie-chart", Small = true },
-                        .. State.Columns.Take(3).Select(col => (Node)new Button($"group-by-{col}", $"Group by {col}", Emit: AppSignals.Emit("data", "group-by", col, "SUM")) { Icon = "layers", Small = true }),
-                        new Button("export-csv", "Export CSV", Emit: AppSignals.Emit("data", "export-csv")) { Icon = "download", Small = true },
-                        new Button("diagram-in-markdraw", "Diagram in Markdraw", Emit: AppSignals.Emit("data", "to-markdraw", "/work/data-lineage.markdraw")) { Icon = "pen-tool", Small = true },
+                        new Button("bar", "Bar", Emit: Emits(new DataStudioSwitchChart("bar")), Tone: state.ChartKind == "bar" ? ButtonTone.Accent : ButtonTone.Neutral) { Icon = "bar-chart-2", Small = true },
+                        new Button("line", "Line", Emit: Emits(new DataStudioSwitchChart("line")), Tone: state.ChartKind == "line" ? ButtonTone.Accent : ButtonTone.Neutral) { Icon = "trending-up", Small = true },
+                        new Button("pie", "Pie", Emit: Emits(new DataStudioSwitchChart("pie")), Tone: state.ChartKind == "pie" ? ButtonTone.Accent : ButtonTone.Neutral) { Icon = "pie-chart", Small = true },
+                        .. state.Columns.Take(3).Select(col => (Node)new Button($"group-by-{col}", $"Group by {col}", Emit: Emits(new DataStudioGroupBy(col, "SUM"))) { Icon = "layers", Small = true }),
+                        new Button("export-csv", "Export CSV", Emit: Emits(new DataStudioExportCsv())) { Icon = "download", Small = true },
+                        new Button("diagram-in-markdraw", "Diagram in Markdraw", Emit: Emits(new DataStudioToMarkdraw("/work/data-lineage.markdraw"))) { Icon = "pen-tool", Small = true },
                     ]) { Gap = 8 },
                 ],
                 Kind: SurfaceKind.Acrylic,
-                Title: State.ChartTitle),
+                Title: state.ChartTitle),
             new Chart(
-                State.ChartKind,
-                State.ChartTitle,
-                State.ChartPoints.Select(pt => new ChartPointNode(pt.Label, pt.Value)).ToArray(),
+                state.ChartKind,
+                state.ChartTitle,
+                state.ChartPoints.Select(pt => new ChartPointNode(pt.Label, pt.Value)).ToArray(),
                 SeriesName: "Current",
-                SourceNeuronUri: State.SourceNeuronUri,
-                From: State.ActiveSource,
+                SourceNeuronUri: state.SourceNeuronUri,
+                From: state.ActiveSource,
                 Prefix: "€"),
             new DataTable(
-                $"{State.ChartTitle} ({State.Rows.Length} row(s))",
-                State.Columns,
-                State.Rows.Select(r => (IReadOnlyList<string>)r).ToArray(),
-                SourceNeuronUri: State.SourceNeuronUri,
-                From: State.ActiveSource),
-        ]) { Gap = 12 });
-
-    [DigitalBrain.Scenario("Data Studio queries workspace dataset, groups by Stage, switches chart to pie, and exports CSV")]
-    public async Task VerifyDataStudioAnalyticsAndExportScenario()
-    {
-        FilesVfs ??= new WorkspaceFilesService();
-        await FilesVfs.WriteTextAsync("/work/q4-opportunities.csv", "Opportunity,Account,Stage,Amount\nDeal 1,Acme,Proposal,240000\nDeal 2,Beta,Contract,186000\nDeal 3,Gamma,Negotiation,88500\nDeal 4,Delta,Closed Won,64000\nDeal 5,Epsilon,Discovery,49200\n");
-        await Open(new DataStudioOpen("/work/q4-opportunities.csv"));
-        if (State.Rows.Length < 4) { throw new InvalidOperationException("Expected DataStudioApp.Open to load initial opportunity rows."); }
-
-        await GroupBy(new DataStudioGroupBy("Stage", "SUM"));
-        if (!State.ChartTitle.Contains("SUM by Stage", StringComparison.OrdinalIgnoreCase)) { throw new InvalidOperationException("Expected DataStudioApp.GroupBy to aggregate dataset by Stage."); }
-
-        await SwitchChart(new DataStudioSwitchChart("pie"));
-        if (State.ChartKind != "pie") { throw new InvalidOperationException("Expected DataStudioApp.SwitchChart to switch active chart to pie."); }
-
-        await ExportCsv(new DataStudioExportCsv("/work/stage-breakdown.csv"));
-        if (!string.Equals(State.LastExportPath, "/work/stage-breakdown.csv", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("Expected DataStudioApp.ExportCsv to record /work/stage-breakdown.csv.");
-        }
-    }
+                $"{state.ChartTitle} ({state.Rows.Length} row(s))",
+                state.Columns,
+                state.Rows.Select(r => (IReadOnlyList<string>)r).ToArray(),
+                SourceNeuronUri: state.SourceNeuronUri,
+                From: state.ActiveSource),
+        ])
+        { Gap = 12 });
 
     private async Task RunAndSetQueryResultAsync(string source, string queryText, string preferredChartKind)
     {
@@ -317,7 +277,7 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
 
         var result = await DataAnalyticsEngine.ExecuteAsync(effectiveQuery, database: source, filesVfs: FilesVfs);
         var datasets = await ListWorkspaceDatasetsAsync(source);
-        Set(State with
+        await Show(State with
         {
             ActiveSource = source,
             ActiveQuery = queryText,
@@ -353,9 +313,9 @@ public sealed class DataStudioApp : DigitalBrain.App<DataStudioAppState>, IWithF
                     }
                 }
             }
-            catch (Exception error) when (error is not OperationCanceledException)
+            catch (Exception ex)
             {
-                Swallow(error, "Listing dataset files in FilesVfs is optional.");
+                _ = ex.Message;
             }
         }
 

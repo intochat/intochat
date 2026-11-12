@@ -7,7 +7,7 @@ public interface IFilesWorkspace
 {
     static string Key(string brain, string app = "files") => $"{brain}/apps/{app}/workspace";
     Task Open(CancellationToken ct = default);
-    [DigitalBrain.ReadOnlyCall] Task<long> Revision();
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<long> Revision();
     Task Request(string operation, FilesWorkspaceInput input, long expectedRevision, Guid requestId, CancellationToken ct = default);
 }
 

@@ -4,6 +4,8 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Limits;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.Tools;
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
@@ -21,15 +23,15 @@ public sealed class McpServerStore
 // MCP servers keep per-session state (PhotoCraft's open documents live in the session's process), so an
 // activation holds one client and reuses it. The client is a cache: a broken session is dropped and the
 // call retried once on a fresh one; what the brain knows about the server lives in the persisted state.
-[DigitalBrain.Neuron("mcp.server", State = "mcp.server")]
-internal sealed class McpServerNeuron : DigitalBrain.Neuron<McpServerStore>, IMcpServer
+[DigitalBrain.Neurons.Neuron("mcp.server", State = "mcp.server")]
+internal sealed class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpServerStore>, IMcpServer
 {
     private const int MaxText = 128 * 1024;
     private static readonly TimeSpan CallBudget = TimeSpan.FromMinutes(5);
 
     private McpClient? _client;
     private Uri? _endpoint;
-    private IPolicies Policies => Context.Get<IPolicies>(NeuronId.Parse(IPolicies.Key(Id.Brain.Value)));
+    private DigitalBrain.Limits.IPolicies Policies => Context.Get<DigitalBrain.Limits.IPolicies>(NeuronId.Parse(DigitalBrain.Limits.IPolicies.Key(Id.Brain.Value)));
 
     public async Task<McpServerState> Connect(McpServerSpec spec, CancellationToken ct = default)
     {

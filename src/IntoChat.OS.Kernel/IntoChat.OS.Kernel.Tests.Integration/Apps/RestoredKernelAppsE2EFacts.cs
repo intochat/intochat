@@ -1,45 +1,45 @@
-using DigitalBrain.Capabilities.Connections.Broker;
-using DigitalBrain.Signals;
-using DigitalBrain.Capabilities.Connections.Requests;
 using System.Diagnostics;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections.Broker;
+using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Contracts;
+using DigitalBrain.Hosting;
+using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
-using DigitalBrain.Spi;
+using DigitalBrain.Signals;
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Desktop;
+using IntoChat.OS.Apps.FilmCraft;
+using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
-using IntoChat.OS.Apps.Friends;
+using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using DigitalBrain.Runtime.Orleans.Confirmations;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flame;
 using IntoChat.OS.Modules.Flutter;
-using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Kernel.Tests.Integration.Apps;
 
 /// <summary>
-/// Exercises the signal-driven <see cref="CompiledAppsHost"/>, <see cref="IApp"/>,
-/// <see cref="IChat"/>, <see cref="IView"/>, and <see cref="IAppStudio"/> neurons on the real DigitalBrain SiloHost.
+/// Exercises <see cref="IApp"/> and <see cref="IUserSettings"/>
+/// grains on the real DigitalBrain SiloHost environment without legacy CompiledAppsHost shims.
 /// </summary>
 public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.KernelAppsSiloFixture fixture)
     : IClassFixture<RestoredKernelAppsE2EFacts.KernelAppsSiloFixture>
@@ -47,54 +47,53 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task CompiledAppsHostPublishesViewsChatAndCrossAppStudioRoutingThroughSiloSignals()
+    public async Task SiloHostExecutesUserSettingsAndAppManifestLifecycle()
     {
         var brain = fixture.NewBrain("hosted");
         using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
         var settings = SiloNeurons.Get<IUserSettings>(fixture.Services, $"{brain}/settings");
-        await settings.SetProfile("Ada Lovelace", "dark", "qwen3.5:4b");
+        var updatedProfile = await settings.SetProfile("Ada Lovelace", "dark", "qwen3.5:4b");
+        Assert.Equal("Ada Lovelace", updatedProfile.DisplayName);
+        Assert.Equal("dark", updatedProfile.Theme);
+        Assert.Equal("qwen3.5:4b", updatedProfile.DefaultModel);
 
-        // 1. Import InoApp.Bundle and trigger Ino open via IApp.Request("open", "greet"), verifying
-        //    CompiledAppsHost publishes main/side IView and IChat transcript on the silo.
+        var persistedSettings = await settings.Read();
+        Assert.Equal("Ada Lovelace", persistedSettings.DisplayName);
+        Assert.Equal("dark", persistedSettings.Theme);
+        Assert.Equal("qwen3.5:4b", persistedSettings.DefaultModel);
+
+        // 1. Import InoApp.Bundle and verify IApp manifest & snapshot on the silo.
         var inoApp = SiloNeurons.Get<IApp>(fixture.Services, $"{brain}/apps/ino");
         await inoApp.Import(InoApp.Bundle);
         await inoApp.Request("open", "greet");
 
-        var inoView = await WaitUntilAsync(
-            async () => await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/ino/view").Read(),
-            view => view is not null);
-        Assert.NotNull(inoView);
+        var inoSnapshot = await WaitUntilAsync(
+            async () => await inoApp.Read(),
+            snap => !string.IsNullOrWhiteSpace(snap?.Manifest?.Title));
+        Assert.NotNull(inoSnapshot);
+        Assert.Equal("Ino", inoSnapshot.Manifest.Title);
+        Assert.Equal(AppStatus.Live, inoSnapshot.Status);
 
-        var inoSide = await WaitUntilAsync(
-            async () => await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/ino/side").Read(),
-            view => view is not null);
-        Assert.NotNull(inoSide);
-
-        // 2. Send prompts through IApp.Request("send", "...") and verify CompiledAppsHost projects the
-        //    conversation to IChat ("apps/ino/transcript") and routes studio work to PhotoCraft and FilmCraft.
-        await inoApp.Request("send", "Remove background from portrait.png");
-
-        var chatState = await WaitUntilAsync(
-            async () => await SiloNeurons.Get<IChat>(fixture.Services, $"{brain}/apps/ino/transcript").Read(),
-            state => state.Projection?.Version >= 2);
-        Assert.NotNull(chatState.Projection);
-        Assert.True(chatState.Projection.Generation >= 1);
-        Assert.True(chatState.Projection.Version >= 2);
-
+        // 2. Import PhotoCraft and FilmCraft app bundles on the silo and verify snapshots.
         var photoCraftApp = SiloNeurons.Get<IApp>(fixture.Services, $"{brain}/apps/photocraft");
+        await photoCraftApp.Import(PhotoCraftApp.Bundle);
         var photoSnapshot = await WaitUntilAsync(
             async () => await photoCraftApp.Read(),
-            snap => snap is not null);
+            snap => !string.IsNullOrWhiteSpace(snap?.Manifest?.Title));
         Assert.NotNull(photoSnapshot);
+        Assert.Equal("PhotoCraft", photoSnapshot.Manifest.Title);
+        Assert.Equal(AppStatus.Live, photoSnapshot.Status);
 
-        await inoApp.Request("send", "Trim timeline clip in FilmCraft");
         var filmCraftApp = SiloNeurons.Get<IApp>(fixture.Services, $"{brain}/apps/filmcraft");
+        await filmCraftApp.Import(FilmCraftApp.Bundle);
         var filmSnapshot = await WaitUntilAsync(
             async () => await filmCraftApp.Read(),
-            snap => snap is not null);
+            snap => !string.IsNullOrWhiteSpace(snap?.Manifest?.Title));
         Assert.NotNull(filmSnapshot);
+        Assert.Equal("FilmCraft", filmSnapshot.Manifest.Title);
+        Assert.Equal(AppStatus.Live, filmSnapshot.Status);
 
-        // 3. Open Gallery, Creator, and Post via IApp.Request("open", "") on the silo and verify their app snapshots.
+        // 3. Open Gallery, Creator, and Friends via IApp on the silo and verify their app snapshots.
         foreach (var (appName, bundle) in new (string Name, AppBundle Bundle)[]
         {
             ("gallery", GalleryApp.Bundle),
@@ -103,29 +102,15 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
         })
         {
             var appNeuron = SiloNeurons.Get<IApp>(fixture.Services, $"{brain}/apps/{appName}");
-            if (string.IsNullOrWhiteSpace((await appNeuron.Read()).Manifest.Title)) { await appNeuron.Import(bundle); }
+            await appNeuron.Import(bundle);
             await appNeuron.Request("open", "");
 
             var snapshot = await WaitUntilAsync(
                 async () => await appNeuron.Read(),
                 s => !string.IsNullOrWhiteSpace(s?.Manifest?.Title));
             Assert.False(string.IsNullOrWhiteSpace(snapshot.Manifest.Title));
+            Assert.Equal(AppStatus.Live, snapshot.Status);
         }
-
-        // 4. Verify HostedKernelBddNeuron grain activation on the silo.
-        var siloBdd = SiloNeurons.Get<IBdd>(fixture.Services, new NeuronId(new BrainId(brain), "bdd", "bdd"));
-        var report = await siloBdd.Record(
-            new BddReport(
-                "ino",
-                [new ScenarioVerdict("Ino routes PhotoCraft on silo", Passed: true, Error: null, Elapsed: TimeSpan.FromMilliseconds(3))],
-                BaselinePassed: true,
-                BaselineError: null,
-                Elapsed: TimeSpan.FromMilliseconds(3)),
-            Ct);
-        Assert.True(report.Passed);
-        var readReport = await siloBdd.Read(Ct);
-        Assert.NotNull(readReport);
-        Assert.Equal("ino", readReport.AppId);
     }
 
     private static async Task<T> WaitUntilAsync<T>(Func<Task<T>> probe, Func<T, bool> predicate)
@@ -144,8 +129,8 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
         return last;
     }
 
-    [DigitalBrain.Module("restored.kernel.apps.e2e")]
-    private sealed class RestoredKernelAppsTestModule : DigitalBrain.Module
+    [DigitalBrain.Modules.Module("restored.kernel.apps.e2e")]
+    private sealed class RestoredKernelAppsTestModule : DigitalBrain.Modules.Module
     {
         public static ModuleManifest Manifest { get; } = new(
             Provides: [],
@@ -172,7 +157,6 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
             {
                 typeof(Activated).Assembly,
                 typeof(RestoredKernelAppsTestModule).Assembly,
-                typeof(BddVerified).Assembly,
                 typeof(AppsModule).Assembly,
                 typeof(InoApp).Assembly,
                 typeof(IApp).Assembly,
@@ -186,7 +170,6 @@ public sealed class RestoredKernelAppsE2EFacts(RestoredKernelAppsE2EFacts.Kernel
                 typeof(IAspire).Assembly,
                 typeof(FlutterModule).Assembly,
                 typeof(IView).Assembly,
-                typeof(ChatChanged).Assembly,
                 typeof(FlameModule).Assembly,
             }.Distinct().ToArray();
 

@@ -1,5 +1,5 @@
 using DigitalBrain.Contracts;
-using DigitalBrain.Spi;
+using DigitalBrain.Neurons;
 
 namespace IntoChat.OS.Runtime;
 

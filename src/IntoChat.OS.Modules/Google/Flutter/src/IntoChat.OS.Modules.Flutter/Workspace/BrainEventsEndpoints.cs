@@ -1,10 +1,11 @@
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Threading.Channels;
 using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Runtime.Orleans.Signalling;
 using DigitalBrain.Signals;
-using System.Runtime.CompilerServices;
-using System.Text.Json;
-using System.Threading.Channels;
+using DigitalBrain.Units;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
@@ -55,7 +56,7 @@ internal static class BrainEventsEndpoints
         _ = Watch(brain.On<InstanceCreated>(brain.Self(brainId), () => { Subscribed(); return Task.CompletedTask; }, stop.Token));
         _ = Watch(brain.On<InstanceRetired>(brain.Self(brainId), () => { Subscribed(); return Task.CompletedTask; }, stop.Token));
         _ = Watch(brain.On<Installed>(installs, () => { Subscribed(); return Task.CompletedTask; }, stop.Token));
-        _ = Watch(brain.On<DigitalBrain.Retired>(installs, () => { Subscribed(); return Task.CompletedTask; }, stop.Token));
+        _ = Watch(brain.On<DigitalBrain.Units.Retired>(installs, () => { Subscribed(); return Task.CompletedTask; }, stop.Token));
         try
         {
             var (json, key) = await Snapshot(brain, brainId, catalog, installs, ct);
@@ -88,7 +89,7 @@ internal static class BrainEventsEndpoints
         List<(string Key, string Type)> instances = [];
         await foreach (var instance in brain.Kernel.Instances(null, ct)) { instances.Add((instance.Key, instance.Type)); }
         var aliases = (await installs.List(ct)).Select(record => record.Alias);
-        return Topology(brainId, instances, aliases, catalog?.Current, DateTimeOffset.UtcNow);
+        return Topology(brainId, instances, aliases, catalog?.Static, DateTimeOffset.UtcNow);
     }
 
     // The wire snapshot: a node per kernel neuron, one more per installed unit's state neuron (`{brain}/{alias}/default`) the
@@ -118,9 +119,9 @@ internal static class BrainEventsEndpoints
             }
             foreach (var d in descriptors)
             {
-                var kind = d.Kind == SynapseKind.Gate ? "gate" : "reaction";
+                var kind = "reaction";
                 var signal = SignalOf(d);
-                synapses.Add(new { id = $"{signal}>{id}#{kind}:{d.Function.Name}", sourceId = "*", targetId = id, signalType = signal, kind, isBlocking = d.Kind == SynapseKind.Gate });
+                synapses.Add(new { id = $"{signal}>{id}#{kind}:{d.Function.Name}", sourceId = "*", targetId = id, signalType = signal, kind, isBlocking = false });
             }
         }
         var key = JsonSerializer.Serialize(new { nodes, synapses }, Json);

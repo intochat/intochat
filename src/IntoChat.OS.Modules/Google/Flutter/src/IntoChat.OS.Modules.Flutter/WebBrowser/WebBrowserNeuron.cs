@@ -1,21 +1,24 @@
-using DigitalBrain.Log;
-using DigitalBrain;
 using System.Text.RegularExpressions;
+using DigitalBrain;
+using DigitalBrain.Log;
+using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS;
-using IntoChat.OS.Modules.Flutter.WebBrowser.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.Flutter.WebBrowser.Signals;
+using IntoChat.OS.Modules.Microsoft.Playwright;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using IntoChat.OS.Modules.Microsoft.Playwright;
-using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Flutter.WebBrowser;
 
 // Reentrancy is safe because all state updates and driver operations are sequenced using monotonic generation counters (_generation)
 // and idempotent connection status transitions, preventing race conditions or corruptions during concurrent turn interleaving.
-[Neuron(UIVocabulary.WebBrowserType), DigitalBrain.Reentrant]
-internal sealed class WebBrowserNeuron
+[Neuron(UIVocabulary.WebBrowserType), Reentrant]
+internal sealed class WebBrowserNeuron(
+    ILogger<WebBrowserNeuron> logger,
+    IServiceProvider services)
     : UiNeuron<WebBrowserState>, IWebBrowser, IWebBrowserConnector
 {
     private const int ReasonClip = 200;
@@ -32,7 +35,7 @@ internal sealed class WebBrowserNeuron
     private Task? _disconnecting;
     private string DriverKey => Snapshot.PlaywrightKey ?? FullKey;
     // The browser is a plain neuron (06-06d); this neuron is still a grain and reaches it through the plain-neuron seam.
-    private IPlaywright Driver => SiloNeurons.Get<IPlaywright>(ServiceProvider, DriverKey);
+    private IPlaywright Driver => SiloNeurons.Get<IPlaywright>(services, DriverKey);
 
     public async Task Configure(string playwrightKey)
     {
@@ -153,7 +156,7 @@ internal sealed class WebBrowserNeuron
         await Publish(signal);
     }
 
-    protected override async Task OnDeactivate(DigitalBrain.DeactivationCause cause, CancellationToken cancellationToken)
+    protected override async Task OnDeactivate(DigitalBrain.Neurons.DeactivationCause cause, CancellationToken cancellationToken)
     {
         if (_session is { } session)
         {
@@ -161,7 +164,7 @@ internal sealed class WebBrowserNeuron
             catch (Exception error)
             {
                 // Cleanup is best effort: the driver or silo may already be stopping.
-                ServiceProvider.GetRequiredService<ILogger<WebBrowserNeuron>>().LogSwallowed(error, "detaching the driver session while deactivating");
+                logger.LogSwallowed(error, "detaching the driver session while deactivating");
             }
         }
     }
@@ -191,7 +194,7 @@ internal sealed class WebBrowserNeuron
         if (_session is not null) { await Show(next.Uri); }
     }
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<WebBrowserView> Read() => Task.FromResult(new WebBrowserView
     {
         Name = FullKey,

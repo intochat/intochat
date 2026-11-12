@@ -1,6 +1,6 @@
-using DigitalBrain.Capabilities.Compute;
 using System.Security.Cryptography;
 using System.Text.Json;
+using DigitalBrain.Capabilities.Compute;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -180,7 +180,7 @@ internal sealed partial class GmailNeuron
                 if (!decision.Allowed)
                 {
                     await ReleaseAsync(decisions);
-                    DigitalBrain.PolicyGuard.Require(decision);
+                    DigitalBrain.Limits.PolicyGuard.Require(decision);
                 }
                 decisions.Add(decision.DecisionId);
             }

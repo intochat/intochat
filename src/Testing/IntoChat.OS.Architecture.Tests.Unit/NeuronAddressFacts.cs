@@ -1,8 +1,8 @@
+using DigitalBrain;
 using DigitalBrain.Brains;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
-using DigitalBrain;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

@@ -1,5 +1,6 @@
-using DigitalBrain.Modules.Options;
 using System.Reflection;
+using DigitalBrain.Modules;
+using DigitalBrain.Modules.Options;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -30,7 +31,7 @@ internal static class HostedModuleId
     public static ModuleId Of(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
-        var id = type.GetCustomAttribute<DigitalBrain.ModuleAttribute>()?.Id
+        var id = type.GetCustomAttribute<DigitalBrain.Modules.ModuleAttribute>()?.Id
             ?? throw new InvalidOperationException($"{type.FullName} has no [Module(id)].");
         return new ModuleId(id);
     }

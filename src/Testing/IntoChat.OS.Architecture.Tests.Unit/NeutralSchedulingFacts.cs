@@ -21,7 +21,7 @@ public sealed class NeutralSchedulingFacts
     public void PlainNeuronsAndContractsUseTheRuntimesSchedulingAttributes()
     {
         var plain = ProductionArchitecture.Types.Where(type =>
-            (type.IsClass && type.IsDefined(typeof(DigitalBrain.NeuronAttribute), inherit: false))
+            (type.IsClass && type.IsDefined(typeof(DigitalBrain.Neurons.NeuronAttribute), inherit: false))
             || (type.IsInterface && type.IsDefined(typeof(DigitalBrain.Contracts.DefaultNeuronTypeAttribute), inherit: false)));
         const BindingFlags Members = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
         var wrong = plain.SelectMany(type => Hierarchy(type).SelectMany(level =>

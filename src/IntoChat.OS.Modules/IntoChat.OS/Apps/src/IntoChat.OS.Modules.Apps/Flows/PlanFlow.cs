@@ -41,8 +41,8 @@ public sealed class PlanInner : AgentInner
 // One plan: draft (the flow agent answers a JSON plan), approve (a two-day approval listing the subtasks) and start-subtasks (each
 // subtask a flow of its own, a Subtask of this one, with the sibling relations the plan names). Subtask keys are {planKey}-{index},
 // so a start-subtasks run again starts none twice.
-[DigitalBrain.Neuron(Alias)]
-public sealed class PlanFlow : AgentFlow<PlanInner>, IFlowStarter
+[DigitalBrain.Neurons.Neuron(Alias)]
+public sealed class PlanFlow(AgentStepOptions? options = null) : AgentFlow<PlanInner>(options), IFlowStarter
 {
     public const string Alias = "flow.plan";
 

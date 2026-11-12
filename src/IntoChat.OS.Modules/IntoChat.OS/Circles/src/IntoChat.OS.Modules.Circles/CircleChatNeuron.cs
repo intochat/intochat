@@ -1,7 +1,7 @@
 using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.State;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
@@ -23,9 +23,9 @@ internal sealed class CircleChatRecord
 // A circle brain's chat `{circle}/chat` (T26-1): one line per Say, numbered here, its speaker the member account that
 // said it. A line said twice under one request id is one line.
 // A plain neuron (06-08) at "{circle}/chat".
-[DigitalBrain.Neuron("circles.chat")]
+[DigitalBrain.Neurons.Neuron("circles.chat")]
 internal sealed class CircleChatNeuron(ICapabilityBroker broker)
-    : DigitalBrain.Neuron<CircleChatRecord>, ICircleChat, ICirclePostReader
+    : DigitalBrain.Neurons.Neuron<CircleChatRecord>, ICircleChat, ICirclePostReader
 {
     private const int Kept = 500;
     private const int KeptRequests = 64;

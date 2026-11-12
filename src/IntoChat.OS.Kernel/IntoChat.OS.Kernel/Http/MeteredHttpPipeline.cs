@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Modules;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

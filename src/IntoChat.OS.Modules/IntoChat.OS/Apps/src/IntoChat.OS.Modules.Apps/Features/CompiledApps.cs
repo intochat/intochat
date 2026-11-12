@@ -6,8 +6,8 @@ namespace IntoChat.OS.Modules.Apps;
 // at start (ino and settings are the shell's); the host finds their bundles here, so it names no app.
 public sealed record CompiledAppsRegistration(Assembly Assembly, Type[]? Boot = null);
 
-// Compiled apps in a module assembly: each [App] whose bundle is a public static AppBundle Bundle
-// on a type in that assembly. The script folder does not carry them.
+// Compiled apps in a module assembly: each public static AppBundle Bundle shipped by the module, paired with
+// its [Neuron("app.<name>")] screen class when compiled as a screen neuron (or its declaring bundle owner type).
 internal static class CompiledApps
 {
     internal readonly record struct Compiled(string Owner, AppBundle Bundle, FeatureOrigin.Module Origin, Type AppType);
@@ -18,19 +18,24 @@ internal static class CompiledApps
         Type[] types;
         try { types = assembly.GetTypes(); }
         catch (ReflectionTypeLoadException error) { types = [.. error.Types.Where(type => type is not null)!]; }
-        var bundles = new Dictionary<string, AppBundle>(StringComparer.Ordinal);
+        var screenTypes = new Dictionary<string, Type>(StringComparer.Ordinal);
+        foreach (var type in types.OrderBy(type => type.FullName, StringComparer.Ordinal))
+        {
+            if (type is not { IsClass: true, IsAbstract: false } || type.ContainsGenericParameters) { continue; }
+            if (type.GetCustomAttribute<DigitalBrain.Neurons.NeuronAttribute>(false) is { } neuronAttr
+                && neuronAttr.Type.StartsWith("app.", StringComparison.Ordinal))
+            {
+                screenTypes.TryAdd(neuronAttr.Type["app.".Length..], type);
+            }
+        }
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var type in types.OrderBy(type => type.FullName, StringComparer.Ordinal))
         {
             var property = type.GetProperty("Bundle", BindingFlags.Public | BindingFlags.Static);
             if (property is not { PropertyType: var kind, GetMethod: not null } || kind != typeof(AppBundle)) { continue; }
-            if (property.GetValue(null) is AppBundle bundle && bundle.Name.Length > 0) { bundles.TryAdd(bundle.Name, bundle); }
-        }
-        foreach (var type in types.OrderBy(type => type.FullName, StringComparer.Ordinal))
-        {
-            if (type is not { IsClass: true, IsAbstract: false } || type.ContainsGenericParameters) { continue; }
-            var id = type.GetCustomAttribute<DigitalBrain.AppAttribute>(false)?.Id;
-            if (id is null || !bundles.TryGetValue(id, out var bundle)) { continue; }
-            yield return new(ShippedApps.Publisher, bundle, new FeatureOrigin.Module(assembly), type);
+            if (property.GetValue(null) is not AppBundle bundle || bundle.Name.Length == 0 || !seen.Add(bundle.Name)) { continue; }
+            var appType = screenTypes.GetValueOrDefault(bundle.Name, type);
+            yield return new(ShippedApps.Publisher, bundle, new FeatureOrigin.Module(assembly), appType);
         }
     }
 }

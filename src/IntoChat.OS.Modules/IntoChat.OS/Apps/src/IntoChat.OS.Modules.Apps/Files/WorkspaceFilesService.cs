@@ -390,33 +390,8 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         var filesAppKey = IApp.Key(BrainId, "files");
         var effectiveBroker = resolvedBroker is CapabilityBroker cb ? cb.ForApp(filesAppKey) : resolvedBroker;
 
-        var hadPrevious = RuntimeCallerContext.TryGet(out var previous);
-        IDisposable? stampScope = null;
-        if (_services is not null)
-        {
-            try
-            {
-                var baseCaller = hadPrevious && previous is not null && previous.BrainId == BrainId
-                    ? previous
-                    : await HostCaller.ForBrain(_services, BrainId).ConfigureAwait(false);
-                if (baseCaller is not null)
-                {
-                    stampScope = RuntimeCallerContext.StampScope(HostCaller.AsApp(baseCaller, filesAppKey));
-                }
-            }
-            catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
-        }
-
-        try
-        {
-            return await action(effectiveBroker).ConfigureAwait(false);
-        }
-        finally
-        {
-            stampScope?.Dispose();
-            if (hadPrevious && previous is not null) { RuntimeCallerContext.Stamp(previous); }
-            else { RequestContext.Remove(RuntimeCallerContext.RequestContextKey); }
-        }
+        using var scope = InProcessCallerScope.Enter();
+        return await action(effectiveBroker).ConfigureAwait(false);
     }
 
     private WorkspaceFileEntry MapVfsItem(string connection, VfsItem item)

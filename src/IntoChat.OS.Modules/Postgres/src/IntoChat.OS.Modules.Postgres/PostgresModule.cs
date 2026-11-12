@@ -1,22 +1,23 @@
 using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Modules.Postgres.Tables;
 using IntoChat.OS.Modules.Postgres.Tables.Signals;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Postgres;
 
-[DigitalBrain.Module("postgres")]
-public sealed class PostgresModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module("postgres")]
+public sealed class PostgresModule : DigitalBrain.Modules.Module
 {
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
-        Needs: [DigitalBrain.Need.State("postgres")],
-        Settings: [DigitalBrain.Setting.Of<PostgresModuleOptions>(ModuleConfiguration.ModuleOptionsSection(new ModuleId("postgres")))],
-        Secrets: [DigitalBrain.Secret.Named("connection-string"), DigitalBrain.Secret.Named("admin-connection")]);
+        Needs: [DigitalBrain.Modules.Need.State("postgres")],
+        Settings: [DigitalBrain.Modules.Setting.Of<PostgresModuleOptions>(ModuleConfiguration.ModuleOptionsSection(new ModuleId("postgres")))],
+        Secrets: [DigitalBrain.Modules.Secret.Named("connection-string"), DigitalBrain.Modules.Secret.Named("admin-connection")]);
 
     public static bool RequiresContainer => true;
 

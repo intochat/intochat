@@ -1,13 +1,12 @@
+using System.ClientModel.Primitives;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.ClientModel.Primitives;
 using Azure;
 using Azure.Core;
 using Azure.Core.Pipeline;
 using Azure.Identity;
-using Azure.Security.KeyVault.Secrets;
 using Azure.ResourceManager;
 using Azure.ResourceManager.AppContainers;
 using Azure.ResourceManager.AppContainers.Models;
@@ -18,9 +17,9 @@ using Azure.ResourceManager.ContainerRegistry.Models;
 using Azure.ResourceManager.KeyVault;
 using Azure.ResourceManager.KeyVault.Models;
 using Azure.ResourceManager.ManagedServiceIdentities;
+using Azure.ResourceManager.Models;
 using Azure.ResourceManager.Network;
 using Azure.ResourceManager.Network.Models;
-using Azure.ResourceManager.Models;
 using Azure.ResourceManager.OperationalInsights;
 using Azure.ResourceManager.OperationalInsights.Models;
 using Azure.ResourceManager.PostgreSql.FlexibleServers;
@@ -28,7 +27,7 @@ using Azure.ResourceManager.PostgreSql.FlexibleServers.Models;
 using Azure.ResourceManager.Resources;
 using Azure.ResourceManager.Storage;
 using Azure.ResourceManager.Storage.Models;
-
+using Azure.Security.KeyVault.Secrets;
 using AzureSdk = Azure;
 namespace IntoChat.OS.Modules.Microsoft.Azure;
 

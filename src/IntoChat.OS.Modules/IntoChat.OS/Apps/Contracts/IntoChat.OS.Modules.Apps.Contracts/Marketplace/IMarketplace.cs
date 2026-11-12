@@ -11,8 +11,8 @@ public interface IMarketplace
 {
     const string Key = "system/main";
 
-    [Public, DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<MarketplaceListing[]> List();
-    [Public, DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<MarketplaceListing?> Read(string publisher, string name);
+    [Public, DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<MarketplaceListing[]> List();
+    [Public, DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<MarketplaceListing?> Read(string publisher, string name);
     Task Upsert(MarketplaceListing listing);
     Task Remove(string publisher, string name);
 }

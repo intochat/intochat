@@ -1,10 +1,10 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
-using DigitalBrain.Spi;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;

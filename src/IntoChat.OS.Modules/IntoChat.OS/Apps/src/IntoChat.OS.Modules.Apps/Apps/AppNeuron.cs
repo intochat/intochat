@@ -1,7 +1,8 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Rules;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Units;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps.Rules;
@@ -18,16 +19,20 @@ namespace IntoChat.OS.Modules.Apps;
 // its results back in.
 // A plain neuron (06-08) with the persisted AppState ("app2", clean break R4-24). Delete clears the record; until the next save
 // the app then reads as never created (the DigitalBrain base keeps the last state in memory, so the cleared view is held here).
-[DigitalBrain.Neuron(IntoChat.OS.Connections.AppGrainType.Name, State = "app2")]
+[DigitalBrain.Neurons.Neuron(IntoChat.OS.Connections.AppGrainType.Name, State = "app2")]
 internal sealed partial class AppNeuron(
     TimeProvider clock, IOptions<AppsOptions> options,
-    IEnumerable<IAppStorageHook> storageHooks)
-    : DigitalBrain.Neuron<AppState>, IApp, IAppRestore
+    IEnumerable<IAppStorageHook> storageHooks,
+    ILogger<AppNeuron>? logger = null,
+    IMarketplace? marketplace = null,
+    IHostedAppTypes? hostedAppTypes = null,
+    IServiceProvider? services = null)
+    : DigitalBrain.Neurons.Neuron<AppState>, IApp, IAppRestore
 {
+    private IServiceProvider? ServiceProvider => services;
     private static readonly AppState Cleared = new();
     // Whether the app has a record: created apps always carry a manifest.
     private bool Exists => State.Manifest is not null;
-    private IServiceProvider ServiceProvider => Context.Services;
     // The os full key "{brain}/apps/{name}" the app was addressed by as a grain.
     private string Key => Id.FullKey();
 
@@ -46,8 +51,8 @@ internal sealed partial class AppNeuron(
     {
         try
         {
-            var stored = await Context.State.Load<System.Text.Json.JsonElement>();
-            var markers = LegacyAppRecord.Markers(stored);
+            var markers = State.Files.Keys.Where(LegacyAppRecord.IsProgramFile).Select(key => "file:" + key)
+                .Concat(State.Settings.Keys.Where(LegacyAppRecord.IsPrebuilt).Select(key => "setting:" + key)).ToArray();
             if (markers.Length == 0) { return false; }
             var next = State.Clone();
             next.Files = State.Files.Where(file => !LegacyAppRecord.IsProgramFile(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
@@ -55,14 +60,16 @@ internal sealed partial class AppNeuron(
                 .ToDictionary(setting => setting.Key, setting => setting.Value, StringComparer.Ordinal);
             // A shipped app the host loads (ino, desktop, creator...) is not rebuilt by the Creator: its program is the host's compiled
             // type, so the pre-0.18 leftovers are stripped and the record stays usable.
-            if (ServiceProvider.GetService<IHostedAppTypes>() is { } hosted && hosted.IsHostLoaded(Name()))
+            var hosted = hostedAppTypes ?? services?.GetService<IHostedAppTypes>();
+            var log = logger ?? services?.GetService<ILogger<AppNeuron>>();
+            if (hosted is not null && hosted.IsHostLoaded(Name()))
             {
-                ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogInformation(
+                log?.LogInformation(
                     "App {App} carried pre-0.18 leftovers ({Markers}); stripped, the host-loaded program stands.", Key, string.Join(", ", markers));
                 await Persist(next);
                 return false;
             }
-            ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogWarning(
+            log?.LogWarning(
                 "App {App} is a pre-0.18 record ({Markers}); it is refused and must be rebuilt.", Key, string.Join(", ", markers));
             // The refusal is durable: the program files and settings are stripped (nothing deploys or retries) and Refused names why, so
             // the activity line below is written once, not once per activation. A rebuild (Import or CompleteBuild) clears Refused.
@@ -74,7 +81,7 @@ internal sealed partial class AppNeuron(
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogError(error, "Could not check app {App} for a pre-0.18 record.", Key);
+            (logger ?? services?.GetService<ILogger<AppNeuron>>())?.LogError(error, "Could not check app {App} for a pre-0.18 record.", Key);
             return false;
         }
     }
@@ -84,13 +91,13 @@ internal sealed partial class AppNeuron(
     // Deleting the record ends the app's existence (the kernel retires the instance), then says so.
     private async Task Clear(DigitalBrain.Signal changed)
     {
-        await Context.State.Clear();
+        await Store(Cleared);
         _ = Cleared;
         await Publish(changed);
     }
 
     // The platform-wide Marketplace is still a grain outside every brain.
-    private IMarketplace Marketplace => SiloNeurons.Get<IMarketplace>(Context.Services, IMarketplace.Key);
+    private IMarketplace Marketplace => marketplace ?? (services is not null ? SiloNeurons.Get<IMarketplace>(services, IMarketplace.Key) : throw new InvalidOperationException("No services"));
     private const int MaxHistory = 3;
     private const int MaxActivity = 50;
     private const int MaxPayloadLength = 64 * 1024;
@@ -108,7 +115,7 @@ internal sealed partial class AppNeuron(
         var next = State.Clone();
         next.Manifest = manifest.Validated();
         next.BrainScopeId = BrainId();
-        next.Principal = RuntimeCallerContext.TryGet(out var caller) ? caller : await HostCaller.ForBrain(ServiceProvider, BrainId());
+        next.Principal = Context.Caller.ToCapabilityCaller() ?? CapabilityCallers.Of(BrainId(), BrainId(), BrainId());
         next.Spec = spec ?? "";
         next.Settings = manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
         next.Version = "0.1.0";
@@ -265,11 +272,11 @@ internal sealed partial class AppNeuron(
         { await PublishEphemeral(presentation); }
     }
 
-    public async Task<AppSnapshot> CompleteUnitBuild(Guid attempt, string hash, DigitalBrain.InstallStatus status, string sentence)
+    public async Task<AppSnapshot> CompleteUnitBuild(Guid attempt, string hash, DigitalBrain.Units.InstallStatus status, string sentence)
     {
         if (State.Status != AppStatus.Building || attempt != State.BuildAttempt) { return Describe(State); }
         var next = State.Clone();
-        if (status is DigitalBrain.InstallStatus.Installed or DigitalBrain.InstallStatus.Updated or DigitalBrain.InstallStatus.Unchanged)
+        if (status is DigitalBrain.Units.InstallStatus.Installed or DigitalBrain.Units.InstallStatus.Updated or DigitalBrain.Units.InstallStatus.Unchanged)
         {
             next.Status = AppStatus.Live;
             // The unit build is how the Creator rebuilds a refused record: it lifts the refusal.
@@ -308,7 +315,7 @@ internal sealed partial class AppNeuron(
         { await Marketplace.Remove(publisher, Name()); }
         // Everything the app owns goes with it: its program, then its storage.
         await Runtime.Retire(key, CancellationToken.None);
-        if (ServiceProvider.GetService<IKernel>() is { } kernel) { await kernel.UnloadFeature(BrainId(), Name()); }
+        if (ServiceProvider?.GetService<IKernel>() is { } kernel) { await kernel.UnloadFeature(BrainId(), Name()); }
         foreach (var hook in storageHooks) { await hook.OnRetired(State.BrainScopeId ?? "", key, CancellationToken.None); }
         await RemoveAppPrincipal();
         // Clearing the record ends the app's existence: the kernel retires the instance.

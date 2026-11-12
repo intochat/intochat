@@ -1,7 +1,8 @@
 using DigitalBrain.Capabilities.Connections.Integrations;
-using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
-using DigitalBrain.Spi;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Signals.Watch;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Contracts;
@@ -9,7 +10,6 @@ using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Mcp;
 

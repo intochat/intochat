@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Testing.Synapses;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps.Debugger;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Units;

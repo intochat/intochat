@@ -1,10 +1,10 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Contracts;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Runtime.CompilerServices;
 using DigitalBrain;
+using DigitalBrain.Brains;
+using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
-using DigitalBrain.Spi;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 

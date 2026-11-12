@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Contracts;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority.Identity.Grants;
@@ -38,13 +39,57 @@ internal interface IDirectoryStore
     Task<Member?> EnsureMember(Member member);
     Task RemoveMember(string brainScopeId, string accountId);
     Task RemovePrincipalMember(string brainScopeId, string principalId);
-    Task<CallDecision?> Authorize(CallRequest request);
+    Task<CallDecision?> Authorize(DirectoryAuthorizeRequest request);
     Task<Grant[]> ListGrants(string brainScopeId);
     Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant);
     Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants);
     Task RevokeAsOwner(CapabilityCaller caller, string grantId);
     Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode);
     Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null);
+}
+
+internal sealed record DirectoryAuthorizeRequest(
+    CapabilityCaller? Caller,
+    string TargetNeuron,
+    string Operation,
+    string[] SemanticTypeIds,
+    decimal EstimatedCompute,
+    bool HasSideEffects,
+    bool EnforceTarget,
+    string? TargetScope,
+    bool PublicOperation)
+{
+    public static DirectoryAuthorizeRequest From(CallRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return new DirectoryAuthorizeRequest(
+            request.Caller?.ToCapabilityCaller(),
+            request.TargetNeuron,
+            request.Operation,
+            request.SemanticTypeIds,
+            request.EstimatedCompute,
+            request.HasSideEffects,
+            request.EnforceTarget,
+            request.TargetScope,
+            request.PublicOperation);
+    }
+
+    public CallRequest? ToCallRequest()
+    {
+        if (Caller is null) { return null; }
+        return new CallRequest
+        {
+            Caller = Caller.ToCaller(),
+            TargetNeuron = TargetNeuron,
+            Operation = Operation,
+            SemanticTypeIds = SemanticTypeIds ?? [],
+            EstimatedCompute = EstimatedCompute,
+            HasSideEffects = HasSideEffects,
+            EnforceTarget = EnforceTarget,
+            TargetScope = TargetScope,
+            PublicOperation = PublicOperation,
+        };
+    }
 }
 
 [DigitalBrain.Signal("identity.directory-changed")]
@@ -83,8 +128,8 @@ internal sealed record DirectoryState
     public BrainOperation[] Operations { get; init; } = [];
 }
 
-[DigitalBrain.Neuron(IDirectoryStore.Type)]
-internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> auth, AuthorityMirror mirror) : DigitalBrain.Neuron<DirectoryState>, IDirectoryStore
+[Neuron(IDirectoryStore.Type)]
+internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> auth, AuthorityMirror mirror, IServiceProvider? services = null) : Neuron<DirectoryState>, IDirectoryStore
 {
     public static IDirectoryStore Open(IServiceProvider services) => SiloNeurons.Get<IDirectoryStore>(services, IDirectoryStore.Key);
 
@@ -239,8 +284,8 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     private static CapabilityCaller AuthorityReader(string brain) => CapabilityCallers.Platform(IDirectoryStore.Type, "system", brain);
 
     private Grants.IGrantsNeuron? GrantsOf(string brain)
-        => Context.Services.GetService<IGrainFactory>() is not null
-            ? SiloNeurons.Get<Grants.IGrantsNeuron>(Context.Services, Grants.IGrantsNeuron.Key(brain))
+        => services?.GetService<IGrainFactory>() is not null
+            ? SiloNeurons.Get<Grants.IGrantsNeuron>(services, Grants.IGrantsNeuron.Key(brain))
             : null;
 
     private async Task<Grant[]> ReadGrants(string brain)
@@ -264,9 +309,20 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         await grants.Revoke(grantId);
     }
 
-    public async Task<CallDecision?> Authorize(CallRequest request)
+    public Task<CallDecision?> Authorize(DirectoryAuthorizeRequest request)
     {
-        var brain = BrainOf(State, request.Caller.BrainId) ?? new BrainRow { BrainId = request.Caller.BrainId };
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.ToCallRequest() is not { } callRequest)
+        {
+            return Task.FromResult<CallDecision?>(CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no caller."));
+        }
+        return AuthorizeCall(callRequest);
+    }
+
+    internal async Task<CallDecision?> AuthorizeCall(CallRequest request)
+    {
+        var brainId = request.Caller.Brain.Value;
+        var brain = BrainOf(State, brainId) ?? new BrainRow { BrainId = brainId };
         var durableGrants = await ReadGrants(BrainAuthorityDecisions.GrantsBrainOf(request));
         var allGrants = durableGrants.Length > 0 ? durableGrants : brain.Grants;
         var decision = await BrainAuthorityDecisions.Decide(brain with { Grants = allGrants }, request);

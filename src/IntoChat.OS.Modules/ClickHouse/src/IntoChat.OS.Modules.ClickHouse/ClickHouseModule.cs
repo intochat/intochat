@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,17 +8,17 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.ClickHouse;
 
-[DigitalBrain.Module(ClickHouseModule.ManifestName)]
-public sealed class ClickHouseModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module(ClickHouseModule.ManifestName)]
+public sealed class ClickHouseModule : DigitalBrain.Modules.Module
 {
     internal const string ManifestName = "clickhouse";
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<ClickHouseModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(ClickHouseModule.ManifestName))],
-        Secrets: [DigitalBrain.Secret.Named("connection-string")]);
+        Settings: [DigitalBrain.Modules.Setting.Of<ClickHouseModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(ClickHouseModule.ManifestName))],
+        Secrets: [DigitalBrain.Modules.Secret.Named("connection-string")]);
 
     public static bool RequiresContainer => true;
 

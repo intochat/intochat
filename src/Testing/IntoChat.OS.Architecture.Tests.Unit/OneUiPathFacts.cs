@@ -22,7 +22,7 @@ public sealed partial class OneUiPathFacts
     {
         var aliases = ProductionArchitecture.Types
             .Where(type => type.Assembly.GetName().Name == "IntoChat.OS.Modules.Flutter")
-            .Select(type => type.GetCustomAttribute<DigitalBrain.NeuronAttribute>(inherit: false)?.Type)
+            .Select(type => type.GetCustomAttribute<DigitalBrain.Neurons.NeuronAttribute>(inherit: false)?.Type)
             .OfType<string>()
             .ToHashSet(StringComparer.Ordinal);
         Assert.Contains("ui.field", aliases);

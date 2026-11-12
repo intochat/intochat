@@ -1,7 +1,7 @@
-using DigitalBrain.Capabilities.Connections;
 using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;

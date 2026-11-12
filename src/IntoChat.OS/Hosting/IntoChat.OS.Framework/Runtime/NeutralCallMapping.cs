@@ -41,14 +41,14 @@ public static class NeutralCallMapping
     public static TimeSpan? TimeoutOf(MethodInfo method) => Of(method).Timeout;
 
     private static Markers Of(MethodInfo method) => Methods.GetOrAdd(method, static m => new(
-        m.IsDefined(typeof(DigitalBrain.InterleavesAttribute), false) || m.IsDefined(typeof(DigitalBrain.ReadOnlyCallAttribute), false),
-        m.IsDefined(typeof(DigitalBrain.OneWayCallAttribute), false),
-        m.GetCustomAttribute<DigitalBrain.CallTimeoutAttribute>(false) is { } timeout ? timeout.Timeout : null));
+        m.IsDefined(typeof(DigitalBrain.Contracts.InterleavesAttribute), false) || m.IsDefined(typeof(DigitalBrain.Contracts.ReadOnlyCallAttribute), false),
+        m.IsDefined(typeof(DigitalBrain.Contracts.OneWayCallAttribute), false),
+        m.GetCustomAttribute<DigitalBrain.Contracts.CallTimeoutAttribute>(false) is { } timeout ? timeout.Timeout : null));
 
     // [InterleavesWhen(name)] names a static bool name(MethodInfo method, IReadOnlyList<object?> arguments) on the class.
     private static Func<MethodInfo, IReadOnlyList<object?>, bool>? PredicateOf(Type neuronClass)
     {
-        if (neuronClass.GetCustomAttribute<DigitalBrain.InterleavesWhenAttribute>(false) is not { } when) { return null; }
+        if (neuronClass.GetCustomAttribute<DigitalBrain.Neurons.InterleavesWhenAttribute>(false) is not { } when) { return null; }
         var method = neuronClass.GetMethod(when.Predicate, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static, [typeof(MethodInfo), typeof(IReadOnlyList<object?>)])
             ?? throw new InvalidOperationException($"{neuronClass.FullName} names interleaving predicate {when.Predicate}, which is not a static bool {when.Predicate}(MethodInfo, IReadOnlyList<object?>).");
         return method.ReturnType == typeof(bool)

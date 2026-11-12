@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Runtime.Synapses;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Trace;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,18 +11,20 @@ namespace IntoChat.OS.Modules.Apps;
 
 // Wraps the silo's synapse host for Ino. A deploy whose step key ({alias}:{source and bindings hash}) already landed does not reach the host
 // again, so a re-advanced task step is not rerun. Failures come back as readable text.
-[DigitalBrain.Neuron("ino.synapses")]
-public sealed partial class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStudioState>, ISynapseStudio
+[DigitalBrain.Neurons.Neuron("ino.synapses")]
+public sealed partial class SynapseStudioNeuron(
+    ISynapseHost? host = null,
+    SynapseCompiler? compiler = null) : DigitalBrain.Neurons.Neuron<SynapseStudioState>, ISynapseStudio
 {
     internal const string Unavailable = "Synapse hosting is not available in this brain.";
 
-    private ISynapseHost? Host => Context.Services.GetService<ISynapseHost>();
+    private ISynapseHost? Host => host;
 
     public Task<InoToolResult> Check(string source)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (Context.Services.GetService<SynapseCompiler>() is not { } compiler) { return Task.FromResult(new InoToolResult(Unavailable, Ok: false)); }
-        var build = compiler.Compile(new SynapseSource("check", new Dictionary<string, string> { ["unit.cs"] = source }, null));
+        if (compiler is not { } c) { return Task.FromResult(new InoToolResult(Unavailable, Ok: false)); }
+        var build = c.Compile(new SynapseSource("check", new Dictionary<string, string> { ["unit.cs"] = source }, null));
         return Task.FromResult(new InoToolResult(build.Diagnostics.Count == 0
             ? "No diagnostics; the unit compiles."
             : (build.Success ? "Compiles with diagnostics:\n" : "Does not compile:\n") + Describe(build.Diagnostics), Ok: build.Success));
@@ -93,28 +96,28 @@ public sealed partial class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStu
             && CircleOnlySignals.Any(signal => code.Values.Any(text => text.Contains($"\"{unit}.{signal}\"", StringComparison.Ordinal))));
 
     private static UnitDeployResult Failed(string text, DeployOutcome? outcome = null)
-        => new(false, text, outcome?.Status ?? DeployStatus.Failed, outcome?.Hash, outcome?.Installs ?? new Dictionary<string, DigitalBrain.InstallOutcome>());
+        => new(false, text, outcome?.Status ?? DeployStatus.Failed, outcome?.Hash, outcome?.Installs ?? new Dictionary<string, DigitalBrain.Units.InstallOutcome>());
 
     // The outcome of a step key that already landed, or null when the installs neuron knows nothing of the alias (deploy again).
     private async Task<UnitDeployResult?> Landed(string alias, string hash)
     {
         var installs = Context.Get<IInstalls>(new NeuronId(Id.Brain, "synapse.installs", "default"));
-        DigitalBrain.InstallOutcome install;
+        DigitalBrain.Units.InstallOutcome install;
         try
         {
             // A pending ask comes first: a record left by an earlier install does not answer a redeploy with wider needs.
             if ((await installs.Pending(CancellationToken.None)).FirstOrDefault(pending => pending.Alias == alias) is { } pending)
-            { install = new DigitalBrain.InstallOutcome(DigitalBrain.InstallStatus.Pending, pending.Sentence, pending.PlanId); }
-            else if (await installs.Describe(alias, CancellationToken.None) is not null) { install = new DigitalBrain.InstallOutcome(DigitalBrain.InstallStatus.Unchanged, "", null); }
+            { install = new DigitalBrain.Units.InstallOutcome(DigitalBrain.Units.InstallStatus.Pending, pending.Sentence, pending.PlanId); }
+            else if (await installs.Describe(alias, CancellationToken.None) is not null) { install = new DigitalBrain.Units.InstallOutcome(DigitalBrain.Units.InstallStatus.Unchanged, "", null); }
             else { return null; }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             // A brain hosting no installs neuron installs nothing: the unit is deployed and that is all.
-            return new UnitDeployResult(true, $"{alias} is already deployed (hash {hash}).", DeployStatus.Unchanged, hash, new Dictionary<string, DigitalBrain.InstallOutcome>());
+            return new UnitDeployResult(true, $"{alias} is already deployed (hash {hash}).", DeployStatus.Unchanged, hash, new Dictionary<string, DigitalBrain.Units.InstallOutcome>());
         }
         return new UnitDeployResult(true, $"{alias} is already deployed (hash {hash}).", DeployStatus.Unchanged, hash,
-            new Dictionary<string, DigitalBrain.InstallOutcome>(StringComparer.Ordinal) { [alias] = install });
+            new Dictionary<string, DigitalBrain.Units.InstallOutcome>(StringComparer.Ordinal) { [alias] = install });
     }
 
     public async Task<InoToolResult> Retire(string alias)
@@ -135,42 +138,28 @@ public sealed partial class SynapseStudioNeuron : DigitalBrain.Neuron<SynapseStu
         return new InoToolResult($"Retired {alias}.");
     }
 
-    // The host lists only loaded units, and loads a stored one lazily on its alias's first miss. A scheduled unit may see no miss
-    // after a restart, so List first restores every stored unit the host has not loaded. A unit stored before bindings were kept
-    // (Bindings null) that declares a [Slot] cannot be bound again: it is reported Refused, never restored, and must be rebuilt.
     public async Task<DeployedSource[]> List()
     {
         if (Host is not { } host) { return []; }
         var live = await host.List(Id.Brain, CancellationToken.None);
-        if (Context.Services.GetService<ISourceStore>() is not { } store) { return [.. live]; }
-        var records = await store.List(Id.Brain, CancellationToken.None);
-        var stale = records.Where(RebuildRequired).ToArray();
-        if (Context.Services.GetService<DigitalBrain.Spi.ISynapseRestorer>() is { } restorer)
-        {
-            var missing = records
-                .Where(record => record.Aliases.Count > 0 && !stale.Contains(record) && live.All(source => source.SourceKey != record.SourceKey)).ToArray();
-            foreach (var record in missing) { await restorer.TryRestore(Id.Brain, record.Aliases[0], CancellationToken.None); }
-            if (missing.Length > 0) { live = await host.List(Id.Brain, CancellationToken.None); }
-        }
-
-        return [.. live.Where(source => stale.All(record => record.SourceKey != source.SourceKey)),
-            .. stale.Select(record => new DeployedSource(record.SourceKey, record.Hash, record.Aliases, DeployStatus.Refused, null, record.DeployedAt))];
+        return [.. live];
     }
-
-    // The stored record predates kept bindings and its source declares a slot: nothing says what the slot was bound to.
-    internal static bool RebuildRequired(SourceRecord record)
-        => record.Bindings is null && record.Files.Values.Any(text => SlotDeclaration().IsMatch(text));
-
-    [System.Text.RegularExpressions.GeneratedRegex(@"\[\s*(?:DigitalBrain\.)?Slot(?:Attribute)?\s*(?:\]|\()")]
-    private static partial System.Text.RegularExpressions.Regex SlotDeclaration();
 
     public Task<Dictionary<string, string>> Sidecars(string alias)
         => Task.FromResult(State.Sidecars?.TryGetValue(alias, out var files) == true
             ? new Dictionary<string, string>(files, StringComparer.Ordinal) : new Dictionary<string, string>(StringComparer.Ordinal));
 
     public async Task<Dictionary<string, string>> SourceFiles(string alias)
-        => Context.Services.GetService<ISourceStore>() is { } store && await store.Get(Id.Brain, alias, CancellationToken.None) is { } record
-            ? new Dictionary<string, string>(record.Files, StringComparer.Ordinal) : new Dictionary<string, string>(StringComparer.Ordinal);
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(alias);
+        var sources = Context.Get<ISources>(new NeuronId(Id.Brain, "synapse.sources", "default"));
+        var sourceKey = await sources.OwnerOf(alias, CancellationToken.None) ?? alias;
+        var deployment = Context.Get<IUnitDeployment>(new NeuronId(Id.Brain, "synapse.deployment", sourceKey));
+        var source = await deployment.Source(CancellationToken.None);
+        return source is not null
+            ? new Dictionary<string, string>(source.Files, StringComparer.Ordinal)
+            : new Dictionary<string, string>(StringComparer.Ordinal);
+    }
 
     public async Task<InoToolResult> Failures(string alias)
     {

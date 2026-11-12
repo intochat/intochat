@@ -2,6 +2,7 @@ using System.Collections;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using DigitalBrain.Modules;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -72,7 +73,7 @@ public sealed partial class ModuleTestTierFacts
                 && type.Assembly.GetName().Name!.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
                 && Repository.Projects.ContainsKey(type.Assembly.GetName().Name!))
             .Select(type => (type, manifest: type.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)))
-            .Where(pair => pair.manifest?.PropertyType.FullName == "DigitalBrain.ModuleManifest")
+            .Where(pair => pair.manifest?.PropertyType.FullName == "DigitalBrain.Modules.ModuleManifest")
             .Select(pair => (Module: pair.type.Assembly.GetName().Name!, Provides: Provided(pair.manifest!.GetValue(null))))
             .Where(pair => pair.Provides.Length > 0)
             .DistinctBy(pair => pair.Module)];

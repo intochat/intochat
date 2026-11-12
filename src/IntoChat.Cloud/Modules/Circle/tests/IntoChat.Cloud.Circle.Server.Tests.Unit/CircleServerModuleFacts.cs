@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;

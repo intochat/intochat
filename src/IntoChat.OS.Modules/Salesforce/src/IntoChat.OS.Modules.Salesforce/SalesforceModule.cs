@@ -1,4 +1,5 @@
 using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using Microsoft.Extensions.Configuration;
@@ -9,15 +10,15 @@ namespace IntoChat.OS.Modules.Salesforce;
 
 // An org connection is the Salesforce neuron's own sealed state; the Platform runs its browser login,
 // the code exchange and the refresh through the OAuth method below.
-[DigitalBrain.Module("salesforce")]
-public sealed class SalesforceModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module("salesforce")]
+public sealed class SalesforceModule : DigitalBrain.Modules.Module
 {
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<SalesforceModuleOptions>(ModuleConfiguration.ModuleOptionsSection("salesforce"))],
-        Secrets: [DigitalBrain.Secret.Named("consumer-key"), DigitalBrain.Secret.Named("consumer-secret")])
+        Settings: [DigitalBrain.Modules.Setting.Of<SalesforceModuleOptions>(ModuleConfiguration.ModuleOptionsSection("salesforce"))],
+        Secrets: [DigitalBrain.Modules.Secret.Named("consumer-key"), DigitalBrain.Modules.Secret.Named("consumer-secret")])
     {
         Actions = [new("salesforce.record.write", "write a Salesforce record", null)],
     };

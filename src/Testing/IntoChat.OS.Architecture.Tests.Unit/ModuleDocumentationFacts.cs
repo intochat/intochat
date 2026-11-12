@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using IntoChat.OS.Contracts.Configuration;
@@ -226,7 +227,7 @@ public sealed class ModuleDocumentationFacts
 
     private static IEnumerable<(string Name, bool Optional)> SchemaSecrets(Type type)
     {
-        var manifest = type.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as DigitalBrain.ModuleManifest;
+        var manifest = type.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as DigitalBrain.Modules.ModuleManifest;
         if (manifest is not null)
         {
             foreach (var secret in manifest.Secrets)

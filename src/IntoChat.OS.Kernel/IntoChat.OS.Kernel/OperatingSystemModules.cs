@@ -38,7 +38,7 @@ public static class OperatingSystemModules
 
     private static bool IsProductModule(Type type)
     {
-        if (!typeof(DigitalBrain.Module).IsAssignableFrom(type) || type.GetCustomAttribute<DigitalBrain.ModuleAttribute>() is null) { return false; }
+        if (!typeof(DigitalBrain.Modules.Module).IsAssignableFrom(type) || type.GetCustomAttribute<DigitalBrain.Modules.ModuleAttribute>() is null) { return false; }
         // The kernel composition carries two product modules of its own: Orleans and the http@1 connector.
         if (type == typeof(IntoChat.OS.Modules.Microsoft.Orleans.OrleansModule)) { return true; }
         if (type == typeof(IntoChat.OS.Kernel.Composition.Capabilities.HttpModule)) { return true; }

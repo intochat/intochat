@@ -11,7 +11,7 @@ namespace IntoChat.OS.Modules.Microsoft.Playwright;
 public interface IPageTools : IToolSource
 {
     Task<PageToolsState> Configure(PageToolsSpec spec, CancellationToken ct = default);
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<PageToolsState> Read();
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<PageToolsState> Read();
 }
 
 public sealed record PageToolsSpec(string Title, string Driver, string Api);

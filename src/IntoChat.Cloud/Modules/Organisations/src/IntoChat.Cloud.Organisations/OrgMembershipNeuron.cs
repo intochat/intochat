@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
 
 namespace IntoChat.Cloud.Organisations;
 

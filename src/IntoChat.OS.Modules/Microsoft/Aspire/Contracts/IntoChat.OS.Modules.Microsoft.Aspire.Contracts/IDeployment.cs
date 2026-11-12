@@ -15,8 +15,8 @@ public sealed record DeploymentSnapshot(
 [DigitalBrain.Contracts.NeuronAlias("aspire.deployment"), DigitalBrain.Contracts.DefaultNeuronType("aspire.deployment")]
 public interface IDeployment
 {
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<DeploymentSnapshot> Read();
-    [DigitalBrain.CallTimeout(600_000)] Task<DeploymentSnapshot> Restart(string sha);
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<DeploymentSnapshot> Read();
+    [DigitalBrain.Contracts.CallTimeout(600_000)] Task<DeploymentSnapshot> Restart(string sha);
     // Instance by instance onto a compatible build: the MCP clients, then the silos, the one running the roll last.
     // Answers once the roll is under way; its end is DeploymentChanged(Steady): on sha, or back on the previous build
     // with the Failure that sent it back, which Read() reports. Callers follow a roll through Read()/DeploymentChanged and never resend Roll

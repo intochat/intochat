@@ -9,15 +9,15 @@ namespace IntoChat.OS.Modules.AI.Agents;
 [NeuronAlias("agent"), DefaultNeuronType("agent")]
 public interface IAgent
 {
-    [DigitalBrain.Interleaves] Task Configure(AgentDefinition definition, long expectedRevision);
-    [DigitalBrain.Interleaves, DigitalBrain.CallTimeout(600_000)] IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, CancellationToken ct = default);
-    [DigitalBrain.Interleaves] Task<string> Start(AgentTurn turn, string? flowId = null);
-    [DigitalBrain.Interleaves] Task Cancel();
-    [DigitalBrain.Interleaves] Task CancelRun(string runId);
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<AgentState> Read();
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<AiMessage[]> Transcript();
-    [DigitalBrain.Interleaves] Task Clear();
+    [DigitalBrain.Contracts.Interleaves] Task Configure(AgentDefinition definition, long expectedRevision);
+    [DigitalBrain.Contracts.Interleaves, DigitalBrain.Contracts.CallTimeout(600_000)] IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, CancellationToken ct = default);
+    [DigitalBrain.Contracts.Interleaves] Task<string> Start(AgentTurn turn, string? flowId = null);
+    [DigitalBrain.Contracts.Interleaves] Task Cancel();
+    [DigitalBrain.Contracts.Interleaves] Task CancelRun(string runId);
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<AgentState> Read();
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<AiMessage[]> Transcript();
+    [DigitalBrain.Contracts.Interleaves] Task Clear();
     // Records a completed assistant-only entry (no model call), e.g. a greeting; one entry per id
     // (stored as run `post/{id}`). Throws InvalidOperationException while a run is active: retry later.
-    [DigitalBrain.Interleaves] Task Post(string text, string id);
+    [DigitalBrain.Contracts.Interleaves] Task Post(string text, string id);
 }

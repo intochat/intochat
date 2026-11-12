@@ -8,7 +8,7 @@ public interface IFlowStarter
 {
     Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<FlowHead> Head();
 
     Task Resume(string step, WaitOutcome outcome, string? by);

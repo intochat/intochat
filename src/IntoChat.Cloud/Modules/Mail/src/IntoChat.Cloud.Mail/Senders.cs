@@ -1,6 +1,6 @@
 using Azure;
 using Azure.Communication.Email;
-using DigitalBrain.Spi;
+using DigitalBrain.Neurons;
 using IntoChat.Cloud.Mail.Templates;
 using Microsoft.Extensions.Logging;
 

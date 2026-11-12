@@ -73,20 +73,17 @@ public sealed record FilesState
 }
 
 // Files uses storage@1 only. The host persists snapshots and submits plans to the runtime's confirmation/operation gate.
-[App(FilesApp.AppName, Accent = "#F6B73C", Category = "Workspace")]
-public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState state, IReadOnlyList<IStorage>? storages = null) : App
+public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState state, IReadOnlyList<IStorage>? storages = null)
 {
     public const string AppName = "files";
     public const int PageSize = 100;
     public static readonly TimeSpan DefaultSearchLimit = TimeSpan.FromSeconds(2);
-    public static AppDefinition Definition { get; } = new(typeof(FilesApp));
     public IReadOnlyList<IStorage>? Storages { get; } = storages;
     public FilesState Snapshot { get; private set; } = state;
     public TimeSpan SearchLimit { get; set; } = DefaultSearchLimit;
     public IReadOnlySet<string> InstalledApps { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     public event Action? Changed;
 
-    [On]
     public async Task Open(FilesOpened request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -125,7 +122,6 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         });
     }
 
-    [On]
     public async Task Browse(FilesLocation location, CancellationToken ct = default)
     {
         var (connection, folder) = location;
@@ -168,7 +164,6 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         }
     }
 
-    [On]
     public async Task Select(FilesSelected request, CancellationToken ct = default)
     {
         var selected = request.Item;
@@ -183,7 +178,6 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         if (item.Kind == ItemKind.File) { await LoadPreview(ct); }
     }
 
-    [On]
     public async Task Search(FilesSearch query, CancellationToken ct = default)
     {
         var (text, everywhere) = query;
@@ -225,7 +219,6 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         });
     }
 
-    [On]
     public async Task More(FilesMore request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -253,7 +246,6 @@ public sealed class FilesApp(ICapabilityBroker broker, BrainId brain, FilesState
         });
     }
 
-    [On]
     public async Task Preview(FilesPreview request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);

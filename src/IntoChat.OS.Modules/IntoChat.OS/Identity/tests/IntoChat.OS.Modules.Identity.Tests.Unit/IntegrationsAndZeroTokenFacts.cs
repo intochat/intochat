@@ -1,8 +1,8 @@
-using DigitalBrain.Capabilities.Compute;
-using DigitalBrain.Capabilities.Connections;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Compute;
+using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Storage;
 using IntoChat.OS.Authority.Connections;
 using IntoChat.OS.Authority.Connections.OAuth;
@@ -139,11 +139,11 @@ public sealed class IntegrationsAndZeroTokenFacts
 
         var vaultRequest = new CallRequest
         {
-            Caller = appCaller,
+            Caller = appCaller.ToCaller(),
             TargetNeuron = "system/identity.vault/ada",
             Operation = "IVault.Resolve",
         };
-        var decision = GrantRules.Evaluate(vaultRequest, null, [], PrincipalSet.For(vaultRequest.Caller));
+        var decision = GrantRules.Evaluate(vaultRequest, null, [], PrincipalSet.For(appCaller));
         Assert.NotNull(decision);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, decision.Denial);
@@ -155,11 +155,11 @@ public sealed class IntegrationsAndZeroTokenFacts
 
         var exportRequest = new CallRequest
         {
-            Caller = appCaller,
+            Caller = appCaller.ToCaller(),
             TargetNeuron = "local/connection/github/personal",
             Operation = "IConnection.ExportFor",
         };
-        var exportDecision = GrantRules.Evaluate(exportRequest, null, [], PrincipalSet.For(exportRequest.Caller));
+        var exportDecision = GrantRules.Evaluate(exportRequest, null, [], PrincipalSet.For(appCaller));
         Assert.NotNull(exportDecision);
         Assert.False(exportDecision!.Allowed);
 
@@ -265,24 +265,24 @@ public sealed class IntegrationsAndZeroTokenFacts
 
             var friendRequest = new CallRequest
             {
-                Caller = friendCaller,
+                Caller = friendCaller.ToCaller(),
                 TargetNeuron = connectionKey,
                 Operation = "IGitHub.ReadRepo",
                 SemanticTypeIds = ["repo.contents"],
             };
-            var friendDecision = GrantRules.Evaluate(friendRequest, null, [creatorGrant], PrincipalSet.For(friendRequest.Caller));
+            var friendDecision = GrantRules.Evaluate(friendRequest, null, [creatorGrant], PrincipalSet.For(friendCaller));
             Assert.NotNull(friendDecision);
             Assert.True(friendDecision!.Allowed);
 
-            var strangerRequest = friendRequest with { Caller = strangerCaller };
-            var strangerDecision = GrantRules.Evaluate(strangerRequest, null, [creatorGrant], PrincipalSet.For(strangerRequest.Caller));
+            var strangerRequest = friendRequest with { Caller = strangerCaller.ToCaller() };
+            var strangerDecision = GrantRules.Evaluate(strangerRequest, null, [creatorGrant], PrincipalSet.For(strangerCaller));
             Assert.NotNull(strangerDecision);
             Assert.False(strangerDecision!.Allowed);
 
             var callBindings = new ConnectionCallBindings(new NoConnectionBindings());
             var boundCall = new CallRequest
             {
-                Caller = friendCaller,
+                Caller = friendCaller.ToCaller(),
                 TargetNeuron = "github/" + connectionKey,
                 Operation = "Read",
             };
@@ -302,12 +302,12 @@ public sealed class IntegrationsAndZeroTokenFacts
         // 1. Foreign target with empty SemanticTypeIds must fail closed (Deny MissingGrant).
         var foreignCall = new CallRequest
         {
-            Caller = appCaller,
+            Caller = appCaller.ToCaller(),
             TargetNeuron = "local/connection/postgres/main",
             Operation = "Query",
             SemanticTypeIds = [],
         };
-        var foreignDecision = GrantRules.Evaluate(foreignCall, null, [], PrincipalSet.For(foreignCall.Caller));
+        var foreignDecision = GrantRules.Evaluate(foreignCall, null, [], PrincipalSet.For(appCaller));
         Assert.NotNull(foreignDecision);
         Assert.False(foreignDecision!.Allowed);
         Assert.Equal(CallDenial.MissingGrant, foreignDecision.Denial);
@@ -315,36 +315,36 @@ public sealed class IntegrationsAndZeroTokenFacts
         // 2. Own app target with empty SemanticTypeIds is allowed.
         var ownCall = new CallRequest
         {
-            Caller = appCaller,
+            Caller = appCaller.ToCaller(),
             TargetNeuron = "local/apps/calculator",
             Operation = "Compute",
             SemanticTypeIds = [],
         };
-        var ownDecision = GrantRules.Evaluate(ownCall, null, [], PrincipalSet.For(ownCall.Caller));
+        var ownDecision = GrantRules.Evaluate(ownCall, null, [], PrincipalSet.For(appCaller));
         Assert.NotNull(ownDecision);
         Assert.True(ownDecision!.Allowed);
 
         // 3. Typed zero-token guard prevents forbidden types/interfaces/methods.
         var vaultCall = new CallRequest
         {
-            Caller = appCaller,
+            Caller = appCaller.ToCaller(),
             TargetNeuron = "system/identity.vault/ada",
             Operation = "Resolve",
             SemanticTypeIds = [],
         };
-        var vaultDecision = GrantRules.Evaluate(vaultCall, null, [], PrincipalSet.For(vaultCall.Caller));
+        var vaultDecision = GrantRules.Evaluate(vaultCall, null, [], PrincipalSet.For(appCaller));
         Assert.NotNull(vaultDecision);
         Assert.False(vaultDecision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, vaultDecision.Denial);
 
         var exportCall = new CallRequest
         {
-            Caller = appCaller,
+            Caller = appCaller.ToCaller(),
             TargetNeuron = "local/connection/github/work",
             Operation = "IConnection.ExportFor",
             SemanticTypeIds = [],
         };
-        var exportDecision = GrantRules.Evaluate(exportCall, null, [], PrincipalSet.For(exportCall.Caller));
+        var exportDecision = GrantRules.Evaluate(exportCall, null, [], PrincipalSet.For(appCaller));
         Assert.NotNull(exportDecision);
         Assert.False(exportDecision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, exportDecision.Denial);
@@ -352,7 +352,7 @@ public sealed class IntegrationsAndZeroTokenFacts
         // 4. Benign substring target (e.g. app named "local/apps/my-vault-helper") does not trigger false positive.
         var benignCall = new CallRequest
         {
-            Caller = CapabilityCallers.Of(AppPrincipal.Id("local/apps/my-vault-helper"), "ada", "local", CallerKind.App, "local/apps/my-vault-helper"),
+            Caller = CapabilityCallers.Of(AppPrincipal.Id("local/apps/my-vault-helper"), "ada", "local", CallerKind.App, "local/apps/my-vault-helper").ToCaller(),
             TargetNeuron = "local/apps/my-vault-helper",
             Operation = "Help",
             SemanticTypeIds = [],

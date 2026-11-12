@@ -1,14 +1,14 @@
-using DigitalBrain.Capabilities.Connections;
-using DigitalBrain.Errors;
 using System.Diagnostics;
-using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Storage.Confinement;
+using DigitalBrain.Errors;
+using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // A plain neuron (06-08) keyed {connectionKey}/console.
-[DigitalBrain.Neuron("windows.console")]
-internal sealed class ConsoleNeuron(MachineIdentity identity) : DigitalBrain.Neuron, IConsole
+[DigitalBrain.Neurons.Neuron("windows.console")]
+internal sealed class ConsoleNeuron(MachineIdentity identity, IServiceProvider services) : DigitalBrain.Neurons.Neuron, IConsole
 {
     private const int MaxOutputChars = 20_000;
 
@@ -21,7 +21,7 @@ internal sealed class ConsoleNeuron(MachineIdentity identity) : DigitalBrain.Neu
         var connection = WindowsKeys.Connection($"{Id.Brain.Value}/{Id.Key}");
         if (ConnectionKeys.Parse(connection).ConnectionId != identity.Id)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
-        var roots = await SiloNeurons.Get<IWindows>(Context.Services, connection).Roots();
+        var roots = await SiloNeurons.Get<IWindows>(services, connection).Roots();
         var directory = PathConfinement.Resolve(roots, string.IsNullOrWhiteSpace(workingDirectory) ? (roots.Length > 0 ? roots[0] : ".") : workingDirectory);
         var seconds = Math.Clamp(timeoutSeconds, 1, MaxTimeoutSeconds);
 

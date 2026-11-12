@@ -3,7 +3,7 @@ using DigitalBrain.Capabilities.Connections;
 namespace IntoChat.OS.Modules.Microsoft.Azure;
 
 [GenerateSerializer, Alias("azure.connection-state")]
-internal sealed class AzureConnectionState : ConnectionState
+internal sealed record AzureConnectionState : ConnectionState
 {
     [Id(0)] public AzureEnsured[] Ensured { get; set; } = [];
 }
@@ -16,7 +16,7 @@ internal sealed record AzureEnsured(
 
 // The connection to one Azure subscription; its key names the subscription. It remembers what it ensured,
 // so the inventory is readable without listing Azure.
-[DigitalBrain.Neuron("azure", State = "azure")]
+[DigitalBrain.Neurons.Neuron("azure", State = "azure")]
 internal sealed class AzureNeuron(
     IAzureArm arm)
     : ConnectionNeuron<AzureConnectionState>, IAzure

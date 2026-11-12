@@ -1,11 +1,11 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Capabilities.Compute;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Modules.AI.Inference;
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Compute;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.AI.Inference;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;

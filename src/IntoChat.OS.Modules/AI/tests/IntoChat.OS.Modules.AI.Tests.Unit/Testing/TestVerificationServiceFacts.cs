@@ -1,10 +1,10 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Testing;

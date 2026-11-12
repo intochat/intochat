@@ -1,8 +1,8 @@
-using DigitalBrain.Contracts;
-using DigitalBrain;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using DigitalBrain;
+using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Flutter.Chat;
 
@@ -12,7 +12,7 @@ namespace IntoChat.OS.Modules.Flutter.Chat;
 public interface IChatIndex
 {
     // Unarchived (archived: false) or archived (archived: true) entries, newest first; only the newest MaxListed are reachable.
-    [DigitalBrain.ReadOnlyCall] Task<ChatIndexPage> List(bool archived, int skip = 0, int take = ChatIndex.MaxPage);
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<ChatIndexPage> List(bool archived, int skip = 0, int take = ChatIndex.MaxPage);
     // Idempotent by id: an existing entry is returned unchanged.
     Task<ChatIndexEntry> Create(string id, string title);
     Task Rename(string id, string title);
@@ -21,7 +21,7 @@ public interface IChatIndex
     // Marks activity, creating the entry when missing; titles a still-default entry from the first message.
     Task Touch(string id, string? firstMessage);
     Task SetModel(string id, string? modelChoice);
-    [DigitalBrain.ReadOnlyCall] Task<ChatIndexEntry?> Get(string id);
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<ChatIndexEntry?> Get(string id);
 }
 
 public sealed record ChatIndexEntry(

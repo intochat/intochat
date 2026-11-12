@@ -1,6 +1,6 @@
-using DigitalBrain.Contracts;
 using System.Collections.Concurrent;
 using System.Reflection;
+using DigitalBrain.Contracts;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 

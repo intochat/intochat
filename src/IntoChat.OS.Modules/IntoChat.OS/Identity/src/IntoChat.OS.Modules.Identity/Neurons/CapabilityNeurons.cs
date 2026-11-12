@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 
 namespace IntoChat.OS.Authority;

@@ -1,3 +1,4 @@
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
@@ -55,13 +56,13 @@ public sealed class IntoChatOSServerBuilder
     public IntoChatOSServerBuilder AddNeuronModule(Type moduleType)
     {
         ArgumentNullException.ThrowIfNull(moduleType);
-        if (!typeof(DigitalBrain.Module).IsAssignableFrom(moduleType))
+        if (!typeof(DigitalBrain.Modules.Module).IsAssignableFrom(moduleType))
         { throw new ArgumentException($"{moduleType.FullName} is not a DigitalBrain module.", nameof(moduleType)); }
         if (!_neuronModules.Contains(moduleType)) { _neuronModules.Add(moduleType); }
         return this;
     }
 
-    public IntoChatOSServerBuilder AddNeuronModule<TModule>() where TModule : DigitalBrain.Module => AddNeuronModule(typeof(TModule));
+    public IntoChatOSServerBuilder AddNeuronModule<TModule>() where TModule : DigitalBrain.Modules.Module => AddNeuronModule(typeof(TModule));
 
     internal IReadOnlyList<Type> NeuronModules => _neuronModules;
 

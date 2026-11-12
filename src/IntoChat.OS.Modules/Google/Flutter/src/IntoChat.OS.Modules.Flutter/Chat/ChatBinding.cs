@@ -1,5 +1,6 @@
-using DigitalBrain.Brains;
 using DigitalBrain;
+using DigitalBrain.Brains;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,7 +17,7 @@ internal sealed partial class ChatNeuron
     private DigitalBrain.NeuronId? _following;
     private bool _dirty;
     private bool _queued;
-    private IChatAgentSource Adapter => ServiceProvider.GetRequiredService<IChatAgentSource>();
+    private IChatAgentSource Adapter => adapter;
 
     public async Task<ChatSelection> SelectAgent(string agent, long expectedSelectionRevision, Guid operationId)
     {
@@ -120,7 +121,7 @@ internal sealed partial class ChatNeuron
     }
 
     // Any change signal of the followed agent: the snapshot is read again, one reconciliation at a time.
-    [DigitalBrain.On]
+    [On]
     public Task On(DigitalBrain.Signal changed)
     {
         _ = changed;

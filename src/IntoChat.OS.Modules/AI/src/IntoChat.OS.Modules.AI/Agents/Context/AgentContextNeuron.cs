@@ -1,12 +1,12 @@
 using DigitalBrain;
-using DigitalBrain.Spi;
+using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.State;
 using IntoChat.OS;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Agents.Context.Rules;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 
 namespace IntoChat.OS.Modules.AI.Agents.Context;
 

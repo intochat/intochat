@@ -69,7 +69,7 @@ public sealed class EdgeGrantsCacheAdversarialFacts
         var callBindings = new ConnectionCallBindings(new NoConnectionBindings());
         var boundCall = new CallRequest
         {
-            Caller = caller,
+            Caller = caller.ToCaller(),
             TargetNeuron = "github/" + connectionKey,
             Operation = "Read",
         };

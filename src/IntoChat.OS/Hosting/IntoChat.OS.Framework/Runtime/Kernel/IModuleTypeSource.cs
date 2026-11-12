@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Kernel;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;

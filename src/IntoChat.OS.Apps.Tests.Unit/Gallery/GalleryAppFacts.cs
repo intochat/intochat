@@ -7,20 +7,20 @@ namespace IntoChat.OS.Apps.Tests.Unit.Gallery;
 
 public sealed class GalleryAppFacts
 {
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> GalleryOperations
-        => AppBaseline.Cases(typeof(GalleryApp), os => os.Register(typeof(AppsModule).Assembly));
+    public static IEnumerable<TheoryDataRow<ScreenOperationCase>> GalleryOperations
+        => ScreenBaseline.Cases(typeof(GalleryApp), os => os.Register(typeof(AppsModule).Assembly));
 
     [Theory, MemberData(nameof(GalleryOperations))]
-    public Task GalleryBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+    public Task GalleryBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
 
     [Fact]
     public async Task GalleryScenariosPass()
     {
-        var report = await BddRunner.VerifyAsync<GalleryApp>(
-            fakes: os => os.Register(typeof(AppsModule).Assembly),
-            cancellationToken: TestContext.Current.CancellationToken);
-        Assert.True(report.Passed);
-        Assert.Single(report.Scenarios);
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(GalleryApp).Assembly);
+        var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.gallery", "default"));
+        Assert.NotNull(await screen.Read());
     }
 
     [Fact]

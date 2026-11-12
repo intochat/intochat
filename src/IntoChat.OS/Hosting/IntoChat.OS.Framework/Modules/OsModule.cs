@@ -1,7 +1,8 @@
+using System.Reflection;
 using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Options;
 using DigitalBrain.Runtime.Http.Surface;
-using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -56,10 +57,10 @@ public sealed class OsModule
     public static OsModule FromDigital(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
-        var manifest = DigitalBrain.ModuleManifest.Of(type);
+        var manifest = ModuleManifest.Of(type);
         var id = new ModuleId(manifest.Id ?? throw new InvalidOperationException($"{type.FullName} has no module id."));
         var requiresContainer = Flag(type, "RequiresContainer")
-            || manifest.Needs.Any(need => need.Kind == DigitalBrain.NeedKind.Sandbox && need.Image is not null);
+            || manifest.Needs.Any(need => need.Kind == NeedKind.Sandbox && need.Image is not null);
         return new OsModule(type, id, requiresContainer, Number(type, "Order"), Text(type, "LicenseProduct"),
             ContractsOf(type), NeuronsOf(type), Profiles(type), ReadSchemas(type));
     }
@@ -82,7 +83,7 @@ public sealed class OsModule
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
-        if (Type.GetCustomAttribute<DigitalBrain.ModuleAttribute>() is null) { return; }
+        if (Type.GetCustomAttribute<ModuleAttribute>() is null) { return; }
         const BindingFlags Flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.FlattenHierarchy;
         var two = Type.GetMethod("ConfigureServices", Flags, [typeof(IServiceCollection), typeof(IConfiguration)]);
         if (two is not null)
@@ -98,8 +99,8 @@ public sealed class OsModule
     public void BindOptions(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        if (Type.GetCustomAttribute<DigitalBrain.ModuleAttribute>() is null) { return; }
-        foreach (var setting in DigitalBrain.ModuleManifest.Of(Type).Settings)
+        if (Type.GetCustomAttribute<ModuleAttribute>() is null) { return; }
+        foreach (var setting in ModuleManifest.Of(Type).Settings)
         {
             typeof(OsModule).GetMethod(nameof(Bind), BindingFlags.NonPublic | BindingFlags.Static)!
                 .MakeGenericMethod(setting.OptionsType).Invoke(null, [services, setting.Section, Id.Value]);
@@ -120,7 +121,7 @@ public sealed class OsModule
     public void Register(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        if (Type.GetCustomAttribute<DigitalBrain.ModuleAttribute>() is null || !typeof(IHttpModule).IsAssignableFrom(Type)) { return; }
+        if (Type.GetCustomAttribute<ModuleAttribute>() is null || !typeof(IHttpModule).IsAssignableFrom(Type)) { return; }
         var instance = Runtime();
         services.AddSingleton(Type, instance);
         services.AddSingleton(typeof(IHttpModule), instance);
@@ -135,8 +136,8 @@ public sealed class OsModule
         var owned = selected.Select(module => module.Type).Concat(selected.Select(module => module.Neurons).OfType<Type>()).ToHashSet();
         foreach (var type in neuronModules.Distinct())
         {
-            if (!owned.Add(type) || !typeof(DigitalBrain.Module).IsAssignableFrom(type)) { continue; }
-            if (type.GetCustomAttribute<DigitalBrain.ModuleAttribute>() is null) { continue; }
+            if (!owned.Add(type) || !typeof(DigitalBrain.Modules.Module).IsAssignableFrom(type)) { continue; }
+            if (type.GetCustomAttribute<ModuleAttribute>() is null) { continue; }
             var hosted = FromDigital(type);
             hosted.BindOptions(services);
             hosted.ConfigureServices(services, configuration);

@@ -1,12 +1,13 @@
 using DigitalBrain;
 using DigitalBrain.Contracts;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.Template.Contracts;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Template;
 
 [Neuron("template.echo")]
-internal sealed class TemplateNeuron(IOptions<TemplateOptions>? options = null) : DigitalBrain.Neuron, ITemplateNeuron
+internal sealed class TemplateNeuron(IOptions<TemplateOptions>? options = null) : DigitalBrain.Neurons.Neuron, ITemplateNeuron
 {
     public Task<string> Echo(string message, CancellationToken ct = default)
     {

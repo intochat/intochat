@@ -1,3 +1,4 @@
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Modules.Template.Contracts;
 using Microsoft.Extensions.Configuration;
@@ -5,16 +6,16 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Template;
 
-[DigitalBrain.Module(ManifestName)]
-public sealed class TemplateModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module(ManifestName)]
+public sealed class TemplateModule : DigitalBrain.Modules.Module
 {
     internal const string ManifestName = "template";
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<TemplateOptions>(ModuleConfiguration.ModuleOptionsSection(ManifestName))],
+        Settings: [DigitalBrain.Modules.Setting.Of<TemplateOptions>(ModuleConfiguration.ModuleOptionsSection(ManifestName))],
         Secrets: []);
 
     public static System.Reflection.Assembly? Contracts => typeof(ITemplateNeuron).Assembly;

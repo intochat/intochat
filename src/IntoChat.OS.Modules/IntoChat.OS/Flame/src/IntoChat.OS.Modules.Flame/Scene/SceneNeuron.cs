@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Flame.Rules;
 using IntoChat.OS.Modules.Flame.Scene;
@@ -8,7 +9,7 @@ namespace IntoChat.OS.Modules.Flame;
 
 [Neuron(FlameVocabulary.SceneType)]
 internal sealed class SceneNeuron
-    : DigitalBrain.Neuron<SceneState>, IScene
+    : DigitalBrain.Neurons.Neuron<SceneState>, IScene
 {
     public Task Set(SceneDefinition definition, long expectedRevision)
     {
@@ -33,5 +34,5 @@ internal sealed class SceneNeuron
 
     private static bool Contains(SceneNode[] nodes, string id) => nodes.Any(n => n.Id == id || Contains(n.Children, id));
 
-    [DigitalBrain.ReadOnlyCall] public Task<SceneState> Read() { State.Name = Id.FullKey(); return Task.FromResult(State); }
+    [DigitalBrain.Contracts.ReadOnlyCall] public Task<SceneState> Read() { State.Name = Id.FullKey(); return Task.FromResult(State); }
 }

@@ -60,5 +60,5 @@ public sealed record SpaceRecordsChanged(string Brain) : DigitalBrain.Signal;
 [NeuronAlias("ui.space-records"), DefaultNeuronType(ISpace.Type)]
 internal interface ISpaceRecords
 {
-    [DigitalBrain.ReadOnlyCall] Task<SpaceRecords> Records();
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<SpaceRecords> Records();
 }

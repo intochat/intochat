@@ -16,8 +16,8 @@ using Xunit;
 namespace IntoChat.OS.Modules.Apps.Tests.Integration.Flows;
 
 // The flow agent of the facts: Start answers at once with the reply Replies holds for the prompt, as TurnCompleted, and records the prompt.
-[DigitalBrain.Neuron(Alias)]
-public sealed class ScriptedAgent : DigitalBrain.Neuron<PumpState>, IAgent
+[DigitalBrain.Neurons.Neuron(Alias)]
+public sealed class ScriptedAgent : DigitalBrain.Neurons.Neuron<PumpState>, IAgent
 {
     // Not "agent": the AI module's AgentNeuron owns that type, and fixtures load both.
     public const string Alias = "test.scripted-agent";
@@ -76,8 +76,8 @@ public sealed record StubRepositoryState(int Created = 0, bool Merged = false, b
 }
 
 // A GitHub repository of the facts: CreatePullRequest answers number 7; Merge closes it with a merge sha and publishes PullRequestChanged.
-[DigitalBrain.Neuron("github")]
-public sealed class StubRepository : DigitalBrain.Neuron<StubRepositoryState>, IRepository, IRepositoryScript
+[DigitalBrain.Neurons.Neuron("github")]
+public sealed class StubRepository : DigitalBrain.Neurons.Neuron<StubRepositoryState>, IRepository, IRepositoryScript
 {
     public const int Number = 7;
 

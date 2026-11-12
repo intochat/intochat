@@ -1,11 +1,11 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Runtime.Http.Surface;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
-using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Google.Gmail;
 
@@ -26,8 +26,10 @@ internal static class GmailWebhook
             var retryable = false;
             var found = await dispatch.RunAsync(brainId, brainId + "/gmail-push", async () =>
             {
-                foreach (var key in await SiloNeurons.Get<IConnectionIndex>(plain, IConnectionIndex.Key(brainId)).List())
+                var catalog = await SiloNeurons.Get<DigitalBrain.Capabilities.Connections.Catalog.IConnectionCatalog>(plain, DigitalBrain.Capabilities.Connections.Catalog.IConnectionCatalog.Key(brainId)).Read();
+                foreach (var row in catalog.Rows)
                 {
+                    var key = row.Key;
                     if (ConnectionKeys.Parse(key).ConnectorId != GmailModule.Gmail.Id) { continue; }
                     try
                     {

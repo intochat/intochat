@@ -1,3 +1,4 @@
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Modules.Microsoft.Roslyn.Contracts;
 using Microsoft.Extensions.Configuration;
@@ -6,16 +7,16 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
-[DigitalBrain.Module(ManifestName)]
-public sealed class RoslynModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module(ManifestName)]
+public sealed class RoslynModule : DigitalBrain.Modules.Module
 {
     internal const string ManifestName = "roslyn";
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<RoslynModuleOptions>(ModuleConfiguration.ModuleOptionsSection(ManifestName))],
+        Settings: [DigitalBrain.Modules.Setting.Of<RoslynModuleOptions>(ModuleConfiguration.ModuleOptionsSection(ManifestName))],
         Secrets: []);
 
     public static System.Reflection.Assembly? Contracts => typeof(IRoslyn).Assembly;

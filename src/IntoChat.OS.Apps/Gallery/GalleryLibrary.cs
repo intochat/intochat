@@ -28,7 +28,7 @@ public sealed record GalleryLibraryState(
 [DigitalBrain.Contracts.NeuronAlias("os.gallery.library"), DigitalBrain.Contracts.DefaultNeuronType("os.gallery.library")]
 public interface IGalleryLibrary
 {
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<GalleryLibraryState> Read();
 
     Task<GalleryLibraryState> Filter(string category, string search);
@@ -36,8 +36,8 @@ public interface IGalleryLibrary
     Task<GalleryLibraryState> Select(string selectedId);
 }
 
-[DigitalBrain.Neuron("os.gallery.library")]
-public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, IGalleryLibrary
+[DigitalBrain.Neurons.Neuron("os.gallery.library")]
+public sealed class GalleryLibrary : DigitalBrain.Neurons.Neuron<GalleryLibraryState>, IGalleryLibrary
 {
     public Task<GalleryLibraryState> Read() => Task.FromResult(State);
 
@@ -115,7 +115,7 @@ public sealed class GalleryLibrary : DigitalBrain.Neuron<GalleryLibraryState>, I
         // 1. Design & Identity ("design")
         new("themes", "design", "7 UI Identities & Glass Materiality", "Fluent Acrylic, Spatial Glass, Cyber Synaptic, Warm Paper, Warm Mica, Linear Carbon & Nordic Tactical.", "IntoChat.OS.Identity.IUserSettings@1", ["gallery.switch-identity", "settings.save-preferences"], "neuron://local/ui.gallery/themes", "await settings.SetUiIdentity(\"fluent-acrylic\", \"floating-glass\");") { Icon = "palette" },
         new("typography", "design", "Typography (Inter + InterDisplay + tnum)", "Inter and InterDisplay scale with strict tabular numerals (tnum) for live telemetry.", "IntoChat.OS.Modules.Flutter.Views.IView@1", ["ViewChanged"], "neuron://local/ui.gallery/typography", "new Heading(\"InterDisplay 32 · 1,492,048 tok\", Level: 1, Subtitle: \"Tabular numerals keep live telemetry aligned.\");") { Icon = "type" },
-        new("iconography", "design", "Iconography & Squircle IcAppIcon Builder", "Two-stop gradient squircle app badges with 1px specular border and custom/Lucide vector glyphs.", "DigitalBrain.AppDefinition@1", ["AppRegisteredSignal"], "neuron://local/ui.gallery/iconography", "[DigitalBrain.App(\"gallery\", Accent = \"#22C55E\", Category = \"Studio\")]") { Icon = "sparkles" },
+        new("iconography", "design", "Iconography & Squircle IcAppIcon Builder", "Two-stop gradient squircle app badges with 1px specular border and custom/Lucide vector glyphs.", "DigitalBrain.IScreen@1", ["AppRegisteredSignal"], "neuron://local/ui.gallery/iconography", "[Neuron(\"app.gallery\")]") { Icon = "sparkles" },
         new("acrylic-surface", "design", "AcrylicSurface & Specular Border", "Translucent dark obsidian glass with 24px backdrop blur and 1px top-lit specular border.", "IntoChat.UI.Surface@1", ["settings.save-preferences"], "neuron://local/ui.gallery/acrylic-surface", "Ui.AppShell(\"shell\", sidebar: Ui.NavItem(\"nav\", \"Overview\", \"layout-grid\", \"open\", selected: true), body: Ui.StatCard(\"kpi\", \"Blur\", \"28px\", \"+100%\", BadgeTone.Accent));") { Icon = "layers" },
 
         // 2. Basic Input ("controls")

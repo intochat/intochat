@@ -8,9 +8,12 @@ The planning surface over the brain's flows: a board by status, a sortable list 
 its pending approval through the confirmations neuron, cancels or relates it, opens its trace and, for a build, shows its unit.
 */
 using System.Text.Json;
+using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
+using DigitalBrain.Neurons;
 using DigitalBrain.UI;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
@@ -18,38 +21,38 @@ using IntoChat.OS.Modules.Flutter.Fields;
 
 namespace IntoChat.OS.Apps.Tasks;
 
-[DigitalBrain.Signal("tasks.open")]
-public sealed record TasksOpen : DigitalBrain.Signal;
+[Signal("tasks.open")]
+public sealed record TasksOpen : Signal;
 
-[DigitalBrain.Signal("tasks.view")]
-public sealed record TasksView(string? View = null) : DigitalBrain.Signal;
+[Signal("tasks.view")]
+public sealed record TasksView(string? View = null) : Signal;
 
-[DigitalBrain.Signal("tasks.filter")]
-public sealed record TasksFilter(string? Owner = null, string? Status = null, string? Type = null) : DigitalBrain.Signal;
+[Signal("tasks.filter")]
+public sealed record TasksFilter(string? Owner = null, string? Status = null, string? Type = null) : Signal;
 
-[DigitalBrain.Signal("tasks.select")]
-public sealed record TasksSelect(string? FlowId = null) : DigitalBrain.Signal;
+[Signal("tasks.select")]
+public sealed record TasksSelect(string? FlowId = null) : Signal;
 
-[DigitalBrain.Signal("tasks.new")]
-public sealed record TasksNew(string? Title = null, string? Description = null) : DigitalBrain.Signal;
+[Signal("tasks.new")]
+public sealed record TasksNew(string? Title = null, string? Description = null) : Signal;
 
-[DigitalBrain.Signal("tasks.cancel")]
-public sealed record TasksCancel(string? FlowId = null, string? Reason = null) : DigitalBrain.Signal;
+[Signal("tasks.cancel")]
+public sealed record TasksCancel(string? FlowId = null, string? Reason = null) : Signal;
 
-[DigitalBrain.Signal("tasks.relate-kind")]
-public sealed record TasksRelateKind(string? Kind = null) : DigitalBrain.Signal;
+[Signal("tasks.relate-kind")]
+public sealed record TasksRelateKind(string? Kind = null) : Signal;
 
-[DigitalBrain.Signal("tasks.relate")]
-public sealed record TasksRelate(string? FlowId = null, string? Kind = null, string? Target = null, string? Lag = null) : DigitalBrain.Signal;
+[Signal("tasks.relate")]
+public sealed record TasksRelate(string? FlowId = null, string? Kind = null, string? Target = null, string? Lag = null) : Signal;
 
-[DigitalBrain.Signal("tasks.show-source")]
-public sealed record TasksShowSource(string? FlowId = null) : DigitalBrain.Signal;
+[Signal("tasks.show-source")]
+public sealed record TasksShowSource(string? FlowId = null) : Signal;
 
-[DigitalBrain.Signal("tasks.ask-ino")]
-public sealed record TasksAskIno(string? FlowId = null) : DigitalBrain.Signal;
+[Signal("tasks.ask-ino")]
+public sealed record TasksAskIno(string? FlowId = null) : Signal;
 
-[DigitalBrain.App("tasks", Accent = "#F59E0B", Category = "Productivity")]
-public sealed class TasksApp : DigitalBrain.App<TasksState>
+[Neuron("app.tasks")]
+public sealed class TasksApp : Screen<TasksState>
 {
     private const string FlowsKey = "flows/index";
     private const string ApprovalsKey = "approvals/index";
@@ -62,7 +65,11 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
     // The clock the timeline projects running flows against.
     public TimeProvider Time { get; set; } = TimeProvider.System;
 
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(TasksApp));
+    private static void Swallow(Exception error, string reason)
+    {
+        _ = error;
+        _ = reason;
+    }
 
     public const string AppName = "tasks";
 
@@ -98,38 +105,38 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         CompiledType = typeof(TasksApp).AssemblyQualifiedName,
     };
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public Task Open(TasksOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
         return RefreshAsync();
     }
 
-    [DigitalBrain.On]
-    public void View(TasksView request)
+    [DigitalBrain.Neurons.On]
+    public async Task View(TasksView request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var view = request.View?.Trim().ToLowerInvariant();
-        Set(State with { View = view is "list" or "timeline" ? view : "board" });
+        await Show(State with { View = view is "list" or "timeline" ? view : "board" });
     }
 
-    [DigitalBrain.On]
-    public Task Filter(TasksFilter request)
+    [DigitalBrain.Neurons.On]
+    public async Task Filter(TasksFilter request)
     {
         ArgumentNullException.ThrowIfNull(request);
         FlowStatus? status = Enum.TryParse<FlowStatus>(request.Status, ignoreCase: true, out var parsed) ? parsed : null;
-        Set(State with { Query = State.Query with { Owner = Blank(request.Owner), Status = status, Type = Blank(request.Type) } });
-        return RefreshAsync();
+        await Show(State with { Query = State.Query with { Owner = Blank(request.Owner), Status = status, Type = Blank(request.Type) } });
+        await RefreshAsync();
     }
 
-    [DigitalBrain.On]
-    public void Select(TasksSelect request)
+    [DigitalBrain.Neurons.On]
+    public async Task Select(TasksSelect request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Set(State with { Selected = Blank(request.FlowId), Source = null });
+        await Show(State with { Selected = Blank(request.FlowId), Source = null });
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task New(TasksNew request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -139,17 +146,17 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         try
         {
             var flowId = await Get<IFlows>(FlowsKey).Start(PlanFlow.Alias, title, null, inner);
-            Set(State with { Selected = flowId, Source = null, Status = $"Started {title}", Draft = State.Draft with { Title = "", Description = "" } });
+            await Show(State with { Selected = flowId, Source = null, Status = $"Started {title}", Draft = State.Draft with { Title = "", Description = "" } });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "The flow could not start; the status line reports why.");
-            Set(State with { Status = $"Could not start: {error.Message}" });
+            await Show(State with { Status = $"Could not start: {error.Message}" });
         }
         await RefreshAsync();
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task Cancel(TasksCancel request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -158,14 +165,14 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         await RefreshAsync();
     }
 
-    [DigitalBrain.On]
-    public void RelateKind(TasksRelateKind request)
+    [DigitalBrain.Neurons.On]
+    public async Task RelateKind(TasksRelateKind request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (Enum.TryParse<RelationKind>(request.Kind, ignoreCase: true, out var kind)) { Set(State with { RelateKind = kind.ToString() }); }
+        if (Enum.TryParse<RelationKind>(request.Kind, ignoreCase: true, out var kind)) { await Show(State with { RelateKind = kind.ToString() }); }
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task Relate(TasksRelate request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -175,26 +182,26 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         try
         {
             await Get<IFlows>(FlowsKey).Relate(flowId, new FlowRelation(target, kind, lag));
-            Set(State with { Status = $"Related {kind}" });
+            await Show(State with { Status = $"Related {kind}" });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "The relation was refused; the status line reports why.");
-            Set(State with { Status = $"Could not relate: {error.Message}" });
+            await Show(State with { Status = $"Could not relate: {error.Message}" });
         }
         await RefreshAsync();
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task ShowSource(TasksShowSource request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (Blank(request.FlowId) is not { } flowId) { return; }
         var unit = await UnitOfAsync(flowId);
-        Set(State with { Selected = flowId, Source = unit is null ? await StagedSourceAsync(flowId) : await SourceOfAsync(unit) });
+        await Show(State with { Selected = flowId, Source = unit is null ? await StagedSourceAsync(flowId) : await SourceOfAsync(unit) });
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task AskIno(TasksAskIno request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -203,19 +210,14 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         var alias = unit?.Aliases.FirstOrDefault() ?? unit?.SourceKey ?? AliasOrKey(flowId);
         // The focus carries the open-ino action; the shell's presence layer opens Ino from it.
         await Get<IInoFocus>(IInoFocus.DefaultKey).Point("window:ino", FocusTone.Info, $"Change unit {alias}", new FocusAction("open", "ino"));
-        Set(State with { Status = $"Asked Ino to change {alias}" });
+        await Show(State with { Status = $"Asked Ino to change {alias}" });
     }
 
-    protected override void Watches(DigitalBrain.WatchBuilder watch)
+    [DigitalBrain.Neurons.On]
+    public Task OnFlowsChanged(FlowsChanged changed)
     {
-        ArgumentNullException.ThrowIfNull(watch);
-        foreach (var field in TasksViewRenderer.Fields)
-        {
-            watch.On<IField, FieldChanged>($"{field}-changed", app => $"apps/{app.App}/{field}", changed => OnField(field, changed));
-        }
-        watch.On<IFlows, FlowsChanged>("flows-changed", _ => FlowsKey, _ => RefreshAsync());
-        watch.On<IConfirmationInbox, ConfirmationRequested>("confirmation-requested", _ => IConfirmations.ConfirmationsNeuronKey, _ => RefreshAsync());
-        watch.On<IConfirmationInbox, ConfirmationResolved>("confirmation-resolved", _ => IConfirmations.ConfirmationsNeuronKey, _ => RefreshAsync());
+        _ = changed;
+        return RefreshAsync();
     }
 
     // The signal names the change; the value is read from the field.
@@ -223,7 +225,7 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
     {
         ArgumentNullException.ThrowIfNull(changed);
         var value = (await Get<IField>(TasksViewRenderer.FieldKey(field)).Read()).Value ?? "";
-        Set(State with
+        await Show(State with
         {
             Draft = field switch
             {
@@ -234,9 +236,10 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         });
     }
 
-    public View Render() => TasksViewRenderer.Render(State, _flows, _approvals, Time.GetUtcNow());
-
+    public new TasksState State => base.State;
+    public View Render() => Render(State);
     public View RenderSide() => TasksViewRenderer.RenderSide(State, _flows, _approvals, State.Source);
+    protected override View Render(TasksState state) => TasksViewRenderer.Render(state, _flows, _approvals, Time.GetUtcNow());
 
     private async Task RefreshAsync()
     {
@@ -244,11 +247,11 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
         catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The flows index is optional; the board shows the last read."); }
         try { _approvals = [.. await Get<IApprovals>(ApprovalsKey).Pending()]; }
         catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "Approvals are optional when the inbox is not reachable."); }
-        Set(State with { Status = State.Status });
+        await Show(State with { Status = State.Status });
     }
 
     // The deployed unit whose source key or alias is the unit the flow authored (named by the install consent it waits on) or the flow's key.
-    private async Task<DigitalBrain.DeployedSource?> UnitOfAsync(string flowId)
+    private async Task<DigitalBrain.Units.DeployedSource?> UnitOfAsync(string flowId)
     {
         var keys = new[] { AliasOf(flowId), FlowKey(flowId) }.OfType<string>().Distinct(StringComparer.Ordinal).ToArray();
         try
@@ -275,7 +278,7 @@ public sealed class TasksApp : DigitalBrain.App<TasksState>
     private string AliasOrKey(string flowId) => AliasOf(flowId) ?? FlowKey(flowId);
 
     // The source of a deployed unit: spec.md first, then the .cs files, then scenarios.json, each under its path.
-    private async Task<string> SourceOfAsync(DigitalBrain.DeployedSource unit)
+    private async Task<string> SourceOfAsync(DigitalBrain.Units.DeployedSource unit)
     {
         var alias = unit.Aliases.FirstOrDefault() ?? unit.SourceKey;
         var header = $"{unit.SourceKey} · {unit.Status} · build {unit.Hash}\nAliases: {string.Join(", ", unit.Aliases)}\nDeployed {unit.At:u}";

@@ -1,6 +1,6 @@
-using DigitalBrain.Capabilities.Connections.Integrations;
 using System.ComponentModel;
 using System.Text.Json;
+using DigitalBrain.Capabilities.Connections.Integrations;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Contracts.Configuration;

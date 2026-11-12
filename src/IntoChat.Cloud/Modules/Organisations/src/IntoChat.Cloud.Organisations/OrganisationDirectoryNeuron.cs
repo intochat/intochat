@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Spi;
+using DigitalBrain.Neurons;
 using IntoChat.Cloud.Mail;
 
 namespace IntoChat.Cloud.Organisations;

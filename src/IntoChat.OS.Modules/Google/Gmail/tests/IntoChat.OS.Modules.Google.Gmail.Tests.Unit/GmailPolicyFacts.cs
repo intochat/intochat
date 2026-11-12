@@ -3,9 +3,11 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Limits;
+using DigitalBrain.Modules;
+using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Spi;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -39,15 +41,15 @@ public sealed class GmailPolicyFacts
         var neuron = new GmailNeuron();
         NeuronAttachment.Attach(neuron, context);
         await NeuronAttachment.Activate(neuron, CancellationToken.None);
-        await neuron.SaveGmailStateAsync(next =>
+        await neuron.SaveGmailStateAsync(next => next with
         {
-            next.Status = ConnectionStatus.Connected;
-            next.Account = "owner@example.test";
-            next.Scopes = $"{GmailScopes.Read} https://www.googleapis.com/auth/gmail.compose";
-            next.Secrets = new(StringComparer.Ordinal)
+            Status = ConnectionStatus.Connected,
+            Account = "owner@example.test",
+            Scopes = $"{GmailScopes.Read} https://www.googleapis.com/auth/gmail.compose",
+            Secrets = new Dictionary<string, SealedSecret>(StringComparer.Ordinal)
             {
                 ["access"] = new SealedSecret { KeyId = "mk", Cipher = "token-1" },
-            };
+            },
         });
         return (os, neuron, context, api);
     }

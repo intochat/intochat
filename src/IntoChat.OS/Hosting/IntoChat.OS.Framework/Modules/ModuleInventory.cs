@@ -1,5 +1,5 @@
-using DigitalBrain.Brains;
 using System.Reflection;
+using DigitalBrain.Brains;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework.Modules;

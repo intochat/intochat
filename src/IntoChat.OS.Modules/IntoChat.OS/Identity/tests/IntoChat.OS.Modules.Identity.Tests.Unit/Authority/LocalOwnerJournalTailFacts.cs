@@ -4,18 +4,18 @@ using System.Text;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
-using DigitalBrain.Spi;
+using DigitalBrain.Kernel;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Identity.Configuration;
-using IdentityPosture = IntoChat.OS.Connections.Identity.Configuration.IdentityPosture;
 using IntoChat.OS.Connections.Platform.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using IdentityPosture = IntoChat.OS.Connections.Identity.Configuration.IdentityPosture;
 
 namespace IntoChat.OS.Authority;
 

@@ -55,7 +55,7 @@ public sealed class AppStateJsonFacts
     public void SignalCursorAndDeadLettersSurviveJsonRoundTripAndClone()
     {
         var at = DateTimeOffset.UtcNow;
-        var deadLetter = new DigitalBrain.DeadLetterEntry(42L, "b1/chat/p", "chat.message", "Failed reaction", at);
+        var deadLetter = new DeadLetterEntry(42L, "b1/chat/p", "chat.message", "Failed reaction", at);
         var state = new AppState
         {
             SignalCursor = 987654321L,
@@ -103,8 +103,8 @@ public sealed class AppStateJsonFacts
     public void CloneDeepCopiesDeadLetters_MutatingCloneDoesNotAffectOriginal()
     {
         var at = DateTimeOffset.UtcNow;
-        var entry1 = new DigitalBrain.DeadLetterEntry(100L, "b1/chat/p1", "chat.msg", "err1", at);
-        var entry2 = new DigitalBrain.DeadLetterEntry(200L, "b1/chat/p2", "chat.msg", "err2", at);
+        var entry1 = new DeadLetterEntry(100L, "b1/chat/p1", "chat.msg", "err1", at);
+        var entry2 = new DeadLetterEntry(200L, "b1/chat/p2", "chat.msg", "err2", at);
         var state = new AppState
         {
             SignalCursor = 500L,
@@ -118,7 +118,7 @@ public sealed class AppStateJsonFacts
         Assert.Equal(2, cloned.DeadLetters.Length);
 
         // 2. Modifying cloned array element in-place must not mutate the original
-        var replacement = new DigitalBrain.DeadLetterEntry(999L, "b1/chat/p3", "chat.replaced", "err_replaced", at);
+        var replacement = new DeadLetterEntry(999L, "b1/chat/p3", "chat.replaced", "err_replaced", at);
         cloned.DeadLetters[0] = replacement;
 
         Assert.Equal(999L, cloned.DeadLetters[0].Position);

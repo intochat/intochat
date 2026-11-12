@@ -1,7 +1,7 @@
 using System.Text.Json;
+using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.Testing.Synapses;
 using IntoChat.OS.Modules.AI.Inference;
-using DigitalBrain.Runtime.Synapses;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -329,7 +329,8 @@ public sealed class UnitAuthoringFacts
     public async Task ASupersededScenarioIsKeptAndNotRun()
     {
         var wrong = new Scenario("a poll counts two", JsonElement.Parse("""{"http": {"x": {"*": {"data": [{"id": "1", "text": "hi"}]}}}}"""),
-            ["tick 6m"], ["state x.watch Unseen = 2"]) { Superseded = "change x.watch: count once" };
+            ["tick 6m"], ["state x.watch Unseen = 2"])
+        { Superseded = "change x.watch: count once" };
         var right = new Scenario("a poll counts one", wrong.Given, ["tick 6m"], ["state x.watch Unseen = 1"]);
         var files = new Dictionary<string, string> { ["XWatch.cs"] = AgentPrompts.XWatchExample };
 

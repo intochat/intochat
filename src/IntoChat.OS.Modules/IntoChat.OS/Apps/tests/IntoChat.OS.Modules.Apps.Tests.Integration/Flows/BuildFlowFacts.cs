@@ -4,10 +4,11 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Broker;
 using DigitalBrain.Flows;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Spi;
 using DigitalBrain.Testing;
+using DigitalBrain.Units;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
@@ -208,7 +209,7 @@ public sealed class BuildFlowFacts
         var inner = await Inner(runtime, id);
         Assert.Equal("x.watch", inner.Alias);
         Assert.Equal(HttpConnections.KeyOf(runtime.Brain, "x1"), inner.Bindings!["x"]);
-        Assert.Equal(DigitalBrain.InstallStatus.Pending, inner.Install);
+        Assert.Equal(DigitalBrain.Units.InstallStatus.Pending, inner.Install);
         Assert.Contains(UnitFiles.Scenarios, inner.Files!.Keys);
         var pending = Assert.Single(await Installs(runtime).Pending(Ct));
         Assert.Equal(inner.PlanId, pending.PlanId);
@@ -353,7 +354,7 @@ public sealed class BuildFlowFacts
 
         Assert.True(again.Ok, again.Text);
         var install = UnitDeploy.Install(again, "x.watch");
-        Assert.True(install.Status == DigitalBrain.InstallStatus.Unchanged || (install.Status == DigitalBrain.InstallStatus.Pending && install.Reason == inner.PlanId),
+        Assert.True(install.Status == DigitalBrain.Units.InstallStatus.Unchanged || (install.Status == DigitalBrain.Units.InstallStatus.Pending && install.Reason == inner.PlanId),
             $"{again.Status} {install.Status} {install.Reason} vs {inner.PlanId}");
         Assert.Equal(inner.PlanId, Assert.Single(await Installs(runtime).Pending(Ct)).PlanId);
         Assert.Equal(inner.Hash, again.Hash);
@@ -403,7 +404,7 @@ public sealed class BuildFlowFacts
         Assert.Equal(FlowStatus.Completed, view.Status);
         var inner = await Inner(runtime, second);
         Assert.Contains("XWatch.cs", inner.Existing!.Keys);
-        Assert.True(inner.Install is DigitalBrain.InstallStatus.Unchanged or DigitalBrain.InstallStatus.Updated, $"{inner.Install}");
+        Assert.True(inner.Install is DigitalBrain.Units.InstallStatus.Unchanged or DigitalBrain.Units.InstallStatus.Updated, $"{inner.Install}");
         Assert.Empty(await Installs(runtime).Pending(Ct));
         var after = Assert.Single(await runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value)).List());
         Assert.NotEqual(before.Hash, after.Hash);

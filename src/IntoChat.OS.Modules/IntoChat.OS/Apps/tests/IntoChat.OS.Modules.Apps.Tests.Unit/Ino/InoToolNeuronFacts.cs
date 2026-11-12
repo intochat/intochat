@@ -1,6 +1,6 @@
 using DigitalBrain;
-using global::Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Testing;
+using global::Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Modules.AI.Agents.Context;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
@@ -11,7 +11,8 @@ public sealed class InoToolNeuronFacts
 
     private static TestOS NewOs(IServiceProvider? services = null)
     {
-        var os = services is null ? TestOS.Local() : TestOS.Local(options => options.Services = services).Register<AppNeuron>();
+        var sp = services ?? new ServiceCollection().BuildServiceProvider();
+        var os = TestOS.Local(options => options.Services = sp).Register<AppNeuron>();
         os.Register(typeof(AppsModule).Assembly);
         os.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
         return os;

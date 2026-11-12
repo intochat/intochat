@@ -1,8 +1,8 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Signals;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Signals;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;

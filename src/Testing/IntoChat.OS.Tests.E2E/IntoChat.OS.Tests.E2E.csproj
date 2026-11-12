@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Central Package Management: versions pinned in Directory.Packages.props -->
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Capabilities.Storage" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+    <PackageReference Include="DigitalBrain.Simulation" />
+    <PackageReference Include="DigitalBrain.Testing" />
+    <PackageReference Include="DigitalBrain.Testing.Silo" />
+    <PackageReference Include="DigitalBrain.UI" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" />
+  </ItemGroup>
+</Project>

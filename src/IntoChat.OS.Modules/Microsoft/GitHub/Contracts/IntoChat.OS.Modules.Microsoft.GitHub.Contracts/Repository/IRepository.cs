@@ -9,19 +9,19 @@ public interface IRepository
 {
     Task<RepositoryView> Refresh(RefreshRepository request);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<RepositoryView> Read();
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<PullRequestRead> ReadPullRequest(ReadPullRequest query, CancellationToken cancellationToken = default);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<PullRequestsRead> ReadPullRequests();
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<ReviewEvidenceRead> ReadReviewEvidence(ReadReviewEvidence query, CancellationToken cancellationToken = default);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<RequiredChecksRead> ReadRequiredChecks(CancellationToken cancellationToken = default);
 
     Task PushBranch(PushBranchRequest request);

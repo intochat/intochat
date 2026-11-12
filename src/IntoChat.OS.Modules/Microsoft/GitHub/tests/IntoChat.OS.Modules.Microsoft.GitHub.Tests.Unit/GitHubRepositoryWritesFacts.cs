@@ -1,14 +1,18 @@
-using DigitalBrain.Capabilities.Connections;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Confirmation;
-using DigitalBrain.Spi;
+using DigitalBrain.Kernel;
+using DigitalBrain.Limits;
+using DigitalBrain.Neurons;
+using DigitalBrain.Operations;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 using Microsoft.Extensions.DependencyInjection;
@@ -173,9 +177,11 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
         var mockSource = new MockGitHubRepositorySource();
         var neuron = new GitHubRepositoryNeuron(mockSource, null!, null!, null!);
 
-        var context = new TestNeuronContext(
-            new NeuronId(new BrainId("local"), "github", "connection/github/main"),
-            _os.Get<IPolicies>(NeuronId.Parse(IPolicies.Key("local"))),
+        var id = new NeuronId(new BrainId("local"), "github", "connection/github/main");
+        var context = new FakeNeuronContext(id);
+        var policiesId = NeuronId.Parse(IPolicies.Key("local"));
+        context.Proxies.Register(policiesId, _os.Get<IPolicies>(policiesId));
+        context.MemoryState.Save(
             new GitHubRepositoryState
             {
                 Status = ConnectionStatus.Connected,
@@ -183,12 +189,11 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
                 Owner = "intochat",
                 Name = "os",
                 Account = "intochat/os",
-            });
+            },
+            []).GetAwaiter().GetResult();
 
-        typeof(Neuron).GetMethod("Attach", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(neuron, [context]);
-        ((Task)typeof(Neuron).GetMethod("Load", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(neuron, null)!).GetAwaiter().GetResult();
+        NeuronAttachment.Attach(neuron, context);
+        NeuronAttachment.Activate(neuron, CancellationToken.None).GetAwaiter().GetResult();
 
         return (neuron, mockSource);
     }
@@ -289,6 +294,7 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
         }
 
         public NeuronId Id { get; }
+        public Caller? Caller => null;
         public IServiceProvider Services { get; }
         public TimeProvider Time { get; }
         public INeuronState State { get; }
@@ -304,8 +310,15 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
         public Task PublishEphemeral(DigitalBrain.Signal signal) => Task.CompletedTask;
         public T Get<T>(NeuronId id) where T : class => typeof(T) == typeof(IPolicies) ? (T)_policies : null!;
         public void Defer(Func<Task> work) { }
-        public Task<ConfirmationResult> Confirm(ConfirmationPlan plan, CancellationToken ct = default)
+        public Task<ConfirmationResult> Confirm(ConfirmationPlan plan, CancellationToken _ = default)
             => Task.FromResult(new ConfirmationResult(plan.Id, ConfirmationOutcome.Approved, ConfirmationDenyReason.None, Skipped: true));
+    }
+
+    private interface INeuronState
+    {
+        Task<T?> Load<T>();
+        Task Save<T>(T state, IReadOnlyList<DigitalBrain.Signal> signals);
+        Task Clear();
     }
 
     private sealed class TestNeuronState : INeuronState

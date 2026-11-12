@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using DigitalBrain.Runtime.Http.Surface;
@@ -11,21 +12,21 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.Google.Gmail;
 
-[DigitalBrain.Module("gmail")]
-public sealed class GmailModule : DigitalBrain.Module, IHttpModule
+[DigitalBrain.Modules.Module("gmail")]
+public sealed class GmailModule : DigitalBrain.Modules.Module, IHttpModule
 {
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs:
         [
-            DigitalBrain.Need.HttpClient("gmail", ModuleConfiguration.ModuleOptionsSection("gmail") + ":ApiBaseUri", requestsPerMinute: 120),
-            DigitalBrain.Need.Webhook(WatchPath, "gmail"),
+            DigitalBrain.Modules.Need.HttpClient("gmail", ModuleConfiguration.ModuleOptionsSection("gmail") + ":ApiBaseUri", requestsPerMinute: 120),
+            DigitalBrain.Modules.Need.Webhook(WatchPath, "gmail"),
         ],
-        Settings: [DigitalBrain.Setting.Of<GmailModuleOptions>(ModuleConfiguration.ModuleOptionsSection("gmail"))],
+        Settings: [DigitalBrain.Modules.Setting.Of<GmailModuleOptions>(ModuleConfiguration.ModuleOptionsSection("gmail"))],
         Secrets: [])
     {
-        Auth = new DigitalBrain.ModuleAuth("google-oauth", [GmailScopes.Read]),
+        Auth = new DigitalBrain.Modules.ModuleAuth("google-oauth", [GmailScopes.Read]),
         Actions = [new("gmail.draft.create", "create a mail draft", null)],
     };
 

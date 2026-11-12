@@ -1,7 +1,7 @@
 using DigitalBrain.Capabilities.Connections.Connectors;
+using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Models.Signals;
-using IntoChat.OS.Connections.Platform.Integrations;
 
 namespace IntoChat.OS.Modules.AI.Models;
 

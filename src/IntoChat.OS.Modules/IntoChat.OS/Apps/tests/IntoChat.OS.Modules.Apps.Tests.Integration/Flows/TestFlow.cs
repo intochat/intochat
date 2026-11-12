@@ -2,15 +2,15 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Flows;
+using DigitalBrain.Modules;
 using DigitalBrain.Operations;
-using DigitalBrain.Spi;
 using IntoChat.OS.Modules.Apps.Flows;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration.Flows;
 
 // The module whose assembly carries the facts' flow type.
-[DigitalBrain.Module("flows-facts")]
-public sealed class FlowsFactsModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module("flows-facts")]
+public sealed class FlowsFactsModule : DigitalBrain.Modules.Module
 {
     public static ModuleManifest Manifest { get; } = new([], [], [], [], []);
 }
@@ -32,7 +32,7 @@ public sealed class TestInner
 }
 
 // A flow type whose head cannot be read; Reads counts the attempts per flow id.
-[DigitalBrain.Neuron(Alias)]
+[DigitalBrain.Neurons.Neuron(Alias)]
 public sealed class FailingHeadFlow : Flow<TestInner>, IFlowStarter
 {
     public const string Alias = "test.failing-head";
@@ -75,8 +75,8 @@ public sealed record PumpState(int Sent = 0)
     public PumpState() : this(0) { }
 }
 
-[DigitalBrain.Neuron(Alias)]
-public sealed class FlowSignalPump : DigitalBrain.Neuron<PumpState>, IFlowSignalPump
+[DigitalBrain.Neurons.Neuron(Alias)]
+public sealed class FlowSignalPump : DigitalBrain.Neurons.Neuron<PumpState>, IFlowSignalPump
 {
     public const string Alias = "test.flow-pump";
 
@@ -100,8 +100,8 @@ public sealed class FlowSignalPump : DigitalBrain.Neuron<PumpState>, IFlowSignal
 public sealed record TestPlan() : OperationPlan(DryRun: false);
 
 // Three steps; "second" optionally waits External.
-[DigitalBrain.Neuron(Alias)]
-public sealed class TestFlow : Flow<TestInner>, IFlowStarter
+[DigitalBrain.Neurons.Neuron(Alias)]
+public sealed class TestFlow(IOperations? operations = null) : Flow<TestInner>, IFlowStarter
 {
     public const string Alias = "test.flow";
 
@@ -131,7 +131,7 @@ public sealed class TestFlow : Flow<TestInner>, IFlowStarter
             case "second" when inner.Wait:
                 if (inner.StartOperation)
                 {
-                    var operation = await Context.Operations.Start(new TestPlan(), ct);
+                    var operation = await (operations ?? throw new InvalidOperationException("No operations")).Start(new TestPlan(), ct);
                     Operations[operation.Id.Value] = operation;
                     await operation.Report(0.5);
                     inner.OperationId = operation.Id.Value;

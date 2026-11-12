@@ -1,6 +1,7 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Contracts;
+using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Authority.Identity.Rules;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
@@ -25,8 +26,8 @@ internal interface IVault
 [DigitalBrain.Signal("identity.vault-changed")]
 internal sealed record VaultChanged(string Name) : DigitalBrain.Signal;
 
-[DigitalBrain.Neuron(IVault.Type)]
-internal sealed class VaultNeuron(IKeyWrapper keys) : DigitalBrain.Neuron<SecretsState>, IVault
+[Neuron(IVault.Type)]
+internal sealed class VaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IVault
 {
     private readonly SecretsStore _secrets = new(keys);
 

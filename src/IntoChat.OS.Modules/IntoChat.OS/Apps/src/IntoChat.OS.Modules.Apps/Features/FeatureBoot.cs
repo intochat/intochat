@@ -15,7 +15,7 @@ namespace IntoChat.OS.Modules.Apps;
 // brings the brain's unedited features to the catalog's version once the catalog has loaded. Reconciling is fire-and-forget off
 // the listener, as the hub pump was: a failure never fails the silo or a brain's activation.
 internal sealed class FeatureBoot(
-    IServiceProvider plain, FeatureCatalog catalog, DigitalBrain.Spi.IClusterListeners listeners, ILogger<FeatureBoot> logger) : IStartupTask
+    IServiceProvider plain, FeatureCatalog catalog, DigitalBrain.Kernel.IClusterListeners listeners, ILogger<FeatureBoot> logger) : IStartupTask
 {
     private Task _loaded = Task.CompletedTask;
 
@@ -51,10 +51,7 @@ internal sealed class FeatureBoot(
         RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
         try
         {
-            if (await HostCaller.ForBrain(plain, brainId) is { } caller)
-            {
-                RuntimeCallerContext.Stamp(caller);
-            }
+            using var _ = InProcessCallerScope.Enter();
             await _loaded;
             await SiloNeurons.Get<IFeatureReconciler>(plain, IFeatureReconciler.Key(brainId)).Reconcile(cancellationToken);
         }

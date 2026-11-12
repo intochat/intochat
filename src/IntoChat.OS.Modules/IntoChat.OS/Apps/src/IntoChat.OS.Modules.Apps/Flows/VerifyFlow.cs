@@ -1,8 +1,9 @@
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Flows;
+using DigitalBrain.Kernel;
 using DigitalBrain.Operations;
+using DigitalBrain.Signals;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -21,8 +22,8 @@ public sealed class VerifyInner : AgentInner
 
 // One verification: checks (the flow agent, told the OS's MCP tools, answers { "ok", "findings" }) and telemetry (the unit's trace
 // holds no failed flow or failed operation). Either failing fails the flow.
-[DigitalBrain.Neuron(Alias)]
-public sealed class VerifyFlow : AgentFlow<VerifyInner>, IFlowStarter
+[DigitalBrain.Neurons.Neuron(Alias)]
+public sealed class VerifyFlow(ISignalHistory history, AgentStepOptions? options = null) : AgentFlow<VerifyInner>(options), IFlowStarter
 {
     public const string Alias = "flow.verify";
 
@@ -82,7 +83,7 @@ public sealed class VerifyFlow : AgentFlow<VerifyInner>, IFlowStarter
         var since = 0L;
         while (true)
         {
-            var page = await Context.History.ReadTrace(inner.UnitTraceId, since, SignalPage.MaxLimit, CancellationToken.None);
+            var page = await history.ReadTrace(inner.UnitTraceId, since, SignalPage.MaxLimit, CancellationToken.None);
             failures.AddRange(page.Signals.Select(entry => entry.Signal switch
             {
                 FlowDone { Outcome: FlowOutcome.Failed } done => $"flow {done.FlowId} failed: {done.Detail}",

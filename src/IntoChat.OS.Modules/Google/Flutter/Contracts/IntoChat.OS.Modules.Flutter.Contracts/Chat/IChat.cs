@@ -1,5 +1,5 @@
-using DigitalBrain.Contracts;
 using DigitalBrain;
+using DigitalBrain.Contracts;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Chat;
@@ -16,7 +16,7 @@ public interface IChat
     // IDs identify immutable intents within a generation; use a new ID when the action target changes.
     Task Activate(string source, long generation, string actionId);
     Task MarkRead(string source, long generation, long version, string[] messageIds);
-    [DigitalBrain.ReadOnlyCall] Task<ChatState> Read();
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<ChatState> Read();
 }
 
 public sealed record ChatProjection(

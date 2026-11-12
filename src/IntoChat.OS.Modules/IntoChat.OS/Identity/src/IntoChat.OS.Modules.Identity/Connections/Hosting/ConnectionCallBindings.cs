@@ -19,16 +19,19 @@ internal sealed class ConnectionCallBindings(IConnectionBindings bindings, Autho
         string brain;
         try { brain = ConnectionKeys.Parse(key).BrainId; }
         catch (ArgumentException) { return false; }
-        if (await _edgeCache.IsConnectionBoundAsync(brain, request.Caller, key, cancellationToken).ConfigureAwait(false))
+        var capCaller = request.Caller.ToCapabilityCaller();
+        if (capCaller is null) { return false; }
+        if (await _edgeCache.IsConnectionBoundAsync(brain, capCaller, key, cancellationToken).ConfigureAwait(false))
         {
             return true;
         }
-        if (!string.IsNullOrWhiteSpace(request.Caller.BrainId)
-            && !string.Equals(request.Caller.BrainId, brain, StringComparison.OrdinalIgnoreCase)
-            && await _edgeCache.IsConnectionBoundAsync(request.Caller.BrainId, request.Caller, key, cancellationToken).ConfigureAwait(false))
+        var callerBrain = request.Caller.Brain.Value;
+        if (!string.IsNullOrWhiteSpace(callerBrain)
+            && !string.Equals(callerBrain, brain, StringComparison.OrdinalIgnoreCase)
+            && await _edgeCache.IsConnectionBoundAsync(callerBrain, capCaller, key, cancellationToken).ConfigureAwait(false))
         {
             return true;
         }
-        return brain != callerScope && await bindings.IsBound(request.Caller, key, cancellationToken).ConfigureAwait(false);
+        return brain != callerScope && await bindings.IsBound(capCaller, key, cancellationToken).ConfigureAwait(false);
     }
 }

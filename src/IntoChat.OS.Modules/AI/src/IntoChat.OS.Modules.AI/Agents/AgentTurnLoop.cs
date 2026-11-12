@@ -1,17 +1,17 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
-using IntoChat.OS.Modules.AI.Agents.Context;
-using IntoChat.OS.Modules.AI.Inference;
-using IntoChat.OS.Modules.AI.Models;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Surface;
+using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using DigitalBrain.Runtime.Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.AI.Agents;
 

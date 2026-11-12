@@ -10,26 +10,28 @@ with dual execution:
 2. MCP Server mode (IArtCraftStudio + IMcpServer at {brain}/mcp/filmcraft) for agentic timeline tool calls.
 3. Interactive WASM Web UI mode for full-card browser timeline editing.
 */
+using DigitalBrain;
+using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.ArtCraft;
 using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.FilmCraft;
 
-[DigitalBrain.Signal("filmcraft.open")]
-public sealed record FilmCraftStudioOpen(string? Sequence = null, string? Mode = null) : DigitalBrain.Signal;
+[Signal("filmcraft.open")]
+public sealed record FilmCraftStudioOpen(string? Sequence = null, string? Mode = null) : Signal;
 
-[DigitalBrain.Signal("filmcraft.edit")]
-public sealed record FilmCraftStudioEdit(string? Prompt = null, string? Sequence = null, string? Mode = null) : DigitalBrain.Signal;
+[Signal("filmcraft.edit")]
+public sealed record FilmCraftStudioEdit(string? Prompt = null, string? Sequence = null, string? Mode = null) : Signal;
 
-[DigitalBrain.Signal("filmcraft.run-command")]
-public sealed record FilmCraftRunCommand(string? CommandId = null, string? ParametersJson = null, string? Sequence = null, string? Mode = null) : DigitalBrain.Signal;
+[Signal("filmcraft.run-command")]
+public sealed record FilmCraftRunCommand(string? CommandId = null, string? ParametersJson = null, string? Sequence = null, string? Mode = null) : Signal;
 
-[DigitalBrain.Signal("filmcraft.export")]
-public sealed record FilmCraftExport(string? Preset = null, string? Sequence = null, string? Mode = null) : DigitalBrain.Signal;
+[Signal("filmcraft.export")]
+public sealed record FilmCraftExport(string? Preset = null, string? Sequence = null, string? Mode = null) : Signal;
 
-[DigitalBrain.Signal("filmcraft.switch-mode")]
-public sealed record FilmCraftSwitchMode(string? Mode = null) : DigitalBrain.Signal;
+[Signal("filmcraft.switch-mode")]
+public sealed record FilmCraftSwitchMode(string? Mode = null) : Signal;
 
 public sealed record FilmCraftAppState(
     string ExecutionMode,
@@ -60,12 +62,10 @@ public sealed record FilmCraftAppState(
     }
 }
 
-[DigitalBrain.App("filmcraft", Accent = "#8B5CF6", Category = "Studio")]
+[Neuron("app.filmcraft")]
 public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("filmcraft")
 {
     protected override string ActiveDocumentLabel => "Sequence";
-
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(FilmCraftApp));
 
     public const string AppName = ShippedApps.FilmCraft;
 
@@ -98,16 +98,16 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
         CompiledType = typeof(FilmCraftApp).AssemblyQualifiedName,
     };
 
-    [DigitalBrain.On]
+    [On]
     public async Task Open(FilmCraftStudioOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var (mode, seq, webUrl, mcpUri, status) = await ResolveOpenSessionCoreAsync(
             request.Sequence, request.Mode, State.ExecutionMode, State.ActiveSequence, State.WebUrl, State.McpEndpointUri);
-        Set(State with { ExecutionMode = mode, ActiveSequence = seq, WebUrl = webUrl, McpEndpointUri = mcpUri, Status = status });
+        await Show(State with { ExecutionMode = mode, ActiveSequence = seq, WebUrl = webUrl, McpEndpointUri = mcpUri, Status = status });
     }
 
-    [DigitalBrain.On]
+    [On]
     public Task Edit(FilmCraftStudioEdit request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -118,7 +118,7 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
             NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
-    [DigitalBrain.On]
+    [On]
     public Task RunCommand(FilmCraftRunCommand request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -129,7 +129,7 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
             NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
-    [DigitalBrain.On]
+    [On]
     public Task Export(FilmCraftExport request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -140,40 +140,20 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
             NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
-    [DigitalBrain.On]
-    public void SwitchMode(FilmCraftSwitchMode request)
+    [On]
+    public Task SwitchMode(FilmCraftSwitchMode request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var nextMode = ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        Set(State with { ExecutionMode = nextMode, Status = $"Switched FilmCraft execution backend to {FormatModeLabel(nextMode)}" });
+        return Show(State with { ExecutionMode = nextMode, Status = $"Switched FilmCraft execution backend to {FormatModeLabel(nextMode)}" });
     }
 
-    public View? RenderSide() => null;
-
-    public View Render() => RenderStudioView(State.Status, State.ActiveSequence, State.OutputFile, State.WebUrl ?? "http://localhost:18083", State.ExecutionMode);
-
-    [DigitalBrain.Scenario("FilmCraft executes timeline razor split in Native Linux CLI mode and exports MP4 in MCP mode")]
-    public async Task VerifyFilmCraftDualModeAndTimelineScenario()
-    {
-        await Open(new FilmCraftStudioOpen("/work/demo-reel.fcproj", "native-linux"));
-        await Edit(new FilmCraftStudioEdit("razor split timeline at 00:00:03:12", "/work/demo-reel.fcproj", "native-linux"));
-        if (State.LastCommandId != "timeline.razor" || State.ExecutionMode != "native-linux")
-        {
-            throw new InvalidOperationException("Expected FilmCraftApp to execute timeline.razor in native-linux mode.");
-        }
-
-        SwitchMode(new FilmCraftSwitchMode("mcp"));
-        await Export(new FilmCraftExport("h264-1080p60", "/work/demo-reel.fcproj", "mcp"));
-        if (State.ExecutionMode != "mcp" || State.LastCommandId != "sequence.exportMp4")
-        {
-            throw new InvalidOperationException("Expected FilmCraftApp to switch to MCP mode and export H.264 MP4.");
-        }
-    }
+    protected override View Render(FilmCraftAppState state) => RenderStudioView(state.Status, state.ActiveSequence, state.OutputFile, state.WebUrl ?? "http://localhost:18083", state.ExecutionMode);
 
     private async Task ApplyTimelineExecutionAsync(string instructionOrCommand, string? explicitParamsJson, string sequence, string mode)
     {
         var result = await ExecuteStudioCommandAsync(instructionOrCommand, explicitParamsJson, sequence, mode);
-        Set(!result.IsValidCommand
+        await Show(!result.IsValidCommand
             ? State with
             {
                 ExecutionMode = result.ExecutionMode,

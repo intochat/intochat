@@ -1,7 +1,8 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Brains;
-using DigitalBrain.Spi;
+using DigitalBrain.Neurons;
+using DigitalBrain.Units;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
@@ -41,7 +42,7 @@ internal static class UnitReadEndpoints
     }
 
     // A host that has a synapse catalog answers 404 for an alias no loaded unit declares, without activating a neuron for it.
-    private static bool Loaded(ISynapseCatalogSource? catalog, string alias) => catalog is null || catalog.Current.States.ContainsKey(alias);
+    private static bool Loaded(ISynapseCatalogSource? catalog, string alias) => catalog is null || catalog.Static.States.ContainsKey(alias);
 
     // An alias is one path segment of a neuron id; anything else would address another neuron.
     private static bool IsAlias([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? alias) => !string.IsNullOrWhiteSpace(alias) && alias.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '_');

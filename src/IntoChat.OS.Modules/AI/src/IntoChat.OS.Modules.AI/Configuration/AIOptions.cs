@@ -1,10 +1,10 @@
-using DigitalBrain.Modules.Options;
 using System.Text.Json.Serialization;
+using DigitalBrain.Modules.Options;
 using IntoChat.OS;
-using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Modules.AI;

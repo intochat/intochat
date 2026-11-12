@@ -16,5 +16,5 @@ public interface IWorkspace
     Task<WorkspaceState> Back(string operationId, long expectedRevision);
     Task<WorkspaceState> Home(string operationId, long expectedRevision);
     Task<WorkspaceState> Close(string app, string operationId, long expectedRevision);
-    [DigitalBrain.ReadOnlyCall] Task<WorkspaceState> Read();
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<WorkspaceState> Read();
 }

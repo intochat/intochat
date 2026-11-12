@@ -11,6 +11,6 @@ public interface IApprovals
 {
     static DigitalBrain.NeuronId Key(string brain) => new(new DigitalBrain.BrainId(brain), "approvals", "approvals/index");
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<IReadOnlyList<Approval>> Pending(CancellationToken ct = default);
 }

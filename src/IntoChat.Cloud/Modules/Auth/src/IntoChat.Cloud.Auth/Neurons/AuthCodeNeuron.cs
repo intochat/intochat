@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
-[DigitalBrain.Neuron("auth.code")]
+[DigitalBrain.Neurons.Neuron("auth.code")]
 internal sealed class AuthCodeNeuron(
     AuthHashing hashing,
     CodeMailer mailer,

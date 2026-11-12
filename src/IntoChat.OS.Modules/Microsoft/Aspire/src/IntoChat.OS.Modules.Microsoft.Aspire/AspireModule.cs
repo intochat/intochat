@@ -1,22 +1,23 @@
 using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
-using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Connections.Platform.Integrations;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
-[DigitalBrain.Module(ManifestName)]
-public sealed class AspireModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module(ManifestName)]
+public sealed class AspireModule : DigitalBrain.Modules.Module
 {
     internal const string ManifestName = "aspire";
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<AspireOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(ManifestName))],
+        Settings: [DigitalBrain.Modules.Setting.Of<AspireOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(ManifestName))],
         Secrets: []);
 
     public static System.Reflection.Assembly? Contracts => typeof(IDeployment).Assembly;

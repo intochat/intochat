@@ -1,15 +1,15 @@
-using DigitalBrain.Capabilities.Connections;
-using DigitalBrain.Errors;
 using System.Text;
-using IntoChat.OS.Modules.Microsoft.Windows.Signals;
-using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Storage.Confinement;
+using DigitalBrain.Errors;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Modules.Microsoft.Windows.Signals;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // A plain neuron (06-08) keyed {connectionKey}/files.
-[DigitalBrain.Neuron("windows.files")]
-internal sealed class FileSystemNeuron(MachineIdentity identity) : DigitalBrain.Neuron, IFileSystem
+[DigitalBrain.Neurons.Neuron("windows.files")]
+internal sealed class FileSystemNeuron(MachineIdentity identity, IServiceProvider services) : DigitalBrain.Neurons.Neuron, IFileSystem
 {
     public async Task<string> Read(string path, CancellationToken cancellationToken = default) =>
         await File.ReadAllTextAsync(await Resolve(path), cancellationToken);
@@ -31,6 +31,6 @@ internal sealed class FileSystemNeuron(MachineIdentity identity) : DigitalBrain.
         var connection = WindowsKeys.Connection($"{Id.Brain.Value}/{Id.Key}");
         if (ConnectionKeys.Parse(connection).ConnectionId != identity.Id)
         { throw new ServiceUnavailableException("This Windows machine is not this silo's machine."); }
-        return PathConfinement.Resolve(await SiloNeurons.Get<IWindows>(Context.Services, connection).Roots(), path);
+        return PathConfinement.Resolve(await SiloNeurons.Get<IWindows>(services, connection).Roots(), path);
     }
 }

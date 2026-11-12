@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.Time.Reminders.Signals;
 using IntoChat.OS.Modules.Time.Timers;
 
@@ -7,7 +8,7 @@ namespace IntoChat.OS.Modules.Time.Reminders;
 // A plain neuron (06-03): one durable reminder named "tick" on the runtime host, which reactivates the neuron; each tick is a
 // turn (Neuron.OnReminder) that publishes ReminderTick. A reminder registered on the retired grain type is not migrated.
 [Neuron("reminder")]
-internal sealed class ReminderNeuron : DigitalBrain.Neuron, IReminder
+internal sealed class ReminderNeuron : DigitalBrain.Neurons.Neuron, IReminder
 {
     private const string Name = "tick";
     // Left by the removed automation job runner; retired when it fires.

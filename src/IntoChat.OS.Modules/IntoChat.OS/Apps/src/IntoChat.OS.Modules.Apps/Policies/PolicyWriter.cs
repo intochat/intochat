@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Spi;
+using DigitalBrain.Limits;
+using DigitalBrain.Neurons;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps;

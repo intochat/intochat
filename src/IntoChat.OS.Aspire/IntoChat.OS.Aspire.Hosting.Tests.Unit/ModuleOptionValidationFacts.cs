@@ -1,10 +1,11 @@
+using Aspire.Hosting;
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
-using Aspire.Hosting;
+using DigitalBrain.Modules.Validation;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 using Orleans.Hosting;
-using DigitalBrain.Modules.Validation;
 
 namespace IntoChat.OS.Aspire.Hosting.Tests.Unit;
 
@@ -58,10 +59,10 @@ public sealed class ModuleOptionValidationFacts
         }
     }
 
-    [DigitalBrain.Module("checked")]
-    public sealed class CheckedModule : DigitalBrain.Module
+    [DigitalBrain.Modules.Module("checked")]
+    public sealed class CheckedModule : DigitalBrain.Modules.Module
     {
-        public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [DigitalBrain.Setting.Of<CheckedOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection("checked"))], []);
+        public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new([], [], [], [DigitalBrain.Modules.Setting.Of<CheckedOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection("checked"))], []);
     }
 
     public sealed class CheckedHosting : ModuleHosting<CheckedModule>

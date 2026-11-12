@@ -61,8 +61,8 @@ public sealed class DeployFlowFacts
     }
 
     // The brain's flow index, reduced to Start by alias and key.
-    [DigitalBrain.Neuron("flows")]
-    internal sealed class StartOnlyFlows : DigitalBrain.Neuron, IFlows
+    [DigitalBrain.Neurons.Neuron("flows")]
+    internal sealed class StartOnlyFlows : DigitalBrain.Neurons.Neuron, IFlows
     {
         public async Task<string> Start(string type, string title, string? parentFlowId, string innerJson, CancellationToken ct = default, string? flowId = null)
         {

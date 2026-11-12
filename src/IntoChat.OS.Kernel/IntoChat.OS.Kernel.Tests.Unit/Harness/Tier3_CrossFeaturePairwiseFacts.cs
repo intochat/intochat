@@ -13,7 +13,6 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
-using DigitalBrain.Runtime.Orleans.Confirmations;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
@@ -60,8 +59,8 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
     public void TF07_AppConsent_WithAppManifest_ValidatesStudioAppRequirements()
     {
         // F7 (App Consent Diffing) + F9 (Studio App Manifests)
-        var filmCraftManifest = FilmCraftApp.Definition;
-        Assert.Equal("filmcraft", filmCraftManifest.Id);
+        var filmCraftManifest = FilmCraftApp.Bundle;
+        Assert.Equal("filmcraft", filmCraftManifest.Name);
 
         var filmCraftReqs = new AppRequirements(
             SemanticTypes: ["video/mp4", "audio/wav"],
@@ -145,15 +144,15 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
     public void TF11_AppActivity_WithAppManifest_CorrelatesSignalsWithStudioApps()
     {
         // F1 (Ephemeral Signals) + F9 (Studio App Manifests)
-        var filmCraft = FilmCraftApp.Definition;
-        var activity = new AppActivity(filmCraft.Id, "rendering", "Exporting 4K sequence");
+        var filmCraft = FilmCraftApp.Bundle;
+        var activity = new AppActivity(filmCraft.Name, "rendering", "Exporting 4K sequence");
 
         Assert.Equal("filmcraft", activity.App);
         Assert.Equal("rendering", activity.State);
         Assert.Equal("Exporting 4K sequence", activity.Detail);
 
-        var photoCraft = PhotoCraftApp.Definition;
-        var photoActivity = new AppActivity(photoCraft.Id, "editing", "Applying color grade");
+        var photoCraft = PhotoCraftApp.Bundle;
+        var photoActivity = new AppActivity(photoCraft.Name, "editing", "Applying color grade");
 
         Assert.Equal("photocraft", photoActivity.App);
         Assert.NotEqual(activity.App, photoActivity.App);

@@ -8,6 +8,7 @@ using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Runtime.Synapses;
+using DigitalBrain.Units;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -54,7 +55,7 @@ public sealed class BuildInner
 
     public string? Hash { get; set; }
 
-    public DigitalBrain.InstallStatus? Install { get; set; }
+    public DigitalBrain.Units.InstallStatus? Install { get; set; }
 
     // The installs neuron's confirmation plan while Install is Pending, and the needs sentence it asks.
     public string? PlanId { get; set; }
@@ -72,7 +73,7 @@ public sealed class BuildInner
 // is re-checked on ConnectionsChanged, on activation and every minute; several raise one plan per candidate connection (a plan is
 // yes/no and carries no options), and the approved one binds. Install waits External on the installs neuron's own plan (its id on
 // the FlowWaiting), ended by Installed or InstallDenied.
-[DigitalBrain.Neuron(Alias)]
+[DigitalBrain.Neurons.Neuron(Alias)]
 public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
 {
     public const string Alias = "flow.build";
@@ -82,6 +83,29 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private static readonly string[] Names = ["author", "draft", "verify", "deploy", "install"];
+
+    private readonly IDrafter? drafter;
+    private readonly IConfirmations? confirmations;
+    private readonly SynapseCompiler? compiler;
+    private readonly ICapabilityConnections? connections;
+    private readonly IConnectionHosts? hosts;
+    private readonly ILogger<BuildFlow>? logger;
+
+    public BuildFlow(
+        IDrafter? drafter = null,
+        IConfirmations? confirmations = null,
+        SynapseCompiler? compiler = null,
+        ICapabilityConnections? connections = null,
+        IConnectionHosts? hosts = null,
+        ILogger<BuildFlow>? logger = null)
+    {
+        this.drafter = drafter;
+        this.confirmations = confirmations;
+        this.compiler = compiler;
+        this.connections = connections;
+        this.hosts = hosts;
+        this.logger = logger;
+    }
 
     // Choice plans this activation is asking, and the one-use proofs it handed their detached asks.
     private readonly HashSet<string> _asking = new(StringComparer.Ordinal);
@@ -147,11 +171,10 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
                     var goalHash = Sha(inner.Goal);
                     if (inner.UnitJson is null || inner.GoalHash != goalHash)
                     {
-                        var drafter = Context.Services.GetRequiredService<IDrafter>();
                         var changing = ChangeAlias(inner.Goal);
                         if (changing is not null) { inner.Existing ??= await Current(changing, ct); }
                         // The Author's model call runs off the flow's scheduler.
-                        var unit = await Task.Run(() => drafter.Author(Id.Brain.Value, inner.Goal, inner.Existing, ct), ct);
+                        var unit = await Task.Run(() => (drafter ?? throw new InvalidOperationException("No drafter configured.")).Author(Id.Brain.Value, inner.Goal, inner.Existing, ct), ct);
                         if (changing is not null && unit.Alias != changing) { throw new FlowFailed("author", $"a change keeps the alias: the Author answered {unit.Alias} for a change of {changing}"); }
                         inner.Existing ??= await Current(unit.Alias, ct);
                         try { unit = unit with { Scenarios = [.. KeptScenarios.Merge(inner.Existing, unit.Scenarios, inner.Goal)] }; }
@@ -169,14 +192,13 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
                     var unit = UnitOf(inner);
                     // "Change it": a unit already deployed under the alias is drafted over its current files.
                     inner.Existing ??= await Current(unit.Alias, ct);
-                    var drafter = Context.Services.GetRequiredService<IDrafter>();
-                    var draft = await Task.Run(() => drafter.Draft(Id.Brain.Value, unit, inner.Existing, ct), ct);
+                    var draft = await Task.Run(() => (drafter ?? throw new InvalidOperationException("No drafter configured.")).Draft(Id.Brain.Value, unit, inner.Existing, ct), ct);
                     inner.Files = draft.Files;
                     inner.UnitHash = unitHash;
                     return new StepResult<BuildInner>(inner);
                 }
             case "verify":
-                await Verify(inner, ct);
+                await Task.Run(() => Verify(inner, ct), ct);
                 return new StepResult<BuildInner>(inner);
             case "deploy":
                 {
@@ -246,7 +268,8 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
         var (slot, key) = (Clean(choice[0]), Clean(choice[1]));
         return new ConfirmationPlan(planId, ConfirmationAction.Other, Destructive: false, Title: $"Use {key} for {what}?",
             Body: $"Slot {slot} of {what}: {count} connections fit. Approve to bind {key}; the others are withdrawn.",
-            ApproveLabel: "Use this connection", DenyLabel: "Not this one", TargetLabel: key) { RequiresPerson = true };
+            ApproveLabel: "Use this connection", DenyLabel: "Not this one", TargetLabel: key)
+        { RequiresPerson = true };
     }
 
     internal const int MaxCardName = 64;
@@ -272,10 +295,10 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     private async Task AskChoice(ConfirmationPlan plan)
     {
         bool approved;
-        try { approved = (await Context.Confirm(plan, CancellationToken.None)).Outcome == ConfirmationOutcome.Approved; }
+        try { approved = confirmations is not null && (await confirmations.Confirm(plan, CancellationToken.None)).Outcome == ConfirmationOutcome.Approved; }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
-            BuildLog.ChoiceAskFailed(Context.Services.GetService<ILoggerFactory>()?.CreateLogger<BuildFlow>() ?? (ILogger)NullLogger.Instance, error, Id.ToString(), plan.Id);
+            BuildLog.ChoiceAskFailed((ILogger?)logger ?? NullLogger.Instance, error, Id.ToString(), plan.Id);
             _asking.Remove(plan.Id);
             return;
         }
@@ -300,8 +323,11 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
             foreach (var other in plans.Where(plan => plan.Value[0] == slot).Select(plan => plan.Key).ToArray())
             {
                 plans.Remove(other);
-                try { await Context.Confirmations.Resolve(other, approve: false); }
-                catch (Exception error) when (error is InvalidOperationException or ArgumentException) { _ = error; }
+                if (confirmations is not null)
+                {
+                    try { await confirmations.Resolve(other, approve: false); }
+                    catch (Exception error) when (error is InvalidOperationException or ArgumentException) { _ = error; }
+                }
             }
         }
         else if (!plans.Values.Any(plan => plan[0] == slot) && State.Inner.Chosen?.ContainsKey(slot) != true)
@@ -321,8 +347,8 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     {
         var files = inner.Files is { Count: > 0 } drafted ? drafted : throw new FlowFailed("verify", "the draft has no files");
         var unit = UnitOf(inner);
-        var compiler = Context.Services.GetService<SynapseCompiler>() ?? throw new FlowFailed("verify", SynapseStudioNeuron.Unavailable);
-        var check = await BuilderTools.Check(compiler, unit.Alias, files, unit.Needs, unit.Scenarios, ct);
+        var comp = compiler ?? throw new FlowFailed("verify", SynapseStudioNeuron.Unavailable);
+        var check = await BuilderTools.Check(comp, unit.Alias, files, unit.Needs, unit.Scenarios, ct);
         if (check.Passed) { return; }
         var transcript = new StringBuilder("The unit did not pass verify.");
         foreach (var diagnostic in check.Diagnostics) { transcript.Append('\n').Append($"{diagnostic.File}({diagnostic.Line}) {diagnostic.Id}: {diagnostic.Message}"); }
@@ -342,9 +368,9 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
         inner.Deployed = true;
         inner.Hash = result.Hash;
         inner.Install = install.Status;
-        inner.PlanId = install.Status == DigitalBrain.InstallStatus.Pending ? install.Reason : null;
+        inner.PlanId = install.Status == DigitalBrain.Units.InstallStatus.Pending ? install.Reason : null;
         inner.Sentence = install.Sentence;
-        if (install.Status is DigitalBrain.InstallStatus.Refused or DigitalBrain.InstallStatus.Denied) { inner.Missing = install.Reason; }
+        if (install.Status is DigitalBrain.Units.InstallStatus.Refused or DigitalBrain.Units.InstallStatus.Denied) { inner.Missing = install.Reason; }
     }
 
     // A deploy that waited ends with its bindings in Inner, not deployed: install deploys first. A Pending install waits External on
@@ -354,16 +380,16 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
         if (!inner.Deployed) { await DeployUnit(inner, UnitOf(inner)); }
         switch (inner.Install)
         {
-            case DigitalBrain.InstallStatus.Pending:
+            case DigitalBrain.Units.InstallStatus.Pending:
                 inner.NeedsHash ??= (await Installs().Pending(CancellationToken.None)).FirstOrDefault(pending => pending.PlanId == inner.PlanId)?.NeedsHash;
-                await Report(inner, DigitalBrain.InstallStatus.Pending);
+                await Report(inner, DigitalBrain.Units.InstallStatus.Pending);
                 await Context.Reminders.Start(Recheck, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
                 return new StepResult<BuildInner>(inner, new Waiting("install", WaitReason.External, null, inner.PlanId),
                     [new FlowWaiting(Id.ToString(), "install", WaitReason.External, inner.PlanId)]);
-            case DigitalBrain.InstallStatus.Refused or DigitalBrain.InstallStatus.Denied:
+            case DigitalBrain.Units.InstallStatus.Refused or DigitalBrain.Units.InstallStatus.Denied:
                 throw new FlowFailed("install", $"{inner.Alias} was not installed: {inner.Missing ?? inner.Install.ToString()}");
             default:
-                await Report(inner, inner.Install ?? DigitalBrain.InstallStatus.Unchanged);
+                await Report(inner, inner.Install ?? DigitalBrain.Units.InstallStatus.Unchanged);
                 await StopRecheck();
                 return new StepResult<BuildInner>(inner);
         }
@@ -409,13 +435,13 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
         if ((await installs.Pending(CancellationToken.None)).Any(pending => pending.PlanId == State.Inner.PlanId)) { return; }
         if (await installs.Describe(alias, CancellationToken.None) is { } record && (State.Inner.NeedsHash is not { } needs || record.NeedsHash == needs))
         {
-            State.Inner.Install = DigitalBrain.InstallStatus.Installed;
-            await Report(State.Inner, DigitalBrain.InstallStatus.Installed);
+            State.Inner.Install = DigitalBrain.Units.InstallStatus.Installed;
+            await Report(State.Inner, DigitalBrain.Units.InstallStatus.Installed);
             await StopRecheck();
             await Resume("install", WaitOutcome.Arrived, null);
             return;
         }
-        State.Inner.Install = DigitalBrain.InstallStatus.Denied;
+        State.Inner.Install = DigitalBrain.Units.InstallStatus.Denied;
         await StopRecheck();
         await Resume("install", WaitOutcome.Denied, null);
     }
@@ -453,13 +479,12 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     {
         var resolution = new Resolution(new Dictionary<string, string>(StringComparer.Ordinal), new Dictionary<string, string[]>(StringComparer.Ordinal), []);
         if (needs.Slots.Count == 0) { return resolution; }
-        var connections = Context.Services.GetService<ICapabilityConnections>() is { } broker ? await broker.ListInOrder(Id.Brain, ct) : [];
-        var hosts = Context.Services.GetService<IConnectionHosts>();
+        var connectionsList = connections is not null ? await connections.ListInOrder(Id.Brain, ct) : [];
         foreach (var slot in needs.Slots)
         {
             var capability = CapabilityOf(slot.Capability);
             var fitting = new List<string>();
-            foreach (var connection in connections.Where(c => c.Connected && c.Provides.Any(provided => provided.Satisfies(capability))))
+            foreach (var connection in connectionsList.Where(c => c.Connected && c.Provides.Any(provided => provided.Satisfies(capability))))
             {
                 if (slot.Hosts.Count > 0)
                 {
@@ -483,7 +508,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     internal static CapabilityId CapabilityOf(string capability)
         => CapabilityId.Parse(capability.Contains('@', StringComparison.Ordinal) ? capability : capability + "@1");
 
-    private async Task Report(BuildInner inner, DigitalBrain.InstallStatus status)
+    private async Task Report(BuildInner inner, DigitalBrain.Units.InstallStatus status)
     {
         if (inner.AppKey is null || inner.Attempt is not { } attempt) { return; }
         await App(inner).CompleteUnitBuild(attempt, inner.Hash ?? "", status, inner.Sentence ?? "");
@@ -492,8 +517,12 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     // The deployed source's files under alias plus the studio's sidecars (spec.md, scenarios.json); null when nothing is deployed there.
     private async Task<Dictionary<string, string>?> Current(string alias, CancellationToken ct)
     {
-        if (Context.Services.GetService<ISourceStore>() is not { } store || await store.Get(Id.Brain, alias, ct) is not { } record) { return null; }
-        var files = new Dictionary<string, string>(record.Files, StringComparer.Ordinal);
+        var sources = Context.Get<ISources>(new NeuronId(Id.Brain, "synapse.sources", "default"));
+        var sourceKey = await sources.OwnerOf(alias, ct) ?? alias;
+        var deployment = Context.Get<IUnitDeployment>(new NeuronId(Id.Brain, "synapse.deployment", sourceKey));
+        var source = await deployment.Source(ct);
+        if (source is null) { return null; }
+        var files = new Dictionary<string, string>(source.Files, StringComparer.Ordinal);
         foreach (var (path, text) in await Studio().Sidecars(alias)) { files[path] = text; }
         return files;
     }

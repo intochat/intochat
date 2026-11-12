@@ -51,7 +51,7 @@ internal static class AzureNeurons
     public static AzureNeuron Create(IAzureArm arm, string subscription)
     {
         var neuron = new AzureNeuron(arm) { SubscriptionOverride = subscription };
-        DigitalBrain.Spi.NeuronAttachment.Attach(neuron, new DigitalBrain.Testing.FakeNeuronContext(
+        DigitalBrain.Neurons.NeuronAttachment.Attach(neuron, new DigitalBrain.Testing.FakeNeuronContext(
             new DigitalBrain.NeuronId(new DigitalBrain.BrainId("facts"), "azure", "connection/azure/" + subscription)));
         return neuron;
     }

@@ -8,9 +8,9 @@ namespace IntoChat.OS.Modules.AI.Agents;
 [NeuronAlias("ai.agent-driver")]
 internal interface IAgentDriver
 {
-    [DigitalBrain.OneWayCall, DigitalBrain.Interleaves] Task Drive(AgentTurn turn, string runId);
+    [DigitalBrain.Contracts.OneWayCall, DigitalBrain.Contracts.Interleaves] Task Drive(AgentTurn turn, string runId);
 
     // Activation closes a left-open run and announces it here, once activation is done. It only
     // publishes, so it interleaves rather than waiting behind a new turn.
-    [DigitalBrain.OneWayCall, DigitalBrain.Interleaves] Task Interrupted(string runId, string error);
+    [DigitalBrain.Contracts.OneWayCall, DigitalBrain.Contracts.Interleaves] Task Interrupted(string runId, string error);
 }

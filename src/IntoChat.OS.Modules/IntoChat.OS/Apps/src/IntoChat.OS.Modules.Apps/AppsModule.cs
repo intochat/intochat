@@ -1,15 +1,14 @@
 global using DigitalBrain.Brains;
+global using DigitalBrain.Neurons;
 global using DigitalBrain.Signals;
 global using CallerContextStamper = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext;
-
+using System.Reflection;
+using DigitalBrain.Contracts;
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using System.Reflection;
-using DigitalBrain.Apps.Hosting;
-using DigitalBrain.Contracts;
-using IntoChat.OS.Modules.Apps.Hosting.InProcess;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
@@ -27,15 +26,15 @@ using Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Apps;
 
-[DigitalBrain.Module("apps")]
-public sealed class AppsModule : DigitalBrain.Module, IHttpModule
+[DigitalBrain.Modules.Module("apps")]
+public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
 {
     // R4-04: what the module needs from its host: its options section.
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<AppsOptions>(ModuleConfiguration.ModuleOptionsSection(new ModuleId("apps")))],
+        Settings: [DigitalBrain.Modules.Setting.Of<AppsOptions>(ModuleConfiguration.ModuleOptionsSection(new ModuleId("apps")))],
         Secrets: []);
 
     public static System.Reflection.Assembly? Contracts { get; } = typeof(IntoChat.OS.Modules.Apps.IApp).Assembly;
@@ -52,15 +51,7 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         services.TryAddSingleton<MarketplaceView>();
         services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         services.TryAddSingleton<AppInstaller>();
-        services.TryAddSingleton<IntoChat.OS.Framework.IHostedAppTypes, HostedAppTypes>();
-        services.TryAddSingleton<AppPresentationSink>();
-        services.TryAddSingleton<IPresentationSink>(sp => sp.GetRequiredService<AppPresentationSink>());
-        services.TryAddSingleton<InProcessAppHost>(sp => new InProcessAppHost(
-            neuronResolver: (contractType, neuronKey) => ResolveNeuron(sp, contractType, neuronKey),
-            capabilityResolver: capType => sp.GetService(capType)
-                ?? throw new InvalidOperationException($"Capability '{capType.Name}' is not registered."),
-            sink: sp.GetRequiredService<IPresentationSink>(),
-            services: serviceType => sp.GetService(serviceType)));
+
         services.TryAddSingleton<IDrafter>(sp => sp.GetRequiredService<Creator>());
         services.TryAddSingleton<Creator>();
         services.AddNeuronProxies();
@@ -69,34 +60,8 @@ public sealed class AppsModule : DigitalBrain.Module, IHttpModule
         // FeatureBoot runs once the silo is active, as an Orleans startup task did.
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FeatureBootLifecycle>();
         services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, FilesLifecycle>();
-        services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, CompiledAppsLifecycle>();
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, AppGraphSource>();
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, Flows.FlowGraphSource>();
-    }
-
-    private static object ResolveNeuron(IServiceProvider services, Type contractType, string neuronKey)
-    {
-        var brain = RuntimeCallerContext.TryGet(out var caller) && !string.IsNullOrWhiteSpace(caller.BrainId)
-            ? caller.BrainId
-            : DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Current is { BrainId: { Length: > 0 } b }
-                ? b
-                : "owner";
-        var fullKey = neuronKey.Contains('/', StringComparison.Ordinal) && string.Equals(BrainKey.BrainOf(neuronKey), brain, StringComparison.Ordinal)
-            ? neuronKey
-            : $"{brain}/{neuronKey}";
-        if (contractType.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false) is not null)
-        {
-            return SiloNeurons.Get(services, contractType, fullKey);
-        }
-
-        var alias = contractType.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias
-            ?? contractType.GetCustomAttribute<DigitalBrain.NeuronAttribute>(inherit: false)?.Type
-            ?? throw new InvalidOperationException($"Contract {contractType.Name} has neither DefaultNeuronType nor NeuronAlias.");
-        var keyWithoutBrain = fullKey.StartsWith(brain + "/", StringComparison.Ordinal)
-            ? fullKey[(brain.Length + 1)..]
-            : fullKey;
-        var compound = DigitalBrain.Identity.CompoundGrainKey.Create(brain, alias, keyWithoutBrain);
-        return SiloNeurons.Get(services, contractType, compound.ToNeuronId());
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

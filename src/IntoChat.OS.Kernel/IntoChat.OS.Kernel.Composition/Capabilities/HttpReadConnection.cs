@@ -7,6 +7,8 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Http;
+using DigitalBrain.Modules;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections.Platform.Connections;
 using Microsoft.Extensions.Configuration;
@@ -17,20 +19,20 @@ namespace IntoChat.OS.Kernel.Composition.Capabilities;
 
 // The http@1 connector: a brain connects one with its allow-list (auth method "allowed-hosts", value comma-separated hosts or a JSON
 // array) and a unit's http slot binds it. Composed with the kernel; OperatingSystemModules lists it beside OrleansModule.
-[DigitalBrain.Module(Id)]
-public sealed class HttpModule : DigitalBrain.Module
+[Module(Id)]
+public sealed class HttpModule : Module
 {
     // "web", not "http": the composition README documents its first module by id, and that is Orleans.
     public const string Id = "web";
     public const string AuthMethod = "allowed-hosts";
     public const string ClientName = "IntoChat.OS.Kernel.Http";
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static ModuleManifest Manifest { get; } = new(
         Provides: [Capability.Http.V1],
         Requires: [],
         Needs: [],
         Settings: [],
-        Secrets: [DigitalBrain.Secret.Named(AuthMethod)]);
+        Secrets: [Secret.Named(AuthMethod)]);
 
     public static ConnectorDefinition Connector => new(IHttpConnection.TypeName, "Web (read-only)", [AuthMethod], [])
     {
@@ -49,13 +51,13 @@ public sealed class HttpModule : DigitalBrain.Module
 }
 
 [GenerateSerializer, Alias("kernel.http.connection-state")]
-public sealed class HttpConnectionState : ConnectionState
+public sealed record HttpConnectionState : ConnectionState
 {
     [Id(0)] public string[] AllowedHosts { get; set; } = [];
 }
 
 // One http@1 connection, keyed {brain}/connection/http/{id}. Every request, and every redirect hop, is held to the allow-list.
-[DigitalBrain.Neuron(IHttpConnection.TypeName, State = "http")]
+[Neuron(IHttpConnection.TypeName, State = "http")]
 internal sealed class HttpReadConnection(
     IHttpClientFactory? clients = null,
     DigitalBrain.Capabilities.Compute.ICostMeter? meter = null) : ConnectionNeuron<HttpConnectionState>, IHttpRead, IHttpConnection

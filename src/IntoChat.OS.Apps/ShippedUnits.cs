@@ -1,3 +1,4 @@
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps;
@@ -71,8 +72,8 @@ public static class ShippedUnits
         var attempt = await app.CurrentBuildAttempt();
         var result = await studio.DeployFiles(alias, files, none);
         if (!result.Ok) { await app.CompleteBuild(attempt, null, result.Text); return result; }
-        var install = result.Installs.TryGetValue(alias, out var own) ? own : new DigitalBrain.InstallOutcome(DigitalBrain.InstallStatus.Unchanged, "", null);
-        if (install.Status is DigitalBrain.InstallStatus.Refused or DigitalBrain.InstallStatus.Denied)
+        var install = result.Installs.TryGetValue(alias, out var own) ? own : new DigitalBrain.Units.InstallOutcome(DigitalBrain.Units.InstallStatus.Unchanged, "", null);
+        if (install.Status is DigitalBrain.Units.InstallStatus.Refused or DigitalBrain.Units.InstallStatus.Denied)
         { await app.CompleteBuild(attempt, null, $"{alias} was not installed: {install.Reason ?? install.Status.ToString()}"); }
         else { await app.CompleteUnitBuild(attempt, result.Hash ?? "", install.Status, install.Sentence); }
         return result;

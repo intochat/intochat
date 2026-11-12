@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using DigitalBrain.Modules;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -22,7 +23,7 @@ public sealed partial class FrameworkBoundaryFacts
         "DigitalBrain.Capabilities.Secrets",
         "DigitalBrain.Capabilities.Storage",
         "DigitalBrain.Capabilities.Tools",
-        "DigitalBrain.Client",
+        "DigitalBrain.Simulation",
         "DigitalBrain.Graph",
         "DigitalBrain.Identity.Local",
         "DigitalBrain.Runtime.Http",
@@ -266,8 +267,8 @@ public sealed partial class FrameworkBoundaryFacts
     public void AuthoringTypesLiveInDigitalBrain()
     {
         var core = Assembly.Load("DigitalBrain");
-        Assert.NotNull(core.GetType("DigitalBrain.Module", throwOnError: true));
-        Assert.NotNull(core.GetType("DigitalBrain.ModuleManifest", throwOnError: true));
+        Assert.NotNull(core.GetType("DigitalBrain.Modules.Module", throwOnError: true));
+        Assert.NotNull(core.GetType("DigitalBrain.Modules.ModuleManifest", throwOnError: true));
     }
 
     [Fact]

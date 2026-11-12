@@ -6,6 +6,6 @@ namespace IntoChat.OS.Modules.Tools;
 // R4-21(6): a plain contract (MCP, Gmail, PageTools) derives this shape; every tool source is a plain neuron since 06-08.
 public interface IToolSource
 {
-    [DigitalBrain.Interleaves] Task<ToolSet> Tools(CancellationToken ct = default);
-    [DigitalBrain.CallTimeout(600_000)] Task<ToolResult> Run(string tool, string arguments, CancellationToken ct = default);
+    [DigitalBrain.Contracts.Interleaves] Task<ToolSet> Tools(CancellationToken ct = default);
+    [DigitalBrain.Contracts.CallTimeout(600_000)] Task<ToolResult> Run(string tool, string arguments, CancellationToken ct = default);
 }

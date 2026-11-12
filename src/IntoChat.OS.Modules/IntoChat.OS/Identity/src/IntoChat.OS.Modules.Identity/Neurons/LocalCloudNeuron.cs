@@ -4,6 +4,8 @@ using System.Text;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Modules;
+using DigitalBrain.Neurons;
 using DigitalBrain.Operations;
 
 namespace IntoChat.OS.Authority;

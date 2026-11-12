@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Modules;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

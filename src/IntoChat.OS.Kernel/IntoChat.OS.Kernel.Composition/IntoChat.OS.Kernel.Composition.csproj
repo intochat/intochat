@@ -25,8 +25,6 @@
     <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Apps/Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
     
-    <!-- The edge encoding (RuntimeProtocol.Json) legacy signals are journaled in. -->
-    <PackageReference Include="DigitalBrain.Client" />
     <PackageReference Include="DigitalBrain.Runtime.Synapses" />
   </ItemGroup>
 </Project>

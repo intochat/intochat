@@ -1,22 +1,26 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Capabilities.Compute;
-using DigitalBrain.Capabilities.Connections;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Compute;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Confirmation;
+using DigitalBrain.Operations;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Modules.Google.Auth;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Google.Drive;
 
 [GenerateSerializer, Alias("db.google-drive.state")]
-internal sealed class DriveState : ConnectionState;
+internal sealed record DriveState : ConnectionState;
 
 // One Google Drive as storage. Locations are Drive file ids; "root" is My Drive.
 // Google documents are exported as plain text; other Google formats are not text. storage@1 lives in DriveStorage.cs (05-09).
-[DigitalBrain.Neuron(DriveScopes.Connector, State = "google-drive")]
-internal sealed partial class DriveNeuron()
+[DigitalBrain.Neurons.Neuron(DriveScopes.Connector, State = "google-drive")]
+internal sealed partial class DriveNeuron(
+    IOperations operations, IConfirmations? confirmations = null, IStorageWriteAuthorizer? authorizer = null)
     : ConnectionNeuron<DriveState>
 {
     private const string Root = "root";
@@ -30,8 +34,9 @@ internal sealed partial class DriveNeuron()
         using var about = await AboutAsync(grant.AccessToken, CancellationToken.None);
         if (!about.IsSuccessStatusCode) { throw new DriveUnavailableException("Google did not verify the Drive account. Reconnect Google Drive."); }
         using var json = JsonDocument.Parse(await about.Content.ReadAsStringAsync());
-        Snapshot.Account = json.RootElement.TryGetProperty("user", out var user) && user.TryGetProperty("emailAddress", out var email) ? email.GetString() : null;
-        if (string.IsNullOrWhiteSpace(Snapshot.Account)) { throw new DriveUnavailableException("Google did not verify the Drive account. Reconnect Google Drive."); }
+        var account = json.RootElement.TryGetProperty("user", out var user) && user.TryGetProperty("emailAddress", out var email) ? email.GetString() : null;
+        if (string.IsNullOrWhiteSpace(account)) { throw new DriveUnavailableException("Google did not verify the Drive account. Reconnect Google Drive."); }
+        await SaveQuietly(Snapshot with { Account = account });
         return grant;
     }
 

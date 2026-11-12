@@ -1,7 +1,7 @@
-using DigitalBrain.Contracts;
 using DigitalBrain;
-using IntoChat.OS.Modules.AI.Inference;
 using DigitalBrain.Access;
+using DigitalBrain.Contracts;
+using IntoChat.OS.Modules.AI.Inference;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
@@ -11,6 +11,6 @@ namespace IntoChat.OS.Modules.AI.Models;
 public interface ILLM : IAiMarker
 {
     Task<ModelDescriptor> Describe(ModelSelection? selection = null);
-    [DigitalBrain.CallTimeout(600000)] Task<InferenceResult> Generate(InferenceRequest request, CancellationToken cancellationToken = default);
-    [DigitalBrain.CallTimeout(600000)] IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, CancellationToken cancellationToken = default);
+    [DigitalBrain.Contracts.CallTimeout(600000)] Task<InferenceResult> Generate(InferenceRequest request, CancellationToken cancellationToken = default);
+    [DigitalBrain.Contracts.CallTimeout(600000)] IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, CancellationToken cancellationToken = default);
 }

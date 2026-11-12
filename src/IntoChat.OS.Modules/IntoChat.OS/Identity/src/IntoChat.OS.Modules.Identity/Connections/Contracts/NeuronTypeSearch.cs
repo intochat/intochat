@@ -1,8 +1,8 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections.Integrations;
-using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
-using DigitalBrain.Spi;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,7 +31,7 @@ public sealed class NeuronTypeSearch(
     // that throws is logged and skipped so the kernel types stay searchable.
     public async Task<IReadOnlyList<NeuronType>> Capabilities(CancellationToken ct)
     {
-        List<NeuronType> entries = [.. (await kernel.Types(ct).ConfigureAwait(false)).Where(type => type.Kind == DigitalBrain.TypeKind.Neuron).Select(NeuronType.From)];
+        List<NeuronType> entries = [.. (await kernel.Types(ct).ConfigureAwait(false)).Where(type => type.Kind == TypeKind.Neuron).Select(NeuronType.From)];
         if (!RuntimeCallerContext.TryGet(out _)) { return entries; }
         var brain = BrainScope.CurrentId();
         foreach (var source in live)

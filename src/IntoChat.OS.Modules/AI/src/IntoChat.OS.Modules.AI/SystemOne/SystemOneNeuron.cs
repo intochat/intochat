@@ -1,11 +1,12 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.AI.SystemOne;
 using IntoChat.OS.Modules.AI.SystemOne.Signals;
 
 namespace IntoChat.OS.Modules.AI;
 
 [Neuron("ai.systemone")]
-internal sealed class SystemOneNeuron(HttpSystemOne client) : DigitalBrain.Neuron, ISystemOne
+internal sealed class SystemOneNeuron(HttpSystemOne client) : DigitalBrain.Neurons.Neuron, ISystemOne
 {
     private const int MaxSummaryChars = 2000;
 

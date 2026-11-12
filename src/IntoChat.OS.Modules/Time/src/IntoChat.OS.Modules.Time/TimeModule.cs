@@ -1,11 +1,12 @@
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 
 namespace IntoChat.OS.Modules.Time;
 
 // Plain timer and reminder neurons in this assembly. The host must supply durable reminders.
-[DigitalBrain.Module(TimeModule.ModuleName)]
-public sealed class TimeModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module(TimeModule.ModuleName)]
+public sealed class TimeModule : DigitalBrain.Modules.Module
 {
     internal const string ModuleName = "time";
 
@@ -14,10 +15,10 @@ public sealed class TimeModule : DigitalBrain.Module
     public static readonly string MinimumReminderPeriodKey =
         ModuleConfiguration.ModuleOptionsSection(new ModuleId(ModuleName)) + ":MinimumReminderPeriod";
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
-        Needs: [DigitalBrain.Need.Reminders],
-        Settings: [DigitalBrain.Setting.Of<TimeModuleOptions>(ModuleConfiguration.ModuleOptionsSection(new ModuleId(ModuleName)))],
+        Needs: [DigitalBrain.Modules.Need.Reminders],
+        Settings: [DigitalBrain.Modules.Setting.Of<TimeModuleOptions>(ModuleConfiguration.ModuleOptionsSection(new ModuleId(ModuleName)))],
         Secrets: []);
 }

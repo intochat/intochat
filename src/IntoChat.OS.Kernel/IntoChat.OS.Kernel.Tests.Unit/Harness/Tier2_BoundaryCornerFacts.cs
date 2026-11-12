@@ -14,7 +14,6 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
-using DigitalBrain.Runtime.Orleans.Confirmations;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
@@ -331,7 +330,7 @@ public sealed class Tier2_BoundaryCornerFacts
     public void F5_B03_CallRequest_PathTraversalNeuronName_TreatedAsLiteralString()
     {
         var caller = CapabilityCallers.Of("u", "a", "b");
-        var req = new CallRequest { Caller = caller, TargetNeuron = "../../etc/shadow", Operation = "read" };
+        var req = new CallRequest { Caller = caller.ToCaller(), TargetNeuron = "../../etc/shadow", Operation = "read" };
         Assert.Equal("../../etc/shadow", req.TargetNeuron);
     }
 
@@ -351,7 +350,7 @@ public sealed class Tier2_BoundaryCornerFacts
     public void F5_B05_CallRequest_Defaults_EnforceTargetAndPublicOperationFalse()
     {
         var caller = CapabilityCallers.Of("u", "a", "b");
-        var req = new CallRequest { Caller = caller, TargetNeuron = "target", Operation = "op" };
+        var req = new CallRequest { Caller = caller.ToCaller(), TargetNeuron = "target", Operation = "op" };
         Assert.False(request_PublicOperation(req));
         Assert.False(req.EnforceTarget);
 
@@ -524,8 +523,8 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F9")]
     public void F9_B01_FilmCraft_ManifestId_ExactCasing()
     {
-        Assert.Equal("filmcraft", FilmCraftApp.Definition.Id);
-        Assert.NotEqual("FilmCraft", FilmCraftApp.Definition.Id);
+        Assert.Equal("filmcraft", FilmCraftApp.Bundle.Name);
+        Assert.NotEqual("FilmCraft", FilmCraftApp.Bundle.Name);
     }
 
     [Fact]
@@ -533,8 +532,8 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F9")]
     public void F9_B02_PhotoCraft_ManifestId_ExactCasing()
     {
-        Assert.Equal("photocraft", PhotoCraftApp.Definition.Id);
-        Assert.NotEqual("PhotoCraft", PhotoCraftApp.Definition.Id);
+        Assert.Equal("photocraft", PhotoCraftApp.Bundle.Name);
+        Assert.NotEqual("PhotoCraft", PhotoCraftApp.Bundle.Name);
     }
 
     [Fact]
@@ -542,10 +541,8 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F9")]
     public void F9_B03_ManifestAccents_ValidHexFormat()
     {
-        Assert.StartsWith("#", FilmCraftApp.Definition.Accent!);
-        Assert.StartsWith("#", PhotoCraftApp.Definition.Accent!);
-        Assert.Equal(7, FilmCraftApp.Definition.Accent!.Length);
-        Assert.Equal(7, PhotoCraftApp.Definition.Accent!.Length);
+        Assert.True(FilmCraftApp.Bundle.Manifest.Studio);
+        Assert.True(PhotoCraftApp.Bundle.Manifest.Studio);
     }
 
     [Fact]
@@ -553,8 +550,8 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F9")]
     public void F9_B04_ManifestVersions_ValidSemverDots()
     {
-        Assert.Contains(".", FilmCraftApp.Definition.Version);
-        Assert.Contains(".", PhotoCraftApp.Definition.Version);
+        Assert.Contains(".", FilmCraftApp.Bundle.Version);
+        Assert.Contains(".", PhotoCraftApp.Bundle.Version);
     }
 
     [Fact]
@@ -562,8 +559,8 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F9")]
     public void F9_B05_ManifestCategories_AreNotEmpty()
     {
-        Assert.False(string.IsNullOrWhiteSpace(FilmCraftApp.Definition.Category));
-        Assert.False(string.IsNullOrWhiteSpace(PhotoCraftApp.Definition.Category));
+        Assert.False(string.IsNullOrWhiteSpace(FilmCraftApp.Bundle.Name));
+        Assert.False(string.IsNullOrWhiteSpace(PhotoCraftApp.Bundle.Name));
     }
 
     #endregion

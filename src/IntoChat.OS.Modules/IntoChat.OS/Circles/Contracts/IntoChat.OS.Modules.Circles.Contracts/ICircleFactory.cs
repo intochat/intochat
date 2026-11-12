@@ -18,7 +18,7 @@ public interface ICircleFactory
     // The caller's circle brains, from the trust side's BrainsOf.
     Task<CircleEntry[]> Circles();
     Task<CirclePublicationFeed> Publications(string? publisher = null);
-    [DigitalBrain.CallTimeout(600_000)] Task<IntoChat.OS.Modules.Apps.AppSnapshot> Fork(IntoChat.OS.Modules.Apps.AppPublicationRef publication, string targetName, Guid operationId);
+    [DigitalBrain.Contracts.CallTimeout(600_000)] Task<IntoChat.OS.Modules.Apps.AppSnapshot> Fork(IntoChat.OS.Modules.Apps.AppPublicationRef publication, string targetName, Guid operationId);
 
     static string Key(string brainId) => $"{brainId}/circles";
 }

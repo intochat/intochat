@@ -4,8 +4,8 @@ using IntoChat.OS.Modules.AI.Agents.Context;
 
 namespace IntoChat.OS.Modules.Apps;
 
-[DigitalBrain.Neuron("ino.settings")]
-public sealed class InoSettingsNeuron : DigitalBrain.Neuron, IInoSettings
+[DigitalBrain.Neurons.Neuron("ino.settings")]
+public sealed class InoSettingsNeuron : DigitalBrain.Neurons.Neuron, IInoSettings
 {
     private IUserSettings Settings => Get<IUserSettings>(new DigitalBrain.NeuronId(Id.Brain, "os.settings", "settings"));
 

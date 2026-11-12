@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
 using IntoChat.Cloud.Mail.Templates;
 
 namespace IntoChat.Cloud.Mail;
@@ -11,7 +12,7 @@ public sealed class MailRateState
 [Signal("mail.rate-acquired")]
 public sealed record MailRateAcquired(string Template) : DigitalBrain.Signal;
 
-[DigitalBrain.Neuron(IMailRate.Type)]
+[DigitalBrain.Neurons.Neuron(IMailRate.Type)]
 internal sealed class MailRateNeuron(TimeProvider clock) : Neuron<MailRateState>, IMailRate
 {
     internal const int MaxPerHour = 5;

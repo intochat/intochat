@@ -23,20 +23,20 @@ internal sealed partial class AppNeuron
     {
         await Check("Publish",
             new AppExists(Name(), State.Manifest is not null));
-        RuntimeCallerContext.TryGet(out var caller);
-        await Check("Publish", new PublisherIsSignedIn(caller?.PersonId));
-        if (BrainScope.Create(caller!.AccountId, caller.BrainId).Id != BrainId())
+        var person = Context.Caller?.For;
+        await Check("Publish", new PublisherIsSignedIn(person?.Principal));
+        if (person is null || !string.Equals(Context.Caller?.Brain.Value, BrainId(), StringComparison.Ordinal))
         { throw new UnauthorizedAccessException("Only the brain that owns an app can publish it."); }
         // A listing is one app: the same name from another of the publisher's brains is refused,
         // never a silent takeover of what installers already trust.
-        var listed = await Marketplace.Read(caller.PersonId, Name());
+        var listed = await Marketplace.Read(person.Principal, Name());
         var next = State.Clone();
         var manifest = next.Manifest!;
         next.PublishedVersion = next.Version;
         next.Published = new AppVersionRecord(next.Version, clock.GetUtcNow(), manifest, next.Spec, next.Files);
-        next.Publisher = caller.PersonId;
+        next.Publisher = person.Principal;
         var releases = Releases();
-        var release = Release(next.Published, caller.PersonId, new AppSource.Brain(caller.AccountId, caller.BrainId));
+        var release = Release(next.Published, person.Principal, new AppSource.Brain(person.Account, BrainId()));
         var existing = releases.FirstOrDefault(item => item.Bundle.Version == next.Version);
         await Check("Publish",
             new PublicationIsNotForeign(listed?.Source.Scope(), BrainId()),
@@ -49,7 +49,7 @@ internal sealed partial class AppNeuron
         // State first: a failed listing write is repaired by publishing again, never the reverse
         // (a listing whose bundle Install cannot read).
         await Marketplace.Upsert(new MarketplaceListing(
-            caller.PersonId, new AppSource.Brain(caller.AccountId, caller.BrainId), name, manifest.Title, manifest.Description,
+            person.Principal, new AppSource.Brain(person.Account, BrainId()), name, manifest.Title, manifest.Description,
             next.Version, manifest.Icon, manifest.Requires));
         return Describe(State);
     }

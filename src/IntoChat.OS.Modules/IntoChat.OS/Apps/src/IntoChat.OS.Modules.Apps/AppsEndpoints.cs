@@ -1,8 +1,10 @@
 using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Kernel;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
-using DigitalBrain.Spi;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Units;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -61,16 +63,14 @@ internal static class AppsEndpoints
             return Results.Ok(View(await creator.Author(brain, BrainScope.CurrentId(), null, request.Text, ct)));
         }));
 
-        apps.MapGet("/{name}", (string name, INeuronProxies brain, HttpContext http, CancellationToken ct) => Respond(async () =>
+        apps.MapGet("/{name}", (string name, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
             var key = AppKey(name);
             var app = App(brain, name);
             var snapshot = await AppBuildStatus.Of(await app.Read().WaitAsync(ct), app, brain.Get<Flows.IFlows>(Flows.IFlows.Key(BrainScope.CurrentId()).ToString()), ct);
-            var sink = http.RequestServices.GetService(typeof(AppPresentationSink)) as AppPresentationSink;
-            var (side, main, sequence) = sink?.TryGetPresentedViews(key) ?? (null, null, 0L);
             return snapshot.Manifest.Title.Length == 0
                 ? throw new KeyNotFoundException($"No app named {name} exists in this brain.")
-                : Results.Ok(View(snapshot, main, side, sequence));
+                : Results.Ok(View(snapshot));
         }));
 
         apps.MapPost("/{name}/author", (string name, TextRequest request, [FromServices] Creator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>

@@ -1,14 +1,18 @@
-using DigitalBrain.Capabilities.Connections;
-using DigitalBrain.Errors;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Text.Json;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
+using DigitalBrain.Confirmation;
+using DigitalBrain.Errors;
+using DigitalBrain.Neurons;
+using DigitalBrain.Operations;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 [GenerateSerializer, Alias("windows.connection-state")]
-internal sealed class WindowsConnectionState : ConnectionState
+internal sealed record WindowsConnectionState : ConnectionState
 {
     [Id(0)] public string[] Roots { get; set; } = [];
 }
@@ -16,9 +20,10 @@ internal sealed class WindowsConnectionState : ConnectionState
 // The connection to one Windows PC. Its key names the machine; only a silo whose machine id matches serves it,
 // and connecting proves the device value is this very machine. As storage, every location is confined
 // to the allowed roots, read fresh on every call.
-[DigitalBrain.Neuron("windows", State = "windows")]
+[DigitalBrain.Neurons.Neuron("windows", State = "windows")]
 internal sealed class WindowsNeuron(
-    MachineIdentity identity, WindowsStorageCoordinator coordinator)
+    MachineIdentity identity, WindowsStorageCoordinator coordinator, IOperations operations,
+    IConfirmations? confirmations = null, IStorageWriteAuthorizer? authorizer = null)
     : ConnectionNeuron<WindowsConnectionState>, IWindows, IStorage, IStorageUpload
 {
     private StorageUploadSessions? _uploads;
@@ -48,7 +53,7 @@ internal sealed class WindowsNeuron(
     }
 
     // storage@1: the same allowed roots, read fresh on every call, through WindowsStorage.
-    private WindowsStorage Storage => new(Snapshot.Roots, operations: Context.Operations, currentRoots: () => Snapshot.Roots, coordinator: coordinator);
+    private WindowsStorage Storage => new(Snapshot.Roots, operations: operations, currentRoots: () => Snapshot.Roots, coordinator: coordinator);
     private StorageUploadSessions Uploads => _uploads ??= new(() => Storage, UploadCaller, Context.Time);
 
     private static string UploadCaller()
@@ -87,11 +92,19 @@ internal sealed class WindowsNeuron(
 
     private async Task AuthorizeWrite(WritePlan plan, CancellationToken ct)
     {
-        if (await StorageConfirmationGate.Check(Context, Storage, plan, ct) is not null)
+        if (authorizer is not null && await authorizer.Consume(Context.Id, plan, ct).ConfigureAwait(false)) { return; }
+        if (confirmations is null || plan.DryRun) { return; }
+        var descriptor = await Storage.Describe(ct).ConfigureAwait(false);
+        var connection = new CapabilityConnection<IStorage>("storage", descriptor.Label, Storage);
+        var runner = new StorageWriteRunner((_, _) => Task.FromResult(connection),
+            (_, _, _) => throw new InvalidOperationException("A confirmation does not execute writes."));
+        var question = await runner.Confirmation(plan, ct).ConfigureAwait(false);
+        var answer = await confirmations.Confirm(question, ct).ConfigureAwait(false);
+        if (answer.Outcome != ConfirmationOutcome.Approved)
         { throw new Denied(plan.Source ?? plan.TargetFolder); }
     }
 
-    protected override async Task OnDeactivate(DigitalBrain.DeactivationCause cause, CancellationToken cancellationToken)
+    protected override async Task OnDeactivate(DigitalBrain.Neurons.DeactivationCause cause, CancellationToken cancellationToken)
     {
         if (_uploads is not null) { await _uploads.DisposeAsync(); }
     }

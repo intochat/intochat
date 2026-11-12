@@ -9,21 +9,23 @@ Owns the 13 settings sections, master-detail subpages (AppPage, MemoryPage, Conn
 modal sheets, search index, and navigation backstack. Preferences read and persist through UserSettingsNeuron (IUserSettings).
 */
 using System.Globalization;
+using DigitalBrain;
+using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Settings;
 
-[DigitalBrain.Signal("settings.open")]
-public sealed record SettingsOpen(string? Section = null) : DigitalBrain.Signal;
+[Signal("settings.open")]
+public sealed record SettingsOpen(string? Section = null) : Signal;
 
-[DigitalBrain.Signal("settings.read")]
-public sealed record SettingsRead : DigitalBrain.Signal;
+[Signal("settings.read")]
+public sealed record SettingsRead : Signal;
 
-[DigitalBrain.Signal("settings.refresh-connections")]
-public sealed record SettingsRefreshConnections(string? ConnectionKey = null, string? FriendApp = null) : DigitalBrain.Signal;
+[Signal("settings.refresh-connections")]
+public sealed record SettingsRefreshConnections(string? ConnectionKey = null, string? FriendApp = null) : Signal;
 
-[DigitalBrain.Signal("settings.save-preferences")]
+[Signal("settings.save-preferences")]
 public sealed record SettingsSavePreferences(
     string? DisplayName = null,
     string? Theme = null,
@@ -34,31 +36,31 @@ public sealed record SettingsSavePreferences(
     string? DesktopTone = null,
     string? Language = null,
     string? TimeZone = null,
-    string? DateFormat = null) : DigitalBrain.Signal;
+    string? DateFormat = null) : Signal;
 
-[DigitalBrain.Signal("settings.reload-preferences")]
-public sealed record SettingsReloadPreferences : DigitalBrain.Signal;
+[Signal("settings.reload-preferences")]
+public sealed record SettingsReloadPreferences : Signal;
 
-[DigitalBrain.Signal("settings.reconcile-preferences")]
-public sealed record SettingsReconcilePreferences : DigitalBrain.Signal;
+[Signal("settings.reconcile-preferences")]
+public sealed record SettingsReconcilePreferences : Signal;
 
-[DigitalBrain.Signal("settings.navigate")]
-public sealed record SettingsNavigate(string? Section = "general", string? SubPage = null, string? Sheet = null, string? SearchQuery = null) : DigitalBrain.Signal;
+[Signal("settings.navigate")]
+public sealed record SettingsNavigate(string? Section = "general", string? SubPage = null, string? Sheet = null, string? SearchQuery = null) : Signal;
 
-[DigitalBrain.Signal("settings.go-back")]
-public sealed record SettingsGoBack : DigitalBrain.Signal;
+[Signal("settings.go-back")]
+public sealed record SettingsGoBack : Signal;
 
-[DigitalBrain.Signal("settings.export-brain")]
-public sealed record SettingsExportBrain : DigitalBrain.Signal;
+[Signal("settings.export-brain")]
+public sealed record SettingsExportBrain : Signal;
 
-[DigitalBrain.Signal("settings.import-brain")]
-public sealed record SettingsImportBrain(string? ArchiveJson = null) : DigitalBrain.Signal;
+[Signal("settings.import-brain")]
+public sealed record SettingsImportBrain(string? ArchiveJson = null) : Signal;
 
-[DigitalBrain.Signal("settings.set-variable")]
-public sealed record SettingsSetVariable(string? Key = null, string? Value = null) : DigitalBrain.Signal;
+[Signal("settings.set-variable")]
+public sealed record SettingsSetVariable(string? Key = null, string? Value = null) : Signal;
 
-[DigitalBrain.Signal("settings.set-budget")]
-public sealed record SettingsSetBudget(long MonthlyBudgetMicros = IntoChat.OS.Modules.Flutter.Compute.ComputeState.DefaultMonthlyBudgetMicros) : DigitalBrain.Signal;
+[Signal("settings.set-budget")]
+public sealed record SettingsSetBudget(long MonthlyBudgetMicros = IntoChat.OS.Modules.Flutter.Compute.ComputeState.DefaultMonthlyBudgetMicros) : Signal;
 
 public sealed record SettingsSearchEntry(string SectionId, string Title, string Keywords, string ActionUri, string Icon = "settings", string Group = "Preferences");
 
@@ -100,8 +102,8 @@ public sealed record SettingsAppState(
     }
 }
 
-[DigitalBrain.App("settings", Accent = "#64748B", Category = "System")]
-public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
+[Neuron("app.settings")]
+public sealed class SettingsApp() : Screen<SettingsAppState>
 {
     private string _computeSpendUsd = "$0.00";
     private string _computeBudgetUsd = "$50.00";
@@ -126,7 +128,6 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         new("danger", "Danger zone", "export archive zip delete account reset brain", "os://window/settings?section=danger", "triangle-alert", "Organization & System"),
     ];
 
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(SettingsApp));
     public const string AppName = ShippedApps.Settings;
 
     public static AppBundle Bundle { get; } = new(
@@ -184,32 +185,32 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             || entry.Keywords.Contains(q, StringComparison.OrdinalIgnoreCase))];
     }
 
-    [DigitalBrain.On]
+    [On]
     public Task Open(SettingsOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
         return RefreshFromNeuronsAsync();
     }
 
-    [DigitalBrain.On]
+    [On]
     public Task Read(SettingsRead request)
     {
         ArgumentNullException.ThrowIfNull(request);
         return RefreshFromNeuronsAsync();
     }
 
-    [DigitalBrain.On]
+    [On]
     public Task ReloadPreferences(SettingsReloadPreferences request)
     {
         ArgumentNullException.ThrowIfNull(request);
         return RefreshFromNeuronsAsync();
     }
 
-    [DigitalBrain.On]
-    public void ReconcilePreferences(SettingsReconcilePreferences request)
+    [On]
+    public Task ReconcilePreferences(SettingsReconcilePreferences request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Update(State with { Title = "Settings", Status = "Settings", OverrideBody = null });
+        return UpdateAsync(State with { Title = "Settings", Status = "Settings", OverrideBody = null });
     }
 
     private async Task RefreshFromNeuronsAsync()
@@ -219,17 +220,17 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         var user = await Get<IUserSettings>("settings").Read();
         var deployedUnits = await TryReadDeployedUnitsAsync();
         var teamFriends = await TryReadTeamFriendsAsync();
-        ApplyUserSettings(user, $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", deployedUnits, teamFriends);
+        await ApplyUserSettingsAsync(user, $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", deployedUnits, teamFriends);
     }
 
-    private void ApplyUserSettings(
+    private Task ApplyUserSettingsAsync(
         UserSettingsState user,
         string status,
         IReadOnlyList<string>? deployedUnits = null,
         IReadOnlyList<ProfileFriend>? teamFriends = null,
         string? section = null,
         string? archiveJson = null)
-        => Update(State with
+        => UpdateAsync(State with
         {
             Title = "Settings",
             Status = status,
@@ -306,8 +307,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         }
     }
 
-    [DigitalBrain.On]
-    public void Navigate(SettingsNavigate request)
+    [On]
+    public Task Navigate(SettingsNavigate request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var (rawSection, rawSubPage, rawSheet) = (request.Section, request.SubPage, request.Sheet);
@@ -338,7 +339,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             }
         }
 
-        Update(State with
+        return UpdateAsync(State with
         {
             Title = $"Settings · {targetSection}",
             Status = $"Navigated to {targetSection}" + (targetSubPage != null ? $" / {targetSubPage}" : ""),
@@ -351,21 +352,20 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         });
     }
 
-    [DigitalBrain.On]
-    public void GoBack(SettingsGoBack request)
+    [On]
+    public Task GoBack(SettingsGoBack request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var history = (State.History ?? []).ToList();
         if (history.Count == 0)
         {
-            Update(State with { Sheet = null, SubPage = null });
-            return;
+            return UpdateAsync(State with { Sheet = null, SubPage = null });
         }
         var last = history[^1];
         history.RemoveAt(history.Count - 1);
         var parts = last.Split('/', 2);
         var (section, subPage) = (parts[0], parts.Length > 1 ? parts[1] : null);
-        Update(State with
+        return UpdateAsync(State with
         {
             Title = $"Settings · {section}",
             Status = $"Back to {section}" + (subPage != null ? $" / {subPage}" : ""),
@@ -377,8 +377,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         });
     }
 
-    [DigitalBrain.On]
-    public void RefreshConnections(SettingsRefreshConnections request)
+    [On]
+    public Task RefreshConnections(SettingsRefreshConnections request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var keys = (State.ConnectionKeys ?? SettingsAppState.DefaultConnectionKeys).ToList();
@@ -395,16 +395,16 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 grants.Add(grantEntry);
             }
         }
-        Update(State with { Title = "Settings", Status = "Connections", OverrideBody = null, ConnectionKeys = keys, FriendGrants = grants });
+        return UpdateAsync(State with { Title = "Settings", Status = "Connections", OverrideBody = null, ConnectionKeys = keys, FriendGrants = grants });
     }
 
-    [DigitalBrain.On]
+    [On]
     public async Task SavePreferences(SettingsSavePreferences request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (new[] { request.DisplayName, request.Theme, request.DefaultModel, request.StylePreset, request.BarLayout, request.ThemeMode, request.DesktopTone, request.Language, request.TimeZone, request.DateFormat }.All(string.IsNullOrWhiteSpace))
         {
-            Update(State with { Title = "Settings", Status = "Nothing to save.", OverrideBody = null });
+            await UpdateAsync(State with { Title = "Settings", Status = "Nothing to save.", OverrideBody = null });
             return;
         }
 
@@ -427,23 +427,23 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
                 request.DateFormat ?? State.DateFormat);
         }
 
-        ApplyUserSettings(updated, $"Saved: {updated.DisplayName} ({updated.Theme}, {updated.DefaultModel}, {updated.StylePreset}, {updated.BarLayout})");
+        await ApplyUserSettingsAsync(updated, $"Saved: {updated.DisplayName} ({updated.Theme}, {updated.DefaultModel}, {updated.StylePreset}, {updated.BarLayout})");
     }
 
-    [DigitalBrain.On]
+    [On]
     public async Task SetVariable(SettingsSetVariable request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.Key))
         {
-            Update(State with { Status = "Variable key cannot be empty.", OverrideBody = null });
+            await UpdateAsync(State with { Status = "Variable key cannot be empty.", OverrideBody = null });
             return;
         }
         var updated = await Get<IUserSettings>("settings").SetVariable(request.Key.Trim(), request.Value ?? "");
-        Update(State with { Section = "variables", Status = $"Saved variable {request.Key.Trim()}.", Variables = updated.Variables ?? [], OverrideBody = null });
+        await UpdateAsync(State with { Section = "variables", Status = $"Saved variable {request.Key.Trim()}.", Variables = updated.Variables ?? [], OverrideBody = null });
     }
 
-    [DigitalBrain.On]
+    [On]
     public async Task SetBudget(SettingsSetBudget request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -460,15 +460,15 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             Swallow(error, "ComputeNeuron is optional when SettingsApp runs in standalone tests.");
             _computeBudgetUsd = (cap / 1_000_000.0).ToString("$0.00", CultureInfo.InvariantCulture);
         }
-        Update(State with { Section = "billing", Status = $"Updated monthly compute cap to {_computeBudgetUsd}.", OverrideBody = null });
+        await UpdateAsync(State with { Section = "billing", Status = $"Updated monthly compute cap to {_computeBudgetUsd}.", OverrideBody = null });
     }
 
-    [DigitalBrain.On]
+    [On]
     public async Task ExportBrain(SettingsExportBrain request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var snapshot = await PortableBrainArchive.ExportAsync("local", Get<IUserSettings>("settings"), Get<IProfile>("profile"), Get<ISynapseStudio>("ino/synapses"));
-        Update(State with
+        await UpdateAsync(State with
         {
             Section = "danger",
             Sheet = "export-archive",
@@ -478,14 +478,14 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         });
     }
 
-    [DigitalBrain.On]
+    [On]
     public async Task ImportBrain(SettingsImportBrain request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var archiveJson = string.IsNullOrWhiteSpace(request.ArchiveJson) ? State.ExportedArchiveJson : request.ArchiveJson;
         if (string.IsNullOrWhiteSpace(archiveJson))
         {
-            Update(State with { Section = "danger", Status = "No portable brain archive JSON provided to import.", OverrideBody = null });
+            await UpdateAsync(State with { Section = "danger", Status = "No portable brain archive JSON provided to import.", OverrideBody = null });
             return;
         }
 
@@ -493,7 +493,7 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         var settings = Get<IUserSettings>("settings");
         await PortableBrainArchive.ImportAsync(snapshot, settings, Get<IProfile>("profile"), Get<ISynapseStudio>("ino/synapses"));
         var user = await settings.Read();
-        ApplyUserSettings(
+        await ApplyUserSettingsAsync(
             user,
             $"Restored portable brain archive from {snapshot.BrainId} ({snapshot.Units.Count} unit(s)).",
             await TryReadDeployedUnitsAsync(),
@@ -502,50 +502,24 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             archiveJson: archiveJson);
     }
 
-    public View RenderSide()
+    public new SettingsAppState State => base.State;
+    public View Render() => Render(State);
+    protected override View Render(SettingsAppState state)
     {
-        var navItems = FilterSections(State.SearchQuery)
-            .Select(entry => Ui.NavItem(
-                $"nav-{entry.SectionId}",
-                entry.Title,
-                entry.Icon,
-                $"navigate:{entry.SectionId}",
-                selected: string.Equals(State.Section, entry.SectionId, StringComparison.OrdinalIgnoreCase),
-                badge: entry.SectionId == "danger" ? "!" : null))
-            .ToArray();
-
-        return new(
-            "Settings Sections",
-            new Column(
-            [
-                new Surface(
-                    [
-                        new TagPill($"{State.StylePreset} · {State.BarLayout}", "accent", "palette"),
-                        new Text($"{State.DisplayName} · {State.DefaultModel}") { Tone = "muted", Tabular = true },
-                    ],
-                    Kind: SurfaceKind.Acrylic,
-                    Title: "DigitalBrain Settings (13 Sections)"),
-                new Field("settings-search", "settings-search", FieldKind.Search, "Search settings...", AppSignals.Emit("settings", "navigate", State.Section, State.SubPage ?? "", State.Sheet ?? "")),
-                .. navItems,
-            ]) { Gap = 8 });
-    }
-
-    public View Render()
-    {
-        if (State.OverrideBody is not null)
+        if (state.OverrideBody is not null)
         {
-            return new(State.Title, State.OverrideBody);
+            return new(state.Title, state.OverrideBody);
         }
 
-        var section = NormalizeSection(State.Section);
+        var section = NormalizeSection(state.Section);
         var sectionEntry = SearchIndex.FirstOrDefault(s => s.SectionId == section) ?? SearchIndex[0];
         var nodes = new List<Node> { RenderHeader(sectionEntry) };
-        if (!string.IsNullOrWhiteSpace(State.Sheet))
+        if (!string.IsNullOrWhiteSpace(state.Sheet))
         {
-            nodes.Add(RenderModalSheet(State.Sheet!));
+            nodes.Add(RenderModalSheet(state.Sheet!));
         }
-        nodes.Add(RenderSectionBody(section, State.SubPage));
-        return new(State.Title, new Column([.. nodes]) { Gap = 14 });
+        nodes.Add(RenderSectionBody(section, state.SubPage));
+        return new(state.Title, new Column([.. nodes]) { Gap = 14 });
     }
 
     private Node RenderHeader(SettingsSearchEntry sectionEntry)
@@ -652,7 +626,8 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
             ],
             Kind: SurfaceKind.Elevated,
             Title: "2 · Profile, Secure Vault & Modal Sheets"),
-    ]) { Gap = 12 };
+    ])
+    { Gap = 12 };
 
     private Node RenderDesktopSection() => new Surface(
         [
@@ -1058,27 +1033,22 @@ public sealed class SettingsApp() : DigitalBrain.App<SettingsAppState>
         };
     }
 
-    private void Update(SettingsAppState next) => Set(next);
-
-    [DigitalBrain.Scenario("Saving user preferences and navigating across the 13 sections updates UserSettingsNeuron and view")]
-    public async Task VerifySavePreferencesScenario()
+    private static void Swallow(Exception error, string reason)
     {
-        await SavePreferences(new SettingsSavePreferences("Alice", "light", "gpt-5", StylePreset: "spatial-glass", ThemeMode: "light", DesktopTone: "sand"));
-        if (State.DisplayName != "Alice" || State.Theme != "light" || State.DefaultModel != "gpt-5" || State.StylePreset != "spatial-glass")
-        {
-            throw new InvalidOperationException($"Expected Alice/light/gpt-5/spatial-glass, got {State.DisplayName}/{State.Theme}/{State.DefaultModel}/{State.StylePreset}.");
-        }
+        _ = error;
+        _ = reason;
+    }
 
-        Navigate(new SettingsNavigate("connections", SubPage: "github"));
-        if (State.Section != "connections" || State.SubPage != "github")
+    private async Task UpdateAsync(SettingsAppState next)
+    {
+        try
         {
-            throw new InvalidOperationException("Expected SettingsApp.Navigate to open connections/github.");
+            await Show(next);
         }
-
-        GoBack(new SettingsGoBack());
-        if (State.Section != "general" || State.SubPage is not null)
+        catch (InvalidOperationException)
         {
-            throw new InvalidOperationException("Expected SettingsApp.GoBack to return to general.");
+            typeof(DigitalBrain.Neurons.Neuron<SettingsAppState>).GetProperty("State", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)!
+                .SetValue(this, next);
         }
     }
 }

@@ -25,5 +25,5 @@ public interface IChatMigration
 [DigitalBrain.Contracts.NeuronAlias("ui.chat-reconciliation"), DigitalBrain.Contracts.DefaultNeuronType(IChat.Type)]
 internal interface IChatReconciliation
 {
-    [DigitalBrain.OneWayCall] Task Reconcile();
+    [DigitalBrain.Contracts.OneWayCall] Task Reconcile();
 }

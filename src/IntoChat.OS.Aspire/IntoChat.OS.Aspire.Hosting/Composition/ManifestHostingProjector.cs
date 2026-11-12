@@ -1,9 +1,10 @@
-using DigitalBrain.Capabilities.Connections.Connectors;
-using DigitalBrain.Modules.Configuration;
-using DigitalBrain.Modules.Options;
 using System.Reflection;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules;
+using DigitalBrain.Modules.Configuration;
+using DigitalBrain.Modules.Options;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Modules.ClickHouse;
 using IntoChat.OS.Modules.Postgres;
@@ -25,8 +26,8 @@ public static class ManifestHostingProjector
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentNullException.ThrowIfNull(moduleType);
 
-        if (moduleType.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is not DigitalBrain.ModuleManifest manifest
-            || moduleType.GetCustomAttribute<DigitalBrain.ModuleAttribute>()?.Id is not { Length: > 0 } moduleId)
+        if (moduleType.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is not DigitalBrain.Modules.ModuleManifest manifest
+            || moduleType.GetCustomAttribute<DigitalBrain.Modules.ModuleAttribute>()?.Id is not { Length: > 0 } moduleId)
         {
             return brain;
         }
@@ -35,7 +36,7 @@ public static class ManifestHostingProjector
         return brain;
     }
 
-    private static void ProjectInfrastructure(IntoChatOSBuilder brain, string moduleId, DigitalBrain.ModuleManifest manifest)
+    private static void ProjectInfrastructure(IntoChatOSBuilder brain, string moduleId, DigitalBrain.Modules.ModuleManifest manifest)
     {
         var config = brain.GetModuleConfiguration(moduleId);
 
@@ -168,12 +169,12 @@ public static class ManifestHostingProjector
         brain.AddProjection(new SupabasePostgresProjection(database));
     }
 
-    private static void ProjectGenericNeeds(IntoChatOSBuilder brain, string moduleId, DigitalBrain.ModuleManifest manifest)
+    private static void ProjectGenericNeeds(IntoChatOSBuilder brain, string moduleId, DigitalBrain.Modules.ModuleManifest manifest)
     {
         var moduleNode = brain.GetOrAddModuleNode(moduleId);
         foreach (var need in manifest.Needs)
         {
-            if (need.Kind == DigitalBrain.NeedKind.Sandbox && need.Image is { Length: > 0 } image && need.Name is { Length: > 0 } name)
+            if (need.Kind == DigitalBrain.Modules.NeedKind.Sandbox && need.Image is { Length: > 0 } image && need.Name is { Length: > 0 } name)
             {
                 var container = brain.ApplicationBuilder.AddContainer(brain.ResourceName(name), image)
                     .WithParentRelationship(moduleNode);

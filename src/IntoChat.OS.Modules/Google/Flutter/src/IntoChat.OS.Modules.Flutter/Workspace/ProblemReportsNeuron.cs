@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -8,7 +9,7 @@ namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 [Neuron("ui.problem-reports", State = "problem-reports")]
 internal sealed class ProblemReportsNeuron
-    : DigitalBrain.Neuron<ProblemReportsState>, IProblemReports
+    : DigitalBrain.Neurons.Neuron<ProblemReportsState>, IProblemReports
 {
     private const int MaxMessageLength = 4_000;
 

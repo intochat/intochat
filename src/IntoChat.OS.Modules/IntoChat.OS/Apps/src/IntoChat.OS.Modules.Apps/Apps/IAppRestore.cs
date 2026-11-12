@@ -5,5 +5,5 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Contracts.NeuronAlias("apps.restore"), DigitalBrain.Contracts.DefaultNeuronType(IntoChat.OS.Connections.AppGrainType.Name)]
 internal interface IAppRestore
 {
-    [DigitalBrain.OneWayCall] Task Restore();
+    [DigitalBrain.Contracts.OneWayCall] Task Restore();
 }

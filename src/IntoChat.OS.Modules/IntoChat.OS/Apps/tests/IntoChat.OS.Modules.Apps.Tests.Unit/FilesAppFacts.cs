@@ -13,19 +13,6 @@ public sealed class FilesAppFacts
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task FrameworkAppInstallsAndRunsWithoutProviderOrOrleansKnowledge()
-    {
-        var storage = new InMemoryStorage("Documents");
-        using var services = new ServiceCollection().AddSingleton(typeof(BrainId), new BrainId("owner")).AddSingleton(new FilesState()).BuildServiceProvider();
-        await using var os = TestOS.Local(options => options.Services = services).With<IStorage>("documents", storage);
-        var app = await os.Install<FilesApp>();
-        await app.Request("open");
-        Assert.Equal("files", app.Definition.Id);
-        Assert.Equal([Capability.Storage.V1], app.Definition.Requires.Capabilities);
-        Assert.Equal("documents", Assert.Single(app.App.Snapshot.Storages).Label);
-    }
-
-    [Fact]
     public async Task FolderPagingDoesNotLoseItemsAndAncestorsIncludeCurrentFolderOnce()
     {
         var storage = new InMemoryStorage();

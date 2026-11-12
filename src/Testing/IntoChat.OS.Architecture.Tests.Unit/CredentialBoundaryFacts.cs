@@ -1,8 +1,8 @@
-using DigitalBrain.Capabilities.Connections.Connectors;
-using DigitalBrain.Modules.Options;
 using System.Reflection;
 using System.Reflection.Emit;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules.Options;
 using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Contracts.Configuration;
@@ -27,7 +27,6 @@ public sealed class CredentialBoundaryFacts
             // Stamps a platform caller on its own security-posture reads, like AppMenuHost.
             "IntoChat.OS.Modules.AI.Agents.Observers.SecurityPostureNeuron",
             "IntoChat.OS.Modules.Apps.AppNeuron",
-            "IntoChat.OS.Modules.Apps.HostCaller",
             "IntoChat.OS.Modules.Flutter.Space.SpaceWatcher",
         ];
         var offenders = ModuleMethods()
@@ -47,7 +46,6 @@ public sealed class CredentialBoundaryFacts
             "IntoChat.OS.Authority.Identity.AccountSessionIssuer",
             "IntoChat.OS.Authority.VaultPort",
             "IntoChat.OS.Modules.Apps.AppNeuron",
-            "IntoChat.OS.Modules.Apps.HostCaller",
         ];
         var sites = ModuleMethods().Where(m => Calls(m).Any(ConstructsACaller))
             .Select(m => Outermost(m.DeclaringType!).FullName!).Distinct().Order().ToArray();

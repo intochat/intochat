@@ -92,23 +92,8 @@
       "persisted": false
     },
     {
-      "old": "IntoChat.OS.Connections.Platform.Connections.IConnectionCatalogUpdates",
-      "alias": "integrations.catalog-updates",
-      "persisted": false
-    },
-    {
       "old": "IntoChat.OS.Connections.Platform.Connections.IConnectionInbound",
       "alias": "connection.inbound",
-      "persisted": false
-    },
-    {
-      "old": "IntoChat.OS.Connections.Platform.Connections.IConnectionIndex",
-      "alias": "connection.index",
-      "persisted": false
-    },
-    {
-      "old": "IntoChat.OS.Connections.Platform.Connections.IConnectionWriteFaults",
-      "alias": null,
       "persisted": false
     },
     {
@@ -362,6 +347,11 @@
       "persisted": true
     },
     {
+      "old": "IntoChat.OS.Framework.Actor",
+      "alias": null,
+      "persisted": false
+    },
+    {
       "old": "IntoChat.OS.Framework.BrainAffinePlacement",
       "alias": "os.brain-affine-placement",
       "persisted": true
@@ -383,6 +373,11 @@
     },
     {
       "old": "IntoChat.OS.Framework.BrainScope",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Caller",
       "alias": null,
       "persisted": false
     },

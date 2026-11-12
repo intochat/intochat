@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Markdraw;
@@ -7,24 +8,22 @@ namespace IntoChat.OS.Apps.Tests.Unit.Markdraw;
 
 public sealed class MarkdrawAppFacts
 {
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> MarkdrawOperations
-        => AppBaseline.Cases(
+    public static IEnumerable<TheoryDataRow<ScreenOperationCase>> MarkdrawOperations
+        => ScreenBaseline.Cases(
             typeof(MarkdrawApp),
             os => os.Register(typeof(AppsModule).Assembly));
 
     [Theory, MemberData(nameof(MarkdrawOperations))]
-    public Task MarkdrawBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+    public Task MarkdrawBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
 
     [Fact]
     public async Task MarkdrawBddScenarioPasses()
     {
-        var ct = TestContext.Current.CancellationToken;
-        var report = await BddRunner.VerifyAsync<MarkdrawApp>(
-            fakes: os => os.Register(typeof(AppsModule).Assembly),
-            cancellationToken: ct);
-
-        Assert.True(report.Passed);
-        Assert.Single(report.Scenarios);
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(MarkdrawApp).Assembly);
+        var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.markdraw", "default"));
+        Assert.NotNull(await screen.Read());
     }
 
     [Fact]

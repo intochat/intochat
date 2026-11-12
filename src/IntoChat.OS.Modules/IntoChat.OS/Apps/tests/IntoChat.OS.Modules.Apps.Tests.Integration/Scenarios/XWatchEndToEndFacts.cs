@@ -7,8 +7,8 @@ using DigitalBrain.Capabilities.Http;
 using DigitalBrain.Flows;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Spi;
 using DigitalBrain.Testing;
+using DigitalBrain.Units;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Debugger;
@@ -231,7 +231,7 @@ public sealed class XWatchEndToEndFacts
         var changedFlow = await Eventually(runtime, change, v => v.Status is FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Waiting or FlowStatus.Cancelled);
         Assert.True(changedFlow.Status == FlowStatus.Completed, $"{changedFlow.Status} at {changedFlow.WaitingStep}: {changedFlow.Detail}");
         var second = await Inner(runtime, change);
-        Assert.True(second.Install is DigitalBrain.InstallStatus.Updated or DigitalBrain.InstallStatus.Unchanged, $"{second.Install}");
+        Assert.True(second.Install is DigitalBrain.Units.InstallStatus.Updated or DigitalBrain.Units.InstallStatus.Unchanged, $"{second.Install}");
         Assert.NotEqual(inner.Hash, second.Hash);
         Assert.Empty(await Installs(runtime).Pending(Ct));
 

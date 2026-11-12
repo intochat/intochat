@@ -16,6 +16,7 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Authority.Identity;
 
+[Collection("EdgeGrantsCache")]
 public sealed class OwnerBootstrapFacts
 {
     [Fact]
@@ -56,7 +57,7 @@ public sealed class OwnerBootstrapFacts
         Assert.Equal(MemberRole.Owner, member!.Role);
 
         await bootstrap.Execute(ct);
-        var stateJson = await ((DigitalBrain.Spi.IBrainObserver)os).State(directoryId, ct);
+        var stateJson = await ((DigitalBrain.Kernel.IBrainObserver)os).State(directoryId, ct);
         Assert.NotNull(stateJson);
         var state = stateJson.Value.Deserialize<DirectoryState>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
         var brain = Assert.Single(state.Brains, b => b.BrainId == "owner");
@@ -89,6 +90,27 @@ public sealed class OwnerBootstrapFacts
         await bootstrap.Execute(TestContext.Current.CancellationToken);
         var grant = await directory.GrantAsOwner(caller, Grant.Tuple("brain:owner", "app:owner/apps/demo", "owner/apps/demo", "os.notes"));
         Assert.Equal("os.notes", grant.Scope);
+
+        // Wire roundtrip check: Authorize over NeuronProxy serializes DirectoryAuthorizeRequest cleanly:
+        var appAllowed = await identity.Authorize(new CallRequest
+        {
+            Caller = CapabilityCallers.Of(AppPrincipal.Id("owner/apps/demo"), "owner", "owner", CallerKind.App, "owner/apps/demo").ToCaller(),
+            TargetNeuron = "owner/apps/demo",
+            Operation = "read",
+            SemanticTypeIds = ["os.notes"],
+        });
+        Assert.NotNull(appAllowed);
+        Assert.True(appAllowed!.Allowed);
+
+        var appDenied = await identity.Authorize(new CallRequest
+        {
+            Caller = CapabilityCallers.Of(AppPrincipal.Id("owner/apps/stranger"), "owner", "owner", CallerKind.App, "owner/apps/stranger").ToCaller(),
+            TargetNeuron = "owner/apps/demo",
+            Operation = "read",
+            SemanticTypeIds = ["os.notes"],
+        });
+        Assert.NotNull(appDenied);
+        Assert.False(appDenied!.Allowed);
     }
 
     private sealed class NoOpBrainBirths : IBrainBirths
@@ -115,7 +137,7 @@ public sealed class OwnerBootstrapFacts
         public Task<Member?> EnsureMember(Member member) => directory.EnsureMember(member);
         public Task RemoveMember(string brainScopeId, string accountId) => directory.RemoveMember(brainScopeId, accountId);
         public Task RemovePrincipalMember(string brainScopeId, string principalId) => directory.RemovePrincipalMember(brainScopeId, principalId);
-        public Task<CallDecision?> Authorize(CallRequest request) => directory.Authorize(request);
+        public Task<CallDecision?> Authorize(CallRequest request) => directory.Authorize(DirectoryAuthorizeRequest.From(request));
         public Task<Grant[]> ListGrants(string brainScopeId) => directory.ListGrants(brainScopeId);
         public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => directory.GrantAsOwner(caller, grant);
         public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => directory.GrantShipped(brainScopeId, grants);

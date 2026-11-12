@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Modules;
 
 namespace IntoChat.OS.Authority;
 

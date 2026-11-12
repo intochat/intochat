@@ -1,6 +1,6 @@
+using System.Reflection;
 using DigitalBrain.Brains;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using System.Reflection;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework;

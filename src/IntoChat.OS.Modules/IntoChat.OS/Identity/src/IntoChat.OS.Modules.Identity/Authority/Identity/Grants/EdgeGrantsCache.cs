@@ -1,10 +1,10 @@
-using DigitalBrain.Capabilities.Connections;
-using DigitalBrain.Log;
 using System.Collections.Concurrent;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Kernel;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using DigitalBrain.Spi;
 using IntoChat.OS.Authority.Identity.Contacts;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Platform.Connections;

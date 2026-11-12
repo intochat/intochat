@@ -9,14 +9,14 @@ namespace IntoChat.OS.Modules.Microsoft.Windows;
 public interface IFileSystem
 {
     [Description("Read a text file on this Windows machine. path is absolute or relative to the first allowed root.")]
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<string> Read(string path, CancellationToken cancellationToken = default);
 
     [Description("Write text to a file on this Windows machine, creating folders as needed; publishes FileWritten.")]
-    [DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.Interleaves]
     Task Write(string path, string content, CancellationToken cancellationToken = default);
 
     [Description("List the file and folder paths in a folder on this Windows machine.")]
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<string[]> List(string path, CancellationToken cancellationToken = default);
 }

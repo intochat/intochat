@@ -1,13 +1,14 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain;
+using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 // A plain neuron since 06-06d, reentrant as the grain was. The browser lives in this activation, so the activation is kept alive
 // with an ITimers keep-alive timer (04-18) where the grain delayed its deactivation: five minutes for a managed session that
 // was just started, for as long as a desktop attachment lasts, and released when the session ends.
-[DigitalBrain.Neuron("playwright"), Reentrant]
-internal sealed class PlaywrightNeuron(IBrowserSessionProvider provider) : DigitalBrain.Neuron, IPlaywright
+[DigitalBrain.Neurons.Neuron("playwright"), Reentrant]
+internal sealed class PlaywrightNeuron(IBrowserSessionProvider provider) : DigitalBrain.Neurons.Neuron, IPlaywright
 {
     private const string KeepAlive = "playwright.session";
     private static readonly TimeSpan ManagedLifetime = TimeSpan.FromMinutes(5);

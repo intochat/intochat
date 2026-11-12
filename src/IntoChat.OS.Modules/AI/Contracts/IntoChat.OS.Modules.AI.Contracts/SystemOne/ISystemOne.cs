@@ -10,5 +10,5 @@ public interface ISystemOne
     // One System One neuron per brain (R4-19: a brain-scoped singleton is keyed main).
     static string Key(string brainId) => $"{brainId}/main";
 
-    [DigitalBrain.Interleaves] Task<SystemOneResult> Ask(SystemOneRequest request, CancellationToken ct = default);
+    [DigitalBrain.Contracts.Interleaves] Task<SystemOneResult> Ask(SystemOneRequest request, CancellationToken ct = default);
 }

@@ -1,16 +1,17 @@
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 namespace IntoChat.OS.Modules.ArtCraft;
 
-[DigitalBrain.Module(ManifestName)]
-public sealed class ArtCraftModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module(ManifestName)]
+public sealed class ArtCraftModule : DigitalBrain.Modules.Module
 {
     internal const string ManifestName = "artcraft";
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<ArtCraftModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(ManifestName))],
+        Settings: [DigitalBrain.Modules.Setting.Of<ArtCraftModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(ManifestName))],
         Secrets: []);
 
     public static bool RequiresContainer => true;

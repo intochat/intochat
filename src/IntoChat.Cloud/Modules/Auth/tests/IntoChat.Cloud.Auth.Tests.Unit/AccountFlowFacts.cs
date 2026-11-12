@@ -1,6 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Spi;
+using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.Cloud.Auth.Services;

@@ -1,9 +1,10 @@
+using DigitalBrain.Neurons;
 using IntoChat.OS.Contracts.Configuration;
 
 namespace IntoChat.OS.Modules.Microsoft.Orleans.Cluster;
 
-[DigitalBrain.Neuron("orleans.cluster")]
-internal sealed class ClusterNeuron(IClusterMembershipFeed membership) : DigitalBrain.Neuron, ICluster, IClusterMembershipReceiver
+[Neuron("orleans.cluster")]
+internal sealed class ClusterNeuron(IClusterMembershipFeed membership) : Neuron, ICluster, IClusterMembershipReceiver
 {
     private ClusterSnapshot? _last;
     private readonly Guid activation = Guid.NewGuid();
@@ -34,7 +35,7 @@ internal sealed class ClusterNeuron(IClusterMembershipFeed membership) : Digital
         if (snapshot is not null) { membershipVersion = snapshot.Version; }
     }
 
-    protected override async Task OnDeactivate(DigitalBrain.DeactivationCause cause, CancellationToken cancellationToken)
+    protected override async Task OnDeactivate(DeactivationCause cause, CancellationToken cancellationToken)
     {
         if (subscription is not null) { await subscription.DisposeAsync(); }
     }

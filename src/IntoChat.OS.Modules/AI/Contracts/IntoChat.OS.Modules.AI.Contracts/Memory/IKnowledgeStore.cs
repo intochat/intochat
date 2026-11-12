@@ -65,7 +65,7 @@ public interface IKnowledgeStore
     // Node CRUD
     Task RecordNodeAsync(KnowledgeNode node, CancellationToken ct = default);
 
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<KnowledgeNode?> GetAsync(string id, CancellationToken ct = default);
 
     Task DeleteNodeAsync(string id, CancellationToken ct = default);
@@ -73,17 +73,17 @@ public interface IKnowledgeStore
     // Edge CRUD
     Task RecordEdgeAsync(KnowledgeEdge edge, CancellationToken ct = default);
 
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<IReadOnlyList<KnowledgeEdge>> QueryEdgesAsync(string nodeId, EdgeDirection direction = EdgeDirection.Both, CancellationToken ct = default);
 
     Task DeleteEdgeAsync(string sourceId, string targetId, string relation, CancellationToken ct = default);
 
     // Subgraph & Associative Traversal
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<KnowledgeGraphView> GetGraphViewAsync(string? rootId = null, int depth = 2, CancellationToken ct = default);
 
     // Hybrid Semantic & Associative Retrieval
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<IReadOnlyList<KnowledgeRecallHit>> SemanticSearchAsync(string query, int limit = 10, CancellationToken ct = default);
 
     // Convenience aliases

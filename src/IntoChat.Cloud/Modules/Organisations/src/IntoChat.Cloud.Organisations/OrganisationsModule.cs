@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Http;
 using IntoChat.Cloud.Mail;
 using Microsoft.Extensions.DependencyInjection;

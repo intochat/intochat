@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.Testing.Synapses;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.AI.Inference;
 
 namespace IntoChat.OS.Modules.Apps;

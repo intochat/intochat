@@ -6,11 +6,11 @@ using IntoChat.OS.Modules.Postgres.Tables;
 namespace IntoChat.OS.Modules.Postgres;
 
 [GenerateSerializer, Alias("postgres.connection-state")]
-internal sealed class PostgresConnectionState : ConnectionState { }
+internal sealed record PostgresConnectionState : ConnectionState { }
 
 // Integration keys ("system/default") serve the deployment's database and hold no state; connection keys
 // serve the user's database from the connection string sealed in this neuron's own state.
-[DigitalBrain.Neuron(GrainType, State = "postgres")]
+[DigitalBrain.Neurons.Neuron(GrainType, State = "postgres")]
 internal sealed class PostgresServerNeuron(
     IPostgresProvider platform, IConnectionPostgresProviderFactory connections, IConnectionTableStores tables)
     : ConnectionNeuron<PostgresConnectionState>, IPostgresServer, IPostgresTableHost

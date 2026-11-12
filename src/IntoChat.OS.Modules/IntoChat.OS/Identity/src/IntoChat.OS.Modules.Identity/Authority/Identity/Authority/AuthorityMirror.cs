@@ -1,5 +1,5 @@
-using DigitalBrain.Brains;
 using System.Collections.Concurrent;
+using DigitalBrain.Brains;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Contracts.Configuration;
@@ -24,7 +24,9 @@ internal sealed class AuthorityMirror
     public async Task<(bool Decided, CallDecision? Decision)> TryDecide(CallRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var scope = BrainScope.Create(request.Caller.AccountId, request.Caller.BrainId).Id;
+        var accountId = request.Caller.For?.Account ?? "";
+        var brainId = request.Caller.Brain.Value;
+        var scope = BrainScope.Create(accountId, brainId).Id;
         if (!_states.TryGetValue(scope, out var state)) { return (false, null); }
         if (GrantRules.OnceToConsume(request, state.Grants).Count > 0) { return (false, null); }
         return (true, await BrainAuthorityDecisions.Decide(state, request));

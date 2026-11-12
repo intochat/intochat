@@ -1,7 +1,8 @@
-using DigitalBrain.Capabilities.Connections;
-using DigitalBrain.Contracts;
 using System.Reflection;
 using DigitalBrain.Access;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -43,7 +44,7 @@ public sealed class KernelBoundaryFacts
     {
         var types = new IntoChat.OS.Framework.CompiledTypes(ProductionArchitecture.Assemblies);
 
-        Assert.All(types.Entries.Where(entry => entry.Kind == DigitalBrain.TypeKind.Neuron),
+        Assert.All(types.Entries.Where(entry => entry.Kind == DigitalBrain.Kernel.TypeKind.Neuron),
             // Transitional (06-03/06-07, deleted in 06-08): a migrated plain contract is a [DefaultNeuronType] interface instead.
             entry => Assert.True(DigitalBrain.Contracts.PlainNeuronContracts.Is(types.Contract(entry.Name)), entry.Name));
     }

@@ -1,8 +1,9 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Errors;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain;
+using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Errors;
+using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using Grpc.Core;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;

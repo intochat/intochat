@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Modules;
 using DigitalBrain.Signals;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Os.Contracts;

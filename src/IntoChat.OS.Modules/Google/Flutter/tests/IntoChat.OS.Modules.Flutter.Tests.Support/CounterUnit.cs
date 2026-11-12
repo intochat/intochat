@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 
 namespace IntoChat.OS.Modules.Flutter;
@@ -37,8 +38,12 @@ public static class CounterUnit
 
     [Synapse("ctr.bump", "ctr")]
     public static Counter Bumped(SignalEnvelope s, Counter c)
-        => c with { Bumps = c.Bumps + 1, Value = s.Payload.ValueKind == JsonValueKind.Object && s.Payload.TryGetProperty("value", out var v) ? v.GetString() : null,
-            By = s.Payload.ValueKind == JsonValueKind.Object && s.Payload.TryGetProperty("by", out var by) ? by.GetString() : null };
+        => c with
+        {
+            Bumps = c.Bumps + 1,
+            Value = s.Payload.ValueKind == JsonValueKind.Object && s.Payload.TryGetProperty("value", out var v) ? v.GetString() : null,
+            By = s.Payload.ValueKind == JsonValueKind.Object && s.Payload.TryGetProperty("by", out var by) ? by.GetString() : null
+        };
 
     [Synapse("ctr")]
     public static View Show(Counter c) => new("Counter", new Row(

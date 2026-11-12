@@ -1,11 +1,13 @@
 using DigitalBrain;
 using DigitalBrain.Contracts;
+using DigitalBrain.Modules;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.Microsoft.Roslyn.Contracts;
 
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 [Neuron("roslyn.module-scaffolder")]
-internal sealed class ModuleScaffolderNeuron : DigitalBrain.Neuron, IModuleScaffolder
+internal sealed class ModuleScaffolderNeuron : DigitalBrain.Neurons.Neuron, IModuleScaffolder
 {
     private readonly string? _overrideRoot;
 
@@ -175,7 +177,7 @@ public sealed class {{optionsName}} : IModuleOptions
 
         // Module class
         var moduleClassName = $"{name}Module";
-        var secretsList = (request.Secrets ?? []).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => $"DigitalBrain.Secret.Named(\"{s.Trim()}\")").ToArray();
+        var secretsList = (request.Secrets ?? []).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => $"DigitalBrain.Modules.Secret.Named(\"{s.Trim()}\")").ToArray();
         var secretsParam = secretsList.Length > 0 ? string.Join(", ", secretsList) : "";
 
         var actionsList = (request.Actions ?? []).Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => $"new DigitalBrain.Policies.ActionDescriptor(\"{moduleId}.{a.Trim().ToLowerInvariant()}\", \"{a.Trim()} action\", null)").ToArray();
@@ -187,7 +189,7 @@ public sealed class {{optionsName}} : IModuleOptions
             Provides: [],
             Requires: [],
             Needs: [],
-            Settings: [DigitalBrain.Setting.Of<{{optionsName}}>(ModuleConfiguration.ModuleOptionsSection(ManifestName))],
+            Settings: [DigitalBrain.Modules.Setting.Of<{{optionsName}}>(ModuleConfiguration.ModuleOptionsSection(ManifestName))],
             Secrets: [{{secretsParam}}])
         {
             {{actionsParam}}
@@ -198,7 +200,7 @@ public sealed class {{optionsName}} : IModuleOptions
             Provides: [],
             Requires: [],
             Needs: [],
-            Settings: [DigitalBrain.Setting.Of<{{optionsName}}>(ModuleConfiguration.ModuleOptionsSection(ManifestName))],
+            Settings: [DigitalBrain.Modules.Setting.Of<{{optionsName}}>(ModuleConfiguration.ModuleOptionsSection(ManifestName))],
             Secrets: [{{secretsParam}}]);
 """;
 
@@ -212,12 +214,12 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace {{baseNamespace}};
 
-[DigitalBrain.Module(ManifestName)]
-public sealed class {{moduleClassName}} : DigitalBrain.Module
+[DigitalBrain.Modules.Module(ManifestName)]
+public sealed class {{moduleClassName}} : DigitalBrain.Modules.Module
 {
     internal const string ManifestName = "{{moduleId}}";
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } =
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } =
 {{manifestInit}}
 
     public static System.Reflection.Assembly? Contracts => typeof({{interfaceName}}).Assembly;
@@ -279,7 +281,7 @@ using Microsoft.Extensions.Options;
 namespace {{baseNamespace}};
 
 [Neuron("{{neuronAlias}}")]
-internal sealed class {{neuronClassName}}(IOptions<{{optionsName}}> options) : DigitalBrain.Neuron, {{interfaceName}}
+internal sealed class {{neuronClassName}}(IOptions<{{optionsName}}> options) : DigitalBrain.Neurons.Neuron, {{interfaceName}}
 {
 {{neuronMethodsBuilder.ToString().TrimEnd()}}
 }

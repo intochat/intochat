@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using DigitalBrain;
+using DigitalBrain.Kernel;
 
 namespace IntoChat.OS.Authority.Neurons;
 
@@ -14,7 +15,7 @@ internal static class SignalTypes
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(types);
-        var matches = types.Where(entry => entry.Kind == DigitalBrain.TypeKind.Signal
+        var matches = types.Where(entry => entry.Kind == TypeKind.Signal
                 && (entry.Name == name || entry.Name.EndsWith("." + name, StringComparison.Ordinal)))
             .Select(entry => entry.Name).Distinct(StringComparer.Ordinal).ToArray();
         // An ambiguous short name resolves to nothing, so the caller is told to pass the full name.

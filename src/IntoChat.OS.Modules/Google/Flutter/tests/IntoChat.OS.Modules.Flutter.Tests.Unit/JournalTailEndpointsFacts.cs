@@ -2,10 +2,11 @@ using System.Net;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Spi;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -162,7 +163,12 @@ public sealed class JournalTailEndpointsFacts
         var app = builder.Build();
         app.Use(async (http, next) =>
         {
-            using (RuntimeCallerContext.StampScope(CapabilityCallers.Of("ada", "owner", Brain, CallerKind.User))) { await next(http); }
+            var caller = CapabilityCallers.Of("ada", "owner", Brain, CallerKind.User);
+            using (RuntimeCallerContext.StampScope(caller))
+            using ((IDisposable)typeof(DigitalBrain.Brains.BrainScope).Assembly.GetType("DigitalBrain.Brains.CallerAdmission")!.GetMethod("Stamp", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.Invoke(null, [caller])!)
+            {
+                await next(http);
+            }
         });
         UnitReadEndpoints.Map(app);
         app.MapModuleHttpSurfaces();

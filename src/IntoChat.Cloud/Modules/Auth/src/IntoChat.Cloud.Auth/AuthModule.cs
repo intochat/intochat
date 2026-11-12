@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Http;
 using IntoChat.Cloud.Auth.Core;
 using IntoChat.Cloud.Auth.Google;

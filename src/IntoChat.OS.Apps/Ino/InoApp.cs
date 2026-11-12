@@ -7,16 +7,18 @@ Operations: open, send, stop, smart, connect-db, query-db, new, new-conversation
 The brain's personal assistant. Every message starts a background run on one agent (IAgent) per conversation, which acts
 through the Ino tool contracts; Ino follows the run through a set watch over ino.conversations and renders tool-result cards inline. Slash commands stay in the UI.
 */
+using DigitalBrain;
+using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Observers;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Inference;
-using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Flutter.Chat;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -58,8 +60,8 @@ public sealed record InoConnectDb(string? ConnectionString = null, string? Alias
 [DigitalBrain.Signal("ino.query-db")]
 public sealed record InoQueryDb(string? Sql = null) : DigitalBrain.Signal;
 
-[DigitalBrain.App("ino", Accent = "#3D7EFF", Category = "Intelligence")]
-public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
+[Neuron("app.ino")]
+public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
 {
     private const string BlockedPrefix = "Blocked: ";
     private const string NewTitle = "New chat";
@@ -78,7 +80,11 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
 
     public IFilesVfsService? FilesVfs { get; set; }
 
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(InoApp));
+    private static void Swallow(Exception error, string reason)
+    {
+        _ = error;
+        _ = reason;
+    }
 
     public const string AppName = "ino";
 
@@ -118,7 +124,14 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         CompiledType = typeof(InoApp).AssemblyQualifiedName,
     };
 
-    [DigitalBrain.On]
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        await base.OnActivate(cancellationToken);
+        try { await Follow<IUserSettings, UserSettingsChanged>("settings"); }
+        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "Settings synapse is optional."); }
+    }
+
+    [DigitalBrain.Neurons.On]
     public async Task Open(InoOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -130,7 +143,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         // Turns from before the agent existed stay in the archive; the agent gets one note, once.
         var migrate = State.Turns.Length > 0 && string.IsNullOrEmpty(State.AgentKey);
         var agentKey = AgentKeyOf(State.ConversationId);
-        Set(State with { Status = status, AgentKey = migrate ? State.AgentKey : agentKey });
+        await Show(State with { Status = status, AgentKey = migrate ? State.AgentKey : agentKey });
         try
         {
             await EnsureProfileContextAsync();
@@ -139,13 +152,13 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
             {
                 // The key is set only once the note is in, so a failed Post is retried on the next open.
                 await agent.Post(MigrationNote, MigrationId);
-                Set(State with { AgentKey = agentKey });
+                await Show(State with { AgentKey = agentKey });
             }
             await EnsureConfiguredAsync(agent, settings);
             await FollowAsync(agentKey);
             var read = await agent.Read();
             _transcript = await agent.Transcript();
-            Set(State with { Blocked = read.Blocked, BlockedReason = read.Blocked ? State.BlockedReason ?? "An interrupt holds the agent." : null });
+            await Show(State with { Blocked = read.Blocked, BlockedReason = read.Blocked ? State.BlockedReason ?? "An interrupt holds the agent." : null });
             await ReconcileAsync(agent, State.ActiveRunId);
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -156,7 +169,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         await RefreshGrantsAsync();
     }
 
-    [DigitalBrain.On("grants/default", Contract = typeof(IGrantsNeuron))]
+    [DigitalBrain.Neurons.On]
     public Task OnGrantsChanged(GrantsChanged? changed)
     {
         _ = changed; // any version change re-reads the list
@@ -171,7 +184,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
 #pragma warning disable CS0618 // the AppId every agent tool call runs under (see ContractActions.Marked)
             var assistant = DigitalBrain.Capabilities.CapabilityCallers.AssistantApp;
 #pragma warning restore CS0618
-            Set(State with { GrantSummaries = [.. grants.Where(g => g.AppId == assistant && !g.Revoked).Select(g => $"{g.Scope} · {g.Target}")] });
+            await Show(State with { GrantSummaries = [.. grants.Where(g => g.AppId == assistant && !g.Revoked).Select(g => $"{g.Scope} · {g.Target}")] });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -180,7 +193,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
     }
 
     // A pasted link is remembered in Ino's records neuron (the chat reads its card from there) and posted to the agent under its plain id.
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task Link(InoPasteLink request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -197,7 +210,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         await Get<IAgent>(AgentKeyOf(State.ConversationId)).Post(string.IsNullOrWhiteSpace(request.Text) ? request.App! : request.Text, ChatAppCard.LinkPostId(request.Request));
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task Send(InoSend request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -210,7 +223,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         }
         if (await IsComputeBudgetExceededAsync())
         {
-            Set(State with
+            await Show(State with
             {
                 Status = "Monthly compute cap exceeded. Increase cap in Settings -> Billing (os://window/settings?section=billing).",
                 ActiveRunId = null,
@@ -219,7 +232,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         }
 
         var agentKey = AgentKeyOf(State.ConversationId);
-        Set(State with
+        await Show(State with
         {
             AgentKey = agentKey,
             Title = State.Title == NewTitle ? (text.Length <= 52 ? text : text[..52]) : State.Title,
@@ -232,17 +245,17 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
             await EnsureConfiguredAsync(agent, settings);
             await FollowAsync(agentKey);
             var runId = await agent.Start(AgentTurn.Text(text, model: string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : settings.DefaultModel.Trim()));
-            Set(State with { ActiveRunId = runId, Blocked = false, BlockedReason = null, Status = "Thinking" });
+            await Show(State with { ActiveRunId = runId, Blocked = false, BlockedReason = null, Status = "Thinking" });
             await ReconcileAsync(agent, runId);
         }
         catch (InvalidOperationException error) when (error.Message.StartsWith(BlockedPrefix, StringComparison.Ordinal))
         {
-            Pause(error.Message);
+            await Pause(error.Message);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "The agent could not start; the status line reports why.");
-            Set(State with { Status = $"Ino could not answer: {error.Message}", ActiveRunId = null });
+            await Show(State with { Status = $"Ino could not answer: {error.Message}", ActiveRunId = null });
         }
     }
 
@@ -269,17 +282,17 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         var read = await agent.Read();
         if (runId is null)
         {
-            if (read.ActiveRun is { } running) { Set(State with { ActiveRunId = running.RunId, Status = "Thinking" }); }
+            if (read.ActiveRun is { } running) { await Show(State with { ActiveRunId = running.RunId, Status = "Thinking" }); }
             return;
         }
         if (read.ActiveRun?.RunId == runId) { return; }
         if (read.Runs.FirstOrDefault(run => run.RunId == runId) is not { } ended)
         {
-            Set(State with { ActiveRunId = null, Status = State.Status == "Thinking" || State.Status.StartsWith("Using ", StringComparison.Ordinal) ? "Ready" : State.Status });
+            await Show(State with { ActiveRunId = null, Status = State.Status == "Thinking" || State.Status.StartsWith("Using ", StringComparison.Ordinal) ? "Ready" : State.Status });
             return;
         }
         _transcript = await agent.Transcript();
-        Set(State with
+        await Show(State with
         {
             ActiveRunId = null,
             Status = ended.Status switch
@@ -297,42 +310,36 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
     {
         try { await Get<IInoConversations>(IInoConversations.DefaultKey).Use(agentKey); }
         catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "Without the registry Ino starts the run but does not see its progress."); }
-    }
 
-    protected override void Watches(DigitalBrain.WatchBuilder watch)
-    {
-        ArgumentNullException.ThrowIfNull(watch);
-        On<TurnProgressed>(watch, "agent-progressed", OnTurnProgressed);
-        On<TurnCompleted>(watch, "agent-completed", OnTurnCompleted);
-        On<TurnFailed>(watch, "agent-failed", OnTurnFailed);
-        On<AgentBlocked>(watch, "agent-blocked", OnAgentBlocked);
+        try
+        {
+            await Follow<IAgent, TurnProgressed>(agentKey);
+            await Follow<IAgent, TurnCompleted>(agentKey);
+            await Follow<IAgent, TurnFailed>(agentKey);
+            await Follow<IAgent, AgentBlocked>(agentKey);
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "Agent synapses are optional."); }
     }
-
-    private static void On<TSignal>(DigitalBrain.WatchBuilder watch, string name, Func<TSignal, Task> handle) where TSignal : DigitalBrain.Signal
-        => watch.OnEach<IInoConversations, InoConversationsChanged, IAgent, TSignal>(
-            name,
-            _ => IInoConversations.DefaultKey,
-            (registry, _, _) => registry.Current(),
-            handle);
 
     private bool IsCurrent(string agentId) => string.Equals(agentId, AgentKeyOf(State.ConversationId), StringComparison.Ordinal);
 
-    public Task OnTurnProgressed(TurnProgressed progressed)
+    [DigitalBrain.Neurons.On]
+    public async Task OnTurnProgressed(TurnProgressed progressed)
     {
         ArgumentNullException.ThrowIfNull(progressed);
         var seen = $"{progressed.RunId}:{progressed.Sequence}";
-        if (!IsCurrent(progressed.AgentId) || (State.SeenProgress ?? []).Contains(seen, StringComparer.Ordinal)) { return Task.CompletedTask; }
+        if (!IsCurrent(progressed.AgentId) || (State.SeenProgress ?? []).Contains(seen, StringComparer.Ordinal)) { return; }
         var state = State with { SeenProgress = [.. (State.SeenProgress ?? []).Append(seen).TakeLast(SeenKept)] };
-        Set(progressed.Kind switch
+        await Show(progressed.Kind switch
         {
             "tool-call" => state with { Status = $"Using {progressed.Tool}" },
             "tool-result" when progressed.Payload is { Length: > 0 } payload
                 => state with { Cards = [.. state.ActiveCards, .. InoCards.FromToolCalls([new AgentToolCall(seen, progressed.Tool ?? "", "", payload)])] },
             _ => state,
         });
-        return Task.CompletedTask;
     }
 
+    [DigitalBrain.Neurons.On]
     public async Task OnTurnCompleted(TurnCompleted completed)
     {
         ArgumentNullException.ThrowIfNull(completed);
@@ -342,44 +349,52 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         try { await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").Record("ino", Math.Max(1_000L, (completed.Reply?.Length ?? 0) * 25L)); }
         catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "Compute metering is optional when Ino runs without the Flutter compute neuron."); }
         await RefreshApprovalsAsync();
-        Set(State with { Status = "Ready", ActiveRunId = null });
+        await Show(State with { Status = "Ready", ActiveRunId = null });
     }
 
-    public Task OnTurnFailed(TurnFailed failed)
+    [DigitalBrain.Neurons.On]
+    public async Task OnTurnFailed(TurnFailed failed)
     {
         ArgumentNullException.ThrowIfNull(failed);
-        if (!IsCurrent(failed.AgentId)) { return Task.CompletedTask; }
+        if (!IsCurrent(failed.AgentId)) { return; }
         if (failed.Error.StartsWith(BlockedPrefix, StringComparison.Ordinal))
         {
-            Pause(failed.Error);
-            Set(State with { ActiveRunId = null });
-            return Task.CompletedTask;
+            await Pause(failed.Error);
+            await Show(State with { ActiveRunId = null });
+            return;
         }
-        Set(State with { ActiveRunId = null, Status = failed.Cancelled ? "Cancelled" : $"Failed: {failed.Error}" });
-        return Task.CompletedTask;
+        await Show(State with { ActiveRunId = null, Status = failed.Cancelled ? "Cancelled" : $"Failed: {failed.Error}" });
     }
 
+    [DigitalBrain.Neurons.On]
     public async Task OnAgentBlocked(AgentBlocked blocked)
     {
         ArgumentNullException.ThrowIfNull(blocked);
         if (!IsCurrent(blocked.Agent)) { return; }
-        if (blocked.Blocked) { Pause(BlockedPrefix + "An interrupt holds the agent."); }
-        else { Set(State with { Blocked = false, BlockedReason = null, Status = "Ready" }); }
+        if (blocked.Blocked) { await Pause(BlockedPrefix + "An interrupt holds the agent."); }
+        else { await Show(State with { Blocked = false, BlockedReason = null, Status = "Ready" }); }
         await RefreshApprovalsAsync();
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task Stop(InoStop request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var agent = Get<IAgent>(AgentKeyOf(State.ConversationId));
-        if (State.ActiveRunId is null) { await ReconcileAsync(agent, null); }
-        if (State.ActiveRunId is null) { return; }
-        Set(State with { Status = "Stopping" });
-        await agent.Cancel();
+        try
+        {
+            var agent = Get<IAgent>(AgentKeyOf(State.ConversationId));
+            if (State.ActiveRunId is null) { await ReconcileAsync(agent, null); }
+            if (State.ActiveRunId is null) { return; }
+            await Show(State with { Status = "Stopping" });
+            await agent.Cancel();
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Swallow(error, "The agent is optional when Ino runs without the AI module.");
+        }
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task Smart(InoSmart request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -418,8 +433,8 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         }
     }
 
-    private void Pause(string message)
-        => Set(State with { Blocked = true, BlockedReason = message[BlockedPrefix.Length..], Status = "Paused" });
+    private Task Pause(string message)
+        => Show(State with { Blocked = true, BlockedReason = message[BlockedPrefix.Length..], Status = "Paused" });
 
     private static string AgentKeyOf(string conversationId) => $"ino/conversations/{conversationId}";
 
@@ -438,14 +453,14 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
                 return;
             case "clear":
                 _transcript = [];
-                Set(State with { Turns = [], Cards = [], Status = "Session cleared" });
+                await Show(State with { Turns = [], Cards = [], Status = "Session cleared" });
                 return;
             case "pin":
-                Set(State with { IsPinned = !State.IsPinned, Status = State.IsPinned ? "Unpinned session" : "Pinned session to Arc bar" });
+                await Show(State with { IsPinned = !State.IsPinned, Status = State.IsPinned ? "Unpinned session" : "Pinned session to Arc bar" });
                 return;
             case "rename":
                 var nextTitle = string.IsNullOrWhiteSpace(arg) ? "Renamed session" : arg;
-                Set(State with { Title = nextTitle, Status = $"Renamed to '{nextTitle}'" });
+                await Show(State with { Title = nextTitle, Status = $"Renamed to '{nextTitle}'" });
                 return;
             case "model":
                 var nextModel = string.IsNullOrWhiteSpace(arg) ? "claude-sonnet-4-5" : arg.Trim();
@@ -453,14 +468,14 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
                 await EnsureProfileContextAsync();
                 try { await EnsureConfiguredAsync(Get<IAgent>(AgentKeyOf(State.ConversationId)), updated); }
                 catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The agent is optional when Ino runs without the AI module."); }
-                Set(State with { Status = $"Switched model to {nextModel}" });
+                await Show(State with { Status = $"Switched model to {nextModel}" });
                 return;
             case "scenario":
             case "session":
-                Set(InoViewRenderer.BuildScenarioSessionState(string.IsNullOrWhiteSpace(arg) ? "q4-renewal" : arg.ToLowerInvariant(), settings));
+                await Show(InoViewRenderer.BuildScenarioSessionState(string.IsNullOrWhiteSpace(arg) ? "q4-renewal" : arg.ToLowerInvariant(), settings));
                 return;
             default:
-                Set(State with
+                await Show(State with
                 {
                     Status = $"Executed /{cmd}",
                     Turns = [.. State.Turns, new InoTurn(rawCommand, "Commands: `/scenario q4-renewal|morning-brief|invoice-check|first-run`, `/new`, `/rename <title>`, `/pin`, `/model <id>`, `/clear`.", $"slash:{cmd}", 0)],
@@ -469,7 +484,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         }
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task ConnectDb(InoConnectDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -477,7 +492,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         {
             var data = Get<IInoData>(DataKey);
             var result = await data.Connect(request.ConnectionString ?? string.Empty);
-            Set(State with
+            await Show(State with
             {
                 ConnectedDatabase = (await data.Read()).ConnectedDatabase ?? State.ConnectedDatabase,
                 Status = result.Text,
@@ -487,11 +502,11 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "The connection failed; the status line reports why.");
-            Set(State with { Status = $"Could not connect: {error.Message}" });
+            await Show(State with { Status = $"Could not connect: {error.Message}" });
         }
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task QueryDb(InoQueryDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -502,7 +517,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "The query failed; the status line reports why.");
-            Set(State with { Status = $"Could not run the query: {error.Message}" });
+            await Show(State with { Status = $"Could not run the query: {error.Message}" });
             return;
         }
         if (TryGetOptional<IMemory>("memory") is { } memory)
@@ -510,7 +525,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
             await memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {result.Rows.Length} | Chart: {result.ChartTitle}", importance: 6);
         }
         var (table, chart) = InoDataCards.Build(result, database, $"table-{State.ActiveCards.Length + 1}", $"chart-{State.ActiveCards.Length + 2}");
-        Set(State with
+        await Show(State with
         {
             ConnectedDatabase = database,
             Status = $"Visualized {result.Rows.Length} row(s) & {result.ChartPoints.Length} chart point(s) from {database}",
@@ -518,14 +533,14 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         });
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public Task New(InoNew request)
     {
         ArgumentNullException.ThrowIfNull(request);
         return StartConversation();
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public Task NewConversation(InoNewConversation request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -536,7 +551,7 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
     {
         var conversationId = $"c-{Guid.NewGuid():N}"[..10];
         _transcript = [];
-        Set(new InoAppState(conversationId, NewTitle, "New conversation started", "idle", [])
+        await Show(new InoAppState(conversationId, NewTitle, "New conversation started", "idle", [])
         {
             AgentKey = AgentKeyOf(conversationId),
             GrantSummaries = State.GrantSummaries,
@@ -544,14 +559,14 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         await FollowAsync(AgentKeyOf(conversationId));
     }
 
-    [DigitalBrain.On]
-    public void Voice(InoVoice request)
+    [DigitalBrain.Neurons.On]
+    public async Task Voice(InoVoice request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Set(State with { VoiceStatus = "recording", Status = "Listening..." });
+        await Show(State with { VoiceStatus = "recording", Status = "Listening..." });
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task Make(InoMake request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -570,14 +585,14 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
             await memory.CaptureEpisode("ino.make", $"Target: {target} | Sentence: {sentence}", importance: 6);
         }
         var cardId = $"app-{target}";
-        Set(State with
+        await Show(State with
         {
             Status = $"Applied '{sentence}' to {target}",
             Cards = [.. State.ActiveCards, new InoCard(cardId, "applet", $"Live App: {target}", sentence, $"neuron://local/apps/{target}", "running", $"neuron://local/apps/ino#{cardId}")],
         });
     }
 
-    [DigitalBrain.On("settings", Contract = typeof(IUserSettings))]
+    [DigitalBrain.Neurons.On]
     public async Task OnSettingsChanged(UserSettingsChanged? changed)
     {
         if (changed is null) { return; }
@@ -586,26 +601,16 @@ public sealed class InoApp : DigitalBrain.App<InoAppState>, IWithFilesVfs
         await EnsureProfileContextAsync();
         try { await EnsureConfiguredAsync(Get<IAgent>(AgentKeyOf(State.ConversationId)), settings); }
         catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The agent is optional when Ino runs without the AI module."); }
-        Set(State with { Status = $"Synced settings: {changed.DisplayName} ({changed.DefaultModel})" });
-    }
-
-    public View RenderSide() => InoViewRenderer.RenderSide(State);
-
-    public View Render() => InoViewRenderer.Render(State, _transcript, _approvals, _smart);
-
-    [DigitalBrain.Scenario("Querying a connected database renders a table and a chart card")]
-    public async Task VerifyDatabaseCardsScenario()
-    {
-        FilesVfs ??= new WorkspaceFilesService();
-        await FilesVfs.WriteTextAsync("/work/opportunities.csv", "opportunity,account,stage,amount\nDeal 1,Acme,Proposal,240000\nDeal 2,Beta,Contract,186000\nDeal 3,Gamma,Negotiation,88500\nDeal 4,Delta,Closed Won,64000\nDeal 5,Epsilon,Discovery,49200\n");
-        await ConnectDb(new InoConnectDb("Host=localhost;Database=analytics_crm;Username=readonly"));
-        await QueryDb(new InoQueryDb("SELECT opportunity, account, stage, amount FROM opportunities"));
-        if (!State.ActiveCards.Any(c => c.Kind == "table" && c.Rows is { Length: > 0 })
-            || !State.ActiveCards.Any(c => c.Kind == "chart" && c.ChartPoints is { Length: > 0 }))
+        if (!State.Status.StartsWith("Switched model to ", StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("Expected InoApp to execute SQL query and emit both table and chart cards.");
+            await Show(State with { Status = $"Synced settings: {changed.DisplayName} ({changed.DefaultModel})" });
         }
     }
+
+    public new InoAppState State => base.State;
+    public View Render() => Render(State);
+    public View RenderSide() => InoViewRenderer.RenderSide(State);
+    protected override View Render(InoAppState state) => InoViewRenderer.Render(state, _transcript, _approvals, _smart);
 
     private T? TryGetOptional<T>(string key) where T : class
     {

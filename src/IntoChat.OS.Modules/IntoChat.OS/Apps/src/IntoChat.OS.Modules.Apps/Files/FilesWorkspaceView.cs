@@ -3,6 +3,7 @@ using DigitalBrain;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
 using IntoChat.Files;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,8 +20,8 @@ internal sealed partial class FilesWorkspaceNeuron
         var rev = files.Revision.ToString(CultureInfo.InvariantCulture);
         DigitalBrain.UI.Node Button(string key, string text, string verb, bool enabled = true, int? index = null, string style = FilesUi.Secondary)
             => FilesUi.Button(key, text, FilesUi.Act(rev, verb, index), enabled, style);
-        var views = await ReadOperations(Context.OperationsQuery, State.Started,
-            error => Context.Services.GetRequiredService<ILogger<FilesWorkspaceNeuron>>().LogDebug(error, "A files operation could not be read."));
+        var views = await ReadOperations(operationsQuery, State.Started,
+            error => logger.LogDebug(error, "A files operation could not be read."));
         var operations = OperationCards(State.Started, views, index => Button("cancel-" + index, "Cancel", "cancel", index: index));
         var notice = State.Notice ?? files.Message;
         var extras = FilesUi.Column(
@@ -39,7 +40,7 @@ internal sealed partial class FilesWorkspaceNeuron
         var main = FilesUi.Column([screen.Main, extras]);
         var full = FilesUi.Row([screen.Side, main], gap: 12, extents: [240, 0]);
         // The workspace is host code: it publishes its views as the platform of its brain, whoever's call led here.
-        using (HostCaller.AsPlatform(Id.Brain.Value))
+        using (InProcessCallerScope.Enter())
         {
             await View("side").Publish(files.Revision, new("Files", screen.Side));
             await View("main").Publish(files.Revision, new("Files", main));
@@ -49,7 +50,7 @@ internal sealed partial class FilesWorkspaceNeuron
     }
 
     // The operations query's view of each started operation (cross-silo); one that cannot be read is null.
-    internal static async Task<OperationView?[]> ReadOperations(DigitalBrain.Spi.IOperationsQuery query, IReadOnlyList<FilesStartedOperation> started, Action<Exception> failed)
+    internal static async Task<OperationView?[]> ReadOperations(DigitalBrain.Operations.IOperationsQuery query, IReadOnlyList<FilesStartedOperation> started, Action<Exception> failed)
     {
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(started);

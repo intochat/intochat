@@ -32,8 +32,8 @@ internal sealed class DeployInner
 // restart step run again (cut off by its own silo's restart) sees the restarted process and issues nothing; an instance whose start
 // time is unknown is never restarted and fails the roll. A step that fails throws FlowFailed; going
 // back is a second DeployFlow, started by the deployment when this one ends Failed.
-[DigitalBrain.Neuron(Alias)]
-internal sealed class DeployFlow : Flow<DeployInner>, IFlowStarter
+[DigitalBrain.Neurons.Neuron(Alias)]
+internal sealed class DeployFlow(IClusterHost host, IOptions<AspireOptions> options) : Flow<DeployInner>, IFlowStarter
 {
     public const string Alias = "flow.deploy";
 
@@ -69,9 +69,9 @@ internal sealed class DeployFlow : Flow<DeployInner>, IFlowStarter
     public Task<FlowHead> Head() => Task.FromResult(new FlowHead([.. Steps], State.Owner, State.TraceId, State.ParentFlowId, State.Started,
         JsonSerializer.Serialize(State.Inner, Json), State.Title, State.Status, [.. State.Done], State.Ended, null));
 
-    private IClusterHost Host => Context.Services.GetRequiredService<IClusterHost>();
+    private IClusterHost Host => host;
 
-    private TimeSpan Budget => Context.Services.GetRequiredService<IOptions<AspireOptions>>().Value.SiloStepBudget;
+    private TimeSpan Budget => options.Value.SiloStepBudget;
 
     protected override async Task<StepResult<DeployInner>> Run(string step, DeployInner inner, CancellationToken ct)
     {

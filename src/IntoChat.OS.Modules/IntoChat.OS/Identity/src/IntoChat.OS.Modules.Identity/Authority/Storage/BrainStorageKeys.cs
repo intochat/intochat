@@ -1,7 +1,7 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Identity.Local.Custody;
 using System.Security.Cryptography;
 using System.Text;
+using DigitalBrain.Brains;
+using DigitalBrain.Identity.Local.Custody;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.Options;

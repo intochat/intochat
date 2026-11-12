@@ -5,12 +5,12 @@ using DigitalBrain.Capabilities.Connections.Integrations;
 namespace IntoChat.OS.Modules.ClickHouse.Query;
 
 [GenerateSerializer, Alias("clickhouse.connection-state")]
-internal sealed class ClickHouseConnectionState : ConnectionState { }
+internal sealed record ClickHouseConnectionState : ConnectionState { }
 
 // Read-only door to a database. The integration key ("system/default") serves the deployment's database
 // and holds no state; a connection key serves the user's database from the connection string
 // sealed in this neuron's own state. Every query, schema read and ping is served live.
-[DigitalBrain.Neuron(ClickHouseNames.NeuronType, State = "clickhouse")]
+[DigitalBrain.Neurons.Neuron(ClickHouseNames.NeuronType, State = "clickhouse")]
 internal sealed class ClickHouseNeuron(
     IClickHouseProvider provider, IClickHouseSourceFactory sources)
     : ConnectionNeuron<ClickHouseConnectionState>, IClickHouse

@@ -1,7 +1,7 @@
+using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Sealing;
-using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -49,7 +49,7 @@ public static class GrantRules
     public static CallDecision? EvaluateZeroTokenGuard(CallRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var caller = request.Caller;
+        var caller = request.Caller.ToCapabilityCaller();
         if (caller is null) { return null; }
         if (caller.Kind != CallerKind.App && !AppPrincipal.IsApp(caller.PrincipalId))
         {
@@ -111,7 +111,7 @@ public static class GrantRules
             return zeroTokenDenial;
         }
 
-        var caller = request.Caller;
+        var caller = request.Caller.ToCapabilityCaller();
         if (caller is null)
         {
             return null;
@@ -193,8 +193,8 @@ public static class GrantRules
         ArgumentNullException.ThrowIfNull(request);
         if (grants is null || grants.Count == 0 || request.SemanticTypeIds.Length == 0) { return []; }
 
-        var caller = request.Caller;
-        if (caller.Kind is not (CallerKind.App or CallerKind.Agent) || AppOf(caller) is not { } app) { return []; }
+        var caller = request.Caller.ToCapabilityCaller();
+        if (caller is null || caller.Kind is not (CallerKind.App or CallerKind.Agent) || AppOf(caller) is not { } app) { return []; }
 
         return
         [

@@ -1,5 +1,5 @@
-using DigitalBrain.Contracts;
 using DigitalBrain;
+using DigitalBrain.Contracts;
 using IntoChat.OS.Modules.Flutter.Workspace;
 
 namespace IntoChat.OS.Modules.Flutter.Viewport;
@@ -8,7 +8,7 @@ namespace IntoChat.OS.Modules.Flutter.Viewport;
 public interface IViewport
 {
     Task Set(WorkspaceViewRef? target, long expectedRevision);
-    [DigitalBrain.ReadOnlyCall] Task<ViewportState> Read();
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<ViewportState> Read();
 }
 
 public sealed record ViewportState(string Name, long Revision,

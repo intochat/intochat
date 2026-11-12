@@ -1,20 +1,21 @@
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
-[DigitalBrain.Module(ManifestName)]
-public sealed class PlaywrightModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module(ManifestName)]
+public sealed class PlaywrightModule : DigitalBrain.Modules.Module
 {
     internal const string ManifestName = "playwright";
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<PlaywrightModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(ManifestName))],
+        Settings: [DigitalBrain.Modules.Setting.Of<PlaywrightModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(ManifestName))],
         Secrets: []);
 
     public static System.Reflection.Assembly? Contracts => typeof(IPlaywright).Assembly;

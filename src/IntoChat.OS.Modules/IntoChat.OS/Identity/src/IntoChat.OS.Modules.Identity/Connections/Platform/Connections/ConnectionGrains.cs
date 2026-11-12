@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Framework;

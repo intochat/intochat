@@ -1,8 +1,11 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Flows;
+using DigitalBrain.Kernel;
+using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
+using DigitalBrain.Units;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
@@ -19,10 +22,10 @@ public sealed class CreatorAppFacts
     private const string Unit = "local/ctr/default";
     private static readonly DateTimeOffset T0 = new(2026, 11, 8, 9, 0, 0, TimeSpan.Zero);
 
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> CreatorOperations => AppBaseline.Cases(typeof(CreatorApp), Register);
+    public static IEnumerable<TheoryDataRow<ScreenOperationCase>> CreatorOperations => ScreenBaseline.Cases(typeof(CreatorApp), Register);
 
     [Theory, MemberData(nameof(CreatorOperations))]
-    public Task CreatorBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+    public Task CreatorBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
 
     [Fact]
     public async Task SelectingAUnitShowsItsStateViewAndSource()
@@ -66,7 +69,7 @@ public sealed class CreatorAppFacts
         Assert.Single(Nodes(creator.App.Render()).OfType<Progress>(), p => p.Label == "Replay");
         Assert.Equal("t1", creator.App.State.TraceId);
         var select = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == BrainGraph.SelectKey);
-        Assert.Equal(new Emit("creator", "select"), select.Emit);
+        Assert.Equal(new Emit("app.creator", "select"), select.Emit);
     }
 
     [Fact]
@@ -224,7 +227,7 @@ public sealed class CreatorAppFacts
         Assert.Equal(["replay:0:1:test.hop:t1", "replay:1:2:synapse.state-changed:t1", "replay:2:3:test.hop:t1", "replay:3:4:synapse.state-changed:t1"], steps.Select(s => s.SignalLabel));
         Assert.Equal([true, false, false, false], steps.Select(s => s.Active));
         var next = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "replay-next");
-        Assert.Equal(new Emit("creator", "replay", JsonSerializer.SerializeToElement("next")), next.Emit);
+        Assert.Equal(new Emit("app.creator", "replay", JsonSerializer.SerializeToElement("next")), next.Emit);
 
         await creator.Request("replay", new CreatorReplay("stop"));
         Assert.Null(creator.App.State.ReplayCursor);
@@ -341,11 +344,10 @@ public sealed class CreatorAppFacts
         => new($"local/flow.build/{alias}", BuildFlow.Alias, $"Build {alias}", "owner", $"trace-{alias}", FlowStatus.Running,
             ["author", "draft", "verify", "deploy", "install"], done, "draft", null, null, null, 0.2, [], [], null, T0, null, null, Subject: done.Length > 0 ? alias : null);
 
-    private static Task Field(InstalledApp<CreatorApp> creator, string field, string value)
+    private static async Task Field(InstalledApp<CreatorApp> creator, string field, string value)
     {
         FakeField.Values[$"apps/creator/{field}"] = value;
-        return Assert.Single(creator.App.DeclaredWatches(), w => w.SignalType == typeof(FieldChanged) && w.Key(new AppAddress("local", "creator")) == $"apps/creator/{field}")
-            .Handle(new FieldChanged("local/apps/creator", field, 1));
+        await creator.App.OnField(field);
     }
 
     private static void Register(TestOS os)
@@ -494,10 +496,10 @@ internal sealed class FakeSynapses : Neuron, ISynapseStudio
     public Task<InoToolResult> Check(string source) => Task.FromResult(new InoToolResult(""));
     public Task<InoToolResult> Deploy(string alias, string source) => Task.FromResult(new InoToolResult(""));
     public Task<UnitDeployResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files, IReadOnlyDictionary<string, string> bindings)
-        {
-            Deployed.Add((alias, files));
-            return Task.FromResult(new UnitDeployResult(true, "", DeployStatus.Deployed, null, new Dictionary<string, DigitalBrain.InstallOutcome>()));
-        }
+    {
+        Deployed.Add((alias, files));
+        return Task.FromResult(new UnitDeployResult(true, "", DeployStatus.Deployed, null, new Dictionary<string, DigitalBrain.Units.InstallOutcome>()));
+    }
     public Task<Dictionary<string, string>> Sidecars(string alias) => Task.FromResult(SidecarFiles);
     public Task<Dictionary<string, string>> SourceFiles(string alias) => Task.FromResult(Files);
     public Task<InoToolResult> Failures(string alias) => Task.FromResult(new InoToolResult($"{alias} has no recorded failures.", Ok: true));

@@ -10,7 +10,7 @@ public interface IArtCraftStudio
     // The studio neuron's key within a brain.
     const string StudioKey = "artcraft";
 
-    [DigitalBrain.CallTimeout(120000)] Task<ArtCraftSession> Open(string app, CancellationToken ct = default);
+    [DigitalBrain.Contracts.CallTimeout(120000)] Task<ArtCraftSession> Open(string app, CancellationToken ct = default);
 }
 
 // McpKey is the brain's IMcpServer for the app; WebUrl is null when the deployment serves no page for it.

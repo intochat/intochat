@@ -1,6 +1,6 @@
-using DigitalBrain.Modules.Configuration;
 using System.Text.Json;
 using System.Xml.Linq;
+using DigitalBrain.Modules.Configuration;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

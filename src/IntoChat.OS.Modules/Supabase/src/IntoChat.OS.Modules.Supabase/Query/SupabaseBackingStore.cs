@@ -1,6 +1,6 @@
+using System.Collections.Concurrent;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
 using Npgsql;
 

@@ -12,7 +12,7 @@ internal interface IGitHubRepositoryIndex
 {
     Task Add(string connectionKey);
     Task Remove(string connectionKey);
-    [DigitalBrain.ReadOnlyCall] Task<string[]> Read();
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<string[]> Read();
 
     static string Key(long installationId) => $"{SystemBrain}/installation/{installationId}";
 
@@ -26,8 +26,8 @@ internal sealed record GitHubRepositoryIndexState { public string[] Keys { get; 
 [DigitalBrain.Signal("github.repository-index-changed")]
 internal sealed record GitHubRepositoryIndexChanged(string[] Keys) : DigitalBrain.Signal;
 
-[DigitalBrain.Neuron(Type, State = "github-repository-index")]
-internal sealed class GitHubRepositoryIndex : DigitalBrain.Neuron<GitHubRepositoryIndexState>, IGitHubRepositoryIndex
+[DigitalBrain.Neurons.Neuron(Type, State = "github-repository-index")]
+internal sealed class GitHubRepositoryIndex : DigitalBrain.Neurons.Neuron<GitHubRepositoryIndexState>, IGitHubRepositoryIndex
 {
     public const string Type = "github.repository-index";
 

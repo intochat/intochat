@@ -1,5 +1,6 @@
-using DigitalBrain.Errors;
 using DigitalBrain;
+using DigitalBrain.Errors;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Http;

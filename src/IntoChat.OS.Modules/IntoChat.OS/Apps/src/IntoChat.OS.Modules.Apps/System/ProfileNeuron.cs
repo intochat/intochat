@@ -1,7 +1,7 @@
 namespace IntoChat.OS.Modules.Apps;
 
-[DigitalBrain.Neuron("os.profile")]
-public sealed class ProfileNeuron : DigitalBrain.Neuron<ProfileState>, IProfile
+[DigitalBrain.Neurons.Neuron("os.profile")]
+public sealed class ProfileNeuron : DigitalBrain.Neurons.Neuron<ProfileState>, IProfile
 {
     public Task<ProfileState> Read() => Task.FromResult(State);
 

@@ -1,3 +1,4 @@
+using DigitalBrain.Modules;
 namespace IntoChat.Cloud.Blob;
 
 public sealed class BlobStorageOptions
@@ -6,8 +7,8 @@ public sealed class BlobStorageOptions
 }
 
 // Cloud storage. Absent from a local topology: LoadsUnder is cloud and local+cloud only.
-[DigitalBrain.Module(ManifestName)]
-public sealed class BlobStorageModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module(ManifestName)]
+public sealed class BlobStorageModule : DigitalBrain.Modules.Module
 {
     internal const string ManifestName = "blob";
     internal const string ConnectionSecret = "connection-string";
@@ -20,10 +21,10 @@ public sealed class BlobStorageModule : DigitalBrain.Module
             || value.Equals("local-cloud", StringComparison.OrdinalIgnoreCase);
     }
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [DigitalBrain.Capabilities.Capability.Storage.V1],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<BlobStorageOptions>("IntoChatOS:Modules:" + ManifestName + ":Options")],
-        Secrets: [DigitalBrain.Secret.Named(ConnectionSecret)]);
+        Settings: [DigitalBrain.Modules.Setting.Of<BlobStorageOptions>("IntoChatOS:Modules:" + ManifestName + ":Options")],
+        Secrets: [DigitalBrain.Modules.Secret.Named(ConnectionSecret)]);
 }

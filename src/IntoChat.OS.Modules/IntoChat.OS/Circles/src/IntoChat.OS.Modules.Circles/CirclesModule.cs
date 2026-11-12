@@ -1,7 +1,8 @@
 using DigitalBrain.Brains;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -17,10 +18,10 @@ namespace IntoChat.OS.Modules.Circles;
 // Circles: a circle is a brain of its own (T26-1) whose members are accounts; it holds a conversation, the apps
 // shared into it and a share of its creator's compute. A member's own brain creates and lists its circles.
 // The circle, its chat and invites, the factory and the invite code index are plain neurons.
-[DigitalBrain.Module("circles")]
-public sealed partial class CirclesModule : DigitalBrain.Module, IHttpModule
+[DigitalBrain.Modules.Module("circles")]
+public sealed partial class CirclesModule : DigitalBrain.Modules.Module, IHttpModule
 {
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
 
     public static System.Reflection.Assembly? Contracts { get; } = typeof(ICircle).Assembly;
 

@@ -1,8 +1,10 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Reflection;
 using System.Text.Json;
+using DigitalBrain.Access;
+using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Modules;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework;
@@ -10,8 +12,8 @@ using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Apps;
 
-[DigitalBrain.Neuron("apps.installed-modules")]
-public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : DigitalBrain.Neuron, IInstalledModules
+[DigitalBrain.Neurons.Neuron("apps.installed-modules")]
+public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : DigitalBrain.Neurons.Neuron, IInstalledModules
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -33,10 +35,10 @@ public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : D
             foreach (var type in types)
             {
                 if (type is not { IsClass: true, IsAbstract: false } || type.ContainsGenericParameters) { continue; }
-                if (type.GetCustomAttribute<DigitalBrain.ModuleAttribute>(inherit: false) is null) { continue; }
-                if (!typeof(DigitalBrain.Module).IsAssignableFrom(type)) { continue; }
-                DigitalBrain.ModuleManifest manifest;
-                try { manifest = DigitalBrain.ModuleManifest.Of(type); }
+                if (type.GetCustomAttribute<DigitalBrain.Modules.ModuleAttribute>(inherit: false) is null) { continue; }
+                if (!typeof(DigitalBrain.Modules.Module).IsAssignableFrom(type)) { continue; }
+                DigitalBrain.Modules.ModuleManifest manifest;
+                try { manifest = DigitalBrain.Modules.ModuleManifest.Of(type); }
                 catch (Exception error) when (error is InvalidOperationException or InvalidDataException) { continue; }
                 var capabilities = string.Join(", ", manifest.Provides.Select(id => id.ToString()).Order(StringComparer.Ordinal));
                 rows.Add(new(manifest.Id ?? type.Name, type.Name, capabilities));
@@ -50,30 +52,33 @@ public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : D
     private async Task RequireAdmitted()
     {
         var brain = Id.Brain.Value;
-        if (!RuntimeCallerContext.TryGet(out var caller))
+        var caller = Context.Caller;
+        if (caller is null)
         {
             return;
         }
-        if (caller.Kind != CallerKind.App)
+        if (caller.Actor is not Actor.App app)
         {
-            CallerAdmission.RequireSameBrain(brain, target: "apps.installed-modules");
+            if (caller.Actor is not Actor.Kernel && !string.Equals(caller.Brain.Value, brain, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException($"A {caller.Actor.GetType().Name} caller of brain {caller.Brain.Value} may not touch apps.installed-modules.");
+            }
             return;
         }
-        if (!string.Equals(caller.BrainId, brain, StringComparison.Ordinal))
+        if (!string.Equals(caller.Brain.Value, brain, StringComparison.Ordinal))
         {
             throw new UnauthorizedAccessException($"Access denied to apps.installed-modules in brain '{brain}'.");
         }
 
-        if (!await IsAppGrantedAsync(brain, caller))
+        if (!await IsAppGrantedAsync(brain, app.Key))
         {
             throw new UnauthorizedAccessException(
-                $"App '{caller.AppId ?? caller.PrincipalId}' is not granted access to 'apps.installed-modules'.");
+                $"App '{app.Key}' is not granted access to 'apps.installed-modules'.");
         }
     }
 
-    private async Task<bool> IsAppGrantedAsync(string brain, CapabilityCaller caller)
+    private async Task<bool> IsAppGrantedAsync(string brain, string appId)
     {
-        var appId = caller.AppId ?? "";
         var defaultSettingsKey = IApp.Key(brain, ShippedApps.Settings);
         if (identity is null)
         {
@@ -92,7 +97,6 @@ public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : D
         var fullTarget = $"apps.installed-modules/{brain}/{Id.Key}";
         var appGrantees = new HashSet<string>(StringComparer.Ordinal)
         {
-            caller.PrincipalId,
             $"app:{appId}",
             $"app:{brain}/apps/{appId}",
         };

@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Modules.AI.Agents.Context;

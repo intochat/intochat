@@ -1,9 +1,9 @@
+using System.ComponentModel;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using System.ComponentModel;
+using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Surface;
 using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.AI.Agents;

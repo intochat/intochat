@@ -31,16 +31,16 @@ public sealed record AspireTelemetryChanged(int LogCount, int TraceCount) : Digi
 [Description("Local and cloud telemetry inspector for resources, console logs, structured logs, and distributed traces.")]
 public interface IAspire
 {
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<AspireResourceView[]> GetResourcesAsync();
 
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<string[]> GetConsoleLogsAsync(string resourceName, int tailLines = 50);
 
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<AspireLogEntry[]> GetStructuredLogsAsync(string? resourceName = null, string? minSeverity = null);
 
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<AspireTraceSpan[]> GetTracesAsync(string? resourceName = null, bool errorsOnly = false);
 
     Task RecordLogAsync(AspireLogEntry entry);

@@ -7,20 +7,20 @@ using DigitalBrain.Capabilities.Connections.Broker;
 using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Contracts;
+using DigitalBrain.Hosting;
+using DigitalBrain.Modules;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using DigitalBrain.Runtime.Orleans.Operations;
 using DigitalBrain.Runtime.Orleans.Testing;
-using DigitalBrain.Spi;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
-using DigitalBrain.Runtime.Orleans.Confirmations;
 using IntoChat.OS.Kernel.Tests.E2E.Policies;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
@@ -76,7 +76,6 @@ public sealed class ProductHostFixture : IAsyncLifetime
             typeof(DigitalBrain.Signal).Assembly,
             typeof(ProductHostTestModule).Assembly,
             typeof(ChargesTestModule).Assembly,
-            typeof(BddVerified).Assembly,
             typeof(AppsModule).Assembly,
             typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly,
             typeof(IApp).Assembly,
@@ -97,10 +96,7 @@ public sealed class ProductHostFixture : IAsyncLifetime
             {
                 services.AddSingleton<ICapabilityConnections>(_connections);
                 services.TryAddSingleton(TimeProvider.System);
-                services.AddOptions<ConfirmationOptions>();
-                services.TryAddSingleton<IConfirmationContexts, KernelConfirmations>();
-                services.TryAddSingleton<DigitalBrain.Runtime.Orleans.Enforcement.ICallFilter, DigitalBrain.Runtime.Orleans.Enforcement.CallFilter>();
-                services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, DigitalBrain.Runtime.Orleans.Enforcement.PlainNeuronCallFilter>());
+                services.AddSingleton(new DigitalBrain.Access.AccessOptions { UnstampedEdgeIsKernel = false, AuditContractInternal = true });
                 services.AddNeuronProxies();
                 services.AddSingleton<IPolicyModel>(_policyModel);
                 services.TryAddSingleton<PolicyWriter>();
@@ -178,27 +174,55 @@ public sealed class ProductHostFixture : IAsyncLifetime
         }
     }
 
-    public TApp AttachSilo<TApp>(TApp app, string brain) where TApp : App
+    public TApp AttachSilo<TApp>(TApp app, string brain) where TApp : class
     {
         ArgumentNullException.ThrowIfNull(app);
-        app.AttachNeuronResolver((contractType, neuronKey) =>
+        if (app is Neuron neuron)
         {
-            var fullKey = neuronKey.Contains('/', StringComparison.Ordinal)
-                && string.Equals(BrainKey.BrainOf(neuronKey), brain, StringComparison.Ordinal)
-                ? neuronKey
-                : $"{brain}/{neuronKey}";
+            var brainId = new BrainId(brain);
+            var neuronType = typeof(TApp).Name.ToLowerInvariant();
+            var id = new NeuronId(brainId, neuronType, neuronType);
+            var context = new FakeNeuronContext(id, Services);
 
-            if (contractType.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false) is not null)
+            void RegisterProxy<T>(string key) where T : class
             {
-                return SiloNeurons.Get(Services, contractType, fullKey);
+                try
+                {
+                    var type = PlainNeuronContracts.TypeOf(typeof(T))
+                        ?? typeof(T).GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type
+                        ?? typeof(T).GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias
+                        ?? typeof(T).Name.ToLowerInvariant();
+                    var neuronId = new NeuronId(brainId, type, key);
+                    var proxy = SiloNeurons.Get<T>(Services, neuronId);
+                    context.Proxies.Register(neuronId, proxy);
+                }
+                catch
+                {
+                }
             }
 
-            var alias = contractType.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias
-                ?? throw new InvalidOperationException($"Contract {contractType.Name} has neither DefaultNeuronType nor NeuronAlias.");
-            var sep = fullKey.IndexOf('/', StringComparison.Ordinal);
-            var id = new NeuronId(new BrainId(fullKey[..sep]), alias, fullKey[(sep + 1)..]);
-            return SiloNeurons.Get(Services, contractType, id);
-        });
+            RegisterProxy<IntoChat.OS.Modules.Apps.IUserSettings>("settings");
+            RegisterProxy<IntoChat.OS.Modules.Apps.IUserSettings>("default");
+            RegisterProxy<IntoChat.OS.Modules.Apps.IProfile>("profile");
+            RegisterProxy<IntoChat.OS.Modules.Apps.IProfile>("default");
+            RegisterProxy<IntoChat.OS.Modules.Apps.IDesktopRecords>(IntoChat.OS.Modules.Apps.IDesktopRecords.Key);
+            RegisterProxy<IntoChat.OS.Modules.Apps.IInoRecords>("apps/ino/records");
+            RegisterProxy<IntoChat.OS.Modules.Apps.ISynapseStudio>("ino/synapses");
+            RegisterProxy<IntoChat.OS.Modules.Apps.IInoData>("ino/data");
+            RegisterProxy<IntoChat.OS.Modules.ArtCraft.IArtCraftStudio>("artcraft");
+            RegisterProxy<IntoChat.OS.Modules.Apps.IArtCraftEngine>("apps/artcraft-engine");
+            RegisterProxy<IntoChat.OS.Modules.Apps.IArtCraftEngine>("default");
+            RegisterProxy<IntoChat.OS.Modules.AI.Agents.IAgent>("ino/conversations/default");
+            RegisterProxy<IntoChat.OS.Modules.AI.Agents.IAgent>("ino/conversations/main");
+            RegisterProxy<IntoChat.OS.Modules.AI.Agents.IAgent>("default");
+            RegisterProxy<IAspire>("aspire");
+            RegisterProxy<IAspire>("default");
+            RegisterProxy<IMemory>("memory");
+            RegisterProxy<IMemory>("default");
+
+            NeuronAttachment.Attach(neuron, context);
+            NeuronAttachment.Activate(neuron, CancellationToken.None).GetAwaiter().GetResult();
+        }
         return app;
     }
 
@@ -215,8 +239,8 @@ public sealed class ProductHostFixture : IAsyncLifetime
         await mainNeuron.Publish(1, main);
     }
 
-    [DigitalBrain.Module("product.host.e2e")]
-    private sealed class ProductHostTestModule : DigitalBrain.Module
+    [DigitalBrain.Modules.Module("product.host.e2e")]
+    private sealed class ProductHostTestModule : DigitalBrain.Modules.Module
     {
         public static ModuleManifest Manifest { get; } = new(
             Provides: [],

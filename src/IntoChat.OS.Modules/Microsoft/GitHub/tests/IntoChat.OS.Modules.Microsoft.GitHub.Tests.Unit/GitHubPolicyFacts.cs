@@ -1,9 +1,11 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Limits;
+using DigitalBrain.Modules;
+using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Spi;
 using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.Tests.Unit;

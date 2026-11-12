@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using IntoChat.OS.Modules.Tools;
 using DigitalBrain.State;
+using IntoChat.OS.Modules.Tools;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
@@ -13,8 +13,8 @@ public sealed class PageToolsStore
 }
 
 // A plain neuron and a plain tool source since 06-06d; it drives the page through the plain IPlaywright neuron of its brain.
-[DigitalBrain.Neuron("playwright.page-tools", State = "playwright.page-tools")]
-internal sealed partial class PageToolsNeuron : DigitalBrain.Neuron<PageToolsStore>, IPageTools
+[DigitalBrain.Neurons.Neuron("playwright.page-tools", State = "playwright.page-tools")]
+internal sealed partial class PageToolsNeuron : DigitalBrain.Neurons.Neuron<PageToolsStore>, IPageTools
 {
     private const int RenderingBudgetMs = 15_000;
 

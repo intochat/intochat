@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.Time.Timers.Signals;
 using Microsoft.Extensions.Options;
 
@@ -7,7 +8,7 @@ namespace IntoChat.OS.Modules.Time.Timers;
 // A plain neuron (06-03): the schedule is an activation timer of the runtime host, so it dies with the activation and a new
 // activation needs another Start. Each tick is a turn (Neuron.OnReminder) that publishes TimerTick.
 [Neuron("timer")]
-internal sealed class TimerNeuron(IOptions<TimeModuleOptions>? options = null) : DigitalBrain.Neuron, ITimer
+internal sealed class TimerNeuron(IOptions<TimeModuleOptions>? options = null) : DigitalBrain.Neurons.Neuron, ITimer
 {
     private const string Schedule = "schedule";
     internal const int MaxConsecutiveFailures = 3;

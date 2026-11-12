@@ -1,17 +1,19 @@
 using DigitalBrain;
-using DigitalBrain.Spi;
+using DigitalBrain.Limits;
+using DigitalBrain.Modules;
+using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit.Policies;
 
-[DigitalBrain.Module("charges.test.apps")]
-public sealed class PolicyWriterTestModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module("charges.test.apps")]
+public sealed class PolicyWriterTestModule : DigitalBrain.Modules.Module
 {
     public static readonly ActionDescriptor Charges = new("charges.charge", "charges", "USD");
     public static readonly ActionDescriptor Drafts = new("gmail.draft.create", "create a mail draft", null);
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new([], [], [], [], [])
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new([], [], [], [], [])
     {
         Actions = [Charges, Drafts],
     };

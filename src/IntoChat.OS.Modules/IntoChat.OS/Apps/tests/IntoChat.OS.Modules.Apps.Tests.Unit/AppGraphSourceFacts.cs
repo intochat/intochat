@@ -1,5 +1,8 @@
 using DigitalBrain;
 using DigitalBrain.Graph;
+using IntoChat.OS.Apps.Desktop;
+using IntoChat.OS.Modules.Apps;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
@@ -31,37 +34,36 @@ public sealed class AppGraphSourceFacts
         Assert.Equal(-1, graph.IndexOf("ada/apps/gone#open"));
     }
 
-    /* Watcher test app that subscribes to settings and watches profile changes so AppGraphSource can emit Subscribes edges. */
-    [DigitalBrain.App("watcher")]
-    private sealed class WatcherApp : DigitalBrain.App
-    {
-        [DigitalBrain.On("settings", Contract = typeof(IUserSettings))]
-        public void OnSettings(UserSettingsChanged? changed) => _ = changed;
-
-        protected override void Watches(WatchBuilder watch)
-            => watch.On<IProfile, ProfileChanged>("profile", _ => "profile", _ => Task.CompletedTask);
-    }
-
     [Fact]
-    public void InProcessSubscriptionsAndWatchesEmitSubscribesEdgesFromTheApp()
+    public async Task CompiledScreenAppsAndTheirOperationsJoinTheBrainGraphWithoutError()
     {
         var brain = new BrainId("ada");
         var sink = new GraphSink();
-        sink.Node("ada", GraphNodeKind.Brain, "ada");
-        var appKey = "ada/apps/watcher";
-        var app = sink.Node(appKey, GraphNodeKind.App, "apps/watcher");
-        var def = new AppDefinition(typeof(WatcherApp));
-        var instance = new WatcherApp();
+        var root = sink.Node("ada", GraphNodeKind.Brain, "ada");
+        var services = new ServiceCollection()
+            .AddSingleton(new CompiledAppsRegistration(typeof(DesktopApp).Assembly))
+            .BuildServiceProvider();
 
-        AppGraphSource.ContributeSubscriptions(brain, sink, appKey, def.SignalSubscriptions, instance.DeclaredWatches());
+        await new AppGraphSource(services).Contribute(brain, sink, TestContext.Current.CancellationToken);
 
         var graph = GraphCompute.Build(sink, brain);
-        var settingsIdx = graph.IndexOf("ada/os.settings/settings");
-        var profileIdx = graph.IndexOf("ada/os.profile/profile");
-        Assert.True(settingsIdx >= 0);
-        Assert.True(profileIdx >= 0);
-        var appEdges = Enumerable.Range(graph.RowStart[app], graph.RowStart[app + 1] - graph.RowStart[app]).ToArray();
-        Assert.Contains(appEdges, e => graph.Col[e] == settingsIdx && graph.EdgeKinds[e] == GraphEdgeKind.Subscribes);
-        Assert.Contains(appEdges, e => graph.Col[e] == profileIdx && graph.EdgeKinds[e] == GraphEdgeKind.Subscribes);
+        var desktop = graph.IndexOf("ada/apps/desktop");
+        var ino = graph.IndexOf("ada/apps/ino");
+        var creator = graph.IndexOf("ada/apps/creator");
+        Assert.True(desktop >= 0);
+        Assert.True(ino >= 0);
+        Assert.True(creator >= 0);
+        Assert.Equal(GraphNodeKind.App, graph.Kinds[desktop]);
+
+        var rootEdges = Enumerable.Range(graph.RowStart[root], graph.RowStart[root + 1] - graph.RowStart[root]).ToArray();
+        Assert.Contains(rootEdges, e => graph.Col[e] == desktop && graph.EdgeKinds[e] == GraphEdgeKind.Owns);
+
+        var desktopEdges = Enumerable.Range(graph.RowStart[desktop], graph.RowStart[desktop + 1] - graph.RowStart[desktop]).ToArray();
+        Assert.NotEmpty(desktopEdges);
+        Assert.All(desktopEdges, e =>
+        {
+            Assert.Equal(GraphEdgeKind.Owns, graph.EdgeKinds[e]);
+            Assert.Equal(GraphNodeKind.Operation, graph.Kinds[graph.Col[e]]);
+        });
     }
 }

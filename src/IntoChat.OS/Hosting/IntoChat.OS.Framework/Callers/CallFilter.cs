@@ -1,6 +1,4 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Capabilities;
+using DigitalBrain.Access;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;
@@ -12,7 +10,7 @@ namespace IntoChat.OS.Framework;
 // R134/R146: a cross-brain call is denied before any stage, except an app's use of another brain's connection through
 // a binding recorded when the app was shared there.
 // os-only: the OS staged call filter pipeline and cross-brain connection binding check.
-public sealed class CallFilter(IEnumerable<ICallFilterStage> stages, ICallBindings? bindings = null) : ICallFilter
+public sealed class CallFilter(IEnumerable<ICallFilterStage> stages, ICallBindings? bindings = null, ICallerAmbient? ambientCaller = null) : ICallFilter
 {
     private readonly IReadOnlyList<ICallFilterStage> _stages = [.. stages.OrderBy(stage => stage.Order)];
 
@@ -20,23 +18,27 @@ public sealed class CallFilter(IEnumerable<ICallFilterStage> stages, ICallBindin
     {
         ArgumentNullException.ThrowIfNull(request);
         var caller = request.Caller;
-        if (string.IsNullOrWhiteSpace(caller.PrincipalId))
+        if (caller is null)
+        {
+            return CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no caller.");
+        }
+
+        var principal = caller.For?.Principal
+            ?? (caller.Actor as Actor.Person)?.Principal
+            ?? (caller.Actor as Actor.Module)?.Id;
+
+        if (caller.Actor is not Actor.Kernel && caller.Actor is not Actor.Scheduler && string.IsNullOrWhiteSpace(principal))
         {
             return CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no principal.");
         }
 
-        if (!RuntimeCallerContext.IsTrusted(caller))
-        {
-            return CallDecision.Deny(CallDenial.UntrustedCaller, "The principal was not stamped at a trusted edge.");
-        }
-
-        if (RuntimeCallerContext.TryGet(out var ambient) && ambient != caller)
+        if (ambientCaller is not null && ambientCaller.Current is { } ambient && ambient != caller)
         {
             return CallDecision.Deny(CallDenial.UntrustedCaller, "The principal does not match the trusted edge stamp.");
         }
 
-        var callerScope = BrainScope.Create(caller.AccountId, caller.BrainId).Id;
-        if (request.EnforceTarget && caller.Kind != CallerKind.Platform && !request.PublicOperation
+        var callerScope = caller.Brain.Value;
+        if (request.EnforceTarget && caller.Actor is not Actor.Kernel && !request.PublicOperation
             && request.TargetScope != callerScope && !await BoundConnection(request, callerScope, cancellationToken).ConfigureAwait(false))
         {
             return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target operation is not available in the selected brain.");
@@ -57,7 +59,7 @@ public sealed class CallFilter(IEnumerable<ICallFilterStage> stages, ICallBindin
     // An app behavior calling into another brain through a recorded binding; the target's own rules still refuse management.
     private async ValueTask<bool> BoundConnection(CallRequest request, string callerScope, CancellationToken cancellationToken)
     {
-        if (bindings is null || request.Caller.Kind != CallerKind.App || request.Caller.AppId is not { Length: > 0 }) { return false; }
+        if (bindings is null || request.Caller.Actor is not Actor.App app || string.IsNullOrEmpty(app.Key)) { return false; }
         return await bindings.IsBound(request, callerScope, cancellationToken).ConfigureAwait(false);
     }
 }

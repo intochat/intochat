@@ -1,16 +1,17 @@
 using System.Runtime.CompilerServices;
-using IntoChat.OS.Modules.AI.Inference;
-using IntoChat.OS.Modules.AI.Models.Signals;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
 using DigitalBrain;
 using DigitalBrain.Invocation;
+using DigitalBrain.Neurons;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models.Signals;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
 // A brain's model calls run concurrently: only Describe and Generate interleave, with each other (streams always interleave on
 // the host). Publishes take one gate, so the inference signals of interleaved calls are journaled one at a time.
-[DigitalBrain.InterleavesWhen(nameof(Interleaves))]
+[DigitalBrain.Neurons.InterleavesWhen(nameof(Interleaves))]
 internal abstract class LlmNeuronBase(IModelInference inference, Type? marker = null) : StatelessAiNeuron, ILLM
 {
     private readonly SemaphoreSlim _publishing = new(1, 1);

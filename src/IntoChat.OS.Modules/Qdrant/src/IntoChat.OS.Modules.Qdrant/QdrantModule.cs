@@ -1,21 +1,21 @@
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-
 using QdrantSdk = Qdrant;
 namespace IntoChat.OS.Modules.Qdrant;
 
-[DigitalBrain.Module(QdrantModule.ManifestName)]
-public sealed class QdrantModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module(QdrantModule.ManifestName)]
+public sealed class QdrantModule : DigitalBrain.Modules.Module
 {
     internal const string ManifestName = "qdrant";
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<QdrantModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(QdrantModule.ManifestName))],
+        Settings: [DigitalBrain.Modules.Setting.Of<QdrantModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(QdrantModule.ManifestName))],
         Secrets: []);
 
     public static bool RequiresContainer => true;

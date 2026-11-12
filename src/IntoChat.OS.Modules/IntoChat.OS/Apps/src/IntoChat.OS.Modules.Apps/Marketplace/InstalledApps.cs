@@ -1,5 +1,6 @@
+using DigitalBrain.Kernel;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
-using DigitalBrain.Spi;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;

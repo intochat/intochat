@@ -1,8 +1,9 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Contracts;
 using System.ComponentModel;
 using System.Reflection;
 using DigitalBrain;
+using DigitalBrain.Brains;
+using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 
@@ -67,7 +68,7 @@ public sealed class CompiledTypes
     public BrainType[] Addressed(Func<Type, string?> stillGrainType)
     {
         ArgumentNullException.ThrowIfNull(stillGrainType);
-        return _addressed ??= [.. Entries.Select(entry => entry.Kind == DigitalBrain.TypeKind.Neuron && TypeOf(stillGrainType, _neurons[entry.Name]) is { } type ? entry with { Alias = type } : entry)];
+        return _addressed ??= [.. Entries.Select(entry => entry.Kind == TypeKind.Neuron && TypeOf(stillGrainType, _neurons[entry.Name]) is { } type ? entry with { Alias = type } : entry)];
     }
 
     private static string? TypeOf(Func<Type, string?> stillGrainType, Type contract)
@@ -93,13 +94,13 @@ public sealed class CompiledTypes
             .Where(method => !method.IsSpecialName)
             .Select(method => method + (method.GetCustomAttribute<DescriptionAttribute>() is { } description ? " — " + description.Description : ""))
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
-        return new(contract.FullName!, alias, DigitalBrain.TypeKind.Neuron, provider,
+        return new(contract.FullName!, alias, TypeKind.Neuron, provider,
             contract.GetCustomAttribute<DescriptionAttribute>()?.Description ?? name, methods,
             [.. contract.GetInterfaces().Where(IsNeuron).Select(type => type.FullName!).Order(StringComparer.Ordinal)]);
     }
 
     private static BrainType Signal(Type signal, string provider)
-        => new(signal.FullName!, NeuronAliases.Of(signal) ?? signal.GetCustomAttribute<DigitalBrain.SignalAttribute>(inherit: false)?.Alias ?? signal.FullName!, DigitalBrain.TypeKind.Signal, provider,
+        => new(signal.FullName!, NeuronAliases.Of(signal) ?? signal.GetCustomAttribute<DigitalBrain.SignalAttribute>(inherit: false)?.Alias ?? signal.FullName!, TypeKind.Signal, provider,
             signal.GetCustomAttribute<DescriptionAttribute>()?.Description ?? signal.Name,
             [.. signal.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(property => property.DeclaringType != typeof(DigitalBrain.Signal))

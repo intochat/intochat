@@ -29,7 +29,7 @@ internal sealed class LocalIdentityClient(AuthorityNeurons neurons) : IIdentityC
     public Task<Member?> EnsureMember(Member member) => Directory.EnsureMember(member);
     public Task RemoveMember(string brainScopeId, string accountId) => Directory.RemoveMember(brainScopeId, accountId);
     public Task RemovePrincipalMember(string brainScopeId, string principalId) => Directory.RemovePrincipalMember(brainScopeId, principalId);
-    public Task<CallDecision?> Authorize(CallRequest request) => Directory.Authorize(request);
+    public Task<CallDecision?> Authorize(CallRequest request) => Directory.Authorize(DirectoryAuthorizeRequest.From(request));
     public Task<Grant[]> ListGrants(string brainScopeId) => Directory.ListGrants(brainScopeId);
     public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => Directory.GrantAsOwner(caller, grant);
     public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => Directory.GrantShipped(brainScopeId, grants);

@@ -333,6 +333,7 @@
   </Folder>
   <Folder Name="/Testing/">
     <Project Path="src/Testing/IntoChat.OS.Architecture.Tests.Unit/IntoChat.OS.Architecture.Tests.Unit.csproj" />
+    <Project Path="src/Testing/IntoChat.OS.Tests.E2E/IntoChat.OS.Tests.E2E.csproj" />
   </Folder>
   <Folder Name="/Kernel/">
     <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Composition.Tests.Integration/IntoChat.OS.Kernel.Composition.Tests.Integration.csproj" />

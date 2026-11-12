@@ -1,13 +1,12 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Modules.Configuration;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
+using DigitalBrain.Brains;
+using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Authority.Identity;
-using DigitalBrain.Client;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
@@ -47,8 +46,6 @@ public sealed class OsAppHostFixture : IAsyncLifetime
 
     public HttpClient Os { get; private set; } = null!;
 
-    public DigitalBrainConnection Connection { get; private set; } = null!;
-
     public string Home => _home.Path;
 
     public string Scope { get; } = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
@@ -83,11 +80,6 @@ public sealed class OsAppHostFixture : IAsyncLifetime
             await App.StartAsync(startTimeout.Token);
             Os = App.CreateHttpClient("OperatingSystem-a", "http");
             await Healthy(startTimeout.Token);
-            Connection = await DigitalBrainConnection.OpenAsync(
-                new Uri(Os.BaseAddress!, $"/brains/{Scope}/"),
-                "local-session",
-                $"{Scope}/apps/settings",
-                cancellationToken: startTimeout.Token);
             StartupDuration = DateTimeOffset.UtcNow - started;
         }
         catch
@@ -135,17 +127,6 @@ public sealed class OsAppHostFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        if (Connection is not null)
-        {
-            try
-            {
-                await Connection.DisposeAsync();
-            }
-            catch
-            {
-            }
-        }
-
         try
         {
             Os?.Dispose();

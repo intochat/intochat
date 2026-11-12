@@ -1,25 +1,25 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Capabilities;
-using IntoChat.OS.Runtime;
-using DigitalBrain.Spi;
-using DigitalBrain;
 using System.Security.Cryptography;
-using System.Text.RegularExpressions;
 using System.Text;
 using System.Text.Json;
-using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Flutter.Space;
-using IntoChat.OS.Modules.Flutter.Workspace.Signals;
+using System.Text.RegularExpressions;
+using DigitalBrain;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.State;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Space;
+using IntoChat.OS.Modules.Flutter.Workspace.Signals;
+using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
-using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 [Neuron("ui.workspace", State = "workspace")]
-internal sealed partial class WorkspaceNeuron
+internal sealed partial class WorkspaceNeuron(INeuronProxies proxies)
     : UiNeuron<WorkspaceStorage>, IWorkspace
 {
     // The brain's one workspace, keyed {brain}/main (R4-19); its signals and paths name the brain.
@@ -78,7 +78,7 @@ internal sealed partial class WorkspaceNeuron
     {
         if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind != CallerKind.App || caller.AppId is not { } app) { return false; }
         if (names.FirstOrDefault(name => app == IApp.Key(Brain, name)) is not { } named) { return false; }
-        return ShippedApps.Is(await ServiceProvider.GetRequiredService<INeuronProxies>().Get<IApp>(app).Read(), named);
+        return ShippedApps.Is(await proxies.Get<IApp>(app).Read(), named);
     }
 
     [GeneratedRegex("^[A-Za-z0-9_.-]{1,64}$")]
@@ -167,8 +167,10 @@ internal sealed partial class WorkspaceNeuron
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
         if (operationId.Length > 256) { throw new ArgumentException("An operation id has at most 256 characters.", nameof(operationId)); }
+#pragma warning disable DB0033
         if (await Commit(operationId, expectedRevision, state => change(Seed(state)), state => new WorkspaceChanged(Brain, state.Revision)))
         { await Get<ISpace>(new DigitalBrain.NeuronId(Id.Brain, ISpace.Type, "main")).Recompose(); }
+#pragma warning restore DB0033
         return await Read();
     }
 

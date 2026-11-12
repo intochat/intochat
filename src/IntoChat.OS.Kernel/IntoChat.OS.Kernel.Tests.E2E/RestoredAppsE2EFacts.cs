@@ -1,9 +1,9 @@
-using DigitalBrain.Capabilities.Connections;
 using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Contracts;
 using DigitalBrain.Runtime.Orleans;
@@ -11,25 +11,23 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities.Storage;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
-using DigitalBrain.Spi;
 using DigitalBrain.Testing;
 using DigitalBrain.Testing.Views;
 using DigitalBrain.UI;
 using IntoChat.Files;
+using IntoChat.OS.Apps.Data;
+using IntoChat.OS.Apps.Desktop;
+using IntoChat.OS.Apps.FilmCraft;
+using IntoChat.OS.Apps.Friends;
+using IntoChat.OS.Apps.Gallery;
+using IntoChat.OS.Apps.Ino;
+using IntoChat.OS.Apps.Markdraw;
+using IntoChat.OS.Apps.PhotoCraft;
+using IntoChat.OS.Apps.Settings;
+using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using DigitalBrain.Runtime.Orleans.Confirmations;
-using IntoChat.OS.Apps.Data;
-using IntoChat.OS.Apps.Desktop;
-using IntoChat.OS.Apps.Ino;
-using IntoChat.OS.Apps.FilmCraft;
-using IntoChat.OS.Apps.Gallery;
-using IntoChat.OS.Apps.Markdraw;
-using IntoChat.OS.Apps.PhotoCraft;
-using IntoChat.OS.Apps.Friends;
-using IntoChat.OS.Apps.Settings;
-using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
@@ -89,7 +87,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.Equal("whiteboard-auto-arranged", desktop.State.LayoutMode);
         Assert.Contains("photocraft", desktop.State.PinnedApps);
 
-        await fixture.PublishAppViewToSiloAsync(brain, "desktop", desktop.RenderSide(), desktop.Render());
+        await fixture.PublishAppViewToSiloAsync(brain, "desktop", null, desktop.Render());
         var desktopView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/desktop/view").Read();
         Assert.NotNull(desktopView);
 
@@ -119,12 +117,12 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.Equal("cyber-synaptic", persistedSettings.StylePreset);
         Assert.Equal("split-top-dock", persistedSettings.BarLayout);
 
-        settingsApp.RefreshConnections(new SettingsRefreshConnections(
+        await settingsApp.RefreshConnections(new SettingsRefreshConnections(
             ConnectionKey: "neuron://local/connection/postgres/analytics",
             FriendApp: "app:local/apps/datavisualizer"));
         Assert.Contains("neuron://local/connection/postgres/analytics", settingsApp.State.ConnectionKeys!);
 
-        await fixture.PublishAppViewToSiloAsync(brain, "settings", settingsApp.RenderSide(), settingsApp.Render());
+        await fixture.PublishAppViewToSiloAsync(brain, "settings", null, settingsApp.Render());
         var settingsView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/settings/view").Read();
         Assert.NotNull(settingsView);
 
@@ -134,16 +132,16 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.Equal("cyber-synaptic", gallery.State.StylePreset);
         Assert.Equal("split-top-dock", gallery.State.BarLayout);
 
-        gallery.Filter(new GalleryFilter("chat-lfp", "Table"));
+        await gallery.Filter(new GalleryFilter("chat-lfp", "Table"));
         Assert.Equal("table-card", gallery.State.SelectedId);
 
-        gallery.Select(new GallerySelect("brain-scene-3d"));
+        await gallery.Select(new GallerySelect("brain-scene-3d"));
         Assert.Equal("brain-scene-3d", gallery.State.SelectedId);
 
         await gallery.SwitchIdentity(new GallerySwitchIdentity("fluent-acrylic", "floating-glass"));
         Assert.Equal("fluent-acrylic", (await settingsNeuron.Read()).StylePreset);
 
-        await fixture.PublishAppViewToSiloAsync(brain, "gallery", gallery.RenderSide(), gallery.Render());
+        await fixture.PublishAppViewToSiloAsync(brain, "gallery", null, gallery.Render());
         var galleryView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/gallery/view").Read();
         Assert.NotNull(galleryView);
 
@@ -155,13 +153,13 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.Equal("native-linux", photo.State.ExecutionMode);
         Assert.EndsWith(".nobg.png", photo.State.OutputDocument, StringComparison.Ordinal);
 
-        photo.SwitchMode(new PhotoCraftSwitchMode("mcp"));
+        await photo.SwitchMode(new PhotoCraftSwitchMode("mcp"));
         await photo.Edit(new PhotoCraftStudioEdit("make a 512x512 image with a blue-to-orange gradient", "/work/canvas.psd", "mcp"));
         Assert.Equal("mcp", photo.State.ExecutionMode);
         Assert.Equal("layer.newFillLayer.gradient", photo.State.LastCommandId);
         Assert.Equal(2, photo.State.History.Length);
 
-        await fixture.PublishAppViewToSiloAsync(brain, "photocraft", photo.RenderSide(), photo.Render());
+        await fixture.PublishAppViewToSiloAsync(brain, "photocraft", null, photo.Render());
         var photoView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/photocraft/view").Read();
         Assert.NotNull(photoView);
 
@@ -172,13 +170,13 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.Equal("timeline.razor", film.State.LastCommandId);
         Assert.Equal("native-linux", film.State.ExecutionMode);
 
-        film.SwitchMode(new FilmCraftSwitchMode("mcp"));
+        await film.SwitchMode(new FilmCraftSwitchMode("mcp"));
         await film.Export(new FilmCraftExport("h264-1080p60", "/work/launch-trailer.fcproj", "mcp"));
         Assert.Equal("mcp", film.State.ExecutionMode);
         Assert.Equal("sequence.exportMp4", film.State.LastCommandId);
         Assert.EndsWith(".1080p60.mp4", film.State.OutputFile, StringComparison.Ordinal);
 
-        await fixture.PublishAppViewToSiloAsync(brain, "filmcraft", film.RenderSide(), film.Render());
+        await fixture.PublishAppViewToSiloAsync(brain, "filmcraft", null, film.Render());
         var filmView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/filmcraft/view").Read();
         Assert.NotNull(filmView);
 
@@ -187,7 +185,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         await markdraw.Open(new MarkdrawOpen("/work/system-architecture.markdraw", "flow"));
         await markdraw.PatchElements(new MarkdrawPatchElements("add rectangle \"API Gateway\" at 140,120 180x84 color #38bdf8", "ino"));
         Assert.True(markdraw.State.Elements.Length >= 5);
-        await fixture.PublishAppViewToSiloAsync(brain, "markdraw", markdraw.RenderSide(), markdraw.Render());
+        await fixture.PublishAppViewToSiloAsync(brain, "markdraw", null, markdraw.Render());
         var markdrawView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/markdraw/view").Read();
         Assert.NotNull(markdrawView);
 
@@ -197,7 +195,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         await dataStudio.Open(new DataStudioOpen("/work/q4-opportunities.csv"));
         await dataStudio.Query(new DataStudioQuery("SELECT stage, SUM(amount) FROM /work/q4-opportunities.csv GROUP BY stage"));
         Assert.NotEmpty(dataStudio.State.Rows);
-        await fixture.PublishAppViewToSiloAsync(brain, "data", dataStudio.RenderSide(), dataStudio.Render());
+        await fixture.PublishAppViewToSiloAsync(brain, "data", null, dataStudio.Render());
         var dataView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/data/view").Read();
         Assert.NotNull(dataView);
     }
@@ -253,7 +251,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.DoesNotContain(ino.State.Turns, t => t.Reply.Contains(forbiddenText, StringComparison.Ordinal)
             || t.UserMessage.Contains(forbiddenText, StringComparison.Ordinal));
 
-        await fixture.PublishAppViewToSiloAsync(brain, "ino", ino.RenderSide(), renderedView);
+        await fixture.PublishAppViewToSiloAsync(brain, "ino", null, renderedView);
         var inoSiloView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/ino/view").Read();
         Assert.NotNull(inoSiloView);
     }

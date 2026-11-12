@@ -45,14 +45,14 @@ public sealed class CircleZeroLeakFacts
             var caller = CapabilityCallers.Of(AppPrincipal.Id(circleAppId), "user-bob", CircleBrain, CallerKind.App, circleAppId);
             var request = new CallRequest
             {
-                Caller = caller,
+                Caller = caller.ToCaller(),
                 TargetNeuron = connectionKey,
                 Operation = "Add",
                 SemanticTypeIds = [],
             };
 
             // Cross-brain call evaluation: allowed through reference grant without possessing local assembly
-            var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
+            var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
             Assert.NotNull(decision);
             Assert.True(decision.Allowed, $"Cross-brain call to '{connectionKey}' should be allowed via reference grant.");
         }
@@ -87,7 +87,7 @@ public sealed class CircleZeroLeakFacts
             {
                 var vaultRequest = new CallRequest
                 {
-                    Caller = caller,
+                    Caller = caller.ToCaller(),
                     TargetNeuron = forbiddenTarget,
                     Operation = "Read",
                     SemanticTypeIds = [],
@@ -113,7 +113,7 @@ public sealed class CircleZeroLeakFacts
             {
                 var secretOpRequest = new CallRequest
                 {
-                    Caller = caller,
+                    Caller = caller.ToCaller(),
                     TargetNeuron = connectionKey,
                     Operation = forbiddenOp,
                     SemanticTypeIds = [],
@@ -128,13 +128,13 @@ public sealed class CircleZeroLeakFacts
             // 3. Mediated business capability call (e.g. ListFiles) through capability broker is permitted
             var businessRequest = new CallRequest
             {
-                Caller = caller,
+                Caller = caller.ToCaller(),
                 TargetNeuron = connectionKey,
                 Operation = "ListFiles",
                 SemanticTypeIds = [],
             };
 
-            var businessDecision = GrantRules.Evaluate(businessRequest, null, [], PrincipalSet.For(businessRequest.Caller));
+            var businessDecision = GrantRules.Evaluate(businessRequest, null, [], PrincipalSet.For(businessRequest.Caller.ToCapabilityCaller()!));
             Assert.NotNull(businessDecision);
             Assert.True(businessDecision.Allowed);
         }
@@ -153,14 +153,14 @@ public sealed class CircleZeroLeakFacts
 
         var request = new CallRequest
         {
-            Caller = caller,
+            Caller = caller.ToCaller(),
             TargetNeuron = targetNeuron,
             Operation = "ReadNote",
             SemanticTypeIds = [],
         };
 
         // Phase 1: Without grant, invocation is denied
-        var initialDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
+        var initialDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
         Assert.NotNull(initialDecision);
         Assert.False(initialDecision.Allowed);
         Assert.Equal(CallDenial.MissingGrant, initialDecision.Denial);
@@ -168,14 +168,14 @@ public sealed class CircleZeroLeakFacts
         // Phase 2: Grant is issued when shared into circle -> invocation succeeds
         EdgeGrantsCache.Current.BindFriendConnection(targetNeuron, circleAppId);
 
-        var activeDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
+        var activeDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
         Assert.NotNull(activeDecision);
         Assert.True(activeDecision.Allowed);
 
         // Phase 3: Circle grant is revoked (e.g., app unshared or circle deleted) -> invocation instantly severed
         EdgeGrantsCache.Current.UnbindFriendConnection(targetNeuron, circleAppId);
 
-        var revokedDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller));
+        var revokedDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
         Assert.NotNull(revokedDecision);
         Assert.False(revokedDecision.Allowed);
         Assert.Equal(CallDenial.MissingGrant, revokedDecision.Denial);

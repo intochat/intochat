@@ -1,11 +1,11 @@
-using DigitalBrain.Capabilities.Connections.Integrations;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DigitalBrain.Capabilities.Connections.Integrations;
+using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.SystemOne;
-using IntoChat.OS.Connections.Platform.Integrations;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.AI;

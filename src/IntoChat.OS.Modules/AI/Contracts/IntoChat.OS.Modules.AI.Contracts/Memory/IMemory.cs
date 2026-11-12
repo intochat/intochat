@@ -38,7 +38,7 @@ public sealed record MemoryChanged(
 [Description("In-process durable memory of episodes and facts for a brain, with zero external database dependency.")]
 public interface IMemory
 {
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<MemorySnapshot> Read();
 
     [Description("Record a summarized conversation episode.")]
@@ -48,6 +48,6 @@ public interface IMemory
     Task<MemoryFact> RememberFact(string subject, string text, int importance = 5);
 
     [Description("Recall the most relevant facts and episodes matching the query.")]
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<MemoryRecallHit[]> Recall(string query, int limit = 5);
 }

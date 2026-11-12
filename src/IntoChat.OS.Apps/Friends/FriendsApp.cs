@@ -7,41 +7,46 @@ Operations: open, publish, update-bio, add-friend, remove-friend, fork-post, fil
 Personal social profile, direct Friends graph, and interactive App-Post feed.
 Each Post is an App<TState> template that renders inline in the profile/feed, can embed child apps via NeuronRef slots, and can be forked/remixed into the viewer's brain.
 */
+using System.Reflection;
+using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Kernel;
+using DigitalBrain.Neurons;
 using DigitalBrain.UI;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Friends
 {
-    [DigitalBrain.Signal("friends.open")]
-    public sealed record FriendsOpen(string? Scope = null) : DigitalBrain.Signal;
+    [Signal("friends.open")]
+    public sealed record FriendsOpen(string? Scope = null) : Signal;
 
-    [DigitalBrain.Signal("friends.publish")]
+    [Signal("friends.publish")]
     public sealed record FriendsPublish(
         string? Content = null,
         string Scope = "public",
         string? Id = null,
         string? Title = null,
         string? TemplateAppId = null,
-        string? EmbeddedAppIds = null) : DigitalBrain.Signal;
+        string? EmbeddedAppIds = null) : Signal;
 
-    [DigitalBrain.Signal("friends.update-bio")]
-    public sealed record FriendsUpdateBio(string Handle = "user", string Bio = "", string[]? PinnedApps = null, string DisplayName = "") : DigitalBrain.Signal;
+    [Signal("friends.update-bio")]
+    public sealed record FriendsUpdateBio(string Handle = "user", string Bio = "", string[]? PinnedApps = null, string DisplayName = "") : Signal;
 
-    [DigitalBrain.Signal("friends.add-friend")]
-    public sealed record FriendsAddFriend(string FriendBrainId = "ada", string Handle = "ada", string DisplayName = "Ada Lovelace", string Scope = "friends") : DigitalBrain.Signal;
+    [Signal("friends.add-friend")]
+    public sealed record FriendsAddFriend(string FriendBrainId = "ada", string Handle = "ada", string DisplayName = "Ada Lovelace", string Scope = "friends") : Signal;
 
-    [DigitalBrain.Signal("friends.remove-friend")]
-    public sealed record FriendsRemoveFriend(string FriendBrainId = "ada") : DigitalBrain.Signal;
+    [Signal("friends.remove-friend")]
+    public sealed record FriendsRemoveFriend(string FriendBrainId = "ada") : Signal;
 
-    [DigitalBrain.Signal("friends.fork_app")]
-    public sealed record FriendsForkApp(string PostId = "post-1") : DigitalBrain.Signal;
+    [Signal("friends.fork_app")]
+    public sealed record FriendsForkApp(string PostId = "post-1") : Signal;
 
-    [DigitalBrain.Signal("friends.fork-post")]
-    public sealed record FriendsForkPost(string PostId = "post-1", string? NewPostId = null, string? RemixTitle = null) : DigitalBrain.Signal;
+    [Signal("friends.fork-post")]
+    public sealed record FriendsForkPost(string PostId = "post-1", string? NewPostId = null, string? RemixTitle = null) : Signal;
 
-    [DigitalBrain.Signal("friends.filter-scope")]
-    public sealed record FriendsFilterScope(string Scope = "all") : DigitalBrain.Signal;
+    [Signal("friends.filter-scope")]
+    public sealed record FriendsFilterScope(string Scope = "all") : Signal;
 
     public sealed record FriendsAppState(
         string Handle,
@@ -56,11 +61,9 @@ namespace IntoChat.OS.Apps.Friends
         public FriendsAppState() : this("user", "User", "", [], [], [], "all", "Ready") { }
     }
 
-    [DigitalBrain.App("friends", Accent = "#FB7185", Category = "Social")]
-    public sealed class FriendsApp : DigitalBrain.App<FriendsAppState>
+    [Neuron("app.friends")]
+    public sealed class FriendsApp : Screen<FriendsAppState>
     {
-        public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(FriendsApp));
-
         public static AppBundle Bundle { get; } = new(
             "friends",
             "2.0.0",
@@ -88,154 +91,132 @@ namespace IntoChat.OS.Apps.Friends
             CompiledType = typeof(FriendsApp).AssemblyQualifiedName,
         };
 
-        [DigitalBrain.On]
+        [On]
         public async Task Open(FriendsOpen request)
         {
             ArgumentNullException.ThrowIfNull(request);
             var profile = await Get<IProfile>("profile").Read();
             var scope = string.IsNullOrWhiteSpace(request.Scope) ? State.SelectedScope : request.Scope.Trim().ToLowerInvariant();
-            ApplyProfile(profile, $"@{profile.Handle} · {(profile.Friends ?? []).Length} friends · {profile.Posts.Length} app-posts", scope);
+            await ApplyProfileAsync(profile, $"@{profile.Handle} · {(profile.Friends ?? []).Length} friends · {profile.Posts.Length} app-posts", scope);
         }
 
-        [DigitalBrain.On]
+        [On]
         public async Task Publish(FriendsPublish request)
         {
             ArgumentNullException.ThrowIfNull(request);
-            if (string.IsNullOrWhiteSpace(request.Content))
-            {
-                Set(State with { Status = "Post content cannot be empty." });
-                return;
-            }
-
-            var postId = string.IsNullOrWhiteSpace(request.Id) ? $"post-{State.Posts.Length + 1}" : request.Id.Trim();
+            var content = string.IsNullOrWhiteSpace(request.Content) ? "New App-Post" : request.Content.Trim();
             var scope = string.IsNullOrWhiteSpace(request.Scope) ? "public" : request.Scope.Trim().ToLowerInvariant();
-            var title = string.IsNullOrWhiteSpace(request.Title) ? request.Content.Trim() : request.Title.Trim();
-            var templateAppId = string.IsNullOrWhiteSpace(request.TemplateAppId) ? $"friends.post.{postId}" : request.TemplateAppId.Trim();
-            var embeddedApps = ParseEmbeddedApps(request.EmbeddedAppIds);
-            var (templateSource, unitFiles) = await TryReadUnitTemplateAsync(templateAppId);
+            var id = string.IsNullOrWhiteSpace(request.Id) ? $"post-{Guid.NewGuid():N}" : request.Id.Trim();
+            var templateAppId = string.IsNullOrWhiteSpace(request.TemplateAppId) ? $"post.app.{id}" : request.TemplateAppId.Trim().ToLowerInvariant();
+            var embedded = ParseEmbeddedApps(request.EmbeddedAppIds);
 
-            var post = new ProfilePostItem(
-                Id: postId,
-                Content: request.Content.Trim(),
+            var (unitSource, unitFiles) = await TryReadUnitTemplateAsync(templateAppId);
+
+            var profile = Get<IProfile>("profile");
+            var updated = await profile.PublishAppPost(new ProfilePostItem(
+                Id: id,
+                Content: content,
                 CreatedAt: DateTimeOffset.UtcNow,
                 Circle: scope,
-                Title: title,
+                Title: request.Title ?? "",
                 TemplateAppId: templateAppId,
-                TemplateSource: templateSource,
-                EmbeddedApps: embeddedApps,
+                TemplateSource: unitSource,
                 UnitFiles: unitFiles,
-                AuthorBrainId: BrainId);
+                EmbeddedApps: embedded));
 
-            var profile = await Get<IProfile>("profile").PublishAppPost(post);
-            ApplyProfile(profile, $"Published App-Post {postId} [{scope}] ({embeddedApps.Length} embedded app(s))");
+            await ApplyProfileAsync(updated, $"Published app-post {id} ({scope}) with {embedded.Length} embedded app(s).");
         }
 
-        [DigitalBrain.On]
+        [On]
         public async Task UpdateBio(FriendsUpdateBio request)
         {
             ArgumentNullException.ThrowIfNull(request);
-            var profile = await Get<IProfile>("profile").UpdateProfile(request.Handle, request.DisplayName, request.Bio, request.PinnedApps ?? State.PinnedApps);
-            ApplyProfile(profile, $"Updated profile @{profile.Handle}");
+            var handle = string.IsNullOrWhiteSpace(request.Handle) ? State.Handle : request.Handle.Trim();
+            var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? State.DisplayName : request.DisplayName.Trim();
+            var bio = request.Bio?.Trim() ?? string.Empty;
+            var pinned = request.PinnedApps ?? State.PinnedApps ?? [];
+
+            var profile = Get<IProfile>("profile");
+            var updated = await profile.UpdateProfile(handle, displayName, bio, pinned);
+            await ApplyProfileAsync(updated, $"Updated personal bio for @{handle}.");
         }
 
-        [DigitalBrain.On]
+        [On]
         public async Task AddFriend(FriendsAddFriend request)
         {
             ArgumentNullException.ThrowIfNull(request);
-            if (string.IsNullOrWhiteSpace(request.FriendBrainId))
-            {
-                Set(State with { Status = "Friend brain ID cannot be empty." });
-                return;
-            }
+            var brainId = string.IsNullOrWhiteSpace(request.FriendBrainId) ? "ada" : request.FriendBrainId.Trim();
+            var handle = string.IsNullOrWhiteSpace(request.Handle) ? brainId : request.Handle.Trim();
+            var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? handle : request.DisplayName.Trim();
+            var scope = string.IsNullOrWhiteSpace(request.Scope) ? "friends" : request.Scope.Trim().ToLowerInvariant();
 
-            var profile = await Get<IProfile>("profile").AddFriend(request.FriendBrainId, request.Handle, request.DisplayName, request.Scope);
-            ApplyProfile(profile, $"Added friend @{request.Handle.Trim().TrimStart('@')} ({request.FriendBrainId.Trim()})");
+            var profile = Get<IProfile>("profile");
+            var updated = await profile.AddFriend(brainId, handle, displayName, scope);
+            await ApplyProfileAsync(updated, $"Added friend @{handle} to direct network ({scope}).");
         }
 
-        [DigitalBrain.On]
+        [On]
         public async Task RemoveFriend(FriendsRemoveFriend request)
         {
             ArgumentNullException.ThrowIfNull(request);
-            if (string.IsNullOrWhiteSpace(request.FriendBrainId))
-            {
-                Set(State with { Status = "Friend brain ID cannot be empty." });
-                return;
-            }
+            var brainId = string.IsNullOrWhiteSpace(request.FriendBrainId) ? "ada" : request.FriendBrainId.Trim();
 
-            var profile = await Get<IProfile>("profile").RemoveFriend(request.FriendBrainId);
-            ApplyProfile(profile, $"Removed friend {request.FriendBrainId.Trim()}");
+            var profile = Get<IProfile>("profile");
+            var updated = await profile.RemoveFriend(brainId);
+            await ApplyProfileAsync(updated, $"Removed direct friend {brainId}.");
         }
 
-        [DigitalBrain.On]
-        public async Task ForkPost(FriendsForkPost request)
-        {
-            ArgumentNullException.ThrowIfNull(request);
-            var sourceId = string.IsNullOrWhiteSpace(request.PostId) ? "post-1" : request.PostId.Trim();
-            var newId = string.IsNullOrWhiteSpace(request.NewPostId) ? $"{sourceId}-fork-{State.Posts.Length + 1}" : request.NewPostId.Trim();
-
-            var profile = await Get<IProfile>("profile").ForkPost(sourceId, newId, request.RemixTitle);
-            var forkedPost = profile.Posts.FirstOrDefault(p => string.Equals(p.Id, newId, StringComparison.Ordinal));
-            if (forkedPost is { UnitFiles.Count: > 0 } && forkedPost.UnitFiles.Keys.Any(k => k.EndsWith(".cs", StringComparison.Ordinal)))
-            {
-                try
-                {
-                    await Get<ISynapseStudio>("ino/synapses").DeployFiles(forkedPost.TemplateAppId, forkedPost.UnitFiles, new Dictionary<string, string>(StringComparer.Ordinal));
-                }
-                catch (Exception error) when (error is not OperationCanceledException)
-                {
-                    Swallow(error, "Deploying the forked unit template is optional when the synapse studio is not active.");
-                }
-            }
-            ApplyProfile(profile, $"Forked App-Post {sourceId} -> {newId}");
-        }
-
-        [DigitalBrain.On]
+        [On]
         public async Task ForkApp(FriendsForkApp request)
         {
             ArgumentNullException.ThrowIfNull(request);
-            var post = State.Posts.FirstOrDefault(p => string.Equals(p.Id, request.PostId, StringComparison.Ordinal));
-            if (post is null || post.UnitFiles is null || post.UnitFiles.Count == 0)
+            var postId = string.IsNullOrWhiteSpace(request.PostId) ? "post-1" : request.PostId.Trim();
+            var profile = await Get<IProfile>("profile").Read();
+            var post = profile.Posts.FirstOrDefault(p => string.Equals(p.Id, postId, StringComparison.OrdinalIgnoreCase));
+            if (post is null)
             {
-                Set(State with { Status = $"Post {request.PostId} contains no installable unit files." });
+                await Show(State with { Status = $"Post {postId} not found to fork." });
+                return;
+            }
+
+            var alias = post.TemplateAppId;
+            var files = post.UnitFiles ?? ShippedUnits.Files(alias);
+            if (files.Count == 0)
+            {
+                await Show(State with { Status = $"Post {postId} has no unit files to install into Creator." });
                 return;
             }
 
             try
             {
-                await Get<ISynapseStudio>("ino/synapses").DeployFiles(post.TemplateAppId, post.UnitFiles, new Dictionary<string, string>(StringComparer.Ordinal));
-                IInstalls installs;
-                try
-                {
-                    installs = Get<IInstalls>("default");
-                }
-                catch (Exception error) when (error is not OperationCanceledException)
-                {
-                    Swallow(error, "Fallback to synapse.installs when default IInstalls is unavailable.");
-                    installs = Get<IInstalls>("synapse.installs");
-                }
-
-                var outcome = await installs.Install(new DigitalBrain.InstallRequest(post.TemplateAppId, new Dictionary<string, string>(StringComparer.Ordinal)), CancellationToken.None);
-                var status = outcome.Status switch
-                {
-                    DigitalBrain.InstallStatus.Pending => $"Staged {post.TemplateAppId} for installation ({outcome.Reason}). Awaiting your consent in Inbox.",
-                    DigitalBrain.InstallStatus.Installed or DigitalBrain.InstallStatus.Unchanged => $"Installed {post.TemplateAppId} successfully!",
-                    _ => $"Install ended with {outcome.Status}: {outcome.Reason}",
-                };
-                Set(State with { Status = status });
+                var studio = Get<ISynapseStudio>("ino/synapses");
+                await studio.DeployFiles(alias, files, new Dictionary<string, string>(StringComparer.Ordinal));
+                await Show(State with { Status = $"Forked app-post template {alias} into Creator; ready for consent." });
             }
-            catch (Exception error) when (error is not OperationCanceledException)
+            catch (Exception error)
             {
-                Swallow(error, "Installing a forked app requires the synapse studio and installs neurons.");
-                Set(State with { Status = $"Could not fork app {post.TemplateAppId}: {error.Message}" });
+                await Show(State with { Status = $"Could not fork app {alias}: {error.Message}" });
             }
         }
 
-        [DigitalBrain.On]
-        public void FilterScope(FriendsFilterScope request)
+        [On]
+        public async Task ForkPost(FriendsForkPost request)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            var postId = string.IsNullOrWhiteSpace(request.PostId) ? "post-1" : request.PostId.Trim();
+            var newId = string.IsNullOrWhiteSpace(request.NewPostId) ? $"post-fork-{Guid.NewGuid():N}" : request.NewPostId.Trim();
+
+            var profile = Get<IProfile>("profile");
+            var updated = await profile.ForkPost(postId, newId, request.RemixTitle);
+            await ApplyProfileAsync(updated, $"Forked and remixed app-post {postId} as {newId}.");
+        }
+
+        [On]
+        public Task FilterScope(FriendsFilterScope request)
         {
             ArgumentNullException.ThrowIfNull(request);
             var scope = string.IsNullOrWhiteSpace(request.Scope) ? "all" : request.Scope.Trim().ToLowerInvariant();
-            Set(State with { SelectedScope = scope, Status = $"Filtered feed: {scope}" });
+            return Show(State with { SelectedScope = scope, Status = $"Filtered feed to {scope} posts." });
         }
 
         private string BrainId => "local";
@@ -258,15 +239,15 @@ namespace IntoChat.OS.Apps.Friends
                 foreach (var (path, text) in await studio.Sidecars(alias)) { files[path] = text; }
                 return (string.Join("\n\n", csFiles.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => kv.Value)), files);
             }
-            catch (Exception error) when (error is not OperationCanceledException)
+            catch (Exception ex)
             {
-                Swallow(error, "Reading unit files from the synapse studio is optional when publishing a post.");
+                _ = ex;
                 return ("", null);
             }
         }
 
-        private void ApplyProfile(ProfileState profile, string status, string? selectedScope = null)
-            => Set(new FriendsAppState(
+        private Task ApplyProfileAsync(ProfileState profile, string status, string? selectedScope = null)
+            => Show(new FriendsAppState(
                 profile.Handle,
                 string.IsNullOrWhiteSpace(profile.DisplayName) ? profile.Handle : profile.DisplayName,
                 profile.Bio,
@@ -299,62 +280,50 @@ namespace IntoChat.OS.Apps.Friends
                 .ToArray();
         }
 
-        public View RenderSide()
-        {
-            var friends = State.Friends ?? [];
-            var posts = State.Posts ?? [];
-            var pinned = State.PinnedApps ?? [];
+        public new FriendsAppState State => base.State;
+        public View Render() => Render(State);
 
-            return new(
-                "Profile & Friends",
-                new Column(
-                [
-                    Ui.StatCard("friends-handle-stat", $"@{State.Handle}", $"{posts.Length}", "App-Posts", BadgeTone.Accent, "users"),
-                    new Divider("FEED SCOPES"),
-                    Ui.NavItem("scope-all", "All Posts", "sparkles", "filter-scope:all", selected: State.SelectedScope == "all", badge: $"{posts.Length}"),
-                    Ui.NavItem("scope-public", "Public Profile", "globe", "filter-scope:public", selected: State.SelectedScope == "public", badge: $"{posts.Count(p => p.Scope == "public")}"),
-                    Ui.NavItem("scope-friends", "Friends Only", "users", "filter-scope:friends", selected: State.SelectedScope == "friends", badge: $"{posts.Count(p => p.Scope == "friends")}"),
-                    new Divider($"DIRECT FRIENDS ({friends.Length})"),
-                    .. friends.Select(f => (Node)Ui.NavItem($"friend-{f.BrainId}", $"@{f.Handle} ({f.DisplayName})", "user", $"filter-scope:{f.Scope}", selected: false, badge: f.Scope)),
-                    new Divider("PINNED APPS"),
-                    .. pinned.Select(app => (Node)Ui.NavItem($"pin-{app}", app, $"app:{app}", "open", selected: false, badge: "Pinned")),
-                ]) { Gap = 6 });
+        private static new Emit Emits<TSignal>(TSignal signal) where TSignal : Signal
+        {
+            ArgumentNullException.ThrowIfNull(signal);
+            var alias = typeof(TSignal).GetCustomAttribute<SignalAttribute>(false)?.Alias ?? typeof(TSignal).Name;
+            return new Emit("app.friends", alias, JsonSerializer.SerializeToElement(signal));
         }
 
-        public View Render()
+        protected override View Render(FriendsAppState state)
         {
-            var friends = State.Friends ?? [];
-            var allPosts = State.Posts ?? [];
-            var visiblePosts = State.SelectedScope is "all" or ""
+            var friends = state.Friends ?? [];
+            var allPosts = state.Posts ?? [];
+            var visiblePosts = state.SelectedScope is "all" or ""
                 ? allPosts
-                : allPosts.Where(p => string.Equals(p.Scope, State.SelectedScope, StringComparison.OrdinalIgnoreCase)).ToArray();
+                : allPosts.Where(p => string.Equals(p.Scope, state.SelectedScope, StringComparison.OrdinalIgnoreCase)).ToArray();
 
             var items = new List<Node>
             {
                 new Grid(
                     3,
                     [
-                        Ui.StatCard("kpi-friends-posts", "App-Posts", $"{allPosts.Length}", $"@{State.Handle}", BadgeTone.Accent, "layout-grid"),
+                        Ui.StatCard("kpi-friends-posts", "App-Posts", $"{allPosts.Length}", $"@{state.Handle}", BadgeTone.Accent, "layout-grid"),
                         Ui.StatCard("kpi-friends-count", "Direct Friends", $"{friends.Length}", "Personal Graph", BadgeTone.Done, "users"),
-                        Ui.StatCard("kpi-friends-embedded", "Embedded Apps", $"{allPosts.Sum(p => (p.EmbeddedApps ?? []).Length)}", $"{State.PinnedApps.Length} Pinned", BadgeTone.Accent, "cpu"),
+                        Ui.StatCard("kpi-friends-embedded", "Embedded Apps", $"{allPosts.Sum(p => (p.EmbeddedApps ?? []).Length)}", $"{state.PinnedApps.Length} Pinned", BadgeTone.Accent, "cpu"),
                     ],
                     Gap: 10),
                 new Surface(
                     [
-                        new Heading($"{State.DisplayName} (@{State.Handle})", Level: 2, Subtitle: State.Bio),
+                        new Heading($"{state.DisplayName} (@{state.Handle})", Level: 2, Subtitle: state.Bio),
                         new Row(
                         [
-                            new TagPill($"@{State.Handle}", "accent", "user"),
+                            new TagPill($"@{state.Handle}", "accent", "user"),
                             new TagPill($"{friends.Length} friend(s)", "ok", "users"),
                             new TagPill($"{allPosts.Length} app-post(s)", "neutral", "layout-grid"),
-                            .. State.PinnedApps.Select(app => (Node)new TagPill(app, "ok", "pin")),
+                            .. state.PinnedApps.Select(app => (Node)new TagPill(app, "ok", "pin")),
                         ]) { Gap = 6 },
-                        new Text($"@{State.Handle} — {State.Bio}"),
-                        new Text(State.Status) { Tone = "muted" },
+                        new Text($"@{state.Handle} — {state.Bio}"),
+                        new Text(state.Status) { Tone = "muted" },
                         new Row(
                         [
-                            new Button("publish-app-post", "Publish App-Post", Emit: AppSignals.Emit("friends", "publish", "Interactive revenue & sketch board", "friends"), Tone: ButtonTone.Accent) { Icon = "plus", Small = true },
-                            new Button("add-friend", "Add Friend", Emit: AppSignals.Emit("friends", "add-friend", "ada", "ada", "Ada Lovelace", "friends")) { Icon = "user-plus", Small = true },
+                            new Button("publish-app-post", "Publish App-Post", Emit: Emits(new FriendsPublish("Interactive revenue & sketch board", "friends")), Tone: ButtonTone.Accent) { Icon = "plus", Small = true },
+                            new Button("add-friend", "Add Friend", Emit: Emits(new FriendsAddFriend("ada", "ada", "Ada Lovelace", "friends")), Tone: ButtonTone.Neutral) { Icon = "user-plus", Small = true },
                         ]) { Gap = 8 },
                     ],
                     Kind: SurfaceKind.Acrylic,
@@ -374,18 +343,18 @@ namespace IntoChat.OS.Apps.Friends
 
             foreach (var post in visiblePosts)
             {
-                items.Add(RenderPostSurface(post));
+                items.Add(RenderPostSurface(state, post));
             }
 
             return new View("Friends", new Column([.. items]) { Gap = 12 });
         }
 
-        private Node RenderPostSurface(ProfilePostItem post)
+        private Node RenderPostSurface(FriendsAppState state, ProfilePostItem post)
         {
             var embedded = post.EmbeddedApps ?? [];
             RecordFieldNode[] fields =
             [
-                new("Author", $"@{State.Handle}"),
+                new("Author", $"@{state.Handle}"),
                 new("Scope", post.Scope),
                 new("App Template", post.TemplateAppId),
                 new("Summary", post.Content),
@@ -398,7 +367,7 @@ namespace IntoChat.OS.Apps.Friends
                 new Heading(string.IsNullOrWhiteSpace(post.Title) ? post.Id : post.Title, Level: 3, Subtitle: $"App Template `{post.TemplateAppId}` · [{post.Scope}]"),
                 new Row(
                 [
-                    new TagPill($"@{State.Handle}", "accent", "user"),
+                    new TagPill($"@{state.Handle}", "accent", "user"),
                     new TagPill(post.Scope, "neutral", "users"),
                     new TagPill(post.TemplateAppId, "ok", "cpu"),
                     .. !string.IsNullOrWhiteSpace(post.ForkedFrom) ? new Node[] { new TagPill($"Forked from {post.ForkedFrom}", "accent", "git-branch") } : [],
@@ -410,54 +379,29 @@ namespace IntoChat.OS.Apps.Friends
                     fields,
                     Subtitle: post.Content,
                     LinkLabel: "Fork App-Post",
-                    Open: new Button($"fork-{post.Id}", "Fork App-Post", Emit: AppSignals.Emit("friends", "fork-post", post.Id))),
+                    Open: new Button($"fork-{post.Id}", "Fork App-Post", Emit: Emits(new FriendsForkPost(post.Id)))),
                 .. embedded.Select(child => (Node)new NeuronRef("viewport", child.TargetNeuronUri)),
                 new Row(
                 [
-                    new Button($"fork-and-install:{post.Id}", "Fork & Install", Emit: AppSignals.Emit("friends", "fork_app", post.Id), Tone: ButtonTone.Accent) { Icon = "download", Small = true },
-                    new Button($"fork-app-template:{post.Id}", "Fork App Template", Emit: AppSignals.Emit("friends", "fork-post", post.Id), Tone: ButtonTone.Neutral) { Icon = "git-branch", Small = true },
+                    new Button($"fork-and-install:{post.Id}", "Fork & Install", Emit: Emits(new FriendsForkApp(post.Id)), Tone: ButtonTone.Accent) { Icon = "download", Small = true },
+                    new Button($"fork-app-template:{post.Id}", "Fork App Template", Emit: Emits(new FriendsForkPost(post.Id)), Tone: ButtonTone.Neutral) { Icon = "git-branch", Small = true },
                     new Button($"open-in-creator:{post.Id}", "Open in Creator", Intent: AppSignals.OpenApp("creator")) { Icon = "wand-sparkles", Small = true },
                 ]) { Gap = 8 },
             ];
 
             return new Surface(postChildren, Kind: SurfaceKind.Elevated, Title: $"App-Post · {post.Id}", Subtitle: post.TemplateAppId);
         }
-
-        [DigitalBrain.Scenario("Personal profile connects friends, publishes an App-Post with embedded apps, and forks the template")]
-        public async Task VerifyFriendsProfileAndAppPostsScenario()
-        {
-            await UpdateBio(new FriendsUpdateBio("vlad", "Building AI-native DigitalBrain social apps", ["creator", "friends"], "Vlad Horb"));
-            await AddFriend(new FriendsAddFriend("ada-brain", "ada", "Ada Lovelace", "friends"));
-            await Publish(new FriendsPublish(
-                Content: "Live Q4 revenue canvas with embedded Markdraw & Data Studio apps!",
-                Scope: "friends",
-                Id: "post-1",
-                Title: "Q4 Revenue & Architecture Board",
-                TemplateAppId: "friends.post.q4-board",
-                EmbeddedAppIds: "markdraw,data"));
-            await ForkPost(new FriendsForkPost("post-1", "post-2", "Remix · Q4 Revenue & Architecture Board"));
-
-            if (State.Handle != "vlad"
-                || State.Friends.Length != 1
-                || State.Friends[0].Handle != "ada"
-                || State.Posts.Length != 2
-                || State.Posts[0].ForkedFrom != "@vlad/post-1"
-                || (State.Posts[1].EmbeddedApps ?? []).Length != 2)
-            {
-                throw new InvalidOperationException("Expected FriendsApp to persist personal profile, direct friend, embedded-app post template, and forked post in ProfileNeuron.");
-            }
-        }
     }
 }
 
 namespace IntoChat.OS.Apps.Post
 {
-    [DigitalBrain.Signal("post.open")]
-    public sealed record PostOpen : DigitalBrain.Signal;
+    [Signal("post.open")]
+    public sealed record PostOpen : Signal;
 
-    [DigitalBrain.Signal("post.publish")]
-    public sealed record PostPublish(string? Content = null, string Circle = "public", string? Id = null) : DigitalBrain.Signal;
+    [Signal("post.publish")]
+    public sealed record PostPublish(string? Content = null, string Circle = "public", string? Id = null) : Signal;
 
-    [DigitalBrain.Signal("post.update-bio")]
-    public sealed record PostUpdateBio(string Handle = "user", string Bio = "", string[]? PinnedApps = null) : DigitalBrain.Signal;
+    [Signal("post.update-bio")]
+    public sealed record PostUpdateBio(string Handle = "user", string Bio = "", string[]? PinnedApps = null) : Signal;
 }

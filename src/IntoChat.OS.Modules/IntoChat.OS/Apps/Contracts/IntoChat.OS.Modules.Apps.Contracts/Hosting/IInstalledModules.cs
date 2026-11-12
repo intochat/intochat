@@ -3,7 +3,7 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Contracts.NeuronAlias("apps.installed-modules"), DigitalBrain.Contracts.DefaultNeuronType("apps.installed-modules")]
 public interface IInstalledModules
 {
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<InstalledModule[]> List();
 }
 

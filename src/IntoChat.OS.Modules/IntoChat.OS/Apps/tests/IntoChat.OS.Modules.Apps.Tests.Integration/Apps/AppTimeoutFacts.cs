@@ -15,7 +15,7 @@ public sealed class AppTimeoutFacts
     public void EveryOperationThatDeploysBehaviorsOutlastsTheDefaultCallTimeout(string operation)
     {
         // 06-08: the app is a plain neuron; its call timeout is DigitalBrain's [CallTimeout].
-        var timeout = typeof(IApp).GetMethod(operation)!.GetCustomAttribute<DigitalBrain.CallTimeoutAttribute>();
+        var timeout = typeof(IApp).GetMethod(operation)!.GetCustomAttribute<DigitalBrain.Contracts.CallTimeoutAttribute>();
         Assert.NotNull(timeout);
         Assert.True(timeout.Timeout >= TimeSpan.FromMinutes(10), $"{operation} allows only {timeout.Timeout}.");
     }

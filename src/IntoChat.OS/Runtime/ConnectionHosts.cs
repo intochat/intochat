@@ -37,6 +37,6 @@ public interface IHttpConnection
 {
     const string TypeName = "http";
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<string[]> AllowedHosts();
 }

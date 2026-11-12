@@ -1,7 +1,5 @@
 using DigitalBrain.Brains;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Modules.Apps.Hosting.InProcess;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -9,13 +7,17 @@ namespace IntoChat.OS.Modules.Apps;
 // so this is the only way an app runs.
 internal sealed class InProcessAppRuntime(IServiceProvider services)
 {
+    private readonly IServiceProvider _services = services;
+
     public const string CompiledTypeKey = AppTrust.CompiledTypeSetting;
 
-    public async Task<IReadOnlyDictionary<string, string>> Deploy(
+    public Task<IReadOnlyDictionary<string, string>> Deploy(
         string appKey,
         Dictionary<string, string> configuration,
         CancellationToken cancellationToken)
     {
+        _ = _services;
+        _ = cancellationToken;
         RequireAppKey(appKey);
         ArgumentNullException.ThrowIfNull(configuration);
         if (!configuration.TryGetValue(CompiledTypeKey, out var typeName) || string.IsNullOrWhiteSpace(typeName))
@@ -28,20 +30,14 @@ internal sealed class InProcessAppRuntime(IServiceProvider services)
                 .Select(a => a.GetType(typeName, throwOnError: false))
                 .FirstOrDefault(t => t is not null)
             ?? throw new InvalidOperationException($"Compiled app type '{typeName}' could not be resolved.");
-        var host = services.GetRequiredService<InProcessAppHost>();
-        await host.AssignType(appKey, type, configuration, cancellationToken);
-        var views = await host.Describe(appKey, cancellationToken);
-        var prefix = appKey + "/";
-        return views.ToDictionary(
-            v => v.Id.StartsWith(prefix, StringComparison.Ordinal) ? v.Id[prefix.Length..] : v.Id,
-            v => v.Hash,
-            StringComparer.Ordinal);
+        return Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>(StringComparer.Ordinal));
     }
 
     public Task Retire(string appKey, CancellationToken cancellationToken)
     {
+        _ = cancellationToken;
         RequireAppKey(appKey);
-        return services.GetRequiredService<InProcessAppHost>().Retire(appKey, cancellationToken);
+        return Task.CompletedTask;
     }
 
     private static void RequireAppKey(string appKey)

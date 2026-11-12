@@ -1,17 +1,17 @@
+using System.Collections.Concurrent;
 using DigitalBrain.Brains;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Runtime.Orleans.Signalling;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Circles;
 using IntoChat.OS.Modules.Circles.Signals;
 using IntoChat.OS.Modules.Flutter.Workspace.Signals;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using System.Collections.Concurrent;
-using DigitalBrain.Runtime.Orleans.Signalling;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using DigitalBrain.Runtime.Orleans.Hosting;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 
 namespace IntoChat.OS.Modules.Flutter.Space;
 
@@ -20,7 +20,7 @@ namespace IntoChat.OS.Modules.Flutter.Space;
 // shows. Workspaces, apps, profiles and circles (06-08) are heard on IClusterListeners for every brain this silo hosts; the local hub is
 // gone (SpaceWatcherLegacyHubSignals.json is empty).
 internal sealed class SpaceWatcher(ILogger<SpaceWatcher> logger, CircleMembers friends,
-    IBrainListeners listeners, DigitalBrain.Spi.IClusterListeners cluster, IServiceProvider plain) : BackgroundService
+    IBrainListeners listeners, DigitalBrain.Kernel.IClusterListeners cluster, IServiceProvider plain) : BackgroundService
 {
     private readonly ConcurrentDictionary<string, Task> _followed = new(StringComparer.Ordinal);
 

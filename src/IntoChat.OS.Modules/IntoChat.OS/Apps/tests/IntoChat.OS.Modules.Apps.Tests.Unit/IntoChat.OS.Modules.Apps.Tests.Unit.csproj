@@ -10,6 +10,9 @@
     <ProjectReference Include="../../../../LocalDisk/src/IntoChat.OS.Modules.LocalDisk/IntoChat.OS.Modules.LocalDisk.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\..\..\..\..\..\src\IntoChat.OS.Apps.Tests.Unit\TestAppExtensions.cs" Link="TestAppExtensions.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <Content Include="../../../../../Assets/wire/*.json" Link="wire/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

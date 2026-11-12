@@ -1,16 +1,16 @@
+using System.Security.Cryptography;
+using System.Text.Json;
 using DigitalBrain.Brains;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Capabilities;
 using IntoChat.OS.Modules.Google.Gmail;
-using System.Security.Cryptography;
-using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Google.Gmail;
 
-[DigitalBrain.Neuron("gmail", State = "gmail")]
+[DigitalBrain.Neurons.Neuron("gmail", State = "gmail")]
 internal sealed partial class GmailNeuron()
     : ConnectionNeuron<GmailState>, IGmail, IGmailInbound
 {
@@ -22,7 +22,7 @@ internal sealed partial class GmailNeuron()
     private bool _recoveredDrafts;
 
     private IGmailApi Api => ServiceProvider.GetRequiredService<IGmailApi>();
-    private DigitalBrain.IPolicies Policies => Context.Get<DigitalBrain.IPolicies>(DigitalBrain.NeuronId.Parse(DigitalBrain.IPolicies.Key(Id.Brain.Value)));
+    private DigitalBrain.Limits.IPolicies Policies => Context.Get<DigitalBrain.Limits.IPolicies>(DigitalBrain.NeuronId.Parse(DigitalBrain.Limits.IPolicies.Key(Id.Brain.Value)));
     private TimeProvider GmailClock => ServiceProvider.GetKeyedService<TimeProvider>(GmailModule.ClockKey)
         ?? ServiceProvider.GetRequiredService<TimeProvider>();
     private bool HasAcceptedMailbox => _toolAvailability.AcceptedMailbox;
@@ -44,6 +44,12 @@ internal sealed partial class GmailNeuron()
         return SaveQuietly(next);
     }
 
+    internal Task SaveGmailStateAsync(Func<GmailState, GmailState> change)
+    {
+        var next = change(Snapshot);
+        return SaveQuietly(next);
+    }
+
     public override async Task<ConnectionView> AcceptGrant(OAuthGrant grant)
     {
         var before = Snapshot.Copy();
@@ -54,7 +60,7 @@ internal sealed partial class GmailNeuron()
         {
             if (!_grantWriteCommitted)
             {
-                Restore(before);
+                await SaveQuietly(before);
                 // A failed acknowledgement may hide a successful write: the grant stays pending until a save commits.
                 _grantAcceptancePending = true;
                 PublishToolAvailability();
@@ -75,18 +81,25 @@ internal sealed partial class GmailNeuron()
     }
     private void PublishToolAvailability() => _toolAvailability = new(IsGrantReady, Snapshot.DraftOperations.Length > 0);
 
-    private void PrepareGrantBinding(string mailbox, string authMethodId)
+    internal async Task PrepareGrantBindingAsync(string mailbox, string authMethodId, string? historyId = null)
     {
         if (authMethodId == "google-oauth-compose" && Snapshot.BoundMailbox is { } previous
             && !string.Equals(previous, mailbox, StringComparison.OrdinalIgnoreCase))
         { throw new GmailUnavailableException("Compose consent must use the mailbox already selected by this connection."); }
         // Base AcceptGrant persists these fields together with the sealed grant. Until it completes, fail closed.
         _grantAcceptancePending = true;
-        Snapshot.GrantGeneration = checked(Snapshot.GrantGeneration + 1);
-        Snapshot.BoundMailbox = mailbox;
-        Snapshot.Account = mailbox;
-        Snapshot.PageTokenKey = RandomNumberGenerator.GetBytes(32);
-        Snapshot.DraftPreviews = [];
+        var nextGen = checked(Snapshot.GrantGeneration + 1);
+        var next = Snapshot with
+        {
+            GrantGeneration = nextGen,
+            BoundMailbox = mailbox,
+            Account = mailbox,
+            PageTokenKey = RandomNumberGenerator.GetBytes(32),
+            DraftPreviews = [],
+            History = historyId is not null ? new(mailbox, nextGen, historyId, null, null, false, null) : Snapshot.History,
+            Watch = null,
+        };
+        await SaveQuietly(next);
         PublishToolAvailability();
     }
 

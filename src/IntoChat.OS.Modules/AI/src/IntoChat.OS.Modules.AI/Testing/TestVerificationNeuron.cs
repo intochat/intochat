@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DigitalBrain;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.AI.Testing.Signals;
 
 namespace IntoChat.OS.Modules.AI.Testing;

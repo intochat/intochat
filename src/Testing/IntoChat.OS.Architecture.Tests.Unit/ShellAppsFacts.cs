@@ -21,7 +21,7 @@ public sealed class ShellAppsFacts
     {
         var assembly = typeof(SettingsApp).Assembly;
         var appTypes = assembly.GetTypes()
-            .Where(t => t is { IsClass: true, IsAbstract: false } && t.GetCustomAttribute<AppAttribute>(inherit: false) is not null)
+            .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(IScreen).IsAssignableFrom(t))
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToArray();
 

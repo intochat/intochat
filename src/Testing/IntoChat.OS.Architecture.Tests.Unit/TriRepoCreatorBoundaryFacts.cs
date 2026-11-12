@@ -1,6 +1,6 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps;
@@ -13,7 +13,7 @@ public sealed class TriRepoCreatorBoundaryFacts
     [Fact]
     public void CapabilityCallerPrimitivesResideExclusivelyInDigitalBrain()
     {
-        var digitalBrain = typeof(DigitalBrain.Neuron<>).Assembly;
+        var digitalBrain = typeof(DigitalBrain.Neurons.Neuron<>).Assembly;
         Assert.Equal(digitalBrain, typeof(CapabilityCaller).Assembly);
         Assert.Equal(digitalBrain, typeof(CallerKind).Assembly);
         Assert.Equal(digitalBrain, typeof(TrustedEdge).Assembly);

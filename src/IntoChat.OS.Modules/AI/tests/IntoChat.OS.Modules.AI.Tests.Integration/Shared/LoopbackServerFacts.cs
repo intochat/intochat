@@ -1,5 +1,5 @@
-using System.Net;
 using System.Collections.Concurrent;
+using System.Net;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
 

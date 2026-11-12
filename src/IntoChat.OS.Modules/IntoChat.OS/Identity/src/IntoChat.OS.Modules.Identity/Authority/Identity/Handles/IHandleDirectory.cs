@@ -13,7 +13,7 @@ public interface IHandleDirectory
     static bool IsValid(string handle) => Regex.IsMatch(handle, "^[a-z0-9][a-z0-9-]{2,31}$");
     Task<bool> Claim(string brainId);            // false if already claimed by another brain
     Task Release(string brainId);                // no-op unless owner matches
-    [DigitalBrain.ReadOnlyCall] Task<string?> Resolve();      // brain id or null
+    [ReadOnlyCall] Task<string?> Resolve();      // brain id or null
 }
 
 [GenerateSerializer, Alias("identity.handle-state")]

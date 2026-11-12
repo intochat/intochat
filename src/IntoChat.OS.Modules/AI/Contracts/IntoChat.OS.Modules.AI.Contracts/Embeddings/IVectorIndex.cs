@@ -1,6 +1,6 @@
-using DigitalBrain.Contracts;
-using DigitalBrain;
 using System.ComponentModel;
+using DigitalBrain;
+using DigitalBrain.Contracts;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.AI.Embeddings;
@@ -21,11 +21,11 @@ public interface IVectorIndex
     Task<VectorIndexSnapshot> Remove(string[] ids);
 
     [Description("The take entries nearest the query by cosine similarity, best first, among those whose payload holds every mustMatch pair.")]
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<VectorMatch[]> Nearest(float[] query, int take, Dictionary<string, string>? mustMatch = null);
 
     [Description("How many entries the index holds, their dimensions and its revision.")]
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<VectorIndexSnapshot> Read();
 
     static string Key(string brainId, string name) => $"{brainId}/memory/{name}";

@@ -1,6 +1,6 @@
+using System.Runtime.CompilerServices;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Log;
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 

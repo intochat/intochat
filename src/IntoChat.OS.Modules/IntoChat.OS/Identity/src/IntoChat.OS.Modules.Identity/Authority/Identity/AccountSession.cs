@@ -1,8 +1,8 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;

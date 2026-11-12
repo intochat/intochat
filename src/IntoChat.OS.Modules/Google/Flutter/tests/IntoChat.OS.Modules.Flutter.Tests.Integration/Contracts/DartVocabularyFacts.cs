@@ -1,6 +1,6 @@
-using DigitalBrain.Contracts;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using DigitalBrain.Contracts;
 using IntoChat.OS.Modules.Flame.Scene;
 
 namespace IntoChat.OS.Modules.Flutter.Tests.Integration.Contracts;

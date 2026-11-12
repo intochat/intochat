@@ -1,10 +1,11 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
+using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Signalling;
-using DigitalBrain.Spi;
+using DigitalBrain.Signals.Watch;
 using Google.Protobuf;
 using Grpc.Core;
 using IntoChat.OS.Authority.Neurons.Proto;
@@ -14,7 +15,6 @@ using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using CallRequest = IntoChat.OS.Authority.Neurons.Proto.CallRequest;
-using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Authority.Neurons;
 

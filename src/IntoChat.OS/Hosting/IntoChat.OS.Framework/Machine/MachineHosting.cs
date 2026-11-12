@@ -1,5 +1,5 @@
-using DigitalBrain.Identity.Local.Custody;
 using System.Runtime.Versioning;
+using DigitalBrain.Identity.Local.Custody;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

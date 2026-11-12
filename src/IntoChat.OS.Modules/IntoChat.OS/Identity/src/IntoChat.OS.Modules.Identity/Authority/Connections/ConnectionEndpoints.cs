@@ -25,7 +25,8 @@ internal static class ConnectionEndpoints
         {
             var scope = BrainScope.CurrentId();
             var rows = new List<ConnectionView>();
-            foreach (var key in await neurons.Connections(scope).List())
+            var catalog = await neurons.Connections(scope).Read();
+            foreach (var key in catalog.Rows.Select(r => r.Key))
             {
                 // A connector no longer composed has no neuron to read; its key is skipped, not fatal.
                 if (!connectors.Any(connector => connector.Id == ConnectionKeys.Parse(key).ConnectorId)) { continue; }
@@ -117,7 +118,8 @@ internal static class ConnectionEndpoints
     internal static async Task<string[]> Tracked(AuthorityNeurons neurons, string connectionId, string? connectorId = null, string? connectionKey = null, string? scopeOverride = null)
     {
         var scope = scopeOverride ?? BrainScope.CurrentId();
-        var all = await neurons.Connections(scope).List();
+        var catalog = await neurons.Connections(scope).Read();
+        var all = catalog.Rows.Select(r => r.Key);
         return FilterTrackedKeys(all, scope, connectionId, connectorId, connectionKey);
     }
 

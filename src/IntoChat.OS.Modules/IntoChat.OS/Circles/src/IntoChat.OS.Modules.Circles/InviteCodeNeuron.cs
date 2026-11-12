@@ -30,27 +30,24 @@ internal sealed class InviteCodeRecord
     public DateTimeOffset ExpiresAt { get; set; }
 }
 
-[DigitalBrain.Neuron(IInviteCode.Type)]
-internal sealed class InviteCodeNeuron : DigitalBrain.Neuron, IInviteCode
+[DigitalBrain.Neurons.Neuron(IInviteCode.Type)]
+internal sealed class InviteCodeNeuron(IServiceProvider services) : DigitalBrain.Neurons.Neuron<InviteCodeRecord>, IInviteCode
 {
-    private InviteCodeRecord? record;
-
-    protected override async Task OnActivate(CancellationToken cancellationToken) => record = await Context.State.Load<InviteCodeRecord>();
+    private InviteCodeRecord? Record => State.ExpiresAt == default ? null : State;
 
     public async Task Bind(string circleBrainId, string inviteId, DateTimeOffset expiresAt)
     {
         // 60 random bits: a collision is refused rather than overwritten.
-        await Check("Bind", new InviteCodeIsAvailable(record is null));
+        await Check("Bind", new InviteCodeIsAvailable(Record is null));
         var next = new InviteCodeRecord { CircleBrainId = circleBrainId, InviteId = inviteId, ExpiresAt = expiresAt };
-        await Context.State.Save(next, []);
-        record = next;
+        await Store(next);
     }
 
     public Task<RedeemOutcome> Redeem(RedeemInvite request)
     {
-        return record is null ? Task.FromResult(RedeemOutcome.Rejected)
+        return Record is null ? Task.FromResult(RedeemOutcome.Rejected)
             // The circle brain's invites, reached through the host seam (a neuron's own Get stays in its brain).
-            : SiloNeurons.Get<ICircleInvites>(Context.Services, ICircleInvites.Key(record.CircleBrainId)).Redeem(record.InviteId, request);
+            : SiloNeurons.Get<ICircleInvites>(services, ICircleInvites.Key(Record.CircleBrainId)).Redeem(Record.InviteId, request);
     }
 }
 
@@ -74,28 +71,26 @@ internal sealed class InviteKeyRecord
     public byte[] Key { get; set; } = [];
 }
 
-[DigitalBrain.Neuron(IInviteKey.Type)]
-internal sealed class InviteKeyNeuron : DigitalBrain.Neuron, IInviteKey
+[DigitalBrain.Neurons.Neuron(IInviteKey.Type)]
+internal sealed class InviteKeyNeuron(IConfiguration? configuration = null) : DigitalBrain.Neurons.Neuron<InviteKeyRecord>, IInviteKey
 {
-    private InviteKeyRecord record = new();
-
-    protected override async Task OnActivate(CancellationToken cancellationToken) => record = await Context.State.Load<InviteKeyRecord>() ?? new();
+    private InviteKeyRecord Record => State;
 
     public async Task<byte[]> Get()
     {
-        if (Context.Services.GetService<IConfiguration>()?[IInviteKey.Configuration] is { Length: > 0 } configured)
+        if (configuration?[IInviteKey.Configuration] is { Length: > 0 } configured)
         {
             var key = Convert.FromBase64String(configured);
             await Check("Get", new InviteHmacKeyIsLongEnough(key.Length));
             return key;
         }
-        if (record.Key.Length == 0)
+        if (Record.Key.Length == 0)
         {
             var next = new InviteKeyRecord { Key = RandomNumberGenerator.GetBytes(32) };
-            await Context.State.Save(next, []);
-            record = next;
+            await Store(next);
+            return next.Key;
         }
-        return record.Key;
+        return Record.Key;
     }
 }
 

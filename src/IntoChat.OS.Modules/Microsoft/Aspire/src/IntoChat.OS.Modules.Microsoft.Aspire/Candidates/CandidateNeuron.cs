@@ -9,12 +9,11 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
 // A plain neuron since 06-06d. The index, the live cluster (still a grain) and the candidates are reached through the brain's
 // in-process client, as before.
-[DigitalBrain.Neuron("aspire.candidate")]
+[DigitalBrain.Neurons.Neuron("aspire.candidate")]
 internal sealed class CandidateNeuron(ICandidateHost host, ICandidateVerifier verifier, ILogger<CandidateNeuron> log)
-    : DigitalBrain.Neuron<CandidateState>, ICandidate
+    : DigitalBrain.Neurons.Neuron<CandidateState>, ICandidate
 {
     private CandidateState Snapshot => State;
-    private IServiceProvider ServiceProvider => Context.Services;
     private string Key => $"{Id.Brain.Value}/{Id.Key}";
     private string Sha => Key[(Key.LastIndexOf('/') + 1)..];
     private string BrainId => BrainKey.BrainOf(Key);

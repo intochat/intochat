@@ -39,7 +39,7 @@ public sealed class VerifyFlowFacts
         Assert.Contains("the unit broke", view.Detail, StringComparison.Ordinal);
         Assert.Contains("neuron_call, flows_list", ScriptedAgent.Prompts[id], StringComparison.Ordinal);
         Assert.Contains(await runtime.Signals<FlowStep>(Id(id), Ct), step => step is { Step: "telemetry", Outcome: StepOutcome.Failed });
-    
+
     }
 
     [Fact]

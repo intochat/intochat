@@ -1,6 +1,7 @@
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
-using DigitalBrain.Spi;
+using DigitalBrain.Neurons;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.Cloud.Organisations;

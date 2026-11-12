@@ -1,8 +1,8 @@
 using DigitalBrain.Contracts;
+using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Contracts;
 
 namespace IntoChat.OS.Modules.Flutter.WebBrowser;
 

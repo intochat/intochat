@@ -3,8 +3,8 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Broker;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Spi;
 using DigitalBrain.Testing;
+using DigitalBrain.Units;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Flutter;
 using Microsoft.Extensions.Configuration;
@@ -70,11 +70,11 @@ public sealed class SynapseStudioFacts
         public Task<DeployOutcome> Deploy(BrainId brain, SynapseSource source, IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> bindingsPerAlias, CancellationToken ct)
         {
             Deploys++;
-            return Task.FromResult(new DeployOutcome(DeployStatus.Deployed, "h" + Deploys, [], new Dictionary<string, DigitalBrain.InstallOutcome>(), null));
+            return Task.FromResult(new DeployOutcome(DeployStatus.Deployed, "h" + Deploys, [], new Dictionary<string, DigitalBrain.Units.InstallOutcome>(), null));
         }
 
         public Task<DeployOutcome> Retire(BrainId brain, string sourceKey, CancellationToken ct)
-            => Task.FromResult(new DeployOutcome(DeployStatus.Retired, null, [], new Dictionary<string, DigitalBrain.InstallOutcome>(), null));
+            => Task.FromResult(new DeployOutcome(DeployStatus.Retired, null, [], new Dictionary<string, DigitalBrain.Units.InstallOutcome>(), null));
 
         public Task<IReadOnlyList<DeployedSource>> List(BrainId brain, CancellationToken ct) => Task.FromResult<IReadOnlyList<DeployedSource>>([]);
     }
@@ -306,7 +306,7 @@ public sealed class SynapseStudioFacts
         Assert.Null(failure);
 
         IReadOnlyList<IntoChat.OS.Modules.Apps.Approvals.Approval> approvalsBefore;
-        using (HostCaller.AsPlatform(runtime.Brain.Value))
+        using (RuntimeCallerContext.StampScope(CapabilityCallers.Platform(runtime.Brain.Value, runtime.Brain.Value, runtime.Brain.Value)))
         {
             approvalsBefore = await runtime.Get<IntoChat.OS.Modules.Apps.Approvals.IApprovals>(runtime.Id("approvals", "approvals/index")).Pending(Ct);
         }
@@ -315,7 +315,7 @@ public sealed class SynapseStudioFacts
         await runtime.Restart(Ct);
 
         IReadOnlyList<IntoChat.OS.Modules.Apps.Approvals.Approval> approvalsAfter;
-        using (HostCaller.AsPlatform(runtime.Brain.Value))
+        using (RuntimeCallerContext.StampScope(CapabilityCallers.Platform(runtime.Brain.Value, runtime.Brain.Value, runtime.Brain.Value)))
         {
             approvalsAfter = await runtime.Get<IntoChat.OS.Modules.Apps.Approvals.IApprovals>(runtime.Id("approvals", "approvals/index")).Pending(Ct);
         }

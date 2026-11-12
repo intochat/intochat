@@ -1,13 +1,15 @@
 using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
+using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
-using IntoChat.OS.Modules.Flutter.Fields;
+using DigitalBrain.Units;
 using IntoChat.OS.Apps.Tasks;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Flutter.Fields;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Tasks;
 
@@ -200,8 +202,13 @@ public sealed class TasksAppFacts
     private static FlowView Unit(FlowStatus status, string? current, string[] done, WaitReason? waiting = null, string? waitingStep = null, string? plan = null, string? detail = null)
         => Flow("u", status, type: "flow.build") with
         {
-            Steps = ["author", "draft", "verify", "deploy", "install"], Done = done, Current = current,
-            WaitingFor = waiting, WaitingStep = waitingStep, ConfirmationPlanId = plan, Detail = detail,
+            Steps = ["author", "draft", "verify", "deploy", "install"],
+            Done = done,
+            Current = current,
+            WaitingFor = waiting,
+            WaitingStep = waitingStep,
+            ConfirmationPlanId = plan,
+            Detail = detail,
         };
 
     [Fact]
@@ -300,17 +307,15 @@ public sealed class TasksAppFacts
         await tasks.Request("open", new TasksOpen());
         FakeFlows.Views = [Flow("late", FlowStatus.Running)];
 
-        await Assert.Single(tasks.App.DeclaredWatches(), w => w.SignalType == typeof(FlowsChanged)).Handle(new FlowsChanged(FakeFlows.Views[0].FlowId));
+        await tasks.App.OnFlowsChanged(new FlowsChanged(FakeFlows.Views[0].FlowId));
 
         Assert.Contains("Task late", Strings(tasks.App.Render()));
     }
 
-    // TestOS does not serve declared watches: hand the field's change to the watch on apps/tasks/{field}, as the host does.
-    private static Task Field(InstalledApp<TasksApp> tasks, string field, string value)
+    private static async Task Field(InstalledApp<TasksApp> tasks, string field, string value)
     {
         FakeField.Values[$"apps/tasks/{field}"] = value;
-        return Assert.Single(tasks.App.DeclaredWatches(), w => w.SignalType == typeof(FieldChanged) && w.Key(new AppAddress("local", "tasks")) == $"apps/tasks/{field}")
-            .Handle(new FieldChanged("local/apps/tasks", field, 1));
+        await tasks.App.OnField(field, new FieldChanged("local/apps/tasks", field, 1));
     }
 
     [Fact]
@@ -427,7 +432,7 @@ public sealed class TasksAppFacts
 
         public Task<InoToolResult> Check(string source) => Task.FromResult(new InoToolResult(""));
         public Task<InoToolResult> Deploy(string alias, string source) => Task.FromResult(new InoToolResult(""));
-        public Task<UnitDeployResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files, IReadOnlyDictionary<string, string> bindings) => Task.FromResult(new UnitDeployResult(true, "", DigitalBrain.DeployStatus.Deployed, null, new Dictionary<string, DigitalBrain.InstallOutcome>()));
+        public Task<UnitDeployResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files, IReadOnlyDictionary<string, string> bindings) => Task.FromResult(new UnitDeployResult(true, "", DigitalBrain.Units.DeployStatus.Deployed, null, new Dictionary<string, DigitalBrain.Units.InstallOutcome>()));
         public static Dictionary<string, string> SidecarFiles { get; set; } = [];
         public static Dictionary<string, string> Files { get; set; } = [];
 

@@ -1,9 +1,9 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Modules.Tools;
 
@@ -23,7 +23,7 @@ public sealed class ToolCapabilitySource(IBrainObserver kernel, IServiceProvider
         ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
         if (BrainScope.CurrentId() != brainId) { throw new UnauthorizedAccessException($"Tools are read for the caller's own brain, not '{brainId}'."); }
         List<NeuronType> capabilities = [];
-        foreach (var source in (await kernel.Types(ct)).Where(type => type.Kind == DigitalBrain.TypeKind.Neuron))
+        foreach (var source in (await kernel.Types(ct)).Where(type => type.Kind == DigitalBrain.Kernel.TypeKind.Neuron))
         {
             var contract = plain is null ? null : PlainSourceOf(source.Name);
             if (contract is null) { continue; }

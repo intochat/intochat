@@ -1,5 +1,6 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
@@ -34,30 +35,28 @@ internal sealed record CircleCodeInvite
 }
 
 // A plain neuron (06-08) at "{circle}/invites". Its record saves without a signal: invites are no one's to watch.
-[DigitalBrain.Neuron("circles.invites")]
-internal sealed class CircleInvitesNeuron : DigitalBrain.Neuron, ICircleInvites
+[DigitalBrain.Neurons.Neuron("circles.invites")]
+internal sealed class CircleInvitesNeuron(
+    [FromKeyedServices("circles.invites")] TimeProvider? clock = null,
+    IServiceProvider? services = null) : DigitalBrain.Neurons.Neuron<CircleInvitesRecord>, ICircleInvites
 {
     // Facts replace the clock under this key; the deployment uses the system clock.
     public const string ClockKey = "circles.invites";
 
-    private CircleInvitesRecord Snapshot = new();
+    private CircleInvitesRecord Snapshot => State;
 
     private string CircleBrain => Id.Brain.Value;
 
-    private DateTimeOffset Now => (Context.Services.GetKeyedService<TimeProvider>(ClockKey) ?? TimeProvider.System).GetUtcNow();
+    private DateTimeOffset Now => (clock ?? TimeProvider.System).GetUtcNow();
 
     private ICircle Circle => Get<ICircle>(new DigitalBrain.NeuronId(Id.Brain, CircleGrainType.Name, "circle"));
 
     // The invite key and the code index live in the system brain: module plumbing reached through the host seam, which a
     // neuron's own Get (same brain only) does not cross.
 
-    protected override async Task OnActivate(CancellationToken cancellationToken)
-        => Snapshot = await Context.State.Load<CircleInvitesRecord>() ?? new();
-
     private async Task SaveQuietly(CircleInvitesRecord next)
     {
-        await Context.State.Save(next, []);
-        Snapshot = next;
+        await Store(next);
     }
 
     public async Task<MintedInvite> Mint(MintInvite request)
@@ -65,17 +64,18 @@ internal sealed class CircleInvitesNeuron : DigitalBrain.Neuron, ICircleInvites
         ArgumentNullException.ThrowIfNull(request);
         await Check("Mint", new InviteRoleIsValid(request.Role));
         var caller = await Steward();
+        var accountId = caller.For?.Account ?? (caller.Actor as Actor.Person)?.Account ?? "";
         var now = Now;
         var expiresAt = now + InviteCode.Clamp(request.ValidFor);
         var code = InviteCode.Generate();
-        var hash = InviteCode.Hash(code, await SiloNeurons.Get<IInviteKey>(Context.Services, IInviteKey.Key).Get());
+        var hash = InviteCode.Hash(code, await SiloNeurons.Get<IInviteKey>(services!, IInviteKey.Key).Get());
         var invite = new CircleCodeInvite
         {
             Id = Guid.NewGuid().ToString("N"),
             CodeHash = hash,
             Role = request.Role,
-            IssuedBy = caller.AccountId,
-            AccountId = request.BindCaller ? caller.AccountId : null,
+            IssuedBy = accountId,
+            AccountId = request.BindCaller ? accountId : null,
             CreatedAt = now,
             ExpiresAt = expiresAt,
             CircleName = await Circle.Name(),
@@ -83,7 +83,7 @@ internal sealed class CircleInvitesNeuron : DigitalBrain.Neuron, ICircleInvites
         // Unredeemed invites past their expiry carry nothing worth keeping.
         var kept = Snapshot.Invites.Where(known => known.AcceptedAt is not null || known.ExpiresAt > now);
         await SaveQuietly(new CircleInvitesRecord { Invites = [.. kept, invite] });
-        await SiloNeurons.Get<IInviteCode>(Context.Services, IInviteCode.Key(hash)).Bind(CircleBrain, invite.Id, expiresAt);
+        await SiloNeurons.Get<IInviteCode>(services!, IInviteCode.Key(hash)).Bind(CircleBrain, invite.Id, expiresAt);
         return new MintedInvite(code, expiresAt);
     }
 
@@ -120,10 +120,11 @@ internal sealed class CircleInvitesNeuron : DigitalBrain.Neuron, ICircleInvites
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(machineId);
         var caller = await MemberCaller();
+        var accountId = caller.For?.Account ?? (caller.Actor as Actor.Person)?.Account ?? "";
         var invite = Machine(machineId);
-        if (invite.AccountId == caller.AccountId) { return Describe(invite); }
+        if (invite.AccountId == accountId) { return Describe(invite); }
         await Check("ClaimMachine", new MachineIsUnbound(invite.AccountId is null));
-        var claimed = invite with { AccountId = caller.AccountId };
+        var claimed = invite with { AccountId = accountId };
         await SaveQuietly(new CircleInvitesRecord { Invites = [.. Snapshot.Invites.Select(known => known.Id == invite.Id ? claimed : known)] });
         return Describe(claimed);
     }
@@ -154,20 +155,22 @@ internal sealed class CircleInvitesNeuron : DigitalBrain.Neuron, ICircleInvites
         => new(invite.MachineId!, invite.MachineName, invite.MachineKeyThumbprint!, invite.Role, invite.AccountId, invite.AcceptedAt!.Value);
 
     // D-10: owners and admins mint and revoke; a person, never a script (R126).
-    private async Task<CapabilityCaller> Steward()
+    private async Task<Caller> Steward()
     {
         var caller = await MemberCaller();
-        if (await Circle.RoleOf(caller.AccountId) is not ("owner" or "admin"))
+        var accountId = caller.For?.Account ?? (caller.Actor as Actor.Person)?.Account ?? "";
+        if (await Circle.RoleOf(accountId) is not ("owner" or "admin"))
         { throw new UnauthorizedAccessException("Only a circle owner or an admin manages its invite codes."); }
         return caller;
     }
 
-    private async Task<CapabilityCaller> MemberCaller()
+    private async Task<Caller> MemberCaller()
     {
-        if (!RuntimeCallerContext.TryGet(out var caller)) { throw new UnauthorizedAccessException("Circle invites act only on a stamped caller."); }
-        if (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy)
+        var caller = Context.Caller ?? throw new UnauthorizedAccessException("Circle invites act only on a stamped caller.");
+        if (caller.Actor is Actor.App)
         { throw new UnauthorizedAccessException("Circle invites are a person's own; a script may not."); }
-        if (caller.BrainId != CircleBrain || await Circle.RoleOf(caller.AccountId) is "")
+        var accountId = caller.For?.Account ?? (caller.Actor as Actor.Person)?.Account ?? "";
+        if (caller.Brain.Value != CircleBrain || await Circle.RoleOf(accountId) is "")
         { throw new UnauthorizedAccessException("The caller is not a member of this circle."); }
         return caller;
     }

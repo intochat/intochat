@@ -1,7 +1,7 @@
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
-[DigitalBrain.Neuron("auth.email-index")]
+[DigitalBrain.Neurons.Neuron("auth.email-index")]
 internal sealed class AuthEmailIndexNeuron(
     TimeProvider clock)
     : AuthNeuron<AuthEmailIndexState>, IAuthEmailIndex

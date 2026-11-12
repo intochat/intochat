@@ -16,7 +16,7 @@ public interface IAgentContext
     // displaced. False when an interrupt held the name and nothing changed.
     Task<bool> Upsert(ContextEntry entry);
     Task<bool> Withdraw(string name);
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<ContextSnapshot> Read();
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<ContextSnapshot> Read();
 }
 
 // Who wrote an entry and how far to trust it; the neuron stamps this from the capability caller, never from the payload.

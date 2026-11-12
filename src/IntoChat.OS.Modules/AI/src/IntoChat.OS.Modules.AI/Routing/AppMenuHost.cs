@@ -1,13 +1,13 @@
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans;
-using DigitalBrain.Runtime.Orleans.Hosting;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 
 namespace IntoChat.OS.Modules.AI.Routing;
 
@@ -15,7 +15,7 @@ namespace IntoChat.OS.Modules.AI.Routing;
 // The scan runs at startup, outside a person's request. A route after that reads the menu.
 // Apps are plain neurons (06-08): their AppChanged is heard on this silo through IClusterListeners and queued, so the refresh
 // runs here, in order, outside the turn that published it.
-internal sealed class AppMenuHost(DigitalBrain.Spi.IClusterListeners listeners, IServiceProvider plain, IKernel kernel,
+internal sealed class AppMenuHost(DigitalBrain.Kernel.IClusterListeners listeners, IServiceProvider plain, IKernel kernel,
     AppOperationCatalog catalog, ILogger<AppMenuHost> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

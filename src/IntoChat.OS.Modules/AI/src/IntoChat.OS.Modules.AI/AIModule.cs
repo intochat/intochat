@@ -1,29 +1,29 @@
 using DigitalBrain.Brains;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Http.Surface;
-using NeuronSurface = IntoChat.OS.Connections.Surface.NeuronSurface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Capabilities;
-using IntoChat.OS.Runtime;
-using DigitalBrain.Spi;
 using IntoChat.OS;
-using IntoChat.OS.Modules.AI.Agents;
-using IntoChat.OS.Modules.AI.Media;
-using IntoChat.OS.Modules.AI.Routing;
-using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Modules.AI.Pricing;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Connections.Surface;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Pricing;
+using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.AI.Testing;
+using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -31,11 +31,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
+using NeuronSurface = IntoChat.OS.Connections.Surface.NeuronSurface;
 
 namespace IntoChat.OS.Modules.AI;
 
-[DigitalBrain.Module(ModuleName)]
-public sealed class AIModule : DigitalBrain.Module, IHttpModule
+[DigitalBrain.Modules.Module(ModuleName)]
+public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
 {
     public static System.Reflection.Assembly? Contracts { get; } = typeof(IntoChat.OS.Modules.AI.Agents.Context.IAgentContext).Assembly;
 
@@ -48,11 +49,11 @@ public sealed class AIModule : DigitalBrain.Module, IHttpModule
     internal const string ModuleName = "ai";
 
     // R4-04: what the module needs from its host. Registrations of neurons that are still grains stay here.
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<AIOptions>(ModuleConfiguration.ModuleOptionsSection(new ModuleId(ModuleName)))],
+        Settings: [DigitalBrain.Modules.Setting.Of<AIOptions>(ModuleConfiguration.ModuleOptionsSection(new ModuleId(ModuleName)))],
         Secrets: []);
 
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)

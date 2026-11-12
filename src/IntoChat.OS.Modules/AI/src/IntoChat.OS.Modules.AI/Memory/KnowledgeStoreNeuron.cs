@@ -1,10 +1,11 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DigitalBrain;
+using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 
 namespace IntoChat.OS.Modules.AI.Memory;
 

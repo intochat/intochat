@@ -17,7 +17,7 @@ public interface IDesktopRecords
 {
     const string Key = "apps/desktop/records";
 
-    [DigitalBrain.ReadOnlyCall] Task<DesktopRecords> Read();
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<DesktopRecords> Read();
     Task Write(DesktopRecords records);
 }
 
@@ -38,7 +38,7 @@ public interface IInoRecords
 {
     const string Key = "apps/ino/records";
 
-    [DigitalBrain.ReadOnlyCall] Task<InoRecords> Read();
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<InoRecords> Read();
     Task Write(InoRecords records);
 }
 

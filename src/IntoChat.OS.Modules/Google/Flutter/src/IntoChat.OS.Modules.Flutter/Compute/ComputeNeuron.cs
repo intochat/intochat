@@ -1,6 +1,7 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain;
+using DigitalBrain.Brains;
+using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 
@@ -14,7 +15,7 @@ public sealed record ComputeLedgerState(
 }
 
 [Neuron("ui.compute")]
-internal sealed class ComputeNeuron : DigitalBrain.Neuron<ComputeLedgerState>, ICompute
+internal sealed class ComputeNeuron : DigitalBrain.Neurons.Neuron<ComputeLedgerState>, ICompute
 {
     private ComputeQuotaLedger? _ledger;
 

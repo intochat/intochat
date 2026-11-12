@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

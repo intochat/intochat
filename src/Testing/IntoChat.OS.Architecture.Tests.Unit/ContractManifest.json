@@ -61,7 +61,6 @@
     "IntoChat.OS.Connections.TypeValidationException": "types.type-validation; Kind=0, AllowedValues=1, RejectedValue=2",
     "IntoChat.OS.Framework.BrainAffinePlacement": "os.brain-affine-placement; ",
     "IntoChat.OS.Framework.CallDecision": "enforcement.call-decision; Allowed=0, Denial=1, Explanation=2, ConsumesOnce=3",
-    "IntoChat.OS.Framework.CallRequest": "enforcement.call-request; Caller=0, TargetNeuron=1, Operation=2, SemanticTypeIds=3, EstimatedCompute=4, HasSideEffects=5, EnforceTarget=6, TargetScope=7, PublicOperation=8",
     "IntoChat.OS.Framework.Feature": "kernel.feature; Name=0, Version=1, Owner=2",
     "IntoChat.OS.Framework.ITypeTable": "kernel.type-table (not generated); ",
     "IntoChat.OS.Framework.Modules.Platform.Identity.Account": "identity.account; AccountId=0, Name=1, OwnerPrincipalId=2, CreatedAt=3",
@@ -176,7 +175,6 @@
     "IntoChat.OS.Kernel.Composition.TypeTableGrain": "features=cluster:IntoChat.OS.Kernel.Composition.TypeTableGrain+State"
   },
   "Signals": {
-    "DigitalBrain.BddVerified": "BddVerified",
     "DigitalBrain.Confirmation.ConfirmationRequested": "ConfirmationRequested",
     "DigitalBrain.Confirmation.ConfirmationResolved": "ConfirmationResolved",
     "DigitalBrain.Gap": "Gap",

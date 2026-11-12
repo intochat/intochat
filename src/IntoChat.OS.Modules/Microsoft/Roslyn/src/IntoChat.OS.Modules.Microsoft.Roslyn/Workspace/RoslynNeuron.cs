@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
 
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
@@ -9,7 +10,7 @@ internal sealed class RoslynNeuron(
     SolutionWorkspace workspace,
     ChangeSetEditor editor,
     TimeProvider clock)
-    : DigitalBrain.Neuron<RoslynState>, IRoslyn
+    : DigitalBrain.Neurons.Neuron<RoslynState>, IRoslyn
 {
     internal const string Type = "microsoft.roslyn";
 
@@ -69,7 +70,7 @@ internal sealed class RoslynNeuron(
         return new WorkspaceReceipt(FullKey, generation);
     }
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<WorkspaceSnapshot> Read()
     {
         var live = workspace.Status;
@@ -83,19 +84,19 @@ internal sealed class RoslynNeuron(
             live.ReloadNeeded));
     }
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<SymbolSearchResult> FindSymbols(SymbolSearch query, CancellationToken cancellationToken = default)
         => workspace.FindSymbolsAsync(query, cancellationToken);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<ReferenceSearchResult> References(ReferenceSearch query, CancellationToken cancellationToken = default)
         => workspace.ReferencesAsync(query, cancellationToken);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<DiagnosticsResult> Diagnostics(DiagnosticsQuery query, CancellationToken cancellationToken = default)
         => workspace.DiagnosticsAsync(query, cancellationToken);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public async Task<SolutionMap> Map(MapQuery query, CancellationToken cancellationToken = default)
     {
         if (workspace.Status.Phase == WorkspacePhase.Ready)
@@ -106,23 +107,23 @@ internal sealed class RoslynNeuron(
         return Current?.LastMap ?? throw new WorkspaceNotReadyException(workspace.Status);
     }
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<Skeleton> Skeleton(SkeletonQuery query, CancellationToken cancellationToken = default)
         => workspace.SkeletonAsync(query, cancellationToken);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<MemberSource> Member(MemberQuery query, CancellationToken cancellationToken = default)
         => workspace.MemberAsync(query, cancellationToken);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<CallersResult> Callers(CallersQuery query, CancellationToken cancellationToken = default)
         => workspace.CallersAsync(query, cancellationToken);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<SymbolSearchResult> Implementations(ImplementationsQuery query, CancellationToken cancellationToken = default)
         => workspace.ImplementationsAsync(query, cancellationToken);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<SymbolSearchResult> Derived(DerivedQuery query, CancellationToken cancellationToken = default)
         => workspace.DerivedAsync(query, cancellationToken);
 

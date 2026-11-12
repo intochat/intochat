@@ -5,6 +5,7 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
+using DigitalBrain.Units;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Framework;
@@ -15,8 +16,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
-using InstallRequest = DigitalBrain.InstallRequest;
-using InstallStatus = DigitalBrain.InstallStatus;
+using InstallRequest = DigitalBrain.Units.InstallRequest;
+using InstallStatus = DigitalBrain.Units.InstallStatus;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Integration.Social;
 
@@ -172,10 +173,10 @@ public sealed class FriendsForkConsentFacts
 
         // 3. 1-Click Install trigger on IInstalls
         var defaultBindings = new Dictionary<string, string>(StringComparer.Ordinal);
-        var outcome = await installs.Install(new DigitalBrain.InstallRequest(ShippedUnitAlias, defaultBindings), Ct);
+        var outcome = await installs.Install(new DigitalBrain.Units.InstallRequest(ShippedUnitAlias, defaultBindings), Ct);
 
         // 4. Verification: Needs require person consent; install must be Pending
-        Assert.Equal(DigitalBrain.InstallStatus.Pending, outcome.Status);
+        Assert.Equal(DigitalBrain.Units.InstallStatus.Pending, outcome.Status);
         Assert.Null(await installs.Describe(ShippedUnitAlias, Ct));
 
         var pendingInstalls = await installs.Pending(Ct);

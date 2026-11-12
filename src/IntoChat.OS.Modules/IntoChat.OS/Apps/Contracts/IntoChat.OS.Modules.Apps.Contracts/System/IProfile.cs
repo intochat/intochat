@@ -50,7 +50,7 @@ public sealed record ProfileChanged(string Handle, int PostCount) : DigitalBrain
 [NeuronAlias("os.profile"), DefaultNeuronType("os.profile")]
 public interface IProfile
 {
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<ProfileState> Read();
 
     Task<ProfileState> SetBio(string handle, string bio, string[] pinnedApps);

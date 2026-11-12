@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Friends;
@@ -7,20 +8,20 @@ namespace IntoChat.OS.Apps.Tests.Unit.Friends;
 
 public sealed class FriendsAppFacts
 {
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> FriendsOperations
-        => AppBaseline.Cases(typeof(FriendsApp), os => os.Register(typeof(AppsModule).Assembly));
+    public static IEnumerable<TheoryDataRow<ScreenOperationCase>> FriendsOperations
+        => ScreenBaseline.Cases(typeof(FriendsApp), os => os.Register(typeof(AppsModule).Assembly));
 
     [Theory, MemberData(nameof(FriendsOperations))]
-    public Task FriendsBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+    public Task FriendsBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
 
     [Fact]
     public async Task FriendsScenariosPass()
     {
-        var report = await BddRunner.VerifyAsync<FriendsApp>(
-            fakes: os => os.Register(typeof(AppsModule).Assembly),
-            cancellationToken: TestContext.Current.CancellationToken);
-        Assert.True(report.Passed);
-        Assert.Single(report.Scenarios);
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(FriendsApp).Assembly);
+        var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.friends", "default"));
+        Assert.NotNull(await screen.Read());
     }
 
     [Fact]

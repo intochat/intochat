@@ -1,5 +1,6 @@
-using DigitalBrain.Contracts;
 using DigitalBrain;
+using DigitalBrain.Contracts;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.Mcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -7,7 +8,7 @@ using Microsoft.Extensions.Options;
 namespace IntoChat.OS.Modules.ArtCraft;
 
 [Neuron("artcraft.studio")]
-internal sealed class ArtCraftStudioNeuron(IOptions<ArtCraftModuleOptions> options) : DigitalBrain.Neuron, IArtCraftStudio
+internal sealed class ArtCraftStudioNeuron(IOptions<ArtCraftModuleOptions> options) : DigitalBrain.Neurons.Neuron, IArtCraftStudio
 {
     private string Brain => Id.Brain.Value;
 

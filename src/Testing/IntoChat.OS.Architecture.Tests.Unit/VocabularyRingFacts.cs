@@ -1,8 +1,9 @@
+using System.Reflection;
 using DigitalBrain.Brains;
 using DigitalBrain.Contracts;
-using System.Reflection;
+using DigitalBrain.Kernel;
+using DigitalBrain.Neurons;
 using DigitalBrain.Signals.Watch;
-using DigitalBrain.Spi;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -79,16 +80,14 @@ public sealed class VocabularyRingFacts
         // The Orleans-bound half stays legacy in IntoChat.OS.Runtime; the pure half comes from the DigitalBrain package (03-03 name map).
         Assert.Equal(
             [
-
-
                 "IntoChat.OS.Runtime.INeuronStateStore", "IntoChat.OS.Runtime.INeuronState`1",
                 "IntoChat.OS.Runtime.IRuntimeBuilder",
-                "IntoChat.OS.Runtime.NeuronProxies"],
+                "IntoChat.OS.Runtime.NeuronProxies",
+                "IntoChat.OS.Runtime.StoredRecord", "IntoChat.OS.Runtime.WriteResult"],
             PublicTypes().Where(IsRuntimeSpi).Select(t => t.FullName!).Order(StringComparer.Ordinal));
         Assert.Equal(
-            ["DigitalBrain.BrainId", "DigitalBrain.DeactivationCause", "DigitalBrain.State.IStateCodec", "DigitalBrain.State.StoredRecord", "DigitalBrain.State.WriteResult"],
-            new[] { typeof(DigitalBrain.BrainId), typeof(DigitalBrain.DeactivationCause), typeof(DigitalBrain.State.IStateCodec),
-                typeof(DigitalBrain.State.StoredRecord), typeof(DigitalBrain.State.WriteResult) }.Select(t => t.FullName!).Order(StringComparer.Ordinal));
+            ["DigitalBrain.BrainId", "DigitalBrain.Neurons.DeactivationCause", "DigitalBrain.State.IStateCodec"],
+            new[] { typeof(DigitalBrain.BrainId), typeof(DigitalBrain.Neurons.DeactivationCause), typeof(DigitalBrain.State.IStateCodec) }.Select(t => t.FullName!).Order(StringComparer.Ordinal));
         Assert.DoesNotContain(PublicTypes(), t => t.Name is "BrainId" or "DeactivationCause");
     }
 

@@ -1,7 +1,7 @@
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
-[DigitalBrain.Neuron("auth.sessions")]
+[DigitalBrain.Neurons.Neuron("auth.sessions")]
 internal sealed class AuthSessionsNeuron(
     TimeProvider clock) : AuthNeuron<AuthSessionsState>, IAuthSessions
 {

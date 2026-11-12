@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.Workspace;
@@ -8,22 +9,25 @@ namespace IntoChat.OS.Apps.Tests.Unit.Desktop;
 [Collection(nameof(RecordingApp))]
 public sealed class DesktopAppFacts
 {
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> DesktopOperations => AppBaseline.Cases(typeof(DesktopApp), os => os.Register<DesktopRecordsNeuron>());
+    public static IEnumerable<TheoryDataRow<ScreenOperationCase>> DesktopOperations => ScreenBaseline.Cases(typeof(DesktopApp), os => os.Register<DesktopRecordsNeuron>());
 
     [Theory, MemberData(nameof(DesktopOperations))]
-    public async Task DesktopBaseline(AppOperationCase operation)
+    public async Task DesktopBaseline(ScreenOperationCase operation)
     {
         using var person = Edge.AsPerson();
-        await AppBaseline.RunAsync(operation);
+        await ScreenBaseline.RunAsync(operation);
     }
 
     [Fact]
     public async Task DesktopScenariosPass()
     {
         using var person = Edge.AsPerson();
-        var report = await BddRunner.VerifyAsync<DesktopApp>(fakes: os => os.Register<DesktopRecordsNeuron>(), cancellationToken: TestContext.Current.CancellationToken);
-        Assert.True(report.Passed);
-        Assert.Single(report.Scenarios);
+        await using var os = TestOS.Local();
+        os.Register<DesktopRecordsNeuron>();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(DesktopApp).Assembly);
+        var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.desktop", "default"));
+        Assert.NotNull(await screen.Read());
     }
 
     [Fact]

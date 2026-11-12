@@ -6,9 +6,9 @@ namespace IntoChat.OS.Modules.Postgres.Tables;
 [DigitalBrain.Contracts.NeuronAlias("postgres.table-index"), DigitalBrain.Contracts.DefaultNeuronType(TableIndexNeuron.GrainType)]
 public interface ITableIndex
 {
-    [DigitalBrain.ReadOnlyCall] Task<string[]> ReadTables();
-    [DigitalBrain.Interleaves] Task Register(string tableId);
-    [DigitalBrain.Interleaves] Task RequireOpen();
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<string[]> ReadTables();
+    [DigitalBrain.Contracts.Interleaves] Task Register(string tableId);
+    [DigitalBrain.Contracts.Interleaves] Task RequireOpen();
     Task Retire();
     Task Reopen();
 }
@@ -17,6 +17,6 @@ public interface ITableIndex
 [DigitalBrain.Contracts.NeuronAlias("postgres.table-lifetime"), DigitalBrain.Contracts.DefaultNeuronType(TableNeuron.GrainType)]
 public interface ITableLifetime
 {
-    [DigitalBrain.OneWayCall]
+    [DigitalBrain.Contracts.OneWayCall]
     Task Retire(string owner);
 }

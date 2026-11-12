@@ -1,6 +1,6 @@
+using DigitalBrain.Access;
 using DigitalBrain.Contracts;
 using IntoChat.OS;
-using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
@@ -18,9 +18,9 @@ public interface IModelCatalog
 
     static string DeploymentKey => Key(SystemBrain);
 
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<ModelChoices> List(string? defaultModel = null);
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<ModelChoices> List(string? defaultModel = null);
     // Validates a choice id ("profile:<name>", "preset:<Marker>") for a tool-using turn.
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<ModelSelection?> Select(string? id, string? defaultModel = null);
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<ModelSelection?> Select(string? id, string? defaultModel = null);
 }
 
 public sealed record ModelChoices(ModelChoice Automatic, ModelChoice[] Models);

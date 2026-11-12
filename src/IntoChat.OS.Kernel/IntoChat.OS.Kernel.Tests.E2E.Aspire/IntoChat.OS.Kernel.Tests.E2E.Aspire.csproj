@@ -22,7 +22,6 @@
     <ProjectReference Include="../IntoChat.OS.Kernel.Composition/IntoChat.OS.Kernel.Composition.csproj" />
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS/Hosting/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
-    <PackageReference Include="DigitalBrain.Client" />
     <PackageReference Include="DigitalBrain.Runtime.Synapses" />
     <ProjectReference Include="../../IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Apps/src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />

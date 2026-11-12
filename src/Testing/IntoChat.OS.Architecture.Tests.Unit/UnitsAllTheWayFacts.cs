@@ -103,8 +103,6 @@ public sealed partial class UnitsAllTheWayFacts
     {
         var hosting = NoProgramLanesFacts.ProductionSources().Where(path => Repository.Relative(path).Contains("/Hosting/", StringComparison.Ordinal)).ToArray();
         Assert.NotEmpty(hosting);
-        Assert.Contains(hosting, path => Path.GetFileName(path) == "AppPresentationSink.cs");
-        Assert.Contains(hosting, path => Path.GetFileName(path) == "CompiledAppsHost.cs");
         var keys = ShippedAppKeys();
         Assert.Contains("creator", keys);
         Assert.Contains("settings", keys);
@@ -189,7 +187,7 @@ public sealed partial class UnitsAllTheWayFacts
     [Fact]
     public void TheDesktopWindowVerbsAreOperationsOfTheDesktopApp()
     {
-        var host = NoProgramLanesFacts.ProductionSources().Single(path => Path.GetFileName(path) == "CompiledAppsHost.cs");
+        var host = NoProgramLanesFacts.ProductionSources().Single(path => Path.GetFileName(path) == "DesktopApp.cs");
         var set = DesktopVerbSet().Match(File.ReadAllText(host)).Value;
         var verbs = QuotedLiteral().Matches(set).Select(match => match.Groups[1].Value).Order(StringComparer.Ordinal).ToArray();
         Assert.Equal(["close", "close-app", "favourite", "focus", "newtab", "pin", "settings", "tab", "unpin", "widget-close", "widget-open"], verbs);

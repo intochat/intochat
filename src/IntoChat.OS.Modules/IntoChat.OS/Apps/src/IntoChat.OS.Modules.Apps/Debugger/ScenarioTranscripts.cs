@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Testing.Synapses;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps.Trace;
 
 namespace IntoChat.OS.Modules.Apps.Debugger;

@@ -17,7 +17,11 @@ internal static class BrainAuthorityDecisions
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(request);
-        var caller = request.Caller;
+        var caller = request.Caller.ToCapabilityCaller();
+        if (caller is null)
+        {
+            return CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no caller.");
+        }
         var circleMember = state.Kind == BrainKind.Circle && Member(state, caller.PersonId)?.AccountId == caller.AccountId;
         if (state.AccountId != caller.AccountId && !circleMember || state.BrainId != caller.BrainId)
         { return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target scope does not match this brain."); }
@@ -34,7 +38,7 @@ internal static class BrainAuthorityDecisions
         ArgumentNullException.ThrowIfNull(request);
         // The call filter names the target's brain; a plain neuron's target ({type}/{brain}/{key}) does not start with it.
         if (!string.IsNullOrWhiteSpace(request.TargetScope)) { return request.TargetScope; }
-        var callerBrain = request.Caller?.BrainId ?? "";
+        var callerBrain = request.Caller?.Brain.Value ?? "";
         if (string.IsNullOrWhiteSpace(request.TargetNeuron)) { return callerBrain; }
         var brain = EdgeGrantsCache.ExtractBrain(request.TargetNeuron);
         return string.Equals(brain, "local", StringComparison.Ordinal) && callerBrain.Length > 0 ? callerBrain : brain;

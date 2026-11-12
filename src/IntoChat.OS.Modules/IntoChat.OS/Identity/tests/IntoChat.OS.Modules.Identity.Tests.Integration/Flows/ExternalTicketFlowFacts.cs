@@ -48,7 +48,7 @@ public sealed class ExternalTicketFlowFacts(IdentityFixture fixture) : IClassFix
         public Task<Member?> EnsureMember(Member member) => directory.EnsureMember(member);
         public Task RemoveMember(string brainScopeId, string accountId) => directory.RemoveMember(brainScopeId, accountId);
         public Task RemovePrincipalMember(string brainScopeId, string principalId) => directory.RemovePrincipalMember(brainScopeId, principalId);
-        public Task<CallDecision?> Authorize(CallRequest request) => directory.Authorize(request);
+        public Task<CallDecision?> Authorize(CallRequest request) => directory.Authorize(DirectoryAuthorizeRequest.From(request));
         public Task<Grant[]> ListGrants(string brainScopeId) => directory.ListGrants(brainScopeId);
         public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => directory.GrantAsOwner(caller, grant);
         public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => directory.GrantShipped(brainScopeId, grants);

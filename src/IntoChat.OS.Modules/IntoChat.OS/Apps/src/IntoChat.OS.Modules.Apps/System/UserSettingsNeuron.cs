@@ -1,7 +1,7 @@
 namespace IntoChat.OS.Modules.Apps;
 
-[DigitalBrain.Neuron("os.settings")]
-public sealed class UserSettingsNeuron : DigitalBrain.Neuron<UserSettingsState>, IUserSettings
+[DigitalBrain.Neurons.Neuron("os.settings")]
+public sealed class UserSettingsNeuron : DigitalBrain.Neurons.Neuron<UserSettingsState>, IUserSettings
 {
     public Task<UserSettingsState> Read() => Task.FromResult(State);
 

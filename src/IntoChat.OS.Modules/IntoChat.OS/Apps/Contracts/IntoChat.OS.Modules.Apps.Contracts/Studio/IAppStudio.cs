@@ -10,8 +10,8 @@ public interface IAppStudio
     static string Key(string brainId) => $"{brainId}/main";
 
     // Create the app from a description; answer it Drafted, without behaviors.
-    [DigitalBrain.Interleaves, DigitalBrain.CallTimeout(600_000)] Task<AppSnapshot> Author(string request, CancellationToken ct = default);
+    [DigitalBrain.Contracts.Interleaves, DigitalBrain.Contracts.CallTimeout(600_000)] Task<AppSnapshot> Author(string request, CancellationToken ct = default);
 
     // Author if needed, then build the behaviors and answer the app once it is Live or Failed.
-    [DigitalBrain.Interleaves, DigitalBrain.CallTimeout(600_000)] Task<AppSnapshot> Build(string request, CancellationToken ct = default);
+    [DigitalBrain.Contracts.Interleaves, DigitalBrain.Contracts.CallTimeout(600_000)] Task<AppSnapshot> Build(string request, CancellationToken ct = default);
 }

@@ -1,8 +1,9 @@
-using DigitalBrain.Capabilities.Connections.Connectors;
-using DigitalBrain.Modules.Configuration;
 using System.Reflection;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules;
+using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 
@@ -22,8 +23,8 @@ internal sealed class ModuleSecretProjection : IntoChatOSModuleProjection
         ArgumentNullException.ThrowIfNull(module);
 
         var schemas = OsModule.ReadSchemas(module);
-        var manifest = module.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as DigitalBrain.ModuleManifest;
-        var moduleId = module.GetCustomAttribute<DigitalBrain.ModuleAttribute>()?.Id;
+        var manifest = module.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as DigitalBrain.Modules.ModuleManifest;
+        var moduleId = module.GetCustomAttribute<DigitalBrain.Modules.ModuleAttribute>()?.Id;
         if (schemas.Count == 0 && (manifest is null || manifest.Secrets.Count == 0 || string.IsNullOrEmpty(moduleId))) { return; }
 
         var state = brain.GetOrAddState(_ => new ModuleSecretProjection(), out var added);

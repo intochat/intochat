@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
-using DigitalBrain.Spi;
+using DigitalBrain.Modules;
+using DigitalBrain.Neurons;
 using IntoChat.Cloud.Mail.Templates;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

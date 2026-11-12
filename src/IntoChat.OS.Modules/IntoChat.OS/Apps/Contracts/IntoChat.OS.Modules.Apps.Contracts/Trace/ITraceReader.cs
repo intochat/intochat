@@ -18,6 +18,6 @@ public interface ITraceReader
     static DigitalBrain.NeuronId Key(string brain) => new(new DigitalBrain.BrainId(brain), "trace.reader", DefaultKey);
 
     // The journaled signals carrying traceId after since (exclusive), at most limit (1..1000), by sequence.
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<TracePage> ReadTrace(string traceId, long since, int limit);
 }

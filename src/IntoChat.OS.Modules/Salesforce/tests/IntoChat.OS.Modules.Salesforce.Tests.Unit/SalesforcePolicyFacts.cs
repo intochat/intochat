@@ -3,8 +3,10 @@ using DigitalBrain;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Limits;
+using DigitalBrain.Modules;
+using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
-using DigitalBrain.Spi;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -35,7 +37,7 @@ public sealed class SalesforcePolicyFacts
             {
                 Status = ConnectionStatus.Connected,
                 Account = "https://acme.my.salesforce.com/",
-                Secrets = new(StringComparer.Ordinal)
+                Secrets = new Dictionary<string, SealedSecret>(StringComparer.Ordinal)
                 {
                     ["access"] = new SealedSecret { KeyId = "mk", Cipher = "sf-token" },
                 },

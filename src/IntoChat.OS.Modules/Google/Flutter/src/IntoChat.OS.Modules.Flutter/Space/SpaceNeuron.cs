@@ -1,19 +1,20 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain;
+using DigitalBrain.Brains;
+using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flame.Scene;
 using IntoChat.OS.Modules.Flutter.Workspace;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
 using Microsoft.Extensions.Logging;
-using DigitalBrain.Runtime.Orleans.Hosting;
 using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Flutter.Space;
 
 [Neuron("ui.space")]
-internal sealed class SpaceNeuron(IServiceProvider plain) : DigitalBrain.Neuron, ISpace, ISpaceRecords
+internal sealed class SpaceNeuron(IServiceProvider plain) : DigitalBrain.Neurons.Neuron<SpaceRecords>, ISpace, ISpaceRecords
 {
     // Resolved when used, so the Space's own records need none of the composition services.
     private IKernel Kernel => MicrosoftSdk.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IKernel>(plain);
@@ -50,7 +51,7 @@ internal sealed class SpaceNeuron(IServiceProvider plain) : DigitalBrain.Neuron,
     });
 
     // This brain's Space records: its profile and posts.
-    public async Task<SpaceRecords> Records() => await Context.State.Load<SpaceRecords>() ?? new();
+    public Task<SpaceRecords> Records() => Task.FromResult(State);
 
     public Task SetProfile(string displayName, string avatarUrl) => Write(records =>
     {
@@ -77,9 +78,9 @@ internal sealed class SpaceNeuron(IServiceProvider plain) : DigitalBrain.Neuron,
         var caller = RuntimeCallerContext.Require();
         if (caller.BrainId != Id.Brain.Value || caller.Kind != DigitalBrain.Capabilities.CallerKind.User)
         { throw new UnauthorizedAccessException("Only the brain's own person changes its profile and posts."); }
-        var records = await Records();
+        var records = State;
         change(records);
-        await Context.State.Save(records, [new SpaceRecordsChanged(Id.Brain.Value)]);
+        await Save(records, new SpaceRecordsChanged(Id.Brain.Value));
     }
 
     private async Task<CircleMembers.Friend?> AuthorizeFriend(string author)
@@ -176,7 +177,9 @@ internal sealed class SpaceNeuron(IServiceProvider plain) : DigitalBrain.Neuron,
         {
             // A presentation change rewrites one app. Workspace, circle and profile changes
             // mark the sources stale and read them again. Membership is a full rebuild.
+#pragma warning disable DB0033
             if (fullRefresh || sourcesStale || _workspace is null) { _workspace = await Get<IWorkspace>(new DigitalBrain.NeuronId(Id.Brain, IWorkspace.Type, "main")).Read(); }
+#pragma warning restore DB0033
             var held = _workspace ?? throw new InvalidOperationException("The space has no workspace.");
             if (fullRefresh)
             {
@@ -252,7 +255,7 @@ internal sealed class SpaceNeuron(IServiceProvider plain) : DigitalBrain.Neuron,
     // then the space composes once.
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        var watcher = Context.Services.GetService(typeof(IEnumerable<MicrosoftSdk.Extensions.Hosting.IHostedService>)) is IEnumerable<MicrosoftSdk.Extensions.Hosting.IHostedService> hosted
+        var watcher = plain.GetService(typeof(IEnumerable<MicrosoftSdk.Extensions.Hosting.IHostedService>)) is IEnumerable<MicrosoftSdk.Extensions.Hosting.IHostedService> hosted
             ? hosted.OfType<SpaceWatcher>().FirstOrDefault() : null;
         if (watcher is not null) { await watcher.Follow(Id.Brain.Value); }
         // A host without the composition services (CompiledTypes) composes no scene; the Space's own records still serve.

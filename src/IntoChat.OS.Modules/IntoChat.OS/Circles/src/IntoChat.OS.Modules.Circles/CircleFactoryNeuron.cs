@@ -1,9 +1,10 @@
+using DigitalBrain.Access;
 using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using DigitalBrain.Spi;
 using DigitalBrain.State;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -26,42 +27,38 @@ internal sealed class CircleFactoryRecord
 // brain); the circle brain's creation handler (CircleBirth) founds its core and installs its room.
 // A plain neuron (06-08) at "{brain}/circles". The new circle brain is reached through IBrainCalls, as its creator acting there.
 // The record of created circles is bookkeeping no one watches: it saves without a signal.
-[DigitalBrain.Neuron("circles.factory")]
+[DigitalBrain.Neurons.Neuron("circles.factory")]
 internal sealed class CircleFactoryNeuron(
     ICapabilityBroker broker,
     CircleBirth birth,
     IServiceProvider plain)
-    : DigitalBrain.Neuron, ICircleFactory
+    : DigitalBrain.Neurons.Neuron<CircleFactoryRecord>, ICircleFactory
 {
-    private CircleFactoryRecord Snapshot = new();
+    private CircleFactoryRecord Snapshot => State;
 
     private string Brain => Id.Brain.Value;
 
-    private IServiceProvider ServiceProvider => Context.Services;
-
-    protected override async Task OnActivate(CancellationToken cancellationToken)
-        => Snapshot = await Context.State.Load<CircleFactoryRecord>() ?? new();
-
     private async Task SaveQuietly(CircleFactoryRecord next)
     {
-        await Context.State.Save(next, []);
-        Snapshot = next;
+        await Store(next);
     }
 
     public async Task<string> Create(string name, string? requestId = null)
     {
         await Check("Create", new CircleNameIsValid(name));
         var caller = Own();
+        var accountId = caller.For?.Account ?? (caller.Actor as Actor.Person)?.Account ?? "";
+        var personId = caller.For?.Principal ?? (caller.Actor as Actor.Person)?.Principal ?? "";
         var operation = string.IsNullOrWhiteSpace(requestId) ? Guid.NewGuid().ToString("N") : $"circle|{requestId}";
         var directory = await broker.Identity();
-        var provision = await directory.CreateBrain(caller.AccountId, caller.PersonId, operation, name, BrainKind.Circle);
+        var provision = await directory.CreateBrain(accountId, personId, operation, name, BrainKind.Circle);
         var circle = provision.Member.BrainId;
         // A retried Create completes a birth that failed before or inside the brain's creation: IBrain.Create is a no-op once the
         // brain exists, and a creation handler's failure is only logged there, so the birth runs again. The creator acts in the new
         // circle brain, a member of it since CreateBrain (06-08: IBrainCalls).
         await BrainActs.In(broker, circle, async () =>
         {
-            await SiloNeurons.Get<IBrain>(plain, IBrain.Key(circle)).Create(new Owner(caller.AccountId));
+            await SiloNeurons.Get<IBrain>(plain, IBrain.Key(circle)).Create(new Owner(accountId));
             if (!provision.NewBrain) { await birth.Born(circle, CancellationToken.None); }
         });
         if (!Snapshot.Created.Any(created => created.BrainId == circle))
@@ -72,13 +69,15 @@ internal sealed class CircleFactoryNeuron(
     public async Task<CircleEntry[]> Circles()
     {
         var caller = Own();
-        return [.. (await (await broker.Identity()).BrainsOf(caller.PersonId)).Where(entry => entry.Kind == BrainKind.Circle)
+        var personId = caller.For?.Principal ?? (caller.Actor as Actor.Person)?.Principal ?? "";
+        return [.. (await (await broker.Identity()).BrainsOf(personId)).Where(entry => entry.Kind == BrainKind.Circle)
             .Select(entry => Snapshot.Created.FirstOrDefault(created => created.BrainId == entry.Id) ?? new CircleEntry(entry.Id, entry.Id))];
     }
 
     public async Task<CirclePublicationFeed> Publications(string? publisher = null)
     {
         var caller = Own();
+        var personId = caller.For?.Principal ?? (caller.Actor as Actor.Person)?.Principal ?? "";
         List<AppPublication> items = [];
         HashSet<string> unavailable = new(StringComparer.Ordinal);
         foreach (var listing in await SiloNeurons.Get<IMarketplace>(plain, IMarketplace.Key).List())
@@ -100,7 +99,7 @@ internal sealed class CircleFactoryNeuron(
             .ThenBy(item => item.Reference.Publisher, StringComparer.Ordinal)
             .ThenBy(item => item.Reference.Name, StringComparer.Ordinal)
             .ThenBy(item => item.Reference.Version, StringComparer.Ordinal)
-            .ThenBy(item => item.Reference.Digest, StringComparer.Ordinal)], [.. unavailable.Order(StringComparer.Ordinal)], caller.PersonId);
+            .ThenBy(item => item.Reference.Digest, StringComparer.Ordinal)], [.. unavailable.Order(StringComparer.Ordinal)], personId);
     }
 
     public async Task<AppSnapshot> Fork(AppPublicationRef publication, string targetName, Guid operationId)
@@ -108,13 +107,14 @@ internal sealed class CircleFactoryNeuron(
         Own();
         if (await (await broker.Identity()).KindOf(Brain) != BrainKind.Personal)
         { throw new UnauthorizedAccessException("Fork to my brain needs a personal brain. Use Bring into a circle for shared copies."); }
-        return await ServiceProvider.GetRequiredService<AppInstaller>().InstallExact(ServiceProvider.GetRequiredService<INeuronProxies>(), publication, targetName, operationId);
+        return await plain.GetRequiredService<AppInstaller>().InstallExact(plain.GetRequiredService<INeuronProxies>(), publication, targetName, operationId);
     }
 
     // The member acts in its own brain.
-    private CapabilityCaller Own()
+    private Caller Own()
     {
-        if (!RuntimeCallerContext.TryGet(out var caller) || BrainScope.Create(caller.AccountId, caller.BrainId).Id != Brain)
+        var caller = Context.Caller ?? throw new UnauthorizedAccessException($"{Brain}/{Id.Key} belongs to brain {Brain}.");
+        if (caller.Brain.Value != Brain)
         { throw new UnauthorizedAccessException($"{Brain}/{Id.Key} belongs to brain {Brain}."); }
         return caller;
     }

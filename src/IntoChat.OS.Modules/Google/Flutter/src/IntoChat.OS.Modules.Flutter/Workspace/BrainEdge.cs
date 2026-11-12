@@ -1,11 +1,12 @@
 using DigitalBrain;
 using DigitalBrain.Brains;
+using DigitalBrain.Kernel;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
-using DigitalBrain.Spi;
+using DigitalBrain.Signals.Watch;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
-using DigitalBrain.Signals.Watch;
 
 namespace IntoChat.OS.Modules.Flutter.Workspace;
 

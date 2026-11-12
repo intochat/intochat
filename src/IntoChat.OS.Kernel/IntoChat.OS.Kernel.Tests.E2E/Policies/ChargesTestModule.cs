@@ -1,15 +1,17 @@
 using DigitalBrain;
 using DigitalBrain.Contracts;
+using DigitalBrain.Limits;
+using DigitalBrain.Modules;
 using DigitalBrain.Rules;
 
 namespace IntoChat.OS.Kernel.Tests.E2E.Policies;
 
-[DigitalBrain.Module("charges")]
-public sealed class ChargesTestModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module("charges")]
+public sealed class ChargesTestModule : DigitalBrain.Modules.Module
 {
     public static readonly ActionDescriptor Charges = new("charges.charge", "charges", "USD");
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],
@@ -35,8 +37,8 @@ public interface ICharges
     Task<int> Charge(decimal amount, CancellationToken ct = default);
 }
 
-[DigitalBrain.Neuron("charges")]
-public sealed class ChargesNeuron : DigitalBrain.Neuron<ChargeCount>, ICharges
+[DigitalBrain.Neurons.Neuron("charges")]
+public sealed class ChargesNeuron : DigitalBrain.Neurons.Neuron<ChargeCount>, ICharges
 {
     public async Task<int> Charge(decimal amount, CancellationToken ct = default)
     {

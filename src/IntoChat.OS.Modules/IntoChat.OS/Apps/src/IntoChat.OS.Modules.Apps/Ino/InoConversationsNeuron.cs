@@ -1,7 +1,7 @@
 namespace IntoChat.OS.Modules.Apps;
 
-[DigitalBrain.Neuron("ino.conversations")]
-public sealed class InoConversationsNeuron : DigitalBrain.Neuron<InoConversationsState>, IInoConversations
+[DigitalBrain.Neurons.Neuron("ino.conversations")]
+public sealed class InoConversationsNeuron : DigitalBrain.Neurons.Neuron<InoConversationsState>, IInoConversations
 {
     private const int Kept = 64;
 

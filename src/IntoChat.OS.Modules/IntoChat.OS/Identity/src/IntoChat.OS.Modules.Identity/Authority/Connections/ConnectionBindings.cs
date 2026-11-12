@@ -1,7 +1,7 @@
 using DigitalBrain.Brains;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Capabilities;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Connections.Platform.Identity;

@@ -1,12 +1,12 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Log;
-using DigitalBrain.Modules.Options;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.Brains;
 using DigitalBrain.Invocation;
-using DigitalBrain.Runtime.Synapses;
+using DigitalBrain.Log;
+using DigitalBrain.Modules.Options;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using DigitalBrain.Spi;
+using DigitalBrain.Runtime.Synapses;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;

@@ -1,10 +1,10 @@
-using DigitalBrain.Capabilities.Connections.Connectors;
-using DigitalBrain.Modules.Configuration;
 using System.Text.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Yarp;
 using Aspire.Hosting.Yarp.Transforms;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Modules.Microsoft.Aspire;

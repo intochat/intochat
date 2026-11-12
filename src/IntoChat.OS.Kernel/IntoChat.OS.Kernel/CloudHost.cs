@@ -1,10 +1,12 @@
-using DigitalBrain.Modules.Options;
 using System.Text;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Modules.Options;
 using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
+using DigitalBrain.Runtime.Orleans.Access;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.Cloud.Auth;
 using IntoChat.Cloud.Auth.Licensing;
@@ -63,7 +65,7 @@ public static class CloudHost
             try
             {
                 Member? member;
-                using (RuntimeCallerContext.Stamp(KernelAuthHost.Module))
+                using (InProcessCallerScope.Enter())
                 {
                     member = await sessions.Validate(sid, context.HttpContext.RequestAborted).ConfigureAwait(false);
                 }
@@ -101,47 +103,40 @@ internal sealed class KernelAuthHost : IAuthHostSeam
 
     public CapabilityCaller? CurrentCaller => RuntimeCallerContext.Current;
 
-    public IDisposable StampModuleCaller(CapabilityCaller module) => new ModuleScope(RuntimeCallerContext.Stamp(module));
+    public IDisposable StampModuleCaller(CapabilityCaller module) => InProcessCallerScope.Enter();
 
     public async Task<T> InModuleCall<T>(Func<Task<T>> call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        using var stamp = RuntimeCallerContext.Current is null ? RuntimeCallerContext.Stamp(Module) : null;
-        using var scope = new ModuleScope(null);
+        using var scope = InProcessCallerScope.Enter();
         return await call().ConfigureAwait(false);
     }
 }
 
 internal sealed class KernelOrganisationHost : IOrganisationHost
 {
-    private static readonly CapabilityCaller Module = CapabilityCallers.Of(OrganisationsModule.Id, OrganisationsModule.Id, "system", CallerKind.App, OrganisationsModule.Id);
-
     public CapabilityCaller? CurrentCaller => RuntimeCallerContext.Current;
 
-    public IDisposable StampModule() => new ModuleScope(RuntimeCallerContext.Stamp(Module));
+    public IDisposable StampModule() => InProcessCallerScope.Enter();
 
     public async Task InModuleCall(Func<Task> call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        using var stamp = RuntimeCallerContext.Current is null ? RuntimeCallerContext.Stamp(Module) : null;
-        using var scope = new ModuleScope(null);
+        using var scope = InProcessCallerScope.Enter();
         await call().ConfigureAwait(false);
     }
 
     public async Task<T> InModuleCall<T>(Func<Task<T>> call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        using var stamp = RuntimeCallerContext.Current is null ? RuntimeCallerContext.Stamp(Module) : null;
-        using var scope = new ModuleScope(null);
+        using var scope = InProcessCallerScope.Enter();
         return await call().ConfigureAwait(false);
     }
 }
 
 internal sealed class KernelMailHost : IMailHost
 {
-    private static readonly CapabilityCaller Module = CapabilityCallers.Of(MailModule.Id, MailModule.Id, "system", CallerKind.App, MailModule.Id);
-
-    public IDisposable StampModule() => new ModuleScope(RuntimeCallerContext.Stamp(Module));
+    public IDisposable StampModule() => InProcessCallerScope.Enter();
 }
 
 internal sealed class ModuleScope : IDisposable
@@ -192,7 +187,7 @@ internal sealed class SecretLobbyTokenKey(IServiceProvider services) : ILobbyTok
     private byte[] Read()
     {
         var secrets = services.GetRequiredKeyedService<ISecrets>(Capability.Secrets.V1Id);
-        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(LobbyModule.Id, LobbyModule.Id, "system", CallerKind.App, LobbyModule.Id));
+        using var scope = InProcessCallerScope.Enter();
         var reference = secrets.Named(LobbyModule.TokenSecret).GetAwaiter().GetResult();
         if (reference.Status != SecretStatus.Set)
         {

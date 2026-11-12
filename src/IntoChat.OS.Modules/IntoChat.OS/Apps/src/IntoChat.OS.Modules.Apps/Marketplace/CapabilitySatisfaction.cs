@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities.Connections.Requests;
-using DigitalBrain.Spi;
+using DigitalBrain.Modules;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Runtime;
 
 namespace IntoChat.OS.Modules.Apps;

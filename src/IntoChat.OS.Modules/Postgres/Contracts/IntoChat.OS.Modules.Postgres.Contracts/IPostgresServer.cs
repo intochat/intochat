@@ -5,13 +5,13 @@ namespace IntoChat.OS.Modules.Postgres;
 public interface IPostgresServer
 {
     // Server-side caps.
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<PostgresQueryResult> Query(PostgresQuery query);
 
     // Reads tables and columns of the configured database; omit Table for the index.
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<PostgresSchema> ReadSchema(ReadPostgresSchema query);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<PostgresConnection> ReadConnection();
 }

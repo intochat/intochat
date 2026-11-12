@@ -1,10 +1,11 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
 // A brain's catalog is {brain}/ai.models/main; the deployment's view is the system brain's (R4-19).
 [Neuron("ai.models"), StatelessNeuron]
-internal sealed class ModelCatalogNeuron(ModelCatalog catalog) : DigitalBrain.Neuron, IModelCatalog
+internal sealed class ModelCatalogNeuron(ModelCatalog catalog) : DigitalBrain.Neurons.Neuron, IModelCatalog
 {
     private string? Brain => Id.Brain.Value == IModelCatalog.SystemBrain ? null : Id.Brain.Value;
 

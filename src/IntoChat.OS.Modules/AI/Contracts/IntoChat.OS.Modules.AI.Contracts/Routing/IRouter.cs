@@ -11,5 +11,5 @@ public interface IRouter
     static string Key(string brainId) => $"{brainId}/main";
 
     // Decide only: the catalog contract, method and confidence. No call is made.
-    [DigitalBrain.Interleaves] Task<RouteResult> Route(string state, string[]? allowed = null, CancellationToken ct = default);
+    [DigitalBrain.Contracts.Interleaves] Task<RouteResult> Route(string state, string[]? allowed = null, CancellationToken ct = default);
 }

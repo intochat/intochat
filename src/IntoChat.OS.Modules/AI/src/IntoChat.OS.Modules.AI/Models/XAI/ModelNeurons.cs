@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
 
 
 namespace IntoChat.OS.Modules.AI.Models.XAI;

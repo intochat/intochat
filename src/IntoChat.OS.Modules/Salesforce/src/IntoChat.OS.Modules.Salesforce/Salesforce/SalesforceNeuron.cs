@@ -1,11 +1,12 @@
-using DigitalBrain.Capabilities.Connections;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Limits;
 using IntoChat.OS.Modules.Salesforce.Signals;
 
 namespace IntoChat.OS.Modules.Salesforce;
 
-[DigitalBrain.Neuron("salesforce", State = "salesforce")]
+[DigitalBrain.Neurons.Neuron("salesforce", State = "salesforce")]
 internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISalesforce
 {
     private const int MaxWriteArgumentsBytes = 24 * 1024;
@@ -18,7 +19,7 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
     private readonly ISalesforceProvider _provider;
     private readonly TimeProvider _time;
 
-    private DigitalBrain.IPolicies Policies => Context.Get<DigitalBrain.IPolicies>(DigitalBrain.NeuronId.Parse(DigitalBrain.IPolicies.Key(Id.Brain.Value)));
+    private DigitalBrain.Limits.IPolicies Policies => Context.Get<DigitalBrain.Limits.IPolicies>(DigitalBrain.NeuronId.Parse(DigitalBrain.Limits.IPolicies.Key(Id.Brain.Value)));
 
     public SalesforceNeuron(
         ISalesforceProvider provider,
@@ -29,7 +30,7 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
     }
 
     // The token response names the org: its instance URL must be HTTPS. Another org drops the old org's writes.
-    protected override Task<OAuthGrant> AcceptGrantAsync(OAuthGrant grant)
+    protected override async Task<OAuthGrant> AcceptGrantAsync(OAuthGrant grant)
     {
         Uri? url = null;
         try
@@ -42,9 +43,12 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
         catch (JsonException) { url = null; }
         if (url is null || url.Scheme != Uri.UriSchemeHttps || url.UserInfo.Length != 0)
         { throw new SalesforceUnavailableException("Salesforce did not issue a valid HTTPS instance URL."); }
-        if (Snapshot.Account != url.AbsoluteUri) { Snapshot.PendingWrite = null; Snapshot.SubmittingWrite = null; }
-        Snapshot.Account = url.AbsoluteUri;
-        return Task.FromResult(WithSessionExpiry(grant));
+        var next = (Snapshot.Account != url.AbsoluteUri
+            ? Snapshot with { PendingWrite = null, SubmittingWrite = null }
+            : Snapshot) with
+        { Account = url.AbsoluteUri };
+        await SaveQuietly(next);
+        return WithSessionExpiry(grant);
     }
 
     // Refresh grants never pass through AcceptGrantAsync, so they get the same default lifetime here.
@@ -138,7 +142,7 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
             ["Tool"] = preview.Tool,
             ["Object"] = ReadObjectName(preview.Arguments),
         }, CancellationToken.None);
-        DigitalBrain.PolicyGuard.Require(decision);
+        PolicyGuard.Require(decision);
 
         Snapshot.PendingWrite = null;
         Snapshot.SubmittingWrite = preview;

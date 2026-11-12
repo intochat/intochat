@@ -1,5 +1,5 @@
-using DigitalBrain.Errors;
 using DigitalBrain;
+using DigitalBrain.Errors;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Framework;

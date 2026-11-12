@@ -1,6 +1,6 @@
-using DigitalBrain.Capabilities.Connections;
 using System.Collections.Frozen;
 using System.Reflection;
+using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.State;
 using IntoChat.OS.Connections.Platform.Connections;
 

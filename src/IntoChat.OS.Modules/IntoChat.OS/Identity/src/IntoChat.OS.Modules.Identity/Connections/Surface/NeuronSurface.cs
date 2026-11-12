@@ -1,11 +1,12 @@
-using DigitalBrain.Capabilities.Connections.Integrations;
-using DigitalBrain.Contracts;
 using System.Reflection;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using DigitalBrain.Spi;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
@@ -132,7 +133,7 @@ public sealed class NeuronSurface(INeuronProxies brain, IBrainObserver kernel, N
     private bool Allowed(string name) => allowed is null || allowed.Contains(name);
 
     private async Task<Dictionary<string, BrainType>> Neurons(CancellationToken ct)
-        => (await kernel.Types(ct).ConfigureAwait(false)).Where(entry => entry.Kind == DigitalBrain.TypeKind.Neuron)
+        => (await kernel.Types(ct).ConfigureAwait(false)).Where(entry => entry.Kind == TypeKind.Neuron)
             .ToDictionary(entry => entry.Name, StringComparer.Ordinal);
 
     private BrainType Entry(IReadOnlyDictionary<string, BrainType> neurons, string name)

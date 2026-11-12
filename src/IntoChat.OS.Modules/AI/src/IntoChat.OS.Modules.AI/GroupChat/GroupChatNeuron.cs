@@ -1,16 +1,17 @@
-using DigitalBrain;
 using System.Text;
-using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain;
+using DigitalBrain.Neurons;
 using IntoChat.OS;
-using IntoChat.OS.Modules.AI.GroupChat.Signals;
-using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.AI.GroupChat.Signals;
+using IntoChat.OS.Modules.AI.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.AI.GroupChat;
 
 [Neuron("ai.group-chat", State = "ai.group-chat")]
-internal sealed class GroupChatNeuron
+internal sealed class GroupChatNeuron(IServiceProvider services)
     : AiNeuron<GroupChatState>, IGroupChat
 {
     private const string AgreementMarker = "AGREE";
@@ -92,7 +93,7 @@ internal sealed class GroupChatNeuron
         var conversation = new StringBuilder().AppendLine($"Question: {question}");
         foreach (var turn in transcript) { conversation.AppendLine($"{turn.Speaker}: {turn.Text}"); }
         conversation.AppendLine().AppendLine(instruction);
-        var text = await ModelNeurons.Complete(ServiceProvider, Id.Brain.Value, participant.Model, system, conversation.ToString());
+        var text = await ModelNeurons.Complete(services, Id.Brain.Value, participant.Model, system, conversation.ToString());
         return text.Length > 0 ? text : throw new InvalidOperationException($"{participant.Name} returned an empty turn.");
     }
 }

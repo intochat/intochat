@@ -1,13 +1,15 @@
+using DigitalBrain.Capabilities;
+
 namespace IntoChat.OS.Modules.Apps;
 
 // The query engine reads files through a WorkspaceFilesService built once per activation, as InoFilesNeuron does.
-[DigitalBrain.Neuron("ino.data")]
-public sealed class InoDataNeuron : DigitalBrain.Neuron<InoDataState>, IInoData
+[DigitalBrain.Neurons.Neuron("ino.data")]
+public sealed class InoDataNeuron(ICapabilityBroker? broker = null, IServiceProvider? services = null) : DigitalBrain.Neurons.Neuron<InoDataState>, IInoData
 {
     private IFilesVfsService? _vfs;
     private long _revision;
 
-    private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(Context.Services, Id.Brain.Value);
+    private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(services, Id.Brain.Value, broker);
 
     public Task<InoDataState> Read() => Task.FromResult(State);
 

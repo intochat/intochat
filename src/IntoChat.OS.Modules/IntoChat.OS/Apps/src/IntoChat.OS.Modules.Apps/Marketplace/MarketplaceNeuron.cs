@@ -3,8 +3,8 @@ using IntoChat.OS.Contracts.Configuration;
 namespace IntoChat.OS.Modules.Apps;
 
 // Marketplace returns in 0.8.0. The neuron stays so the shell's catalog route still resolves.
-[DigitalBrain.Neuron("apps.marketplace")]
-internal sealed class MarketplaceNeuron : DigitalBrain.Neuron, IMarketplace
+[DigitalBrain.Neurons.Neuron("apps.marketplace")]
+internal sealed class MarketplaceNeuron : DigitalBrain.Neurons.Neuron, IMarketplace
 {
     public Task<MarketplaceListing[]> List() => Task.FromResult(Array.Empty<MarketplaceListing>());
 

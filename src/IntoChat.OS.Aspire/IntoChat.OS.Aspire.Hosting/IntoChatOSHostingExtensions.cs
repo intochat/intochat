@@ -1,9 +1,9 @@
-using DigitalBrain.Capabilities.Connections.Connectors;
-using DigitalBrain.Modules.Configuration;
 using System.Reflection;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Azure;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;

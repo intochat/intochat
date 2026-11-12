@@ -1,5 +1,5 @@
 using System.Reflection;
-using DigitalBrain.Spi;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Modules.AI.Models.Signals;
@@ -38,7 +38,7 @@ public sealed class LlmAdmissionFacts
             NeuronAttachment.Admit(neuron, new(new DigitalBrain.BrainId("other"), "agent", "agents/main"), [typeof(InferenceFailed)]));
     }
 
-    private static DigitalBrain.Neuron Attached(DigitalBrain.Neuron neuron, DigitalBrain.NeuronId id)
+    private static DigitalBrain.Neurons.Neuron Attached(DigitalBrain.Neurons.Neuron neuron, DigitalBrain.NeuronId id)
     {
         var context = DispatchProxy.Create<INeuronContext, IdOnlyContext>();
         ((IdOnlyContext)(object)context).Id = id;

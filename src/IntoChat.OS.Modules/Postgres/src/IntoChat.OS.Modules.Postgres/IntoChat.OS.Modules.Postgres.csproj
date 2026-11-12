@@ -3,7 +3,7 @@
     <IsPackable>true</IsPackable>
     <Description>Read-only PostgreSQL queries, schema discovery, and scoped declarative table neurons.</Description>
     <RootNamespace>IntoChat.OS.Modules.Postgres</RootNamespace>
-    <NoWarn>$(NoWarn);ORLEANSEXP005;CA1812</NoWarn>
+    <NoWarn>$(NoWarn);ORLEANSEXP005;CA1812;DB0033</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

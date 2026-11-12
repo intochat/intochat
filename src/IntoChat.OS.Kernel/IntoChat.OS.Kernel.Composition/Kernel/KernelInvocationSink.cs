@@ -4,7 +4,9 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Invocation;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Runtime.Orleans.Access;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using Orleans.Runtime;
@@ -35,6 +37,7 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
     public async Task<JsonElement?> Invoke(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation call, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(call);
+        using var _ = IntoChat.OS.Framework.InProcessCallerScope.Enter();
         // Preserve the grain scheduler until dispatch: source-origin guards use Orleans' physical caller identity.
         var host = await Host(target, cancellationToken).ConfigureAwait(true);
         Stamp();
@@ -46,6 +49,7 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
     public async Task Post(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation call)
     {
         ArgumentNullException.ThrowIfNull(call);
+        using var _ = IntoChat.OS.Framework.InProcessCallerScope.Enter();
         var host = await Host(target, CancellationToken.None).ConfigureAwait(true);
         Stamp();
         var stamped = Stamped(call);
@@ -56,6 +60,7 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
     public async IAsyncEnumerable<JsonElement> Stream(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(call);
+        using var _ = IntoChat.OS.Framework.InProcessCallerScope.Enter();
         Stamp();
         // A host grain's stream passes no incoming filter, so the os access policy is asked before it starts (06-06d).
         if (streamAccess is not null) { await streamAccess(target, call).ConfigureAwait(true); }
@@ -111,7 +116,7 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
             catch (ReflectionTypeLoadException error) { types = [.. error.Types.OfType<Type>()]; }
             foreach (var candidate in types)
             {
-                if (candidate.IsAbstract || !typeof(DigitalBrain.Neuron).IsAssignableFrom(candidate)) { continue; }
+                if (candidate.IsAbstract || !typeof(Neuron).IsAssignableFrom(candidate)) { continue; }
                 if (candidate.GetCustomAttribute<NeuronAttribute>(inherit: false)?.Type != name) { continue; }
                 if (candidate.IsDefined(typeof(StatelessNeuronAttribute), inherit: false)) { return "neuron.host.stateless"; }
                 return candidate.IsDefined(typeof(ReentrantAttribute), inherit: true) ? "neuron.host.reentrant" : "neuron.host";

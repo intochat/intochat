@@ -11,8 +11,10 @@ state, view, source, spec and scenarios, its needs and consent, "change it" and 
 pulse's whole trace as a causation tree. Everything is read from the kernel; nothing is synthesised.
 */
 using System.Text.Json;
+using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
+using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
@@ -54,8 +56,8 @@ public sealed record CreatorShare(string? Alias = null) : DigitalBrain.Signal;
 [DigitalBrain.Signal("creator.seed")]
 public sealed record CreatorSeed(string? Alias = null) : DigitalBrain.Signal;
 
-[DigitalBrain.App("creator", Accent = "#FF5D8F", Category = "Studio")]
-public sealed class CreatorApp : DigitalBrain.App<CreatorState>
+[Neuron("app.creator")]
+public sealed class CreatorApp : Screen<CreatorState>
 {
     private const string FlowsKey = "flows/index";
     private const string ApprovalsKey = "approvals/index";
@@ -73,7 +75,11 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
 
     public Func<string, IReadOnlyDictionary<string, string>, string?, CancellationToken, Task<string>> RunScenarios { get; set; } = ScenarioTranscripts.Run;
 
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(CreatorApp));
+    private static void Swallow(Exception error, string reason)
+    {
+        _ = error;
+        _ = reason;
+    }
 
     public const string AppName = ShippedApps.Creator;
 
@@ -106,24 +112,24 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         CompiledType = typeof(CreatorApp).AssemblyQualifiedName,
     };
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task Open(CreatorOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var input = request.Input?.Trim() ?? "";
         if (input.StartsWith("trace/", StringComparison.Ordinal) && input["trace/".Length..].Trim() is { Length: > 0 } traceId)
         {
-            Set(State with { Selected = new Selection(Selection.Pulse, traceId), TraceId = traceId, ReplayCursor = null });
+            await Show(State with { Selected = new Selection(Selection.Pulse, traceId), TraceId = traceId, ReplayCursor = null });
         }
         else if (input.StartsWith("node:", StringComparison.Ordinal) && Selection.Parse(input) is { } node)
         {
-            Set(State with { Selected = node });
+            await Show(State with { Selected = node });
         }
         await RefreshAsync();
         await InspectAsync();
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task Select(CreatorSelect request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -132,10 +138,10 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         if (selection is not null && !Known(selection))
         {
             _inspection = new Inspection(selection.Kind, selection.Id) { Notice = "Not in the brain graph." };
-            Set(State with { Selected = selection, Transcript = null });
+            await Show(State with { Selected = selection, Transcript = null });
             return;
         }
-        Set(State with
+        await Show(State with
         {
             Selected = selection,
             TraceId = selection?.Kind == Selection.Pulse ? selection.Id : State.TraceId,
@@ -145,52 +151,58 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         await InspectAsync();
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public Task Trace(CreatorTrace request)
     {
         ArgumentNullException.ThrowIfNull(request);
         return Blank(request.TraceId) is { } traceId ? Select(new CreatorSelect(BrainGraph.PulseKey(traceId))) : Task.CompletedTask;
     }
 
-    [DigitalBrain.On]
-    public void Replay(CreatorReplay request)
+    [DigitalBrain.Neurons.On]
+    public async Task Replay(CreatorReplay request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var steps = State.Selected is { Kind: Selection.Pulse } ? _inspection.Hops.Count : 0;
-        Set(State with { ReplayCursor = ReplayScript.Move(State.ReplayCursor, request.Cursor, steps) });
+        await Show(State with { ReplayCursor = ReplayScript.Move(State.ReplayCursor, request.Cursor, steps) });
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task Change(CreatorChange request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if ((Blank(request.Alias) ?? SelectedAlias()) is not { } alias) { return; }
         var wanted = Blank(request.Request) ?? Blank(State.ChangeDraft);
-        if (wanted is null) { Set(State with { Status = $"Say how {alias} should change." }); return; }
+        if (wanted is null) { await Show(State with { Status = $"Say how {alias} should change." }); return; }
         var goal = $"change {alias}: {wanted}";
         try
         {
             var existing = await FilesAsync(alias);
             var inner = JsonSerializer.Serialize(new BuildInner { Goal = goal, Existing = existing.Count > 0 ? existing : null }, JsonSerializerOptions.Web);
             var flowId = await Get<IFlows>(FlowsKey).Start(BuildFlow.Alias, Title(goal), null, inner);
-            Set(State with { Status = $"Changing {alias} ({flowId})", ChangeDraft = "" });
+            await Show(State with { Status = $"Changing {alias} ({flowId})", ChangeDraft = "" });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "The change could not start; the status line reports why.");
-            Set(State with { Status = $"Could not change {alias}: {error.Message}" });
+            await Show(State with { Status = $"Could not change {alias}: {error.Message}" });
         }
         await RefreshAsync();
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task Scenario(CreatorScenario request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if ((Blank(request.Alias) ?? SelectedAlias()) is not { } alias) { return; }
+        bool alreadyRunning;
         lock (_running)
         {
-            if (!_running.Add(alias)) { Set(State with { Status = $"The scenarios of {alias} are already running." }); return; }
+            alreadyRunning = !_running.Add(alias);
+        }
+        if (alreadyRunning)
+        {
+            await Show(State with { Status = $"The scenarios of {alias} are already running." });
+            return;
         }
         string transcript;
         using var budget = new CancellationTokenSource(ScenarioBudget);
@@ -213,40 +225,40 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         {
             lock (_running) { _running.Remove(alias); }
         }
-        Set(State with { Transcript = transcript, Status = $"Ran the scenarios of {alias}" });
+        await Show(State with { Transcript = transcript, Status = $"Ran the scenarios of {alias}" });
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task Make(CreatorMake request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if ((Blank(request.Goal) ?? Blank(State.Draft)) is not { } goal) { Set(State with { Status = "Describe what to make." }); return; }
+        if ((Blank(request.Goal) ?? Blank(State.Draft)) is not { } goal) { await Show(State with { Status = "Describe what to make." }); return; }
         if (await IsCreatorBudgetExceededAsync())
         {
-            Set(State with { Status = "Monthly compute cap exceeded. Increase cap in Settings -> Billing (os://window/settings?section=billing)." });
+            await Show(State with { Status = "Monthly compute cap exceeded. Increase cap in Settings -> Billing (os://window/settings?section=billing)." });
             return;
         }
         try
         {
             var result = await Get<IInoStudio>("ino/studio").Make(goal);
-            Set(State with { Status = result.Text, Draft = "" });
+            await Show(State with { Status = result.Text, Draft = "" });
             await RecordCreatorComputeAsync(Math.Max(2_500L, goal.Length * 50L));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "Ino's studio is optional; the status line reports why.");
-            Set(State with { Status = $"Could not make it: {error.Message}" });
+            await Show(State with { Status = $"Could not make it: {error.Message}" });
         }
         await RefreshAsync();
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task Share(CreatorShare request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if ((Blank(request.Alias) ?? SelectedAlias()) is not { } alias)
         {
-            Set(State with { Status = "Select a unit to share." });
+            await Show(State with { Status = "Select a unit to share." });
             return;
         }
 
@@ -276,22 +288,22 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
                 AuthorBrainId: brainId);
 
             await Get<IProfile>("profile").PublishAppPost(post);
-            Set(State with { Status = $"Shared {alias} as App-Post post-{alias}" });
+            await Show(State with { Status = $"Shared {alias} as App-Post post-{alias}" });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "Sharing to profile is optional when the profile neuron is not registered.");
-            Set(State with { Status = $"Could not share {alias}: {error.Message}" });
+            await Show(State with { Status = $"Could not share {alias}: {error.Message}" });
         }
     }
 
-    [DigitalBrain.On]
+    [DigitalBrain.Neurons.On]
     public async Task Seed(CreatorSeed request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (Blank(request.Alias) is not { } alias || !ShippedUnits.IsKnown(alias))
         {
-            Set(State with { Status = $"Choose a shipped unit: {string.Join(", ", ShippedUnits.All)}" });
+            await Show(State with { Status = $"Choose a shipped unit: {string.Join(", ", ShippedUnits.All)}" });
             return;
         }
 
@@ -315,35 +327,25 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
                 Swallow(ex, "Flows neuron is optional during unit seeding.");
             }
 
-            Set(State with { Status = $"Deployed shipped unit {alias} ({ShippedUnits.Title(alias)})" });
+            await Show(State with { Status = $"Deployed shipped unit {alias} ({ShippedUnits.Title(alias)})" });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             Swallow(error, "Deploying a shipped unit requires the synapse studio neuron.");
-            Set(State with { Status = $"Could not deploy {alias}: {error.Message}" });
+            await Show(State with { Status = $"Could not deploy {alias}: {error.Message}" });
         }
         await RefreshAsync();
-    }
-
-    protected override void Watches(DigitalBrain.WatchBuilder watch)
-    {
-        ArgumentNullException.ThrowIfNull(watch);
-        foreach (var field in CreatorView.Fields)
-        {
-            watch.On<IField, FieldChanged>($"{field}-changed", app => $"apps/{app.App}/{field}", _ => OnField(field));
-        }
-        watch.On<IFlows, FlowsChanged>("flows-changed", _ => FlowsKey, _ => RefreshAsync());
-        watch.On<IConfirmationInbox, ConfirmationRequested>("confirmation-requested", _ => IConfirmations.ConfirmationsNeuronKey, _ => RefreshAsync());
-        watch.On<IConfirmationInbox, ConfirmationResolved>("confirmation-resolved", _ => IConfirmations.ConfirmationsNeuronKey, _ => RefreshAsync());
     }
 
     public async Task OnField(string field)
     {
         var value = (await Get<IField>(CreatorView.FieldKey(field)).Read()).Value ?? "";
-        Set(field == CreatorView.ChangeField ? State with { ChangeDraft = value } : State with { Draft = value });
+        await Show(field == CreatorView.ChangeField ? State with { ChangeDraft = value } : State with { Draft = value });
     }
 
-    public View Render() => CreatorView.Render(State, _topology, _flows, _approvals, _inspection);
+    public new CreatorState State => base.State;
+    public View Render() => Render(State);
+    protected override View Render(CreatorState state) => CreatorView.Render(state, _topology, _flows, _approvals, _inspection);
 
     private async Task RefreshAsync()
     {
@@ -358,11 +360,11 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
         {
             try
             {
-                if ((await Get<IInoConversations>(IInoConversations.DefaultKey).Current()).FirstOrDefault() is { } agent) { Set(State with { ConversationId = agent }); }
+                if ((await Get<IInoConversations>(IInoConversations.DefaultKey).Current()).FirstOrDefault() is { } agent) { await Show(State with { ConversationId = agent }); }
             }
             catch (Exception error) when (error is not OperationCanceledException) { Swallow(error, "The Ino conversation is optional; the dialogue shows the build flows."); }
         }
-        Set(State with { Status = State.Status });
+        await Show(State with { Status = State.Status });
     }
 
     private async Task InspectAsync()
@@ -374,7 +376,7 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
             { Kind: Selection.Edge } edge => await EdgeAsync(edge.Id),
             { } node => await NodeAsync(node.Id),
         };
-        Set(State with { Status = State.Status });
+        await Show(State with { Status = State.Status });
     }
 
     private async Task<Inspection> NodeAsync(string id)
@@ -435,9 +437,9 @@ public sealed class CreatorApp : DigitalBrain.App<CreatorState>
             long since = 0;
             while (entries.Count < MaxHops)
             {
-                var page = await Get<ITraceReader>(ITraceReader.DefaultKey).ReadTrace(traceId, since, DigitalBrain.SignalPage.MaxLimit);
+                var page = await Get<ITraceReader>(ITraceReader.DefaultKey).ReadTrace(traceId, since, DigitalBrain.Kernel.SignalPage.MaxLimit);
                 entries.AddRange(page.Entries);
-                if (page.Entries.Length < DigitalBrain.SignalPage.MaxLimit) { break; }
+                if (page.Entries.Length < DigitalBrain.Kernel.SignalPage.MaxLimit) { break; }
                 since = page.Entries[^1].Sequence;
             }
         }

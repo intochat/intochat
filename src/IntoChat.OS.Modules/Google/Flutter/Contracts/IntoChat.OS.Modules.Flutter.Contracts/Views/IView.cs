@@ -1,6 +1,7 @@
-using DigitalBrain.Contracts;
 using DigitalBrain;
+using DigitalBrain.Contracts;
 using DigitalBrain.UI;
+using DigitalBrain.Units;
 
 
 namespace IntoChat.OS.Modules.Flutter.Views;
@@ -17,11 +18,11 @@ public interface IView
     Task Publish(long generation, View view);
 
     /// <summary>The stored view and its generation, or null before the first publication.</summary>
-    [DigitalBrain.ReadOnlyCall] Task<PublishedView?> Read();
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<PublishedView?> Read();
 
     /// <summary>Resolves the node keyed <paramref name="key"/> in the view of <paramref name="generation"/> to what it does; the
     /// caller (the edge) routes it. A stale generation or an unknown or disabled node is refused with a stale action.</summary>
-    [DigitalBrain.ReadOnlyCall] Task<ViewActivation> Activate(long generation, string key, string? fieldValue);
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<ViewActivation> Activate(long generation, string key, string? fieldValue);
 }
 
 /// <summary>What an activated view node does.</summary>

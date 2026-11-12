@@ -1,7 +1,9 @@
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
-using DigitalBrain.Spi;
+using DigitalBrain.Modules;
+using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using IntoChat.Cloud.Mail;
 using Microsoft.Extensions.Logging.Abstractions;

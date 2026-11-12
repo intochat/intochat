@@ -1,9 +1,8 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
-using PlaywrightSdk = Microsoft.Playwright;
-
 using MicrosoftSdk = Microsoft;
+using PlaywrightSdk = Microsoft.Playwright;
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 // Connects to a page owned by the desktop. It never creates or closes native pages.

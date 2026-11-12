@@ -1,14 +1,15 @@
-using DigitalBrain.Capabilities.Connections.Broker;
-using DigitalBrain.Signals;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections.Broker;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Contracts;
+using DigitalBrain.Hosting;
+using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
-using DigitalBrain.Spi;
+using DigitalBrain.Signals;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Settings;
@@ -111,8 +112,8 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
         await using (var os = TestOS.Local())
         {
             os.Register(typeof(AppsModule).Assembly);
-            using var ungrantedCaller = RuntimeCallerContext.Stamp(
-                CapabilityCallers.Of("app:local/apps/calculator", "local", "local", CallerKind.App, "local/apps/calculator"));
+            using var ungrantedCaller = os.Edge.Enter(
+                CapabilityCallers.Of("app:local/apps/calculator", "local", "local", CallerKind.App, "local/apps/calculator").ToCaller()!);
 
             var localModules = os.Get<IInstalledModules>(new NeuronId(new BrainId("local"), "apps.installed-modules", "modules"));
             await Assert.ThrowsAsync<UnauthorizedAccessException>(localModules.List);
@@ -148,34 +149,26 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
     [Fact]
     public async Task SettingsScenariosPassFromTheNewProject()
     {
-        var report = await BddRunner.VerifyAsync<SettingsApp>(
-            fakes: os => os.Register(typeof(AppsModule).Assembly),
-            cancellationToken: TestContext.Current.CancellationToken);
-        Assert.True(report.Passed);
-        Assert.Single(report.Scenarios);
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(SettingsApp).Assembly);
+        var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.settings", "default"));
 
-        const string brain = "settingsnewproj";
-        using var _ = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
+        var initialView = await screen.Read();
+        Assert.NotNull(initialView);
+        Assert.Equal("app.settings", initialView.Alias);
+        Assert.True(initialView.Generation >= 1);
 
-        var appKey = IApp.Key(brain, "settings");
-        var appNeuron = SiloNeurons.Get<IApp>(Services, appKey);
-        var bundle = SettingsApp.Bundle with
-        {
-            Files = new Dictionary<string, string>(StringComparer.Ordinal),
-            CompiledType = typeof(SettingsApp).AssemblyQualifiedName,
-        };
-        await appNeuron.Import(bundle, new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "settings", bundle.Version));
+        await screen.Request(new SettingsOpen());
+        await os.Idle();
 
-        var host = Services.GetRequiredService<IntoChat.OS.Modules.Apps.Hosting.InProcess.InProcessAppHost>();
-        await host.Request(appKey, "open", new SettingsOpen(), TestContext.Current.CancellationToken);
-
-        var turns = host.TryGetTurns(appKey);
-        Assert.NotNull(turns);
-        Assert.IsType<SettingsApp>(turns.App);
+        var openView = await screen.Read();
+        Assert.NotNull(openView);
+        Assert.Equal("app.settings", openView.Alias);
     }
 
-    [DigitalBrain.Module("flame-stub")]
-    private sealed class FlameStubModule : DigitalBrain.Module
+    [DigitalBrain.Modules.Module("flame-stub")]
+    private sealed class FlameStubModule : DigitalBrain.Modules.Module
     {
         public static ModuleManifest Manifest { get; } = new([], [], [], [], []);
     }
@@ -250,4 +243,3 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
             => Task.FromResult(true);
     }
 }
-

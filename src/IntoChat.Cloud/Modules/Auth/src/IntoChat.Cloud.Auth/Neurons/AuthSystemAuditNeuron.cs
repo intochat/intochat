@@ -1,7 +1,7 @@
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
-[DigitalBrain.Neuron("auth.system-audit")]
+[DigitalBrain.Neurons.Neuron("auth.system-audit")]
 internal sealed class AuthSystemAuditNeuron(
     AuthModuleOptions options,
     TimeProvider clock) : AuthNeuron<AuthSystemAuditState>, IAuthSystemAudit

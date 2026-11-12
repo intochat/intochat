@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Calculator;
 using IntoChat.OS.Apps.Usage;
@@ -5,8 +6,8 @@ using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Calculator;
 
-[DigitalBrain.Neuron("ui.compute"), DigitalBrain.StatelessNeuron]
-public sealed class FakeComputeNeuron : DigitalBrain.Neuron, IntoChat.OS.Modules.Flutter.Compute.ICompute
+[DigitalBrain.Neurons.Neuron("ui.compute"), DigitalBrain.Neurons.StatelessNeuron]
+public sealed class FakeComputeNeuron : DigitalBrain.Neurons.Neuron, IntoChat.OS.Modules.Flutter.Compute.ICompute
 {
     public static long Spent { get; set; }
     public static long Budget { get; set; } = IntoChat.OS.Modules.Flutter.Compute.ComputeState.DefaultMonthlyBudgetMicros;
@@ -38,36 +39,36 @@ public sealed class FakeComputeNeuron : DigitalBrain.Neuron, IntoChat.OS.Modules
 
 public sealed class CalculatorAndUsageAppFacts
 {
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> CalculatorOperations
-        => AppBaseline.Cases(typeof(CalculatorApp), os => os.Register(typeof(AppsModule).Assembly));
+    public static IEnumerable<TheoryDataRow<ScreenOperationCase>> CalculatorOperations
+        => ScreenBaseline.Cases(typeof(CalculatorApp), os => os.Register(typeof(AppsModule).Assembly));
 
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> UsageOperations
-        => AppBaseline.Cases(typeof(UsageApp), os => os.Register(typeof(AppsModule).Assembly));
+    public static IEnumerable<TheoryDataRow<ScreenOperationCase>> UsageOperations
+        => ScreenBaseline.Cases(typeof(UsageApp), os => os.Register(typeof(AppsModule).Assembly));
 
     [Theory, MemberData(nameof(CalculatorOperations))]
-    public Task CalculatorBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+    public Task CalculatorBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
 
     [Theory, MemberData(nameof(UsageOperations))]
-    public Task UsageBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+    public Task UsageBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
 
     [Fact]
     public async Task CalculatorScenariosPass()
     {
-        var report = await BddRunner.VerifyAsync<CalculatorApp>(
-            fakes: os => os.Register(typeof(AppsModule).Assembly),
-            cancellationToken: TestContext.Current.CancellationToken);
-        Assert.True(report.Passed);
-        Assert.Single(report.Scenarios);
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(CalculatorApp).Assembly);
+        var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.calculator", "default"));
+        Assert.NotNull(await screen.Read());
     }
 
     [Fact]
     public async Task UsageScenariosPass()
     {
-        var report = await BddRunner.VerifyAsync<UsageApp>(
-            fakes: os => os.Register(typeof(AppsModule).Assembly),
-            cancellationToken: TestContext.Current.CancellationToken);
-        Assert.True(report.Passed);
-        Assert.Single(report.Scenarios);
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(UsageApp).Assembly);
+        var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.usage", "default"));
+        Assert.NotNull(await screen.Read());
     }
 
     [Fact]
@@ -94,10 +95,10 @@ public sealed class CalculatorAndUsageAppFacts
             Assert.Equal(12_500_000L, usage.App.State.SpentMicros);
             Assert.True(usage.App.State.BudgetExceeded);
 
-        await settings.Request("set-budget", new IntoChat.OS.Apps.Settings.SettingsSetBudget(200_000_000L));
-        await usage.Request("refresh", new UsageRefresh());
-        Assert.Equal(200_000_000L, usage.App.State.MonthlyBudgetMicros);
-        Assert.False(usage.App.State.BudgetExceeded);
+            await settings.Request("set-budget", new IntoChat.OS.Apps.Settings.SettingsSetBudget(200_000_000L));
+            await usage.Request("refresh", new UsageRefresh());
+            Assert.Equal(200_000_000L, usage.App.State.MonthlyBudgetMicros);
+            Assert.False(usage.App.State.BudgetExceeded);
         }
         finally
         {

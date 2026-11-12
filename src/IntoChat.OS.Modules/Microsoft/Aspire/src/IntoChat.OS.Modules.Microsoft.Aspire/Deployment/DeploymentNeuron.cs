@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Contracts;
 using DigitalBrain.Flows;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
@@ -9,15 +10,15 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 
 // A plain neuron (06-08): reminders through Context.Reminders, the retained last DeploymentChanged is the runtime's.
-[DigitalBrain.Neuron("aspire.deployment")]
+[DigitalBrain.Neurons.Neuron("aspire.deployment")]
 internal sealed class DeploymentNeuron(
     IClusterHost host,
     IntoChat.OS.Modules.Microsoft.Orleans.IClusterMembershipFeed membership,
     ILogger<DeploymentNeuron> log)
-    : DigitalBrain.Neuron, IDeployment, IDeploymentDriver
+    : DigitalBrain.Neurons.Neuron<DeploymentState>, IDeployment, IDeploymentDriver
 {
     // The state, loaded on activation; a step that moves nothing visible saves it without a signal.
-    private DeploymentState Snapshot = new();
+    private DeploymentState Snapshot => State;
     private string BrainId => Id.Brain.Value;
     private T Peer<T>(string relative) where T : class
         => Get<T>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(T), $"{BrainId}/{relative}"));
@@ -227,14 +228,12 @@ internal sealed class DeploymentNeuron(
     // What was published is what committed: a refused write publishes nothing.
     private async Task SaveQuietly(DeploymentState next)
     {
-        await Context.State.Save(next, []);
-        Snapshot = next;
+        await Store(next);
     }
 
     private async Task Save(DeploymentState next, DeploymentChanged changed)
     {
-        await Context.State.Save(next, [changed]);
-        Snapshot = next;
+        await base.Save(next, changed);
         last = changed;
     }
 
@@ -253,7 +252,7 @@ internal sealed class DeploymentNeuron(
             return;
         }
         // Journaled with the unchanged state, so the brain's log holds the last DeploymentChanged for a later reader (06-08).
-        await Context.State.Save(Snapshot, [next]);
+        await base.Save(State, [next]);
         silos = read;
         last = next;
         if (membershipSnapshot is not null) { membershipVersion = membershipSnapshot.Version; }
@@ -261,11 +260,10 @@ internal sealed class DeploymentNeuron(
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        Snapshot = await Context.State.Load<DeploymentState>() ?? new();
         await Reconcile(cancellationToken);
     }
 
-    protected override async Task OnDeactivate(DigitalBrain.DeactivationCause cause, CancellationToken cancellationToken)
+    protected override async Task OnDeactivate(DigitalBrain.Neurons.DeactivationCause cause, CancellationToken cancellationToken)
     {
         if (membershipSubscription is not null) { await membershipSubscription.DisposeAsync(); }
     }

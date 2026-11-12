@@ -1,7 +1,7 @@
-using DigitalBrain.Contracts;
 using DigitalBrain;
-using IntoChat.OS;
+using DigitalBrain.Contracts;
 using DigitalBrain.State;
+using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.AI.GroupChat;
 
@@ -10,8 +10,8 @@ namespace IntoChat.OS.Modules.AI.GroupChat;
 public interface IGroupChat
 {
     Task<GroupChatState> Configure(GroupChatSetup setup);
-    [DigitalBrain.CallTimeout(1800000)] Task<GroupChatState> Ask(string question);
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<GroupChatState> Read();
+    [DigitalBrain.Contracts.CallTimeout(1800000)] Task<GroupChatState> Ask(string question);
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<GroupChatState> Read();
 }
 
 // Model is the LLM marker name, for example "IGpt56Luna" or "IGemma4".

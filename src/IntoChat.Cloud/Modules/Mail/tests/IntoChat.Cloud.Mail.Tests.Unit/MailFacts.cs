@@ -1,5 +1,6 @@
 using DigitalBrain;
-using DigitalBrain.Spi;
+using DigitalBrain.Modules;
+using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using IntoChat.Cloud.Mail.Templates;
 using Microsoft.Extensions.Time.Testing;

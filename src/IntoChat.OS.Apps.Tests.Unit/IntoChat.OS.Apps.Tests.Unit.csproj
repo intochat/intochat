@@ -8,5 +8,6 @@
     <ProjectReference Include="../IntoChat.OS.Modules/ModelContextProtocol/Mcp/src/IntoChat.OS.Modules.Mcp/IntoChat.OS.Modules.Mcp.csproj" />
     <ProjectReference Include="../IntoChat.OS.Modules/Microsoft/Aspire/src/IntoChat.OS.Modules.Microsoft.Aspire/IntoChat.OS.Modules.Microsoft.Aspire.csproj" />
     <ProjectReference Include="../IntoChat.OS.Modules/LocalDisk/src/IntoChat.OS.Modules.LocalDisk/IntoChat.OS.Modules.LocalDisk.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Identity/src/IntoChat.OS.Modules.Identity/IntoChat.OS.Modules.Identity.csproj" />
   </ItemGroup>
 </Project>

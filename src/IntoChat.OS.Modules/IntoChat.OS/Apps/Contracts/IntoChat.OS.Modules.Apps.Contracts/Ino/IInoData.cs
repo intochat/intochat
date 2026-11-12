@@ -19,6 +19,6 @@ public interface IInoData
 
     Task<InoToolResult> Chart(string spec);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<InoDataState> Read();
 }

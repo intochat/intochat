@@ -1,19 +1,11 @@
-using System.Reflection;
-using DigitalBrain;
+using DigitalBrain.Neurons;
 
 namespace IntoChat.OS.Authority.Identity.Handles;
 
-[DigitalBrain.Neuron(IHandleDirectory.TypeName)]
-public sealed class HandleDirectoryNeuron : DigitalBrain.Neuron<HandleState>, IHandleDirectory
+[Neuron(IHandleDirectory.TypeName)]
+public sealed class HandleDirectoryNeuron : Neuron<HandleState>, IHandleDirectory
 {
-    private static readonly FieldInfo StateField =
-        typeof(DigitalBrain.Neuron<HandleState>).GetField("<State>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)!;
-
-    private async Task Save(HandleState next)
-    {
-        await Context.State.Save(next, []);
-        StateField.SetValue(this, next);
-    }
+    private Task Save(HandleState next) => Store(next);
 
     public async Task<bool> Claim(string brainId)
     {

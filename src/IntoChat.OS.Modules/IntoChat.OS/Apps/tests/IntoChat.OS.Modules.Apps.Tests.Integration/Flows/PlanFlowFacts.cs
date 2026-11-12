@@ -3,8 +3,8 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Flows;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Modules.Apps.Approvals;
 using DigitalBrain.Testing;
+using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using Xunit;
 using static IntoChat.OS.Modules.Apps.Tests.Integration.Flows.FlowTypeFacts;
@@ -49,7 +49,7 @@ public sealed class PlanFlowFacts
         Assert.Equal(("Write the notes", id), (first.Title, first.ParentFlowId));
         var second = await Eventually(() => flows.Read(inner.Started[1], Ct), v => v.Relations.Length == 1);
         Assert.Equal(new FlowRelation(inner.Started[0], RelationKind.BlockedBy, TimeSpan.FromDays(1)), second.Relations[0]);
-    
+
     }
 
     private static async Task<string> PendingPlan(INeuronRuntime runtime, string flowId)

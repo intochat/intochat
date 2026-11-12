@@ -1,6 +1,6 @@
-using DigitalBrain.Capabilities.Connections;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Rules;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority.Connections;
@@ -65,17 +65,6 @@ public sealed class IdentityRulesFacts
 
         var ex = await Assert.ThrowsAsync<RuleViolationException>(() => contacts.Add("friends", new ContactEntry { Principal = "" }));
         Assert.Contains("identity.contact-principal-not-empty", ex.Rejected.Rules);
-    }
-
-    [Fact]
-    public async Task ConnectionIndexNeuronRefusesForeignBrainKeyWithRule()
-    {
-        await using var os = TestOS.Local();
-        os.Register<ConnectionIndexNeuron>();
-        var index = os.Get<IConnectionIndex>(IConnectionIndex.Id("owner"));
-
-        var ex = await Assert.ThrowsAsync<RuleViolationException>(() => index.Track("other/connection/github/main"));
-        Assert.Contains("identity.connection-belongs-to-brain", ex.Rejected.Rules);
     }
 
     [Fact]

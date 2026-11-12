@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Limits;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;

@@ -1,8 +1,8 @@
+using System.Diagnostics;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Runtime.Http.Surface;
-using System.Diagnostics;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Connections;

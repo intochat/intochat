@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.Cloud.Localization;
 

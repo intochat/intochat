@@ -3,9 +3,12 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
+using DigitalBrain.Limits;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Tests.Integration.Flows;
@@ -21,15 +24,15 @@ public interface IPlanRaiser
     Task Raise(string planId, ConfirmationAction action, string title, string body, string target);
 }
 
-[DigitalBrain.Neuron(Alias), StatelessNeuron]
-public sealed class PlanRaiser : DigitalBrain.Neuron, IPlanRaiser
+[DigitalBrain.Neurons.Neuron(Alias), StatelessNeuron]
+public sealed class PlanRaiser(IConfirmations? confirmations = null) : DigitalBrain.Neurons.Neuron, IPlanRaiser
 {
     public const string Alias = "test.plan-raiser";
 
     public Task Raise(string planId, ConfirmationAction action, string title, string body, string target)
     {
         var plan = new ConfirmationPlan(planId, action, Destructive: action != ConfirmationAction.Other, title, body, "Allow", "Deny", target) { RequiresPerson = true };
-        _ = Context.Confirm(plan, CancellationToken.None);
+        _ = (confirmations ?? throw new InvalidOperationException("No confirmations")).Confirm(plan, CancellationToken.None);
         return Task.CompletedTask;
     }
 }
@@ -40,8 +43,8 @@ public interface IPlanResolver
 }
 
 // A neuron answering a plan through the inbox, as a flow step or a synapse would.
-[DigitalBrain.Neuron(Alias), StatelessNeuron]
-public sealed class PlanResolver : DigitalBrain.Neuron, IPlanResolver
+[DigitalBrain.Neurons.Neuron(Alias), StatelessNeuron]
+public sealed class PlanResolver : DigitalBrain.Neurons.Neuron, IPlanResolver
 {
     public const string Alias = "test.plan-resolver";
 

@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -9,10 +10,10 @@ public sealed record VfsState
 }
 
 [Neuron(VfsNeuronDefaults.TypeName)]
-public sealed class VfsNeuron : Neuron<VfsState>, IVfsNeuron
+public sealed class VfsNeuron(IServiceProvider services) : Neuron<VfsState>, IVfsNeuron
 {
     private IFilesVfsService? _vfs;
-    private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(Context.Services, Id.Brain.Value);
+    private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(services, Id.Brain.Value);
 
     public async Task<WorkspaceFileEntry[]> ListFiles(string? query = null)
     {

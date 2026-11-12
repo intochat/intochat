@@ -1,6 +1,6 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Rules;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.UI;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -38,8 +38,8 @@ internal sealed partial class AppNeuron
 
     private Task RequireExecutingAssignment(string operation, long expectedProgramRevision)
     {
-        if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind != CallerKind.App
-            || !string.Equals(caller.AppId, Key, StringComparison.Ordinal))
+        if (Context.Caller?.Actor is not DigitalBrain.Access.Actor.App app
+            || !string.Equals(app.Key, Key, StringComparison.Ordinal))
         { throw new UnauthorizedAccessException("Only this app's executing assignment may publish its presentation."); }
         return Check(operation,
             new AppExists(Name(), State.Manifest is not null),

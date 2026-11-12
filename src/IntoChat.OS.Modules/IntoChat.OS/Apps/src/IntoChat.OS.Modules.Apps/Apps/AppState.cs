@@ -43,7 +43,7 @@ public sealed class AppState
     [Id(39)] public StringEntry[] SettingEntries { get; set; } = [];
     [Id(40)] public StringEntry[] ConnectionEntries { get; set; } = [];
     [Id(43)] public long SignalCursor { get; set; }
-    [Id(44)] public DigitalBrain.DeadLetterEntry[] DeadLetters { get; set; } = [];
+    [Id(44)] public DeadLetterEntry[] DeadLetters { get; set; } = [];
     // The IFlows id of the latest build; the build status is the flow's.
     [Id(45)] public string? BuildFlowId { get; set; }
     // Why a record stored by an older OS was refused on activation; null for a usable app. A Failed status alone stays retryable.
@@ -149,3 +149,11 @@ public sealed record AppVersionRecord(
 public sealed record AppReleaseRecord(
     [property: Id(0)] AppPublication Publication,
     [property: Id(1)] AppBundle Bundle);
+
+[GenerateSerializer, Alias("into.apps.dead-letter")]
+public sealed record DeadLetterEntry(
+    [property: Id(0)] long Position,
+    [property: Id(1)] string Publisher,
+    [property: Id(2)] string SignalType,
+    [property: Id(3)] string ErrorMessage,
+    [property: Id(4)] DateTimeOffset At);

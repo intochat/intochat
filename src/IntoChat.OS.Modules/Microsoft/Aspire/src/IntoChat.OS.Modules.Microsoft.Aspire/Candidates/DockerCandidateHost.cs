@@ -1,13 +1,13 @@
-using DigitalBrain.Capabilities.Connections.Integrations;
-using DigitalBrain.Modules.Configuration;
 using System.Net.NetworkInformation;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Modules.Configuration;
+using IntoChat.OS.Connections.Identity.Configuration;
+using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Connections.Identity.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;

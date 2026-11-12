@@ -1,4 +1,5 @@
 using System.Reflection;
+using DigitalBrain.Modules;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -22,13 +23,13 @@ public sealed class ModuleManifestFacts
     {
         for (var current = type.BaseType; current is not null; current = current.BaseType)
         {
-            if (current.FullName == "DigitalBrain.Module") { return true; }
+            if (current.FullName == "DigitalBrain.Modules.Module") { return true; }
         }
         return false;
     }
 
     private static bool HasManifest(Type type)
-        => type.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)?.PropertyType.FullName == "DigitalBrain.ModuleManifest";
+        => type.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)?.PropertyType.FullName == "DigitalBrain.Modules.ModuleManifest";
 
     [Fact]
     public void EveryModuleDeclaresAManifest()

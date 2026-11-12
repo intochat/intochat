@@ -11,9 +11,9 @@ public interface ISpace
 
     static string Key(string brainId) => $"{brainId}/main";
 
-    [DigitalBrain.OneWayCall, DigitalBrain.Interleaves] Task Rebuild();
-    [DigitalBrain.OneWayCall, DigitalBrain.Interleaves] Task RefreshApp(string key);
-    [DigitalBrain.OneWayCall, DigitalBrain.Interleaves] Task Recompose();
+    [DigitalBrain.Contracts.OneWayCall, DigitalBrain.Contracts.Interleaves] Task Rebuild();
+    [DigitalBrain.Contracts.OneWayCall, DigitalBrain.Contracts.Interleaves] Task RefreshApp(string key);
+    [DigitalBrain.Contracts.OneWayCall, DigitalBrain.Contracts.Interleaves] Task Recompose();
     Task<PersonState> ReadProfile(string key);
     Task<CardState> ReadPost(string key);
     Task<CollectionState> ReadPosts(string key);

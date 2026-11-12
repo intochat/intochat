@@ -3,7 +3,7 @@
     <IsPackable>true</IsPackable>
     <Description>Aspire AppHost neuron: resource state signals and resource commands over the AppHost bridge.</Description>
     <RootNamespace>IntoChat.OS.Modules.Microsoft.Aspire</RootNamespace>
-    <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
+    <NoWarn>$(NoWarn);ORLEANSEXP005;DB0033</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Modules.Microsoft.Aspire.Tests.Unit" />

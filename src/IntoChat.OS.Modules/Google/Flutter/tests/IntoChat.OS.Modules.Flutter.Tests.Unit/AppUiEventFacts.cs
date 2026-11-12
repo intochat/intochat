@@ -1,8 +1,9 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
-using DigitalBrain.Spi;
+using DigitalBrain.Neurons;
 using DigitalBrain.UI;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Flutter.Fields;
@@ -99,7 +100,7 @@ public sealed class AppUiEventFacts
     {
         await using var os = TestOS.Local().Register(typeof(CounterUnit).Assembly);
         os.Confirmations.ApproveAll();
-        await os.Get<IInstalls>(NeuronId.Parse("owner/synapse.installs/default")).Install(new DigitalBrain.InstallRequest("ctr", new Dictionary<string, string>()), Ct);
+        await os.Get<IInstalls>(NeuronId.Parse("owner/synapse.installs/default")).Install(new DigitalBrain.Units.InstallRequest("ctr", new Dictionary<string, string>()), Ct);
         await os.Idle();
         await os.Get<IKicker>(NeuronId.Parse("owner/kicker/a")).Kick();
         await os.Idle();
@@ -123,7 +124,7 @@ public sealed class AppUiEventFacts
     {
         var os = TestOS.Local().Register(typeof(CounterUnit).Assembly);
         os.Confirmations.ApproveAll();
-        await os.Get<IInstalls>(NeuronId.Parse("owner/synapse.installs/default")).Install(new DigitalBrain.InstallRequest("ctr", new Dictionary<string, string>()), Ct);
+        await os.Get<IInstalls>(NeuronId.Parse("owner/synapse.installs/default")).Install(new DigitalBrain.Units.InstallRequest("ctr", new Dictionary<string, string>()), Ct);
         await os.Idle();
         await os.Get<IKicker>(NeuronId.Parse("owner/kicker/a")).Kick();
         await os.Idle();
@@ -190,7 +191,7 @@ public sealed class AppUiEventFacts
     {
         await using var os = TestOS.Local().Register(typeof(CounterUnit).Assembly);
         os.Confirmations.ApproveAll();
-        await os.Get<IInstalls>(NeuronId.Parse("owner/synapse.installs/default")).Install(new DigitalBrain.InstallRequest("forger", new Dictionary<string, string>()), Ct);
+        await os.Get<IInstalls>(NeuronId.Parse("owner/synapse.installs/default")).Install(new DigitalBrain.Units.InstallRequest("forger", new Dictionary<string, string>()), Ct);
         await os.Idle();
         await os.Get<IKicker>(NeuronId.Parse("owner/kicker/a")).Kick();
         await os.Idle();

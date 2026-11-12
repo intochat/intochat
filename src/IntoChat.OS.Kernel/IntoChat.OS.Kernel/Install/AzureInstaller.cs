@@ -1,8 +1,8 @@
-using DigitalBrain.Capabilities.Connections.Connectors;
 using System.Security.Cryptography;
 using System.Text.Json;
-using IntoChat.OS.Framework.Modules;
 using Azure;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
 

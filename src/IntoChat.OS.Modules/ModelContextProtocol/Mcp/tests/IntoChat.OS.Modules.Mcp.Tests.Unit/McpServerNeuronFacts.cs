@@ -1,4 +1,4 @@
-using DigitalBrain.Spi;
+using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Tools;
 

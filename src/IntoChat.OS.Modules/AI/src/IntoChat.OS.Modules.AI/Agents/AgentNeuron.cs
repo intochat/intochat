@@ -1,20 +1,21 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Capabilities.Compute;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Compute;
+using DigitalBrain.Invocation;
+using DigitalBrain.Neurons;
+using DigitalBrain.State;
+using IntoChat.OS.Connections.Platform.Secrets;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.AI.Agents.Context;
+using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Platform.Secrets;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using DigitalBrain.State;
-using DigitalBrain.Invocation;
-using IntoChat.OS.Modules.AI.Agents.Context;
-using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 
 namespace IntoChat.OS.Modules.AI.Agents;
 
@@ -37,8 +38,14 @@ internal sealed record AgentStorage
 // A plain neuron since 06-06d. Every call interleaves (the contract says so), as the grain's did: a turn streams for minutes while
 // Read, Cancel and Post reach the agent. The pending write (_beforeWrite, _write) keeps interleaving readers on committed versions;
 // most writes publish nothing, so Persist saves through the runtime state directly and signals follow with Publish.
-[DigitalBrain.Neuron("agent", State = "agent")]
-internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
+[DigitalBrain.Neurons.Neuron("agent", State = "agent")]
+internal sealed class AgentNeuron(
+    ISecretRedactor redactor,
+    TimeProvider clock,
+    IServiceProvider services,
+    ILogger<AgentNeuron>? logger = null,
+    AgentWrites? writes = null)
+    : AiNeuron<AgentStorage>, IAgent, IAgentDriver
 {
     private const int KeptRuns = 64;
     // Replayed history is bounded by size as well as count: tool results (capability listings,
@@ -52,9 +59,6 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
     private CancellationTokenSource? _active;
     private string? _cancelBeforeDrive;
     private bool _mutating;
-    // Set only after Acquire has returned, and cleared only after Release has returned, so Drive's
-    // tail does not pay a second grain call for a token the first signal already released.
-    private bool _continuationHeld;
     // The agent's state as this activation holds it; the base's State is only what activation loaded.
     private AgentStorage _state = new();
     // Set when a write's outcome is unknown: the next call reloads the stored state and closes what it left open.
@@ -74,22 +78,8 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
     // The brain the access check sees is the tools' and the meter's.
     private string Scope => BrainKey.ScopeOf(Key) ?? Key;
 
-    private async Task AcquireContinuation(string runId)
-    {
-        if (ServiceProvider.GetService<IWorkContinuation>() is not { } gate) { return; }
-        await gate.Acquire(Scope, "agent:" + runId);
-        _continuationHeld = true;
-    }
-
-    private async Task ReleaseContinuation(string runId)
-    {
-        if (!_continuationHeld || ServiceProvider.GetService<IWorkContinuation>() is not { } gate) { return; }
-        await gate.Release(Scope, "agent:" + runId);
-        _continuationHeld = false;
-    }
-
     // Everything announced or stored passes through the redactor: vault values are masked, never kept here.
-    private ISecretRedactor Redactor => ServiceProvider.GetRequiredService<ISecretRedactor>();
+    private ISecretRedactor Redactor => redactor;
     private async Task<string> Mask(string text) => (await Redactor.Redact(text, CancellationToken.None))!;
 
     private async Task<AiMessage> Mask(AiMessage message) => new(message.Role, [.. await MaskAll(message.Content)]);
@@ -111,8 +101,8 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
         return [.. masked];
     }
 
-    private ILogger Logger => ServiceProvider.GetService<ILogger<AgentNeuron>>() ?? (ILogger)global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
-    private TimeProvider Clock => ServiceProvider.GetRequiredService<TimeProvider>();
+    private ILogger Logger => (ILogger?)logger ?? global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+    private TimeProvider Clock => clock;
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
@@ -136,14 +126,14 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
         await Reconsider();
     }
 
-    [DigitalBrain.On]
+    [On]
     public Task OnContextUpdated(ContextUpdated signal)
     {
         ArgumentNullException.ThrowIfNull(signal);
         return Reconsidered();
     }
 
-    [DigitalBrain.On]
+    [On]
     public Task OnContextRemoved(ContextRemoved signal)
     {
         ArgumentNullException.ThrowIfNull(signal);
@@ -255,7 +245,7 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
     {
         if (!_stale || _active is not null || _mutating) { return; }
         _stale = false;
-        _state = await Context.State.Load<AgentStorage>() ?? new();
+        _state = base.State;
         await Resume();
     }
 
@@ -376,15 +366,12 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
         await Persist(State with { ActiveRun = new AgentRun(runId, AgentRunStatus.Running, UserText(turn.Message), DateTimeOffset.UtcNow) { FlowId = flowId, TraceId = TraceContext.Current?.TraceId } });
         try
         {
-            await AcquireContinuation(runId);
             var driven = turn with { RunId = runId };
             await Context.Get<IAgentDriver>(Id).Drive(driven, runId);
         }
         catch
         {
             // The caller learns why the hand-off failed; a failure to undo it must not replace that.
-            try { await ReleaseContinuation(runId); }
-            catch (Exception error) { Abandon(error, runId); }
             try { await Persist(State with { ActiveRun = null }); }
             catch (Exception error) { Abandon(error, runId); }
             throw;
@@ -396,7 +383,6 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
     {
         try { await foreach (var _ in Execute(turn, runId, CancellationToken.None)) { } }
         catch (Exception error) { Logger.LogWarning(error, "Agent turn {RunId} ended with an error.", runId); }
-        finally { await ReleaseContinuation(runId); }
     }
 
     public IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, CancellationToken ct = default) => Execute(turn, null, ct);
@@ -488,15 +474,12 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
             // Start already stored this run; only a Run admits it here.
             if (State.ActiveRun != run) { await Persist(State with { ActiveRun = run }); }
             await Notify(new TurnStarted(Key, runId, run.UserText));
-            // The caller's script can finish as soon as Start returns. Release once the turn's first
-            // signal is published, so later streamed progress still reaches the projection.
-            await ReleaseContinuation(runId);
             await WriteRecall(definition.Contexts, UserText(input));
             var bounded = Bound(State.Transcript, Math.Max(1, definition.MaxHistoryMessages - 1), Math.Max(0, MaxHistoryCharacters - Size(input)), State.Summary);
             var plan = new TurnPlan(Scope, Key, runId, bounded.Messages, bounded.Summary, input,
                 turn.Instructions ?? definition.Instructions, turn.Contracts ?? definition.Contracts, turn.Contexts ?? definition.Contexts,
                 turn.Model ?? definition.Model, definition.Options, definition.MaxModelCalls, true);
-            var loop = new AgentTurnLoop(ServiceProvider, ReadContext).Run(plan, lifetime.Token).GetAsyncEnumerator(lifetime.Token);
+            var loop = new AgentTurnLoop(services, ReadContext).Run(plan, lifetime.Token).GetAsyncEnumerator(lifetime.Token);
             try
             {
                 while (true)
@@ -710,9 +693,8 @@ internal sealed class AgentNeuron : AiNeuron<AgentStorage>, IAgent, IAgentDriver
         _state = next with { Version = previous.Version + 1, Blocked = _blocked };
         try
         {
-            var writes = ServiceProvider.GetService<AgentWrites>();
             if (writes is not null) { await writes.Before(_state); }
-            await Context.State.Save(_state, []);
+            await Store(_state);
             writes?.Committed(_state);
         }
         catch { _state = previous; throw; }

@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using IntoChat.OS.Modules.Flame.Scene;
 using IntoChat.OS.Modules.Flame.Scene.Signals;

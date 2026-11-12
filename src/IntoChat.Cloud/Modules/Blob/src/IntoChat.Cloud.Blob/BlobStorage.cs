@@ -6,7 +6,6 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
-using DigitalBrain.Spi;
 
 namespace IntoChat.Cloud.Blob;
 

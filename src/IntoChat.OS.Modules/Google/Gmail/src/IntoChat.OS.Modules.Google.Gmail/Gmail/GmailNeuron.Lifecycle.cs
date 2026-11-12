@@ -1,8 +1,8 @@
+using System.Text.Json;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
-using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Google.Gmail;
@@ -19,9 +19,7 @@ internal sealed partial class GmailNeuron
         var result = await Api.ProfileAsync(grant.AccessToken, NewCallContext(), CancellationToken.None);
         if (result.Value is not { } profile || !GmailPubSub.ValidMailbox(profile.EmailAddress))
         { throw new GmailUnavailableException("Google did not verify the mailbox identity. Reconnect Gmail."); }
-        PrepareGrantBinding(profile.EmailAddress, grant.AuthMethodId);
-        Snapshot.History = new(profile.EmailAddress, Snapshot.GrantGeneration, profile.HistoryId, null, null, false, null);
-        Snapshot.Watch = null;
+        await PrepareGrantBindingAsync(profile.EmailAddress, grant.AuthMethodId, profile.HistoryId);
         return grant;
     }
 
@@ -284,7 +282,7 @@ internal sealed partial class GmailNeuron
 
     private Task SetWatchDetailAsync(string? detail)
         => Snapshot.Detail == detail || Snapshot.Detail is { } existing && !existing.StartsWith(WatchDetailPrefix, StringComparison.Ordinal)
-            ? Task.CompletedTask : SaveGmailStateAsync(next => next.Detail = detail);
+            ? Task.CompletedTask : SaveGmailStateAsync(next => next with { Detail = detail });
 
     private void ValidateLifecycleTrace(Trace trace)
     {

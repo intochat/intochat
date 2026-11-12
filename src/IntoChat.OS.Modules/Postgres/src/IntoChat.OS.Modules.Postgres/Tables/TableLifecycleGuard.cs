@@ -1,8 +1,8 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Capabilities;
 using System.Text.Json;
+using DigitalBrain.Brains;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Invocation;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;
 

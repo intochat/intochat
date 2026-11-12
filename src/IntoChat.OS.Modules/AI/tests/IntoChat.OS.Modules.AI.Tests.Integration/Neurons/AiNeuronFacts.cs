@@ -1,7 +1,10 @@
+using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Testing;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
-using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
+using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Embeddings;
 using IntoChat.OS.Modules.AI.Embeddings.Signals;
 using IntoChat.OS.Modules.AI.Inference;
@@ -9,9 +12,6 @@ using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Metering;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.Signals;
-using DigitalBrain.Capabilities;
-using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Modules.AI.Tests;
 

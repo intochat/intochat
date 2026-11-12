@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
 using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.AI.Memory;

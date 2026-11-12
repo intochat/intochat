@@ -1,16 +1,17 @@
 using DigitalBrain;
 using DigitalBrain.Brains;
-using DigitalBrain.Capabilities.Connections;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
-using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Limits;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 // One repository connection, keyed {brain}/connection/github/{id}. The user's OAuth token proves
 // access once; installation tokens minted from the App key do the ongoing work.
-[DigitalBrain.Neuron("github", State = "github")]
+[DigitalBrain.Neurons.Neuron("github", State = "github")]
 internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepositoryState>, IRepository, IGitHubInbound
 {
     private const int MaxProcessedDeliveries = 512;
@@ -32,7 +33,7 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
     }
 
     private GitHubRepository Repository => new(FullKey, Snapshot.AppId, Snapshot.InstallationId, Snapshot.RepositoryId, Snapshot.Owner, Snapshot.Name);
-    private DigitalBrain.IPolicies Policies => Context.Get<DigitalBrain.IPolicies>(DigitalBrain.NeuronId.Parse(DigitalBrain.IPolicies.Key(Id.Brain.Value)));
+    private DigitalBrain.Limits.IPolicies Policies => Context.Get<DigitalBrain.Limits.IPolicies>(DigitalBrain.NeuronId.Parse(DigitalBrain.Limits.IPolicies.Key(Id.Brain.Value)));
     private string RepositoryFact => $"{Snapshot.Owner}/{Snapshot.Name}";
 
     // The installation index is a plain neuron in the system brain (06-06d); this connection is still a grain.
@@ -47,18 +48,19 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
         await _verifier.VerifyAsync(resolved, CancellationToken.None);
         if (Snapshot.InstallationId != 0 && Snapshot.InstallationId != resolved.InstallationId)
         { await Index(Snapshot.InstallationId).Remove(FullKey); }
-        if (Snapshot.RepositoryId != resolved.RepositoryId)
+        var account = $"{resolved.Owner}/{resolved.Name}";
+        var next = (Snapshot.RepositoryId != resolved.RepositoryId
+            ? Snapshot with { PullRequests = [], LastWebhookAt = null }
+            : Snapshot) with
         {
-            // Another repository's observations never carry over.
-            Snapshot.PullRequests = [];
-            Snapshot.LastWebhookAt = null;
-        }
-        Snapshot.AppId = resolved.AppId;
-        Snapshot.InstallationId = resolved.InstallationId;
-        Snapshot.RepositoryId = resolved.RepositoryId;
-        Snapshot.Owner = resolved.Owner;
-        Snapshot.Name = resolved.Name;
-        Snapshot.Account = $"{resolved.Owner}/{resolved.Name}";
+            AppId = resolved.AppId,
+            InstallationId = resolved.InstallationId,
+            RepositoryId = resolved.RepositoryId,
+            Owner = resolved.Owner,
+            Name = resolved.Name,
+            Account = account,
+        };
+        await SaveQuietly(next);
         // The user token proved access once; installation tokens do the ongoing work.
         return grant with { AccessToken = "installation", RefreshToken = null, ExpiresAt = null };
     }

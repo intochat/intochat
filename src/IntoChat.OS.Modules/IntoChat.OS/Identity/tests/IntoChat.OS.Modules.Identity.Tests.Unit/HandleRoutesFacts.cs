@@ -1,8 +1,7 @@
-using BrainRoutes = IntoChat.OS.Connections.BrainRoutes;
-using DigitalBrain.Runtime.Http.Surface;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Net;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Http.Surface;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Authority.Identity.Handles;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Http;
@@ -13,6 +12,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using BrainRoutes = IntoChat.OS.Connections.BrainRoutes;
 
 namespace IntoChat.OS.Authority;
 

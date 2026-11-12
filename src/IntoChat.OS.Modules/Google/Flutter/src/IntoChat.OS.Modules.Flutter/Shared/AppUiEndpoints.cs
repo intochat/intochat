@@ -1,10 +1,14 @@
-using DigitalBrain.Brains;
-using IntoChat.OS.Runtime;
-using DigitalBrain.Spi;
-using DigitalBrain;
-using DigitalBrain.Errors;
 using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Brains;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Errors;
+using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Units;
+using IntoChat.OS.Connections;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Trace;
@@ -12,14 +16,11 @@ using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Flutter.WebBrowser;
-using IntoChat.OS.Connections;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using DigitalBrain.Runtime.Orleans.Hosting;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Flutter;
@@ -73,6 +74,27 @@ internal static class AppUiEndpoints
                 var directViewName = name.EndsWith("/view", StringComparison.Ordinal) ? name : $"{name}/view";
                 if (OwnsUi(scope, directViewName))
                 {
+                    if (ScreenAlias(scope, directViewName) is { } directScreenAlias)
+                    {
+                        try
+                        {
+                            var screenId = new NeuronId(new BrainId(scope), directScreenAlias, "default");
+                            var published = await brain.Get<IScreen>(screenId).Read().WaitAsync(ct);
+                            if (published is not null)
+                            {
+                                return Results.Ok(new
+                                {
+                                    Revision = published.Generation,
+                                    Target = (IntoChat.OS.Modules.Flutter.Workspace.WorkspaceViewRef?)null,
+                                    Root = new ViewRef(UIVocabulary.ViewType, directViewName),
+                                    Error = (string?)null,
+                                });
+                            }
+                        }
+                        catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
+                        {
+                        }
+                    }
                     var directView = await brain.Get<IView>(directViewName).Read().WaitAsync(ct);
                     if (directView is not null)
                     {
@@ -88,6 +110,30 @@ internal static class AppUiEndpoints
                 return Results.Ok(new { viewport.Revision, Root = (ViewRef?)null, Error = (string?)null });
             }
             if (!OwnsUi(scope, target.App)) { throw new UnauthorizedAccessException(); }
+            var appName = target.App.StartsWith(scope + "/apps/", StringComparison.Ordinal)
+                ? target.App[(scope.Length + "/apps/".Length)..]
+                : target.App;
+            if (!appName.Contains('/'))
+            {
+                try
+                {
+                    var screenId = new NeuronId(new BrainId(scope), "app." + appName, "default");
+                    var published = await brain.Get<IScreen>(screenId).Read().WaitAsync(ct);
+                    if (published is not null)
+                    {
+                        return Results.Ok(new
+                        {
+                            viewport.Revision,
+                            viewport.Target,
+                            Root = new ViewRef(UIVocabulary.ViewType, $"{scope}/apps/{appName}/view"),
+                            Error = (string?)null,
+                        });
+                    }
+                }
+                catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
+                {
+                }
+            }
             var app = await brain.Get<IApp>(target.App).Read().WaitAsync(ct);
             var presentation = app.Presentation;
             var root = presentation?.Root?.Views?.FirstOrDefault(view => view.Id == target.Variant)?.Root;
@@ -102,9 +148,26 @@ internal static class AppUiEndpoints
         }
         if (kind == UIVocabulary.ViewType)
         {
-            return Results.Json(unit is not null
-                ? await brain.Get<IViewReader>(UnitState(scope, unit)).Read(unit).WaitAsync(ct)
-                : await brain.Get<IView>(name).Read().WaitAsync(ct), ViewJson);
+            if (unit is not null)
+            {
+                return Results.Json(await brain.Get<IViewReader>(UnitState(scope, unit)).Read(unit).WaitAsync(ct), ViewJson);
+            }
+            if (ScreenAlias(scope, name) is { } screenAlias)
+            {
+                try
+                {
+                    var screenId = new NeuronId(new BrainId(scope), screenAlias, "default");
+                    var published = await brain.Get<IScreen>(screenId).Read().WaitAsync(ct);
+                    if (published is not null)
+                    {
+                        return Results.Json(published, ViewJson);
+                    }
+                }
+                catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
+                {
+                }
+            }
+            return Results.Json(await brain.Get<IView>(name).Read().WaitAsync(ct), ViewJson);
         }
         return kind switch
         {
@@ -185,6 +248,72 @@ internal static class AppUiEndpoints
             { throw new ArgumentException($"This view node does nothing ({refused.Reason})."); }
             return Results.Ok(new { delivered = true });
         }
+        if (ScreenAlias(scope, input.Name) is { } screenAlias)
+        {
+            PublishedView? published = null;
+            IScreen? screen = null;
+            try
+            {
+                var screenId = new NeuronId(new BrainId(scope), screenAlias, "default");
+                screen = brain.Get<IScreen>(screenId);
+                published = await screen.Read().WaitAsync(ct);
+            }
+            catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
+            {
+            }
+
+            if (published is not null && screen is not null)
+            {
+                var node = ViewValidation.Find(published.View, key);
+                var action = node is { } foundNode ? ViewValidation.ActionOf(foundNode) : ViewActivation.None;
+
+                switch (action.Kind)
+                {
+                    case ViewActivationKind.Intent:
+                        return IntentResult(action.Intent!);
+
+                    case ViewActivationKind.Resolve:
+                        var surfaceAppKey = AppOf(scope, input.Name);
+                        if (hosted is null || surfaceAppKey is null || !hosted.IsHostLoaded(surfaceAppKey))
+                        {
+                            throw new UnauthorizedAccessException($"Only an OS surface can answer a confirmation; {input.Name} cannot.");
+                        }
+                        if (input.Value is not ("approve" or "deny"))
+                        {
+                            throw new ArgumentException("An approval is answered approve or deny.");
+                        }
+                        await brain.Get<IConfirmationInbox>(IConfirmationInbox.Key(scope)).Resolve(action.Resolve!.PlanId, input.Value == "approve").WaitAsync(ct);
+                        return Results.Ok(new { delivered = true });
+
+                    case ViewActivationKind.Emit:
+                        ViewArgs.RequireValueUnreserved(action.Emit!.Args, input.Value);
+                        if (!RuntimeCallerContext.TryGet(out var caller) || string.IsNullOrEmpty(caller.PersonId))
+                        {
+                            throw new UnauthorizedAccessException("Only a signed-in person activates a screen view.");
+                        }
+                        try
+                        {
+                            await screen.Activate(screenAlias, generation, key, input.Value, caller.PersonId).WaitAsync(ct);
+                        }
+                        catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
+                        {
+                            throw new StaleActionException("This action is no longer available. Read the view again.");
+                        }
+                        catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)
+                        {
+                            throw new UnauthorizedAccessException($"A view of {screenAlias} cannot emit to another owner.");
+                        }
+                        catch (ActivationRefusedException refused)
+                        {
+                            throw new ArgumentException($"This view node does nothing ({refused.Reason}).");
+                        }
+                        return Results.Ok(new { delivered = true });
+
+                    default:
+                        throw new ArgumentException("This view node does nothing.");
+                }
+            }
+        }
         if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
         var name = input.Name;
         var activation = await brain.Get<IView>(name).Activate(generation, key, input.Value).WaitAsync(ct);
@@ -230,6 +359,18 @@ internal static class AppUiEndpoints
         if (!view.StartsWith(prefix, StringComparison.Ordinal)) { return null; }
         var end = view.IndexOf('/', prefix.Length);
         return end > prefix.Length ? view[..end] : null;
+    }
+
+    internal static string? ScreenAlias(string scope, string name)
+    {
+        var prefix = scope + "/apps/";
+        if (!name.StartsWith(prefix, StringComparison.Ordinal)) { return null; }
+        var remainder = name[prefix.Length..];
+        if (remainder.EndsWith("/view", StringComparison.Ordinal))
+        {
+            remainder = remainder[..^5];
+        }
+        return remainder.Length > 0 && !remainder.Contains('/') ? "app." + remainder : null;
     }
 
     // A unit's view is named {scope}/{alias}: one segment, a state alias rather than an app area.

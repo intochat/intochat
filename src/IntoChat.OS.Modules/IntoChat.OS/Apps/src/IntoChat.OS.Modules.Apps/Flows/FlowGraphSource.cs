@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Flows;
 using DigitalBrain.Graph;
-using DigitalBrain.Spi;
+using DigitalBrain.Neurons;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

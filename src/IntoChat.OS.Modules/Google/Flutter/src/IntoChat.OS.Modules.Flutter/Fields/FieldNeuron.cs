@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.UI;
 
@@ -63,7 +64,7 @@ internal sealed class FieldNeuron
         return Task.FromResult(taken);
     }
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<FieldState> Read()
     {
         var (owner, name) = Address();

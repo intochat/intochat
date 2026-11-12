@@ -1,29 +1,30 @@
 using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Http.Surface;
-using Microsoft.Extensions.Configuration;
 using IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
-[DigitalBrain.Module(ManifestName)]
-public sealed class GitHubModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module(ManifestName)]
+public sealed class GitHubModule : DigitalBrain.Modules.Module
 {
     internal const string ManifestName = "github";
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs:
         [
-            DigitalBrain.Need.HttpClient("github", requestsPerMinute: 120),
-            DigitalBrain.Need.Webhook("/github/webhook", "github.repository"),
+            DigitalBrain.Modules.Need.HttpClient("github", requestsPerMinute: 120),
+            DigitalBrain.Modules.Need.Webhook("/github/webhook", "github.repository"),
         ],
-        Settings: [DigitalBrain.Setting.Of<GitHubModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(ManifestName))],
-        Secrets: [DigitalBrain.Secret.Named("private-key-pem"), DigitalBrain.Secret.Named("client-secret"), DigitalBrain.Secret.Named("webhook-secret")])
+        Settings: [DigitalBrain.Modules.Setting.Of<GitHubModuleOptions>(DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(ManifestName))],
+        Secrets: [DigitalBrain.Modules.Secret.Named("private-key-pem"), DigitalBrain.Modules.Secret.Named("client-secret"), DigitalBrain.Modules.Secret.Named("webhook-secret")])
     {
-        Auth = new DigitalBrain.ModuleAuth("github", []),
+        Auth = new DigitalBrain.Modules.ModuleAuth("github", []),
         Actions =
         [
             new("github.branch.push", "push a GitHub branch", null),

@@ -5,12 +5,12 @@ namespace IntoChat.OS.Modules.Apps;
 [NeuronAlias("ino.files"), DefaultNeuronType("ino.files")]
 public interface IInoFiles
 {
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<InoToolResult> Find(string pattern);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<InoToolResult> Open(string path);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<InoToolResult> Summarize(string path);
 }

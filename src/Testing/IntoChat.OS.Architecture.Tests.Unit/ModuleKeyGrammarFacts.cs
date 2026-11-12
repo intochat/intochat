@@ -1,5 +1,5 @@
-using DigitalBrain.Modules.Configuration;
 using System.Text.RegularExpressions;
+using DigitalBrain.Modules.Configuration;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

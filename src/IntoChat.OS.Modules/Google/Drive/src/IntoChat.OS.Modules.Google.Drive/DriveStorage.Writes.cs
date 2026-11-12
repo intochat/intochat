@@ -1,11 +1,13 @@
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Confirmation;
+using DigitalBrain.Neurons;
 using DigitalBrain.Operations;
-using DigitalBrain.Spi;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Google.Drive;
@@ -33,7 +35,7 @@ internal sealed partial class DriveNeuron : IStorageUpload
             caller.Kind.ToString(), caller.AppId, caller.ConversationId });
     }
 
-    protected override async Task OnDeactivate(DigitalBrain.DeactivationCause cause, CancellationToken cancellationToken)
+    protected override async Task OnDeactivate(DigitalBrain.Neurons.DeactivationCause cause, CancellationToken cancellationToken)
     {
         if (_uploads is { } uploads) { await uploads.DisposeAsync(); }
         await base.OnDeactivate(cause, cancellationToken);
@@ -43,7 +45,6 @@ internal sealed partial class DriveNeuron : IStorageUpload
     {
         ArgumentNullException.ThrowIfNull(plan);
         await ConfirmWrite(plan, ct);
-        var operations = ServiceProvider.GetService<IOperations>() ?? Context.Operations;
         var operation = await operations.Start(new DriveWriteOperation(plan.Kind, plan.DryRun), ct);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, operation.Cancellation);
         try
@@ -107,8 +108,18 @@ internal sealed partial class DriveNeuron : IStorageUpload
     {
         ArgumentNullException.ThrowIfNull(plan);
         RequireWrite();
-        if (await StorageConfirmationGate.Check(Context, this, plan, ct) is not null)
-        { throw new Denied(plan.Source ?? plan.TargetFolder); }
+        if (authorizer is not null && await authorizer.Consume(Context.Id, plan, ct).ConfigureAwait(false)) { return; }
+        if (confirmations is null || plan.DryRun) { return; }
+        var descriptor = await ((IStorage)this).Describe(ct).ConfigureAwait(false);
+        var connection = new CapabilityConnection<IStorage>("storage", descriptor.Label, this);
+        var runner = new StorageWriteRunner((_, _) => Task.FromResult(connection),
+            (_, _, _) => throw new InvalidOperationException("A confirmation does not execute writes."));
+        var question = await runner.Confirmation(plan, ct).ConfigureAwait(false);
+        var answer = await confirmations.Confirm(question, ct).ConfigureAwait(false);
+        if (answer.Outcome != ConfirmationOutcome.Approved)
+        {
+            throw new Denied(plan.Source ?? plan.TargetFolder);
+        }
     }
 
     private async Task<PreparedWrite> Prepare(WritePlan plan, CancellationToken ct)

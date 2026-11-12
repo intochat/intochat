@@ -1,6 +1,7 @@
+using DigitalBrain.Access;
 using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework;
@@ -10,11 +11,11 @@ using IntoChat.OS.Modules.Mcp;
 
 namespace IntoChat.OS.Modules.Apps;
 
-[DigitalBrain.Neuron("apps.artcraft-engine")]
-internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : DigitalBrain.Neuron, IArtCraftEngine
+[DigitalBrain.Neurons.Neuron("apps.artcraft-engine")]
+internal sealed class ArtCraftEngineNeuron(IServiceProvider? services = null, IIdentityClient? identity = null) : DigitalBrain.Neurons.Neuron, IArtCraftEngine
 {
     private IFilesVfsService? _vfs;
-    private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(Context.Services, Id.Brain.Value);
+    private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(services ?? throw new InvalidOperationException("No services"), Id.Brain.Value);
 
     public async Task<ArtCraftEngineResult> Execute(
         string app,
@@ -79,30 +80,33 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
     private async Task RequireAdmitted()
     {
         var brain = Id.Brain.Value;
-        if (!RuntimeCallerContext.TryGet(out var caller))
+        var caller = Context.Caller;
+        if (caller is null)
         {
             return;
         }
-        if (caller.Kind != CallerKind.App)
+        if (caller.Actor is not Actor.App app)
         {
-            CallerAdmission.RequireSameBrain(brain, target: "apps.artcraft-engine");
+            if (caller.Actor is not Actor.Kernel && !string.Equals(caller.Brain.Value, brain, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException($"A {caller.Actor.GetType().Name} caller of brain {caller.Brain.Value} may not touch apps.artcraft-engine.");
+            }
             return;
         }
-        if (!string.Equals(caller.BrainId, brain, StringComparison.Ordinal))
+        if (!string.Equals(caller.Brain.Value, brain, StringComparison.Ordinal))
         {
             throw new UnauthorizedAccessException($"Access denied to apps.artcraft-engine in brain '{brain}'.");
         }
 
-        if (!await IsAppGrantedAsync(brain, caller))
+        if (!await IsAppGrantedAsync(brain, app.Key))
         {
             throw new UnauthorizedAccessException(
-                $"App '{caller.AppId ?? caller.PrincipalId}' is not granted access to 'apps.artcraft-engine'.");
+                $"App '{app.Key}' is not granted access to 'apps.artcraft-engine'.");
         }
     }
 
-    private async Task<bool> IsAppGrantedAsync(string brain, CapabilityCaller caller)
+    private async Task<bool> IsAppGrantedAsync(string brain, string appId)
     {
-        var appId = caller.AppId ?? "";
         var shortAppId = appId.StartsWith(brain + "/apps/", StringComparison.Ordinal)
             ? appId[(brain.Length + "/apps/".Length)..]
             : appId;
@@ -123,7 +127,6 @@ internal sealed class ArtCraftEngineNeuron(IIdentityClient? identity = null) : D
         var fullTarget = $"apps.artcraft-engine/{brain}/{Id.Key}";
         var appGrantees = new HashSet<string>(StringComparer.Ordinal)
         {
-            caller.PrincipalId,
             $"app:{appId}",
             $"app:{brain}/apps/{appId}",
             $"app:{shortAppId}",

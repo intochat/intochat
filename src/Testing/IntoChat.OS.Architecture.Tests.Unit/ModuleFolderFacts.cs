@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using DigitalBrain.Modules;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

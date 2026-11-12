@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using Microsoft.Extensions.Configuration;
@@ -10,17 +11,17 @@ namespace IntoChat.OS.Modules.Google.Auth;
 
 // Google sign-in shared by Gmail and Drive: the one google-oauth integration, its client secrets,
 // the token exchange and refresh operations and the metered Google HTTP client.
-[DigitalBrain.Module(ModuleName)]
-public sealed class GoogleAuthModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module(ModuleName)]
+public sealed class GoogleAuthModule : DigitalBrain.Modules.Module
 {
     public const string ModuleName = "google-auth";
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<GoogleAuthModuleOptions>(ModuleConfiguration.ModuleOptionsSection(ModuleName))],
-        Secrets: [DigitalBrain.Secret.Named("client-id"), DigitalBrain.Secret.Named("client-secret")]);
+        Settings: [DigitalBrain.Modules.Setting.Of<GoogleAuthModuleOptions>(ModuleConfiguration.ModuleOptionsSection(ModuleName))],
+        Secrets: [DigitalBrain.Modules.Secret.Named("client-id"), DigitalBrain.Modules.Secret.Named("client-secret")]);
 
     public static IntegrationSchema Integration { get; } = IntegrationSchema.For(GoogleAuth.Integration, "Google OAuth")
         .RequiresSecret("ClientId")

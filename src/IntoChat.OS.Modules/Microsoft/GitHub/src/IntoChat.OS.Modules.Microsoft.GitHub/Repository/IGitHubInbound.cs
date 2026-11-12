@@ -7,7 +7,7 @@ namespace IntoChat.OS.Modules.Microsoft.GitHub;
 internal interface IGitHubInbound
 {
     // The coordinates of a connected repository, or null when it is not connected.
-    [DigitalBrain.ReadOnlyCall] Task<GitHubRepository?> Coordinates();
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<GitHubRepository?> Coordinates();
     Task<bool> AcceptRepositoryEvent(RepositoryEvent receipt, CancellationToken cancellationToken = default);
     Task Revoke(string reason);
 }

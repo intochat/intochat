@@ -1,21 +1,22 @@
-using DigitalBrain.Capabilities.Connections.Integrations;
-using DigitalBrain.Log;
-using DigitalBrain.Runtime.Orleans.Capabilities;
-using Microsoft.Extensions.Logging;
-using DigitalBrain;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Invocation;
+using DigitalBrain.Log;
+using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Connections.Contracts;
+using IntoChat.OS.Connections.Surface;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.SystemOne;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Connections.Contracts;
-using IntoChat.OS.Connections.Surface;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using DigitalBrain.Runtime.Orleans.Hosting;
-using DigitalBrain.Invocation;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.AI.Routing;
 
@@ -24,7 +25,7 @@ namespace IntoChat.OS.Modules.AI.Routing;
 // is the menu; confidence is the trust knob; a language model only fills key and arguments.
 // It keeps its own decisions and shows them to the model, so each request is judged against state.
 [Neuron("ai.router", State = "router")]
-internal sealed class RouterNeuron : AiNeuron<RouterStorage>, IRouter
+internal sealed class RouterNeuron(IServiceProvider services) : AiNeuron<RouterStorage>, IRouter
 {
     private const int MaxOptions = 255;
     private const int MaxRecent = 16;
@@ -34,7 +35,7 @@ internal sealed class RouterNeuron : AiNeuron<RouterStorage>, IRouter
     internal static readonly HashSet<string> NotCallable = ["Watch", "Unwatch", "AdmitSynapse"];
     private string Key => FullKey;
     private string Scope => Id.Brain.Value;
-    private NeuronTypeSearch Capabilities() => ServiceProvider.GetRequiredService<NeuronTypeSearch>();
+    private NeuronTypeSearch Capabilities() => services.GetRequiredService<NeuronTypeSearch>();
 
     // An app of this brain by its os key (apps are plain since 06-08).
     private IApp App(string appKey)
@@ -43,7 +44,7 @@ internal sealed class RouterNeuron : AiNeuron<RouterStorage>, IRouter
     public async Task<RouteResult> Route(string state, string[]? allowed, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(state);
-        var systemone = SiloNeurons.Get<ISystemOne>(ServiceProvider, ISystemOne.Key(Scope));
+        var systemone = SiloNeurons.Get<ISystemOne>(services, ISystemOne.Key(Scope));
         var result = await Decide(state, allowed, request => systemone.Ask(request, ct), ct);
         if (result.Contract.Length > 0) { await Remember(state, result.Contract, result.Method); }
         return result;
@@ -115,12 +116,12 @@ internal sealed class RouterNeuron : AiNeuron<RouterStorage>, IRouter
     // Reads every installed app only until the menu exists. Later changes arrive through AppMenuHost.
     private async Task<MenuOperation[]> MenuOperations()
     {
-        var catalog = ServiceProvider.GetRequiredService<AppOperationCatalog>();
+        var catalog = services.GetRequiredService<AppOperationCatalog>();
         if (catalog.TryGet(Scope, out var cached) && await Fresh(catalog)) { return catalog.TryGet(Scope, out var current) ? current : cached; }
         List<(string App, MenuOperation[] Operations)> loaded = [];
         try
         {
-            var kernel = ServiceProvider.GetRequiredService<IKernel>();
+            var kernel = services.GetRequiredService<IKernel>();
             await foreach (var instance in kernel.InstancesIn(Scope, kernel.TypeOf(typeof(IApp))))
             {
                 if (IApp.NameOf(Scope, instance.Key) is not { } name) { continue; }
@@ -143,7 +144,7 @@ internal sealed class RouterNeuron : AiNeuron<RouterStorage>, IRouter
     {
         try
         {
-            var kernel = ServiceProvider.GetRequiredService<IKernel>();
+            var kernel = services.GetRequiredService<IKernel>();
             List<string> names = [];
             await foreach (var instance in kernel.InstancesIn(Scope, kernel.TypeOf(typeof(IApp))))
             { if (IApp.NameOf(Scope, instance.Key) is { } name) { names.Add(name); } }
@@ -158,7 +159,7 @@ internal sealed class RouterNeuron : AiNeuron<RouterStorage>, IRouter
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            ServiceProvider.GetRequiredService<ILogger<AppOperationCatalog>>().LogSwallowed(error, "The app menu could not be refreshed; it is read again");
+            services.GetRequiredService<ILogger<AppOperationCatalog>>().LogSwallowed(error, "The app menu could not be refreshed; it is read again");
             return false;
         }
     }

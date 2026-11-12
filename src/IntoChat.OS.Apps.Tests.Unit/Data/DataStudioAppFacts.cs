@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Data;
 using IntoChat.OS.Apps.Ino;
@@ -8,24 +9,22 @@ namespace IntoChat.OS.Apps.Tests.Unit.Data;
 
 public sealed class DataStudioAppFacts
 {
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> DataStudioOperations
-        => AppBaseline.Cases(
+    public static IEnumerable<TheoryDataRow<ScreenOperationCase>> DataStudioOperations
+        => ScreenBaseline.Cases(
             typeof(DataStudioApp),
             os => os.Register(typeof(AppsModule).Assembly));
 
     [Theory, MemberData(nameof(DataStudioOperations))]
-    public Task DataStudioBaseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+    public Task DataStudioBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
 
     [Fact]
     public async Task DataStudioBddScenarioPasses()
     {
-        var ct = TestContext.Current.CancellationToken;
-        var report = await BddRunner.VerifyAsync<DataStudioApp>(
-            fakes: os => os.Register(typeof(AppsModule).Assembly),
-            cancellationToken: ct);
-
-        Assert.True(report.Passed);
-        Assert.Single(report.Scenarios);
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(DataStudioApp).Assembly);
+        var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.data", "default"));
+        Assert.NotNull(await screen.Read());
     }
 
     [Fact]

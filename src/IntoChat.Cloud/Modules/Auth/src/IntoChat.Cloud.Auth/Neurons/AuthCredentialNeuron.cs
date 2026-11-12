@@ -4,7 +4,7 @@ using IntoChat.Cloud.Auth.Services;
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
-[DigitalBrain.Neuron("auth.credential")]
+[DigitalBrain.Neurons.Neuron("auth.credential")]
 internal sealed class AuthCredentialNeuron(
     TimeProvider clock,
     AuthModuleOptions options,

@@ -2,10 +2,10 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Errors;
 using DigitalBrain.Log;
+using DigitalBrain.State;
+using IntoChat.OS.Modules.Postgres.Tables.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using IntoChat.OS.Modules.Postgres.Tables.Signals;
-using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;
 
@@ -28,9 +28,9 @@ internal sealed record TablePending(string Table) : DigitalBrain.Signal;
 [DigitalBrain.Signal("postgres.table.retired")]
 internal sealed record TableRetired(string Table) : DigitalBrain.Signal;
 
-[DigitalBrain.Neuron(GrainType)]
-internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements placements)
-    : DigitalBrain.Neuron<TableState>, ITable, ITableLifetime
+[DigitalBrain.Neurons.Neuron(GrainType)]
+internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements placements, ILogger<TableNeuron>? logger = null)
+    : DigitalBrain.Neurons.Neuron<TableState>, ITable, ITableLifetime
 {
     public const string GrainType = "postgres.table";
 
@@ -40,7 +40,7 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
     // Only the owning brain and app may hold a synapse on its rows (R4-03: the rule the Watch override kept). The caller is the
     // trusted stamp the runtime read from the subscriber's call (R4-20), never anything the subscriber sends: no stamp, a stamp
     // without an app, or a stamp of another brain or app is refused.
-    protected override Task AdmitSynapse(DigitalBrain.SynapseRequest request)
+    protected override Task AdmitSynapse(DigitalBrain.Kernel.SynapseRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (request.Subscriber.Brain != Id.Brain) { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
@@ -88,7 +88,7 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
         // A revoked or deleted connection holds the user's own database: nothing here can reach it,
         // and an uninstall must still retire the app's other tables.
         catch (Exception error) when (Pinned.Kind == TablePlacementKind.Connection && error is ServiceUnavailableException or UnauthorizedAccessException)
-        { Context.Services.GetRequiredService<ILogger<TableNeuron>>().LogSwallowed(error, "dropping a table on an unreachable connection while uninstalling"); }
+        { logger?.LogSwallowed(error, "dropping a table on an unreachable connection while uninstalling"); }
         await Save(new(), new TableRetired(table));
     }
 

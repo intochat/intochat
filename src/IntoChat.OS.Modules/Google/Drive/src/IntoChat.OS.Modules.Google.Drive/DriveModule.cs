@@ -1,8 +1,9 @@
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
-using DigitalBrain.Capabilities.Storage;
 using IntoChat.OS.Modules.Google.Auth;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,16 +13,16 @@ namespace IntoChat.OS.Modules.Google.Drive;
 
 // Google Drive storage, signed in through google-auth's Google OAuth integration.
 // Its own connection keeps existing Gmail grants unchanged: adding a scope to them would force re-consent.
-[DigitalBrain.Module(ModuleName)]
-public sealed class DriveModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module(ModuleName)]
+public sealed class DriveModule : DigitalBrain.Modules.Module
 {
     public const string ModuleName = DriveScopes.Connector;
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [DigitalBrain.Capabilities.Capability.Storage.V1],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<DriveModuleOptions>(ModuleConfiguration.ModuleOptionsSection(ModuleName))],
+        Settings: [DigitalBrain.Modules.Setting.Of<DriveModuleOptions>(ModuleConfiguration.ModuleOptionsSection(ModuleName))],
         Secrets: []);
 
     // The connector carries auth and neurons only; storage@1 is declared on the module's manifest (05-07, R4-01).

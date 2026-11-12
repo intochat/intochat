@@ -9,9 +9,9 @@ namespace IntoChat.OS.Modules.Mcp;
 [NeuronAlias("mcp.server"), DefaultNeuronType("mcp.server")]
 public interface IMcpServer : IToolSource
 {
-    [DigitalBrain.CallTimeout(120_000)] Task<McpServerState> Connect(McpServerSpec spec, CancellationToken ct = default);
+    [DigitalBrain.Contracts.CallTimeout(120_000)] Task<McpServerState> Connect(McpServerSpec spec, CancellationToken ct = default);
     Task Disconnect(CancellationToken ct = default);
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves] Task<McpServerState> Read();
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<McpServerState> Read();
 }
 
 public sealed record McpServerSpec(string Title, string Url);

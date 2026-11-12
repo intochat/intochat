@@ -1,12 +1,13 @@
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS;
-using IntoChat.OS.Modules.Flutter.Space;
-using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Flutter.Space;
+using IntoChat.OS.Modules.Flutter.Workspace;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,19 +16,19 @@ using Orleans.Hosting;
 
 namespace IntoChat.OS.Modules.Flutter;
 
-[DigitalBrain.Module(ModuleName)]
-public sealed class FlutterModule : DigitalBrain.Module, IHttpModule
+[DigitalBrain.Modules.Module(ModuleName)]
+public sealed class FlutterModule : DigitalBrain.Modules.Module, IHttpModule
 {
     internal const string ModuleName = "flutter";
 
     public static System.Reflection.Assembly? Contracts { get; } = typeof(IntoChat.OS.Modules.Flutter.Views.IView).Assembly;
 
     // R4-04: what the module needs from its host. Registrations of neurons that are still grains (Chat, Space) stay here.
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<FlutterModuleOptions>(ModuleConfiguration.ModuleOptionsSection(new ModuleId(ModuleName)))],
+        Settings: [DigitalBrain.Modules.Setting.Of<FlutterModuleOptions>(ModuleConfiguration.ModuleOptionsSection(new ModuleId(ModuleName)))],
         Secrets: []);
 
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)

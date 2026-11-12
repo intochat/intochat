@@ -4,8 +4,8 @@ using IntoChat.OS.Modules.AI.Agents.Context;
 
 namespace IntoChat.OS.Modules.Apps;
 
-[DigitalBrain.Neuron("ino.focus"), DigitalBrain.StatelessNeuron]
-public sealed class InoFocusNeuron : DigitalBrain.Neuron, IInoFocus
+[DigitalBrain.Neurons.Neuron("ino.focus"), DigitalBrain.Neurons.StatelessNeuron]
+public sealed class InoFocusNeuron : DigitalBrain.Neurons.Neuron, IInoFocus
 {
     private IAgentContext Focus => Get<IAgentContext>(new DigitalBrain.NeuronId(Id.Brain, "agent-context", IInoFocus.ContextKey));
 

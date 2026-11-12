@@ -1,6 +1,8 @@
+using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
-using DigitalBrain.Operations;
 using DigitalBrain.Capabilities.Storage.Confinement;
+using DigitalBrain.Confirmation;
+using DigitalBrain.Operations;
 
 namespace IntoChat.OS.Modules.LocalDisk;
 
@@ -23,13 +25,16 @@ public interface ILocalDisk
 }
 
 // Local disks on this computer. Every call is confined; the filesystem work is LocalDiskStorage.
-[DigitalBrain.Neuron("local-disk", State = "local-disk")]
-public sealed class LocalDiskNeuron : DigitalBrain.Neuron<LocalDiskState>, ILocalDisk, IStorage
+[DigitalBrain.Neurons.Neuron("local-disk", State = "local-disk")]
+public sealed class LocalDiskNeuron(
+    IOperations operations,
+    IConfirmations? confirmations = null,
+    IStorageWriteAuthorizer? authorizer = null) : DigitalBrain.Neurons.Neuron<LocalDiskState>, ILocalDisk, IStorage
 {
     internal const string TypeName = "local-disk";
     internal const string KeyName = "main";
 
-    private LocalDiskStorage Engine => new(Current(), Context.Operations, DriveVolumeSource.Instance);
+    private LocalDiskStorage Engine => new(Current(), operations, DriveVolumeSource.Instance);
 
     public Task<string[]> Roots() => Task.FromResult(Paths());
 
@@ -131,8 +136,18 @@ public sealed class LocalDiskNeuron : DigitalBrain.Neuron<LocalDiskState>, ILoca
 
     private async Task AuthorizeWrite(WritePlan plan, CancellationToken ct)
     {
-        if (await StorageConfirmationGate.Check(Context, this, plan, ct).ConfigureAwait(false) is not null)
-        { throw new Denied(plan.Source ?? plan.TargetFolder); }
+        if (authorizer is not null && await authorizer.Consume(Context.Id, plan, ct).ConfigureAwait(false)) { return; }
+        if (confirmations is null || plan.DryRun) { return; }
+        var descriptor = await Describe(ct).ConfigureAwait(false);
+        var connection = new CapabilityConnection<IStorage>("storage", descriptor.Label, this);
+        var runner = new StorageWriteRunner((_, _) => Task.FromResult(connection),
+            (_, _, _) => throw new InvalidOperationException("A confirmation does not execute writes."));
+        var question = await runner.Confirmation(plan, ct).ConfigureAwait(false);
+        var answer = await confirmations.Confirm(question, ct).ConfigureAwait(false);
+        if (answer.Outcome != ConfirmationOutcome.Approved)
+        {
+            throw new Denied(plan.Source ?? plan.TargetFolder);
+        }
     }
 
     private LocalRoot[] Current()

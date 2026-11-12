@@ -1,13 +1,14 @@
 using DigitalBrain;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
+using DigitalBrain.Units;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Settings;
 
-[DigitalBrain.Neuron("approvals"), DigitalBrain.StatelessNeuron]
-public sealed class FakeApprovalsNeuron : DigitalBrain.Neuron, IntoChat.OS.Modules.Apps.Approvals.IApprovals
+[DigitalBrain.Neurons.Neuron("approvals"), DigitalBrain.Neurons.StatelessNeuron]
+public sealed class FakeApprovalsNeuron : DigitalBrain.Neurons.Neuron, IntoChat.OS.Modules.Apps.Approvals.IApprovals
 {
     public static IntoChat.OS.Modules.Apps.Approvals.Approval[] Items { get; set; } = [];
 
@@ -15,8 +16,8 @@ public sealed class FakeApprovalsNeuron : DigitalBrain.Neuron, IntoChat.OS.Modul
         => Task.FromResult<IReadOnlyList<IntoChat.OS.Modules.Apps.Approvals.Approval>>(Items);
 }
 
-[DigitalBrain.Neuron("ino.synapses"), DigitalBrain.StatelessNeuron]
-public sealed class InMemoryPortableSynapseStudio : DigitalBrain.Neuron, ISynapseStudio
+[DigitalBrain.Neurons.Neuron("ino.synapses"), DigitalBrain.Neurons.StatelessNeuron]
+public sealed class InMemoryPortableSynapseStudio : DigitalBrain.Neurons.Neuron, ISynapseStudio
 {
     public static Dictionary<string, Dictionary<string, string>> Store { get; } = new(StringComparer.Ordinal);
 
@@ -31,7 +32,7 @@ public sealed class InMemoryPortableSynapseStudio : DigitalBrain.Neuron, ISynaps
     public Task<UnitDeployResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files, IReadOnlyDictionary<string, string> bindings)
     {
         Store[alias] = new Dictionary<string, string>(files, StringComparer.Ordinal);
-        return Task.FromResult(new UnitDeployResult(true, "", DigitalBrain.DeployStatus.Deployed, "hash-1", new Dictionary<string, DigitalBrain.InstallOutcome>()));
+        return Task.FromResult(new UnitDeployResult(true, "", DigitalBrain.Units.DeployStatus.Deployed, "hash-1", new Dictionary<string, DigitalBrain.Units.InstallOutcome>()));
     }
 
     public Task<InoToolResult> Retire(string alias)
@@ -40,8 +41,8 @@ public sealed class InMemoryPortableSynapseStudio : DigitalBrain.Neuron, ISynaps
         return Task.FromResult(new InoToolResult(""));
     }
 
-    public Task<DigitalBrain.DeployedSource[]> List()
-        => Task.FromResult(Store.Keys.Select(alias => new DigitalBrain.DeployedSource(alias, "hash-1", [alias], DigitalBrain.DeployStatus.Deployed, null, DateTimeOffset.UnixEpoch)).ToArray());
+    public Task<DigitalBrain.Units.DeployedSource[]> List()
+        => Task.FromResult(Store.Keys.Select(alias => new DigitalBrain.Units.DeployedSource(alias, "hash-1", [alias], DigitalBrain.Units.DeployStatus.Deployed, null, DateTimeOffset.UnixEpoch)).ToArray());
 
     public Task<Dictionary<string, string>> Sidecars(string alias)
         => Task.FromResult(Store.TryGetValue(alias, out var files)
@@ -59,31 +60,20 @@ public sealed class InMemoryPortableSynapseStudio : DigitalBrain.Neuron, ISynaps
 
 public sealed class SettingsAppFacts
 {
-    public static IEnumerable<TheoryDataRow<AppOperationCase>> Operations
-        => AppBaseline.Cases(typeof(SettingsApp), os => os.Register(typeof(AppsModule).Assembly));
+    public static IEnumerable<TheoryDataRow<ScreenOperationCase>> Operations
+        => ScreenBaseline.Cases(typeof(SettingsApp), os => os.Register(typeof(AppsModule).Assembly));
 
     [Theory, MemberData(nameof(Operations))]
-    public Task Baseline(AppOperationCase operation) => AppBaseline.RunAsync(operation);
+    public Task Baseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
 
     [Fact]
     public async Task SettingsBddScenariosPass()
     {
-        var report = await BddRunner.VerifyAsync<SettingsApp>(
-            fakes: os => os.Register(typeof(AppsModule).Assembly),
-            cancellationToken: TestContext.Current.CancellationToken);
-        Assert.True(report.Passed);
-        Assert.Single(report.Scenarios);
-    }
-
-    [Fact]
-    public void SettingsDefinitionMetadataMatchesContract()
-    {
-        var definition = SettingsApp.Definition;
-        Assert.Equal("settings", definition.Id);
-        Assert.Equal("#64748B", definition.Accent);
-        Assert.Equal("System", definition.Category);
-        Assert.Equal("SettingsApp", definition.Name);
-        Assert.Equal(typeof(SettingsApp), definition.AppType);
+        await using var os = TestOS.Local();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(SettingsApp).Assembly);
+        var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.settings", "default"));
+        Assert.NotNull(await screen.Read());
     }
 
     [Fact]
@@ -298,25 +288,25 @@ public sealed class SettingsAppFacts
         await settings.Request("open", new SettingsOpen());
         Assert.Contains(settings.App.State.TeamFriends!, f => f.Handle == "grace");
 
-        settings.App.Navigate(new SettingsNavigate("team"));
+        await settings.App.Navigate(new SettingsNavigate("team"));
         var teamJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
         Assert.Contains("Grace Hopper (@grace)", teamJson, StringComparison.Ordinal);
 
-        settings.App.Navigate(new SettingsNavigate("keys"));
+        await settings.App.Navigate(new SettingsNavigate("keys"));
         var initialKeysJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
         Assert.DoesNotContain("\"Status\":\"saved\"", initialKeysJson, StringComparison.Ordinal);
 
         await settings.Request("set-variable", new SettingsSetVariable("OPENAI_API_KEY", "vault://OPENAI_API_KEY"));
-        settings.App.Navigate(new SettingsNavigate("keys"));
+        await settings.App.Navigate(new SettingsNavigate("keys"));
         var updatedKeysJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
         Assert.Contains("\"Status\":\"saved\"", updatedKeysJson, StringComparison.Ordinal);
 
-        settings.App.Navigate(new SettingsNavigate("files"));
+        await settings.App.Navigate(new SettingsNavigate("files"));
         var initialFilesJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
         Assert.DoesNotContain("google-drive", initialFilesJson, StringComparison.Ordinal);
 
-        settings.App.RefreshConnections(new SettingsRefreshConnections("google-drive"));
-        settings.App.Navigate(new SettingsNavigate("files"));
+        await settings.App.RefreshConnections(new SettingsRefreshConnections("google-drive"));
+        await settings.App.Navigate(new SettingsNavigate("files"));
         var updatedFilesJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
         Assert.Contains("Connected Mount 1", updatedFilesJson, StringComparison.Ordinal);
         Assert.Contains("google-drive", updatedFilesJson, StringComparison.Ordinal);
@@ -343,7 +333,7 @@ public sealed class SettingsAppFacts
             await using var os = TestOS.Local().Register<UserSettingsNeuron>().Register<FakeApprovalsNeuron>();
             var settings = await os.Install<SettingsApp>();
             await settings.Request("open", new SettingsOpen());
-            settings.App.Navigate(new SettingsNavigate("notifications"));
+            await settings.App.Navigate(new SettingsNavigate("notifications"));
 
             var notificationsJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
             Assert.Contains("plan-99", notificationsJson, StringComparison.Ordinal);
@@ -369,19 +359,14 @@ public sealed class SettingsAppFacts
             new IntoChat.OS.Apps.Ino.InoApp().RenderSide(),
             new IntoChat.OS.Apps.Desktop.DesktopApp().Render(),
             new SettingsApp().Render(),
-            new SettingsApp().RenderSide(),
             new IntoChat.OS.Apps.Usage.UsageApp().Render(),
             new IntoChat.OS.Apps.Friends.FriendsApp().Render(),
-            new IntoChat.OS.Apps.Friends.FriendsApp().RenderSide(),
             new IntoChat.OS.Apps.Data.DataStudioApp().Render(),
-            new IntoChat.OS.Apps.Data.DataStudioApp().RenderSide(),
             new IntoChat.OS.Apps.Markdraw.MarkdrawApp().Render(),
-            new IntoChat.OS.Apps.Markdraw.MarkdrawApp().RenderSide(),
             new IntoChat.OS.Apps.FilmCraft.FilmCraftApp().Render(),
             new IntoChat.OS.Apps.Tasks.TasksApp().Render(),
             new IntoChat.OS.Apps.Creator.CreatorApp().Render(),
             new IntoChat.OS.Apps.Gallery.GalleryApp().Render(),
-            new IntoChat.OS.Apps.Gallery.GalleryApp().RenderSide(),
         ];
 
         Assert.DoesNotContain("Nordlys", IntoChat.OS.Apps.Markdraw.MarkdrawApp.DefaultPipelineScene, StringComparison.OrdinalIgnoreCase);

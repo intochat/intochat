@@ -19,8 +19,8 @@ public sealed record AspireTelemetryState(
     }
 }
 
-[DigitalBrain.Neuron("aspire", State = "aspire")]
-public sealed class AspireNeuron : DigitalBrain.Neuron<AspireTelemetryState>, IAspire
+[DigitalBrain.Neurons.Neuron("aspire", State = "aspire")]
+public sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetryState>, IAspire
 {
     public Task<AspireResourceView[]> GetResourcesAsync()
         => Task.FromResult(State.Resources);

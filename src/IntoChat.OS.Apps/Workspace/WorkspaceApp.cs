@@ -6,25 +6,32 @@ Operations: open, navigate, activate
 
 The embedded folder scripts publish the Flutter workspace. These operations present a status for the baseline.
 */
+using DigitalBrain;
+using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 
 namespace IntoChat.OS.Apps.Workspace;
 
-[DigitalBrain.Signal("workspace.open")]
-public sealed record WorkspaceOpen : DigitalBrain.Signal;
+[Signal("workspace.open")]
+public sealed record WorkspaceOpen : Signal;
 
-[DigitalBrain.Signal("workspace.navigate")]
-public sealed record WorkspaceNavigate : DigitalBrain.Signal;
+[Signal("workspace.navigate")]
+public sealed record WorkspaceNavigate : Signal;
 
-[DigitalBrain.Signal("workspace.activate")]
-public sealed record WorkspaceActivate : DigitalBrain.Signal;
+[Signal("workspace.activate")]
+public sealed record WorkspaceActivate : Signal;
 
-[DigitalBrain.App("workspace", Accent = "#A855F7", Category = "Social")]
-public sealed class WorkspaceApp : DigitalBrain.App
+public sealed record WorkspaceAppState(string Status = "Ready")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(WorkspaceApp));
+    public WorkspaceAppState() : this("Ready")
+    {
+    }
+}
 
+[Neuron("app.workspace")]
+public sealed class WorkspaceApp : Screen<WorkspaceAppState>
+{
     public const string AppName = "workspace";
 
     public static AppBundle Bundle { get; } = new(
@@ -47,24 +54,28 @@ public sealed class WorkspaceApp : DigitalBrain.App
         CompiledType = typeof(WorkspaceApp).AssemblyQualifiedName,
     };
 
-    [DigitalBrain.On]
-    public Task Open(WorkspaceOpen request) => Show(request, "Workspace");
-
-    [DigitalBrain.On]
-    public Task Navigate(WorkspaceNavigate request) => Show(request, "Workspace");
-
-    [DigitalBrain.On]
-    public Task Activate(WorkspaceActivate request) => Show(request, "Workspace");
-
-    private Task Show(DigitalBrain.Signal request, string title)
+    [On]
+    public Task Open(WorkspaceOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        _ = title;
-        return Task.CompletedTask;
+        return Show(State);
     }
 
-    public View Render() => new("Workspace", new Text("Workspace"));
+    [On]
+    public Task Navigate(WorkspaceNavigate request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Show(State);
+    }
 
-    [DigitalBrain.Scenario("Workspace opens and presents the Workspace status view")]
-    public Task VerifyWorkspaceOpenScenario() => Open(new WorkspaceOpen());
+    [On]
+    public Task Activate(WorkspaceActivate request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Show(State);
+    }
+
+    public new WorkspaceAppState State => base.State;
+    public View Render() => Render(State);
+    protected override View Render(WorkspaceAppState state) => new("Workspace", new Text(state.Status));
 }

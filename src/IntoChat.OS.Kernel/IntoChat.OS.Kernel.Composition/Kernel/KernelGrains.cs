@@ -1,9 +1,10 @@
-using DigitalBrain.Brains;
-using DigitalBrain.Runtime.Orleans.Brain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain;
+using DigitalBrain.Brains;
+using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Runtime.Orleans.Brain;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.State;
 using IntoChat.OS.Contracts.Configuration;
@@ -99,8 +100,8 @@ internal sealed class CompiledTypeTableGrain(CompiledTypes compiled) : Grain, IC
     // never forwards an invocation or turns an external caller into a trusted call from a kernel grain.
     public Task<string?> HostType(string type)
         => Task.FromResult(compiled.Entries.Any(entry =>
-            (entry.Kind == DigitalBrain.TypeKind.Neuron && DigitalBrain.Contracts.PlainNeuronContracts.TypeOf(compiled.Contract(entry.Name)) == type)
-            || (entry.Kind == DigitalBrain.TypeKind.Connector && entry.Alias == type))
+            (entry.Kind == TypeKind.Neuron && DigitalBrain.Contracts.PlainNeuronContracts.TypeOf(compiled.Contract(entry.Name)) == type)
+            || (entry.Kind == TypeKind.Connector && entry.Alias == type))
             ? KernelInvocationSink.HostTypeOfLoaded(type) : null);
 }
 

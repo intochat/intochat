@@ -1,6 +1,7 @@
 using System.Reflection;
 using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
+using DigitalBrain.Modules;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
@@ -132,8 +133,8 @@ public sealed class BoundaryFacts
 
     private static IEnumerable<Type> ModuleOptionsTypes(Type type)
     {
-        if (type.GetCustomAttribute<DigitalBrain.ModuleAttribute>() is null || !typeof(DigitalBrain.Module).IsAssignableFrom(type)) { yield break; }
-        foreach (var setting in DigitalBrain.ModuleManifest.Of(type).Settings) { yield return setting.OptionsType; }
+        if (type.GetCustomAttribute<DigitalBrain.Modules.ModuleAttribute>() is null || !typeof(DigitalBrain.Modules.Module).IsAssignableFrom(type)) { yield break; }
+        foreach (var setting in DigitalBrain.Modules.ModuleManifest.Of(type).Settings) { yield return setting.OptionsType; }
     }
 
     [Fact]

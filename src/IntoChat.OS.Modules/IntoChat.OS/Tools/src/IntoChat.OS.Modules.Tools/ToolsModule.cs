@@ -1,4 +1,5 @@
 using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -6,10 +7,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace IntoChat.OS.Modules.Tools;
 
 // The per-brain registry of tool sources, and the capability source that lets search and Jev see them.
-[DigitalBrain.Module("tools")]
-public sealed class ToolsModule : DigitalBrain.Module
+[DigitalBrain.Modules.Module("tools")]
+public sealed class ToolsModule : DigitalBrain.Modules.Module
 {
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],
         Needs: [],

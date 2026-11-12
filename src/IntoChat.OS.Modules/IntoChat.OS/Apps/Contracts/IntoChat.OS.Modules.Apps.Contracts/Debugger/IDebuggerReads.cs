@@ -37,36 +37,36 @@ namespace IntoChat.OS.Modules.Apps.Debugger
         static DigitalBrain.NeuronId Key(string brain) => new(new DigitalBrain.BrainId(brain), "creator.reads", DefaultKey);
 
         // The unit's current state record as JSON, or null when it has none saved.
-        [DigitalBrain.ReadOnlyCall]
+        [DigitalBrain.Contracts.ReadOnlyCall]
         Task<string?> State(string alias);
 
         // The unit's published view as JSON {alias, generation, view}, or null before its first view.
-        [DigitalBrain.ReadOnlyCall]
+        [DigitalBrain.Contracts.ReadOnlyCall]
         Task<string?> View(string alias);
 
         // The last limit (1..MaxSignals) journaled signals of alias among the last Window entries, oldest first; publisher, when
         // given, narrows them to one neuron. Empty when no loaded unit reacts to or gates on alias.
-        [DigitalBrain.ReadOnlyCall]
+        [DigitalBrain.Contracts.ReadOnlyCall]
         Task<TracePage> Signals(string alias, string? publisher, int limit);
 
         // The last limit (1..MaxSignals) synapse.failed entries the unit's own state neuron journaled among the last Window entries, oldest first.
-        [DigitalBrain.ReadOnlyCall]
+        [DigitalBrain.Contracts.ReadOnlyCall]
         Task<TracePage> Failures(string alias, int limit);
 
         // The unit's newest journaled entry among the last Window entries when that entry is synapse.failed; null when its newest entry is anything else or it has none.
-        [DigitalBrain.ReadOnlyCall]
+        [DigitalBrain.Contracts.ReadOnlyCall]
         Task<TraceEntry?> Failing(string alias);
 
         // The installed units (their reactions and gates as edges) and the compiled apps of the brain.
-        [DigitalBrain.ReadOnlyCall]
+        [DigitalBrain.Contracts.ReadOnlyCall]
         Task<BrainTopology> Topology();
 
         // Whether a loaded unit declares the state alias (always true on a host without a synapse catalog).
-        [DigitalBrain.ReadOnlyCall]
+        [DigitalBrain.Contracts.ReadOnlyCall]
         Task<bool> Loaded(string alias);
 
         // The brain journal's highest sequence: where a live tail starts so nothing older is replayed.
-        [DigitalBrain.ReadOnlyCall]
+        [DigitalBrain.Contracts.ReadOnlyCall]
         Task<long> Head();
     }
 }

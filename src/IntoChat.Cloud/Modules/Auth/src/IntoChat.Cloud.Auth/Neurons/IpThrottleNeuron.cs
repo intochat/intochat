@@ -1,7 +1,7 @@
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
-[DigitalBrain.Neuron("auth.ip-throttle")]
+[DigitalBrain.Neurons.Neuron("auth.ip-throttle")]
 internal sealed class IpThrottleNeuron(
     AuthModuleOptions options,
     TimeProvider clock) : AuthNeuron<IpThrottleState>, IIpThrottle

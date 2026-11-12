@@ -3,6 +3,7 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
+using DigitalBrain.Units;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using Xunit;
@@ -44,7 +45,7 @@ public sealed class CircleRoomInstallFacts
         var result = await brain.Born();
 
         Assert.True(result.Ok, result.Text);
-        Assert.Equal(DigitalBrain.InstallStatus.Pending, result.Installs[Alias].Status);
+        Assert.Equal(DigitalBrain.Units.InstallStatus.Pending, result.Installs[Alias].Status);
         Assert.Null(await brain.Installs.Describe(Alias, Ct));
         var ask = Assert.Single(await brain.Installs.Pending(Ct), pending => pending.Alias == Alias);
         // The card the creator sees in Approvals reads as a synapse consent, with the needs sentence.

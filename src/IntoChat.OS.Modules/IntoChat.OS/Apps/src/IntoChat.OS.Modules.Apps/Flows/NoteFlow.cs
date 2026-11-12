@@ -11,7 +11,7 @@ public sealed class NoteInner
 // A note: a flow with no steps that holds relations like any flow and ends only when someone ends it. Start saves it waiting on
 // "note" (External, no expiry), since the base resumes only a waiting flow and advances, and so completes, a running one with no
 // steps; Resume("note", Arrived) completes it, Cancel cancels it.
-[DigitalBrain.Neuron(Alias)]
+[DigitalBrain.Neurons.Neuron(Alias)]
 public sealed class NoteFlow : Flow<NoteInner>, IFlowStarter
 {
     public const string Alias = "flow.note";

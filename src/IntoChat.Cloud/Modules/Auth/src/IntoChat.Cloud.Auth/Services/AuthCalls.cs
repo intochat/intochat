@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Spi;
+using DigitalBrain.Neurons;
 using IntoChat.Cloud.Auth.Core;
 using IntoChat.Cloud.Auth.Neurons;
 using IntoChat.Cloud.Organisations;

@@ -1,5 +1,5 @@
-using IntoChat.OS.Modules.AI.Inference;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Modules.AI.Inference;
 
 namespace IntoChat.OS.Modules.AI.Models;
 

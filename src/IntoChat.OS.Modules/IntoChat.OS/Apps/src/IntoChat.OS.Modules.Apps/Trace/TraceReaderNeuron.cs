@@ -2,18 +2,21 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DigitalBrain;
+using DigitalBrain.Kernel;
+using DigitalBrain.Neurons;
+using DigitalBrain.Signals;
 
 namespace IntoChat.OS.Modules.Apps.Trace;
 
 // Forwards to the brain's signal history. Payloads are shown as journaled, with any inline bearer or API key tokens redacted.
-[DigitalBrain.Neuron("trace.reader"), StatelessNeuron]
-public sealed partial class TraceReaderNeuron : DigitalBrain.Neuron, ITraceReader
+[Neuron("trace.reader"), StatelessNeuron]
+public sealed partial class TraceReaderNeuron(ISignalHistory history) : Neuron, ITraceReader
 {
     public const int PayloadLimit = 2000;
 
     public async Task<TracePage> ReadTrace(string traceId, long since, int limit)
     {
-        var page = await Context.History.ReadTrace(traceId, since, limit, CancellationToken.None);
+        var page = await history.ReadTrace(traceId, since, limit, CancellationToken.None);
         return new TracePage([.. page.Signals.Select(Entry)]);
     }
 

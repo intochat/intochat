@@ -1,5 +1,5 @@
-using DigitalBrain.Capabilities;
-using IntoChat.OS.Framework.Modules;
+// os-only: OS call-filter request descriptor carrying semantic type IDs, compute estimate, and scope enforcement flags
+using DigitalBrain.Access;
 
 namespace IntoChat.OS.Framework;
 
@@ -14,16 +14,15 @@ public enum CallDenial
     AppDisabled = 6,
 }
 
-[GenerateSerializer, Alias("enforcement.call-request")]
 public sealed record CallRequest
 {
-    [Id(0)] public required CapabilityCaller Caller { get; init; }
-    [Id(1)] public required string TargetNeuron { get; init; }
-    [Id(2)] public required string Operation { get; init; }
-    [Id(3)] public string[] SemanticTypeIds { get; init; } = [];
-    [Id(4)] public decimal EstimatedCompute { get; init; }
-    [Id(5)] public bool HasSideEffects { get; init; }
-    [Id(6)] public bool EnforceTarget { get; init; }
-    [Id(7)] public string? TargetScope { get; init; }
-    [Id(8)] public bool PublicOperation { get; init; }
+    public required Caller Caller { get; init; }
+    public required string TargetNeuron { get; init; }
+    public required string Operation { get; init; }
+    public string[] SemanticTypeIds { get; init; } = [];
+    public decimal EstimatedCompute { get; init; }
+    public bool HasSideEffects { get; init; }
+    public bool EnforceTarget { get; init; }
+    public string? TargetScope { get; init; }
+    public bool PublicOperation { get; init; }
 }

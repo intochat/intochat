@@ -25,8 +25,8 @@ public interface IAgentSignalPump
     Task Tool(string agentId, string runId, string tool, string arguments, int sequence);
 }
 
-[DigitalBrain.Neuron(Alias)]
-public sealed class AgentSignalPump : DigitalBrain.Neuron<PumpState>, IAgentSignalPump
+[DigitalBrain.Neurons.Neuron(Alias)]
+public sealed class AgentSignalPump : DigitalBrain.Neurons.Neuron<PumpState>, IAgentSignalPump
 {
     public const string Alias = "test.agent-pump";
 
@@ -47,8 +47,8 @@ public interface IPresenceWorker
 }
 
 // A neuron doing its part of a turn: it publishes on the trace the call carries.
-[DigitalBrain.Neuron(Alias)]
-public sealed class PresenceWorker : DigitalBrain.Neuron<PumpState>, IPresenceWorker
+[DigitalBrain.Neurons.Neuron(Alias)]
+public sealed class PresenceWorker : DigitalBrain.Neurons.Neuron<PumpState>, IPresenceWorker
 {
     public const string Alias = "test.presence-worker";
 

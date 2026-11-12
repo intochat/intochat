@@ -1,5 +1,7 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps.Trace;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -118,7 +120,7 @@ public sealed class AppsModuleOnTestOS : ModuleOnTestOSFacts<AppsModule>
         {
             _sources[alias] = files.Where(kv => kv.Key.EndsWith(".cs", StringComparison.Ordinal)).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
             _sidecars[alias] = files.Where(kv => !kv.Key.EndsWith(".cs", StringComparison.Ordinal)).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
-            return Task.FromResult(new UnitDeployResult(true, "ok", DeployStatus.Deployed, "h1", new Dictionary<string, DigitalBrain.InstallOutcome>()));
+            return Task.FromResult(new UnitDeployResult(true, "ok", DeployStatus.Deployed, "h1", new Dictionary<string, DigitalBrain.Units.InstallOutcome>()));
         }
         public Task<InoToolResult> Retire(string alias) => Task.FromResult(new InoToolResult("ok"));
         public Task<DeployedSource[]> List()

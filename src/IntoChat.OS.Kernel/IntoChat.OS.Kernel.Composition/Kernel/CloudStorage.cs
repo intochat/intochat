@@ -13,7 +13,7 @@ namespace IntoChat.OS.Kernel.Composition;
 // keys keep reaching that container through the keyed grain-state blob clients.
 internal static class CloudStorage
 {
-    private static readonly string[] Stores = [IntoChatOSNames.PlatformGrainStorage, OsRuntimeOptions.Value.PubSubStore];
+    private static readonly string[] Stores = [IntoChatOSNames.PlatformGrainStorage];
 
     public static bool IsCloud(IServiceCollection services)
         => services.Any(descriptor => !descriptor.IsKeyedService && descriptor.ImplementationInstance is CloudProfile);

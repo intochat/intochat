@@ -1,7 +1,9 @@
 using System.Reflection;
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Spi;
+using DigitalBrain.Kernel;
+using DigitalBrain.Neurons;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps.Trace;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -9,19 +11,28 @@ namespace IntoChat.OS.Modules.Apps.Debugger;
 
 // The Creator's reads, run inside the brain. State and View forward to the unit's state neuron; Signals finds the journal's head
 // and reads back a window of it; Topology is the loaded synapse catalog plus the compiled apps.
-[DigitalBrain.Neuron("creator.reads"), StatelessNeuron]
-public sealed class DebuggerReadsNeuron : DigitalBrain.Neuron, IDebuggerReads
+[Neuron("creator.reads"), StatelessNeuron]
+public sealed class DebuggerReadsNeuron(
+    ISignalHistory history,
+    ISynapseCatalogSource? catalogSource = null,
+    IEnumerable<CompiledAppsRegistration>? appRegistrations = null,
+    UnitResolver? unitResolver = null) : Neuron, IDebuggerReads
 {
+    private readonly ISignalHistory _history = history ?? throw new ArgumentNullException(nameof(history));
+    private readonly ISynapseCatalogSource? _catalogSource = catalogSource;
+    private readonly IEnumerable<CompiledAppsRegistration> _appRegistrations = appRegistrations ?? [];
+    private readonly UnitResolver? _unitResolver = unitResolver;
+
     public async Task<string?> State(string alias)
     {
-        if (!IsLoaded(Require(alias))) { return null; }
+        if (!await IsLoaded(Require(alias))) { return null; }
         var state = await Get<IStateReader>(StateNeuron(alias)).Read(alias);
         return state.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined ? null : state.GetRawText();
     }
 
     public async Task<string?> View(string alias)
     {
-        if (!IsLoaded(Require(alias))) { return null; }
+        if (!await IsLoaded(Require(alias))) { return null; }
         var view = await Get<IViewReader>(StateNeuron(alias)).Read(alias);
         return view is null ? null : JsonSerializer.Serialize(view, JsonSerializerOptions.Web);
     }
@@ -30,9 +41,8 @@ public sealed class DebuggerReadsNeuron : DigitalBrain.Neuron, IDebuggerReads
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(alias);
         var take = Math.Clamp(limit, 1, IDebuggerReads.MaxSignals);
-        if (!Consumed(alias)) { return new TracePage([]); }
-        var history = Context.History;
-        var head = await Head(history);
+        if (!await Consumed(alias)) { return new TracePage([]); }
+        var head = await Head(_history);
         var since = Math.Max(0, head - IDebuggerReads.Window);
         var kept = new Queue<TraceEntry>();
         while (since < head)
@@ -63,9 +73,9 @@ public sealed class DebuggerReadsNeuron : DigitalBrain.Neuron, IDebuggerReads
 
     private async Task<List<TraceEntry>> Own(string alias)
     {
-        if (!IsLoaded(Require(alias))) { return []; }
+        if (!await IsLoaded(Require(alias))) { return []; }
         var publisher = StateNeuron(alias);
-        var history = Context.History;
+        var history = _history;
         var head = await Head(history);
         var since = Math.Max(0, head - IDebuggerReads.Window);
         List<TraceEntry> entries = [];
@@ -82,9 +92,9 @@ public sealed class DebuggerReadsNeuron : DigitalBrain.Neuron, IDebuggerReads
         return entries;
     }
 
-    public Task<bool> Loaded(string alias) => Task.FromResult(IsLoaded(Require(alias)));
+    public async Task<bool> Loaded(string alias) => await IsLoaded(Require(alias));
 
-    public Task<long> Head() => Head(Context.History);
+    public Task<long> Head() => Head(_history);
 
     // The highest journaled sequence: doubles until a read after it is empty, then halves back.
     internal static async Task<long> Head(ISignalHistory history)
@@ -112,7 +122,7 @@ public sealed class DebuggerReadsNeuron : DigitalBrain.Neuron, IDebuggerReads
         var brain = Id.Brain.Value;
         List<BrainTopologyNode> nodes = [];
         List<BrainTopologyEdge> edges = [];
-        if (Context.Services.GetService<ISynapseCatalogSource>()?.Current is { } catalog)
+        if (_catalogSource?.Static is { } catalog)
         {
             foreach (var alias in catalog.States.Keys.Order(StringComparer.Ordinal))
             {
@@ -122,10 +132,10 @@ public sealed class DebuggerReadsNeuron : DigitalBrain.Neuron, IDebuggerReads
             {
                 var signal = synapse.SignalAlias ?? synapse.Signal?.GetCustomAttribute<SignalAttribute>()?.Alias ?? synapse.Signal?.Name ?? "";
                 if (signal.Length == 0) { continue; }
-                edges.Add(new BrainTopologyEdge("*", StateNeuron(synapse.StateAlias).ToString(), signal, synapse.Kind == SynapseKind.Gate ? "gate" : "reaction"));
+                edges.Add(new BrainTopologyEdge("*", StateNeuron(synapse.StateAlias).ToString(), signal, "reaction"));
             }
         }
-        foreach (var assembly in Context.Services.GetServices<CompiledAppsRegistration>().Select(r => r.Assembly).Append(typeof(AppsModule).Assembly).Distinct())
+        foreach (var assembly in _appRegistrations.Select(r => r.Assembly).Append(typeof(AppsModule).Assembly).Distinct())
         {
             foreach (var compiled in CompiledApps.Of(assembly))
             {
@@ -138,11 +148,92 @@ public sealed class DebuggerReadsNeuron : DigitalBrain.Neuron, IDebuggerReads
     }
 
     // A host with a synapse catalog answers nothing for an alias no loaded unit declares, without activating a neuron for it.
-    private bool IsLoaded(string alias) => Context.Services.GetService<ISynapseCatalogSource>() is not { } catalog || catalog.Current.States.ContainsKey(alias);
+    private async Task<bool> IsLoaded(string alias)
+    {
+        if (_catalogSource is not { } catalog || catalog.Static.States.ContainsKey(alias))
+        {
+            return true;
+        }
+
+        if (_unitResolver is { } resolver)
+        {
+            try
+            {
+                var catalogs = await resolver.Catalogs(Id.Brain);
+                if (catalogs.Any(c => c.States.ContainsKey(alias)))
+                {
+                    return true;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
+            {
+            }
+        }
+
+        try
+        {
+            var installs = Context.Get<IInstalls>(new NeuronId(Id.Brain, "synapse.installs", "default"));
+            if (await installs.Describe(alias, CancellationToken.None) is not null)
+            {
+                return true;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
+        {
+        }
+
+        return false;
+    }
 
     // Whether a loaded synapse reacts to or gates on the signal alias (true without a catalog).
-    private bool Consumed(string signal) => Context.Services.GetService<ISynapseCatalogSource>() is not { } catalog
-        || catalog.Current.Synapses.Any(s => s.Kind != SynapseKind.View && (s.SignalAlias ?? s.Signal?.GetCustomAttribute<SignalAttribute>()?.Alias ?? s.Signal?.Name) == signal);
+    private async Task<bool> Consumed(string signal)
+    {
+        if (_catalogSource is not { } catalog)
+        {
+            return true;
+        }
+
+        if (catalog.Static.Synapses.Any(s => s.Kind != SynapseKind.View && (s.SignalAlias ?? s.Signal?.GetCustomAttribute<SignalAttribute>()?.Alias ?? s.Signal?.Name) == signal))
+        {
+            return true;
+        }
+
+        if (_unitResolver is { } resolver)
+        {
+            try
+            {
+                var catalogs = await resolver.Catalogs(Id.Brain);
+                foreach (var c in catalogs)
+                {
+                    if (c.Synapses.Any(s => s.Kind != SynapseKind.View && (s.SignalAlias ?? s.Signal?.GetCustomAttribute<SignalAttribute>()?.Alias ?? s.Signal?.Name) == signal))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
+            {
+            }
+        }
+
+        if (signal == "time.tick")
+        {
+            try
+            {
+                var installs = Context.Get<IInstalls>(new NeuronId(Id.Brain, "synapse.installs", "default"));
+                var list = await installs.List(CancellationToken.None);
+                if (list.Any(r => r.Schedules.Count > 0))
+                {
+                    return true;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
+            {
+            }
+        }
+
+        return false;
+    }
 
     // An alias is one path segment of a neuron id; anything else would address another neuron.
     private static string Require(string alias)

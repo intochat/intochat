@@ -5,6 +5,6 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 [DigitalBrain.Contracts.NeuronAlias("aspire.deployment-driver"), DigitalBrain.Contracts.DefaultNeuronType("aspire.deployment")]
 internal interface IDeploymentDriver
 {
-    [DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.Interleaves]
     Task MembershipChanged(Guid activation, IntoChat.OS.Modules.Microsoft.Orleans.ClusterSnapshot? snapshot);
 }

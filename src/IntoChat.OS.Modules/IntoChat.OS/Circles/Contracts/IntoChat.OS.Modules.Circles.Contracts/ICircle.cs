@@ -34,7 +34,7 @@ public interface ICircle
     // Connections named in `connectionIds` are shared by reference Grant on the owner's brain;
     // zero credentials or assemblies leave the owner's brain.
     Task Share(string appName, string[] connectionIds);
-    [DigitalBrain.CallTimeout(600_000)] Task<IntoChat.OS.Modules.Apps.AppSnapshot> BringPublication(IntoChat.OS.Modules.Apps.AppPublicationRef publication, string targetName, Guid operationId);
+    [DigitalBrain.Contracts.CallTimeout(600_000)] Task<IntoChat.OS.Modules.Apps.AppSnapshot> BringPublication(IntoChat.OS.Modules.Apps.AppPublicationRef publication, string targetName, Guid operationId);
     // 0 to MaxComputeSharePercent of the creator's budget; the platform's own 25% fee is fixed and not a setting.
     Task SetComputeShare(int percent);
     Task<CircleState> State();

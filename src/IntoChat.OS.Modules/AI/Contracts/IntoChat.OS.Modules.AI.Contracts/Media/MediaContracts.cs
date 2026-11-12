@@ -1,5 +1,5 @@
-using DigitalBrain.Contracts;
 using DigitalBrain;
+using DigitalBrain.Contracts;
 using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.AI.Media;
@@ -28,26 +28,26 @@ public sealed record SpeechSynthesisResult(Guid OperationId, MediaPayload Audio,
 [NeuronAlias("ai.media.IImageGenerator"), DefaultNeuronType("imagegeneratorneuron")]
 public interface IImageGenerator
 {
-    [DigitalBrain.ReadOnlyCall] Task<MediaCapabilities> Describe();
-    [DigitalBrain.CallTimeout(600000)] Task<ImageGenerationResult> Generate(ImageGenerationRequest request, CancellationToken cancellationToken = default);
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<MediaCapabilities> Describe();
+    [DigitalBrain.Contracts.CallTimeout(600000)] Task<ImageGenerationResult> Generate(ImageGenerationRequest request, CancellationToken cancellationToken = default);
 }
 [NeuronAlias("ai.media.IEmbeddingModel"), DefaultNeuronType("embeddingneuron")]
 public interface IEmbeddingModel
 {
-    [DigitalBrain.ReadOnlyCall] Task<MediaCapabilities> Describe();
-    [DigitalBrain.CallTimeout(600000)] Task<EmbeddingResult> Embed(EmbeddingRequest request, CancellationToken cancellationToken = default);
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<MediaCapabilities> Describe();
+    [DigitalBrain.Contracts.CallTimeout(600000)] Task<EmbeddingResult> Embed(EmbeddingRequest request, CancellationToken cancellationToken = default);
 }
 [NeuronAlias("ai.media.ISpeechRecognizer"), DefaultNeuronType("speechrecognizerneuron")]
 public interface ISpeechRecognizer
 {
-    [DigitalBrain.ReadOnlyCall] Task<MediaCapabilities> Describe();
-    [DigitalBrain.CallTimeout(600000)] Task<SpeechRecognitionResult> Recognize(SpeechRecognitionRequest request, CancellationToken cancellationToken = default);
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<MediaCapabilities> Describe();
+    [DigitalBrain.Contracts.CallTimeout(600000)] Task<SpeechRecognitionResult> Recognize(SpeechRecognitionRequest request, CancellationToken cancellationToken = default);
 }
 [NeuronAlias("ai.media.ISpeechSynthesizer"), DefaultNeuronType("speechsynthesizerneuron")]
 public interface ISpeechSynthesizer
 {
-    [DigitalBrain.ReadOnlyCall] Task<MediaCapabilities> Describe();
-    [DigitalBrain.CallTimeout(600000)] Task<SpeechSynthesisResult> Synthesize(SpeechSynthesisRequest request, CancellationToken cancellationToken = default);
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<MediaCapabilities> Describe();
+    [DigitalBrain.Contracts.CallTimeout(600000)] Task<SpeechSynthesisResult> Synthesize(SpeechSynthesisRequest request, CancellationToken cancellationToken = default);
 }
 
 [Signal("ai.media.ImageGenerated")]

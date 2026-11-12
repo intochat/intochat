@@ -1,9 +1,12 @@
+using DigitalBrain.Access;
 using DigitalBrain.Brains;
-using DigitalBrain.Capabilities.Connections.Requests;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections.Requests;
+using DigitalBrain.Kernel;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
-using DigitalBrain.Spi;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Units;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -18,8 +21,13 @@ namespace IntoChat.OS.Modules.Apps;
 // The Marketplace for a brain's scripts: the gallery grouped Built-in / Mine / From others, and
 // Get, which installs through AppInstaller and answers a refusal as a message instead of throwing.
 // A plain neuron (06-08); the apps it reads and installs are reached through the silo's INeuronProxies and AppInstaller.
-[DigitalBrain.Neuron("apps.store")]
-internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller installer, ILogger<AppStoreNeuron> logger) : DigitalBrain.Neuron, IAppStore
+[DigitalBrain.Neurons.Neuron("apps.store")]
+internal sealed class AppStoreNeuron(
+    MarketplaceView marketplace,
+    AppInstaller installer,
+    ILogger<AppStoreNeuron> logger,
+    INeuronProxies proxies,
+    IBrainObserver observer) : DigitalBrain.Neurons.Neuron, IAppStore
 {
     private string Scope => Id.Brain.Value;
 
@@ -27,9 +35,9 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
     {
         // Only the brain's own callers see its gallery, as only they may Get from it.
         if (BrainScope.CurrentId() != Scope) { return []; }
-        var account = RuntimeCallerContext.TryGet(out var caller) ? caller.AccountId : null;
+        var account = Context.Caller?.For?.Account;
         var listings = await marketplace.List(default);
-        var installed = await InstalledApps.Read(Context.Services.GetRequiredService<INeuronProxies>(), Context.Services.GetRequiredService<IBrainObserver>(), Scope, default);
+        var installed = await InstalledApps.Read(proxies, observer, Scope, default);
         var held = installed.ToDictionary(app => app.Name, app => app.Snapshot, StringComparer.Ordinal);
         var entries = new List<GalleryEntry>();
         var shown = new HashSet<string>(StringComparer.Ordinal);
@@ -72,7 +80,7 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
     private async Task<GalleryEntry[]> Connections()
     {
         ConnectorOffer[] offers;
-        try { offers = await Context.Services.GetRequiredService<INeuronProxies>().Get<IConnectionRequests>(IConnectionRequests.Key(Scope)).ListOffers(); }
+        try { offers = await proxies.Get<IConnectionRequests>(IConnectionRequests.Key(Scope)).ListOffers(); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             logger.LogWarning(error, "The gallery could not read the connection catalog of {Brain}; it shows apps only.", Scope);
@@ -94,10 +102,11 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
     // The person, or the desktop the OS ships (its gallery), installs; another app may read the gallery but not install from it.
     private async Task<bool> MayInstall()
     {
-        if (!RuntimeCallerContext.TryGet(out var caller)) { return false; }
-        if (caller.Kind == CallerKind.User) { return true; }
-        return caller.Kind == CallerKind.App && caller.AppId == IApp.Key(Scope, "desktop")
-            && ShippedApps.Is(await Context.Services.GetRequiredService<INeuronProxies>().Get<IApp>(caller.AppId).Read(), "desktop");
+        var caller = Context.Caller;
+        if (caller is null) { return false; }
+        if (caller.Actor is Actor.Person) { return true; }
+        return caller.Actor is Actor.App app && app.Key == IApp.Key(Scope, "desktop")
+            && ShippedApps.Is(await proxies.Get<IApp>(app.Key).Read(), "desktop");
     }
 
     // Scripts install only apps that ask for nothing: one with requirements is installed from Apps, where the person sees them.
@@ -204,5 +213,5 @@ internal sealed class AppStoreNeuron(MarketplaceView marketplace, AppInstaller i
         catch (InvalidDataException) { return null; }
     }
 
-    private IApp App(string key) => Context.Services.GetRequiredService<INeuronProxies>().Get<IApp>(key);
+    private IApp App(string key) => proxies.Get<IApp>(key);
 }

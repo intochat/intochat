@@ -99,7 +99,7 @@ public sealed class DirectoryPort(IIdentityClient identity, Identity.IBrainBirth
         ArgumentNullException.ThrowIfNull(request);
         var decision = await identity.Authorize(new OsCall.CallRequest
         {
-            Caller = Stamped(caller),
+            Caller = OsCall.CallerExtensions.ToCaller(caller),
             TargetNeuron = request.TargetNeuron,
             Operation = request.Operation,
             SemanticTypeIds = [.. request.SemanticTypeIds],

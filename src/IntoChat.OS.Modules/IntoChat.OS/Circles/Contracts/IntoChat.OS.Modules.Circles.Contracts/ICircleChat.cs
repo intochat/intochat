@@ -28,7 +28,7 @@ public interface ICircleStateReader
 {
     Task<CircleState> State();
     // Immutable snapshot only; consumers must intersect it with current trust membership.
-    [DigitalBrain.Interleaves, DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.Interleaves, DigitalBrain.Contracts.ReadOnlyCall]
     Task<string[]> Members();
 }
 

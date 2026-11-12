@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
-using IntoChat.OS.Modules.Apps.Signals;
 using DigitalBrain.Signals.Watch;
+using IntoChat.OS.Modules.Apps.Signals;
 
 namespace IntoChat.OS.Modules.Apps;
 

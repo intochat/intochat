@@ -1,5 +1,5 @@
-using DigitalBrain.Contracts;
 using DigitalBrain;
+using DigitalBrain.Contracts;
 using DigitalBrain.State;
 using DigitalBrain.UI;
 
@@ -28,7 +28,7 @@ public interface IField
     /// cleared by the take or by deactivation; null when none is held.</summary>
     Task<string?> TakeSecret();
 
-    [DigitalBrain.ReadOnlyCall] Task<FieldState> Read();
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<FieldState> Read();
 }
 
 [ExportableState]

@@ -7,11 +7,11 @@ namespace IntoChat.OS.Modules.Microsoft.Windows;
 public interface IWindows
 {
     [Description("Facts about this Windows machine: id, name, Windows version, processors and memory.")]
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<WindowsFacts> Facts();
 
     [Description("The folders on this machine that files and console commands may use.")]
-    [DigitalBrain.ReadOnlyCall, DigitalBrain.Interleaves]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<string[]> Roots();
 
     [Description("Allow files and console commands inside a folder on this machine.")]

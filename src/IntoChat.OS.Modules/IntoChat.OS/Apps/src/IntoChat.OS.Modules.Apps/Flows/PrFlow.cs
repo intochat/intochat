@@ -33,7 +33,7 @@ public sealed class PrInner
 // request: merged completes, closed unmerged fails ("closed without merge"), open waits on a schedule (PollEvery). The module has no
 // merge signal: its PullRequestChanged for the held number is the fast path, read and resumed at once. A missed signal is caught by
 // the scheduled re-read, which waits again while the pull request is open, up to 30 days ("pull request stale").
-[DigitalBrain.Neuron(Alias)]
+[DigitalBrain.Neurons.Neuron(Alias)]
 public sealed class PrFlow : Flow<PrInner>, IFlowStarter
 {
     public const string Alias = "flow.pr";

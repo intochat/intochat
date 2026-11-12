@@ -6,8 +6,8 @@ namespace IntoChat.OS.Modules.Apps;
 
 // Writes who the user is (name, language, time zone, date format) and their default model into the user.profile context,
 // so the Ino agent answers in their terms. The synapse on the settings neuron is made by Ensure; Ino calls it when it opens.
-[DigitalBrain.Neuron("ino.profile-writer")]
-public sealed class ProfileContextWriter : DigitalBrain.Neuron, IProfileContextWriter
+[DigitalBrain.Neurons.Neuron("ino.profile-writer")]
+public sealed class ProfileContextWriter : DigitalBrain.Neurons.Neuron, IProfileContextWriter
 {
     private DigitalBrain.NeuronId SettingsId => new(Id.Brain, "os.settings", "settings");
 
@@ -21,7 +21,7 @@ public sealed class ProfileContextWriter : DigitalBrain.Neuron, IProfileContextW
         await Write(await Get<IUserSettings>(SettingsId).Read());
     }
 
-    [DigitalBrain.On]
+    [On]
     public Task OnSettingsChanged(UserSettingsChanged changed)
     {
         ArgumentNullException.ThrowIfNull(changed);

@@ -13,7 +13,7 @@ internal static class SourceTypes
     internal sealed record Declared(string File, string Project, string Namespace, string FullName, string Name, bool IsInterface, bool IsAbstract,
         string[] Bases, AttributeSyntax[] Attributes, ParameterSyntax[] StateParameters)
     {
-        // Derives DigitalBrain.Neuron<TState> directly (a plain stateful neuron or a module base of them, 06-04); Bases drops
+        // Derives DigitalBrain.Neurons.Neuron<TState> directly (a plain stateful neuron or a module base of them, 06-04); Bases drops
         // DigitalBrain bases, so this keeps the one fact the grain-type pin needs.
         public bool PlainStateBase { get; init; }
     }

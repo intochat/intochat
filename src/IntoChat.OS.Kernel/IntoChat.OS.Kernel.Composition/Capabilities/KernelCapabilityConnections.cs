@@ -1,10 +1,11 @@
-using DigitalBrain.Capabilities.Connections;
-using DigitalBrain.Capabilities.Connections.Broker;
-using DigitalBrain.Capabilities.Connections.Requests;
 using System.Collections.Concurrent;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Broker;
+using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority;

@@ -2,6 +2,8 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
+using DigitalBrain.Kernel;
+using DigitalBrain.Signals;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
@@ -22,8 +24,8 @@ namespace IntoChat.OS.Modules.Apps;
 // from the agent (its active run and blocked flag), the agent's listed contexts (trusted interrupts, the focus) and the approvals.
 // The last failure is not rebuilt. A flow is Ino's when an agent's tool call started it (App "assistant"). A focus lapses when a
 // turn of the current agent starts after it was written.
-[DigitalBrain.Neuron("ino.presence")]
-public sealed class PresenceNeuron : DigitalBrain.Neuron<Presence>, IPresence
+[DigitalBrain.Neurons.Neuron("ino.presence")]
+public sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeuron>? logger = null) : DigitalBrain.Neurons.Neuron<Presence>, IPresence
 {
     private static readonly TimeSpan ListeningWindow = TimeSpan.FromSeconds(2), AttentionWindow = TimeSpan.FromSeconds(10);
 
@@ -347,7 +349,7 @@ public sealed class PresenceNeuron : DigitalBrain.Neuron<Presence>, IPresence
     {
         try
         {
-            var page = await Context.History.ReadTrace(traceId, 0, SignalPage.MaxLimit, CancellationToken.None);
+            var page = await history.ReadTrace(traceId, 0, SignalPage.MaxLimit, CancellationToken.None);
             return page.Signals.LastOrDefault(item => item.Publisher != Id && !IsAgentSignal(item.Signal))?.Publisher.Type;
         }
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
@@ -365,7 +367,7 @@ public sealed class PresenceNeuron : DigitalBrain.Neuron<Presence>, IPresence
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { PresenceLog.Unread(Logger(), error, what); }
     }
 
-    private ILogger Logger() => Context.Services.GetService<ILoggerFactory>()?.CreateLogger<PresenceNeuron>() ?? (ILogger)NullLogger.Instance;
+    private ILogger Logger() => (ILogger?)logger ?? NullLogger.Instance;
 }
 
 internal static partial class PresenceLog

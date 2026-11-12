@@ -1,11 +1,12 @@
 using System.Text.Json;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.ArtCraft;
 
 namespace IntoChat.OS.Modules.Apps;
 
-[DigitalBrain.Neuron("ino.studio")]
-public sealed class InoStudioNeuron : DigitalBrain.Neuron, IInoStudio
+[DigitalBrain.Neurons.Neuron("ino.studio")]
+public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Neurons.Neuron, IInoStudio
 {
     // Starts the five-step unit flow (author, draft, verify, deploy, install); the flow's author step names the alias. The card points at
     // the flow on the Tasks board, where the verify transcript and the consent to the unit's needs appear.
@@ -56,10 +57,10 @@ public sealed class InoStudioNeuron : DigitalBrain.Neuron, IInoStudio
 
     public async Task<InoToolResult> List()
     {
-        var studios = (await ShippedManifests.Of(Context.Services)).Studios();
+        var studios = (await ShippedManifests.Of(services)).Studios();
         var text = "Studios:\n" + string.Join("\n", studios.Select(s => $"- {s.App}: {s.Description}"));
         var studio = Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value));
-        DigitalBrain.DeployedSource[] units;
+        DigitalBrain.Units.DeployedSource[] units;
         try { units = await studio.List(); }
         catch (Exception error) when (error is not OperationCanceledException) { return new InoToolResult(text + $"\nUnits are not available: {error.Message}"); }
         if (units.Length == 0) { return new InoToolResult(text + "\nUnits: none deployed."); }

@@ -3,6 +3,7 @@ using System.Runtime.Versioning;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Identity.Local.Custody;
+using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Modules.Microsoft.Windows.Signals;
@@ -14,16 +15,16 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
 // A Windows PC as an edge: the machine, its files and its console, served only by a silo on that PC.
-[DigitalBrain.Module(ManifestName)]
-public sealed class WindowsModule : DigitalBrain.Module, IHttpModule
+[DigitalBrain.Modules.Module(ManifestName)]
+public sealed class WindowsModule : DigitalBrain.Modules.Module, IHttpModule
 {
     internal const string ManifestName = "windows";
 
-    public static DigitalBrain.ModuleManifest Manifest { get; } = new(
+    public static DigitalBrain.Modules.ModuleManifest Manifest { get; } = new(
         Provides: [DigitalBrain.Capabilities.Capability.Storage.V1],
         Requires: [],
         Needs: [],
-        Settings: [DigitalBrain.Setting.Of<WindowsOptions>(ModuleConfiguration.ModuleOptionsSection(ManifestName))],
+        Settings: [DigitalBrain.Modules.Setting.Of<WindowsOptions>(ModuleConfiguration.ModuleOptionsSection(ManifestName))],
         Secrets: []);
 
     public static ConnectorDefinition Connector { get; } = new("windows", "Windows", ["device"], [])

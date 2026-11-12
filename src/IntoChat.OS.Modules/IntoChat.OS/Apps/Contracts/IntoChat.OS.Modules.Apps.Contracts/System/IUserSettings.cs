@@ -36,7 +36,7 @@ public sealed record UserSettingsChanged(
 [NeuronAlias("os.settings"), DefaultNeuronType("os.settings")]
 public interface IUserSettings
 {
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<UserSettingsState> Read();
 
     Task<UserSettingsState> SetProfile(string displayName, string theme, string defaultModel);

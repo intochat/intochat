@@ -43,6 +43,6 @@ public interface IPresence
 
     static DigitalBrain.NeuronId Key(string brain) => new(new DigitalBrain.BrainId(brain), "ino.presence", DefaultKey);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<Presence> Read(CancellationToken ct = default);
 }

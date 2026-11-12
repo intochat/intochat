@@ -11,6 +11,8 @@ Each app supports:
 2. MCP Server mode (IArtCraftStudio + IMcpServer at {brain}/mcp/{appId})
 3. Native Linux CLI mode (craft-cli / <app>-cli)
 */
+using DigitalBrain;
+using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.ArtCraft;
@@ -19,17 +21,17 @@ using UI = DigitalBrain.UI.Ui;
 
 namespace IntoChat.OS.Apps.ArtCraft;
 
-[DigitalBrain.Signal("artcraft.studio.open")]
-public sealed record ArtCraftStudioAppOpen(string? Document = null, string? Mode = null) : DigitalBrain.Signal;
+[Signal("artcraft.studio.open")]
+public sealed record ArtCraftStudioAppOpen(string? Document = null, string? Mode = null) : Signal;
 
-[DigitalBrain.Signal("artcraft.studio.edit")]
-public sealed record ArtCraftStudioAppEdit(string? Prompt = null, string? Document = null, string? Mode = null) : DigitalBrain.Signal;
+[Signal("artcraft.studio.edit")]
+public sealed record ArtCraftStudioAppEdit(string? Prompt = null, string? Document = null, string? Mode = null) : Signal;
 
-[DigitalBrain.Signal("artcraft.studio.run-command")]
-public sealed record ArtCraftStudioAppRunCommand(string? CommandId = null, string? ParametersJson = null, string? Document = null, string? Mode = null) : DigitalBrain.Signal;
+[Signal("artcraft.studio.run-command")]
+public sealed record ArtCraftStudioAppRunCommand(string? CommandId = null, string? ParametersJson = null, string? Document = null, string? Mode = null) : Signal;
 
-[DigitalBrain.Signal("artcraft.studio.switch-mode")]
-public sealed record ArtCraftStudioAppSwitchMode(string? Mode = null) : DigitalBrain.Signal;
+[Signal("artcraft.studio.switch-mode")]
+public sealed record ArtCraftStudioAppSwitchMode(string? Mode = null) : Signal;
 
 public sealed record ArtCraftStudioAppState(
     string AppId,
@@ -77,9 +79,17 @@ public sealed record ArtCraftStudioAppState(
     }
 }
 
-public abstract class ArtCraftStudioAppCore<TState>(string appId) : DigitalBrain.App<TState>, IWithFilesVfs
+public abstract class ArtCraftStudioAppCore<TState>(string appId) : Screen<TState>, IWithFilesVfs
     where TState : class, new()
 {
+    public new TState State => base.State;
+    public View Render() => Render(State);
+
+    private static void Swallow(Exception error, string reason)
+    {
+        _ = error;
+        _ = reason;
+    }
     public ArtCraftAppDescriptor Descriptor { get; } = ArtCraftCatalog.Get(appId);
     public IFilesVfsService? FilesVfs { get; set; }
     protected virtual string ActiveDocumentLabel => "Active";
@@ -207,7 +217,18 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : DigitalBrain
 
 public abstract class ArtCraftStudioAppBase : ArtCraftStudioAppCore<ArtCraftStudioAppState>
 {
-    protected ArtCraftStudioAppBase(string appId) : base(appId) => Set(ArtCraftStudioAppState.For(Descriptor.Id));
+    protected ArtCraftStudioAppBase(string appId) : base(appId)
+    {
+    }
+
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        await base.OnActivate(cancellationToken);
+        if (State.AppId != Descriptor.Id)
+        {
+            await Show(ArtCraftStudioAppState.For(Descriptor.Id));
+        }
+    }
 
     protected static AppBundle CreateBundle(string appId, Type appType)
     {
@@ -240,13 +261,13 @@ public abstract class ArtCraftStudioAppBase : ArtCraftStudioAppCore<ArtCraftStud
         };
     }
 
-    [DigitalBrain.On]
+    [On]
     public async Task Open(ArtCraftStudioAppOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var (mode, doc, webUrl, mcpUri, status) = await ResolveOpenSessionCoreAsync(
             request.Document, request.Mode, State.ExecutionMode, State.ActiveDocument, State.WebUrl, State.McpEndpointUri);
-        Set(State with
+        await Show(State with
         {
             AppId = Descriptor.Id,
             ExecutionMode = mode,
@@ -257,7 +278,7 @@ public abstract class ArtCraftStudioAppBase : ArtCraftStudioAppCore<ArtCraftStud
         });
     }
 
-    [DigitalBrain.On]
+    [On]
     public Task Edit(ArtCraftStudioAppEdit request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -268,7 +289,7 @@ public abstract class ArtCraftStudioAppBase : ArtCraftStudioAppCore<ArtCraftStud
             NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
-    [DigitalBrain.On]
+    [On]
     public Task RunCommand(ArtCraftStudioAppRunCommand request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -279,26 +300,24 @@ public abstract class ArtCraftStudioAppBase : ArtCraftStudioAppCore<ArtCraftStud
             NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
-    [DigitalBrain.On]
-    public void SwitchMode(ArtCraftStudioAppSwitchMode request)
+    [On]
+    public Task SwitchMode(ArtCraftStudioAppSwitchMode request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var nextMode = ArtCraftEngineRunner.NormalizeMode(request.Mode);
-        Set(State with
+        return Show(State with
         {
             ExecutionMode = nextMode,
             Status = $"Switched {Descriptor.Title} execution backend to {FormatModeLabel(nextMode)}",
         });
     }
 
-    public View? RenderSide() => null;
-
-    public View Render() => RenderStudioView(State.Status, State.ActiveDocument, State.OutputDocument, State.WebUrl, State.ExecutionMode);
+    protected override View Render(ArtCraftStudioAppState state) => RenderStudioView(state.Status, state.ActiveDocument, state.OutputDocument, state.WebUrl, state.ExecutionMode);
 
     protected async Task ApplyExecutionAsync(string instructionOrCommand, string? explicitParamsJson, string targetDoc, string mode)
     {
         var result = await ExecuteStudioCommandAsync(instructionOrCommand, explicitParamsJson, targetDoc, mode);
-        Set(!result.IsValidCommand
+        await Show(!result.IsValidCommand
             ? State with
             {
                 ExecutionMode = result.ExecutionMode,
@@ -321,107 +340,92 @@ public abstract class ArtCraftStudioAppBase : ArtCraftStudioAppCore<ArtCraftStud
     }
 }
 
-[DigitalBrain.App("artcraft", Accent = "#6366F1", Category = "Studio")]
+[Neuron("app.artcraft")]
 public sealed class ArtCraftApp() : ArtCraftStudioAppBase("artcraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(ArtCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("artcraft", typeof(ArtCraftApp));
 }
 
-[DigitalBrain.App("vectorcraft", Accent = "#F59E0B", Category = "Studio")]
+[Neuron("app.vectorcraft")]
 public sealed class VectorCraftApp() : ArtCraftStudioAppBase("vectorcraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(VectorCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("vectorcraft", typeof(VectorCraftApp));
 }
 
-[DigitalBrain.App("lightcraft", Accent = "#38BDF8", Category = "Studio")]
+[Neuron("app.lightcraft")]
 public sealed class LightCraftApp() : ArtCraftStudioAppBase("lightcraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(LightCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("lightcraft", typeof(LightCraftApp));
 }
 
-[DigitalBrain.App("effectcraft", Accent = "#A855F7", Category = "Studio")]
+[Neuron("app.effectcraft")]
 public sealed class EffectCraftApp() : ArtCraftStudioAppBase("effectcraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(EffectCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("effectcraft", typeof(EffectCraftApp));
 }
 
-[DigitalBrain.App("designcraft", Accent = "#EC4899", Category = "Studio")]
+[Neuron("app.designcraft")]
 public sealed class DesignCraftApp() : ArtCraftStudioAppBase("designcraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(DesignCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("designcraft", typeof(DesignCraftApp));
 }
 
-[DigitalBrain.App("pdfcraft", Accent = "#EF4444", Category = "Workspace")]
+[Neuron("app.pdfcraft")]
 public sealed class PdfCraftApp() : ArtCraftStudioAppBase("pdfcraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(PdfCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("pdfcraft", typeof(PdfCraftApp));
 }
 
-[DigitalBrain.App("wordcraft", Accent = "#2563EB", Category = "Workspace")]
+[Neuron("app.wordcraft")]
 public sealed class WordCraftApp() : ArtCraftStudioAppBase("wordcraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(WordCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("wordcraft", typeof(WordCraftApp));
 }
 
-[DigitalBrain.App("soundcraft", Accent = "#10B981", Category = "Studio")]
+[Neuron("app.soundcraft")]
 public sealed class SoundCraftApp() : ArtCraftStudioAppBase("soundcraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(SoundCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("soundcraft", typeof(SoundCraftApp));
 }
 
-[DigitalBrain.App("deckcraft", Accent = "#F97316", Category = "Workspace")]
+[Neuron("app.deckcraft")]
 public sealed class DeckCraftApp() : ArtCraftStudioAppBase("deckcraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(DeckCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("deckcraft", typeof(DeckCraftApp));
 }
 
-[DigitalBrain.App("cadcraft", Accent = "#0EA5E9", Category = "Studio")]
+[Neuron("app.cadcraft")]
 public sealed class CadCraftApp() : ArtCraftStudioAppBase("cadcraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(CadCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("cadcraft", typeof(CadCraftApp));
 }
 
-[DigitalBrain.App("gridcraft", Accent = "#16A34A", Category = "Workspace")]
+[Neuron("app.gridcraft")]
 public sealed class GridCraftApp() : ArtCraftStudioAppBase("gridcraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(GridCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("gridcraft", typeof(GridCraftApp));
 }
 
-[DigitalBrain.App("figcraft", Accent = "#F43F5E", Category = "Studio")]
+[Neuron("app.figcraft")]
 public sealed class FigCraftApp() : ArtCraftStudioAppBase("figcraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(FigCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("figcraft", typeof(FigCraftApp));
 }
 
-[DigitalBrain.App("texturecraft", Accent = "#D97706", Category = "Studio")]
+[Neuron("app.texturecraft")]
 public sealed class TextureCraftApp() : ArtCraftStudioAppBase("texturecraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(TextureCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("texturecraft", typeof(TextureCraftApp));
 }
 
-[DigitalBrain.App("materialcraft", Accent = "#EA580C", Category = "Studio")]
+[Neuron("app.materialcraft")]
 public sealed class MaterialCraftApp() : ArtCraftStudioAppBase("materialcraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(MaterialCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("materialcraft", typeof(MaterialCraftApp));
 }
 
-[DigitalBrain.App("solidcraft", Accent = "#14B8A6", Category = "Studio")]
+[Neuron("app.solidcraft")]
 public sealed class SolidCraftApp() : ArtCraftStudioAppBase("solidcraft")
 {
-    public static DigitalBrain.AppDefinition Definition { get; } = new(typeof(SolidCraftApp));
     public static AppBundle Bundle { get; } = CreateBundle("solidcraft", typeof(SolidCraftApp));
 }

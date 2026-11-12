@@ -19,6 +19,6 @@ public interface IInoConversations
     // Makes agentKey the current conversation agent; emits InoConversationsChanged only when it changes.
     Task Use(string agentKey);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     Task<string[]> Current();
 }

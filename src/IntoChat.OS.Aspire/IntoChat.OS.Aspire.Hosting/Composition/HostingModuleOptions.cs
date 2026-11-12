@@ -1,5 +1,5 @@
-using DigitalBrain.Modules.Configuration;
 using System.Text.Json;
+using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;

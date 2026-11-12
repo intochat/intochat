@@ -1,6 +1,6 @@
-using DigitalBrain.Modules.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.Connections;

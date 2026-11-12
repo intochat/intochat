@@ -133,7 +133,7 @@ internal static class PersistedStateRules
                 if (ancestor.IsGenericType && !ancestor.ContainsGenericParameters
                     && (ancestor.GetGenericTypeDefinition() == typeof(Grain<>)
                         // A plain neuron (06-04 on) persists its TState through the runtime; the same shape rules hold.
-                        || ancestor.GetGenericTypeDefinition() == typeof(DigitalBrain.Neuron<>)))
+                        || ancestor.GetGenericTypeDefinition() == typeof(DigitalBrain.Neurons.Neuron<>)))
                 {
                     pending.Enqueue(ancestor.GetGenericArguments()[0]);
                 }

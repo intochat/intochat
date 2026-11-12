@@ -1,10 +1,11 @@
 using System.Text.RegularExpressions;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Authority.Identity.Rules;
 
 namespace IntoChat.OS.Authority.Identity.Contacts;
 
-[DigitalBrain.Neuron(IContactsNeuron.TypeName)]
-public sealed partial class ContactsNeuron : DigitalBrain.Neuron<ContactsState>, IContactsNeuron
+[Neuron(IContactsNeuron.TypeName)]
+public sealed partial class ContactsNeuron : Neuron<ContactsState>, IContactsNeuron
 {
     [GeneratedRegex("^[a-z0-9][a-z0-9-]{0,39}$")]
     private static partial Regex ListNameRegex();

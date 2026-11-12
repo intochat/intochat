@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Security;
 using System.Text.Json;
-using DigitalBrain.Runtime.Orleans.Operations;
+using DigitalBrain.Operations;
 using IntoChat.OS.Framework.Machine;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

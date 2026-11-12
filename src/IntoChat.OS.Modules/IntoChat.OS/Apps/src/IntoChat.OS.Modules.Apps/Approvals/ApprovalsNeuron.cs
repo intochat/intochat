@@ -2,6 +2,8 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
+using DigitalBrain.Neurons;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps.Flows;
 
 namespace IntoChat.OS.Modules.Apps.Approvals;
@@ -11,13 +13,19 @@ namespace IntoChat.OS.Modules.Apps.Approvals;
 // reacts to ConfirmationResolved itself. A staged synapse's plan is raised by the framework's installs neuron with the unit's
 // alias as TargetLabel, so a staged source matches by its source key or by one of its aliases; a build flow waiting on that ask makes
 // it SynapseStaged with the needs sentence and hosts, and a build flow waiting for a connection is an Other card of its own (no plan).
-[DigitalBrain.Neuron("approvals"), StatelessNeuron]
-public sealed class ApprovalsNeuron : DigitalBrain.Neuron, IApprovals
+[Neuron("approvals"), StatelessNeuron]
+public sealed class ApprovalsNeuron : Neuron, IApprovals
 {
     private NeuronId InboxId => new(Id.Brain, "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey);
 
     public async Task<IReadOnlyList<Approval>> Pending(CancellationToken ct = default)
     {
+        if (!DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.TryGet(out var caller)
+            || string.IsNullOrEmpty(caller.BrainId)
+            || !string.Equals(caller.BrainId, Id.Brain.Value, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException("Only signed-in callers within the same brain can read pending approvals.");
+        }
         var inboxRead = Context.Get<IConfirmationInbox>(InboxId).Read().WaitAsync(ct);
         var flowsRead = Context.Get<IFlows>(IFlows.Key(Id.Brain.Value)).List(new FlowQuery(Status: FlowStatus.Waiting), ct);
         await Task.WhenAll(inboxRead, flowsRead);

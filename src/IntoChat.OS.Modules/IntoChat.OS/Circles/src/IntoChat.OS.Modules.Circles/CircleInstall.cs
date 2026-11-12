@@ -1,5 +1,5 @@
 using DigitalBrain.Brains;
-using DigitalBrain.Spi;
+using DigitalBrain.Neurons;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;

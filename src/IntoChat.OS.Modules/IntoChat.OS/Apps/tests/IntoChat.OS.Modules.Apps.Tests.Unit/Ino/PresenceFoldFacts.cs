@@ -23,8 +23,8 @@ public interface IFakeAgent : IAgent
 }
 
 // Stands in for the agent neuron: Read answers the seeded state, and the facts publish its turn signals.
-[DigitalBrain.Neuron(AgentSignals.NeuronType)]
-public sealed class FakeAgent : DigitalBrain.Neuron<FakeAgentState>, IFakeAgent
+[DigitalBrain.Neurons.Neuron(AgentSignals.NeuronType)]
+public sealed class FakeAgent : DigitalBrain.Neurons.Neuron<FakeAgentState>, IFakeAgent
 {
     public Task Seed(AgentState state) => Save(State with { Agent = state }, new AgentConfigured(Id.Key, 1));
 
@@ -55,8 +55,8 @@ public sealed record FakeContextState(ContextEntry[] Entries)
 }
 
 // The agent context as the AI module keeps it: provenance stamped from the caller, ContextUpdated/ContextRemoved on change.
-[DigitalBrain.Neuron("agent-context")]
-public sealed class FakeAgentContext : DigitalBrain.Neuron<FakeContextState>, IAgentContext
+[DigitalBrain.Neurons.Neuron("agent-context")]
+public sealed class FakeAgentContext : DigitalBrain.Neurons.Neuron<FakeContextState>, IAgentContext
 {
     public Task Set(ContextEntry entry)
     {
@@ -88,8 +88,8 @@ public interface IFakeFlows : IFlows
 
 // Stands in for the flows index: Read answers seeded views. TestOS does not carry a stamped caller into a neuron's turn, so the
 // facts seed the App and Conversation that FlowsNeuron records from it (FlowsNeuronFacts proves that part on a silo).
-[DigitalBrain.Neuron("flows")]
-public sealed class FakeFlows : DigitalBrain.Neuron<FakeFlowsState>, IFakeFlows
+[DigitalBrain.Neurons.Neuron("flows")]
+public sealed class FakeFlows : DigitalBrain.Neurons.Neuron<FakeFlowsState>, IFakeFlows
 {
     public Task Seed(FlowView flow) => Save(State with { Flows = [.. State.Flows.Where(item => item.FlowId != flow.FlowId), flow] }, new FlowsChanged(flow.FlowId));
 
@@ -116,8 +116,8 @@ public interface IFlowDonePump
     Task Failed(string flowId, string detail);
 }
 
-[DigitalBrain.Neuron(Alias)]
-public sealed class FlowDonePump : DigitalBrain.Neuron<FlowDonePumpState>, IFlowDonePump
+[DigitalBrain.Neurons.Neuron(Alias)]
+public sealed class FlowDonePump : DigitalBrain.Neurons.Neuron<FlowDonePumpState>, IFlowDonePump
 {
     public const string Alias = "test.presence-flow-pump";
 

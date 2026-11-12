@@ -1,6 +1,7 @@
-using DigitalBrain.Capabilities.Connections.Connectors;
-using DigitalBrain.Modules.Configuration;
 using System.Reflection;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Modules;
+using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 
 namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
@@ -13,13 +14,13 @@ namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
 public static class ManifestEnvironment
 {
     // The static ModuleManifest of every composed module that declares one (a public static Manifest property), with the module's id.
-    public static IReadOnlyList<DigitalBrain.ModuleManifest> ManifestsOf(IEnumerable<IntoChat.OS.Framework.Modules.OsModule> modules)
+    public static IReadOnlyList<DigitalBrain.Modules.ModuleManifest> ManifestsOf(IEnumerable<IntoChat.OS.Framework.Modules.OsModule> modules)
     {
         ArgumentNullException.ThrowIfNull(modules);
         return [.. modules.GroupBy(module => module.Type).Select(group => group.First())
-            .Select(module => module.Type.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is DigitalBrain.ModuleManifest manifest
+            .Select(module => module.Type.GetProperty("Manifest", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is DigitalBrain.Modules.ModuleManifest manifest
                 ? manifest with { Id = module.Id.Value } : null)
-            .OfType<DigitalBrain.ModuleManifest>()];
+            .OfType<DigitalBrain.Modules.ModuleManifest>()];
     }
 
     // The vault secret of a module's declared secret.
@@ -75,7 +76,7 @@ public static class ManifestEnvironment
     }
 
     public static (IReadOnlyDictionary<string, string> Variables, IReadOnlyList<SecretRef> Secrets) Render(
-        InstallConfig config, IReadOnlyList<DigitalBrain.ModuleManifest> manifests)
+        InstallConfig config, IReadOnlyList<DigitalBrain.Modules.ModuleManifest> manifests)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(manifests);
@@ -108,7 +109,7 @@ public static class ManifestEnvironment
 
     // Every environment name the OS app carries for this deployment, sorted: the foundation, the topology keys, the module
     // settings and the secret variables. `install --print-env` prints it and deploy.sh check_environment requires it.
-    public static string[] EnvironmentNames(InstallConfig config, IReadOnlyList<DigitalBrain.ModuleManifest> manifests)
+    public static string[] EnvironmentNames(InstallConfig config, IReadOnlyList<DigitalBrain.Modules.ModuleManifest> manifests)
     {
         var (variables, secrets) = Render(config, manifests);
         var app = InstallPlan.OsApp(config, variables, secrets);

@@ -1,8 +1,8 @@
 namespace IntoChat.OS.Modules.Apps;
 
 // The store behind the Desktop's records: what the app writes is what it reads after any activation.
-[DigitalBrain.Neuron("apps.desktop-records")]
-public sealed class DesktopRecordsNeuron : DigitalBrain.Neuron<DesktopRecords>, IDesktopRecords
+[DigitalBrain.Neurons.Neuron("apps.desktop-records")]
+public sealed class DesktopRecordsNeuron : DigitalBrain.Neurons.Neuron<DesktopRecords>, IDesktopRecords
 {
     public Task<DesktopRecords> Read() => Task.FromResult(State);
 
@@ -17,8 +17,8 @@ public sealed class DesktopRecordsNeuron : DigitalBrain.Neuron<DesktopRecords>, 
 }
 
 // The store behind Ino's records.
-[DigitalBrain.Neuron("apps.ino-records")]
-public sealed class InoRecordsNeuron : DigitalBrain.Neuron<InoRecords>, IInoRecords
+[DigitalBrain.Neurons.Neuron("apps.ino-records")]
+public sealed class InoRecordsNeuron : DigitalBrain.Neurons.Neuron<InoRecords>, IInoRecords
 {
     public Task<InoRecords> Read() => Task.FromResult(State);
 

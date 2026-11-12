@@ -1,15 +1,17 @@
+using System.Text.Json;
+using DigitalBrain;
 using DigitalBrain.Brains;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Errors;
 using DigitalBrain.Invocation;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Capabilities;
-using DigitalBrain;
+using DigitalBrain.State;
 using DigitalBrain.UI;
-using System.Text.Json;
+using DigitalBrain.Units;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Views;
 
@@ -42,12 +44,12 @@ internal sealed class ViewNeuron
         return parts.Length > 2 && parts[0] == "apps" ? $"apps/{parts[1]}/" : null;
     }
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<PublishedView?> Read() => Task.FromResult(Snapshot.Json is { } json
         ? new PublishedView(FullKey, Snapshot.Generation, ViewValidation.Parse(json))
         : null);
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<ViewActivation> Activate(long generation, string key, string? fieldValue)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);

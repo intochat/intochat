@@ -9,7 +9,6 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Apps.FilmCraft;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using DigitalBrain.Runtime.Orleans.Confirmations;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.AI.Testing;
@@ -39,10 +38,9 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
 
         // Step 1: Studio App Manifest Resolution and real FilmCraftApp execution on the silo
-        var filmCraft = FilmCraftApp.Definition;
-        Assert.Equal("filmcraft", filmCraft.Id);
-        Assert.Equal("#8B5CF6", filmCraft.Accent);
-        Assert.Equal("Studio", filmCraft.Category);
+        var filmCraft = FilmCraftApp.Bundle;
+        Assert.Equal("filmcraft", filmCraft.Name);
+        Assert.True(filmCraft.Manifest.Studio);
 
         var film = fixture.AttachSilo(new FilmCraftApp(), brain);
         await film.Open(new FilmCraftStudioOpen("/work/timeline.fcproj", "native-linux"));
@@ -65,20 +63,20 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
             }
         };
 
-        var p0 = new PresentationChanged(filmCraft.Id, 1, 1);
+        var p0 = new PresentationChanged(filmCraft.Name, 1, 1);
         Assert.Equal(1, p0.Revision);
 
         // Step 2: Execute studio edit and export on the silo and record checkpoints in AspireNeuron
         var aspire = SiloNeurons.Get<IAspire>(fixture.Services, $"{brain}/aspire");
         await film.Edit(new FilmCraftStudioEdit("razor split timeline at 00:00:03:12", "/work/timeline.fcproj", "native-linux"));
-        film.SwitchMode(new FilmCraftSwitchMode("mcp"));
+        await film.SwitchMode(new FilmCraftSwitchMode("mcp"));
         await film.Export(new FilmCraftExport("h264-1080p60", "/work/timeline.fcproj", "mcp"));
         Assert.EndsWith(".1080p60.mp4", film.State.OutputFile, StringComparison.Ordinal);
 
         const int totalFrames = 500;
         for (int frame = 1; frame <= totalFrames; frame++)
         {
-            _ = new AppActivity(filmCraft.Id, "rendering", $"Rendered frame {frame}/{totalFrames}");
+            _ = new AppActivity(filmCraft.Name, "rendering", $"Rendered frame {frame}/{totalFrames}");
             if (frame % 100 == 0)
             {
                 await aspire.RecordTraceAsync(new AspireTraceSpan(
@@ -93,7 +91,7 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         }
 
         // Step 3: Publish updated view to the silo and verify revision advancement
-        await fixture.PublishAppViewToSiloAsync(brain, "filmcraft", film.RenderSide(), film.Render());
+        await fixture.PublishAppViewToSiloAsync(brain, "filmcraft", null, film.Render());
         var filmView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/filmcraft/view").Read();
         Assert.NotNull(filmView);
 
@@ -108,7 +106,7 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
             Connections = initialState.Connections
         };
 
-        var p1 = new PresentationChanged(filmCraft.Id, 1, 2);
+        var p1 = new PresentationChanged(filmCraft.Name, 1, 2);
         Assert.Equal(2, p1.Revision);
         Assert.True(p1.Revision > p0.Revision);
         Assert.Equal(3, finishedState.Files.Count);

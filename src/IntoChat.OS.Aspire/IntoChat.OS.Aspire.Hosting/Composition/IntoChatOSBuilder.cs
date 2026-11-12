@@ -1,9 +1,9 @@
-using DigitalBrain.Modules.Configuration;
-using DigitalBrain.Modules.Options;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Azure;
 using Aspire.Hosting.Orleans;
+using DigitalBrain.Modules.Configuration;
+using DigitalBrain.Modules.Options;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -19,7 +19,7 @@ public sealed class IntoChatOSBuilder
     public IConfiguration GetModuleConfiguration(string id)
         => _compiledConfiguration.TryGetValue(id, out var configuration) ? configuration : ApplicationBuilder.Configuration;
 
-    public IntoChatOSBuilder WithModule(DigitalBrain.Module module, IIntoChatOSModuleHosting? hosting = null,
+    public IntoChatOSBuilder WithModule(DigitalBrain.Modules.Module module, IIntoChatOSModuleHosting? hosting = null,
         IReadOnlyDictionary<string, string?>? settings = null)
     {
         ArgumentNullException.ThrowIfNull(module);

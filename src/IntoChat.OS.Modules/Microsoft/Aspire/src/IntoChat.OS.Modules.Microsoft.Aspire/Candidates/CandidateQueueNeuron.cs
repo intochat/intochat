@@ -6,8 +6,8 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
 // At most one candidate is live per brain; the rest wait here in proposal order.
 // A plain neuron since 06-06d.
-[DigitalBrain.Neuron("aspire.candidates")]
-internal sealed class CandidateQueueNeuron(ICandidateHost host) : DigitalBrain.Neuron<CandidateQueueState>, ICandidates
+[DigitalBrain.Neurons.Neuron("aspire.candidates")]
+internal sealed class CandidateQueueNeuron(ICandidateHost host) : DigitalBrain.Neurons.Neuron<CandidateQueueState>, ICandidates
 {
     private CandidateQueueState Snapshot => State;
     private string BrainId => Id.Brain.Value;

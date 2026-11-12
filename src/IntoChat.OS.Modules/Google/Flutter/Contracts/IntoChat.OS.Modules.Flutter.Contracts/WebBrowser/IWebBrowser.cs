@@ -1,8 +1,8 @@
-using DigitalBrain.Contracts;
-using DigitalBrain;
 using System.Text.Json.Serialization;
-using IntoChat.OS;
+using DigitalBrain;
+using DigitalBrain.Contracts;
 using DigitalBrain.State;
+using IntoChat.OS;
 
 namespace IntoChat.OS.Modules.Flutter.WebBrowser;
 
@@ -11,7 +11,7 @@ public interface IWebBrowser
 {
     Task Navigate(string uri, string? title = null);
     Task Configure(string playwrightKey);
-    [DigitalBrain.ReadOnlyCall] Task<WebBrowserView> Read();
+    [DigitalBrain.Contracts.ReadOnlyCall] Task<WebBrowserView> Read();
 }
 
 // The shell reads the connection by name.

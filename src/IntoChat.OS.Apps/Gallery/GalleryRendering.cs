@@ -44,7 +44,8 @@ internal static class GalleryRendering
                 new Column(categoryButtons) { Gap = 4 },
                 new Divider($"CONTROLS ({visible.Length})"),
                 new Column(entryNavItems) { Gap = 4 },
-            ]) { Gap = 10 });
+            ])
+            { Gap = 10 });
     }
 
     public static View Render(GalleryAppState state)
@@ -97,7 +98,8 @@ internal static class GalleryRendering
                     LeadingExtent: 540,
                     Gap: 14),
                 RenderCodeAndIdentityInspector(state, selected),
-            ]) { Gap = 16 });
+            ])
+            { Gap = 16 });
     }
 
     private static Node RenderStudioHeroBanner(GalleryAppState state, GalleryCatalogEntry selected) => new Surface(
@@ -166,7 +168,8 @@ internal static class GalleryRendering
         new Button("warm-mica", "Warm Mica", Emit: AppSignals.Emit("gallery", "switch-identity", "fluent-warm-mica", "floating-glass"), Tone: state.StylePreset == "fluent-warm-mica" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "sun" },
         new Button("linear-carbon", "Linear Carbon", Emit: AppSignals.Emit("gallery", "switch-identity", "linear-carbon", "classic-bottom"), Tone: state.StylePreset == "linear-carbon" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "terminal" },
         new Button("nordic-tactical", "Nordic Tactical", Emit: AppSignals.Emit("gallery", "switch-identity", "nordic-tactical", "split-top-dock"), Tone: state.StylePreset == "nordic-tactical" ? ButtonTone.Accent : ButtonTone.Neutral) { Small = true, Icon = "shield" },
-    ]) { Gap = 8 };
+    ])
+    { Gap = 8 };
 
     private static Node RenderCatalogGridSection(GalleryAppState state, GalleryCatalogEntry[] visible)
     {

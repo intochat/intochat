@@ -1,10 +1,11 @@
+using DigitalBrain.Neurons;
 using IntoChat.OS.Connections.Identity;
 using GrantModel = IntoChat.OS.Connections.Identity.Grant;
 
 namespace IntoChat.OS.Authority.Identity.Grants;
 
-[DigitalBrain.Neuron(IGrantsNeuron.TypeName)]
-public sealed class GrantsNeuron : DigitalBrain.Neuron<GrantsState>, IGrantsNeuron
+[Neuron(IGrantsNeuron.TypeName)]
+public sealed class GrantsNeuron : Neuron<GrantsState>, IGrantsNeuron
 {
     private async Task<GrantsState> Normalized()
     {

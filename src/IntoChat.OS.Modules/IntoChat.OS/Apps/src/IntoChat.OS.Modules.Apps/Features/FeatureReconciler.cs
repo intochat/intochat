@@ -13,12 +13,12 @@ namespace IntoChat.OS.Modules.Apps;
 // a person's brain, is untouched. One app failing must not keep the others from catching up.
 // A circle brain (R125) is born with its room only, so the install is skipped; updates still run.
 // A plain neuron (06-08), reading the brain's plain apps.
-[DigitalBrain.Neuron("apps.reconciler")]
+[DigitalBrain.Neurons.Neuron("apps.reconciler")]
 internal sealed class FeatureReconciler(
     IKernel kernel, FeatureCatalog catalog, FeatureLoader loader, ILogger<FeatureReconciler> logger,
     IEnumerable<IFeatureMigration> migrations, ICapabilityBroker? directory = null,
     IntoChat.OS.Connections.Platform.Identity.IIdentityClient? identity = null)
-    : DigitalBrain.Neuron, IFeatureReconciler
+    : DigitalBrain.Neurons.Neuron, IFeatureReconciler
 {
     public async Task Reconcile(CancellationToken ct = default)
     {

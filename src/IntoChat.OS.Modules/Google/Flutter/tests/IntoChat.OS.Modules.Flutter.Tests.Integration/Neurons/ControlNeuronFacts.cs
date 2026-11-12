@@ -1,7 +1,7 @@
 using DigitalBrain;
+using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Fields;
-using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Modules.Flutter.Tests;
 

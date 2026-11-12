@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Testing.Synapses;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps.Debugger;
 using ScenarioTick = DigitalBrain.Testing.Synapses.Tick;
 

@@ -3,7 +3,7 @@ using DigitalBrain.Capabilities.Connections;
 namespace IntoChat.OS.Modules.Google.Gmail;
 
 [GenerateSerializer, Alias("db.gmail.state")]
-internal sealed class GmailState : ConnectionState
+internal sealed record GmailState : ConnectionState
 {
     [Id(8)] public bool CanCompose { get; set; }
     [Id(9)] public GmailDraftPreview? PendingDraft { get; set; }

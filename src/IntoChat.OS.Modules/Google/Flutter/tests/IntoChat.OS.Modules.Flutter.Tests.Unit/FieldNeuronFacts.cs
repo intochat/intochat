@@ -1,8 +1,8 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Spi;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Views;

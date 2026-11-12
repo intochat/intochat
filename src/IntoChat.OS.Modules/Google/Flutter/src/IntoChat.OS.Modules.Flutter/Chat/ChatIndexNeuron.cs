@@ -1,7 +1,8 @@
 using DigitalBrain;
+using DigitalBrain.Neurons;
+using DigitalBrain.State;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using DigitalBrain.State;
 
 namespace IntoChat.OS.Modules.Flutter.Chat;
 
@@ -17,7 +18,7 @@ internal sealed record ChatIndexState
 internal sealed class ChatIndexNeuron
     : UiNeuron<ChatIndexState>, IChatIndex
 {
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<ChatIndexPage> List(bool archived, int skip = 0, int take = ChatIndex.MaxPage)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(skip);
@@ -29,7 +30,7 @@ internal sealed class ChatIndexNeuron
         return Task.FromResult(new ChatIndexPage([.. reachable.Skip(skip).Take(take)], reachable.Length));
     }
 
-    [DigitalBrain.ReadOnlyCall]
+    [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<ChatIndexEntry?> Get(string id) => Task.FromResult(Find(ValidId(id)));
 
     public async Task<ChatIndexEntry> Create(string id, string title)

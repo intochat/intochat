@@ -3,7 +3,7 @@ using DigitalBrain.Capabilities.Connections;
 namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
 [GenerateSerializer, Alias("github.repository-state")]
-internal sealed class GitHubRepositoryState : ConnectionState
+internal sealed record GitHubRepositoryState : ConnectionState
 {
     [Id(8)] public long AppId { get; set; }
     [Id(9)] public long InstallationId { get; set; }

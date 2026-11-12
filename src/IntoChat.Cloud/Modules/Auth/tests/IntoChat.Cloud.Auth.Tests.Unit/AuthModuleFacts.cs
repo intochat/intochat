@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Modules;
 using IntoChat.Cloud.Auth.Services;
 using AuthModule = IntoChat.Cloud.Auth.AuthModule;
 

@@ -57,10 +57,10 @@ public sealed class ModuleScaffolderFacts
 
             // Validate Module class content
             var moduleContent = File.ReadAllText(moduleClass);
-            Assert.Contains("[DigitalBrain.Module(ManifestName)]", moduleContent);
+            Assert.Contains("[DigitalBrain.Modules.Module(ManifestName)]", moduleContent);
             Assert.Contains("ManifestName = \"sample.widget\"", moduleContent);
-            Assert.Contains("DigitalBrain.Secret.Named(\"ApiKey\")", moduleContent);
-            Assert.Contains("DigitalBrain.Secret.Named(\"SigningToken\")", moduleContent);
+            Assert.Contains("DigitalBrain.Modules.Secret.Named(\"ApiKey\")", moduleContent);
+            Assert.Contains("DigitalBrain.Modules.Secret.Named(\"SigningToken\")", moduleContent);
             Assert.Contains("ActionDescriptor(\"sample.widget.execute\"", moduleContent);
             Assert.Contains("ActionDescriptor(\"sample.widget.status\"", moduleContent);
 

@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using DigitalBrain;
+using DigitalBrain.Neurons;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
