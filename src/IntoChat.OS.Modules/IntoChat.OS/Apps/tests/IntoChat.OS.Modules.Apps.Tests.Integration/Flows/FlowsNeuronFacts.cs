@@ -356,7 +356,7 @@ public sealed class FlowsNeuronFacts
             id = await flows.Start(TestFlow.Alias, "By Ino", null, Inner(new TestInner { Wait = true }), Ct);
         }
 
-        var view = await Eventually(flows, id, view => view.App is not null);
+        var view = await Eventually(flows, id, view => view.Status == FlowStatus.Waiting && view.App is not null);
         Assert.Equal("person-1", view.Owner);
         Assert.Equal("assistant", view.App);
         Assert.Equal("ino/conversations/main", view.Conversation);
