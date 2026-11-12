@@ -250,22 +250,27 @@ internal sealed partial class AppNeuron
     {
         if (services?.GetService<ICapabilityBroker>() is not { } broker || State.Manifest is not { } manifest) { return; }
         var brain = BrainId();
-        IIdentity directory;
-        Account? account;
-        try { directory = await broker.Identity(); account = await directory.OwnerOfBrain(brain); }
-        catch (Exception error) when (error is InvalidOperationException or UnauthorizedAccessException) { return; }
-        if (account is null) { return; }
-        using (InProcessCallerScope.Enter())
+        try
         {
-            await directory.EnsureMember(new Member
+            var directory = await broker.Identity();
+            var account = await directory.OwnerOfBrain(brain);
+            if (account is null) { return; }
+            using (InProcessCallerScope.Enter())
             {
-                PrincipalId = AppPrincipal.Id(Key),
-                AccountId = account.AccountId,
-                BrainId = brain,
-                Role = MemberRole.App,
-                DisplayName = manifest.Title,
-                JoinedAt = clock.GetUtcNow(),
-            });
+                await directory.EnsureMember(new Member
+                {
+                    PrincipalId = AppPrincipal.Id(Key),
+                    AccountId = account.AccountId,
+                    BrainId = brain,
+                    Role = MemberRole.App,
+                    DisplayName = manifest.Title,
+                    JoinedAt = clock.GetUtcNow(),
+                });
+            }
+        }
+        catch (Exception error) when (error is InvalidOperationException or UnauthorizedAccessException)
+        {
+            return;
         }
     }
 
@@ -274,15 +279,20 @@ internal sealed partial class AppNeuron
         if (services?.GetService<ICapabilityBroker>() is not { } broker) { return; }
         var brain = BrainId();
         var principal = AppPrincipal.Id(Key);
-        IIdentity directory;
-        Account? account;
-        try { directory = await broker.Identity(); account = await directory.OwnerOfBrain(brain); }
-        catch (Exception error) when (error is InvalidOperationException or UnauthorizedAccessException) { return; }
-        if (account is null) { return; }
-        if (await directory.Membership(brain, principal) is not { Role: MemberRole.App }) { return; }
-        using (InProcessCallerScope.Enter())
+        try
         {
-            await directory.RemovePrincipalMember(brain, principal);
+            var directory = await broker.Identity();
+            var account = await directory.OwnerOfBrain(brain);
+            if (account is null) { return; }
+            if (await directory.Membership(brain, principal) is not { Role: MemberRole.App }) { return; }
+            using (InProcessCallerScope.Enter())
+            {
+                await directory.RemovePrincipalMember(brain, principal);
+            }
+        }
+        catch (Exception error) when (error is InvalidOperationException or UnauthorizedAccessException)
+        {
+            return;
         }
     }
 

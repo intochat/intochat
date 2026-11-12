@@ -42,7 +42,11 @@ final class ViewBadge extends StatelessWidget {
         ? (c.accentTint, c.accent, null)
         : switch (resolvedTone) {
             UiTone.done => (c.doneBg, c.done, LucideIcons.circleCheck),
-            UiTone.working => (c.workingBg, c.working, LucideIcons.loaderCircle),
+            UiTone.working => (
+              c.workingBg,
+              c.working,
+              LucideIcons.loaderCircle,
+            ),
             UiTone.error => (c.errorBg, c.error, LucideIcons.triangleAlert),
             UiTone.neutral => (c.recessed, c.muted, null),
           };

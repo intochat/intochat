@@ -8,11 +8,8 @@ import '../theme/ui_icon.dart';
 import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
 
-Widget renderNavItem(NavItemNode node, NodeContext ctx) => _NavItemPill(
-  key: ValueKey('nav:${node.key}'),
-  node: node,
-  ctx: ctx,
-);
+Widget renderNavItem(NavItemNode node, NodeContext ctx) =>
+    _NavItemPill(key: ValueKey('nav:${node.key}'), node: node, ctx: ctx);
 
 class _NavItemPill extends StatefulWidget {
   const _NavItemPill({super.key, required this.node, required this.ctx});
@@ -74,11 +71,7 @@ class _NavItemPillState extends State<_NavItemPill> {
                   ),
                 ),
                 const SizedBox(width: 7),
-                Icon(
-                  iconData,
-                  size: 16,
-                  color: selected ? c.accent : c.muted,
-                ),
+                Icon(iconData, size: 16, color: selected ? c.accent : c.muted),
                 SizedBox(width: tokens.p6),
                 Expanded(
                   child: Text(
@@ -100,7 +93,9 @@ class _NavItemPillState extends State<_NavItemPill> {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: selected ? c.accent.withValues(alpha: 0.14) : c.recessed,
+                      color: selected
+                          ? c.accent.withValues(alpha: 0.14)
+                          : c.recessed,
                       borderRadius: BorderRadius.circular(tokens.xs),
                     ),
                     child: Text(

@@ -56,5 +56,39 @@ public static class InProcessCallerScope
         ?.GetMethod("Enter", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("InProcessCallerScope.Enter not found.");
 
+    private static readonly object AmbientInstance = Type.GetType("DigitalBrain.Runtime.Orleans.Access.OrleansCallerAmbient, DigitalBrain.Runtime.Orleans")
+        ?.GetProperty("Instance", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+        ?.GetValue(null)
+        ?? throw new InvalidOperationException("OrleansCallerAmbient.Instance not found.");
+
+    private static readonly MethodInfo EnterAmbientMethod = AmbientInstance.GetType()
+        .GetMethod("Enter", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("OrleansCallerAmbient.Enter not found.");
+
     public static IDisposable Enter() => (IDisposable)EnterMethod.Invoke(null, null)!;
+
+    public static IDisposable ClearCaller()
+    {
+        Orleans.Runtime.RequestContext.Remove(DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.RequestContextKey);
+        return (IDisposable)EnterAmbientMethod.Invoke(AmbientInstance, [null])!;
+    }
+
+    public static IDisposable EnterKernel(string brainId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        var inProcess = Enter();
+        var ambient = (IDisposable)EnterAmbientMethod.Invoke(
+            AmbientInstance,
+            [DigitalBrain.Capabilities.CapabilityCallers.Platform(brainId, brainId, brainId).ToCaller()])!;
+        return new KernelScope(ambient, inProcess);
+    }
+
+    private sealed class KernelScope(IDisposable first, IDisposable second) : IDisposable
+    {
+        public void Dispose()
+        {
+            first.Dispose();
+            second.Dispose();
+        }
+    }
 }

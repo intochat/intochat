@@ -51,7 +51,8 @@
           "icon": "sliders-horizontal",
           "action": "navigate:general",
           "selected": true,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -60,7 +61,8 @@
           "icon": "monitor",
           "action": "navigate:desktop",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -69,7 +71,8 @@
           "icon": "layout-grid",
           "action": "navigate:apps",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -78,7 +81,8 @@
           "icon": "plug",
           "action": "navigate:connections",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -87,7 +91,8 @@
           "icon": "folder",
           "action": "navigate:files",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -96,7 +101,8 @@
           "icon": "sparkles",
           "action": "navigate:models",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -105,7 +111,8 @@
           "icon": "key-round",
           "action": "navigate:keys",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -114,7 +121,8 @@
           "icon": "braces",
           "action": "navigate:variables",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -123,7 +131,8 @@
           "icon": "credit-card",
           "action": "navigate:billing",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -132,7 +141,8 @@
           "icon": "users",
           "action": "navigate:team",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -141,7 +151,8 @@
           "icon": "bell",
           "action": "navigate:notifications",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -150,7 +161,8 @@
           "icon": "keyboard",
           "action": "navigate:keyboard",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -159,7 +171,8 @@
           "icon": "triangle-alert",
           "action": "navigate:danger",
           "selected": false,
-          "badge": "!"
+          "badge": "!",
+          "emit": null
         },
         {
           "kind": "collection",
@@ -311,8 +324,8 @@
                   "kind": "statCard",
                   "key": "stat-vault",
                   "label": "Zero-Leakage Vault",
-                  "value": "4 Secrets Sealed",
-                  "delta": "2FA Active",
+                  "value": "0 Connections",
+                  "delta": "Active",
                   "tone": 0,
                   "icon": "key-round"
                 }
@@ -333,14 +346,10 @@
                   "children": [
                     {
                       "kind": "button",
+                      "key": "light",
                       "label": "Light",
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "sun",
-                      "small": true,
                       "emit": {
-                        "owner": "apps/settings",
+                        "owner": "app.settings",
                         "signal": "save-preferences",
                         "args": [
                           "User",
@@ -350,18 +359,20 @@
                           "floating-glass",
                           "light"
                         ]
-                      }
-                    },
-                    {
-                      "kind": "button",
-                      "label": "Dark",
+                      },
+                      "intent": null,
                       "enabled": true,
                       "tone": "neutral",
                       "style": "secondary",
-                      "icon": "moon",
-                      "small": true,
+                      "icon": "sun",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "dark",
+                      "label": "Dark",
                       "emit": {
-                        "owner": "apps/settings",
+                        "owner": "app.settings",
                         "signal": "save-preferences",
                         "args": [
                           "User",
@@ -371,18 +382,20 @@
                           "floating-glass",
                           "dark"
                         ]
-                      }
+                      },
+                      "intent": null,
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "moon",
+                      "small": true
                     },
                     {
                       "kind": "button",
+                      "key": "auto",
                       "label": "Auto",
-                      "enabled": true,
-                      "tone": "accent",
-                      "style": "secondary",
-                      "icon": "sparkles",
-                      "small": true,
                       "emit": {
-                        "owner": "apps/settings",
+                        "owner": "app.settings",
                         "signal": "save-preferences",
                         "args": [
                           "User",
@@ -392,7 +405,13 @@
                           "floating-glass",
                           "auto"
                         ]
-                      }
+                      },
+                      "intent": null,
+                      "enabled": true,
+                      "tone": "accent",
+                      "style": "secondary",
+                      "icon": "sparkles",
+                      "small": true
                     }
                   ],
                   "gap": 8,
@@ -409,13 +428,10 @@
                   "children": [
                     {
                       "kind": "button",
+                      "key": "fluent-acrylic",
                       "label": "Fluent Acrylic",
-                      "enabled": true,
-                      "tone": "accent",
-                      "style": "secondary",
-                      "small": true,
                       "emit": {
-                        "owner": "apps/settings",
+                        "owner": "app.settings",
                         "signal": "save-preferences",
                         "args": [
                           "User",
@@ -424,17 +440,19 @@
                           "fluent-acrylic",
                           "floating-glass"
                         ]
-                      }
+                      },
+                      "intent": null,
+                      "enabled": true,
+                      "tone": "accent",
+                      "style": "secondary",
+                      "small": true
                     },
                     {
                       "kind": "button",
+                      "key": "spatial-glass",
                       "label": "Spatial Glass",
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "small": true,
                       "emit": {
-                        "owner": "apps/settings",
+                        "owner": "app.settings",
                         "signal": "save-preferences",
                         "args": [
                           "User",
@@ -443,17 +461,19 @@
                           "spatial-glass",
                           "floating-glass"
                         ]
-                      }
-                    },
-                    {
-                      "kind": "button",
-                      "label": "Cyber Synaptic",
+                      },
+                      "intent": null,
                       "enabled": true,
                       "tone": "neutral",
                       "style": "secondary",
-                      "small": true,
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "cyber-synaptic",
+                      "label": "Cyber Synaptic",
                       "emit": {
-                        "owner": "apps/settings",
+                        "owner": "app.settings",
                         "signal": "save-preferences",
                         "args": [
                           "User",
@@ -462,17 +482,19 @@
                           "cyber-synaptic",
                           "floating-glass"
                         ]
-                      }
-                    },
-                    {
-                      "kind": "button",
-                      "label": "Warm Paper",
+                      },
+                      "intent": null,
                       "enabled": true,
                       "tone": "neutral",
                       "style": "secondary",
-                      "small": true,
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "warm-paper",
+                      "label": "Warm Paper",
                       "emit": {
-                        "owner": "apps/settings",
+                        "owner": "app.settings",
                         "signal": "save-preferences",
                         "args": [
                           "User",
@@ -481,17 +503,19 @@
                           "warm-paper",
                           "floating-glass"
                         ]
-                      }
-                    },
-                    {
-                      "kind": "button",
-                      "label": "Midnight",
+                      },
+                      "intent": null,
                       "enabled": true,
                       "tone": "neutral",
                       "style": "secondary",
-                      "small": true,
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "midnight",
+                      "label": "Midnight",
                       "emit": {
-                        "owner": "apps/settings",
+                        "owner": "app.settings",
                         "signal": "save-preferences",
                         "args": [
                           "User",
@@ -500,17 +524,19 @@
                           "midnight",
                           "floating-glass"
                         ]
-                      }
-                    },
-                    {
-                      "kind": "button",
-                      "label": "Nordic",
+                      },
+                      "intent": null,
                       "enabled": true,
                       "tone": "neutral",
                       "style": "secondary",
-                      "small": true,
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "nordic",
+                      "label": "Nordic",
                       "emit": {
-                        "owner": "apps/settings",
+                        "owner": "app.settings",
                         "signal": "save-preferences",
                         "args": [
                           "User",
@@ -519,7 +545,12 @@
                           "nordic",
                           "floating-glass"
                         ]
-                      }
+                      },
+                      "intent": null,
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "small": true
                     }
                   ],
                   "gap": 8,
@@ -553,7 +584,7 @@
                   ],
                   "subtitle": "General Preferences",
                   "linkLabel": "Open Neuron",
-                  "onOpen": null
+                  "open": null
                 }
               ],
               "surfaceKind": "acrylic",
@@ -575,68 +606,78 @@
                   "children": [
                     {
                       "kind": "button",
+                      "key": "open-profile-2fa",
                       "label": "Open Profile & 2FA",
+                      "emit": null,
+                      "intent": {
+                        "intentKind": "OpenWindow",
+                        "arg": "os://window/profile"
+                      },
                       "enabled": true,
                       "tone": "accent",
                       "style": "secondary",
                       "icon": "user",
-                      "small": true,
-                      "emit": {
-                        "owner": "apps/os://window/profile",
-                        "signal": "os://window/profile"
-                      }
+                      "small": true
                     },
                     {
                       "kind": "button",
+                      "key": "open-secure-vault",
                       "label": "Open Secure Vault",
+                      "emit": null,
+                      "intent": {
+                        "intentKind": "OpenWindow",
+                        "arg": "os://window/secure"
+                      },
                       "enabled": true,
                       "tone": "neutral",
                       "style": "secondary",
                       "icon": "key-round",
-                      "small": true,
-                      "emit": {
-                        "owner": "apps/os://window/secure",
-                        "signal": "os://window/secure"
-                      }
+                      "small": true
                     },
                     {
                       "kind": "button",
+                      "key": "install-app-by-link",
                       "label": "Install App by Link",
+                      "emit": null,
+                      "intent": {
+                        "intentKind": "OpenWindow",
+                        "arg": "os://sheet/install"
+                      },
                       "enabled": true,
                       "tone": "neutral",
                       "style": "secondary",
                       "icon": "package-plus",
-                      "small": true,
-                      "emit": {
-                        "owner": "apps/os://sheet/install",
-                        "signal": "os://sheet/install"
-                      }
+                      "small": true
                     },
                     {
                       "kind": "button",
+                      "key": "review-update-consent",
                       "label": "Review Update Consent",
+                      "emit": null,
+                      "intent": {
+                        "intentKind": "OpenWindow",
+                        "arg": "os://sheet/reconsent"
+                      },
                       "enabled": true,
                       "tone": "neutral",
                       "style": "secondary",
                       "icon": "shield-check",
-                      "small": true,
-                      "emit": {
-                        "owner": "apps/os://sheet/reconsent",
-                        "signal": "os://sheet/reconsent"
-                      }
+                      "small": true
                     },
                     {
                       "kind": "button",
+                      "key": "resolve-file-conflict",
                       "label": "Resolve File Conflict",
+                      "emit": null,
+                      "intent": {
+                        "intentKind": "OpenWindow",
+                        "arg": "os://sheet/conflict"
+                      },
                       "enabled": true,
                       "tone": "neutral",
                       "style": "secondary",
                       "icon": "git-compare",
-                      "small": true,
-                      "emit": {
-                        "owner": "apps/os://sheet/conflict",
-                        "signal": "os://sheet/conflict"
-                      }
+                      "small": true
                     }
                   ],
                   "gap": 8,

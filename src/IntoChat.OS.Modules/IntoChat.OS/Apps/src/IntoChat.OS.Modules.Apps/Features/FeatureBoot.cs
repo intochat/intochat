@@ -48,10 +48,10 @@ internal sealed class FeatureBoot(
     private async Task ReconcileAsync(string brainId, CancellationToken cancellationToken)
     {
         // The listener runs in the turn that published Activated, under that turn's caller; reconciling is the module's own act.
-        RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
+        using var cleared = InProcessCallerScope.ClearCaller();
         try
         {
-            using var _ = InProcessCallerScope.Enter();
+            using var kernel = InProcessCallerScope.EnterKernel(brainId);
             await _loaded;
             await SiloNeurons.Get<IFeatureReconciler>(plain, IFeatureReconciler.Key(brainId)).Reconcile(cancellationToken);
         }

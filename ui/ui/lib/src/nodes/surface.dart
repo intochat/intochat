@@ -13,12 +13,7 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
     final c = UiColors.of(context);
     final kind = node.surfaceKind.toLowerCase();
     final (color, borderColor, shadows, blurSigma) = switch (kind) {
-      'recessed' => (
-        c.recessed,
-        c.hairline,
-        const <BoxShadow>[],
-        0.0,
-      ),
+      'recessed' => (c.recessed, c.hairline, const <BoxShadow>[], 0.0),
       'elevated' => (
         c.elevated,
         c.isGlass ? c.specularBorder : c.hairline,

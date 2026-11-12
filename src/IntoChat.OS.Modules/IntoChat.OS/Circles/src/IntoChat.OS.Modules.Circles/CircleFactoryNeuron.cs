@@ -80,7 +80,12 @@ internal sealed class CircleFactoryNeuron(
         var personId = caller.For?.Principal ?? (caller.Actor as Actor.Person)?.Principal ?? "";
         List<AppPublication> items = [];
         HashSet<string> unavailable = new(StringComparer.Ordinal);
-        foreach (var listing in await SiloNeurons.Get<IMarketplace>(plain, IMarketplace.Key).List())
+        MarketplaceListing[] listings;
+        using (InProcessCallerScope.ClearCaller())
+        {
+            listings = await SiloNeurons.Get<IMarketplace>(plain, IMarketplace.Key).List();
+        }
+        foreach (var listing in listings)
         {
             if (listing.Source is not AppSource.Brain source || publisher is { Length: > 0 } && listing.Publisher != publisher) { continue; }
             try

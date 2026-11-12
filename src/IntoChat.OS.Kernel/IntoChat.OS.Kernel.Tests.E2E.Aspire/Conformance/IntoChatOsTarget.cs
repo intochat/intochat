@@ -58,8 +58,7 @@ public sealed class IntoChatOsTarget : OrleansFrameworkTarget
     public override Task<IInProcessHost> Start(CancellationToken ct)
     {
         var clock = new OffsetClock();
-        var factory = CreateFactory(clock);
-        return factory.Start(new InProcessHostOptions { Modules = Modules }, ct);
+        return StartInProcessAsync(new InProcessHostOptions { Modules = Modules }, clock, ct);
     }
 
     public override async Task<RunningTarget> StartHost(FrameworkHostOptions options, CancellationToken ct)
@@ -71,13 +70,13 @@ public sealed class IntoChatOsTarget : OrleansFrameworkTarget
         }
 
         var clock = new OffsetClock();
-        var factory = CreateFactory(clock);
-        var host = await factory.Start(
+        var host = await StartInProcessAsync(
             new InProcessHostOptions
             {
                 Modules = Modules,
                 Configuration = OrleansRun.Configuration(options),
             },
+            clock,
             ct);
         return new IntoChatOsRunningTarget(OrleansRun.Started(host, options, clock));
     }
@@ -112,14 +111,112 @@ public sealed class IntoChatOsTarget : OrleansFrameworkTarget
         public override ValueTask DisposeAsync() => inner.DisposeAsync();
     }
 
-    private static LocalSiloHostFactory CreateFactory(OffsetClock clock)
-        => new(
-            new BrainStorageRegistration(SignalAssemblies()),
-            services =>
+    private static async Task<IInProcessHost> StartInProcessAsync(InProcessHostOptions options, OffsetClock clock, CancellationToken ct)
+    {
+        var temporary = options.Home is null;
+        var home = Path.GetFullPath(options.Home ?? Path.Combine(Path.GetTempPath(), "digitalbrain-" + Guid.NewGuid().ToString("N")));
+        var host = new KernelInProcessHost(options, home, temporary, clock);
+        try
+        {
+            await host.StartAsync(ct);
+            return host;
+        }
+        catch
+        {
+            await host.DisposeAsync();
+            throw;
+        }
+    }
+
+    private sealed class KernelInProcessHost(InProcessHostOptions options, string home, bool temporary, OffsetClock clock) : IInProcessHost
+    {
+        private static readonly BrainStorageRegistration ClusterStore = new(SignalAssemblies());
+        private Microsoft.Extensions.Hosting.IHost? _host;
+        private PortLease? _portLease;
+
+        public IServiceProvider Services => (_host ?? throw new ObjectDisposedException(nameof(KernelInProcessHost))).Services;
+
+        public string Home => home;
+
+        public async Task StartAsync(CancellationToken ct)
+        {
+            var lease = PortReservation.ReservePair();
+            _portLease = lease;
+            try
             {
-                OrleansRun.ClockServices(clock)(services);
-                services.TryAddSingleton<ICapabilityConnections, EmptyCapabilityConnections>();
-            });
+                var builder = Microsoft.Extensions.Hosting.Host.CreateEmptyApplicationBuilder(new Microsoft.Extensions.Hosting.HostApplicationBuilderSettings());
+                var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [RuntimeOptions.Default.TopologyKey] = Topology.Local.ToConfigValue(),
+                    [RuntimeOptions.Default.HomeKey] = home,
+                    [TopologyContext.SiloPortKey] = lease.SiloPort.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    [TopologyContext.GatewayPortKey] = lease.GatewayPort.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                };
+                foreach (var (key, value) in options.Configuration) { values[key] = value; }
+                Microsoft.Extensions.Configuration.MemoryConfigurationBuilderExtensions.AddInMemoryCollection(builder.Configuration, values);
+                builder.UseRuntimeOptions(RuntimeOptions.Default);
+                builder.UseClusterStore(ClusterStore);
+                builder.ConfigureCapabilities(IntoChat.OS.Kernel.Composition.Capabilities.KernelCapabilities.Configure);
+                builder.UseModuleTopology(options.Modules, []);
+                Microsoft.Extensions.Hosting.OrleansSiloGenericHostExtensions.UseOrleans(builder, silo =>
+                {
+                    silo.ConfigureTopologySilo();
+                    silo.Services.AddSingleton(new DigitalBrain.Access.AccessOptions { UnstampedEdgeIsKernel = true, AuditContractInternal = true });
+                    OrleansRun.ClockServices(clock)(silo.Services);
+                    silo.Services.TryAddSingleton<ICapabilityConnections, EmptyCapabilityConnections>();
+                });
+                _host = builder.Build();
+                await _host.StartAsync(ct);
+            }
+            catch
+            {
+                lease.Dispose();
+                _portLease = null;
+                throw;
+            }
+        }
+
+        public async Task Restart(CancellationToken ct)
+        {
+            await StopAsync(ct);
+            await StartAsync(ct);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await StopAsync(CancellationToken.None);
+            if (temporary && Directory.Exists(home))
+            {
+                for (var attempt = 0; ; attempt++)
+                {
+                    try { Directory.Delete(home, recursive: true); break; }
+                    catch (IOException) when (attempt < 10) { await Task.Delay(100); }
+                    catch (UnauthorizedAccessException) when (attempt < 10) { await Task.Delay(100); }
+                }
+            }
+        }
+
+        private async Task StopAsync(CancellationToken ct)
+        {
+            try
+            {
+                if (_host is null) { return; }
+                var host = _host;
+                _host = null;
+                try { await host.StopAsync(ct); }
+                finally
+                {
+                    if (host is IAsyncDisposable asyncDisposable) { await asyncDisposable.DisposeAsync(); }
+                    else { host.Dispose(); }
+                }
+            }
+            finally
+            {
+                _portLease?.Dispose();
+                _portLease = null;
+            }
+        }
+    }
 
     private sealed class EmptyCapabilityConnections : ICapabilityConnections
     {

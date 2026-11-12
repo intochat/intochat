@@ -1,4 +1,5 @@
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -8,13 +9,25 @@ public sealed class MarketplaceView(IServiceProvider neurons, FeatureCatalog cat
 {
     public async Task<IReadOnlyList<MarketplaceListing>> List(CancellationToken ct)
     {
-        var people = await SiloNeurons.Get<IMarketplace>(neurons, IMarketplace.Key).List().WaitAsync(ct);
+        MarketplaceListing[] people;
+        using (InProcessCallerScope.ClearCaller())
+        {
+            people = await SiloNeurons.Get<IMarketplace>(neurons, IMarketplace.Key).List().WaitAsync(ct);
+        }
         return [.. await Shipped(), .. people];
     }
 
     public async Task<MarketplaceListing?> Read(string publisher, string name, CancellationToken ct)
-        => (await Shipped()).FirstOrDefault(listing => listing.Publisher == publisher && listing.Name == name)
-            ?? await SiloNeurons.Get<IMarketplace>(neurons, IMarketplace.Key).Read(publisher, name).WaitAsync(ct);
+    {
+        if ((await Shipped()).FirstOrDefault(listing => listing.Publisher == publisher && listing.Name == name) is { } shipped)
+        {
+            return shipped;
+        }
+        using (InProcessCallerScope.ClearCaller())
+        {
+            return await SiloNeurons.Get<IMarketplace>(neurons, IMarketplace.Key).Read(publisher, name).WaitAsync(ct);
+        }
+    }
 
     private Task<IReadOnlyList<MarketplaceListing>> Shipped() => catalog.Listings();
 }

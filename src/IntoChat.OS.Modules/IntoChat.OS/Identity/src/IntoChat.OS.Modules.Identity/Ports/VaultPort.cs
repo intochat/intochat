@@ -47,6 +47,7 @@ public sealed class VaultPort(
         ArgumentNullException.ThrowIfNull(caller);
         try
         {
+            using var _ = IntoChat.OS.Framework.InProcessCallerScope.ClearCaller();
             var stored = await Vault(caller).Set(Owner(caller), name, label, value).WaitAsync(cancellationToken).ConfigureAwait(false);
             return SecretVaultResult.Stored(ToRef(stored));
         }
@@ -58,6 +59,7 @@ public sealed class VaultPort(
         ArgumentNullException.ThrowIfNull(caller);
         try
         {
+            using var _ = IntoChat.OS.Framework.InProcessCallerScope.ClearCaller();
             await Vault(caller).Remove(Owner(caller), name).WaitAsync(cancellationToken).ConfigureAwait(false);
             return SecretVaultStatus.Ok;
         }
@@ -82,6 +84,7 @@ public sealed class VaultPort(
         if (!string.Equals(owner, caller.PrincipalId, StringComparison.Ordinal)) { return SecretVaultResult.Denied; }
         try
         {
+            using var _ = IntoChat.OS.Framework.InProcessCallerScope.ClearCaller();
             // The vault releases plaintext only to a trusted outbound call: the runtime, on behalf of the stamped caller's app.
             return SecretVaultResult.Resolved(await Vault(caller).Resolve(Platform(caller), reference).WaitAsync(cancellationToken).ConfigureAwait(false));
         }

@@ -12,8 +12,9 @@ Widget renderText(TextNode node, NodeContext ctx) => Builder(
     final colors = theme.extension<UiColors>();
     final rawTone = node.tone.toLowerCase();
     final color = switch (rawTone) {
-      'muted' || 'subtle' || 'ghost' =>
-        colors?.muted ?? theme.colorScheme.onSurfaceVariant,
+      'muted' ||
+      'subtle' ||
+      'ghost' => colors?.muted ?? theme.colorScheme.onSurfaceVariant,
       'strong' => colors?.strong ?? theme.colorScheme.onSurface,
       _ => switch (nodeToneOf(rawTone)) {
         UiNodeTone.accent => colors?.accent ?? theme.colorScheme.primary,

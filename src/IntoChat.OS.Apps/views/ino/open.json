@@ -37,16 +37,19 @@
             },
             {
               "kind": "button",
+              "key": null,
               "label": "+ New Session",
+              "emit": {
+                "owner": "apps/ino",
+                "signal": "new",
+                "args": null
+              },
+              "intent": null,
               "enabled": true,
               "tone": "accent",
               "style": "secondary",
               "icon": "plus",
-              "small": true,
-              "emit": {
-                "owner": "apps/ino",
-                "signal": "new"
-              }
+              "small": true
             }
           ],
           "surfaceKind": "acrylic",
@@ -65,7 +68,8 @@
           "icon": "sparkles",
           "action": "send:/scenario q4-renewal",
           "selected": false,
-          "badge": "Needs you"
+          "badge": "Needs you",
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -74,7 +78,8 @@
           "icon": "sun",
           "action": "send:/scenario morning-brief",
           "selected": false,
-          "badge": "3"
+          "badge": "3",
+          "emit": null
         },
         {
           "kind": "divider",
@@ -87,7 +92,8 @@
           "icon": "key-round",
           "action": "send:/scenario invoice-check",
           "selected": false,
-          "badge": "Vault"
+          "badge": "Vault",
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -96,7 +102,8 @@
           "icon": "compass",
           "action": "send:/scenario first-run",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "collection",
@@ -146,12 +153,74 @@
               "tone": "neutral",
               "tabular": true,
               "mono": false
+            },
+            {
+              "kind": "row",
+              "children": [
+                {
+                  "kind": "text",
+                  "value": "Smart mode: off",
+                  "tone": "muted",
+                  "tabular": false,
+                  "mono": false
+                },
+                {
+                  "kind": "button",
+                  "key": "smart",
+                  "label": "Turn smart mode on",
+                  "emit": {
+                    "owner": "app.ino",
+                    "signal": "smart",
+                    "args": "true"
+                  },
+                  "intent": null,
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "ghost",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "key": "ai-settings",
+                  "label": "AI Models & Keys",
+                  "emit": null,
+                  "intent": {
+                    "intentKind": "OpenWindow",
+                    "arg": "os://window/settings?section=models"
+                  },
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "ghost",
+                  "icon": "cpu",
+                  "small": true
+                }
+              ],
+              "gap": 8,
+              "padding": 0
             }
           ],
           "surfaceKind": "acrylic",
           "title": "New chat",
           "subtitle": null,
           "padding": 18
+        },
+        {
+          "kind": "column",
+          "children": [],
+          "gap": 8,
+          "padding": 0
+        },
+        {
+          "kind": "field",
+          "key": "composer",
+          "name": "apps/ino/composer",
+          "fieldKind": "Text",
+          "placeholder": "Message Ino",
+          "onSubmit": {
+            "owner": "app.ino",
+            "signal": "send",
+            "args": null
+          }
         }
       ],
       "gap": 12,

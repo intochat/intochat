@@ -12,31 +12,43 @@ internal sealed class LocalIdentityClient(AuthorityNeurons neurons) : IIdentityC
 {
     private IDirectoryStore Directory => neurons.Directory();
 
-    public Task<Account?> ReadAccount(string accountId) => Directory.ReadAccount(accountId);
-    public Task<Account?> OwnerOfBrain(string brainId) => Directory.OwnerOfBrain(brainId);
-    public Task EnsureAccount(Account account) => Directory.EnsureAccount(account);
+    private static async Task<T> SystemCall<T>(Func<Task<T>> call)
+    {
+        using var _ = InProcessCallerScope.ClearCaller();
+        return await call();
+    }
+
+    private static async Task SystemCall(Func<Task> call)
+    {
+        using var _ = InProcessCallerScope.ClearCaller();
+        await call();
+    }
+
+    public Task<Account?> ReadAccount(string accountId) => SystemCall(() => Directory.ReadAccount(accountId));
+    public Task<Account?> OwnerOfBrain(string brainId) => SystemCall(() => Directory.OwnerOfBrain(brainId));
+    public Task EnsureAccount(Account account) => SystemCall(() => Directory.EnsureAccount(account));
     public Task<BrainProvision> CreateBrain(string accountId, string principalId, string operationId, string displayName, BrainKind kind)
-        => Directory.CreateBrain(accountId, principalId, operationId, displayName, kind);
-    public Task<BrainProvision> EnsureBrain(Member owner) => Directory.EnsureBrain(owner);
-    public Task<BrainProvision> ProvisionOwner(Member owner) => Directory.ProvisionOwner(owner);
-    public Task<bool> IsRegistered(string principalId) => Directory.IsRegistered(principalId);
-    public Task<BrainProvision> RegisterPrincipal(string principalId, string displayName) => Directory.RegisterPrincipal(principalId, displayName);
-    public Task<BrainProvision?> CompleteRegistration(string principalId) => Directory.CompleteRegistration(principalId);
-    public Task<BrainEntry[]> BrainsOf(string principalId) => Directory.BrainsOf(principalId);
-    public Task<BrainKind> KindOf(string brainScopeId) => Directory.KindOf(brainScopeId);
-    public Task<bool> BrainExists(string brainScopeId) => Directory.BrainExists(brainScopeId);
-    public Task<Member?> Membership(string brainScopeId, string principalId) => Directory.Membership(brainScopeId, principalId);
-    public Task<Member?> EnsureMember(Member member) => Directory.EnsureMember(member);
-    public Task RemoveMember(string brainScopeId, string accountId) => Directory.RemoveMember(brainScopeId, accountId);
-    public Task RemovePrincipalMember(string brainScopeId, string principalId) => Directory.RemovePrincipalMember(brainScopeId, principalId);
-    public Task<CallDecision?> Authorize(CallRequest request) => Directory.Authorize(DirectoryAuthorizeRequest.From(request));
-    public Task<Grant[]> ListGrants(string brainScopeId) => Directory.ListGrants(brainScopeId);
-    public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => Directory.GrantAsOwner(caller, grant);
-    public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => Directory.GrantShipped(brainScopeId, grants);
-    public Task RevokeAsOwner(CapabilityCaller caller, string grantId) => Directory.RevokeAsOwner(caller, grantId);
+        => SystemCall(() => Directory.CreateBrain(accountId, principalId, operationId, displayName, kind));
+    public Task<BrainProvision> EnsureBrain(Member owner) => SystemCall(() => Directory.EnsureBrain(owner));
+    public Task<BrainProvision> ProvisionOwner(Member owner) => SystemCall(() => Directory.ProvisionOwner(owner));
+    public Task<bool> IsRegistered(string principalId) => SystemCall(() => Directory.IsRegistered(principalId));
+    public Task<BrainProvision> RegisterPrincipal(string principalId, string displayName) => SystemCall(() => Directory.RegisterPrincipal(principalId, displayName));
+    public Task<BrainProvision?> CompleteRegistration(string principalId) => SystemCall(() => Directory.CompleteRegistration(principalId));
+    public Task<BrainEntry[]> BrainsOf(string principalId) => SystemCall(() => Directory.BrainsOf(principalId));
+    public Task<BrainKind> KindOf(string brainScopeId) => SystemCall(() => Directory.KindOf(brainScopeId));
+    public Task<bool> BrainExists(string brainScopeId) => SystemCall(() => Directory.BrainExists(brainScopeId));
+    public Task<Member?> Membership(string brainScopeId, string principalId) => SystemCall(() => Directory.Membership(brainScopeId, principalId));
+    public Task<Member?> EnsureMember(Member member) => SystemCall(() => Directory.EnsureMember(member));
+    public Task RemoveMember(string brainScopeId, string accountId) => SystemCall(() => Directory.RemoveMember(brainScopeId, accountId));
+    public Task RemovePrincipalMember(string brainScopeId, string principalId) => SystemCall(() => Directory.RemovePrincipalMember(brainScopeId, principalId));
+    public Task<CallDecision?> Authorize(CallRequest request) => SystemCall(() => Directory.Authorize(DirectoryAuthorizeRequest.From(request)));
+    public Task<Grant[]> ListGrants(string brainScopeId) => SystemCall(() => Directory.ListGrants(brainScopeId));
+    public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => SystemCall(() => Directory.GrantAsOwner(caller, grant));
+    public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => SystemCall(() => Directory.GrantShipped(brainScopeId, grants));
+    public Task RevokeAsOwner(CapabilityCaller caller, string grantId) => SystemCall(() => Directory.RevokeAsOwner(caller, grantId));
     [Obsolete("Use RevokeAsOwner with grantId")]
     public Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode)
-        => Directory.RevokeAsOwner(caller, appId, semanticTypeId, mode);
+        => SystemCall(() => Directory.RevokeAsOwner(caller, appId, semanticTypeId, mode));
     public Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null)
-        => Directory.RedeemExternalTicket(issuer, email, displayName);
+        => SystemCall(() => Directory.RedeemExternalTicket(issuer, email, displayName));
 }

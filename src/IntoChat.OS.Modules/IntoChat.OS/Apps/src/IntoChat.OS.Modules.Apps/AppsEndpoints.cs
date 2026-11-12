@@ -88,8 +88,12 @@ internal static class AppsEndpoints
         // A request is published for a synapse to react to; nothing waits for the app to answer.
         apps.MapPost("/{name}/request", (string name, RequestBody? request, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
-            var id = await App(brain, name).Request(request?.Operation ?? "ask", request?.Input ?? "{}").WaitAsync(ct);
-            return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", new { requestId = id });
+            var operation = request?.Operation ?? "ask";
+            var input = request?.Input ?? "{}";
+            var scope = BrainScope.CurrentId();
+            var id = await App(brain, name).Request(operation, input).WaitAsync(ct);
+            await ForwardScreenRequest(brain, scope, name, operation, input, ct);
+            return Results.Accepted($"/brains/{scope}/apps/{name}", new { requestId = id });
         }));
 
         apps.MapPut("/{name}/settings", (string name, SettingsRequest request, INeuronProxies brain) => Respond(async ()
@@ -170,6 +174,35 @@ internal static class AppsEndpoints
     private static string AppKey(string name) => IApp.Key(BrainScope.CurrentId(), name);
 
     private static IApp App(INeuronProxies brain, string name) => brain.Get<IApp>(AppKey(name));
+
+    private static async Task ForwardScreenRequest(INeuronProxies brain, string scope, string name, string operation, string input, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.Contains('/')) { return; }
+        System.Text.Json.JsonElement? args = null;
+        if (!string.IsNullOrWhiteSpace(input))
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(input);
+                args = doc.RootElement.Clone();
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                args = System.Text.Json.JsonSerializer.SerializeToElement(new { input });
+            }
+        }
+        try
+        {
+            var screenId = new DigitalBrain.NeuronId(new DigitalBrain.BrainId(scope), "app." + name, "default");
+            var screen = brain.Get<DigitalBrain.IScreen>(screenId);
+            _ = await screen.Read().WaitAsync(ct);
+            var signal = operation.Contains('.', StringComparison.Ordinal) ? operation : $"{name}.{operation}";
+            await screen.Request(signal, args).WaitAsync(ct);
+        }
+        catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+        {
+        }
+    }
 
     // The wire view: the snapshot plus status as a string the shell can switch on.
     // An icon is a bundle file the manifest names; the shell renders it by its content type.

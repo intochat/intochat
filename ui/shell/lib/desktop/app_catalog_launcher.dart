@@ -12,10 +12,7 @@ class SmartAppTileSpec {
     this.category = 'App',
   });
 
-  factory SmartAppTileSpec.fromIconSpec(
-    String id, {
-    String? categoryOverride,
-  }) {
+  factory SmartAppTileSpec.fromIconSpec(String id, {String? categoryOverride}) {
     final spec = IcAppIcon.resolveSpec(id);
     return SmartAppTileSpec(
       id: id,

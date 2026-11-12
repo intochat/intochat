@@ -77,7 +77,8 @@
           "icon": "sparkles",
           "action": "inspect:creator",
           "selected": true,
-          "badge": "48/m"
+          "badge": "48/m",
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -86,7 +87,8 @@
           "icon": "circle-check",
           "action": "inspect:bdd",
           "selected": false,
-          "badge": "READY"
+          "badge": "READY",
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -95,7 +97,8 @@
           "icon": "activity",
           "action": "inspect:aspire",
           "selected": false,
-          "badge": "2"
+          "badge": "2",
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -104,7 +107,8 @@
           "icon": "brain",
           "action": "inspect:memory",
           "selected": false,
-          "badge": "32/m"
+          "badge": "32/m",
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -113,7 +117,8 @@
           "icon": "code",
           "action": "inspect:app.scratch",
           "selected": false,
-          "badge": "v1.0.0"
+          "badge": "v1.0.0",
+          "emit": null
         },
         {
           "kind": "collection",
@@ -142,547 +147,974 @@
   "main": {
     "title": "Creator",
     "root": {
-      "kind": "column",
-      "children": [
-        {
-          "kind": "surface",
+      "kind": "splitPane",
+      "leading": {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "text",
+            "value": "Conversation ino/conversations/main",
+            "tone": "muted",
+            "tabular": false,
+            "mono": false
+          },
+          {
+            "kind": "field",
+            "key": "describe",
+            "name": "apps/creator/describe",
+            "fieldKind": "Text",
+            "placeholder": "Describe a unit…",
+            "onSubmit": {
+              "owner": "app.creator",
+              "signal": "make",
+              "args": ""
+            }
+          },
+          {
+            "kind": "button",
+            "key": "make",
+            "label": "Make",
+            "emit": {
+              "owner": "app.creator",
+              "signal": "make",
+              "args": ""
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "accent",
+            "style": "secondary",
+            "icon": "sparkles",
+            "small": true
+          },
+          {
+            "kind": "text",
+            "value": "Ready",
+            "tone": "neutral",
+            "tabular": false,
+            "mono": false
+          },
+          {
+            "kind": "divider",
+            "label": "STARTER TEMPLATES"
+          },
+          {
+            "kind": "row",
+            "children": [
+              {
+                "kind": "button",
+                "key": "seed:watch.x.elonmusk",
+                "label": "Musk X Watch",
+                "emit": {
+                  "owner": "app.creator",
+                  "signal": "seed",
+                  "args": "watch.x.elonmusk"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              },
+              {
+                "kind": "button",
+                "key": "seed:triage.github.issues",
+                "label": "GitHub Issue Triager",
+                "emit": {
+                  "owner": "app.creator",
+                  "signal": "seed",
+                  "args": "triage.github.issues"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              },
+              {
+                "kind": "button",
+                "key": "seed:digest.hn.top",
+                "label": "Hacker News Scheduled Digest",
+                "emit": {
+                  "owner": "app.creator",
+                  "signal": "seed",
+                  "args": "digest.hn.top"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              },
+              {
+                "kind": "button",
+                "key": "seed:organizer.work.notes",
+                "label": "Workspace Markdown Organizer",
+                "emit": {
+                  "owner": "app.creator",
+                  "signal": "seed",
+                  "args": "organizer.work.notes"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              },
+              {
+                "kind": "button",
+                "key": "seed:fx.rates.monitor",
+                "label": "Live Currency & Crypto Monitor",
+                "emit": {
+                  "owner": "app.creator",
+                  "signal": "seed",
+                  "args": "fx.rates.monitor"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              }
+            ],
+            "gap": 6,
+            "padding": 0
+          },
+          {
+            "kind": "divider",
+            "label": "SHIPPED UNIT TEMPLATES"
+          },
+          {
+            "kind": "row",
+            "children": [
+              {
+                "kind": "button",
+                "key": "seed:circleroom",
+                "label": "Circle room",
+                "emit": {
+                  "owner": "app.creator",
+                  "signal": "seed",
+                  "args": "circleroom"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              },
+              {
+                "kind": "button",
+                "key": "seed:watch.web",
+                "label": "Web watch",
+                "emit": {
+                  "owner": "app.creator",
+                  "signal": "seed",
+                  "args": "watch.web"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              },
+              {
+                "kind": "button",
+                "key": "seed:brief.daily",
+                "label": "Daily brief",
+                "emit": {
+                  "owner": "app.creator",
+                  "signal": "seed",
+                  "args": "brief.daily"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              },
+              {
+                "kind": "button",
+                "key": "seed:data.csv",
+                "label": "CSV explorer",
+                "emit": {
+                  "owner": "app.creator",
+                  "signal": "seed",
+                  "args": "data.csv"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              },
+              {
+                "kind": "button",
+                "key": "seed:relay.webhook",
+                "label": "Webhook relay",
+                "emit": {
+                  "owner": "app.creator",
+                  "signal": "seed",
+                  "args": "relay.webhook"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              }
+            ],
+            "gap": 6,
+            "padding": 0
+          }
+        ],
+        "gap": 12,
+        "padding": 0
+      },
+      "trailing": {
+        "kind": "splitPane",
+        "leading": {
+          "kind": "brainScene",
+          "nodes": [
+            {
+              "id": "owner/apps/artcraft",
+              "label": "ArtCraft",
+              "uri": "neuron://owner/apps/artcraft",
+              "kind": "app",
+              "x": 320,
+              "y": 0,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/artcraft",
+                "label": "ArtCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/artcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/cadcraft",
+              "label": "CADCraft",
+              "uri": "neuron://owner/apps/cadcraft",
+              "kind": "app",
+              "x": 311.98,
+              "y": 71.21,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/cadcraft",
+                "label": "CADCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/cadcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/deckcraft",
+              "label": "DeckCraft",
+              "uri": "neuron://owner/apps/deckcraft",
+              "kind": "app",
+              "x": 288.31,
+              "y": 138.84,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/deckcraft",
+                "label": "DeckCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/deckcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/designcraft",
+              "label": "DesignCraft",
+              "uri": "neuron://owner/apps/designcraft",
+              "kind": "app",
+              "x": 250.19,
+              "y": 199.52,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/designcraft",
+                "label": "DesignCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/designcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/effectcraft",
+              "label": "EffectCraft",
+              "uri": "neuron://owner/apps/effectcraft",
+              "kind": "app",
+              "x": 199.52,
+              "y": 250.19,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/effectcraft",
+                "label": "EffectCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/effectcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/figcraft",
+              "label": "FigCraft",
+              "uri": "neuron://owner/apps/figcraft",
+              "kind": "app",
+              "x": 138.84,
+              "y": 288.31,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/figcraft",
+                "label": "FigCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/figcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/gridcraft",
+              "label": "GridCraft",
+              "uri": "neuron://owner/apps/gridcraft",
+              "kind": "app",
+              "x": 71.21,
+              "y": 311.98,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/gridcraft",
+                "label": "GridCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/gridcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/lightcraft",
+              "label": "LightCraft",
+              "uri": "neuron://owner/apps/lightcraft",
+              "kind": "app",
+              "x": 0,
+              "y": 320,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/lightcraft",
+                "label": "LightCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/lightcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/materialcraft",
+              "label": "MaterialCraft",
+              "uri": "neuron://owner/apps/materialcraft",
+              "kind": "app",
+              "x": -71.21,
+              "y": 311.98,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/materialcraft",
+                "label": "MaterialCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/materialcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/pdfcraft",
+              "label": "PdfCraft",
+              "uri": "neuron://owner/apps/pdfcraft",
+              "kind": "app",
+              "x": -138.84,
+              "y": 288.31,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/pdfcraft",
+                "label": "PdfCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/pdfcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/solidcraft",
+              "label": "SolidCraft",
+              "uri": "neuron://owner/apps/solidcraft",
+              "kind": "app",
+              "x": -199.52,
+              "y": 250.19,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/solidcraft",
+                "label": "SolidCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/solidcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/soundcraft",
+              "label": "SoundCraft",
+              "uri": "neuron://owner/apps/soundcraft",
+              "kind": "app",
+              "x": -250.19,
+              "y": 199.52,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/soundcraft",
+                "label": "SoundCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/soundcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/texturecraft",
+              "label": "TextureCraft",
+              "uri": "neuron://owner/apps/texturecraft",
+              "kind": "app",
+              "x": -288.31,
+              "y": 138.84,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/texturecraft",
+                "label": "TextureCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/texturecraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/vectorcraft",
+              "label": "VectorCraft",
+              "uri": "neuron://owner/apps/vectorcraft",
+              "kind": "app",
+              "x": -311.98,
+              "y": 71.21,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/vectorcraft",
+                "label": "VectorCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/vectorcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/wordcraft",
+              "label": "WordCraft",
+              "uri": "neuron://owner/apps/wordcraft",
+              "kind": "app",
+              "x": -320,
+              "y": 0,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/wordcraft",
+                "label": "WordCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/wordcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/calculator",
+              "label": "Calculator",
+              "uri": "neuron://owner/apps/calculator",
+              "kind": "app",
+              "x": -311.98,
+              "y": -71.21,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/calculator",
+                "label": "Calculator",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/calculator"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/creator",
+              "label": "Creator",
+              "uri": "neuron://owner/apps/creator",
+              "kind": "app",
+              "x": -288.31,
+              "y": -138.84,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/creator",
+                "label": "Creator",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/creator"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/data",
+              "label": "Data Studio",
+              "uri": "neuron://owner/apps/data",
+              "kind": "app",
+              "x": -250.19,
+              "y": -199.52,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/data",
+                "label": "Data Studio",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/data"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/filmcraft",
+              "label": "FilmCraft",
+              "uri": "neuron://owner/apps/filmcraft",
+              "kind": "app",
+              "x": -199.52,
+              "y": -250.19,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/filmcraft",
+                "label": "FilmCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/filmcraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/friends",
+              "label": "Friends",
+              "uri": "neuron://owner/apps/friends",
+              "kind": "app",
+              "x": -138.84,
+              "y": -288.31,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/friends",
+                "label": "Friends",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/friends"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/gallery",
+              "label": "UI Gallery",
+              "uri": "neuron://owner/apps/gallery",
+              "kind": "app",
+              "x": -71.21,
+              "y": -311.98,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/gallery",
+                "label": "UI Gallery",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/gallery"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/ino",
+              "label": "Ino",
+              "uri": "neuron://owner/apps/ino",
+              "kind": "app",
+              "x": -0,
+              "y": -320,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/ino",
+                "label": "Ino",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/ino"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/markdraw",
+              "label": "Markdraw",
+              "uri": "neuron://owner/apps/markdraw",
+              "kind": "app",
+              "x": 71.21,
+              "y": -311.98,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/markdraw",
+                "label": "Markdraw",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/markdraw"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/photocraft",
+              "label": "PhotoCraft",
+              "uri": "neuron://owner/apps/photocraft",
+              "kind": "app",
+              "x": 138.84,
+              "y": -288.31,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/photocraft",
+                "label": "PhotoCraft",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/photocraft"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/settings",
+              "label": "Settings",
+              "uri": "neuron://owner/apps/settings",
+              "kind": "app",
+              "x": 199.52,
+              "y": -250.19,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/settings",
+                "label": "Settings",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/settings"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/tasks",
+              "label": "Tasks",
+              "uri": "neuron://owner/apps/tasks",
+              "kind": "app",
+              "x": 250.19,
+              "y": -199.52,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/tasks",
+                "label": "Tasks",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/tasks"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/usage",
+              "label": "Usage",
+              "uri": "neuron://owner/apps/usage",
+              "kind": "app",
+              "x": 288.31,
+              "y": -138.84,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/usage",
+                "label": "Usage",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/usage"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            },
+            {
+              "id": "owner/apps/files",
+              "label": "Files",
+              "uri": "neuron://owner/apps/files",
+              "kind": "app",
+              "x": 311.98,
+              "y": -71.21,
+              "z": 0,
+              "status": "idle",
+              "subtitle": null,
+              "select": {
+                "key": "node:owner/apps/files",
+                "label": "Files",
+                "emit": {
+                  "owner": "creator",
+                  "signal": "select",
+                  "args": "node:owner/apps/files"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": false
+              }
+            }
+          ],
+          "synapses": [],
+          "selectedId": null,
+          "pauseRotation": false,
+          "targetZoom": 1
+        },
+        "trailing": {
+          "kind": "column",
           "children": [
             {
-              "kind": "row",
-              "children": [
-                {
-                  "kind": "tagPill",
-                  "label": "Target: scratch",
-                  "tone": "accent",
-                  "icon": "code"
-                },
-                {
-                  "kind": "tagPill",
-                  "label": "v1.0.0",
-                  "tone": "info",
-                  "icon": "git-branch"
-                },
-                {
-                  "kind": "tagPill",
-                  "label": "Draft",
-                  "tone": "working",
-                  "icon": "check"
-                },
-                {
-                  "kind": "tagPill",
-                  "label": "5 Neurons · 4 Synapses",
-                  "tone": "neutral",
-                  "icon": "network"
-                },
-                {
-                  "kind": "tagPill",
-                  "label": "BDD Gate: 4/4 Ready",
-                  "tone": "ok",
-                  "icon": "circle-check"
-                }
-              ],
-              "gap": 8,
-              "padding": 0
+              "kind": "button",
+              "key": "graph:select",
+              "label": "Clear selection",
+              "emit": {
+                "owner": "app.creator",
+                "signal": "select",
+                "args": null
+              },
+              "intent": null,
+              "enabled": true,
+              "tone": "neutral",
+              "style": "secondary",
+              "icon": "x",
+              "small": true
             },
             {
               "kind": "text",
-              "value": "3D Brain ready (9 nodes) · 2 resource(s)",
+              "value": "Select a node, an edge or a pulse of the graph.",
               "tone": "neutral",
               "tabular": false,
               "mono": false
-            },
-            {
-              "kind": "text",
-              "value": "Target App: scratch · Version: v1.0.0 (1.0.0) · Promoted: False · 3D BrainScene: 9 nodes",
-              "tone": "muted",
-              "tabular": true,
-              "mono": false
             }
           ],
-          "surfaceKind": "acrylic",
-          "title": "Creator Studio · 3D Brain & BDD Loop",
-          "subtitle": null,
-          "padding": 18
+          "gap": 12,
+          "padding": 0
         },
-        {
-          "kind": "splitPane",
-          "leading": {
-            "kind": "surface",
-            "children": [
-              {
-                "kind": "brainScene",
-                "nodes": [
-                  {
-                    "id": "creator",
-                    "label": "Creator Loop",
-                    "uri": "neuron://local/creator",
-                    "kind": "IntoChat.OS.Studio",
-                    "x": 0,
-                    "y": 0,
-                    "z": 0,
-                    "status": "working",
-                    "subtitle": "Self-Improving Studio",
-                    "onSelect": {
-                      "neuron": "creator",
-                      "operation": "inspect",
-                      "arguments": [
-                        "creator"
-                      ]
-                    }
-                  },
-                  {
-                    "id": "bdd",
-                    "label": "BDD Scenario Gate",
-                    "uri": "neuron://local/bdd",
-                    "kind": "DigitalBrain.Bdd",
-                    "x": -90,
-                    "y": 45,
-                    "z": -20,
-                    "status": "idle",
-                    "subtitle": "Executable [Scenario] Gate",
-                    "onSelect": {
-                      "neuron": "creator",
-                      "operation": "inspect",
-                      "arguments": [
-                        "bdd"
-                      ]
-                    }
-                  },
-                  {
-                    "id": "aspire",
-                    "label": "Aspire Telemetry",
-                    "uri": "neuron://local/aspire",
-                    "kind": "Microsoft.Aspire",
-                    "x": 95,
-                    "y": 40,
-                    "z": -15,
-                    "status": "working",
-                    "subtitle": "OpenTelemetry Logs & Traces",
-                    "onSelect": {
-                      "neuron": "creator",
-                      "operation": "inspect",
-                      "arguments": [
-                        "aspire"
-                      ]
-                    }
-                  },
-                  {
-                    "id": "memory",
-                    "label": "MemoryNeuron",
-                    "uri": "neuron://local/memory",
-                    "kind": "IntoChat.OS.AI.Memory",
-                    "x": -70,
-                    "y": -55,
-                    "z": 25,
-                    "status": "idle",
-                    "subtitle": "Episodic & Semantic Recall",
-                    "onSelect": {
-                      "neuron": "creator",
-                      "operation": "inspect",
-                      "arguments": [
-                        "memory"
-                      ]
-                    }
-                  },
-                  {
-                    "id": "app.scratch",
-                    "label": "App: scratch",
-                    "uri": "neuron://local/apps/scratch",
-                    "kind": "IntoChat.OS.Sandbox",
-                    "x": 75,
-                    "y": -50,
-                    "z": 30,
-                    "status": "working",
-                    "subtitle": "C# Sandbox App<TState>",
-                    "onSelect": {
-                      "neuron": "creator",
-                      "operation": "inspect",
-                      "arguments": [
-                        "app.scratch"
-                      ]
-                    }
-                  }
-                ],
-                "synapses": [
-                  {
-                    "fromId": "creator",
-                    "toId": "bdd",
-                    "signalLabel": "bdd.verified",
-                    "active": true
-                  },
-                  {
-                    "fromId": "creator",
-                    "toId": "aspire",
-                    "signalLabel": "aspire.telemetry.changed",
-                    "active": true
-                  },
-                  {
-                    "fromId": "creator",
-                    "toId": "memory",
-                    "signalLabel": "memory.recall",
-                    "active": false
-                  },
-                  {
-                    "fromId": "creator",
-                    "toId": "app.scratch",
-                    "signalLabel": "app.promoted",
-                    "active": false
-                  }
-                ],
-                "selectedId": "creator",
-                "pauseRotation": false,
-                "zoomTargetId": "creator",
-                "targetZoom": 1
-              },
-              {
-                "kind": "row",
-                "children": [
-                  {
-                    "kind": "field",
-                    "key": "prompt",
-                    "name": "apps/creator/prompt",
-                    "fieldKind": "Text",
-                    "placeholder": "Prompt Creator to synthesize or self-improve a C# App<TState>…",
-                    "onSubmit": {
-                      "owner": "apps/creator",
-                      "signal": "prompt",
-                      "args": [
-                        "Self-improve C# App<TState>",
-                        "scratch"
-                      ]
-                    }
-                  },
-                  {
-                    "kind": "button",
-                    "label": "Verify BDD & Release",
-                    "enabled": true,
-                    "tone": "accent",
-                    "style": "primary",
-                    "icon": "sparkles",
-                    "small": false,
-                    "emit": {
-                      "owner": "apps/creator",
-                      "signal": "prompt",
-                      "args": [
-                        "Verify BDD Scenario and deploy live update",
-                        "scratch"
-                      ]
-                    }
-                  },
-                  {
-                    "kind": "button",
-                    "label": "Hot-Restart Sandbox",
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "icon": "rotate-ccw",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/creator",
-                      "signal": "hot-restart"
-                    }
-                  },
-                  {
-                    "kind": "button",
-                    "label": "Rollback Version",
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "icon": "history",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/creator",
-                      "signal": "rollback"
-                    }
-                  }
-                ],
-                "gap": 8,
-                "padding": 0
-              },
-              {
-                "kind": "surface",
-                "children": [
-                  {
-                    "kind": "row",
-                    "children": [
-                      {
-                        "kind": "tagPill",
-                        "label": "SANDBOX / TEST CREDENTIALS",
-                        "tone": "warning",
-                        "icon": "shield-alert"
-                      },
-                      {
-                        "kind": "tagPill",
-                        "label": "Roslyn In-Memory: Compiled",
-                        "tone": "ok",
-                        "icon": "cpu"
-                      },
-                      {
-                        "kind": "tagPill",
-                        "label": "v1.0.0 · Restarts: 0",
-                        "tone": "neutral",
-                        "icon": "refresh-cw"
-                      }
-                    ],
-                    "gap": 8,
-                    "padding": 0
-                  },
-                  {
-                    "kind": "text",
-                    "value": "SANDBOX / TEST CREDENTIALS · Live Interactive Sandbox Preview · App<scratch> running against isolated test credentials (TestOS / FakeStorage / FakeSecrets).",
-                    "tone": "neutral",
-                    "tabular": true,
-                    "mono": false
-                  }
-                ],
-                "surfaceKind": "recessed",
-                "title": "Live Sandbox Viewport",
-                "subtitle": "Isolated execution for scratch (v1.0.0)",
-                "padding": 18
-              }
-            ],
-            "surfaceKind": "elevated",
-            "title": "Live 3D DigitalBrain",
-            "subtitle": "Drag to orbit 3D brain · Click any neuron to inspect contract & signals",
-            "padding": 18
-          },
-          "trailing": {
-            "kind": "surface",
-            "children": [
-              {
-                "kind": "row",
-                "children": [
-                  {
-                    "kind": "heading",
-                    "value": "Creator Loop",
-                    "level": 2,
-                    "subtitle": "Self-Improving Studio"
-                  },
-                  {
-                    "kind": "button",
-                    "label": "Copy URI",
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "icon": "copy",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/clipboard",
-                      "signal": "copy",
-                      "args": "neuron://local/creator"
-                    }
-                  }
-                ],
-                "gap": 8,
-                "padding": 0
-              },
-              {
-                "kind": "text",
-                "value": "neuron://local/creator",
-                "tone": "muted",
-                "tabular": true,
-                "mono": true
-              },
-              {
-                "kind": "row",
-                "children": [
-                  {
-                    "kind": "tagPill",
-                    "label": "IntoChat.OS.Studio",
-                    "tone": "neutral",
-                    "icon": "cpu"
-                  },
-                  {
-                    "kind": "tagPill",
-                    "label": "48 signals/min",
-                    "tone": "accent",
-                    "icon": "zap"
-                  },
-                  {
-                    "kind": "tagPill",
-                    "label": "Orbiting",
-                    "tone": "info",
-                    "icon": "focus"
-                  }
-                ],
-                "gap": 8,
-                "padding": 0
-              },
-              {
-                "kind": "divider",
-                "label": "PLAIN-LANGUAGE [SCENARIO] BDD DEBUGGER"
-              },
-              {
-                "kind": "row",
-                "children": [
-                  {
-                    "kind": "button",
-                    "label": "EN",
-                    "enabled": true,
-                    "tone": "accent",
-                    "style": "secondary",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/creator",
-                      "signal": "language",
-                      "args": "en"
-                    }
-                  },
-                  {
-                    "kind": "button",
-                    "label": "UK",
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/creator",
-                      "signal": "language",
-                      "args": "uk"
-                    }
-                  },
-                  {
-                    "kind": "button",
-                    "label": "ES",
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/creator",
-                      "signal": "language",
-                      "args": "es"
-                    }
-                  },
-                  {
-                    "kind": "button",
-                    "label": "DE",
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/creator",
-                      "signal": "language",
-                      "args": "de"
-                    }
-                  },
-                  {
-                    "kind": "button",
-                    "label": "FR",
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/creator",
-                      "signal": "language",
-                      "args": "fr"
-                    }
-                  }
-                ],
-                "gap": 6,
-                "padding": 0
-              },
-              {
-                "kind": "row",
-                "children": [
-                  {
-                    "kind": "tagPill",
-                    "label": "PASS",
-                    "tone": "ok",
-                    "icon": "circle-check"
-                  },
-                  {
-                    "kind": "text",
-                    "value": "[EN] build started: Verify BDD Scenario (scratch)",
-                    "tone": "neutral",
-                    "tabular": true,
-                    "mono": false
-                  }
-                ],
-                "gap": 8,
-                "padding": 0
-              },
-              {
-                "kind": "row",
-                "children": [
-                  {
-                    "kind": "tagPill",
-                    "label": "PASS",
-                    "tone": "ok",
-                    "icon": "circle-check"
-                  },
-                  {
-                    "kind": "text",
-                    "value": "[EN] round 1: check_csharp (scratch)",
-                    "tone": "neutral",
-                    "tabular": true,
-                    "mono": false
-                  }
-                ],
-                "gap": 8,
-                "padding": 0
-              },
-              {
-                "kind": "row",
-                "children": [
-                  {
-                    "kind": "tagPill",
-                    "label": "PASS",
-                    "tone": "ok",
-                    "icon": "circle-check"
-                  },
-                  {
-                    "kind": "text",
-                    "value": "[EN] Built scratch",
-                    "tone": "neutral",
-                    "tabular": true,
-                    "mono": false
-                  }
-                ],
-                "gap": 8,
-                "padding": 0
-              },
-              {
-                "kind": "divider",
-                "label": "LIVE C# SANDBOX SCRIPT (App<TState>)"
-              },
-              {
-                "kind": "surface",
-                "children": [
-                  {
-                    "kind": "text",
-                    "value": "[App(\"elon-tracker\", Title = \"X Post Tracker\", Icon = \"radar\", Accent = \"#5B8CFF\", Category = \"Intelligence\")]\npublic sealed class ElonTrackerApp : App<TrackerState>\n{\n    [On(\"x.feed\", Contract = typeof(IXFeed))]\n    public async Task OnNewPost(XPostReceived? post)\n    {\n        if (post is null) return;\n        await Get<IMemory>(\"memory\").Remember(post.Text, [\"x\", \"elon\"]);\n        Set(State with { Count = State.Count + 1, Latest = post.Text });\n    }\n\n    public View Render() => new(\n        \"Tracker\",\n        Ui.AppShell(\n            \"tracker-shell\",\n            sidebar: Ui.NavItem(\"nav-feed\", \"Live Feed\", \"radio\", \"feed\", selected: true, badge: $\"{State.Count}\"),\n            body: Ui.StatCard(\"kpi-posts\", \"Tracked X Signals\", $\"{State.Count}\", \"+1 live\", BadgeTone.Accent, \"zap\")));\n\n    [Scenario(\"Live X signal increments state and stores memory\")]\n    public async Task VerifySignalHandling()\n    {\n        await OnNewPost(new XPostReceived(\"Mars update\"));\n        if (State.Count != 1) throw new InvalidOperationException(\"Expected count 1.\");\n    }\n}",
-                    "tone": "neutral",
-                    "tabular": true,
-                    "mono": true
-                  }
-                ],
-                "surfaceKind": "recessed",
-                "title": null,
-                "subtitle": null,
-                "padding": 18
-              },
-              {
-                "kind": "infoBar",
-                "title": "BDD [Scenario] Gate Ready",
-                "message": "All 5 neurons healthy · BDD gate green (4/4 scenarios passed)",
-                "tone": "ok",
-                "action": null
-              }
-            ],
-            "surfaceKind": "acrylic",
-            "title": "Selected Neuron Inspector · Creator Loop",
-            "subtitle": "Synthesized C# App<scratch> & [Scenario] Verdicts",
-            "padding": 18
-          },
-          "leadingExtent": 460,
-          "gap": 16
-        }
-      ],
-      "gap": 14,
-      "padding": 0
+        "leadingExtent": 640,
+        "gap": 16
+      },
+      "leadingExtent": 320,
+      "gap": 16
     }
   }
 }

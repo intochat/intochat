@@ -70,7 +70,8 @@
               "icon": "house",
               "action": "select:home",
               "selected": false,
-              "badge": "30"
+              "badge": "30",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -79,7 +80,8 @@
               "icon": "layout-grid",
               "action": "filter:all",
               "selected": true,
-              "badge": "30"
+              "badge": "30",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -88,7 +90,8 @@
               "icon": "palette",
               "action": "filter:design",
               "selected": false,
-              "badge": "4"
+              "badge": "4",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -97,7 +100,8 @@
               "icon": "mouse-pointer-click",
               "action": "filter:controls",
               "selected": false,
-              "badge": "7"
+              "badge": "7",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -106,7 +110,8 @@
               "icon": "panel-left",
               "action": "filter:layout",
               "selected": false,
-              "badge": "4"
+              "badge": "4",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -115,7 +120,8 @@
               "icon": "table",
               "action": "filter:chat-lfp",
               "selected": false,
-              "badge": "13"
+              "badge": "13",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -124,7 +130,8 @@
               "icon": "brain-circuit",
               "action": "filter:3d-brain",
               "selected": false,
-              "badge": "2"
+              "badge": "2",
+              "emit": null
             }
           ],
           "gap": 4,
@@ -144,7 +151,8 @@
               "icon": "palette",
               "action": "select:themes",
               "selected": false,
-              "badge": "Design"
+              "badge": "Design",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -153,7 +161,8 @@
               "icon": "type",
               "action": "select:typography",
               "selected": false,
-              "badge": "Design"
+              "badge": "Design",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -162,7 +171,8 @@
               "icon": "sparkles",
               "action": "select:iconography",
               "selected": false,
-              "badge": "Design"
+              "badge": "Design",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -171,7 +181,8 @@
               "icon": "layers",
               "action": "select:acrylic-surface",
               "selected": false,
-              "badge": "Design"
+              "badge": "Design",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -180,7 +191,8 @@
               "icon": "mouse-pointer-click",
               "action": "select:buttons",
               "selected": false,
-              "badge": "Input"
+              "badge": "Input",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -189,7 +201,8 @@
               "icon": "text-cursor-input",
               "action": "select:inputs",
               "selected": false,
-              "badge": "Input"
+              "badge": "Input",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -198,7 +211,8 @@
               "icon": "toggle-right",
               "action": "select:switch",
               "selected": false,
-              "badge": "Input"
+              "badge": "Input",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -207,7 +221,8 @@
               "icon": "list-filter",
               "action": "select:select",
               "selected": false,
-              "badge": "Input"
+              "badge": "Input",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -216,7 +231,8 @@
               "icon": "tag",
               "action": "select:tag-pill",
               "selected": false,
-              "badge": "Input"
+              "badge": "Input",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -225,7 +241,8 @@
               "icon": "loader",
               "action": "select:progress-infobar",
               "selected": false,
-              "badge": "Input"
+              "badge": "Input",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -234,7 +251,8 @@
               "icon": "folder",
               "action": "select:files-neuron-uri",
               "selected": false,
-              "badge": "Input"
+              "badge": "Input",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -243,7 +261,8 @@
               "icon": "panel-left",
               "action": "select:app-shell",
               "selected": false,
-              "badge": "Layout"
+              "badge": "Layout",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -252,7 +271,8 @@
               "icon": "folder-kanban",
               "action": "select:tabs",
               "selected": false,
-              "badge": "Layout"
+              "badge": "Layout",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -261,7 +281,8 @@
               "icon": "square-stack",
               "action": "select:surfaces",
               "selected": false,
-              "badge": "Layout"
+              "badge": "Layout",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -270,7 +291,8 @@
               "icon": "trending-up",
               "action": "select:stat-card",
               "selected": false,
-              "badge": "Layout"
+              "badge": "Layout",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -279,7 +301,8 @@
               "icon": "table",
               "action": "select:table-card",
               "selected": false,
-              "badge": "LFP"
+              "badge": "LFP",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -288,7 +311,8 @@
               "icon": "chart-column",
               "action": "select:chart-card",
               "selected": false,
-              "badge": "LFP"
+              "badge": "LFP",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -297,7 +321,8 @@
               "icon": "check-check",
               "action": "select:approval-card",
               "selected": true,
-              "badge": "LFP"
+              "badge": "LFP",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -306,7 +331,8 @@
               "icon": "list-checks",
               "action": "select:choice-card",
               "selected": false,
-              "badge": "LFP"
+              "badge": "LFP",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -315,7 +341,8 @@
               "icon": "mail",
               "action": "select:draft-card",
               "selected": false,
-              "badge": "LFP"
+              "badge": "LFP",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -324,7 +351,8 @@
               "icon": "git-compare",
               "action": "select:change-preview-card",
               "selected": false,
-              "badge": "LFP"
+              "badge": "LFP",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -333,7 +361,8 @@
               "icon": "package-plus",
               "action": "select:app-install-card",
               "selected": false,
-              "badge": "LFP"
+              "badge": "LFP",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -342,7 +371,8 @@
               "icon": "contact",
               "action": "select:record-card",
               "selected": false,
-              "badge": "LFP"
+              "badge": "LFP",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -351,7 +381,8 @@
               "icon": "key-round",
               "action": "select:secret-card",
               "selected": false,
-              "badge": "LFP"
+              "badge": "LFP",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -360,7 +391,8 @@
               "icon": "workflow",
               "action": "select:job-card",
               "selected": false,
-              "badge": "LFP"
+              "badge": "LFP",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -369,7 +401,8 @@
               "icon": "brain",
               "action": "select:remember-card",
               "selected": false,
-              "badge": "LFP"
+              "badge": "LFP",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -378,7 +411,8 @@
               "icon": "file-check",
               "action": "select:file-cards",
               "selected": false,
-              "badge": "LFP"
+              "badge": "LFP",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -387,7 +421,8 @@
               "icon": "triangle-alert",
               "action": "select:error-line",
               "selected": false,
-              "badge": "LFP"
+              "badge": "LFP",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -396,7 +431,8 @@
               "icon": "brain-circuit",
               "action": "select:brain-scene-3d",
               "selected": false,
-              "badge": "3D"
+              "badge": "3D",
+              "emit": null
             },
             {
               "kind": "navItem",
@@ -405,7 +441,8 @@
               "icon": "network",
               "action": "select:neuron-paths",
               "selected": false,
-              "badge": "3D"
+              "badge": "3D",
+              "emit": null
             }
           ],
           "gap": 4,
@@ -429,17 +466,19 @@
               "children": [
                 {
                   "kind": "button",
+                  "key": "back-to-gallery",
                   "label": "Back to Gallery",
+                  "emit": {
+                    "owner": "app.gallery",
+                    "signal": "select",
+                    "args": "home"
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "arrow-left",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/gallery",
-                    "signal": "select",
-                    "args": "home"
-                  }
+                  "small": true
                 },
                 {
                   "kind": "tagPill",
@@ -455,7 +494,7 @@
                 },
                 {
                   "kind": "tagPill",
-                  "label": "[Signal] ino.approve-card (0)",
+                  "label": "[Signal] confirmations.Resolve (0)",
                   "tone": "done",
                   "icon": "zap"
                 },
@@ -477,7 +516,7 @@
             },
             {
               "kind": "text",
-              "value": "Showing 30 UI Kit controls (fluent-acrylic · floating-glass)",
+              "value": "UI Gallery Ready · 30 controls loaded · Category: all",
               "tone": "muted",
               "tabular": true,
               "mono": false
@@ -498,7 +537,7 @@
             },
             {
               "kind": "text",
-              "value": "Signals: ino.approve-card",
+              "value": "Signals: confirmations.Resolve",
               "tone": "neutral",
               "tabular": false,
               "mono": true
@@ -521,42 +560,30 @@
             "children": [
               {
                 "kind": "approvalCard",
+                "key": "card-gallery-1",
                 "id": "card-gallery-1",
-                "title": "Update close date on Nordlys Q4 renewal to 15 Nov 2026?",
-                "summary": "Ino matched Kari Holm's email to your open Salesforce opportunity (scope:neuron://local/apps/ino#card-1)",
+                "title": "Approve storage write to /work/notes.md?",
+                "summary": "Confirmation required by storage capability policy (scope:neuron://local/apps/ino#card-1)",
                 "rows": [
                   {
-                    "label": "Nordlys Q4 Enterprise",
-                    "oldValue": "30 Oct 2026",
-                    "newValue": "15 Nov 2026",
-                    "amount": "480,000 NOK",
+                    "label": "Target Path",
+                    "oldValue": "/work/draft.md",
+                    "newValue": "/work/notes.md",
+                    "amount": null,
                     "warn": false
                   },
                   {
-                    "label": "Owner",
-                    "oldValue": "Unassigned",
-                    "newValue": "Vlad Horb",
+                    "label": "Scope",
+                    "oldValue": "Read-Only",
+                    "newValue": "Read/Write",
                     "amount": null,
                     "warn": false
                   }
                 ],
                 "valueLabel": "Value",
-                "systemName": "Salesforce",
+                "systemName": "Storage",
                 "status": "pending",
-                "onApprove": {
-                  "neuron": "gallery",
-                  "operation": "select",
-                  "arguments": [
-                    "card:approval:approved"
-                  ]
-                },
-                "onReject": {
-                  "neuron": "gallery",
-                  "operation": "select",
-                  "arguments": [
-                    "card:approval:rejected"
-                  ]
-                },
+                "resolve": null,
                 "sourceNeuronUri": "neuron://local/os.confirmations/inbox#approval-card"
               }
             ],
@@ -581,55 +608,63 @@
                 "children": [
                   {
                     "kind": "button",
+                    "key": "knob:style:primary",
                     "label": "Primary",
+                    "emit": {
+                      "owner": "app.gallery",
+                      "signal": "select",
+                      "args": "knob:style:primary"
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "accent",
                     "style": "primary",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/gallery",
-                      "signal": "select",
-                      "args": "knob:style:primary"
-                    }
+                    "small": true
                   },
                   {
                     "kind": "button",
+                    "key": "knob:style:secondary",
                     "label": "Secondary",
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true,
                     "emit": {
-                      "owner": "apps/gallery",
+                      "owner": "app.gallery",
                       "signal": "select",
                       "args": "knob:style:secondary"
-                    }
-                  },
-                  {
-                    "kind": "button",
-                    "label": "Ghost",
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true,
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "key": "knob:style:ghost",
+                    "label": "Ghost",
                     "emit": {
-                      "owner": "apps/gallery",
+                      "owner": "app.gallery",
                       "signal": "select",
                       "args": "knob:style:ghost"
-                    }
-                  },
-                  {
-                    "kind": "button",
-                    "label": "Danger",
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true,
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "key": "knob:style:danger",
+                    "label": "Danger",
                     "emit": {
-                      "owner": "apps/gallery",
+                      "owner": "app.gallery",
                       "signal": "select",
                       "args": "knob:style:danger"
-                    }
+                    },
+                    "intent": null,
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
                   }
                 ],
                 "gap": 6,
@@ -648,68 +683,78 @@
                 "children": [
                   {
                     "kind": "button",
+                    "key": "knob:tone:neutral",
                     "label": "Neutral",
+                    "emit": {
+                      "owner": "app.gallery",
+                      "signal": "select",
+                      "args": "knob:tone:neutral"
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/gallery",
-                      "signal": "select",
-                      "args": "knob:tone:neutral"
-                    }
+                    "small": true
                   },
                   {
                     "kind": "button",
+                    "key": "knob:tone:accent",
                     "label": "Accent",
+                    "emit": {
+                      "owner": "app.gallery",
+                      "signal": "select",
+                      "args": "knob:tone:accent"
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "accent",
                     "style": "primary",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/gallery",
-                      "signal": "select",
-                      "args": "knob:tone:accent"
-                    }
+                    "small": true
                   },
                   {
                     "kind": "button",
+                    "key": "knob:tone:done",
                     "label": "Done",
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true,
                     "emit": {
-                      "owner": "apps/gallery",
+                      "owner": "app.gallery",
                       "signal": "select",
                       "args": "knob:tone:done"
-                    }
-                  },
-                  {
-                    "kind": "button",
-                    "label": "Working",
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true,
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "key": "knob:tone:working",
+                    "label": "Working",
                     "emit": {
-                      "owner": "apps/gallery",
+                      "owner": "app.gallery",
                       "signal": "select",
                       "args": "knob:tone:working"
-                    }
-                  },
-                  {
-                    "kind": "button",
-                    "label": "Error",
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true,
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "key": "knob:tone:error",
+                    "label": "Error",
                     "emit": {
-                      "owner": "apps/gallery",
+                      "owner": "app.gallery",
                       "signal": "select",
                       "args": "knob:tone:error"
-                    }
+                    },
+                    "intent": null,
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
                   }
                 ],
                 "gap": 6,
@@ -728,29 +773,33 @@
                 "children": [
                   {
                     "kind": "button",
+                    "key": "knob:size:standard",
                     "label": "Standard (36px)",
+                    "emit": {
+                      "owner": "app.gallery",
+                      "signal": "select",
+                      "args": "knob:size:standard"
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "accent",
                     "style": "primary",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/gallery",
-                      "signal": "select",
-                      "args": "knob:size:standard"
-                    }
+                    "small": true
                   },
                   {
                     "kind": "button",
+                    "key": "knob:size:small",
                     "label": "Small (30px)",
+                    "emit": {
+                      "owner": "app.gallery",
+                      "signal": "select",
+                      "args": "knob:size:small"
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/gallery",
-                      "signal": "select",
-                      "args": "knob:size:small"
-                    }
+                    "small": true
                   }
                 ],
                 "gap": 6,
@@ -769,55 +818,63 @@
                 "children": [
                   {
                     "kind": "button",
+                    "key": "knob:state:interactive",
                     "label": "Interactive",
+                    "emit": {
+                      "owner": "app.gallery",
+                      "signal": "select",
+                      "args": "knob:state:interactive"
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "accent",
                     "style": "primary",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/gallery",
-                      "signal": "select",
-                      "args": "knob:state:interactive"
-                    }
+                    "small": true
                   },
                   {
                     "kind": "button",
+                    "key": "knob:state:loading",
                     "label": "Loading",
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true,
                     "emit": {
-                      "owner": "apps/gallery",
+                      "owner": "app.gallery",
                       "signal": "select",
                       "args": "knob:state:loading"
-                    }
-                  },
-                  {
-                    "kind": "button",
-                    "label": "Disabled",
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true,
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "key": "knob:state:disabled",
+                    "label": "Disabled",
                     "emit": {
-                      "owner": "apps/gallery",
+                      "owner": "app.gallery",
                       "signal": "select",
                       "args": "knob:state:disabled"
-                    }
-                  },
-                  {
-                    "kind": "button",
-                    "label": "Empty",
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true,
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "key": "knob:state:empty",
+                    "label": "Empty",
                     "emit": {
-                      "owner": "apps/gallery",
+                      "owner": "app.gallery",
                       "signal": "select",
                       "args": "knob:state:empty"
-                    }
+                    },
+                    "intent": null,
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
                   }
                 ],
                 "gap": 6,
@@ -836,42 +893,48 @@
                 "children": [
                   {
                     "kind": "button",
+                    "key": "knob:surface:acrylic",
                     "label": "Acrylic",
+                    "emit": {
+                      "owner": "app.gallery",
+                      "signal": "select",
+                      "args": "knob:surface:acrylic"
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "accent",
                     "style": "primary",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/gallery",
-                      "signal": "select",
-                      "args": "knob:surface:acrylic"
-                    }
+                    "small": true
                   },
                   {
                     "kind": "button",
+                    "key": "knob:surface:elevated",
                     "label": "Elevated",
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true,
                     "emit": {
-                      "owner": "apps/gallery",
+                      "owner": "app.gallery",
                       "signal": "select",
                       "args": "knob:surface:elevated"
-                    }
-                  },
-                  {
-                    "kind": "button",
-                    "label": "Recessed",
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true,
+                    "small": true
+                  },
+                  {
+                    "kind": "button",
+                    "key": "knob:surface:recessed",
+                    "label": "Recessed",
                     "emit": {
-                      "owner": "apps/gallery",
+                      "owner": "app.gallery",
                       "signal": "select",
                       "args": "knob:surface:recessed"
-                    }
+                    },
+                    "intent": null,
+                    "enabled": true,
+                    "tone": "neutral",
+                    "style": "secondary",
+                    "small": true
                   }
                 ],
                 "gap": 6,
@@ -890,29 +953,33 @@
                 "children": [
                   {
                     "kind": "button",
+                    "key": "knob:chart:bar",
                     "label": "Bar",
+                    "emit": {
+                      "owner": "app.gallery",
+                      "signal": "select",
+                      "args": "knob:chart:bar"
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "accent",
                     "style": "primary",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/gallery",
-                      "signal": "select",
-                      "args": "knob:chart:bar"
-                    }
+                    "small": true
                   },
                   {
                     "kind": "button",
+                    "key": "knob:chart:line",
                     "label": "Line",
+                    "emit": {
+                      "owner": "app.gallery",
+                      "signal": "select",
+                      "args": "knob:chart:line"
+                    },
+                    "intent": null,
                     "enabled": true,
                     "tone": "neutral",
                     "style": "secondary",
-                    "small": true,
-                    "emit": {
-                      "owner": "apps/gallery",
-                      "signal": "select",
-                      "args": "knob:chart:line"
-                    }
+                    "small": true
                   }
                 ],
                 "gap": 6,
@@ -935,122 +1002,136 @@
               "children": [
                 {
                   "kind": "button",
+                  "key": "fluent-acrylic",
                   "label": "Fluent Acrylic",
-                  "enabled": true,
-                  "tone": "accent",
-                  "style": "secondary",
-                  "icon": "palette",
-                  "small": true,
                   "emit": {
-                    "owner": "apps/gallery",
+                    "owner": "app.gallery",
                     "signal": "switch-identity",
                     "args": [
                       "fluent-acrylic",
                       "floating-glass"
                     ]
-                  }
+                  },
+                  "intent": null,
+                  "enabled": true,
+                  "tone": "accent",
+                  "style": "secondary",
+                  "icon": "palette",
+                  "small": true
                 },
                 {
                   "kind": "button",
+                  "key": "spatial-glass",
                   "label": "Spatial Glass",
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "sparkles",
-                  "small": true,
                   "emit": {
-                    "owner": "apps/gallery",
+                    "owner": "app.gallery",
                     "signal": "switch-identity",
                     "args": [
                       "spatial-glass",
                       "compact-pill"
                     ]
-                  }
-                },
-                {
-                  "kind": "button",
-                  "label": "Cyber Synaptic",
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
-                  "icon": "zap",
-                  "small": true,
+                  "icon": "sparkles",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "key": "cyber-synaptic",
+                  "label": "Cyber Synaptic",
                   "emit": {
-                    "owner": "apps/gallery",
+                    "owner": "app.gallery",
                     "signal": "switch-identity",
                     "args": [
                       "cyber-synaptic",
                       "split-top-dock"
                     ]
-                  }
-                },
-                {
-                  "kind": "button",
-                  "label": "Warm Paper",
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
-                  "icon": "sun",
-                  "small": true,
+                  "icon": "zap",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "key": "warm-paper",
+                  "label": "Warm Paper",
                   "emit": {
-                    "owner": "apps/gallery",
+                    "owner": "app.gallery",
                     "signal": "switch-identity",
                     "args": [
                       "warm-paper",
                       "classic-bottom"
                     ]
-                  }
-                },
-                {
-                  "kind": "button",
-                  "label": "Warm Mica",
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "sun",
-                  "small": true,
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "key": "warm-mica",
+                  "label": "Warm Mica",
                   "emit": {
-                    "owner": "apps/gallery",
+                    "owner": "app.gallery",
                     "signal": "switch-identity",
                     "args": [
                       "fluent-warm-mica",
                       "floating-glass"
                     ]
-                  }
-                },
-                {
-                  "kind": "button",
-                  "label": "Linear Carbon",
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
-                  "icon": "terminal",
-                  "small": true,
+                  "icon": "sun",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "key": "linear-carbon",
+                  "label": "Linear Carbon",
                   "emit": {
-                    "owner": "apps/gallery",
+                    "owner": "app.gallery",
                     "signal": "switch-identity",
                     "args": [
                       "linear-carbon",
                       "classic-bottom"
                     ]
-                  }
-                },
-                {
-                  "kind": "button",
-                  "label": "Nordic Tactical",
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
-                  "icon": "shield",
-                  "small": true,
+                  "icon": "terminal",
+                  "small": true
+                },
+                {
+                  "kind": "button",
+                  "key": "nordic-tactical",
+                  "label": "Nordic Tactical",
                   "emit": {
-                    "owner": "apps/gallery",
+                    "owner": "app.gallery",
                     "signal": "switch-identity",
                     "args": [
                       "nordic-tactical",
                       "split-top-dock"
                     ]
-                  }
+                  },
+                  "intent": null,
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "shield",
+                  "small": true
                 }
               ],
               "gap": 8,
@@ -1061,73 +1142,82 @@
               "children": [
                 {
                   "kind": "button",
+                  "key": "c-digitalbrain-ui",
                   "label": "C# DigitalBrain.UI",
+                  "emit": {
+                    "owner": "app.gallery",
+                    "signal": "select",
+                    "args": "tab:csharp"
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "accent",
                   "style": "secondary",
                   "icon": "code",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/gallery",
-                    "signal": "select",
-                    "args": "tab:csharp"
-                  }
+                  "small": true
                 },
                 {
                   "kind": "button",
+                  "key": "flutter-ic",
                   "label": "Flutter Ic*",
+                  "emit": {
+                    "owner": "app.gallery",
+                    "signal": "select",
+                    "args": "tab:flutter"
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "layers",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/gallery",
-                    "signal": "select",
-                    "args": "tab:flutter"
-                  }
+                  "small": true
                 },
                 {
                   "kind": "button",
+                  "key": "contract-signal",
                   "label": "Contract & [Signal]",
+                  "emit": {
+                    "owner": "app.gallery",
+                    "signal": "select",
+                    "args": "tab:contract"
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "radio",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/gallery",
-                    "signal": "select",
-                    "args": "tab:contract"
-                  }
+                  "small": true
                 },
                 {
                   "kind": "button",
+                  "key": "fire-test-signal",
                   "label": "Fire Test [Signal]",
+                  "emit": {
+                    "owner": "app.gallery",
+                    "signal": "select",
+                    "args": "pulse"
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "accent",
                   "style": "secondary",
                   "icon": "zap",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/gallery",
-                    "signal": "select",
-                    "args": "pulse"
-                  }
+                  "small": true
                 },
                 {
                   "kind": "button",
+                  "key": "copy-snippet",
                   "label": "Copy Snippet",
+                  "emit": null,
+                  "intent": {
+                    "intentKind": "Copy",
+                    "arg": "// IntoChat.UI.ApprovalCard@1 · [confirmations.Resolve]\nawait ApproveCard(new InoApproveCard(\"card-1\", Approved: true));"
+                  },
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "copy",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/gallery",
-                    "signal": "copy",
-                    "args": "// IntoChat.UI.ApprovalCard@1 · [ino.approve-card]\n// Knobs: Style=primary · Tone=accent · Size=Standard(36px) · Surface=acrylic\nawait Send(new InoSend(\"Draft confirmation card\"));\nawait ApproveCard(new InoApproveCard(\"card-1\", Approved: true));"
-                  }
+                  "small": true
                 }
               ],
               "gap": 8,
@@ -1138,7 +1228,7 @@
               "children": [
                 {
                   "kind": "text",
-                  "value": "// IntoChat.UI.ApprovalCard@1 · [ino.approve-card]\n// Knobs: Style=primary · Tone=accent · Size=Standard(36px) · Surface=acrylic\nawait Send(new InoSend(\"Draft confirmation card\"));\nawait ApproveCard(new InoApproveCard(\"card-1\", Approved: true));",
+                  "value": "// IntoChat.UI.ApprovalCard@1 · [confirmations.Resolve]\nawait ApproveCard(new InoApproveCard(\"card-1\", Approved: true));",
                   "tone": "neutral",
                   "tabular": true,
                   "mono": true

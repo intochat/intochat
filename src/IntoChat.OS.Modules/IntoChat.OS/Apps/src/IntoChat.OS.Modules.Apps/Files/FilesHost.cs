@@ -32,10 +32,10 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
 
     private async Task EnsureAsync(string brain)
     {
-        RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
+        using var cleared = InProcessCallerScope.ClearCaller();
         try
         {
-            using var _ = InProcessCallerScope.Enter();
+            using var kernel = InProcessCallerScope.EnterKernel(brain);
             await EnsureDefaultLocalRootsAsync(services, brain);
             var key = IApp.Key(brain, "files");
             var app = SiloNeurons.Get<IApp>(services, key);
@@ -77,10 +77,10 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
 
     private async Task OpenAsync(string brain, AppRequested request, CancellationToken cancellationToken)
     {
-        RequestContext.Remove(RuntimeCallerContext.RequestContextKey);
+        using var cleared = InProcessCallerScope.ClearCaller();
         try
         {
-            using var _ = InProcessCallerScope.Enter();
+            using var kernel = InProcessCallerScope.EnterKernel(brain);
             await EnsureDefaultLocalRootsAsync(services, brain);
             var key = IApp.Key(brain, "files");
             var app = SiloNeurons.Get<IApp>(services, key);

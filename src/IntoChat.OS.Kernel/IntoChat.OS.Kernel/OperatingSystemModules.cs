@@ -95,6 +95,7 @@ public static class OperatingSystemModules
         ArgumentNullException.ThrowIfNull(server);
         var selected = modules ?? Modules;
         foreach (var module in selected) { server.AddModule(module); }
+        server.AddNeuronModule(typeof(IntoChat.OS.Apps.ShippedShellAppsModule));
         server.ConfigureServices(services =>
         {
             services.AddSingleton<IntoChat.OS.Modules.Postgres.Tables.ITablesSlot, IntoChat.OS.Modules.Postgres.AppTablesSlot>();

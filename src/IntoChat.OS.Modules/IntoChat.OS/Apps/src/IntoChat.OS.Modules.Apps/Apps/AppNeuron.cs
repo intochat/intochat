@@ -309,10 +309,15 @@ internal sealed partial class AppNeuron(
         if (State.Manifest is null) { return; }
         var key = Key;
         // Only this app's own listing comes down with it.
-        if (State.Publisher is { } publisher
-            && await Marketplace.Read(publisher, Name()) is { } listed
-            && listed.Source.Scope() == BrainId())
-        { await Marketplace.Remove(publisher, Name()); }
+        if (State.Publisher is { } publisher)
+        {
+            using (InProcessCallerScope.ClearCaller())
+            {
+                if (await Marketplace.Read(publisher, Name()) is { } listed
+                    && listed.Source.Scope() == BrainId())
+                { await Marketplace.Remove(publisher, Name()); }
+            }
+        }
         // Everything the app owns goes with it: its program, then its storage.
         await Runtime.Retire(key, CancellationToken.None);
         if (ServiceProvider?.GetService<IKernel>() is { } kernel) { await kernel.UnloadFeature(BrainId(), Name()); }

@@ -59,7 +59,8 @@
           "icon": "file-spreadsheet",
           "action": "open:/work/q4-opportunities.csv",
           "selected": true,
-          "badge": "ACTIVE"
+          "badge": "ACTIVE",
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -68,7 +69,8 @@
           "icon": "file-spreadsheet",
           "action": "open:/work/customer-arr.csv",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -77,7 +79,8 @@
           "icon": "database",
           "action": "open:postgres:opportunities",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -86,7 +89,8 @@
           "icon": "database",
           "action": "open:postgres:customers",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "divider",
@@ -99,7 +103,8 @@
           "icon": "pie-chart",
           "action": "group-by:Stage:SUM",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -108,7 +113,8 @@
           "icon": "trending-up",
           "action": "query:SELECT Opportunity, Account, Stage, Amount FROM /work/q4-opportunities.csv LIMIT 3",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -117,7 +123,8 @@
           "icon": "pen-tool",
           "action": "to-markdraw:/work/data-lineage.markdraw",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "collection",
@@ -168,19 +175,19 @@
                 },
                 {
                   "kind": "tagPill",
-                  "label": "/work/q4-opportunities.csv",
+                  "label": "",
                   "tone": "info",
                   "icon": "database"
                 },
                 {
                   "kind": "tagPill",
-                  "label": "Total €627,700",
+                  "label": "Total €0",
                   "tone": "ok",
                   "icon": null
                 },
                 {
                   "kind": "tagPill",
-                  "label": "Avg €125,540 · Max €240,000",
+                  "label": "Avg €0 · Max €0",
                   "tone": "neutral",
                   "icon": null
                 }
@@ -190,14 +197,14 @@
             },
             {
               "kind": "text",
-              "value": "Queried 5 opportunity row(s) totaling €627,700 from /work/q4-opportunities.csv.",
+              "value": "No dataset found matching query or file reference in database ''.",
               "tone": "neutral",
               "tabular": true,
               "mono": false
             },
             {
               "kind": "text",
-              "value": "SELECT * FROM /work/q4-opportunities.csv",
+              "value": "SELECT * FROM ",
               "tone": "muted",
               "tabular": false,
               "mono": true
@@ -207,123 +214,93 @@
               "children": [
                 {
                   "kind": "button",
+                  "key": "bar",
                   "label": "Bar",
+                  "emit": {
+                    "owner": "app.datastudio",
+                    "signal": "data.switch-chart",
+                    "args": {
+                      "Kind": "bar"
+                    }
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "accent",
                   "style": "secondary",
                   "icon": "bar-chart-2",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/data",
-                    "signal": "switch-chart",
-                    "args": "bar"
-                  }
+                  "small": true
                 },
                 {
                   "kind": "button",
+                  "key": "line",
                   "label": "Line",
+                  "emit": {
+                    "owner": "app.datastudio",
+                    "signal": "data.switch-chart",
+                    "args": {
+                      "Kind": "line"
+                    }
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "trending-up",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/data",
-                    "signal": "switch-chart",
-                    "args": "line"
-                  }
+                  "small": true
                 },
                 {
                   "kind": "button",
+                  "key": "pie",
                   "label": "Pie",
+                  "emit": {
+                    "owner": "app.datastudio",
+                    "signal": "data.switch-chart",
+                    "args": {
+                      "Kind": "pie"
+                    }
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "pie-chart",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/data",
-                    "signal": "switch-chart",
-                    "args": "pie"
-                  }
+                  "small": true
                 },
                 {
                   "kind": "button",
-                  "label": "Group by Opportunity",
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "layers",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/data",
-                    "signal": "group-by",
-                    "args": [
-                      "Opportunity",
-                      "SUM"
-                    ]
-                  }
-                },
-                {
-                  "kind": "button",
-                  "label": "Group by Account",
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "layers",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/data",
-                    "signal": "group-by",
-                    "args": [
-                      "Account",
-                      "SUM"
-                    ]
-                  }
-                },
-                {
-                  "kind": "button",
-                  "label": "Group by Stage",
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "layers",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/data",
-                    "signal": "group-by",
-                    "args": [
-                      "Stage",
-                      "SUM"
-                    ]
-                  }
-                },
-                {
-                  "kind": "button",
+                  "key": "export-csv",
                   "label": "Export CSV",
+                  "emit": {
+                    "owner": "app.datastudio",
+                    "signal": "data.export-csv",
+                    "args": {
+                      "TargetPath": null
+                    }
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "download",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/data",
-                    "signal": "export-csv"
-                  }
+                  "small": true
                 },
                 {
                   "kind": "button",
+                  "key": "diagram-in-markdraw",
                   "label": "Diagram in Markdraw",
+                  "emit": {
+                    "owner": "app.datastudio",
+                    "signal": "data.to-markdraw",
+                    "args": {
+                      "Document": "/work/data-lineage.markdraw"
+                    }
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "pen-tool",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/data",
-                    "signal": "to-markdraw",
-                    "args": "/work/data-lineage.markdraw"
-                  }
+                  "small": true
                 }
               ],
               "gap": 8,
@@ -331,86 +308,29 @@
             }
           ],
           "surfaceKind": "acrylic",
-          "title": "Pipeline Opportunities by Amount",
+          "title": "No Data ()",
           "subtitle": null,
           "padding": 18
         },
         {
           "kind": "chart",
           "chartKind": "bar",
-          "title": "Pipeline Opportunities by Amount",
-          "points": [
-            {
-              "label": "Havbris pilot",
-              "value": 240000
-            },
-            {
-              "label": "Depot software, phase 2",
-              "value": 186000
-            },
-            {
-              "label": "Fjordline renewal",
-              "value": 96000
-            },
-            {
-              "label": "Nordkapp second region",
-              "value": 74500
-            },
-            {
-              "label": "Cold-chain sensors",
-              "value": 31200
-            }
-          ],
+          "title": "No Data ()",
+          "points": [],
           "comparePoints": null,
           "seriesName": "Current",
           "compareName": "",
-          "sourceNeuronUri": "neuron://local/postgres/main#query-result",
-          "from": "/work/q4-opportunities.csv",
+          "sourceNeuronUri": "neuron://local/data//empty",
+          "from": "",
           "prefix": "€"
         },
         {
           "kind": "dataTable",
-          "title": "Pipeline Opportunities by Amount (5 row(s))",
-          "columns": [
-            "Opportunity",
-            "Account",
-            "Stage",
-            "Amount"
-          ],
-          "rows": [
-            [
-              "Havbris pilot",
-              "Havbris AS",
-              "Proposal",
-              "€240,000"
-            ],
-            [
-              "Depot software, phase 2",
-              "Acme Logistics",
-              "Negotiation",
-              "€186,000"
-            ],
-            [
-              "Fjordline renewal",
-              "Fjordline",
-              "Contract",
-              "€96,000"
-            ],
-            [
-              "Nordkapp second region",
-              "Nordkapp Shipping",
-              "Discovery",
-              "€74,500"
-            ],
-            [
-              "Cold-chain sensors",
-              "Lofoten Seafood",
-              "Proposal",
-              "€31,200"
-            ]
-          ],
-          "sourceNeuronUri": "neuron://local/postgres/main#query-result",
-          "from": "/work/q4-opportunities.csv"
+          "title": "No Data () (0 row(s))",
+          "columns": [],
+          "rows": [],
+          "sourceNeuronUri": "neuron://local/data//empty",
+          "from": ""
         }
       ],
       "gap": 12,

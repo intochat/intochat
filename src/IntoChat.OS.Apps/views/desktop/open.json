@@ -17,7 +17,8 @@
           "icon": "sparkles",
           "action": "pin:ino",
           "selected": true,
-          "badge": "PIN"
+          "badge": "PIN",
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -26,7 +27,8 @@
           "icon": "folder",
           "action": "pin:files",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -35,7 +37,8 @@
           "icon": "bar-chart-2",
           "action": "pin:data",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -44,7 +47,8 @@
           "icon": "pen-tool",
           "action": "pin:markdraw",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -53,7 +57,8 @@
           "icon": "image",
           "action": "pin:photocraft",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -62,7 +67,8 @@
           "icon": "film",
           "action": "pin:filmcraft",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -71,7 +77,8 @@
           "icon": "layout-grid",
           "action": "pin:gallery",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -80,7 +87,8 @@
           "icon": "cpu",
           "action": "pin:creator",
           "selected": true,
-          "badge": "PIN"
+          "badge": "PIN",
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -89,7 +97,8 @@
           "icon": "send",
           "action": "pin:post",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -98,7 +107,8 @@
           "icon": "settings",
           "action": "pin:settings",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "collection",
@@ -166,377 +176,160 @@
       "kind": "column",
       "children": [
         {
-          "kind": "grid",
-          "columns": 3,
-          "children": [
-            {
-              "kind": "statCard",
-              "key": "desk-neurons",
-              "label": "Active Neurons",
-              "value": "10",
-              "delta": "3D Graph",
-              "tone": 2,
-              "icon": "cpu"
-            },
-            {
-              "kind": "statCard",
-              "key": "desk-pinned",
-              "label": "Pinned Sticky-Notes",
-              "value": "2",
-              "delta": "Locked",
-              "tone": 1,
-              "icon": "pin"
-            },
-            {
-              "kind": "statCard",
-              "key": "desk-preset",
-              "label": "Theme Preset",
-              "value": "fluent-acrylic",
-              "delta": "floating-glass",
-              "tone": 1,
-              "icon": "palette"
-            }
-          ],
-          "gap": 10
+          "kind": "column",
+          "children": [],
+          "gap": 12,
+          "padding": 0
         },
         {
-          "kind": "surface",
+          "kind": "row",
           "children": [
             {
               "kind": "row",
               "children": [
                 {
-                  "kind": "tagPill",
-                  "label": "fluent-acrylic",
+                  "kind": "button",
+                  "key": "dock-ino",
+                  "label": "Ino",
+                  "emit": {
+                    "owner": "app.desktop",
+                    "signal": "desktop.open",
+                    "args": {
+                      "App": "ino",
+                      "View": null
+                    }
+                  },
+                  "intent": null,
+                  "enabled": true,
                   "tone": "accent",
-                  "icon": "palette"
+                  "style": "secondary",
+                  "icon": "ino",
+                  "small": false
                 },
                 {
-                  "kind": "tagPill",
-                  "label": "floating-glass",
+                  "kind": "button",
+                  "key": "dock-files",
+                  "label": "Files",
+                  "emit": {
+                    "owner": "app.desktop",
+                    "signal": "desktop.open",
+                    "args": {
+                      "App": "files",
+                      "View": null
+                    }
+                  },
+                  "intent": null,
+                  "enabled": true,
                   "tone": "neutral",
-                  "icon": "layout"
+                  "style": "secondary",
+                  "small": false
                 },
                 {
-                  "kind": "tagPill",
-                  "label": "10 active neurons",
-                  "tone": "ok",
-                  "icon": "cpu"
+                  "kind": "button",
+                  "key": "dock-settings",
+                  "label": "Settings",
+                  "emit": {
+                    "owner": "app.desktop",
+                    "signal": "desktop.settings",
+                    "args": {}
+                  },
+                  "intent": null,
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "small": false
                 },
                 {
-                  "kind": "tagPill",
-                  "label": "2 Pinned Sticky-Notes",
-                  "tone": "accent",
-                  "icon": "pin"
+                  "kind": "button",
+                  "key": "newtab",
+                  "label": "New tab",
+                  "emit": {
+                    "owner": "app.desktop",
+                    "signal": "desktop.newtab",
+                    "args": {
+                      "WindowId": null
+                    }
+                  },
+                  "intent": null,
+                  "enabled": true,
+                  "tone": "neutral",
+                  "style": "secondary",
+                  "icon": "plus",
+                  "small": true
                 }
               ],
-              "gap": 8,
+              "gap": 4,
               "padding": 0
-            },
-            {
-              "kind": "text",
-              "value": "Desktop",
-              "tone": "neutral",
-              "tabular": false,
-              "mono": false
-            },
-            {
-              "kind": "text",
-              "value": "Smart Desktop (smart-desktop) · fluent-acrylic · floating-glass · 3D BrainScene (10 neurons)",
-              "tone": "neutral",
-              "tabular": true,
-              "mono": false
-            },
-            {
-              "kind": "text",
-              "value": "Whiteboard Sticky-Note Pins (Locked & Always-on-Top): ino, creator",
-              "tone": "neutral",
-              "tabular": true,
-              "mono": false
             },
             {
               "kind": "row",
               "children": [
                 {
-                  "kind": "button",
-                  "label": "Auto-Arrange",
-                  "enabled": true,
-                  "tone": "accent",
-                  "style": "secondary",
-                  "icon": "layout-grid",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/desktop",
-                    "signal": "auto-arrange"
-                  }
+                  "kind": "text",
+                  "value": "Usage",
+                  "tone": "neutral",
+                  "tabular": false,
+                  "mono": false
+                },
+                {
+                  "kind": "text",
+                  "value": "",
+                  "tone": "neutral",
+                  "tabular": false,
+                  "mono": false
                 },
                 {
                   "kind": "button",
-                  "label": "Pin Markdraw",
+                  "key": "avatar",
+                  "label": "You",
+                  "emit": {
+                    "owner": "app.desktop",
+                    "signal": "desktop.open",
+                    "args": {
+                      "App": "friends",
+                      "View": null
+                    }
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
-                  "icon": "pin",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/desktop",
-                    "signal": "pin",
-                    "args": [
-                      "markdraw",
-                      "true"
-                    ]
-                  }
+                  "small": false
                 },
                 {
                   "kind": "button",
-                  "label": "Pin PhotoCraft",
+                  "key": "more-settings",
+                  "label": "Settings",
+                  "emit": {
+                    "owner": "app.desktop",
+                    "signal": "desktop.settings",
+                    "args": {}
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
-                  "icon": "pin",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/desktop",
-                    "signal": "pin",
-                    "args": [
-                      "photocraft",
-                      "true"
-                    ]
-                  }
-                },
-                {
-                  "kind": "button",
-                  "label": "Pin FilmCraft",
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "pin",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/desktop",
-                    "signal": "pin",
-                    "args": [
-                      "filmcraft",
-                      "true"
-                    ]
-                  }
+                  "small": false
                 }
               ],
-              "gap": 8,
+              "gap": 4,
               "padding": 0
-            },
-            {
-              "kind": "text",
-              "value": "Smart Brief: 2 approvals waiting in neuron://local/os.confirmations/inbox",
-              "tone": "neutral",
-              "tabular": false,
-              "mono": false
             }
           ],
-          "surfaceKind": "acrylic",
-          "title": "Ino · DigitalBrain OS",
-          "subtitle": null,
-          "padding": 18
-        },
-        {
-          "kind": "brainScene",
-          "nodes": [
-            {
-              "id": "os",
-              "label": "OperatingSystem",
-              "uri": "neuron://local/os",
-              "kind": "core",
-              "x": 0,
-              "y": 0,
-              "z": 0,
-              "status": "working",
-              "subtitle": null,
-              "onSelect": null
-            },
-            {
-              "id": "ino",
-              "label": "Ino Assistant",
-              "uri": "neuron://local/apps/ino",
-              "kind": "agent",
-              "x": 110,
-              "y": 35,
-              "z": -20,
-              "status": "working",
-              "subtitle": null,
-              "onSelect": null
-            },
-            {
-              "id": "files",
-              "label": "Files",
-              "uri": "neuron://local/apps/files",
-              "kind": "storage",
-              "x": -115,
-              "y": 25,
-              "z": 15,
-              "status": "idle",
-              "subtitle": null,
-              "onSelect": null
-            },
-            {
-              "id": "data",
-              "label": "Data Studio",
-              "uri": "neuron://local/apps/data",
-              "kind": "analytics",
-              "x": 15,
-              "y": -75,
-              "z": 20,
-              "status": "working",
-              "subtitle": null,
-              "onSelect": null
-            },
-            {
-              "id": "markdraw",
-              "label": "Markdraw",
-              "uri": "neuron://local/apps/markdraw",
-              "kind": "studio",
-              "x": 45,
-              "y": 70,
-              "z": 30,
-              "status": "working",
-              "subtitle": null,
-              "onSelect": null
-            },
-            {
-              "id": "photocraft",
-              "label": "PhotoCraft",
-              "uri": "neuron://local/apps/photocraft",
-              "kind": "studio",
-              "x": 125,
-              "y": -35,
-              "z": 20,
-              "status": "idle",
-              "subtitle": null,
-              "onSelect": null
-            },
-            {
-              "id": "filmcraft",
-              "label": "FilmCraft",
-              "uri": "neuron://local/apps/filmcraft",
-              "kind": "studio",
-              "x": -125,
-              "y": -30,
-              "z": -15,
-              "status": "idle",
-              "subtitle": null,
-              "onSelect": null
-            },
-            {
-              "id": "gallery",
-              "label": "UI Gallery",
-              "uri": "neuron://local/apps/gallery",
-              "kind": "ui",
-              "x": 85,
-              "y": -60,
-              "z": 25,
-              "status": "idle",
-              "subtitle": null,
-              "onSelect": null
-            },
-            {
-              "id": "creator",
-              "label": "Creator 3D Loop",
-              "uri": "neuron://local/apps/creator",
-              "kind": "studio",
-              "x": -90,
-              "y": -55,
-              "z": -25,
-              "status": "working",
-              "subtitle": null,
-              "onSelect": null
-            }
-          ],
-          "synapses": [
-            {
-              "fromId": "os",
-              "toId": "ino",
-              "signalLabel": "InoSend",
-              "active": true
-            },
-            {
-              "fromId": "ino",
-              "toId": "files",
-              "signalLabel": "FilesSearch",
-              "active": false
-            },
-            {
-              "fromId": "ino",
-              "toId": "markdraw",
-              "signalLabel": "MarkdrawPatchElements",
-              "active": true
-            },
-            {
-              "fromId": "ino",
-              "toId": "photocraft",
-              "signalLabel": "PhotoCraftEdit",
-              "active": true
-            },
-            {
-              "fromId": "ino",
-              "toId": "filmcraft",
-              "signalLabel": "FilmCraftEdit",
-              "active": false
-            },
-            {
-              "fromId": "os",
-              "toId": "creator",
-              "signalLabel": "CreatorInspect",
-              "active": true
-            }
-          ],
-          "selectedId": "os",
-          "pauseRotation": false,
-          "targetZoom": 1
-        },
-        {
-          "kind": "approvalCard",
-          "id": "smart-desktop-signal-1",
-          "title": "Live Smart App Signal",
-          "summary": "Smart Brief: 2 approvals waiting in neuron://local/os.confirmations/inbox",
-          "rows": [
-            {
-              "label": "Signal",
-              "oldValue": "Pending",
-              "newValue": "Opportunity Stage -> Closed Won",
-              "amount": "$420,000",
-              "warn": false
-            },
-            {
-              "label": "Inbox",
-              "oldValue": "local",
-              "newValue": "neuron://local/os.confirmations/inbox",
-              "amount": null,
-              "warn": false
-            }
-          ],
-          "valueLabel": "Value",
-          "systemName": "Ino",
-          "status": "pending",
-          "onApprove": {
-            "neuron": "apps/ino",
-            "operation": "approve-card",
-            "arguments": [
-              "card-1",
-              "true"
-            ]
-          },
-          "onReject": {
-            "neuron": "apps/ino",
-            "operation": "approve-card",
-            "arguments": [
-              "card-1",
-              "false"
-            ]
-          },
-          "sourceNeuronUri": "neuron://local/os.confirmations/inbox"
+          "gap": 12,
+          "padding": 0,
+          "extents": [
+            0,
+            360
+          ]
         }
       ],
-      "gap": 14,
-      "padding": 0
+      "gap": 12,
+      "padding": 0,
+      "extents": [
+        0,
+        68
+      ]
     }
   }
 }

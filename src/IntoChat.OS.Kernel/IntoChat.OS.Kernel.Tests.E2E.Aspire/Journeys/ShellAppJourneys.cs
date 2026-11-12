@@ -31,7 +31,8 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
             new("creator", "open", "{}", "open.json"),
             new("ino", "open", "{}", "open.json"),
             new("desktop", "open", "{}", "open.json"),
-            new("friends", "open", "{}", "open.json"),
+            new("data", "open", "{}", "open.json"),
+            new("markdraw", "open", "{}", "open.json"),
             new("photocraft", "open", "{}", "open.json"),
             new("filmcraft", "open", "{}", "open.json"),
         }.ToDictionary(j => j.App, StringComparer.Ordinal);
@@ -44,7 +45,8 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
         "creator",
         "ino",
         "desktop",
-        "friends",
+        "data",
+        "markdraw",
         "photocraft",
         "filmcraft",
     ];
@@ -65,7 +67,7 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
             JsonOptions);
         Assert.NotNull(expectedFixture?.Main);
 
-        var baselineRevision = await ReadViewRevisionAsync(journey.App, ct);
+        var baselineGeneration = await ReadGenerationAsync(journey.App, ct);
 
         using var postResponse = await host.Os.PostAsJsonAsync(
             $"/brains/{host.Scope}/apps/{journey.App}/request",
@@ -73,8 +75,17 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
             ct);
         Assert.Equal(HttpStatusCode.Accepted, postResponse.StatusCode);
 
-        var actualView = await PollPresentedViewAsync(journey.App, baselineRevision, ct);
-        var diff = ViewComparison.Diff(expectedFixture!.Main!, actualView);
+        var updatingFixtures = string.Equals(Environment.GetEnvironmentVariable("INTOCHAT_UPDATE_VIEW_FIXTURES"), "1", StringComparison.Ordinal);
+        var actualView = await PollMatchingOrStableViewAsync(journey.App, expectedFixture!.Main!, baselineGeneration, updatingFixtures, ct);
+        if (updatingFixtures && ViewComparison.Diff(expectedFixture.Main!, actualView) is not null)
+        {
+            var updated = expectedFixture with { Main = actualView };
+            var json = JsonSerializer.Serialize(updated, JsonOptions).Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n') + "\n";
+            await File.WriteAllTextAsync(fixturePath, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), ct);
+            return;
+        }
+
+        var diff = ViewComparison.Diff(expectedFixture.Main!, actualView);
         Assert.True(diff is null, diff);
     }
 
@@ -91,15 +102,16 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
             JsonOptions);
         Assert.NotNull(expectedFixture?.Main);
 
-        var baselineRevision = await ReadViewRevisionAsync(journey.App, ct);
+        var baselineGeneration = await ReadGenerationAsync(journey.App, ct);
+
         using var postResponse = await host.Os.PostAsJsonAsync(
             $"/brains/{host.Scope}/apps/{journey.App}/request",
             new { operation = journey.Operation, input = journey.Argument },
             ct);
         Assert.Equal(HttpStatusCode.Accepted, postResponse.StatusCode);
 
-        var actualView = await PollPresentedViewAsync(journey.App, baselineRevision, ct);
-        var driftedExpected = MutateFirstTextNode(expectedFixture!.Main!, "DRIFTED_TEXT_NODE");
+        var actualView = await PollMatchingOrStableViewAsync(journey.App, expectedFixture!.Main!, baselineGeneration, updatingFixtures: false, ct);
+        var driftedExpected = MutateFirstTextNode(expectedFixture.Main!, "DRIFTED_TEXT_NODE");
 
         var diff = ViewComparison.Diff(driftedExpected, actualView);
         Assert.NotNull(diff);
@@ -171,41 +183,77 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
         }
     }
 
-    internal async Task<long> ReadViewRevisionAsync(string app, CancellationToken ct)
+    private async Task<long> ReadGenerationAsync(string app, CancellationToken ct)
     {
-        using var response = await host.Os.GetAsync($"/brains/{host.Scope}/apps/{app}", ct);
-        if (response.StatusCode != HttpStatusCode.OK) { return 0L; }
-        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        return doc.RootElement.TryGetProperty("viewRevision", out var revElem) && revElem.TryGetInt64(out var rev)
-            ? rev
-            : 0L;
+        var name = $"{host.Scope}/apps/{app}/view";
+        using var response = await host.Os.GetAsync($"/brains/{host.Scope}/apps/node?kind=view&name={Uri.EscapeDataString(name)}", ct);
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            return 0;
+        }
+
+        var raw = await response.Content.ReadAsStringAsync(ct);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return 0;
+        }
+
+        using var doc = JsonDocument.Parse(raw);
+        return doc.RootElement.ValueKind == JsonValueKind.Object
+            && doc.RootElement.TryGetProperty("generation", out var genElem)
+            && genElem.TryGetInt64(out var gen)
+            ? gen
+            : 0;
     }
 
-    internal async Task<View> PollPresentedViewAsync(string app, long minExclusiveRevision, CancellationToken ct)
+    internal async Task<View> PollMatchingOrStableViewAsync(string app, View expected, long baselineGeneration, bool updatingFixtures, CancellationToken ct)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        var name = $"{host.Scope}/apps/{app}/view";
+        string? lastViewRaw = null;
+        var unchangedPolls = 0;
 
         while (true)
         {
             deadline.Token.ThrowIfCancellationRequested();
-            using var response = await host.Os.GetAsync($"/brains/{host.Scope}/apps/{app}", deadline.Token);
+            using var response = await host.Os.GetAsync($"/brains/{host.Scope}/apps/node?kind=view&name={Uri.EscapeDataString(name)}", deadline.Token);
             if (response.StatusCode == HttpStatusCode.OK)
             {
-                using var doc = await JsonDocument.ParseAsync(
-                    await response.Content.ReadAsStreamAsync(deadline.Token),
-                    cancellationToken: deadline.Token);
-                var currentRevision = doc.RootElement.TryGetProperty("viewRevision", out var revElem) && revElem.TryGetInt64(out var rev)
-                    ? rev
-                    : 0L;
-                if (currentRevision > minExclusiveRevision
-                    && doc.RootElement.TryGetProperty("view", out var viewElem)
-                    && viewElem.ValueKind == JsonValueKind.Object)
+                var raw = await response.Content.ReadAsStringAsync(deadline.Token);
+                if (!string.IsNullOrWhiteSpace(raw))
                 {
-                    var deserialized = JsonSerializer.Deserialize<View>(viewElem.GetRawText(), JsonOptions);
-                    if (deserialized is not null)
+                    using var doc = JsonDocument.Parse(raw);
+                    if (doc.RootElement.ValueKind == JsonValueKind.Object
+                        && doc.RootElement.TryGetProperty("view", out var viewElem)
+                        && viewElem.ValueKind == JsonValueKind.Object)
                     {
-                        return deserialized;
+                        var generation = doc.RootElement.TryGetProperty("generation", out var genElem) && genElem.TryGetInt64(out var gen) ? gen : 0;
+                        var viewRaw = viewElem.GetRawText();
+                        if (string.Equals(viewRaw, lastViewRaw, StringComparison.Ordinal))
+                        {
+                            unchangedPolls++;
+                        }
+                        else
+                        {
+                            lastViewRaw = viewRaw;
+                            unchangedPolls = 0;
+                        }
+
+                        var deserialized = JsonSerializer.Deserialize<View>(viewRaw, JsonOptions);
+                        if (deserialized is not null)
+                        {
+                            if (!updatingFixtures && ViewComparison.Diff(expected, deserialized) is null)
+                            {
+                                return deserialized;
+                            }
+
+                            var settledAfterChange = generation > baselineGeneration && unchangedPolls >= (updatingFixtures ? 10 : 5);
+                            if (settledAfterChange || unchangedPolls >= 60)
+                            {
+                                return deserialized;
+                            }
+                        }
                     }
                 }
             }

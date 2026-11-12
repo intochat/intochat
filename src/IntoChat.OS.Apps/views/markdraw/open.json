@@ -59,7 +59,8 @@
           "icon": "pen-tool",
           "action": "open:/work/architecture.markdraw",
           "selected": true,
-          "badge": "LIVE"
+          "badge": "LIVE",
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -68,7 +69,8 @@
           "icon": "pen-tool",
           "action": "open:/work/pipeline-flow.markdraw",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "divider",
@@ -81,7 +83,8 @@
           "icon": "cpu",
           "action": "open:/work/architecture.markdraw",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "navItem",
@@ -90,7 +93,8 @@
           "icon": "git-branch",
           "action": "open:/work/pipeline-flow.markdraw",
           "selected": false,
-          "badge": null
+          "badge": null,
+          "emit": null
         },
         {
           "kind": "collection",
@@ -163,59 +167,82 @@
               "children": [
                 {
                   "kind": "button",
+                  "key": "save-to-files",
                   "label": "Save to Files",
+                  "emit": {
+                    "owner": "app.markdraw",
+                    "signal": "markdraw.save",
+                    "args": {
+                      "Document": "/work/architecture.markdraw",
+                      "Content": null
+                    }
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "accent",
                   "style": "secondary",
                   "icon": "save",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/markdraw",
-                    "signal": "save",
-                    "args": "/work/architecture.markdraw"
-                  }
+                  "small": true
                 },
                 {
                   "kind": "button",
+                  "key": "export-excalidraw",
                   "label": "Export .excalidraw",
+                  "emit": {
+                    "owner": "app.markdraw",
+                    "signal": "markdraw.export",
+                    "args": {
+                      "Format": "excalidraw",
+                      "TargetPath": null
+                    }
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "file-json",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/markdraw",
-                    "signal": "export",
-                    "args": "excalidraw"
-                  }
+                  "small": true
                 },
                 {
                   "kind": "button",
+                  "key": "export-svg",
                   "label": "Export .svg",
+                  "emit": {
+                    "owner": "app.markdraw",
+                    "signal": "markdraw.export",
+                    "args": {
+                      "Format": "svg",
+                      "TargetPath": null
+                    }
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "image",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/markdraw",
-                    "signal": "export",
-                    "args": "svg"
-                  }
+                  "small": true
                 },
                 {
                   "kind": "button",
+                  "key": "diagram-crm-data",
                   "label": "Diagram CRM Data",
+                  "emit": {
+                    "owner": "app.markdraw",
+                    "signal": "markdraw.from-data",
+                    "args": {
+                      "Title": "Pipeline Opportunities by Amount",
+                      "ColumnsCsv": null,
+                      "RowsSummary": null,
+                      "SourceUri": null,
+                      "Document": null
+                    }
+                  },
+                  "intent": null,
                   "enabled": true,
                   "tone": "neutral",
                   "style": "secondary",
                   "icon": "bar-chart-2",
-                  "small": true,
-                  "emit": {
-                    "owner": "apps/markdraw",
-                    "signal": "from-data",
-                    "args": "Pipeline Opportunities by Amount"
-                  }
+                  "small": true
                 }
               ],
               "gap": 8,
