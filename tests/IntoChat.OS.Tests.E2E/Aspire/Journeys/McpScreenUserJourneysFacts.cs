@@ -5,8 +5,7 @@ using System.Text.Json;
 
 namespace IntoChat.OS.Kernel.Tests.E2E.Aspire.Journeys;
 
-[Collection(OsAppHostCollection.Name)]
-public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host)
+public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host) : IClassFixture<OsAppHostFixture>
 {
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
     private int _requestId;
