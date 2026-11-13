@@ -89,8 +89,11 @@ public sealed class OsAppHostFixture : IAsyncLifetime
         }
     }
 
-    public async Task Healthy(CancellationToken ct)
+    public Task Healthy(CancellationToken ct) => Healthy(Scope, ct);
+
+    public async Task Healthy(string scope, CancellationToken ct)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(scope);
         await App.ResourceNotifications.WaitForResourceHealthyAsync("OperatingSystem-a", ct);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(120));
@@ -104,7 +107,7 @@ public sealed class OsAppHostFixture : IAsyncLifetime
                 using var health = await Os.GetAsync("/health", deadline.Token);
                 if (health.IsSuccessStatusCode)
                 {
-                    using var appsResponse = await Os.GetAsync($"/brains/{Scope}/apps", deadline.Token);
+                    using var appsResponse = await Os.GetAsync($"/brains/{scope}/apps", deadline.Token);
                     if (appsResponse.IsSuccessStatusCode)
                     {
                         using var doc = await JsonDocument.ParseAsync(await appsResponse.Content.ReadAsStreamAsync(deadline.Token), cancellationToken: deadline.Token);

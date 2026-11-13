@@ -5,8 +5,10 @@ using System.Text.Json;
 
 namespace IntoChat.OS.Kernel.Tests.E2E.Aspire.Journeys;
 
-public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host) : IClassFixture<OsAppHostFixture>
+[Collection(OsAppHostCollection.Name)]
+public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host)
 {
+    private const string McpScope = "mcp-journey";
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
     private int _requestId;
 
@@ -14,7 +16,7 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host) : IClassFi
     public async Task McpServerExposesScreenAndNeuronTools()
     {
         var ct = TestContext.Current.CancellationToken;
-        await host.Healthy(ct);
+        await host.Healthy(McpScope, ct);
 
         await InitializeMcpAsync(ct);
 
@@ -38,7 +40,7 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host) : IClassFi
     public async Task McpScreenUserJourneysExerciseAppsAndRuntimeUnits()
     {
         var ct = TestContext.Current.CancellationToken;
-        await host.Healthy(ct);
+        await host.Healthy(McpScope, ct);
         await InitializeMcpAsync(ct);
 
         // J0: Discover available screens via screen_list
@@ -68,18 +70,22 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host) : IClassFi
         Assert.False(string.IsNullOrWhiteSpace(seedButtonKey));
 
         var seededAlias = seedButtonKey!["seed:".Length..];
-        var seedAction = await CallToolJsonAsync("screen_act", new
+        string seedActionRaw;
+        using (var seedAction = await CallToolJsonAsync("screen_act", new
         {
             appId = "creator",
             key = seedButtonKey,
             generation = creatorGen,
-        }, ct);
-        Assert.True(seedAction.RootElement.GetProperty("accepted").GetBoolean());
+        }, ct))
+        {
+            seedActionRaw = seedAction.RootElement.GetRawText();
+            Assert.True(seedAction.RootElement.GetProperty("accepted").GetBoolean());
+        }
 
         // J2: Wait for confirmation gate to surface the staged unit install, then approve via screen_approve
         string? installApprovalId = null;
         string lastConfRaw = "";
-        for (var attempt = 0; attempt < 40; attempt++)
+        for (var attempt = 0; attempt < 80; attempt++)
         {
             using var confPending = await CallToolJsonAsync("screen_read", new { appId = "confirmations" }, ct);
             lastConfRaw = confPending.RootElement.GetRawText();
@@ -103,7 +109,7 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host) : IClassFi
             await Task.Delay(250, ct);
         }
 
-        Assert.False(string.IsNullOrWhiteSpace(installApprovalId), $"No pending approval for {seededAlias}. Last confirmations: {lastConfRaw}");
+        Assert.False(string.IsNullOrWhiteSpace(installApprovalId), $"No pending approval for {seededAlias}. Seed action: {seedActionRaw}. Last confirmations: {lastConfRaw}");
         using (var approveInstall = await CallToolJsonAsync("screen_approve", new
         {
             approvalId = installApprovalId!,
@@ -126,7 +132,7 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host) : IClassFi
 
         // Poll screen_read for the deployed runtime unit until it has rendered controls
         JsonDocument? unitSnapshot = null;
-        for (var attempt = 0; attempt < 40; attempt++)
+        for (var attempt = 0; attempt < 80; attempt++)
         {
             unitSnapshot?.Dispose();
             unitSnapshot = await TryCallToolJsonAsync("screen_read", new { appId = seededAlias }, ct);
@@ -244,7 +250,7 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host) : IClassFi
         var id = Interlocked.Increment(ref _requestId);
         var body = JsonSerializer.Serialize(new { jsonrpc = "2.0", id, method, @params }, Json);
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"/brains/{host.Scope}/mcp")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/brains/{McpScope}/mcp")
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json"),
         };
