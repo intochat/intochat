@@ -319,24 +319,13 @@ public sealed class CreatorApp : Screen<CreatorState>
         try
         {
             var files = ShippedUnits.Files(alias);
-            await Get<ISynapseStudio>(SynapsesKey).DeployFiles(alias, files, new Dictionary<string, string>(StringComparer.Ordinal));
-
-            try
+            var deployed = await Get<ISynapseStudio>(SynapsesKey).DeployFiles(alias, files, new Dictionary<string, string>(StringComparer.Ordinal));
+            await Show(State with
             {
-                var inner = JsonSerializer.Serialize(new BuildInner
-                {
-                    Goal = $"seed shipped unit {alias}",
-                    Alias = alias,
-                    Existing = files.ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal),
-                }, JsonSerializerOptions.Web);
-                await Get<IFlows>(FlowsKey).Start(BuildFlow.Alias, ShippedUnits.Title(alias), null, inner);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                NullLogger.Instance.LogSwallowed(ex, "Flows neuron is optional during unit seeding.");
-            }
-
-            await Show(State with { Status = $"Deployed shipped unit {alias} ({ShippedUnits.Title(alias)})" });
+                Status = deployed.Ok
+                    ? $"Deployed shipped unit {alias} ({ShippedUnits.Title(alias)})"
+                    : $"Could not deploy {alias}: {deployed.Text}",
+            });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {

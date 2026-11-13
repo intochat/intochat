@@ -78,9 +78,11 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host) : IClassFi
 
         // J2: Wait for confirmation gate to surface the staged unit install, then approve via screen_approve
         string? installApprovalId = null;
+        string lastConfRaw = "";
         for (var attempt = 0; attempt < 40; attempt++)
         {
             using var confPending = await CallToolJsonAsync("screen_read", new { appId = "confirmations" }, ct);
+            lastConfRaw = confPending.RootElement.GetRawText();
             if (confPending.RootElement.TryGetProperty("pendingApprovals", out var approvals))
             {
                 foreach (var approval in approvals.EnumerateArray())
@@ -101,7 +103,7 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host) : IClassFi
             await Task.Delay(250, ct);
         }
 
-        Assert.False(string.IsNullOrWhiteSpace(installApprovalId));
+        Assert.False(string.IsNullOrWhiteSpace(installApprovalId), $"No pending approval for {seededAlias}. Last confirmations: {lastConfRaw}");
         using (var approveInstall = await CallToolJsonAsync("screen_approve", new
         {
             approvalId = installApprovalId!,
@@ -119,7 +121,7 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host) : IClassFi
             reason = "Duplicate approval guard",
         }, ct))
         {
-            Assert.False(duplicateApprove.RootElement.GetProperty("accepted").GetBoolean());
+            Assert.False(duplicateApprove.RootElement.GetProperty("accepted").GetBoolean(), $"Duplicate approve should be false: {duplicateApprove.RootElement.GetRawText()}");
         }
 
         // Poll screen_read for the deployed runtime unit until it has rendered controls
