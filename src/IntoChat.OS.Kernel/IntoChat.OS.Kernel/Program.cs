@@ -2,6 +2,7 @@ using IntoChat.OS.Aspire.Server;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Kernel;
+using IntoChat.OS.Mcp;
 using IntoChat.OS.Modules.Microsoft.Azure;
 using IntoChat.OS.Modules.Microsoft.Azure.Install;
 
@@ -25,6 +26,8 @@ builder.AddIntoChatOSServer(server =>
     if (!CloudHost.IsCloud(topology)) { return; }
     server.UseLicenseCheck(new CloudLicenseCheck()).ConfigureServices(CloudHost.Register);
 });
+builder.Services.AddIntoChatOSMcp();
 var app = builder.Build();
 app.MapIntoChatOSServer();
+app.MapIntoChatOSMcp();
 app.Run();

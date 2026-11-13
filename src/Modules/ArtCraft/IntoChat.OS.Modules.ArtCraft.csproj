@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>IntoChat.OS.Modules.ArtCraft</RootNamespace>
+    <Description>ArtCraft apps (PhotoCraft, FilmCraft): their MCP servers and web builds as brain capabilities.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+  </ItemGroup>
+</Project>

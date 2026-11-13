@@ -1,6 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <IsPackable>true</IsPackable>
-    <Description>IntoChat.OS configuration names and their key grammar, with no dependencies, for programs that configure a runtime without hosting one (deployments).</Description>
-  </PropertyGroup>
-</Project>

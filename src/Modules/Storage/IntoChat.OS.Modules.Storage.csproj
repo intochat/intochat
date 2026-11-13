@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>IntoChat.OS.Modules.LocalDisk</RootNamespace>
+    <Description>Local disk, VFS, and brain file storage connector.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Capabilities.Storage" />
+    <PackageReference Include="DigitalBrain.Runtime.Http" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+  </ItemGroup>
+</Project>

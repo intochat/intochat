@@ -42,8 +42,9 @@ public static class OperatingSystemModules
         // The kernel composition carries two product modules of its own: Orleans and the http@1 connector.
         if (type == typeof(IntoChat.OS.Modules.Microsoft.Orleans.OrleansModule)) { return true; }
         if (type == typeof(IntoChat.OS.Kernel.Composition.Capabilities.HttpModule)) { return true; }
+        if (type == typeof(IntoChat.OS.Authority.IdentityModule)) { return true; }
         var name = type.Assembly.GetName().Name ?? "";
-        return name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) || name.StartsWith("IntoChat.Cloud.", StringComparison.Ordinal);
+        return name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) || name.StartsWith("IntoChat.Cloud", StringComparison.Ordinal);
     }
 
     // Assemblies named by the Kernel dependency closure, not a directory listing of whatever sits beside the process.
@@ -66,12 +67,17 @@ public static class OperatingSystemModules
             catch (BadImageFormatException) { return; }
         }
 
-        var context = DependencyContext.Load(typeof(OperatingSystemModules).Assembly) ?? DependencyContext.Default;
+        var self = typeof(OperatingSystemModules).Assembly;
+        seen.Add(self.GetName().Name!);
+        found.Add(self);
+        queue.Enqueue(self);
+
+        var context = DependencyContext.Load(self) ?? DependencyContext.Default;
         if (context is not null)
         {
             foreach (var library in context.RuntimeLibraries) { Consider(new AssemblyName(library.Name)); }
         }
-        foreach (var reference in typeof(OperatingSystemModules).Assembly.GetReferencedAssemblies()) { Consider(reference); }
+        foreach (var reference in self.GetReferencedAssemblies()) { Consider(reference); }
         while (queue.TryDequeue(out var assembly))
         {
             foreach (var reference in assembly.GetReferencedAssemblies()) { Consider(reference); }
@@ -81,8 +87,9 @@ public static class OperatingSystemModules
 
     private static bool IsModuleAssembly(string? name)
         => name is not null && (name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
-            || name.StartsWith("IntoChat.Cloud.", StringComparison.Ordinal)
-            || name == "IntoChat.OS.Kernel.Composition");
+            || name.StartsWith("IntoChat.Cloud", StringComparison.Ordinal)
+            || name == "IntoChat.OS.Framework"
+            || name == "IntoChat.OS.Kernel");
 
     // The Windows edge: the composition plus desktop automation of the Windows machine the host runs on.
     // Only a host on Windows opts in; the portable composition never carries it.

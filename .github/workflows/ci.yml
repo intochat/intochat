@@ -127,11 +127,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      qdrant:
-        image: qdrant/qdrant:v1.12.1
-        ports:
-          - 6333:6333
-          - 6334:6334
     steps:
       - uses: actions/checkout@v7
 
@@ -199,9 +194,7 @@ jobs:
         run: dotnet restore src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj -v quiet
 
       - name: Test E2E
-        run: |
-          dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E/IntoChat.OS.Kernel.Tests.E2E.csproj -c Release --no-build -p:CodeGraphRefresh=false
-          dotnet test --project src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.Tests.E2E.Aspire/IntoChat.OS.Kernel.Tests.E2E.Aspire.csproj -c Release --no-build -p:CodeGraphRefresh=false
+        run: dotnet test --project tests/IntoChat.OS.Tests.E2E/IntoChat.OS.Tests.E2E.csproj -c Release --no-build -p:CodeGraphRefresh=false
 
   flutter:
     name: flutter

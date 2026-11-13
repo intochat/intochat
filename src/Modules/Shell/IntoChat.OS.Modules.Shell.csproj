@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>IntoChat.OS.Modules.Flutter</RootNamespace>
+    <Description>Shell workspace, screen gateway, view nodes, chat, and UI endpoints.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain.UI" />
+    <PackageReference Include="DigitalBrain.Capabilities.Compute" />
+    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Runtime.Http" />
+    <PackageReference Include="Microsoft.Orleans.Serialization.SystemTextJson" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../Catalog/IntoChat.OS.Modules.Catalog.csproj" />
+    <ProjectReference Include="../Circles/IntoChat.OS.Modules.Circles.csproj" />
+    <ProjectReference Include="../Playwright/IntoChat.OS.Modules.Playwright.csproj" />
+    <ProjectReference Include="../Azure/IntoChat.OS.Modules.Azure.csproj" />
+  </ItemGroup>
+</Project>

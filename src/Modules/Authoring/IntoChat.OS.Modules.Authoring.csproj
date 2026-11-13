@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>IntoChat.OS.Modules.Authoring</RootNamespace>
+    <Description>Authoring bounded context: stateless AuthorNeuron and BuildFlow compilation pipeline.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Capabilities.Compute" />
+    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Simulation" />
+    <PackageReference Include="DigitalBrain.UI" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+  </ItemGroup>
+</Project>

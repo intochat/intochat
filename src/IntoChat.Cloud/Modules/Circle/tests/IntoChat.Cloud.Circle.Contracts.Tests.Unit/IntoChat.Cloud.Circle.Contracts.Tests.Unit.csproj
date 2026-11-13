@@ -1,5 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="../../Contracts/IntoChat.Cloud.Circle.Contracts/IntoChat.Cloud.Circle.Contracts.csproj" />
-  </ItemGroup>
-</Project>

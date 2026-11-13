@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain.Testing" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="TngTech.ArchUnitNET.xUnitV3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../src/IntoChat.OS.Desktop/DesktopKeyBackup.cs" Link="Desktop/DesktopKeyBackup.cs" />
+    <None Include="LocalSetup/fixtures/*.json" CopyToOutputDirectory="PreserveNewest" LinkBase="fixtures" />
+    <Content Include="../../Assets/wire/*.json" Link="wire/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Modules/Windows/hostile-paths.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
+    <ProjectReference Include="../../src/IntoChat.Cloud/IntoChat.Cloud.csproj" />
+    <ProjectReference Include="../../src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
+    <ProjectReference Include="../../src/Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
+    <ProjectReference Include="../../src/Modules/Authoring/IntoChat.OS.Modules.Authoring.csproj" />
+    <ProjectReference Include="../../src/Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />
+    <ProjectReference Include="../../src/Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
+    <ProjectReference Include="../../src/Modules/Circles/IntoChat.OS.Modules.Circles.csproj" />
+    <ProjectReference Include="../../src/Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
+    <ProjectReference Include="../../src/Modules/Conversations/IntoChat.OS.Modules.Conversations.csproj" />
+    <ProjectReference Include="../../src/Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
+    <ProjectReference Include="../../src/Modules/Google/IntoChat.OS.Modules.Google.csproj" />
+    <ProjectReference Include="../../src/Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+    <ProjectReference Include="../../src/Modules/Playwright/IntoChat.OS.Modules.Playwright.csproj" />
+    <ProjectReference Include="../../src/Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
+    <ProjectReference Include="../../src/Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" />
+    <ProjectReference Include="../../src/Modules/Salesforce/IntoChat.OS.Modules.Salesforce.csproj" />
+    <ProjectReference Include="../../src/Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
+    <ProjectReference Include="../../src/Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
+    <ProjectReference Include="../../src/Modules/Time/IntoChat.OS.Modules.Time.csproj" />
+    <ProjectReference Include="../../src/Modules/Windows/IntoChat.OS.Modules.Windows.csproj" />
+    <ProjectReference Include="../../src/Modules/Work/IntoChat.OS.Modules.Work.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Tests.Support/IntoChat.OS.Tests.Support.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>IntoChat.OS.Modules.Microsoft.Playwright</RootNamespace>
+    <Description>Playwright browser automation connector.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+    <PackageReference Include="Microsoft.Playwright" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+  </ItemGroup>
+</Project>

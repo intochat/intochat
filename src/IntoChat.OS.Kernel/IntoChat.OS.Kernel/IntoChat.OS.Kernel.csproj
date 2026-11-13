@@ -1,57 +1,62 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
-    <!-- Local runs write grain state under this folder. -->
     <DefaultItemExcludes>$(DefaultItemExcludes);.intochat-os/**</DefaultItemExcludes>
-    <NoWarn>$(NoWarn);CA2007</NoWarn>
+    <NoWarn>$(NoWarn);CA2007;CS1591;ORLEANSEXP005</NoWarn>
     <IsPackable>true</IsPackable>
     <PackageId>IntoChat.OS.Kernel</PackageId>
-    <Description>The operating system: the named module composition, the OS apps, and the host that runs them.</Description>
+    <Description>The operating system: the named module composition, the OS apps, in-process MCP, and the host that runs them.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.Unit" />
-    <InternalsVisibleTo Include="IntoChat.OS.Kernel.Tests.Integration" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="../../IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Aspire/IntoChat.OS.Aspire.Server/IntoChat.OS.Aspire.Server.csproj" />
+    <PackageReference Include="Aspire.Azure.Data.Tables" />
+    <PackageReference Include="Aspire.Azure.Storage.Blobs" />
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Capabilities.Compute" />
+    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Capabilities.Http" />
+    <PackageReference Include="DigitalBrain.Graph" />
+    <PackageReference Include="DigitalBrain.Identity.Local" />
+    <PackageReference Include="DigitalBrain.Runtime.Http" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans.Azure" />
+    <PackageReference Include="DigitalBrain.Runtime.Synapses" />
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Orleans.Clustering.AzureStorage" />
+    <PackageReference Include="Microsoft.Orleans.Dashboard" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Orleans.Serialization.SystemTextJson" />
+    <PackageReference Include="Microsoft.Orleans.Server" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Core first-party OS modules hosted in this repository. -->
-    <ProjectReference Include="../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.csproj"
-                      Exclude="../../IntoChat.OS.Modules/**/tests/**;
-                               ../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Aspire.Hosting.csproj;
-                               ../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Testing.csproj;
-                               ../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Contracts.csproj;
-                               ../../IntoChat.OS.Modules/**/IntoChat.OS.Modules.*.Sandbox.csproj" />
-    <!-- External modules from IntoChat.Modules consumed via NuGet. -->
-    <ProjectReference Include="../../IntoChat.OS.Modules/ArtCraft/ArtCraft/src/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/ClickHouse/src/IntoChat.OS.Modules.ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Auth/src/IntoChat.OS.Modules.Google.Auth/IntoChat.OS.Modules.Google.Auth.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Drive/src/IntoChat.OS.Modules.Google.Drive/IntoChat.OS.Modules.Google.Drive.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Google/Gmail/src/IntoChat.OS.Modules.Google.Gmail/IntoChat.OS.Modules.Google.Gmail.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/LocalDisk/src/IntoChat.OS.Modules.LocalDisk/IntoChat.OS.Modules.LocalDisk.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/ModelContextProtocol/Mcp/src/IntoChat.OS.Modules.Mcp/IntoChat.OS.Modules.Mcp.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Azure/src/IntoChat.OS.Modules.Microsoft.Azure/IntoChat.OS.Modules.Microsoft.Azure.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/GitHub/src/IntoChat.OS.Modules.Microsoft.GitHub/IntoChat.OS.Modules.Microsoft.GitHub.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Orleans/Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts/IntoChat.OS.Modules.Microsoft.Orleans.Contracts.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Playwright/src/IntoChat.OS.Modules.Microsoft.Playwright/IntoChat.OS.Modules.Microsoft.Playwright.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Roslyn/src/IntoChat.OS.Modules.Microsoft.Roslyn/IntoChat.OS.Modules.Microsoft.Roslyn.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Microsoft/Windows/src/IntoChat.OS.Modules.Microsoft.Windows/IntoChat.OS.Modules.Microsoft.Windows.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Postgres/src/IntoChat.OS.Modules.Postgres/IntoChat.OS.Modules.Postgres.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Qdrant/src/IntoChat.OS.Modules.Qdrant/IntoChat.OS.Modules.Qdrant.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Salesforce/src/IntoChat.OS.Modules.Salesforce/IntoChat.OS.Modules.Salesforce.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Supabase/src/IntoChat.OS.Modules.Supabase/IntoChat.OS.Modules.Supabase.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/Time/src/IntoChat.OS.Modules.Time/IntoChat.OS.Modules.Time.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Modules/IntoChat.OS/Tools/src/IntoChat.OS.Modules.Tools/IntoChat.OS.Modules.Tools.csproj" />
-    <!-- Cloud modules. Each declares LoadsUnder; the host skips a module whose LoadsUnder returns false. -->
-    <ProjectReference Include="../../IntoChat.Cloud/Modules/Auth/src/IntoChat.Cloud.Auth/IntoChat.Cloud.Auth.csproj" />
-    <ProjectReference Include="../../IntoChat.Cloud/Modules/Blob/src/IntoChat.Cloud.Blob/IntoChat.Cloud.Blob.csproj" />
-    <ProjectReference Include="../../IntoChat.Cloud/Modules/Circle/src/IntoChat.Cloud.Circle.Server/IntoChat.Cloud.Circle.Server.csproj" />
-    <ProjectReference Include="../../IntoChat.Cloud/Modules/Hosting/src/IntoChat.Cloud.Hosting/IntoChat.Cloud.Hosting.csproj" />
-    <ProjectReference Include="../../IntoChat.Cloud/Modules/Lobby/src/IntoChat.Cloud.Lobby/IntoChat.Cloud.Lobby.csproj" />
-    <ProjectReference Include="../../IntoChat.Cloud/Modules/Localization/src/IntoChat.Cloud.Localization/IntoChat.Cloud.Localization.csproj" />
-    <ProjectReference Include="../../IntoChat.Cloud/Modules/Mail/src/IntoChat.Cloud.Mail/IntoChat.Cloud.Mail.csproj" />
-    <ProjectReference Include="../../IntoChat.Cloud/Modules/Organisations/src/IntoChat.Cloud.Organisations/IntoChat.Cloud.Organisations.csproj" />
+    <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
+    <ProjectReference Include="../../IntoChat.Cloud/IntoChat.Cloud.csproj" />
+    <ProjectReference Include="../../Modules/AI/IntoChat.OS.Modules.AI.csproj" />
+    <ProjectReference Include="../../Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
+    <ProjectReference Include="../../Modules/Authoring/IntoChat.OS.Modules.Authoring.csproj" />
+    <ProjectReference Include="../../Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />
+    <ProjectReference Include="../../Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
+    <ProjectReference Include="../../Modules/Circles/IntoChat.OS.Modules.Circles.csproj" />
+    <ProjectReference Include="../../Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
+    <ProjectReference Include="../../Modules/Conversations/IntoChat.OS.Modules.Conversations.csproj" />
+    <ProjectReference Include="../../Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
+    <ProjectReference Include="../../Modules/Google/IntoChat.OS.Modules.Google.csproj" />
+    <ProjectReference Include="../../Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+    <ProjectReference Include="../../Modules/Playwright/IntoChat.OS.Modules.Playwright.csproj" />
+    <ProjectReference Include="../../Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
+    <ProjectReference Include="../../Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" />
+    <ProjectReference Include="../../Modules/Salesforce/IntoChat.OS.Modules.Salesforce.csproj" />
+    <ProjectReference Include="../../Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
+    <ProjectReference Include="../../Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
+    <ProjectReference Include="../../Modules/Time/IntoChat.OS.Modules.Time.csproj" />
+    <ProjectReference Include="../../Modules/Windows/IntoChat.OS.Modules.Windows.csproj" />
+    <ProjectReference Include="../../Modules/Work/IntoChat.OS.Modules.Work.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.E2E" />
+    <InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" />
   </ItemGroup>
 </Project>

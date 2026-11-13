@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>IntoChat.OS.Modules.Microsoft.GitHub</RootNamespace>
+    <Description>GitHub repository, PR, and issue capability connector.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
+    <PackageReference Include="Octokit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+  </ItemGroup>
+</Project>

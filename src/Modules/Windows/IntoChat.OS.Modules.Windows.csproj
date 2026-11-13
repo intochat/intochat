@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>IntoChat.OS.Modules.Microsoft.Windows</RootNamespace>
+    <Description>A Windows PC as a connection: its files and console, run only on that machine and inside allowed roots.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Identity.Local" />
+    <PackageReference Include="DigitalBrain.Runtime.Http" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+  </ItemGroup>
+</Project>

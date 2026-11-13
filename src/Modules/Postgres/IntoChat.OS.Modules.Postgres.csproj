@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>IntoChat.OS.Modules.Postgres</RootNamespace>
+    <Description>PostgreSQL transactional storage connector.</Description>
+    <NoWarn>$(NoWarn);CA1812;DB0033</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Capabilities.Storage" />
+    <PackageReference Include="DigitalBrain.Runtime.Http" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+    <PackageReference Include="Npgsql" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../Catalog/IntoChat.OS.Modules.Catalog.csproj" />
+  </ItemGroup>
+</Project>

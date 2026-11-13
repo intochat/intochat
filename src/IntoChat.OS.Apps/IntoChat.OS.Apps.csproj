@@ -5,24 +5,24 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="IntoChat.OS.Apps.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.E2E" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="DigitalBrain.Capabilities.Storage" />
     
     <PackageReference Include="DigitalBrain.UI" />
     <PackageReference Include="DigitalBrain.Graph" />
-    <PackageReference Include="Microsoft.Orleans.Sdk" />
-    <ProjectReference Include="../IntoChat.OS.Modules/Google/Flutter/Contracts/IntoChat.OS.Modules.Flutter.Contracts/IntoChat.OS.Modules.Flutter.Contracts.csproj" />
-    <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Apps/Contracts/IntoChat.OS.Modules.Apps.Contracts/IntoChat.OS.Modules.Apps.Contracts.csproj" />
-    <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Apps/src/IntoChat.OS.Modules.Apps/IntoChat.OS.Modules.Apps.csproj" />
-    <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Flame/Contracts/IntoChat.OS.Modules.Flame.Contracts/IntoChat.OS.Modules.Flame.Contracts.csproj" />
-    <ProjectReference Include="../IntoChat.OS.Modules/AI/Contracts/IntoChat.OS.Modules.AI.Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
-    <ProjectReference Include="../IntoChat.OS.Modules/ArtCraft/ArtCraft/src/IntoChat.OS.Modules.ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
-    <ProjectReference Include="../IntoChat.OS.Modules/LocalDisk/src/IntoChat.OS.Modules.LocalDisk/IntoChat.OS.Modules.LocalDisk.csproj" />
-    <ProjectReference Include="../IntoChat.OS.Modules/ModelContextProtocol/Mcp/Contracts/IntoChat.OS.Modules.Mcp.Contracts/IntoChat.OS.Modules.Mcp.Contracts.csproj" />
-    <ProjectReference Include="../IntoChat.OS.Modules/Microsoft/Aspire/Contracts/IntoChat.OS.Modules.Microsoft.Aspire.Contracts/IntoChat.OS.Modules.Microsoft.Aspire.Contracts.csproj" />
-    <ProjectReference Include="../IntoChat.OS.Modules/IntoChat.OS/Tools/Contracts/IntoChat.OS.Modules.Tools.Contracts/IntoChat.OS.Modules.Tools.Contracts.csproj" />
+    <ProjectReference Include="../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
+    <ProjectReference Include="../Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
+    <ProjectReference Include="../Modules/AI/IntoChat.OS.Modules.AI.csproj" />
+    <ProjectReference Include="../Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
+    <ProjectReference Include="../Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
+    <ProjectReference Include="../Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+    <ProjectReference Include="../Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Ino/ino-instructions.md" LogicalName="IntoChat.OS.Apps.Ino.ino-instructions.md" />

@@ -1,6 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="../../src/IntoChat.OS.Modules.Microsoft.Roslyn/IntoChat.OS.Modules.Microsoft.Roslyn.csproj" />
-  </ItemGroup>
-  <ItemGroup><PackageReference Include="DigitalBrain.Testing" /></ItemGroup>
-</Project>

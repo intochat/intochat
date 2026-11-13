@@ -1,7 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><RootNamespace>IntoChat.OS.LocalSetup.Tests.Unit</RootNamespace></PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="../IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" />
-    <None Include="fixtures/*.json" CopyToOutputDirectory="PreserveNewest" LinkBase="fixtures" />
-  </ItemGroup>
-</Project>

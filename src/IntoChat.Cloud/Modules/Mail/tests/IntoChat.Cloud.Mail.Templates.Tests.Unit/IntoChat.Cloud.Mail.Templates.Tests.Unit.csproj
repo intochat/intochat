@@ -1,5 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="../../src/IntoChat.Cloud.Mail.Templates/IntoChat.Cloud.Mail.Templates.csproj" />
-  </ItemGroup>
-</Project>

@@ -14,8 +14,7 @@ switch (args)
 // The deployment: IntoChatOS:Topology picks models and storage, module enablement picks hosting (DeploymentProfile).
 var profile = DeploymentProfile.From(builder);
 var os = builder.AddIntoChatOS("Modules", profile, IntoChatOSHostingOptions.Named(builder.Configuration, "os"));
-var kernel = os.AddKernel<Projects.IntoChat_OS_Kernel>(profile);
-os.AddMcp<Projects.IntoChat_OS_Mcp>(profile, kernel);
+os.AddKernel<Projects.IntoChat_OS_Kernel>(profile);
 
 builder.Build().Run();
 return 0;

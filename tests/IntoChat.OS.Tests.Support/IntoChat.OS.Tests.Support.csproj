@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <NoWarn>$(NoWarn);DB0045</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.UI" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../../src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
+  </ItemGroup>
+</Project>

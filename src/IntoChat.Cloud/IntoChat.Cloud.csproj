@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <IntoChatOSContractsHost>true</IntoChatOSContractsHost>
+    <RootNamespace>IntoChat.Cloud</RootNamespace>
+    <Description>IntoChat Cloud modules: Auth, Blob storage, Circle relay, Hosting, Lobby, Localization, Mail, and Organisations.</Description>
+    <NoWarn>$(NoWarn);CS1591;ORLEANSEXP005</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Azure.Communication.Email" />
+    <PackageReference Include="Azure.Storage.Blobs" />
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Capabilities.Identity" />
+    <PackageReference Include="DigitalBrain.Capabilities.Secrets" />
+    <PackageReference Include="DigitalBrain.Capabilities.Storage" />
+    <PackageReference Include="DigitalBrain.Runtime.Http" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+    <PackageReference Include="DigitalBrain.UI" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
+    <PackageReference Include="Otp.NET" />
+    <PackageReference Include="QRCoder" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../Modules/Circles/IntoChat.OS.Modules.Circles.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Localization/Tables/*.json" />
+    <EmbeddedResource Include="Mail/Templates/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="IntoChat.OS.Kernel" />
+    <InternalsVisibleTo Include="IntoChat.Cloud.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
+    <InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" />
+  </ItemGroup>
+</Project>
