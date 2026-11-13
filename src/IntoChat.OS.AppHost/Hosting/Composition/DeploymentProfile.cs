@@ -100,6 +100,7 @@ public sealed record DeploymentProfile
         // All 17 ArtCraft studios (including PhotoCraft and FilmCraft) are served directly from the Kernel over /artcraft/{id}/*;
         // no standalone Nginx containers are required when the ArtCraft MCP module is disabled.
         if (IsEnabled("playwright")) { os = os.WithModule<PlaywrightModule, PlaywrightModuleOptions>(playwright => playwright.AppOrigins = ArtCraftModuleOptions.HostedOrigins); }
+        if (IsEnabled(SandboxModuleHosting.ModuleName)) { os = os.WithHosting<SandboxModuleHosting>(); }
         return os;
     }
 

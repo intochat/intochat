@@ -20,7 +20,18 @@ public sealed class VocabularyRingFacts
 
     // IBrainObserver is the ratified script-visible kernel slice (kernel design Q8). ILogic<> is what a rule
     // implements (spec 2026-10-10 section 6): like Synapse, a shape scripts build on, not one a contract carries.
-    private static readonly Type[] Roots = [typeof(IBrain), typeof(ILogic<>), typeof(ISignalWatch)];
+    private static readonly Type[] Roots =
+    [
+        typeof(IBrain),
+        typeof(ILogic<>),
+        typeof(ISignalWatch),
+        typeof(IntoChat.Sdk.IBrain),
+        typeof(IntoChat.Sdk.IFolder),
+        typeof(IntoChat.Sdk.INotifications),
+        typeof(IntoChat.Sdk.IAi),
+        typeof(IntoChat.Sdk.ITables),
+        typeof(IntoChat.Sdk.ITableHandle),
+    ];
 
     // The Contracts ring: IntoChat.OS plus every production assembly whose IntoChat.OS references stay
     // inside the ring (module *.Contracts projects). Their neuron contracts, signals and wire exceptions
@@ -36,6 +47,7 @@ public sealed class VocabularyRingFacts
         [typeof(NeuronAliases)] = "A type's effective alias across [NeuronAlias] (DigitalBrain.Contracts) and the Orleans [Alias]; the Orleans half keeps it out of the core package (03-03).",
         [typeof(NeuronKeys)] = "Canonical '{brain}/{key}' neuron key formatting across OS modules (phase 3 Task 6).",
         [typeof(IConnectionHosts)] = "The http@1 allow-list port the kernel serves and the build flow matches slot hosts by (units Task 15); a host service, not vocabulary.",
+        [typeof(IntoChat.Sdk.BrainApp<,>)] = "Idiomatic authoring base class in IntoChat.Sdk hosted inside IntoChat.OS.Sandbox.",
 
     };
 
@@ -43,7 +55,7 @@ public sealed class VocabularyRingFacts
     // It is not vocabulary a contract carries, so it is judged by clause (g) instead of reachability.
     private const string RuntimeNamespace = "IntoChat.OS.Runtime";
 
-    private static readonly string[] Namespaces = ["IntoChat.OS", RuntimeNamespace];
+    private static readonly string[] Namespaces = ["IntoChat.OS", RuntimeNamespace, "IntoChat.Sdk"];
 
     [Fact]
     public void EveryPublicVocabularyTypeIsANeuronContractASignalOrAShapeTheyCarry()

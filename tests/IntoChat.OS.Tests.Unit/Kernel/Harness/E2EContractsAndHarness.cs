@@ -120,10 +120,10 @@ public sealed class TelemetryFlushBarrier : IDisposable
 
     public TelemetryFlushBarrier()
     {
-        _tracerProvider = Sdk.CreateTracerProviderBuilder()
+        _tracerProvider = OpenTelemetry.Sdk.CreateTracerProviderBuilder()
             .AddSource(TelemetryExportBarrier.SourceName)
             .Build();
-        _meterProvider = Sdk.CreateMeterProviderBuilder()
+        _meterProvider = OpenTelemetry.Sdk.CreateMeterProviderBuilder()
             .Build();
     }
 

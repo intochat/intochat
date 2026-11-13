@@ -161,7 +161,9 @@ public static class GrantRules
         // The csharp runtime gives each app program its own signal session, runtime.session/{brain}/csharp/{app key}.
         var appKey = ownPrefix2 ?? ownPrefix1;
         var ownSession = string.Equals(target, $"runtime.session/{caller.BrainId}/csharp/{appKey}", StringComparison.Ordinal);
-        if (!isAgent && (ownSession || IsOwn(target) || typeEnd > 0 && IsOwn(target[(typeEnd + 1)..])))
+        var ownNotificationEmit = string.Equals(target, $"notifications.inbox/{caller.BrainId}/inbox", StringComparison.Ordinal)
+            && IsNotificationEmitOperation(request.Operation);
+        if (!isAgent && (ownSession || ownNotificationEmit || IsOwn(target) || typeEnd > 0 && IsOwn(target[(typeEnd + 1)..])))
         {
             return CallDecision.Allow();
         }
@@ -300,4 +302,11 @@ public static class GrantRules
             && string.Equals(grant.ConversationId, caller.ConversationId, StringComparison.Ordinal),
         _ => false,
     };
+
+    private static bool IsNotificationEmitOperation(string? operation)
+        => !string.IsNullOrWhiteSpace(operation)
+            && (string.Equals(operation, "SendAsync", StringComparison.Ordinal)
+                || string.Equals(operation, "NotifyAsync", StringComparison.Ordinal)
+                || operation.EndsWith(".SendAsync", StringComparison.Ordinal)
+                || operation.EndsWith(".NotifyAsync", StringComparison.Ordinal));
 }

@@ -85,13 +85,14 @@ public static class InProcessCallerScope
         return new KernelScope(ambient, stamped, inProcess);
     }
 
-    public static IDisposable EnterApp(string brainId, string appKey)
+    public static IDisposable EnterApp(string brainId, string appKey, string? accountId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
         ArgumentException.ThrowIfNullOrWhiteSpace(appKey);
+        var resolvedAccountId = string.IsNullOrWhiteSpace(accountId) ? brainId : accountId;
         var app = CapabilityCaller.App(appKey) with
         {
-            AccountId = brainId,
+            AccountId = resolvedAccountId,
             BrainId = brainId,
         };
         var inProcess = Enter();

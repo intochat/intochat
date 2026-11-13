@@ -27,10 +27,81 @@ internal static class AppsEndpoints
     public sealed record RollbackRequest(string Version);
     public sealed record RequestBody(string? Operation, string? Input);
     public sealed record UpdateBody(string? Consent);
+    public sealed record SignalDispatchRequest(string Signal, string? PayloadJson);
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
+
+        apps.MapGet("/packages", () => Results.Ok(ShippedPackages.All));
+
+        apps.MapPost("/packages/compile", (
+            AppPackage package,
+            [FromServices] AppPackageCompiler compiler,
+            [FromServices] SlotResolver slots,
+            CancellationToken ct) => Respond(async () =>
+        {
+            ArgumentNullException.ThrowIfNull(package);
+            var compiled = compiler.Compile(package);
+            if (!compiled.Succeeded || compiled.EnrichedPackage is null)
+            {
+                return Results.UnprocessableEntity(new
+                {
+                    succeeded = false,
+                    errors = compiled.Errors,
+                    package = (AppPackage?)null,
+                    slots = (SlotResolutionResult?)null,
+                });
+            }
+
+            var resolution = await slots.ResolveAsync(BrainScope.CurrentId(), compiled.EnrichedPackage, cancellationToken: ct).ConfigureAwait(false);
+            return Results.Ok(new
+            {
+                succeeded = true,
+                errors = Array.Empty<string>(),
+                package = compiled.EnrichedPackage,
+                slots = resolution,
+            });
+        }));
+
+        apps.MapPost("/{name}/command/{command}", async (
+            string name,
+            string command,
+            HttpRequest httpRequest,
+            [FromServices] ISandboxRuntimeBridge bridge,
+            CancellationToken ct) =>
+        {
+            using var reader = new StreamReader(httpRequest.Body);
+            var payload = await reader.ReadToEndAsync(ct).ConfigureAwait(false);
+            var result = await bridge.DispatchCommandAsync(
+                BrainScope.CurrentId(),
+                name,
+                command,
+                string.IsNullOrWhiteSpace(payload) ? null : payload,
+                ct).ConfigureAwait(false);
+            return result.Error is { Length: > 0 }
+                ? Results.Conflict(result)
+                : Results.Ok(result);
+        });
+
+        apps.MapPost("/{name}/signal", (
+            string name,
+            SignalDispatchRequest request,
+            [FromServices] ISandboxRuntimeBridge bridge,
+            CancellationToken ct) => Respond(async () =>
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            ArgumentException.ThrowIfNullOrWhiteSpace(request.Signal);
+            var result = await bridge.DispatchSignalAsync(
+                BrainScope.CurrentId(),
+                name,
+                request.Signal,
+                string.IsNullOrWhiteSpace(request.PayloadJson) ? "{}" : request.PayloadJson,
+                ct).ConfigureAwait(false);
+            return result.Error is { Length: > 0 }
+                ? Results.Conflict(result)
+                : Results.Ok(result);
+        }));
 
         apps.MapGet("", (INeuronProxies brain, IBrainObserver kernel, [FromServices] MarketplaceView marketplace, CancellationToken ct) => Respond(async () =>
         {

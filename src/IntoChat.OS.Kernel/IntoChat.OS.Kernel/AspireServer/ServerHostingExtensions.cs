@@ -26,6 +26,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
 using Orleans.Hosting;
+using Orleans.Serialization;
 using TopologyHosting = DigitalBrain.Runtime.Orleans.TopologyHosting;
 
 namespace IntoChat.OS.Aspire.Server;
@@ -86,9 +87,11 @@ public static class ServerHostingExtensions
         // signals (the brain neuron's Created, Activated and instance announcements, 06-08) live in IntoChat.OS, and every
         // connector's connection signals (ConnectionConnected and the rest, 06-08) in IntoChat.OS.Connections.
         var signalAssemblies = neuronModules.Select(static module => module.Assembly)
-            .Concat(modules.Where(static module => module.Neurons is not null).Select(static module => module.Contracts).OfType<System.Reflection.Assembly>())
+            .Concat(modules.Select(static module => module.Type.Assembly))
+            .Concat(modules.Select(static module => module.Contracts).OfType<System.Reflection.Assembly>())
             .Append(typeof(DigitalBrain.Signal).Assembly)
             .Append(typeof(IBrain).Assembly)
+            .Append(typeof(IntoChat.Sdk.FileChanged).Assembly)
             .Append(typeof(DigitalBrain.Capabilities.Connections.IConnection).Assembly)
             // The Authority's connection requests publish ConnectionsChanged and ConnectionRequested (06-08).
             .Append(typeof(DigitalBrain.Capabilities.Connections.Requests.IConnectionRequests).Assembly)
@@ -107,6 +110,7 @@ public static class ServerHostingExtensions
             // The topology first; it runs the host-bound cluster store (BrainLog) last, then the legacy store and journal of
             // the unmigrated Framework neurons compose over the same logs, then the modules.
             TopologyHosting.ConfigureTopologySilo(silo);
+            silo.Services.AddSerializer(serializer => serializer.AddAssembly(typeof(ServerHostingExtensions).Assembly));
             silo.AddStartupTask(static (provider, cancellationToken) =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -142,6 +146,17 @@ public static class ServerHostingExtensions
             }
             OsModule.HostIndependents(silo.Services, silo.Configuration, neuronModules, modules);
         });
+        builder.Services.Configure<IntoChat.OS.Kernel.Sandbox.SandboxOptions>(
+            builder.Configuration.GetSection(
+                DigitalBrain.Modules.Configuration.ModuleConfiguration.ModuleOptionsSection(
+                    IntoChat.OS.Kernel.Sandbox.SandboxOptions.SectionName)));
+        builder.Services.AddHttpClient("SandboxWorker");
+        builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.AppTokenService>();
+        builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.SdkAiAdapter>();
+        builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.SdkTablesAdapter>();
+        builder.Services.AddSingleton<IntoChat.OS.Kernel.Sandbox.HttpSandboxRuntimeBridge>();
+        builder.Services.Replace(ServiceDescriptor.Singleton<IntoChat.OS.Modules.Apps.ISandboxRuntimeBridge>(
+            static sp => sp.GetRequiredService<IntoChat.OS.Kernel.Sandbox.HttpSandboxRuntimeBridge>()));
         // Storage, clustering and reminders are the topology's; the platform composes over whatever it registered.
         builder.AddIntoChatOSPlatform();
         return builder;
@@ -160,6 +175,7 @@ public static class ServerHostingExtensions
         if (app.Services.GetRequiredService<IntoChatOSServerBuilder>().Dashboard) { app.MapOrleansDashboard(); }
         // /health, /ready and /alive (ServiceDefaults.HealthProbes): deployments and the YARP front probe them.
         app.MapDefaultEndpoints();
+        IntoChat.OS.Kernel.Sandbox.SandboxEdgeEndpoints.Map(app);
         app.MapIntoChatOSModules();
         app.MapIntoChatOSPlatform();
         return app;

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <Description>Isolated container worker executing compiled user apps via IntoChatClient.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\IntoChat.OS\IntoChat.OS.csproj" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
+  </ItemGroup>
+</Project>

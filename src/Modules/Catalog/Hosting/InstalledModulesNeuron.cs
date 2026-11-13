@@ -28,6 +28,11 @@ public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : D
         var rows = new List<InstalledModule>();
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
+            if (assembly.IsDynamic)
+            {
+                continue;
+            }
+
             Type[] types;
             try { types = assembly.GetTypes(); }
             catch (ReflectionTypeLoadException error) { types = [.. error.Types.Where(type => type is not null)!]; }
@@ -35,7 +40,15 @@ public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : D
             foreach (var type in types)
             {
                 if (type is not { IsClass: true, IsAbstract: false } || type.ContainsGenericParameters) { continue; }
-                if (type.GetCustomAttribute<DigitalBrain.Modules.ModuleAttribute>(inherit: false) is null) { continue; }
+                try
+                {
+                    if (type.GetCustomAttribute<DigitalBrain.Modules.ModuleAttribute>(inherit: false) is null) { continue; }
+                }
+                catch (FileLoadException error)
+                {
+                    _ = error.Message;
+                    continue;
+                }
                 if (!typeof(DigitalBrain.Modules.Module).IsAssignableFrom(type)) { continue; }
                 DigitalBrain.Modules.ModuleManifest manifest;
                 try { manifest = DigitalBrain.Modules.ModuleManifest.Of(type); }

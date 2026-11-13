@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="../IntoChat.OS.Tests.Support/IntoChat.OS.Tests.Support.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Sandbox/IntoChat.OS.Sandbox.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
@@ -36,6 +37,7 @@
     <ProjectReference Include="../../src/Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
     <ProjectReference Include="../../src/Modules/Google/IntoChat.OS.Modules.Google.csproj" />
     <ProjectReference Include="../../src/Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+    <ProjectReference Include="../../src/Modules/Notifications/IntoChat.OS.Modules.Notifications.csproj" />
     <ProjectReference Include="../../src/Modules/Playwright/IntoChat.OS.Modules.Playwright.csproj" />
     <ProjectReference Include="../../src/Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
     <ProjectReference Include="../../src/Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" />

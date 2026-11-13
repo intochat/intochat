@@ -6,6 +6,7 @@
   <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
   <Project Path="src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
   <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj" />
+  <Project Path="src/IntoChat.OS.Sandbox/IntoChat.OS.Sandbox.csproj" />
   <Project Path="src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" />
   <Project Path="src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
   <Project Path="src/Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
@@ -18,6 +19,7 @@
   <Project Path="src/Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
   <Project Path="src/Modules/Google/IntoChat.OS.Modules.Google.csproj" />
   <Project Path="src/Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+  <Project Path="src/Modules/Notifications/IntoChat.OS.Modules.Notifications.csproj" />
   <Project Path="src/Modules/Playwright/IntoChat.OS.Modules.Playwright.csproj" />
   <Project Path="src/Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
   <Project Path="src/Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" />

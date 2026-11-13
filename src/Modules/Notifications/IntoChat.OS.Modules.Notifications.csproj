@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Durable per-brain notification inbox and HTTP API.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="DigitalBrain" />
+    <PackageReference Include="DigitalBrain.Runtime.Http" />
+    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+  </ItemGroup>
+</Project>

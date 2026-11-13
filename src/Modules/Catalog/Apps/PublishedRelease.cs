@@ -106,7 +106,16 @@ internal sealed record PublishedRelease
     public AppPublication Publication => new(Reference, PublishedAt, Manifest, Preview);
 
     public MarketplaceListing ToMarketplaceListing() =>
-        new(Publisher, Source, Name, Manifest.Title, Manifest.Description, Version, Manifest.Icon, Manifest.Requires);
+        new(
+            Publisher,
+            Source,
+            Name,
+            Manifest.Title,
+            Manifest.Description,
+            Version,
+            Manifest.Icon,
+            Manifest.Requires,
+            AppPackageExtensions.TryFromFiles(Name, Version, Bundle.Files, Manifest.Title, Manifest.Description, Publisher));
 
     public AppInstallReceipt CreateInstallReceipt(Guid operationId, string targetName, string accountId)
     {

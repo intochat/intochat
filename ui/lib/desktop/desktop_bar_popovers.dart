@@ -55,6 +55,29 @@ class BarTooltip extends StatelessWidget {
   }
 }
 
+@immutable
+class DesktopNotificationEntry {
+  const DesktopNotificationEntry({
+    required this.id,
+    required this.sourceApp,
+    required this.title,
+    required this.body,
+    required this.priority,
+    required this.read,
+    required this.createdUtc,
+    this.actionUrl,
+  });
+
+  final String id;
+  final String sourceApp;
+  final String title;
+  final String body;
+  final int priority;
+  final bool read;
+  final DateTime createdUtc;
+  final String? actionUrl;
+}
+
 /// Acrylic flyout popover for Clock, Tokens & Compute, Notifications, and
 /// Right-Click Dock Context Menu.
 class DesktopBarPopover extends StatelessWidget {
@@ -67,6 +90,9 @@ class DesktopBarPopover extends StatelessWidget {
     this.dockAppId,
     this.tokensToday = 14800,
     this.notificationsCount = 0,
+    this.notifications = const [],
+    this.notificationsLoaded = false,
+    this.notificationsLoading = false,
     this.pinnedAppIds = const {
       'ino',
       'files',
@@ -80,6 +106,8 @@ class DesktopBarPopover extends StatelessWidget {
     this.onOpenSettings,
     this.onOpenComputeSettings,
     this.onClearNotifications,
+    this.onMarkNotificationRead,
+    this.onMarkAllNotificationsRead,
     this.onFocusWindow,
     this.onNewWindowForApp,
     this.onTogglePinApp,
@@ -93,12 +121,17 @@ class DesktopBarPopover extends StatelessWidget {
   final String? dockAppId;
   final int tokensToday;
   final int notificationsCount;
+  final List<DesktopNotificationEntry> notifications;
+  final bool notificationsLoaded;
+  final bool notificationsLoading;
   final Set<String> pinnedAppIds;
   final List<DesktopWindowSummary> windows;
   final VoidCallback onClose;
   final VoidCallback? onOpenSettings;
   final VoidCallback? onOpenComputeSettings;
   final VoidCallback? onClearNotifications;
+  final ValueChanged<String>? onMarkNotificationRead;
+  final VoidCallback? onMarkAllNotificationsRead;
   final ValueChanged<String>? onFocusWindow;
   final ValueChanged<String>? onNewWindowForApp;
   final ValueChanged<String>? onTogglePinApp;
@@ -134,6 +167,23 @@ class DesktopBarPopover extends StatelessWidget {
         360.0,
         _NotificationsPopover(
           notificationsCount: notificationsCount,
+          notifications: notifications,
+          loaded: notificationsLoaded,
+          loading: notificationsLoading,
+          onTapNotification: (item) {
+            if (!item.read) {
+              onMarkNotificationRead?.call(item.id);
+            }
+            onClose();
+            final targetApp = _extractAppId(item.sourceApp) ?? 'ino';
+            for (final w in windows) {
+              if (w.appId == targetApp) {
+                onFocusWindow?.call(w.windowId);
+                return;
+              }
+            }
+            onNewWindowForApp?.call(targetApp);
+          },
           onFocusIno: () {
             onClose();
             for (final w in windows) {
@@ -149,9 +199,10 @@ class DesktopBarPopover extends StatelessWidget {
             onOpenSettings?.call();
           },
           onMarkAllRead: () {
-            onClearNotifications?.call();
+            (onMarkAllNotificationsRead ?? onClearNotifications)?.call();
             onClose();
           },
+          onClearAll: onClearNotifications,
         ),
         const ValueKey('desktop-popover-notifications'),
       ),
@@ -469,118 +520,266 @@ class _TokensPopover extends StatelessWidget {
   }
 }
 
+String? _extractAppId(String sourceApp) {
+  final idx = sourceApp.indexOf('/apps/');
+  if (idx >= 0) {
+    final rest = sourceApp.substring(idx + 6);
+    if (rest.isNotEmpty) return rest;
+  }
+  return switch (sourceApp) {
+    'os' || 'user' || 'scheduler' || '' => null,
+    'assistant' => 'ino',
+    _ => sourceApp,
+  };
+}
+
 class _NotificationsPopover extends StatelessWidget {
   const _NotificationsPopover({
     required this.notificationsCount,
+    required this.notifications,
+    required this.loaded,
+    required this.loading,
+    required this.onTapNotification,
     required this.onFocusIno,
     required this.onOpenSettings,
     required this.onMarkAllRead,
+    this.onClearAll,
   });
 
   final int notificationsCount;
+  final List<DesktopNotificationEntry> notifications;
+  final bool loaded;
+  final bool loading;
+  final ValueChanged<DesktopNotificationEntry> onTapNotification;
   final VoidCallback onFocusIno;
   final VoidCallback onOpenSettings;
   final VoidCallback onMarkAllRead;
+  final VoidCallback? onClearAll;
+
+  static String _formatAge(DateTime createdUtc) {
+    final diff = DateTime.now().toUtc().difference(createdUtc.toUtc());
+    if (diff.inSeconds < 60) return 'now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+    if (diff.inHours < 24) return '${diff.inHours}h';
+    return '${diff.inDays}d';
+  }
+
+  static (IconData, Color) _priorityIcon(int priority, IcColors c) =>
+      switch (priority) {
+        3 => (LucideIcons.triangleAlert, c.error),
+        2 => (LucideIcons.hand, c.working),
+        0 => (LucideIcons.bell, c.textMuted),
+        _ => (LucideIcons.sparkles, c.accent),
+      };
 
   @override
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
-    final items = [
-      (
-        LucideIcons.hand,
-        c.working,
-        'Needs you · Approve Nordlys close date',
-        'Move CloseDate to 15 Nov in Salesforce',
-        '2m',
-      ),
-      (
-        LucideIcons.sparkles,
-        c.accent,
-        'Working · Morning Brief finished',
-        '3 meetings, 2 renewals, 1 overdue invoice',
-        '18m',
-      ),
-      (
-        LucideIcons.triangleAlert,
-        c.error,
-        'Error · Tripletex session expired',
-        'Sign in again so Ino can read Q4 invoices',
-        '1h',
-      ),
-    ];
+    final hasUnread =
+        notificationsCount > 0 || notifications.any((n) => !n.read);
+
+    if (!loaded) {
+      final previewItems = [
+        (
+          LucideIcons.hand,
+          c.working,
+          'Needs you · Approve Nordlys close date',
+          'Move CloseDate to 15 Nov in Salesforce',
+          '2m',
+        ),
+        (
+          LucideIcons.sparkles,
+          c.accent,
+          'Working · Morning Brief finished',
+          '3 meetings, 2 renewals, 1 overdue invoice',
+          '18m',
+        ),
+        (
+          LucideIcons.triangleAlert,
+          c.error,
+          'Error · Tripletex session expired',
+          'Sign in again so Ino can read Q4 invoices',
+          '1h',
+        ),
+      ];
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildHeader(c, hasUnread: notificationsCount > 0, hasItems: false),
+          for (final it in previewItems)
+            _PopoverRow(
+              onTap: onFocusIno,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Icon(it.$1, size: 15, color: it.$2),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            it.$3,
+                            style: IcType.text(
+                              13,
+                              weight: FontWeight.w600,
+                              color: c.textStrong,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            it.$4,
+                            style: IcType.text(12, color: c.textMuted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      it.$5,
+                      style: IcType.text(11.5, color: c.textSubtle, tnum: true),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const _PopoverDivider(),
+          _PopoverItem(
+            key: const ValueKey('popover-notifications-settings'),
+            icon: LucideIcons.bell,
+            label: 'Notification settings',
+            onTap: onOpenSettings,
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Notifications',
-                  overflow: TextOverflow.ellipsis,
-                  style: IcType.text(
-                    12,
-                    weight: FontWeight.w600,
-                    color: c.textMuted,
-                  ),
-                ),
+        _buildHeader(
+          c,
+          hasUnread: hasUnread,
+          hasItems: notifications.isNotEmpty,
+        ),
+        if (loading && notifications.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 18),
+            child: Center(
+              child: Text(
+                'Loading notifications…',
+                style: IcType.text(12.5, color: c.textMuted),
               ),
-              if (notificationsCount > 0)
-                GestureDetector(
-                  key: const ValueKey('popover-notifications-mark-read'),
-                  onTap: onMarkAllRead,
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: Text(
-                      'Mark all as read',
-                      style: IcType.text(
-                        12,
-                        weight: FontWeight.w500,
-                        color: c.accent,
+            ),
+          )
+        else if (notifications.isEmpty)
+          Padding(
+            key: const ValueKey('popover-notifications-empty'),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 20),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.bellOff, size: 20, color: c.textSubtle),
+                  const SizedBox(height: 6),
+                  Text(
+                    'No notifications yet',
+                    style: IcType.text(12.5, color: c.textMuted),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 300),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final it in notifications)
+                    _PopoverRow(
+                      key: ValueKey('popover-notification-${it.id}'),
+                      onTap: () => onTapNotification(it),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Icon(
+                                _priorityIcon(it.priority, c).$1,
+                                size: 15,
+                                color: _priorityIcon(it.priority, c).$2,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    it.title,
+                                    style: IcType.text(
+                                      13,
+                                      weight: it.read
+                                          ? FontWeight.w500
+                                          : FontWeight.w600,
+                                      color: it.read
+                                          ? c.textBody
+                                          : c.textStrong,
+                                    ),
+                                  ),
+                                  if (it.body.isNotEmpty) ...[
+                                    const SizedBox(height: 1),
+                                    Text(
+                                      it.body,
+                                      style: IcType.text(
+                                        12,
+                                        color: c.textMuted,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  _formatAge(it.createdUtc),
+                                  style: IcType.text(
+                                    11.5,
+                                    color: c.textSubtle,
+                                    tnum: true,
+                                  ),
+                                ),
+                                if (!it.read) ...[
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: c.accent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        for (final it in items)
-          _PopoverRow(
-            onTap: onFocusIno,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Icon(it.$1, size: 15, color: it.$2),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          it.$3,
-                          style: IcType.text(
-                            13,
-                            weight: FontWeight.w600,
-                            color: c.textStrong,
-                          ),
-                        ),
-                        const SizedBox(height: 1),
-                        Text(it.$4, style: IcType.text(12, color: c.textMuted)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    it.$5,
-                    style: IcType.text(11.5, color: c.textSubtle, tnum: true),
-                  ),
                 ],
               ),
             ),
@@ -593,6 +792,65 @@ class _NotificationsPopover extends StatelessWidget {
           onTap: onOpenSettings,
         ),
       ],
+    );
+  }
+
+  Widget _buildHeader(
+    IcColors c, {
+    required bool hasUnread,
+    required bool hasItems,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Notifications',
+              overflow: TextOverflow.ellipsis,
+              style: IcType.text(
+                12,
+                weight: FontWeight.w600,
+                color: c.textMuted,
+              ),
+            ),
+          ),
+          if (hasUnread)
+            GestureDetector(
+              key: const ValueKey('popover-notifications-mark-read'),
+              onTap: onMarkAllRead,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Text(
+                  'Mark all as read',
+                  style: IcType.text(
+                    12,
+                    weight: FontWeight.w500,
+                    color: c.accent,
+                  ),
+                ),
+              ),
+            ),
+          if (hasItems && onClearAll != null) ...[
+            if (hasUnread) const SizedBox(width: 10),
+            GestureDetector(
+              key: const ValueKey('popover-notifications-clear'),
+              onTap: onClearAll,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Text(
+                  'Clear all',
+                  style: IcType.text(
+                    12,
+                    weight: FontWeight.w500,
+                    color: c.textMuted,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -755,7 +1013,7 @@ class _PopoverItem extends StatelessWidget {
 }
 
 class _PopoverRow extends StatefulWidget {
-  const _PopoverRow({required this.child, required this.onTap});
+  const _PopoverRow({super.key, required this.child, required this.onTap});
 
   final Widget child;
   final VoidCallback onTap;

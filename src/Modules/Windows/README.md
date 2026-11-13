@@ -21,6 +21,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Windows` (`IConsole`, `IFileSystem`, `IWindows`).
+Contracts: assembly `IntoChat.OS.Modules.Windows` (`IConsole`, `IFileSystem`, `IWindowsFolderGateway`, `IWindows`).
 Hosting: runs in process.
 <!-- END GENERATED -->

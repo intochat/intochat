@@ -8,6 +8,7 @@
     <PackageReference Include="DigitalBrain.UI" />
     <PackageReference Include="DigitalBrain.Graph" />
     <PackageReference Include="DigitalBrain.Simulation" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>

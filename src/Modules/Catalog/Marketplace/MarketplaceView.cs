@@ -29,5 +29,13 @@ public sealed class MarketplaceView(IServiceProvider neurons, FeatureCatalog cat
         }
     }
 
-    private Task<IReadOnlyList<MarketplaceListing>> Shipped() => catalog.Listings();
+    private async Task<IReadOnlyList<MarketplaceListing>> Shipped()
+    {
+        var compiled = await catalog.Listings();
+        var seen = compiled.Select(item => (item.Publisher, item.Name)).ToHashSet();
+        var extra = ShippedPackages.All
+            .Where(pkg => !seen.Contains((ShippedPackages.Publisher, pkg.Key)))
+            .Select(pkg => pkg.ToMarketplaceListing());
+        return [.. compiled, .. extra];
+    }
 }

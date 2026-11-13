@@ -1007,6 +1007,54 @@ final class IntoChatOSUiClient {
     body,
   );
 
+  Future<OsNotificationList> listNotifications(
+    String brainId, {
+    int limit = 50,
+    bool unreadOnly = false,
+  }) async {
+    final response = await _request(
+      'GET',
+      '/brains/${Uri.encodeComponent(brainId)}/notifications?limit=$limit&unreadOnly=$unreadOnly',
+      timeout: const Duration(seconds: 15),
+    );
+    if (response.body.isEmpty) {
+      return const OsNotificationList(items: [], unreadCount: 0);
+    }
+    return OsNotificationList.fromJson(
+      Map<String, dynamic>.from(jsonDecode(response.body) as Map),
+    );
+  }
+
+  Future<void> markNotificationRead(
+    String brainId,
+    String notificationId,
+  ) async {
+    await _request(
+      'POST',
+      '/brains/${Uri.encodeComponent(brainId)}/notifications/${Uri.encodeComponent(notificationId)}/read',
+      body: const {},
+      timeout: const Duration(seconds: 15),
+    );
+  }
+
+  Future<void> markAllNotificationsRead(String brainId) async {
+    await _request(
+      'POST',
+      '/brains/${Uri.encodeComponent(brainId)}/notifications/read-all',
+      body: const {},
+      timeout: const Duration(seconds: 15),
+    );
+  }
+
+  Future<void> clearNotifications(String brainId) async {
+    await _request(
+      'POST',
+      '/brains/${Uri.encodeComponent(brainId)}/notifications/clear',
+      body: const {},
+      timeout: const Duration(seconds: 15),
+    );
+  }
+
   void close() {
     if (_ownsClient) {
       _http.close();
@@ -1096,4 +1144,116 @@ final class UiRequestException extends StateError {
 
   @override
   String toString() => detail ?? super.toString();
+}
+
+enum OsNotificationPriority {
+  low,
+  normal,
+  high,
+  urgent;
+
+  static OsNotificationPriority parse(Object? raw) {
+    if (raw is int) {
+      return switch (raw) {
+        0 => OsNotificationPriority.low,
+        2 => OsNotificationPriority.high,
+        3 => OsNotificationPriority.urgent,
+        _ => OsNotificationPriority.normal,
+      };
+    }
+    if (raw is String) {
+      return switch (raw.toLowerCase()) {
+        'low' => OsNotificationPriority.low,
+        'high' => OsNotificationPriority.high,
+        'urgent' => OsNotificationPriority.urgent,
+        _ => OsNotificationPriority.normal,
+      };
+    }
+    return OsNotificationPriority.normal;
+  }
+}
+
+final class OsNotificationItem {
+  const OsNotificationItem({
+    required this.id,
+    required this.brainId,
+    required this.sourceApp,
+    required this.title,
+    required this.body,
+    required this.priority,
+    this.category,
+    this.actionUrl,
+    required this.read,
+    required this.createdUtc,
+    this.readUtc,
+  });
+
+  final String id;
+  final String brainId;
+  final String sourceApp;
+  final String title;
+  final String body;
+  final OsNotificationPriority priority;
+  final String? category;
+  final String? actionUrl;
+  final bool read;
+  final DateTime createdUtc;
+  final DateTime? readUtc;
+
+  factory OsNotificationItem.fromJson(Map<String, dynamic> json) {
+    return OsNotificationItem(
+      id: (json['id'] as String?) ?? '',
+      brainId: (json['brainId'] as String?) ?? '',
+      sourceApp: (json['sourceApp'] as String?) ?? 'os',
+      title: (json['title'] as String?) ?? '',
+      body: (json['body'] as String?) ?? '',
+      priority: OsNotificationPriority.parse(json['priority']),
+      category: json['category'] as String?,
+      actionUrl: json['actionUrl'] as String?,
+      read: json['read'] == true,
+      createdUtc:
+          DateTime.tryParse((json['createdUtc'] as String?) ?? '') ??
+          DateTime.now().toUtc(),
+      readUtc: DateTime.tryParse((json['readUtc'] as String?) ?? ''),
+    );
+  }
+
+  OsNotificationItem copyWith({bool? read, DateTime? readUtc}) {
+    return OsNotificationItem(
+      id: id,
+      brainId: brainId,
+      sourceApp: sourceApp,
+      title: title,
+      body: body,
+      priority: priority,
+      category: category,
+      actionUrl: actionUrl,
+      read: read ?? this.read,
+      createdUtc: createdUtc,
+      readUtc: readUtc ?? this.readUtc,
+    );
+  }
+}
+
+final class OsNotificationList {
+  const OsNotificationList({required this.items, required this.unreadCount});
+
+  final List<OsNotificationItem> items;
+  final int unreadCount;
+
+  factory OsNotificationList.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'];
+    final items = rawItems is List
+        ? [
+            for (final item in rawItems)
+              if (item is Map)
+                OsNotificationItem.fromJson(Map<String, dynamic>.from(item)),
+          ]
+        : const <OsNotificationItem>[];
+    final unreadRaw = json['unreadCount'];
+    final unreadCount = unreadRaw is int
+        ? unreadRaw
+        : items.where((item) => !item.read).length;
+    return OsNotificationList(items: items, unreadCount: unreadCount);
+  }
 }

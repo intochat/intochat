@@ -4,6 +4,7 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -170,7 +171,13 @@ internal sealed partial class AppNeuron
 
     private async Task RestoreProgram()
     {
-        if (State.Manifest is null || !HasProgram(State)) { return; }
+        if (State.Manifest is null) { return; }
+        if (TryExtractSandboxPackage(State) is { } package)
+        {
+            await DeploySandboxPackageAsync(package, CancellationToken.None).ConfigureAwait(false);
+            return;
+        }
+        if (!HasProgram(State)) { return; }
         var configuration = Configuration(State);
         using (InProcessCallerScope.Enter())
         {
@@ -190,10 +197,72 @@ internal sealed partial class AppNeuron
     private async Task Deploy()
     {
         await RecordFeature();
+        if (TryExtractSandboxPackage(State) is { } package)
+        {
+            await DeploySandboxPackageAsync(package, CancellationToken.None).ConfigureAwait(false);
+            return;
+        }
         if (!HasProgram(State)) { await Runtime.Retire(Key, CancellationToken.None); return; }
         using (InProcessCallerScope.Enter())
         {
             await Runtime.Deploy(Key, Configuration(State), CancellationToken.None);
+        }
+    }
+
+    private AppPackage? TryExtractSandboxPackage(AppState state)
+        => AppPackageExtensions.TryFromFiles(
+            Name(),
+            state.Version,
+            state.Files,
+            state.Manifest?.Title,
+            state.Manifest?.Description,
+            state.Publisher ?? state.Origin?.Publisher);
+
+    private async Task DeploySandboxPackageAsync(AppPackage package, CancellationToken cancellationToken)
+    {
+        var compiler = ServiceProvider?.GetService<AppPackageCompiler>();
+        var bridge = ServiceProvider?.GetService<ISandboxRuntimeBridge>();
+        if (compiler is null || bridge is null) { return; }
+
+        var compiled = compiler.Compile(package);
+        if (!compiled.Succeeded)
+        {
+            throw new InvalidOperationException($"Failed to compile app '{Name()}': {string.Join("; ", compiled.Errors)}");
+        }
+
+        var compiledPackage = compiled.EnrichedPackage ?? package;
+        var settingsJson = System.Text.Json.JsonSerializer.Serialize(State.Settings);
+        var deployment = await bridge.DeployPackageAsync(
+            BrainId(),
+            compiledPackage,
+            compiled.AssemblyBytes,
+            stateJson: null,
+            settingsJson: settingsJson,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        if (!deployment.Succeeded)
+        {
+            throw new InvalidOperationException(deployment.Error ?? $"Sandbox failed to deploy '{Name()}'.");
+        }
+
+        if (compiledPackage.Needs.Signals.Length > 0 && ServiceProvider is not null)
+        {
+            try
+            {
+                using (InProcessCallerScope.EnterKernel(BrainId()))
+                {
+                    await SiloNeurons.Get<ISandboxSignalRouter>(ServiceProvider, ISandboxSignalRouter.Key(BrainId()))
+                        .BindSignalsAsync(compiledPackage.Needs.Signals, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogWarning(
+                    error,
+                    "Could not bind sandbox signal router for app '{App}' on brain '{Brain}'.",
+                    Name(),
+                    BrainId());
+            }
         }
     }
 

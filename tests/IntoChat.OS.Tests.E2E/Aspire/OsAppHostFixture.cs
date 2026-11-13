@@ -25,10 +25,12 @@ public sealed class OsAppHostFixture : IAsyncLifetime
         "supabase",
         "azure",
         "roslyn",
+        "sandbox",
     ];
 
     private readonly TestHome _home = new();
     private readonly string[] _extra;
+    private readonly TimeSpan _startTimeout;
     private IDistributedApplicationTestingBuilder? _builder;
 
     public OsAppHostFixture()
@@ -37,9 +39,10 @@ public sealed class OsAppHostFixture : IAsyncLifetime
     }
 
     // Extra command-line settings, applied after the defaults (a later setting wins).
-    internal OsAppHostFixture(string[] extra)
+    internal OsAppHostFixture(string[] extra, TimeSpan? startTimeout = null)
     {
         _extra = extra;
+        _startTimeout = startTimeout ?? TimeSpan.FromSeconds(120);
     }
 
     public DistributedApplication App { get; private set; } = null!;
@@ -76,7 +79,7 @@ public sealed class OsAppHostFixture : IAsyncLifetime
         {
             _builder = await DistributedApplicationTestingBuilder.CreateAsync<Projects.IntoChat_OS_AppHost>([.. args]);
             App = await _builder.BuildAsync();
-            using var startTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+            using var startTimeout = new CancellationTokenSource(_startTimeout);
             await App.StartAsync(startTimeout.Token);
             Os = App.CreateHttpClient("OperatingSystem-a", "http");
             await Healthy(startTimeout.Token);

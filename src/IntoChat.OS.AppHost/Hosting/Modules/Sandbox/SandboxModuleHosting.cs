@@ -1,0 +1,169 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Xml.Linq;
+using Aspire.Hosting;
+using Aspire.Hosting.ApplicationModel;
+using DigitalBrain.Modules.Configuration;
+using DigitalBrain.Modules.Options;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Modules;
+
+namespace IntoChat.OS.Aspire.Hosting;
+
+/// <summary>
+/// Hosts the hardened <c>sandbox</c> container running <c>IntoChat.OS.Sandbox</c> with a read-only rootfs,
+/// dropped Linux capabilities, and zero host bind mounts. Enabled by default in local and cloud deployments.
+/// </summary>
+public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
+{
+    public const string ResourceName = "sandbox";
+    public const string ModuleName = "sandbox";
+    private const string Dockerfile = "src/IntoChat.OS.Sandbox/Dockerfile";
+
+    public ModuleId Module { get; } = new(ModuleName);
+
+    public void Configure(IntoChatOSBuilder brain)
+    {
+        ArgumentNullException.ThrowIfNull(brain);
+        if (brain.ApplicationBuilder.Configuration[$"{ModuleConfiguration.ModuleSection(ModuleName)}:Enabled"] == "false")
+        {
+            return;
+        }
+
+        if (IntoChat.OS.Modules.ArtCraft.Aspire.Hosting.RepositoryRoot.Find() is not { } contextPath)
+        {
+            return;
+        }
+
+        var dockerfileFull = Path.Combine(contextPath, Dockerfile);
+        if (!File.Exists(dockerfileFull))
+        {
+            return;
+        }
+
+        var enrollKey = brain.ApplicationBuilder.Configuration[$"{ModuleConfiguration.ModuleOptionsSection(ModuleName)}:EnrollKey"];
+        if (string.IsNullOrWhiteSpace(enrollKey))
+        {
+            enrollKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
+        }
+
+#pragma warning disable ASPIRECERTIFICATES001
+        var sandbox = brain.ApplicationBuilder
+            .AddDockerfile(ResourceName, contextPath, dockerfilePath: Dockerfile)
+            .WithDeveloperCertificateTrust(false)
+            .WithCertificateTrustScope(CertificateTrustScope.None)
+            .WithoutHttpsCertificate()
+            .WithHttpEndpoint(targetPort: 8080, name: "http")
+            .WithHttpHealthCheck("/health")
+            .WithEnvironment("HOME", "/tmp")
+            .WithEnvironment("SANDBOX_ENROLL_KEY", enrollKey)
+            // Hardened isolation: read-only rootfs, no Linux caps, no host bind mounts (-v), writable /tmp tmpfs only.
+            .WithContainerRuntimeArgs(
+                "--read-only",
+                "--cap-drop=ALL",
+                "--security-opt=no-new-privileges:true",
+                "--memory=512m",
+                "--cpus=1.0",
+                "--tmpfs",
+                "/tmp:rw,noexec,nosuid,size=64m",
+                "--add-host",
+                "host.docker.internal:host-gateway")
+            .WithParentRelationship(brain.GetOrAddModuleNode(ModuleName));
+#pragma warning restore ASPIRECERTIFICATES001
+
+        if (ResolveGitHubPackagesToken(contextPath) is { Length: > 0 } token)
+        {
+            sandbox.WithBuildArg("NUGET_TOKEN", token);
+        }
+
+        brain.AddProjection(new SandboxKernelProjection(sandbox, enrollKey));
+    }
+
+    private static string? ResolveGitHubPackagesToken(string contextPath)
+    {
+        foreach (var variable in new[] { "NUGET_AUTH_TOKEN", "NUGET_TOKEN", "GITHUB_TOKEN", "GH_TOKEN" })
+        {
+            if (Environment.GetEnvironmentVariable(variable) is { Length: > 0 } envToken)
+            {
+                return envToken;
+            }
+        }
+
+        string[] configs =
+        [
+            Path.Combine(contextPath, "nuget.config"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NuGet", "NuGet.Config"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "NuGet", "NuGet.Config"),
+        ];
+        foreach (var config in configs.Where(File.Exists))
+        {
+            try
+            {
+                var password = XDocument.Load(config).Root?
+                    .Element("packageSourceCredentials")?
+                    .Element("github")?
+                    .Elements("add")
+                    .FirstOrDefault(element => string.Equals(element.Attribute("key")?.Value, "ClearTextPassword", StringComparison.OrdinalIgnoreCase))?
+                    .Attribute("value")?.Value;
+                if (!string.IsNullOrWhiteSpace(password))
+                {
+                    return password;
+                }
+            }
+            catch (Exception error) when (error is System.Xml.XmlException or IOException)
+            {
+                // Ignore malformed optional local NuGet config and fall through to CLI token lookup.
+            }
+        }
+
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo("gh", "auth token")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+            if (process is not null)
+            {
+                var output = process.StandardOutput.ReadToEnd().Trim();
+                process.WaitForExit(3000);
+                if (process.ExitCode == 0 && output.Length > 0)
+                {
+                    return output;
+                }
+            }
+        }
+        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return null;
+        }
+
+        return null;
+    }
+
+    private sealed class SandboxKernelProjection(IResourceBuilder<ContainerResource> sandbox, string enrollKey)
+        : IntoChatOSModuleProjection
+    {
+        private bool _boundKernelUrl;
+
+        public override void Apply<TResource>(IResourceBuilder<TResource> builder)
+        {
+            var optionsPrefix = ModuleConfiguration.ModuleOptionsSection(new ModuleId(ModuleName));
+            builder
+                .WithEnvironment(ModuleConfiguration.EnvironmentName(optionsPrefix, "Url"), sandbox.GetEndpoint("http"))
+                .WithEnvironment(ModuleConfiguration.EnvironmentName(optionsPrefix, "EnrollKey"), enrollKey);
+
+            if (!_boundKernelUrl)
+            {
+                _boundKernelUrl = true;
+                var kernelHttp = builder.GetEndpoint("http");
+                var instance = sandbox.ApplicationBuilder.CreateResourceBuilder(kernelHttp.Resource);
+                sandbox.WithReference(kernelHttp)
+                    .WithEnvironment("SANDBOX_KERNEL_URL", kernelHttp)
+                    .WaitForStart(instance);
+            }
+        }
+    }
+}

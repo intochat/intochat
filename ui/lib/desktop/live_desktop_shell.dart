@@ -68,6 +68,7 @@ class LiveDesktopShell extends StatefulWidget {
     this.profileMenu,
     this.read,
     this.requestApp,
+    this.notificationsClient,
     required this.knowsApp,
   });
 
@@ -110,6 +111,9 @@ class LiveDesktopShell extends StatefulWidget {
   )?
   read;
 
+  /// Optional client for real OS notifications; falls back to [entries] when present.
+  final IntoChatOSUiClient? notificationsClient;
+
   @override
   State<LiveDesktopShell> createState() => _LiveDesktopShellState();
 }
@@ -136,6 +140,10 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   String? _barTooltipLabel;
   double _barTooltipAnchorX = 0;
   int _notificationsCount = 0;
+  List<DesktopNotificationEntry> _notifications = const [];
+  bool _notificationsLoaded = false;
+  bool _notificationsLoading = false;
+  StreamSubscription<NeuronSignal>? _notificationsSub;
   bool _smart = false;
   PresenceState? _presenceState;
   final StreamController<Presence> _presence =
@@ -165,6 +173,149 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     _reload();
     _subscribe();
     _watchSettings();
+    _subscribeNotifications();
+    unawaited(_loadNotifications());
+  }
+
+  IntoChatOSUiClient? get _notificationsClient =>
+      widget.notificationsClient ?? widget.entries?.call(widget.brain).client;
+
+  void _subscribeNotifications() {
+    _notificationsSub?.cancel();
+    _notificationsSub = null;
+    final client = _notificationsClient;
+    if (client == null || !client.grpcLive) return;
+    try {
+      _notificationsSub = client
+          .watches(widget.brain)
+          .watch(
+            const WatchSourceSpec(
+              'IntoChat.OS.Modules.Notifications.INotificationsInbox',
+              'inbox',
+              ['NotificationSent'],
+            ),
+          )
+          .listen(
+            (_) => unawaited(_loadNotifications()),
+            onError: (Object _) {},
+          );
+    } catch (_) {
+      // Live watch is optional; opening the popover refreshes over HTTP.
+    }
+  }
+
+  Future<void> _loadNotifications() async {
+    final client = _notificationsClient;
+    if (client == null) return;
+    if (!_notificationsLoaded && mounted) {
+      setState(() => _notificationsLoading = true);
+    }
+    try {
+      final result = await client.listNotifications(widget.brain);
+      if (!mounted) return;
+      setState(() {
+        _notifications = [
+          for (final item in result.items)
+            DesktopNotificationEntry(
+              id: item.id,
+              sourceApp: item.sourceApp,
+              title: item.title,
+              body: item.body,
+              priority: item.priority.index,
+              read: item.read,
+              createdUtc: item.createdUtc,
+              actionUrl: item.actionUrl,
+            ),
+        ];
+        _notificationsCount = result.unreadCount;
+        _notificationsLoaded = true;
+        _notificationsLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _notificationsLoading = false);
+    }
+  }
+
+  void _markNotificationRead(String id) {
+    final client = _notificationsClient;
+    setState(() {
+      var decremented = false;
+      _notifications = [
+        for (final item in _notifications)
+          if (item.id == id && !item.read)
+            (() {
+              decremented = true;
+              return DesktopNotificationEntry(
+                id: item.id,
+                sourceApp: item.sourceApp,
+                title: item.title,
+                body: item.body,
+                priority: item.priority,
+                read: true,
+                createdUtc: item.createdUtc,
+                actionUrl: item.actionUrl,
+              );
+            })()
+          else
+            item,
+      ];
+      if (decremented && _notificationsCount > 0) {
+        _notificationsCount--;
+      }
+    });
+    if (client == null) return;
+    unawaited(
+      client
+          .markNotificationRead(widget.brain, id)
+          .then((_) => _loadNotifications())
+          .catchError((Object _) {}),
+    );
+  }
+
+  void _markAllNotificationsRead() {
+    final client = _notificationsClient;
+    setState(() {
+      _notifications = [
+        for (final item in _notifications)
+          if (item.read)
+            item
+          else
+            DesktopNotificationEntry(
+              id: item.id,
+              sourceApp: item.sourceApp,
+              title: item.title,
+              body: item.body,
+              priority: item.priority,
+              read: true,
+              createdUtc: item.createdUtc,
+              actionUrl: item.actionUrl,
+            ),
+      ];
+      _notificationsCount = 0;
+    });
+    if (client == null) return;
+    unawaited(
+      client
+          .markAllNotificationsRead(widget.brain)
+          .then((_) => _loadNotifications())
+          .catchError((Object _) {}),
+    );
+  }
+
+  void _clearNotifications() {
+    final client = _notificationsClient;
+    setState(() {
+      _notifications = const [];
+      _notificationsCount = 0;
+    });
+    if (client == null) return;
+    unawaited(
+      client
+          .clearNotifications(widget.brain)
+          .then((_) => _loadNotifications())
+          .catchError((Object _) {}),
+    );
   }
 
   static const _settingsContract = 'IntoChat.OS.Modules.Apps.IUserSettings';
@@ -205,7 +356,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       _smart = on;
       if (!on) {
         _presenceState = null;
-        _notificationsCount = 0;
+        if (_notificationsClient == null) {
+          _notificationsCount = 0;
+        }
       }
     });
     if (on) {
@@ -274,7 +427,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     } catch (_) {
       count = 0;
     }
-    if (mounted && _smart) setState(() => _notificationsCount = count);
+    if (mounted && _smart && _notificationsClient == null) {
+      setState(() => _notificationsCount = count);
+    }
   }
 
   @override
@@ -289,8 +444,17 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       _clientClosedWindowIds.clear();
       _clientOpenedWidgets.clear();
       _clientClosedWidgets.clear();
+      _notifications = const [];
+      _notificationsLoaded = false;
+      _notificationsLoading = false;
       _reload();
       _subscribe();
+      _subscribeNotifications();
+      unawaited(_loadNotifications());
+    } else if (oldWidget.notificationsClient != widget.notificationsClient ||
+        oldWidget.entries != widget.entries) {
+      _subscribeNotifications();
+      unawaited(_loadNotifications());
     }
   }
 
@@ -302,6 +466,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     _settingsSub?.cancel();
     _presenceSub?.cancel();
     _presenceReopen?.cancel();
+    _notificationsSub?.cancel();
     unawaited(_presence.close());
     for (final w in _windowStates.values) {
       w.dispose();
@@ -423,6 +588,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         _dockMenuAppId = appId;
       }
     });
+    if (_popover == DesktopPopoverKind.notifications) {
+      unawaited(_loadNotifications());
+    }
   }
 
   void _subscribe() {
@@ -1570,6 +1738,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   anchorX: _popoverAnchorX,
                   dockAppId: _dockMenuAppId,
                   notificationsCount: _notificationsCount,
+                  notifications: _notifications,
+                  notificationsLoaded: _notificationsLoaded,
+                  notificationsLoading: _notificationsLoading,
                   pinnedAppIds: _pinnedAppIds,
                   windows: [
                     for (final w in orderedWindows.reversed)
@@ -1606,8 +1777,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                       );
                     }
                   },
-                  onClearNotifications: () =>
-                      setState(() => _notificationsCount = 0),
+                  onMarkNotificationRead: _markNotificationRead,
+                  onMarkAllNotificationsRead: _markAllNotificationsRead,
+                  onClearNotifications: _clearNotifications,
                   onFocusWindow: (winId) {
                     final target = byId[winId];
                     if (target != null) _focusWindow(target);

@@ -10,4 +10,5 @@ public sealed record MarketplaceListing(
     string Description,
     string Version,
     string? Icon,
-    AppRequirements? Requires = null);
+    AppRequirements? Requires = null,
+    AppPackage? Package = null);

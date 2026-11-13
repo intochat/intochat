@@ -43,6 +43,7 @@
     <ProjectReference Include="../../Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
     <ProjectReference Include="../../Modules/Google/IntoChat.OS.Modules.Google.csproj" />
     <ProjectReference Include="../../Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
+    <ProjectReference Include="../../Modules/Notifications/IntoChat.OS.Modules.Notifications.csproj" />
     <ProjectReference Include="../../Modules/Playwright/IntoChat.OS.Modules.Playwright.csproj" />
     <ProjectReference Include="../../Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
     <ProjectReference Include="../../Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" />

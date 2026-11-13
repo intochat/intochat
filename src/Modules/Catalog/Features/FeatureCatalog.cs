@@ -36,10 +36,14 @@ public sealed class FeatureCatalog
     public Task<IReadOnlyList<FeatureFailure>> Failures() => Task.FromResult<IReadOnlyList<FeatureFailure>>(_loaded.Value.Failures);
 
     public async Task<AppBundle?> Find(string owner, string name)
-        => (await Bundles()).GetValueOrDefault((owner, name));
+        => (await Bundles()).GetValueOrDefault((owner, name))
+            ?? (string.Equals(owner, ShippedPackages.Publisher, StringComparison.OrdinalIgnoreCase)
+                ? ShippedPackages.Find(name)?.ToAppBundle()
+                : null);
 
     public async Task<bool> IsOwner(string publisher)
-        => (await Bundles()).Keys.Any(key => key.Owner == publisher);
+        => string.Equals(publisher, ShippedPackages.Publisher, StringComparison.OrdinalIgnoreCase)
+            || (await Bundles()).Keys.Any(key => key.Owner == publisher);
 
     public async Task<IReadOnlyList<MarketplaceListing>> Listings()
         => [.. (await Bundles()).Select(entry => new MarketplaceListing(

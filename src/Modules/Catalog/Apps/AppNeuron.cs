@@ -316,6 +316,10 @@ internal sealed partial class AppNeuron(
             }
         }
         // Everything the app owns goes with it: its program, then its storage.
+        if (ServiceProvider?.GetService<ISandboxRuntimeBridge>() is { } bridge)
+        {
+            await bridge.UnloadAsync(BrainId(), Name(), CancellationToken.None).ConfigureAwait(false);
+        }
         await Runtime.Retire(key, CancellationToken.None);
         if (ServiceProvider?.GetService<IKernel>() is { } kernel) { await kernel.UnloadFeature(BrainId(), Name()); }
         foreach (var hook in storageHooks) { await hook.OnRetired(State.BrainScopeId ?? "", key, CancellationToken.None); }

@@ -29,8 +29,8 @@ public sealed class WindowsModule : DigitalBrain.Modules.Module, IHttpModule
 
     public static ConnectorDefinition Connector { get; } = new("windows", "Windows", ["device"], [])
     {
-        Neurons = [typeof(IWindows), typeof(IStorage), typeof(IFileSystem), typeof(IConsole)],
-        Signals = [typeof(FileWritten)],
+        Neurons = [typeof(IWindows), typeof(IStorage), typeof(IFileSystem), typeof(IConsole), typeof(IWindowsFolderGateway)],
+        Signals = [typeof(FileWritten), typeof(IntoChat.Sdk.FileChanged)],
     };
 
     public static Assembly? Contracts => typeof(IWindows).Assembly;
@@ -42,6 +42,10 @@ public sealed class WindowsModule : DigitalBrain.Modules.Module, IHttpModule
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<MachineIdentity>();
         services.TryAddSingleton<WindowsStorageCoordinator>();
+        services.TryAddSingleton<WindowsFolderWatcher>();
+        services.AddHostedService(sp => sp.GetRequiredService<WindowsFolderWatcher>());
+        services.TryAddSingleton<LocalWindowsDeviceBootstrap>();
+        services.AddHostedService(sp => sp.GetRequiredService<LocalWindowsDeviceBootstrap>());
         var runtimeOptions = DigitalBrain.Runtime.Orleans.RuntimeOptions.Resolve(services);
         if (OperatingSystem.IsWindows()
             && Enum.TryParse<MasterKeyCustodyKind>(HostConfiguration.HostKey(configuration, runtimeOptions.CustodyConfigurationKey), ignoreCase: true, out var custody)

@@ -516,6 +516,26 @@ public sealed class CreatorApp : Screen<CreatorState>
             foreach (var (path, text) in await studio.Sidecars(alias)) { files[path] = text; }
         }
         catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The unit's files are optional; the inspector shows what was read."); }
+
+        if (files.Count == 0 && !string.IsNullOrWhiteSpace(Id.Brain.Value))
+        {
+            try
+            {
+                var exported = await Get<IApp>(IApp.Key(Id.Brain.Value, alias)).Export();
+                if (exported?.Files is { Count: > 0 })
+                {
+                    foreach (var (path, text) in exported.Files)
+                    {
+                        files[path] = text;
+                    }
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                NullLogger.Instance.LogSwallowed(error, "Export fallback for installed app bundle failed.");
+            }
+        }
+
         return files;
     }
 

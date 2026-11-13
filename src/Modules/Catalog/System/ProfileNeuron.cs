@@ -171,6 +171,19 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
 
         if (filesToDeploy is { Count: > 0 } && filesToDeploy.Keys.Any(k => k.EndsWith(".cs", StringComparison.Ordinal)))
         {
+            if (AppPackageExtensions.TryFromFiles(newPostId.Trim(), "1.0.0", filesToDeploy) is { } pkg)
+            {
+                try
+                {
+                    var remixed = pkg with { Key = newPostId.Trim() };
+                    await Context.Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, $"apps/{newPostId.Trim()}")).Import(remixed.ToAppBundle());
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    ((ILogger?)logger ?? NullLogger.Instance).LogSwallowed(error, "IApp unavailable when importing forked AppPackage.");
+                }
+            }
+
             try
             {
                 var studio = Context.Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
@@ -178,7 +191,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                // Standalone profile tests may not host ISynapseStudio; keep fork resilient.
+                ((ILogger?)logger ?? NullLogger.Instance).LogSwallowed(error, "SynapseStudio unavailable during profile post fork.");
             }
         }
 
@@ -214,6 +227,26 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
         {
             ((ILogger?)logger ?? NullLogger.Instance).LogSwallowed(error, "Failed to read unit source files from SynapseStudio for profile post.");
         }
+
+        if (files.Count == 0 && !string.IsNullOrWhiteSpace(Id.Brain.Value))
+        {
+            try
+            {
+                var exported = await Context.Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, $"apps/{alias}")).Export();
+                if (exported?.Files is { Count: > 0 })
+                {
+                    foreach (var (path, text) in exported.Files)
+                    {
+                        files[path] = text;
+                    }
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                ((ILogger?)logger ?? NullLogger.Instance).LogSwallowed(error, "Failed to read exported AppBundle files for profile post.");
+            }
+        }
+
         return files;
     }
 }

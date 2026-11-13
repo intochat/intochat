@@ -49,6 +49,9 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.AddSingleton(new CompiledAppsRegistration(typeof(AppsModule).Assembly));
         services.TryAddSingleton(FeatureCatalog.From);
         services.TryAddSingleton<FeatureLoader>();
+        services.TryAddSingleton<AppPackageCompiler>();
+        services.TryAddSingleton<SlotResolver>();
+        services.TryAddSingleton<ISandboxRuntimeBridge, NullSandboxRuntimeBridge>();
         services.TryAddSingleton<MarketplaceView>();
         services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         services.TryAddSingleton<AppInstaller>();
