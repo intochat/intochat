@@ -18,7 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace IntoChat.OS.Modules.Flutter.Workspace;
 
 [Neuron("ui.workspace", State = "workspace")]
-internal sealed partial class WorkspaceNeuron(INeuronProxies proxies)
+internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
     : UiNeuron<WorkspaceStorage>, IWorkspace
 {
     // The brain's one workspace, keyed {brain}/main (R4-19); its signals and paths name the brain.
@@ -56,17 +56,27 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies proxies)
             if (receipt.Digest != digest) { throw new ArgumentException("An operation id cannot be reused for another update."); }
             return await Read();
         }
-        await Commit(operationId, expectedRevision, state => state with
+        await Commit(operationId, expectedRevision, state =>
         {
-            OpenViews = next.OpenViews,
-            FocusedViewId = next.FocusedViewId,
-            Pins = next.Pins,
-            Windows = next.Windows ?? WorkspaceWindows.Reconcile(
-                state.Windows is null or [] ? WorkspaceWindows.Derive(state.OpenViews ?? []) : state.Windows, next.OpenViews),
-            Favourites = next.Favourites ?? state.Favourites ?? [],
-            Path = [Brain],
-            Open = [],
-            Receipts = [.. state.Receipts.TakeLast(63), new WorkspaceReceipt(operationId, digest)],
+            var openViews = next.OpenViews;
+            var focusedViewId = next.FocusedViewId;
+            var windows = next.Windows ?? WorkspaceWindows.Reconcile(
+                state.Windows is null or [] ? WorkspaceWindows.Derive(state.OpenViews ?? [], focusedViewId) : state.Windows, openViews, focusedViewId);
+            if (focusedViewId is null && openViews.Length > 0)
+            {
+                focusedViewId = windows.FirstOrDefault(w => w.Tabs.Length > 0)?.ActiveTabId ?? openViews[0].Id;
+            }
+            return state with
+            {
+                OpenViews = openViews,
+                FocusedViewId = focusedViewId,
+                Pins = next.Pins,
+                Windows = windows,
+                Favourites = next.Favourites ?? state.Favourites ?? [],
+                Path = [Brain],
+                Open = [],
+                Receipts = [.. state.Receipts.TakeLast(63), new WorkspaceReceipt(operationId, digest)],
+            };
         }, state => new WorkspaceChanged(Brain, state.Revision));
         return await Read();
     }
@@ -77,7 +87,7 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies proxies)
     {
         if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind != CallerKind.App || caller.AppId is not { } app) { return false; }
         if (names.FirstOrDefault(name => app == IApp.Key(Brain, name)) is not { } named) { return false; }
-        return ShippedApps.Is(await proxies.Get<IApp>(app).Read(), named);
+        return ShippedApps.Is(await (proxies is not null ? proxies.Get<IApp>(app) : Get<IApp>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), app))).Read(), named);
     }
 
     [GeneratedRegex("^[A-Za-z0-9_.-]{1,64}$")]
@@ -122,10 +132,55 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies proxies)
     public Task<WorkspaceState> Show(string app, string operationId, long expectedRevision)
     {
         ValidateKey(app);
-        return Change(operationId, expectedRevision, state => state with
+        return Change(operationId, expectedRevision, state =>
         {
-            Path = state.Path[^1] == app ? state.Path : [.. state.Path, app],
-            Open = IsApp(app) && !state.Open.Contains(app, StringComparer.Ordinal) ? [.. state.Open, app] : state.Open,
+            var nextPath = state.Path.Length > 0 && state.Path[^1] == app ? state.Path : [.. state.Path, app];
+            var nextOpen = IsApp(app) && !state.Open.Contains(app, StringComparer.Ordinal) ? [.. state.Open, app] : state.Open;
+            var openViews = state.OpenViews ?? [];
+            var focusedViewId = state.FocusedViewId;
+            var windows = state.Windows ?? [];
+
+            if (IsApp(app))
+            {
+                var existing = openViews.FirstOrDefault(v => v.App == app || v.App.EndsWith("/apps/" + app, StringComparison.Ordinal) || v.App == Brain + "/apps/" + app);
+                if (existing is not null)
+                {
+                    focusedViewId = existing.Id;
+                    windows = WorkspaceWindows.Reconcile(windows, openViews, focusedViewId);
+                }
+                else
+                {
+                    var appName = app.StartsWith(Brain + "/apps/", StringComparison.Ordinal)
+                        ? app[(Brain.Length + 6)..]
+                        : (app.StartsWith(Brain + "/units/", StringComparison.Ordinal)
+                            ? app[(Brain.Length + 7)..]
+                            : (AppUiEndpoints.UnitAlias(Brain, app) ?? app));
+                    var viewId = appName;
+                    var takenIds = openViews.Select(v => v.Id).ToHashSet(StringComparer.Ordinal);
+                    for (var n = 2; !takenIds.Add(viewId); n++) { viewId = $"{appName}-{n}"; }
+                    var newView = new WorkspaceViewRef(viewId, app, "full", string.Empty);
+
+                    var currentViews = openViews.ToList();
+                    if (currentViews.Count >= 64)
+                    {
+                        var evictIdx = currentViews.FindIndex(v => v.Id != focusedViewId);
+                        if (evictIdx >= 0) { currentViews.RemoveAt(evictIdx); }
+                    }
+                    currentViews.Add(newView);
+                    openViews = [.. currentViews];
+                    focusedViewId = newView.Id;
+                    windows = WorkspaceWindows.Reconcile(windows, openViews, focusedViewId);
+                }
+            }
+
+            return state with
+            {
+                Path = nextPath,
+                Open = nextOpen,
+                OpenViews = openViews,
+                Windows = windows,
+                FocusedViewId = focusedViewId,
+            };
         });
     }
 
@@ -141,10 +196,24 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies proxies)
         return Change(operationId, expectedRevision, state =>
         {
             var at = Array.FindIndex(state.Path, key => key == app || key.StartsWith(app + "/", StringComparison.Ordinal));
+            var nextOpen = state.Open.Where(key => key != app).ToArray();
+            var nextPath = at > 0 ? state.Path[..at] : state.Path;
+
+            var nextOpenViews = (state.OpenViews ?? [])
+                .Where(v => v is not null && v.App != app && !v.App.StartsWith(app + "/", StringComparison.Ordinal))
+                .ToArray();
+            var nextWindows = WorkspaceWindows.Reconcile(state.Windows ?? [], nextOpenViews, state.FocusedViewId);
+            var nextFocusedViewId = nextOpenViews.Any(v => v.Id == state.FocusedViewId)
+                ? state.FocusedViewId
+                : (nextWindows.LastOrDefault()?.ActiveTabId ?? nextOpenViews.LastOrDefault()?.Id);
+
             return state with
             {
-                Open = [.. state.Open.Where(key => key != app)],
-                Path = at > 0 ? state.Path[..at] : state.Path,
+                Open = nextOpen,
+                Path = nextPath,
+                OpenViews = nextOpenViews,
+                Windows = nextWindows,
+                FocusedViewId = nextFocusedViewId,
             };
         });
     }
@@ -152,12 +221,19 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies proxies)
     public Task<WorkspaceState> Read()
     {
         var state = Seed(Snapshot);
+        var openViews = state.OpenViews ?? [];
+        var windows = state.Windows is null or [] ? WorkspaceWindows.Derive(openViews, state.FocusedViewId) : state.Windows;
+        var focusedViewId = state.FocusedViewId;
+        if (focusedViewId is null && openViews.Length > 0)
+        {
+            focusedViewId = windows.FirstOrDefault(w => w.Tabs.Length > 0)?.ActiveTabId ?? openViews[0].Id;
+        }
         return Task.FromResult(new WorkspaceState(state.Revision, state.Path, state.Open)
         {
-            OpenViews = state.OpenViews,
-            FocusedViewId = state.FocusedViewId,
-            Pins = state.Pins,
-            Windows = state.Windows is null or [] ? WorkspaceWindows.Derive(state.OpenViews ?? []) : state.Windows,
+            OpenViews = openViews,
+            FocusedViewId = focusedViewId,
+            Pins = state.Pins ?? [],
+            Windows = windows,
             Favourites = state.Favourites ?? [],
         });
     }

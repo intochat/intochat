@@ -14,6 +14,8 @@ using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
+using DigitalBrain.Log;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Apps.Gallery;
 
@@ -310,7 +312,7 @@ public sealed class GalleryApp : Screen<GalleryAppState>
         try { return Get<T>(key); }
         catch (Exception ex)
         {
-            _ = ex;
+            NullLogger.Instance.LogSwallowed(ex, $"{typeof(T).Name} is optional when GalleryApp runs in tests.");
             return null;
         }
     }

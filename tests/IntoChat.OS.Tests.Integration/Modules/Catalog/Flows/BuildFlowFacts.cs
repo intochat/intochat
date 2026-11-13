@@ -513,7 +513,7 @@ public sealed class BuildFlowFacts
         Assert.Equal(["author", "draft", "verify", "deploy", "install"], view.Steps);
         Assert.Equal("install", view.WaitingStep);
         Assert.Contains(card.Id, result.Text, StringComparison.Ordinal);
-        Assert.Equal($"neuron://local/apps/tasks#{card.Id}", card.SourceNeuronUri);
+        Assert.Equal($"neuron://{runtime.Brain.Value}/apps/tasks#{card.Id}", card.SourceNeuronUri);
         Assert.Contains("Tasks board", result.Text, StringComparison.Ordinal);
         Assert.Equal("x.watch", (await Inner(runtime, card.Id)).Alias);
     }

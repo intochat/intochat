@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Apps.Contracts` (`IAppStorageHook`, `IAppStore`, `IAppStudio`, `IApp`, `IApprovals`, `IArtCraftEngine`, `IBuildChoices`, `IDebuggerReads`, `IDesktopRecords`, `IFeatureReconciler`, `IFilesNeuron`, `IFilesWorkspace`, `IFlowStarter`, `IFlows`, `IInoConversations`, `IInoData`, `IInoFiles`, `IInoFocus`, `IInoRecords`, `IInoSettings`, `IInoStudio`, `IInstalledModules`, `IMarketplace`, `IPresence`, `IProfileContextWriter`, `IProfile`, `ISynapseStudio`, `ITraceReader`, `IUserSettings`, `IVfsNeuron`).
+Contracts: assembly `IntoChat.OS.Modules.Catalog` (`IAppStorageHook`, `IAppStore`, `IAppStudio`, `IApp`, `IApprovals`, `IArtCraftEngine`, `IBuildChoices`, `ICapabilitySatisfaction`, `IConsentFacet`, `IDataAnalyticsWorker`, `IDebuggerReads`, `IDesktopRecords`, `IDrafter`, `IFeatureMigration`, `IFeatureReconciler`, `IFilesNeuron`, `IFilesVfsService`, `IFilesWorkspace`, `IFlowStarter`, `IFlows`, `IInoConversations`, `IInoData`, `IInoFiles`, `IInoFocus`, `IInoRecords`, `IInoSettings`, `IInoStudio`, `IInstalledModules`, `IMarketplace`, `IPolicyModel`, `IPresence`, `IProfileContextWriter`, `IProfile`, `ISynapseStudio`, `ITraceReader`, `IUserSettings`, `IVfsFacet`, `IVfsNeuron`, `IViewFacet`, `IWithFilesVfs`).
 Hosting: runs in process.
 <!-- END GENERATED -->

@@ -17,6 +17,13 @@ internal static class SynapseCheck
     {
         if (!IsSynapseSource(files)) { return null; }
         var compiler = services.GetService<SynapseCompiler>() ?? throw new InvalidOperationException(SynapseStudioNeuron.Unavailable);
+        return Compile(compiler, files);
+    }
+
+    public static ScriptCompilationCheck Compile(SynapseCompiler compiler, IReadOnlyDictionary<string, string> files)
+    {
+        ArgumentNullException.ThrowIfNull(compiler);
+        ArgumentNullException.ThrowIfNull(files);
         var build = compiler.Compile(new SynapseSource("check", files, null));
         return new ScriptCompilationCheck(build.Success, [.. build.Diagnostics.Select(d => new ScriptCompilationDiagnostic(d.File, d.Id, d.Line, d.Message))]);
     }

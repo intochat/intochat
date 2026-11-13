@@ -37,10 +37,15 @@ public sealed class ApprovalsNeuron : Neuron, IApprovals
         var connect = builds.Where(build => build.Flow.WaitingStep == "deploy" && build.Inner?.Missing is not null)
             .Select(build => new Approval(build.Flow.FlowId, ApprovalKind.Other, build.Flow.FlowId, build.Inner!.Missing!,
                 $"{build.Flow.Title}: {build.Inner.Missing}", build.Flow.Started, DateTimeOffset.MaxValue, build.Flow.TraceId)).ToArray();
-        if (inbox.Pending.Length == 0) { return [.. connect.OrderBy(approval => approval.Requested)]; }
+        if (inbox.Pending.Length == 0) { return [.. connect.DistinctBy(approval => approval.PlanId).OrderBy(approval => approval.Requested)]; }
         var staged = (await Context.Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value)).List()).Where(source => source.Status == DeployStatus.Staged).ToArray();
         var inners = builds.Where(build => build.Inner is not null).ToDictionary(build => build.Flow.FlowId, build => build.Inner!, StringComparer.Ordinal);
-        return [.. inbox.Pending.Select(request => Classify(request, flows, staged, inners)).Concat(connect).OrderBy(approval => approval.Requested)];
+        var now = Context.Time.GetUtcNow();
+        var classified = inbox.Pending
+            .Where(request => request.ExpiresAt > now)
+            .Select(request => Classify(request, flows, staged, inners))
+            .OfType<Approval>();
+        return [.. classified.Concat(connect).DistinctBy(approval => approval.PlanId).OrderBy(approval => approval.Requested)];
     }
 
     private async Task<BuildInner?> BuildOf(string flowId)
@@ -53,7 +58,7 @@ public sealed class ApprovalsNeuron : Neuron, IApprovals
     // DigitalBrain.InstallsNeuron names each install ask's plan "install:{alias}:{id}".
     private const string InstallPlanPrefix = "install:";
 
-    private static Approval Classify(ConfirmationRequested request, FlowView[] flows, DeployedSource[] staged, Dictionary<string, BuildInner> builds)
+    private static Approval? Classify(ConfirmationRequested request, FlowView[] flows, DeployedSource[] staged, Dictionary<string, BuildInner> builds)
     {
         var plan = request.Plan;
         var requested = request.ExpiresAt - plan.Expiry;
@@ -73,9 +78,15 @@ public sealed class ApprovalsNeuron : Neuron, IApprovals
         }
 
         // A build flow's choice of connection: one plan per candidate, each a step of that flow.
-        if (builds.FirstOrDefault(build => build.Value.ChoicePlans?.ContainsKey(request.PlanId) == true) is { Key: { } chooser }
+        if (builds.FirstOrDefault(build => build.Value.ChoicePlans?.ContainsKey(request.PlanId) == true) is { Key: { } chooser, Value: { } choosingInner }
             && flows.FirstOrDefault(flow => flow.FlowId == chooser) is { } choosing)
         {
+            var choice = choosingInner.ChoicePlans?[request.PlanId];
+            if (choice is { Length: > 0 } && choosingInner.Chosen?.ContainsKey(choice[0]) == true)
+            {
+                // Slot was already chosen; candidate plan is resolved/withdrawn.
+                return null;
+            }
             return Of(ApprovalKind.FlowStep, choosing.FlowId, plan.Title, $"{choosing.WaitingStep}: {plan.Body}", choosing.TraceId);
         }
 

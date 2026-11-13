@@ -7,7 +7,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // Every module class declares one. There is no missing-manifest baseline.
 public sealed class ModuleManifestFacts
 {
-    private static readonly string[] ModuleAssemblyPrefixes = ["IntoChat.OS.Modules.", "IntoChat.Cloud."];
+    private static readonly string[] ModuleAssemblyPrefixes = ["IntoChat.OS.Modules.", "IntoChat.Cloud"];
 
     internal static string[] Modules(bool withManifest)
         => ProductionArchitecture.Types

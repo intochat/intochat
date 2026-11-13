@@ -8,7 +8,8 @@ namespace IntoChat.OS.Authority.Identity.Handles;
 public interface IHandleDirectory
 {
     const string TypeName = "identity.handles";
-    static string Key(string handle) => $"{HandleShard.BrainOf(Normalize(handle))}/handles/{Normalize(handle)}";
+    static string BrainOf(string key) => NeuronKeys.SystemShard(key);
+    static string Key(string handle) => $"{BrainOf(Normalize(handle))}/handles/{Normalize(handle)}";
     static string Normalize(string handle) => handle.Trim().ToLowerInvariant();
     static bool IsValid(string handle) => Regex.IsMatch(handle, "^[a-z0-9][a-z0-9-]{2,31}$");
     Task<bool> Claim(string brainId);            // false if already claimed by another brain

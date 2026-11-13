@@ -30,7 +30,28 @@ public sealed partial class PackagingFacts
     [Fact]
     public void AModuleThatHostsItsContractsIsARuntimePackage()
     {
-        var hosts = Repository.Projects.Values.Where(project => File.ReadAllText(project.Path).Contains("<IntoChatOSContractsHost>true</IntoChatOSContractsHost>", StringComparison.Ordinal)).ToArray();
+        static bool DeclaresContractsHost(Repository.Project project)
+        {
+            if (File.ReadAllText(project.Path).Contains("<IntoChatOSContractsHost>true</IntoChatOSContractsHost>", StringComparison.Ordinal))
+            {
+                return true;
+            }
+            for (var dir = Path.GetDirectoryName(project.Path); !string.IsNullOrEmpty(dir); dir = Path.GetDirectoryName(dir))
+            {
+                var props = Path.Combine(dir, "Directory.Build.props");
+                if (File.Exists(props) && File.ReadAllText(props).Contains("<IntoChatOSContractsHost>true</IntoChatOSContractsHost>", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+                if (string.Equals(Path.GetFullPath(dir), Path.GetFullPath(Repository.Root), StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+            }
+            return false;
+        }
+
+        var hosts = Repository.Projects.Values.Where(DeclaresContractsHost).ToArray();
         Assert.All(hosts, project =>
         {
             Assert.False(project.Name.EndsWith(".Contracts", StringComparison.Ordinal), project.Name);

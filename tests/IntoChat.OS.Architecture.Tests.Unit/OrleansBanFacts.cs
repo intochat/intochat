@@ -11,32 +11,28 @@ public sealed class OrleansBanFacts
 {
     private static readonly string[] Allow =
     [
-        "IntoChat.OS.Kernel.Composition",
+        "IntoChat.Cloud",
         "IntoChat.OS.Modules.AI",
-        "IntoChat.OS.Modules.Flutter",
-        "IntoChat.Cloud.Circle.Server",
+        "IntoChat.OS.Modules.Shell",
     ];
 
     private static readonly string[] SiloHost =
     [
         "IntoChat.OS",
         "IntoChat.OS.Framework",
-        "IntoChat.OS.Client.Orleans",
-        "IntoChat.OS.Aspire.Server",
-        "IntoChat.OS.Aspire.Client",
+        "IntoChat.OS.Kernel",
     ];
 
     private static readonly string[] UnportedGrainModules =
     [
-        "IntoChat.OS.Modules.Identity",
-        "IntoChat.OS.Modules.Apps",
+        "IntoChat.OS.Modules.Catalog",
         "IntoChat.OS.Apps",
     ];
 
     [Fact]
     public void TheModuleAllowListIsExactlyTheLedgerFive()
         => Assert.Equal(
-            ["IntoChat.Cloud.Circle.Server", "IntoChat.OS.Kernel.Composition", "IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.Flutter"],
+            ["IntoChat.Cloud", "IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.Shell"],
             Allow.Order(StringComparer.Ordinal).ToArray());
 
     [Fact]
@@ -74,8 +70,8 @@ public sealed class OrleansBanFacts
         if (name.Contains(".Tests", StringComparison.Ordinal) || name.Contains(".Testing", StringComparison.Ordinal)) { return true; }
         var relative = path.Replace('\\', '/');
         if (relative.Contains("DigitalBrain.Runtime.Orleans", StringComparison.Ordinal)) { return true; }
-        if (relative.Contains("Modules/Microsoft/Orleans", StringComparison.Ordinal)) { return true; }
-        if (relative.Contains("Modules/Microsoft/GitHub/Contracts", StringComparison.Ordinal)) { return true; }
+        if (relative.Contains("Modules/Microsoft/Orleans", StringComparison.Ordinal) || relative.Contains("Modules/Orleans", StringComparison.Ordinal)) { return true; }
+        if (relative.Contains("Modules/Microsoft/GitHub", StringComparison.Ordinal) || relative.Contains("Modules/GitHub", StringComparison.Ordinal)) { return true; }
         return Allow.Contains(name, StringComparer.Ordinal)
             || SiloHost.Contains(name, StringComparer.Ordinal)
             || UnportedGrainModules.Contains(name, StringComparer.Ordinal);

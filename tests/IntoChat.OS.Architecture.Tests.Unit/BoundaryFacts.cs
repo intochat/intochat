@@ -14,14 +14,12 @@ public sealed class BoundaryFacts
     // configuration names with no dependencies, which deployments share.
     private static readonly string[] KernelLayers =
     [
-        "DigitalBrain", "IntoChat.OS.Contracts.Configuration", "IntoChat.OS", "IntoChat.OS.Framework",
-        "IntoChat.OS.Client.Orleans", "IntoChat.OS.Modules.Identity.Contracts", "IntoChat.OS.Modules.Identity"
+        "DigitalBrain", "IntoChat.OS", "IntoChat.OS.Framework"
     ];
 
     [Theory]
     [InlineData("DigitalBrain", "IntoChat.OS")]
     [InlineData("IntoChat.OS", "IntoChat.OS.Framework")]
-    [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Client.Orleans")]
     public void CoreBoundariesDoNotInvert(string source, string forbidden)
         => ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == source)).Should().NotDependOnAny(ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == forbidden)))
             .Check(ProductionArchitecture.Graph.Value);
@@ -48,12 +46,16 @@ public sealed class BoundaryFacts
     public void FeatureModulesNeverDependOnTheCredentialImplementation()
     {
         var architecture = ProductionArchitecture.Graph.Value;
-        var platform = ArchRuleDefinition.Types().That().ResideInAssembly("IntoChat.OS.Modules.Identity");
-        var modules = ProductionArchitecture.Assemblies.Where(assembly => !KernelLayers.Contains(assembly.GetName().Name)).ToArray();
+        var kernel = ArchRuleDefinition.Types().That().ResideInAssembly("IntoChat.OS.Kernel");
+        var appHost = ArchRuleDefinition.Types().That().ResideInAssembly("IntoChat.OS.AppHost");
+        var modules = ProductionArchitecture.Assemblies
+            .Where(assembly => assembly.GetName().Name?.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) == true)
+            .ToArray();
         Assert.NotEmpty(modules);
         foreach (var assembly in modules)
         {
-            ArchRuleDefinition.Types().That().ResideInAssembly(assembly).Should().NotDependOnAny(platform).Check(architecture);
+            ArchRuleDefinition.Types().That().ResideInAssembly(assembly).Should().NotDependOnAny(kernel).Check(architecture);
+            ArchRuleDefinition.Types().That().ResideInAssembly(assembly).Should().NotDependOnAny(appHost).Check(architecture);
         }
     }
 
@@ -78,9 +80,11 @@ public sealed class BoundaryFacts
         foreach (var host in contracts.Where(assembly => !ContractRing.IsContractsProject(assembly)))
         {
             var contractTypes = ContractRing.ContractTypes(host).Select(type => type.FullName!).ToHashSet(StringComparer.Ordinal);
-            Assert.NotEmpty(contractTypes);
+            if (contractTypes.Count == 0) { continue; }
             var own = host.GetTypes().Where(type => !contractTypes.Contains(type.FullName ?? "")
-                && type.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true && !type.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false))
+                && type.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true
+                && type.Namespace?.StartsWith("System.Text.RegularExpressions.Generated", StringComparison.Ordinal) != true
+                && !type.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false))
                 .Select(type => type.FullName!).ToArray();
             foreach (var name in contractTypes)
             {

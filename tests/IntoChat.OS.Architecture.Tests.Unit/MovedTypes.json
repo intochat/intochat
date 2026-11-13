@@ -352,21 +352,6 @@
       "persisted": false
     },
     {
-      "old": "IntoChat.OS.Framework.BrainAffinePlacement",
-      "alias": "os.brain-affine-placement",
-      "persisted": true
-    },
-    {
-      "old": "IntoChat.OS.Framework.BrainAffinePlacementAttribute",
-      "alias": null,
-      "persisted": false
-    },
-    {
-      "old": "IntoChat.OS.Framework.BrainAffinePlacementDirector",
-      "alias": null,
-      "persisted": false
-    },
-    {
       "old": "IntoChat.OS.Framework.BrainKey",
       "alias": null,
       "persisted": false
@@ -408,26 +393,6 @@
     },
     {
       "old": "IntoChat.OS.Framework.IRevisioned`1",
-      "alias": null,
-      "persisted": false
-    },
-    {
-      "old": "IntoChat.OS.Framework.ISignalJournal",
-      "alias": null,
-      "persisted": false
-    },
-    {
-      "old": "IntoChat.OS.Framework.JournaledSignal",
-      "alias": null,
-      "persisted": false
-    },
-    {
-      "old": "IntoChat.OS.Framework.MemorySignalJournal",
-      "alias": null,
-      "persisted": false
-    },
-    {
-      "old": "IntoChat.OS.Framework.MemorySignalJournalOptions",
       "alias": null,
       "persisted": false
     },
@@ -592,22 +557,12 @@
       "persisted": false
     },
     {
-      "old": "IntoChat.OS.Framework.PartSignals",
-      "alias": null,
-      "persisted": false
-    },
-    {
       "old": "IntoChat.OS.Framework.Parts.IMasterKeyCustody",
       "alias": null,
       "persisted": false
     },
     {
       "old": "IntoChat.OS.Framework.Parts.MasterKeyCustodyKind",
-      "alias": null,
-      "persisted": false
-    },
-    {
-      "old": "IntoChat.OS.Framework.SignalJournal",
       "alias": null,
       "persisted": false
     },

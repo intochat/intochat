@@ -233,13 +233,10 @@ internal sealed partial class AppNeuron
 
     private Task ValidateInstallation(string operation, AppBundle bundle, AppOrigin? origin, AppInstallReceipt installation)
     {
-        var reference = installation.Publication;
         if (!RuntimeCallerContext.TryGet(out var caller) || caller.AccountId != installation.AccountId
             || BrainScope.CurrentId() != BrainId())
         { throw new UnauthorizedAccessException("An installation belongs to its initiating account and destination brain."); }
-        var matches = installation.OperationId != Guid.Empty && installation.TargetName == Name()
-            && (origin is null ? null : origin with { Consented = null }) == new AppOrigin(reference.Publisher, reference.Source, reference.Name, reference.Version, reference.Digest, caller.AccountId)
-            && bundle.Version == reference.Version && AppPublicationDigest.Of(bundle) == reference.Digest;
+        var matches = PublishedRelease.IsReceiptMatching(installation, origin, bundle, Name(), caller.AccountId);
         return Check(operation, new ReceiptMatchesPublication(matches));
     }
 

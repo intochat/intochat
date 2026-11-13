@@ -22,6 +22,10 @@ public sealed class LocalItemIdFacts
     [InlineData("/etc/passwd")]
     [InlineData("C:/Windows/win.ini")]
     [InlineData("folder//file")]
+    [InlineData("folder\0file")]
+    [InlineData("..")]
+    [InlineData(".")]
+    [InlineData("sub/../../escape")]
     public void HostileRelativeIsDenied(string relative)
     {
         var id = LocalItemId.Of("root1", relative);
@@ -45,6 +49,7 @@ public sealed class LocalDiskRootFacts
         Assert.Equal(LocalDiskRoots.NeedFullPath, LocalDiskRoots.Syntax(null));
         Assert.Equal(LocalDiskRoots.NeedFullPath, LocalDiskRoots.Syntax("  "));
         Assert.Equal(LocalDiskRoots.NeedFullPath, LocalDiskRoots.Syntax("notes"));
+        Assert.Equal(LocalDiskRoots.NeedFullPath, LocalDiskRoots.Syntax("folder\0path"));
         Assert.Null(LocalDiskRoots.Syntax(Path.GetTempPath()));
     }
 

@@ -16,6 +16,8 @@ using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
+using DigitalBrain.Log;
+using Microsoft.Extensions.Logging.Abstractions;
 using UI = DigitalBrain.UI.Ui;
 
 namespace IntoChat.OS.Apps.Markdraw;
@@ -181,7 +183,7 @@ public sealed class MarkdrawApp : Screen<MarkdrawAppState>, IWithFilesVfs
             }
             catch (Exception ex)
             {
-                _ = ex.Message;
+                NullLogger.Instance.LogSwallowed(ex, "Failed to initialize default templates in VFS.");
             }
         }
 
@@ -343,7 +345,7 @@ public sealed class MarkdrawApp : Screen<MarkdrawAppState>, IWithFilesVfs
             }
             catch (Exception ex)
             {
-                _ = ex.Message;
+                NullLogger.Instance.LogSwallowed(ex, "Failed to export canvas to VFS.");
             }
         }
 
@@ -456,7 +458,7 @@ public sealed class MarkdrawApp : Screen<MarkdrawAppState>, IWithFilesVfs
         }
         catch (Exception ex)
         {
-            _ = ex.Message;
+            NullLogger.Instance.LogSwallowed(ex, "Failed to seed demo drawings into VFS.");
         }
     }
 
@@ -474,7 +476,7 @@ public sealed class MarkdrawApp : Screen<MarkdrawAppState>, IWithFilesVfs
             }
             catch (Exception ex)
             {
-                _ = ex.Message;
+                NullLogger.Instance.LogSwallowed(ex, "Failed to read drawing document from VFS.");
             }
         }
         return State.Content;
@@ -494,7 +496,7 @@ public sealed class MarkdrawApp : Screen<MarkdrawAppState>, IWithFilesVfs
             }
             catch (Exception ex)
             {
-                _ = ex.Message;
+                NullLogger.Instance.LogSwallowed(ex, "Failed to persist canvas scene to VFS.");
             }
         }
         return (saved, drawings);
@@ -523,7 +525,7 @@ public sealed class MarkdrawApp : Screen<MarkdrawAppState>, IWithFilesVfs
             }
             catch (Exception ex)
             {
-                _ = ex.Message;
+                NullLogger.Instance.LogSwallowed(ex, "Failed to list workspace drawings from VFS.");
             }
         }
 
@@ -537,7 +539,7 @@ public sealed class MarkdrawApp : Screen<MarkdrawAppState>, IWithFilesVfs
             try { return System.Text.RegularExpressions.Regex.Unescape(content[1..^1]); }
             catch (Exception ex)
             {
-                _ = ex;
+                NullLogger.Instance.LogSwallowed(ex, "Failed to unescape incoming scene string; returning raw content.");
                 return content;
             }
         }

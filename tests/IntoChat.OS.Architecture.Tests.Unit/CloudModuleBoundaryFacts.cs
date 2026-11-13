@@ -12,15 +12,7 @@ public sealed class CloudModuleBoundaryFacts
     private static readonly string[] InternalNamespaces = ["Authority", "Framework", "Kernel", "Sdk"];
 
     // The folder that holds the cloud modules, learned from the solution's IntoChat.Cloud.* projects.
-    private static string CloudDirectory
-    {
-        get
-        {
-            var marker = Path.DirectorySeparatorChar + "IntoChat.Cloud" + Path.DirectorySeparatorChar;
-            var project = Repository.Projects.Values.First(project => project.Directory.Contains(marker, StringComparison.Ordinal));
-            return project.Directory[..(project.Directory.IndexOf(marker, StringComparison.Ordinal) + marker.Length - 1)];
-        }
-    }
+    private static string CloudDirectory => Repository.ProjectNamed("IntoChat.Cloud").Directory;
 
     private static bool IsTest(string name) => name.EndsWith(".Tests", StringComparison.Ordinal) || name.Contains(".Tests.", StringComparison.Ordinal);
 
@@ -43,6 +35,8 @@ public sealed class CloudModuleBoundaryFacts
 
     private static bool AllowedProject(string name, IReadOnlySet<string> moduleProjects)
         => name is "DigitalBrain" || name.StartsWith("DigitalBrain.", StringComparison.Ordinal)
+            || name is "IntoChat.OS" or "IntoChat.OS.Framework"
+            || name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
             || (name.StartsWith("IntoChat.OS.", StringComparison.Ordinal) && name.EndsWith(".Contracts", StringComparison.Ordinal))
             || (name.StartsWith("IntoChat.Cloud.", StringComparison.Ordinal) && name.EndsWith(".Contracts", StringComparison.Ordinal))
             || name is "IntoChat.Cloud.Localization" or "IntoChat.Cloud.Localization.Generator" or "IntoChat.Cloud.Mail.Templates"
@@ -51,11 +45,7 @@ public sealed class CloudModuleBoundaryFacts
     private static IEnumerable<(string Name, string Path, string Module)> CloudProjects()
         => Directory.EnumerateFiles(CloudDirectory, "*.csproj", SearchOption.AllDirectories)
             .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(part => part is "obj" or "bin"))
-            .Select(path =>
-            {
-                var relative = Path.GetRelativePath(Path.Combine(CloudDirectory, "Modules"), path).Replace('\\', '/');
-                return (Path.GetFileNameWithoutExtension(path), path, relative.Split('/')[0]);
-            });
+            .Select(path => (Path.GetFileNameWithoutExtension(path), path, Path.GetFileNameWithoutExtension(path)));
 
     [Fact]
     public void CloudProjectsReferenceOnlyDigitalBrainContractsAndTheirOwnModule()
@@ -107,21 +97,21 @@ public sealed class CloudModuleBoundaryFacts
         const string Clean = """
             <Project><ItemGroup>
               <ProjectReference Include="../../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
-              <ProjectReference Include="../../Contracts/IntoChat.Cloud.Auth.Contracts/IntoChat.Cloud.Auth.Contracts.csproj" />
-              <ProjectReference Include="../IntoChat.Cloud.Auth.Core/IntoChat.Cloud.Auth.Core.csproj" />
-              <ProjectReference Include="../../../../IntoChat.OS.Modules/IntoChat.OS/Circles/Contracts/IntoChat.OS.Modules.Circles.Contracts/IntoChat.OS.Modules.Circles.Contracts.csproj" />
+              <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+              <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+              <ProjectReference Include="../../Modules/Circles/IntoChat.OS.Modules.Circles.csproj" />
               <PackageReference Include="Otp.NET" />
             </ItemGroup></Project>
             """;
         Assert.Empty(Violations(Clean, module, _ => null));
         const string Dirty = """
             <Project><ItemGroup>
-              <PackageReference Include="IntoChat.OS.Framework" />
+              <PackageReference Include="IntoChat.OS.Kernel" />
               <ProjectReference Include="../../../../IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
               <ProjectReference Include="../../../Mail/src/IntoChat.Cloud.Mail/IntoChat.Cloud.Mail.csproj" />
             </ItemGroup></Project>
             """;
-        Assert.Equal(["project IntoChat.OS.Kernel", "project IntoChat.Cloud.Mail", "package IntoChat.OS.Framework"],
+        Assert.Equal(["project IntoChat.OS.Kernel", "project IntoChat.Cloud.Mail", "package IntoChat.OS.Kernel"],
             Violations(Dirty, module, _ => null).OrderBy(v => v.StartsWith("package", StringComparison.Ordinal)).ToArray());
     }
 }

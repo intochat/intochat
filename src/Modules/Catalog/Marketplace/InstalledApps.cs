@@ -24,7 +24,5 @@ internal static class InstalledApps
 
     // The same rule as AppInstaller.Entry: an unedited copy whose publisher listed a newer version.
     public static bool UpdateAvailable(AppSnapshot snapshot, IReadOnlyList<MarketplaceListing> listings)
-        => snapshot.Origin is { } source && !snapshot.Edited
-            && listings.FirstOrDefault(listing => listing.Publisher == source.Publisher && listing.Name == source.Name) is { } listed
-            && AppVersions.Compare(listed.Version, source.Version) > 0;
+        => CatalogEntry.IsUpdateAvailable(snapshot, listings);
 }

@@ -1,7 +1,11 @@
+using DigitalBrain.Log;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace IntoChat.OS.Modules.Apps;
 
 [DigitalBrain.Neurons.Neuron("os.profile")]
-public sealed class ProfileNeuron : DigitalBrain.Neurons.Neuron<ProfileState>, IProfile
+public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : DigitalBrain.Neurons.Neuron<ProfileState>, IProfile
 {
     public Task<ProfileState> Read() => Task.FromResult(State);
 
@@ -139,7 +143,7 @@ public sealed class ProfileNeuron : DigitalBrain.Neurons.Neuron<ProfileState>, I
         ArgumentException.ThrowIfNullOrWhiteSpace(postId);
         ArgumentException.ThrowIfNullOrWhiteSpace(newPostId);
 
-        var brainId = string.IsNullOrWhiteSpace(Id.Brain.Value) ? "local" : Id.Brain.Value;
+        var brainId = Id.Brain.Value ?? string.Empty;
         var source = State.Posts.FirstOrDefault(existing => string.Equals(existing.Id, postId.Trim(), StringComparison.Ordinal))
             ?? new ProfilePostItem(
                 postId.Trim(),
@@ -197,7 +201,8 @@ public sealed class ProfileNeuron : DigitalBrain.Neurons.Neuron<ProfileState>, I
         if (string.IsNullOrWhiteSpace(alias)) { return files; }
         try
         {
-            var brainId = string.IsNullOrWhiteSpace(Id.Brain.Value) ? "local" : Id.Brain.Value;
+            var brainId = Id.Brain.Value ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(brainId)) { return files; }
             var studio = Context.Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
             foreach (var (path, text) in await studio.SourceFiles(alias)) { files[path] = text; }
             if (files.Count > 0)
@@ -207,6 +212,7 @@ public sealed class ProfileNeuron : DigitalBrain.Neurons.Neuron<ProfileState>, I
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            ((ILogger?)logger ?? NullLogger.Instance).LogSwallowed(error, "Failed to read unit source files from SynapseStudio for profile post.");
         }
         return files;
     }

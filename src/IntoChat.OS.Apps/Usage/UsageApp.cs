@@ -16,6 +16,8 @@ using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Compute;
+using DigitalBrain.Log;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Apps.Usage;
 
@@ -80,7 +82,7 @@ public sealed class UsageApp : Screen<UsageAppState>
         }
         catch (Exception ex)
         {
-            _ = ex.Message;
+            NullLogger.Instance.LogSwallowed(ex, "Compute follow is optional when running in standalone mode.");
         }
     }
 
@@ -113,7 +115,7 @@ public sealed class UsageApp : Screen<UsageAppState>
         }
         catch (Exception ex)
         {
-            _ = ex;
+            NullLogger.Instance.LogSwallowed(ex, "Failed to set compute budget; falling back to local state.");
             var usd = FormatUsd(State.SpentMicros);
             await Show(State with
             {
@@ -134,7 +136,7 @@ public sealed class UsageApp : Screen<UsageAppState>
         }
         catch (Exception ex)
         {
-            _ = ex;
+            NullLogger.Instance.LogSwallowed(ex, "Failed to read compute state; falling back to local state.");
             var usd = FormatUsd(State.SpentMicros);
             await Show(State with { FormattedUsd = usd, Status = $"{statusPrefix} Total: {usd}." });
         }

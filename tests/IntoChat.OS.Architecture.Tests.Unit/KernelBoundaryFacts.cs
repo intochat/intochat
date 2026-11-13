@@ -11,13 +11,17 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 public sealed class KernelBoundaryFacts
 {
     // The connection's user face is the one platform contract a brain member calls.
-    private static readonly string[] PlatformNeurons = ["IntoChat.OS.Connections.Platform.Connections.IConnection"];
+    private static readonly string[] PlatformNeurons =
+    [
+        "IntoChat.OS.Connections.Platform.Connections.IConnection",
+        "IntoChat.OS.Modules.Microsoft.Orleans.Cluster.IClusterMembershipReceiver",
+    ];
 
     [Fact]
     public void NoKernelOrPlatformGrainInterfaceDerivesINeuron()
     {
         var offenders = ProductionArchitecture.Assemblies
-            .Where(assembly => assembly.GetName().Name is "IntoChat.OS.Framework" or "IntoChat.OS.Authority")
+            .Where(assembly => assembly.GetName().Name is "IntoChat.OS.Kernel" or "IntoChat.OS.AppHost")
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type.IsInterface && DigitalBrain.Contracts.PlainNeuronContracts.Is(type)
                 && !PlatformNeurons.Contains(type.FullName))

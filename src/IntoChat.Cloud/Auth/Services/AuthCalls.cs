@@ -18,11 +18,11 @@ internal sealed class AuthCalls(INeuronProxies neurons, IAuthHostSeam host)
 
     public Task<T> Membership<T>(string principalId, Func<IOrgMembership, Task<T>> call) => Scoped(() => call(Get<IOrgMembership>(IOrgMembership.Type, IOrgMembership.Key(principalId))));
 
-    public Task<T> Code<T>(string subjectHash, CodePurpose purpose, Func<IAuthCode, Task<T>> call) => Scoped(() => call(Get<IAuthCode>(IAuthCode.Type, IAuthCode.KeyForSubject(subjectHash, purpose))));
+    public Task<T> Code<T>(string subjectHash, CodePurpose purpose, Func<IAuthCode, Task<T>> call) => Scoped(() => call(Get<IAuthCode>(IAuthCode.Type, AuthCodeKeys.ForSubject(subjectHash, purpose))));
 
     // The slot a code id routes to, or null for a malformed id (never resolves a neuron for it).
     public Task<T>? CodeById<T>(string codeId, Func<IAuthCode, CodePurpose, Task<T>> call) =>
-        IAuthCode.KeyForCodeId(codeId, out var purpose) is { } key ? Scoped(() => call(Get<IAuthCode>(IAuthCode.Type, key), purpose)) : null;
+        AuthCodeKeys.ForCodeId(codeId, out var purpose) is { } key ? Scoped(() => call(Get<IAuthCode>(IAuthCode.Type, key), purpose)) : null;
 
     public Task<T> EmailIndex<T>(string emailHash, Func<IAuthEmailIndex, Task<T>> call) => Scoped(() => call(Get<IAuthEmailIndex>(IAuthEmailIndex.Type, IAuthEmailIndex.Key(emailHash))));
 

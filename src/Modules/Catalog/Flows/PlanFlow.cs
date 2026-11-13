@@ -3,6 +3,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
+using IntoChat.OS.Primitives;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -71,10 +72,10 @@ public sealed class PlanFlow(AgentStepOptions? options = null) : AgentFlow<PlanI
             case "approve":
                 inner.Subtasks ??= Parse(inner.Reply);
                 inner.ApprovalExpires = Context.Time.GetUtcNow() + ApprovalWindow;
-                return new StepResult<PlanInner>(inner, new Waiting(step, WaitReason.Approval, inner.ApprovalExpires, null));
+                return inner.WaitApproval(step, inner.ApprovalExpires);
             case "start-subtasks":
                 inner.Started = await StartSubtasks(inner.Subtasks ?? []);
-                return new StepResult<PlanInner>(inner);
+                return inner.Advance();
             default:
                 throw new FlowFailed(step, $"Unknown step {step}.");
         }

@@ -21,7 +21,7 @@ internal sealed class AuthCodeNeuron(
     public async Task<CodeIssue> Issue(CodeIssueRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (IAuthCode.KeyForSubject(request.SubjectHash, Purpose) != FullKey)
+        if (AuthCodeKeys.ForSubject(request.SubjectHash, Purpose) != FullKey)
         {
             throw new ArgumentException("The subject does not belong to this code slot.", nameof(request));
         }

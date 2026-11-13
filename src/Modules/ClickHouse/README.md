@@ -22,6 +22,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 | `ConnectionString` | yes |
 | `connection-string` | yes |
 
-Contracts: assembly `IntoChat.OS.Modules.ClickHouse.Contracts` (`IClickHouse`).
+Contracts: assembly `IntoChat.OS.Modules.ClickHouse` (`IClickHouse`).
 Hosting: needs a container.
 <!-- END GENERATED -->

@@ -43,7 +43,7 @@ internal static class EmailChangeEndpoints
         var (body, failure) = await AuthProblems.ReadAsync<ConfirmRequest>(http.Request);
         if (failure is not null) { return failure; }
         if (body!.CodeId is null || !CodeEndpoints.IsCode(body.Code)
-            || IAuthCode.KeyForCodeId(body.CodeId, out var purpose) is null || purpose != CodePurpose.ChangeEmail) { return AuthProblems.NotFound(); }
+            || AuthCodeKeys.ForCodeId(body.CodeId, out var purpose) is null || purpose != CodePurpose.ChangeEmail) { return AuthProblems.NotFound(); }
         var challenge = await calls.CodeById(body.CodeId, (code, _) => code.GetChallenge(body.CodeId))!;
         // A successful retry needs no second proof; the destination remembers the exact consumed code id.
         var subject = challenge?.SubjectHash;

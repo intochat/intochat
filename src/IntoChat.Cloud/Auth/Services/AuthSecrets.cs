@@ -56,5 +56,5 @@ internal sealed class AuthSecrets(IServiceProvider services, IAuthHostSeam host)
     // The caller the runtime reads when the call reaches a capability: the auth module itself.
     internal static IDisposable Stamp(IAuthHostSeam host) => host.StampModuleCaller(Module);
 
-    internal static CapabilityCaller Module { get; } = new(AuthModule.Id, AuthModule.Id, "system", AuthModule.Id);
+    internal static CapabilityCaller Module { get; } = CapabilityCallers.Of(AuthModule.Id, AuthModule.Id, "system", CallerKind.App, AuthModule.Id);
 }

@@ -1,5 +1,5 @@
 using DigitalBrain.Access;
-using IntoChat.Cloud.Mail;
+using IntoChat.OS;
 
 namespace IntoChat.Cloud.Organisations;
 
@@ -8,7 +8,7 @@ public interface IOrganisationDirectory
 {
     const string Type = "organisations.directory";
 
-    static string Key(string principalId) => $"{SystemShard.BrainOf(principalId)}/organisation-directory/{principalId}";
+    static string Key(string principalId) => $"{NeuronKeys.SystemShard(principalId)}/organisation-directory/{principalId}";
 
     [Internal]
     Task<PersonalOrganisationResult> EnsurePersonal(PersonalOrganisationRequest request);

@@ -20,12 +20,18 @@ public static class WorkNotesOrganizerUnit
     public static Reaction<OrganizerState> Poll(Tick tick, OrganizerState state)
         => Reaction<OrganizerState>.Of(state, new NotesIndexed(state.NoteCount));
 
+    [Synapse("ui.screens.approval-resolved", "organizer.work.notes")]
+    public static OrganizerState Approved(SignalEnvelope env, OrganizerState state)
+        => (Read(env.Payload, "approvalId") ?? "").Contains("organizer.work.notes", StringComparison.OrdinalIgnoreCase)
+            ? new(state.NoteCount, state.LatestNote)
+            : state;
+
     [Synapse("notes.index", "organizer.work.notes")]
     public static Reaction<OrganizerState> Index(SignalEnvelope env, OrganizerState state)
     {
         var latest = Read(env.Payload, "latest") ?? state.LatestNote;
         var count = state.NoteCount;
-        if (Read(env.Payload, "notes") is { } raw && !string.IsNullOrWhiteSpace(raw))
+        if ((Read(env.Payload, "notes") ?? Read(env.Payload, "value")) is { } raw && !string.IsNullOrWhiteSpace(raw))
         {
             var parts = raw.Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             count = parts.Length;
@@ -43,7 +49,7 @@ public static class WorkNotesOrganizerUnit
     }
 
     [Synapse("notes.reset", "organizer.work.notes")]
-    public static OrganizerState Reset(SignalEnvelope env, OrganizerState state) => state with { NoteCount = 0, LatestNote = "" };
+    public static OrganizerState Reset(SignalEnvelope env, OrganizerState state) => new(0, "");
 
     [Synapse("organizer.work.notes")]
     public static View Show(OrganizerState state) => new("Workspace Markdown Organizer", new Column(

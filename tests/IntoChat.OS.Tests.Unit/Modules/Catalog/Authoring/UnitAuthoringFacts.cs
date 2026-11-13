@@ -429,4 +429,95 @@ public sealed class UnitAuthoringFacts
         { Assert.Contains(taught, AgentPrompts.AuthorUnit, StringComparison.Ordinal); }
         Assert.DoesNotContain("write a separate scenario", AgentPrompts.AuthorUnit, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void ScenarioGrammarAcceptsStorageAndToolSlots()
+    {
+        var scenario = new Scenario("storage and tools",
+            JsonElement.Parse("""
+                {
+                  "storage": {"store": {"notes.txt": "hello world"}},
+                  "tool": {"weather": {"lookup": {"temp": 72}}}
+                }
+                """),
+            ["publish app.start"],
+            ["signal app.done"]);
+
+        var parsed = ScenarioSteps.Parse(scenario);
+        Assert.Contains("store", parsed.Fakes.Slots);
+        Assert.Contains("weather", parsed.Fakes.Slots);
+    }
+
+    [Fact]
+    public async Task OfflineUnitSynthesizerJ1InteractiveTrackerPassesCheck()
+    {
+        var unit = OfflineUnitSynthesizer.SynthesizeAuthoredUnit("interactive counter tracker app");
+        Assert.Equal("counter.app", unit.Alias);
+        Assert.True(unit.Needs.View);
+        Assert.NotEmpty(unit.Scenarios);
+
+        var files = OfflineUnitSynthesizer.SynthesizeUnitFiles(JsonSerializer.Serialize(unit));
+        Assert.NotEmpty(files);
+
+        var check = await BuilderTools.Check(HostCompiler, unit.Alias, files, unit.Needs, unit.Scenarios, Ct);
+        Assert.True(check.Passed, string.Join("; ", check.Diagnostics.Select(d => $"{d.Id}: {d.Message}").Concat(check.Failures)));
+    }
+
+    [Fact]
+    public async Task OfflineUnitSynthesizerJ2RefinementPreservesScenarios()
+    {
+        var baseUnit = OfflineUnitSynthesizer.SynthesizeAuthoredUnit("counter tracker");
+        var baseFiles = OfflineUnitSynthesizer.SynthesizeUnitFiles(JsonSerializer.Serialize(baseUnit));
+
+        var prompt = $$"""
+            Current files:
+            --- UnitApp.cs ---
+            {{baseFiles["UnitApp.cs"]}}
+            --- scenarios.json ---
+            {{JsonSerializer.Serialize(baseUnit.Scenarios, JsonSerializerOptions.Web)}}
+
+            Refine this unit to add notes tracking field and note button.
+            """;
+
+        var refinedUnit = OfflineUnitSynthesizer.SynthesizeAuthoredUnit(prompt);
+        Assert.True(refinedUnit.State.ContainsKey("Notes"));
+        Assert.True(refinedUnit.Scenarios.Count > baseUnit.Scenarios.Count);
+        Assert.Equal(baseUnit.Scenarios[0].Name, refinedUnit.Scenarios[0].Name);
+
+        var refinedFiles = OfflineUnitSynthesizer.SynthesizeUnitFiles(prompt);
+        var check = await BuilderTools.Check(HostCompiler, refinedUnit.Alias, refinedFiles, refinedUnit.Needs, refinedUnit.Scenarios, Ct);
+        Assert.True(check.Passed, string.Join("; ", check.Diagnostics.Select(d => $"{d.Id}: {d.Message}").Concat(check.Failures)));
+    }
+
+    [Fact]
+    public async Task OfflineUnitSynthesizerJ3ReactiveChainPassesCheck()
+    {
+        var unit = OfflineUnitSynthesizer.SynthesizeAuthoredUnit("reactive multi-step workflow automation every 5m");
+        Assert.Equal("flow.watch", unit.Alias);
+        Assert.Equal("every 5m", unit.Needs.Schedule);
+        Assert.True(unit.Signals.Count >= 2);
+
+        var files = OfflineUnitSynthesizer.SynthesizeUnitFiles(JsonSerializer.Serialize(unit));
+        var check = await BuilderTools.Check(HostCompiler, unit.Alias, files, unit.Needs, unit.Scenarios, Ct);
+        Assert.True(check.Passed, string.Join("; ", check.Failures));
+    }
+
+    [Fact]
+    public async Task SiloCreatorModelFallsBackOfflineWhenNoProviderAvailable()
+    {
+        var services = new ServiceCollection().BuildServiceProvider();
+        var siloModel = new SiloCreatorModel(services);
+
+        var completed = await siloModel.Complete("brain1", "missing-model", AgentPrompts.AuthorUnit, "track daily budget expenses", Ct);
+        Assert.Contains("budget.app", completed, StringComparison.Ordinal);
+
+        var unit = JsonSerializer.Deserialize<AuthoredUnit>(completed, JsonSerializerOptions.Web)!;
+        Assert.Equal("budget.app", unit.Alias);
+
+        var generated = await siloModel.Generate("brain1", "missing-model", new InferenceRequest(
+            [new AiMessage("system", [new AiText(AgentPrompts.BuildUnit)]), new AiMessage("user", [new AiText(completed)])]), Ct);
+
+        var replyText = generated.Messages[0].Content.OfType<AiText>().Single().Text;
+        Assert.Contains("UnitApp.cs", replyText, StringComparison.Ordinal);
+    }
 }

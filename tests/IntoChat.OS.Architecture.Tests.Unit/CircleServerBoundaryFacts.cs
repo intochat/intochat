@@ -5,15 +5,31 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // covers every cloud module, this one holds the line for the circle server.
 public sealed class CircleServerBoundaryFacts
 {
-    private const string Module = "IntoChat.Cloud.Circle.Server";
-    private static readonly string[] ThirdPartyPackages = ["Microsoft.Orleans.Sdk"];
+    private const string Module = "IntoChat.Cloud";
+    private static readonly string[] AllowedProjects =
+    [
+        "IntoChat.OS",
+        "IntoChat.OS.Framework",
+        "IntoChat.OS.Modules.Circles",
+    ];
+    private static readonly string[] ThirdPartyPackages =
+    [
+        "Azure.Communication.Email",
+        "Azure.Storage.Blobs",
+        "Microsoft.AspNetCore.Authentication.Google",
+        "Microsoft.Orleans.Sdk",
+        "Otp.NET",
+        "QRCoder",
+    ];
 
     [Fact]
     public void TheCircleServerReferencesOnlyDigitalBrainAndContracts()
     {
         var project = Repository.ProjectNamed(Module).Path;
         var projects = Repository.References(project)
-            .Where(reference => !reference.EndsWith(".Contracts", StringComparison.Ordinal) && !reference.StartsWith("DigitalBrain", StringComparison.Ordinal))
+            .Where(reference => !reference.EndsWith(".Contracts", StringComparison.Ordinal)
+                && !reference.StartsWith("DigitalBrain", StringComparison.Ordinal)
+                && !AllowedProjects.Contains(reference))
             .ToArray();
         var packages = Repository.PackageReferences(project)
             .Where(package => !package.StartsWith("DigitalBrain", StringComparison.Ordinal) && !ThirdPartyPackages.Contains(package))

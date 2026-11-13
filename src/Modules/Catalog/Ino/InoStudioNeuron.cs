@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DigitalBrain.Brains;
 using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.ArtCraft;
@@ -8,6 +9,19 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Neurons.Neuron("ino.studio")]
 public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Neurons.Neuron, IInoStudio
 {
+    private string CurrentBrainId
+    {
+        get
+        {
+            var brain = Id.Brain.Value;
+            if (string.IsNullOrWhiteSpace(brain) || !BrainScope.IsValidId(brain))
+            {
+                throw new InvalidOperationException($"Invalid brain id '{brain}'.");
+            }
+            return brain;
+        }
+    }
+
     // Starts the five-step unit flow (author, draft, verify, deploy, install); the flow's author step names the alias. The card points at
     // the flow on the Tasks board, where the verify transcript and the consent to the unit's needs appear.
     public async Task<InoToolResult> Make(string goal)
@@ -15,18 +29,20 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         ArgumentException.ThrowIfNullOrWhiteSpace(goal);
         var text = goal.Trim();
         var title = text.Length <= 52 ? text : text[..52];
+        var brainId = CurrentBrainId;
+
         string flowId;
         try
         {
             var inner = JsonSerializer.Serialize(new BuildInner { Goal = text }, BuildFlow.Json);
-            flowId = await Get<IFlows>(IFlows.Key(Id.Brain.Value)).Start(BuildFlow.Alias, title, null, inner);
+            flowId = await Get<IFlows>(IFlows.Key(brainId)).Start(BuildFlow.Alias, title, null, inner);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             return new InoToolResult($"Could not start '{title}': {error.Message}");
         }
 
-        var tasks = $"neuron://local/apps/tasks#{flowId}";
+        var tasks = $"neuron://{brainId}/apps/tasks#{flowId}";
         var card = new InoCard(
             flowId,
             "flow",
@@ -43,6 +59,8 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(appId);
         var app = appId.Trim();
+        _ = CurrentBrainId;
+
         try
         {
             await Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, $"apps/{app}")).Request("open", "");
@@ -57,9 +75,10 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
 
     public async Task<InoToolResult> List()
     {
+        var brainId = CurrentBrainId;
         var studios = (await ShippedManifests.Of(services)).Studios();
         var text = "Studios:\n" + string.Join("\n", studios.Select(s => $"- {s.App}: {s.Description}"));
-        var studio = Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value));
+        var studio = Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
         DigitalBrain.Units.DeployedSource[] units;
         try { units = await studio.List(); }
         catch (Exception error) when (error is not OperationCanceledException) { return new InoToolResult(text + $"\nUnits are not available: {error.Message}"); }

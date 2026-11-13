@@ -11,7 +11,7 @@ on:
   push:
     branches: [master]
     paths:
-      - 'src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/ArtCraft/**'
+      - 'src/IntoChat.OS.AppHost/Hosting/Modules/ArtCraft/**'
       - '.github/workflows/artcraft-images.yml'
 
 permissions:
@@ -27,10 +27,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { app: photocraft, kind: mcp, ref: d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a, dockerfile: src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/ArtCraft/docker/craft-mcp.Dockerfile }
-          - { app: photocraft, kind: web, ref: d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a, dockerfile: src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/ArtCraft/docker/craft-web.Dockerfile }
-          - { app: filmcraft, kind: mcp, ref: 7b6c134472287db4367fca80bcb498240ba36567, dockerfile: src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/ArtCraft/docker/craft-mcp.Dockerfile }
-          - { app: filmcraft, kind: web, ref: 7b6c134472287db4367fca80bcb498240ba36567, dockerfile: src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/ArtCraft/docker/craft-web.Dockerfile }
+          - { app: photocraft, kind: mcp, ref: d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a, dockerfile: src/IntoChat.OS.AppHost/Hosting/Modules/ArtCraft/docker/craft-mcp.Dockerfile }
+          - { app: photocraft, kind: web, ref: d7d5c6069c8f763b8ea3bf1290440bf76a4eed3a, dockerfile: src/IntoChat.OS.AppHost/Hosting/Modules/ArtCraft/docker/craft-web.Dockerfile }
+          - { app: filmcraft, kind: mcp, ref: 7b6c134472287db4367fca80bcb498240ba36567, dockerfile: src/IntoChat.OS.AppHost/Hosting/Modules/ArtCraft/docker/craft-mcp.Dockerfile }
+          - { app: filmcraft, kind: web, ref: 7b6c134472287db4367fca80bcb498240ba36567, dockerfile: src/IntoChat.OS.AppHost/Hosting/Modules/ArtCraft/docker/craft-web.Dockerfile }
     steps:
       - uses: actions/checkout@v7
 
@@ -68,7 +68,7 @@ jobs:
           fi
           docker build -f "${DOCKERFILE}" --build-arg APP="${APP}" --build-arg REF="${REF}" \
             --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
-            -t "${image}:${tag}" src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/ArtCraft/docker
+            -t "${image}:${tag}" src/IntoChat.OS.AppHost/Hosting/Modules/ArtCraft/docker
           docker push "${image}:${tag}"
           digest="$(docker inspect --format '{{index .RepoDigests 0}}' "${image}:${tag}")"
           echo "pushed ${digest}" | tee -a "$GITHUB_STEP_SUMMARY"

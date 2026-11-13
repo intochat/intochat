@@ -30,7 +30,7 @@ public sealed class CredentialBoundaryFacts
             "IntoChat.OS.Modules.Flutter.Space.SpaceWatcher",
         ];
         var offenders = ModuleMethods()
-            .Where(m => m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Modules.Identity" && m.DeclaringType!.Namespace != "IntoChat.OS.Modules.Microsoft.Azure.Install")
+            .Where(m => m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Framework" && m.DeclaringType!.Namespace != "IntoChat.OS.Modules.Microsoft.Azure.Install")
             .Where(m => !allowed.Contains(Outermost(m.DeclaringType!).FullName))
             .Where(m => Calls(m).Any(ConstructsACaller) || SetsAPlatformStamp(m))
             .Select(m => m.DeclaringType!.FullName + "." + m.Name).Order().ToArray();
@@ -42,9 +42,6 @@ public sealed class CredentialBoundaryFacts
     {
         string[] approved =
         [
-            "IntoChat.OS.Authority.Identity.AccountSession",
-            "IntoChat.OS.Authority.Identity.AccountSessionIssuer",
-            "IntoChat.OS.Authority.VaultPort",
             "IntoChat.OS.Modules.Apps.AppNeuron",
         ];
         var sites = ModuleMethods().Where(m => Calls(m).Any(ConstructsACaller))
@@ -79,14 +76,14 @@ public sealed class CredentialBoundaryFacts
     [Fact]
     public void OnlyTheIntegrationReleaseConstructsAPlatformStamp()
     {
-        var platform = ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == "IntoChat.OS.Modules.Identity");
+        var platform = ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == "IntoChat.OS.Framework");
         var methods = platform.GetTypes().Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).Cast<MethodBase>()
                 .Concat(t.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)))
             .ToArray();
         string[] Sites(Func<MethodBase, bool> does) => [.. methods.Where(does).Select(m => Outermost(m.DeclaringType!).FullName!).Distinct().Order()];
 
-        Assert.Equal(["IntoChat.OS.Authority.Identity.Authority.DirectoryNeuron", "IntoChat.OS.Authority.Identity.Grants.EdgeGrantsCache", "IntoChat.OS.Authority.Integrations.IntegrationNeuron", "IntoChat.OS.Authority.VaultPort"],
+        Assert.Equal(["IntoChat.OS.Authority.Identity.Authority.DirectoryNeuron", "IntoChat.OS.Authority.Identity.Grants.EdgeGrantsCache", "IntoChat.OS.Authority.Integrations.IntegrationNeuron", "IntoChat.OS.Authority.VaultPort", "IntoChat.OS.Framework.InProcessCallerScope"],
             Sites(SetsAPlatformStamp));
         Assert.Equal(
             ["IntoChat.OS.Authority.Identity.AccountSession", "IntoChat.OS.Authority.Identity.AccountSessionIssuer", "IntoChat.OS.Authority.VaultPort"],
@@ -119,7 +116,7 @@ public sealed class CredentialBoundaryFacts
     public void RuntimeModulesCannotBypassIntegrationHandles()
     {
         var offenders = ModuleMethods().Where(m =>
-            m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Modules.Identity" && m.DeclaringType!.Namespace != "IntoChat.OS.Modules.Microsoft.Azure.Install"
+            m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Framework" && m.DeclaringType!.Namespace != "IntoChat.OS.Modules.Microsoft.Azure.Install"
             && !m.Module.Assembly.GetName().Name!.EndsWith(".Aspire.Hosting", StringComparison.Ordinal)
             && !m.Module.Assembly.GetName().Name!.EndsWith(".Deployment", StringComparison.Ordinal))
             .Where(m => Calls(m).Any(c => c.DeclaringType == typeof(IIntegration)
@@ -133,13 +130,13 @@ public sealed class CredentialBoundaryFacts
     // AI module (its one consumer) and the identity module (its implementation) may reference it.
     [Fact]
     public void BrainProviderKeysLivesInTheIdentityModule()
-        => Assert.Equal("IntoChat.OS.Modules.Identity", typeof(IBrainProviderKeys).Assembly.GetName().Name);
+        => Assert.Equal("IntoChat.OS.Framework", typeof(IBrainProviderKeys).Assembly.GetName().Name);
 
     [Fact]
     public void OnlyTheAiModuleAndTheIdentityModuleTouchBrainProviderKeys()
     {
         var keys = typeof(IBrainProviderKeys);
-        string[] allowed = ["IntoChat.OS.Modules.Identity", "IntoChat.OS.Modules.AI"];
+        string[] allowed = ["IntoChat.OS.Framework", "IntoChat.OS.Modules.AI"];
         var offenders = ProductionArchitecture.Assemblies.Where(a => !allowed.Contains(a.GetName().Name))
             .SelectMany(a => a.GetTypes()).Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)

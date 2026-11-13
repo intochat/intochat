@@ -1,5 +1,5 @@
 using DigitalBrain.Access;
-using IntoChat.Cloud.Mail;
+using IntoChat.OS;
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
@@ -10,7 +10,7 @@ public interface IAuthSessions
 {
     const string Type = "auth.sessions";
 
-    static string Key(string principalId) => $"{SystemShard.BrainOf(principalId)}/auth/sessions/{principalId}";
+    static string Key(string principalId) => $"{NeuronKeys.SystemShard(principalId)}/auth/sessions/{principalId}";
 
     [Internal]
     Task<SessionCreated> Create(string sidHash, string handle, string label, TimeSpan lifetime);

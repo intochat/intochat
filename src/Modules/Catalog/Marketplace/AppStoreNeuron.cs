@@ -43,32 +43,17 @@ internal sealed class AppStoreNeuron(
         var shown = new HashSet<string>(StringComparer.Ordinal);
         foreach (var listing in listings)
         {
-            var entry = await installer.Entry(listing, default);
-            if (entry.Installed) { shown.Add(listing.Name); }
-            // An edited copy is a fork: it shows once, under Mine, and its listing's card is not shown.
-            if (entry.Installed && held.TryGetValue(listing.Name, out var local) && Forked(local))
-            {
-                entries.Add(new("mine", listing.Publisher, listing.Name, $"Copy of {listing.Title}", local.Manifest.Description,
-                    local.Manifest.Icon, true, false, listing.Name));
-                continue;
-            }
-            var group = listing.Source switch
-            {
-                AppSource.Shipped => "builtin",
-                AppSource.Brain brain when brain.AccountId == account => "mine",
-                _ => "others",
-            };
-            entries.Add(new(group, listing.Publisher, listing.Name, listing.Title, listing.Description, listing.Icon,
-                entry.Installed, entry.UpdateAvailable, entry.Installed ? listing.Name : null));
+            held.TryGetValue(listing.Name, out var local);
+            var entry = CatalogEntry.FromListing(listing, local, Scope);
+            if (entry.IsInstalled) { shown.Add(listing.Name); }
+            entries.Add(entry.ToGalleryEntry(account));
         }
         // What the brain holds that no listing shows. An app neuron that was never created answers
         // an empty manifest title, so those are skipped. Own apps and edited copies are Mine.
         foreach (var (name, app) in installed.Where(app => app.Snapshot.Manifest.Title.Length > 0 && !shown.Contains(app.Name)))
         {
-            var mine = app.Origin is null || app.Edited;
-            var title = Forked(app) ? $"Copy of {app.Manifest.Title}" : app.Manifest.Title;
-            entries.Add(new(mine ? "mine" : "others", app.Origin?.Publisher ?? "", name, title, app.Manifest.Description,
-                app.Manifest.Icon, true, InstalledApps.UpdateAvailable(app, listings), name));
+            var entry = CatalogEntry.FromInstalled(name, app, Scope, listings);
+            entries.Add(entry.ToGalleryEntry(account));
         }
         entries.AddRange(await Connections());
         return entries;
@@ -96,8 +81,6 @@ internal sealed class AppStoreNeuron(
     internal static IEnumerable<ConnectorOffer> Ordered(IEnumerable<ConnectorOffer> offers)
         => offers.OrderBy(offer => Array.IndexOf(Featured, offer.Id) is var at and >= 0 ? at : Featured.Length)
             .ThenBy(offer => offer.DisplayName, StringComparer.OrdinalIgnoreCase);
-
-    private static bool Forked(AppSnapshot app) => app is { Origin: not null, Edited: true };
 
     // The person, or the desktop the OS ships (its gallery), installs; another app may read the gallery but not install from it.
     private async Task<bool> MayInstall()
@@ -184,15 +167,8 @@ internal sealed class AppStoreNeuron(
         var installed = local.Manifest.Title.Length > 0 && local.Origin is { } origin
             && origin.Publisher == reference.Publisher && origin.Name == reference.App ? local : null;
         if (bundle is null && installed is null) { return null; }
-        var manifest = bundle?.Manifest ?? installed!.Manifest;
-        var status = bundle is null ? "unavailable"
-            : installed is null ? "available"
-            : !installed.Edited && listing is not null && AppVersions.Compare(listing.Version, installed.Origin!.Version) > 0 ? "update"
-            : "installed";
-        return new(reference.Publisher, reference.App, manifest.Title, manifest.Description, manifest.Icon, listing?.Version,
-            installed?.Name, installed?.Version, installed?.Edited ?? false, manifest.Requires ?? new AppRequirements(),
-            installed is null ? null : installed.Origin!.Consented ?? installed.Manifest.Requires ?? new AppRequirements(),
-            manifest.Slots, status, bundle is null ? "This release is no longer available." : null);
+        var entry = CatalogEntry.FromDetail(reference, listing, bundle, local);
+        return entry.ToAppDetail(bundle is not null);
     }
 
     // A refusal is answered as a message, not thrown, as Get always has.

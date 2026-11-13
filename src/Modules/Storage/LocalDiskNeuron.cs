@@ -3,6 +3,7 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Operations;
+using IntoChat.OS.Primitives;
 
 namespace IntoChat.OS.Modules.LocalDisk;
 
@@ -164,14 +165,32 @@ public sealed class LocalDiskNeuron(
     {
         var (rootId, relative) = LocalItemId.Read(id);
         var root = Current().FirstOrDefault(item => item.Id == rootId) ?? throw new NotFound(id);
-        var combined = relative.Length == 0 ? root.Path : Join(root.Path, relative);
+        string combined;
+        if (relative.Length == 0)
+        {
+            combined = root.Path;
+        }
+        else
+        {
+            if (!SafeRelativePath.TryParse(relative, out var safeRel))
+            {
+                throw new Denied(id);
+            }
+            try
+            {
+                combined = safeRel.ResolveUnder(root.Path);
+            }
+            catch (InvalidOperationException error)
+            {
+                throw new Denied(id, error);
+            }
+        }
         return PathConfinement.Resolve(Paths(), combined);
     }
 
     private static string Join(string root, string relative)
     {
-        var path = root;
-        foreach (var part in relative.Split('/', StringSplitOptions.RemoveEmptyEntries)) { path = Path.Combine(path, part); }
-        return path;
+        if (string.IsNullOrWhiteSpace(relative)) { return root; }
+        return SafeRelativePath.Parse(relative).ResolveUnder(root);
     }
 }

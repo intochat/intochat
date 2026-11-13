@@ -8,15 +8,23 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 public sealed partial class PackageRootAllowlistFacts
 {
     // The packable count after consolidating the 14 module Aspire.Hosting projects into IntoChat.OS.Aspire.Hosting; a drop below it means the scan stopped seeing projects.
-    private const int KnownPackable = 33;
+    private const int KnownPackable = 25;
 
-    [GeneratedRegex(@"^IntoChat\.OS(\.|$)|^IntoChat\.Cloud\.", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^IntoChat\.OS(\.|$)|^IntoChat\.Cloud(\.|$)", RegexOptions.CultureInvariant)]
     private static partial Regex AllowedRoot();
 
     internal static IReadOnlyList<(string Project, string PackageId)> PackableProjects()
         => Repository.Projects.Values
             .Select(project => (project, document: XDocument.Load(project.Path)))
-            .Where(entry => entry.document.Descendants("IsPackable").LastOrDefault()?.Value.Trim() == "true")
+            .Where(entry =>
+            {
+                var explicitSetting = entry.document.Descendants("IsPackable").LastOrDefault()?.Value.Trim();
+                if (explicitSetting is not null)
+                {
+                    return explicitSetting == "true";
+                }
+                return entry.project.Directory.StartsWith(Repository.ModulesRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+            })
             .Select(entry => (entry.project.Name, entry.document.Descendants("PackageId").LastOrDefault()?.Value.Trim() ?? entry.project.Name))
             .ToArray();
 

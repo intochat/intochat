@@ -111,13 +111,13 @@ internal static class InoViewRenderer
             "Waiting on Secure Vault credential",
             "idle",
             [new InoTurn("Check overdue Q4 invoices in Tripletex", "I need your **Tripletex Session Token** to read the Q4 ledger. Enter it in the **Secure Vault** window so it never touches the LLM.", "vault:secret", 0)],
-            [new InoCard("secret-tripletex", "secret", "Tripletex Session Token", "Zero-leakage credential request · Encrypted in neuron://local/vault/secrets", "neuron://local/vault/secrets#TRIPLETEX_SESSION_TOKEN", "pending", "neuron://local/apps/ino#secret-tripletex")]),
+            [new InoCard("secret-tripletex", "secret", "Tripletex Session Token", "Zero-leakage credential request · Sealed in Secure Vault", "neuron://local/vault/secrets#TRIPLETEX_SESSION_TOKEN", "pending", "neuron://local/apps/ino#secret-tripletex")]),
         "first-run" => new(
             "first-run",
             "Ino Setup · First Run",
             "Guided onboarding · 3 steps",
             "idle",
-            [new InoTurn("/scenario first-run", $"Welcome to **IntoChat OS**! Let's verify your default AI model (`{settings.DefaultModel}`), connect your **Files** vault (`neuron://local/storage.files`), and seal API keys in **Secure**.", "onboarding:setup", 0)],
+            [new InoTurn("/scenario first-run", $"Welcome to **IntoChat OS**! Let's verify your default AI model (`{settings.DefaultModel}`), connect your **Files** vault, and seal API keys in **Secure**.", "onboarding:setup", 0)],
             [new InoCard("setup-record", "record", "IntoChat OS First-Run Checklist", "All 3 local brain capabilities online", "neuron://local/os.settings/settings", "ready", "neuron://local/apps/ino#setup-record")]),
         _ => new(
             "q4-renewal",
@@ -156,9 +156,27 @@ internal static class InoViewRenderer
     private static string ColumnOr(InoCard card, int index, string fallback) =>
         card.Columns is { } cols && cols.Length > index && !string.IsNullOrWhiteSpace(cols[index]) ? cols[index] : fallback;
 
+    public static string StripNeuronUri(string? uri)
+    {
+        if (string.IsNullOrWhiteSpace(uri)) { return string.Empty; }
+        var text = uri.Trim();
+        if (text.StartsWith("neuron://", StringComparison.OrdinalIgnoreCase))
+        {
+            var afterScheme = text["neuron://".Length..];
+            var slash = afterScheme.IndexOf('/');
+            text = slash >= 0 && slash + 1 < afterScheme.Length
+                ? afterScheme[(slash + 1)..]
+                : afterScheme;
+        }
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s*\|\s*scope:[^\s\)]*", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s*\(scope:[^\)]*\)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"scope:[^\s\)]*", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return text.Trim();
+    }
+
     private static IEnumerable<Node> RenderCardNodes(InoCard card)
     {
-        yield return new Text($"[{card.Kind}:{card.Status}] {card.Title} ({card.SourceNeuronUri} | scope:{card.EffectiveScopeUri})") { Tone = "muted", Mono = true, Tabular = true };
+        yield return new Text($"[{card.Kind}:{card.Status}] {card.Title}") { Tone = "muted", Mono = true, Tabular = true };
         switch (card.Kind)
         {
             case "approval":
@@ -166,23 +184,23 @@ internal static class InoViewRenderer
                     $"card-{card.Id}",
                     card.Id,
                     card.Title,
-                    $"{card.Summary} (scope:{card.EffectiveScopeUri})",
+                    card.Summary,
                     [
                         new ApprovalRowNode("Status", "pending", card.Status),
-                        new ApprovalRowNode("Source Neuron", "local", card.SourceNeuronUri),
-                        new ApprovalRowNode("Scope URI", "ino", card.EffectiveScopeUri),
+                        new ApprovalRowNode("Source", "local", StripNeuronUri(card.SourceNeuronUri)),
+                        new ApprovalRowNode("Scope", "ino", StripNeuronUri(card.EffectiveScopeUri)),
                     ],
                     SystemName: "Ino",
                     Status: card.Status,
-                    SourceNeuronUri: card.SourceNeuronUri);
+                    SourceNeuronUri: StripNeuronUri(card.SourceNeuronUri));
                 break;
             case "choice":
                 yield return new ChoiceCardNode(
                     card.Id,
                     card.Title,
                     [
-                        new ChoiceOptionNode("Primary Workspace", "neuron://local/circles/enterprise"),
-                        new ChoiceOptionNode("Executive Board Circle", "neuron://local/circles/board"),
+                        new ChoiceOptionNode("Primary Workspace", "circles/enterprise"),
+                        new ChoiceOptionNode("Executive Board Circle", "circles/board"),
                     ],
                     PickedIndex: card.Status == "approved" ? 0 : null);
                 break;
@@ -200,7 +218,7 @@ internal static class InoViewRenderer
                 yield return new SecretCardNode(
                     card.Title,
                     card.Summary,
-                    SavedIn: "Secure Vault · neuron://local/vault/secrets",
+                    SavedIn: string.IsNullOrWhiteSpace(card.SourceNeuronUri) ? "Secure Vault" : $"Secure Vault ({card.SourceNeuronUri})",
                     Status: card.Status == "approved" ? "saved" : card.Status,
                     Enter: new Button("enter-secret", "Save to vault", Intent: AppSignals.Open("os://window/secure")));
                 break;
@@ -222,7 +240,7 @@ internal static class InoViewRenderer
                     card.Title,
                     cols,
                     rows.Select(r => (IReadOnlyList<string>)r).ToArray(),
-                    SourceNeuronUri: card.SourceNeuronUri,
+                    SourceNeuronUri: StripNeuronUri(card.SourceNeuronUri),
                     From: "Postgres");
                 break;
             case "chart" when card.ChartPoints is { Length: > 0 } points:
@@ -231,7 +249,7 @@ internal static class InoViewRenderer
                     card.Title,
                     points.Select(pt => new ChartPointNode(pt.Label, pt.Value)).ToArray(),
                     SeriesName: "Current",
-                    SourceNeuronUri: card.SourceNeuronUri,
+                    SourceNeuronUri: StripNeuronUri(card.SourceNeuronUri),
                     From: "Postgres",
                     Prefix: "€");
                 break;
@@ -274,8 +292,8 @@ internal static class InoViewRenderer
                         card.Title,
                         [
                             new RecordFieldNode("Status", card.Status),
-                            new RecordFieldNode("Studio Neuron", card.SourceNeuronUri),
-                            new RecordFieldNode("Scope", card.EffectiveScopeUri),
+                            new RecordFieldNode("Studio Neuron", StripNeuronUri(card.SourceNeuronUri)),
+                            new RecordFieldNode("Scope", StripNeuronUri(card.EffectiveScopeUri)),
                         ],
                         Subtitle: card.Summary,
                         LinkLabel: $"Open {studioDescriptor.Title} Studio",
@@ -292,8 +310,8 @@ internal static class InoViewRenderer
                         card.Title,
                         [
                             new RecordFieldNode("Status", card.Status),
-                            new RecordFieldNode("Neuron URI", card.SourceNeuronUri),
-                            new RecordFieldNode("Scope", card.EffectiveScopeUri),
+                            new RecordFieldNode("Neuron URI", StripNeuronUri(card.SourceNeuronUri)),
+                            new RecordFieldNode("Scope", StripNeuronUri(card.EffectiveScopeUri)),
                         ],
                         Subtitle: card.Summary,
                         LinkLabel: card.Kind == "file" ? "Open in Files" : "Open Neuron",

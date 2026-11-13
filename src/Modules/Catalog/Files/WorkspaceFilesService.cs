@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
@@ -7,6 +6,9 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Primitives;
+using DigitalBrain.Log;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -30,45 +32,80 @@ public interface IWithFilesVfs
 
 public sealed class WorkspaceFilesService : IFilesVfsService
 {
-    private static readonly IntoChat.OS.Connections.Caching.BoundedCache<string, LocalCloudNeuron> _sharedFallbackWorkStorages = new(256, StringComparer.OrdinalIgnoreCase);
-    private static readonly IntoChat.OS.Connections.Caching.BoundedCache<string, LocalCloudNeuron> _sharedFallbackLocalStorages = new(256, StringComparer.OrdinalIgnoreCase);
-    private static readonly IntoChat.OS.Connections.Caching.BoundedCache<string, LocalCloudNeuron> _sharedFallbackDriveStorages = new(256, StringComparer.OrdinalIgnoreCase);
     private static readonly string[] CanonicalMounts = ["work", "local", "drive"];
 
-    private readonly ConcurrentDictionary<string, (WorkspaceFileEntry Entry, byte[] Bytes)> _overlay = new(StringComparer.OrdinalIgnoreCase);
     private readonly IServiceProvider? _services;
     private readonly ICapabilityBroker? _broker;
+    private readonly string _rootDirectory;
+    private readonly LocalCloudNeuron _fallbackWorkStorage;
+    private readonly LocalCloudNeuron _fallbackLocalStorage;
+    private readonly LocalCloudNeuron _fallbackDriveStorage;
 
-    public WorkspaceFilesService(IServiceProvider? services = null, string brainId = "local", ICapabilityBroker? broker = null)
+    public WorkspaceFilesService(
+        IServiceProvider? services = null,
+        string? brainId = null,
+        ICapabilityBroker? broker = null,
+        string? rootDirectory = null)
     {
         _services = services;
         _broker = broker;
-        BrainId = NormalizeBrainId(brainId);
+        BrainId = string.IsNullOrWhiteSpace(brainId) ? Guid.NewGuid().ToString("N") : brainId.Trim();
+        _rootDirectory = !string.IsNullOrWhiteSpace(rootDirectory)
+            ? Path.GetFullPath(rootDirectory)
+            : Path.Combine(Path.GetTempPath(), "intochat-vfs", BrainId);
+
+        var workDir = Path.Combine(_rootDirectory, "work");
+        var localDir = Path.Combine(_rootDirectory, "local");
+        var driveDir = Path.Combine(_rootDirectory, "drive");
+
+        Directory.CreateDirectory(workDir);
+        Directory.CreateDirectory(localDir);
+        Directory.CreateDirectory(driveDir);
+
+        _fallbackWorkStorage = new LocalCloudNeuron(workDir);
+        _fallbackLocalStorage = new LocalCloudNeuron(localDir);
+        _fallbackDriveStorage = new LocalCloudNeuron(driveDir);
     }
 
     public string BrainId { get; }
     public const long MaxReadBytes = 16 * 1024 * 1024;
 
-    public static WorkspaceFilesService ForBrain(IServiceProvider? services = null, string brainId = "local", ICapabilityBroker? broker = null)
-        => new(services, brainId, broker);
+    public static WorkspaceFilesService ForBrain(
+        IServiceProvider? services = null,
+        string? brainId = null,
+        ICapabilityBroker? broker = null,
+        string? rootDirectory = null)
+        => new(services, brainId, broker, rootDirectory);
 
-    public static LocalCloudNeuron GetFallbackWorkspaceStorage(string brainId)
-        => _sharedFallbackWorkStorages.GetOrAdd(NormalizeBrainId(brainId), static _ => new LocalCloudNeuron());
+    public static LocalCloudNeuron GetFallbackWorkspaceStorage(string brainId, string? rootDirectory = null)
+    {
+        var baseDir = !string.IsNullOrWhiteSpace(rootDirectory)
+            ? Path.GetFullPath(rootDirectory)
+            : Path.Combine(Path.GetTempPath(), "intochat-vfs", NormalizeBrainId(brainId));
+        var workDir = Path.Combine(baseDir, "work");
+        Directory.CreateDirectory(workDir);
+        return new LocalCloudNeuron(workDir);
+    }
 
-    public static LocalCloudNeuron GetFallbackLocalStorage(string brainId)
-        => _sharedFallbackLocalStorages.GetOrAdd(NormalizeBrainId(brainId), static _ =>
-        {
-            try
-            {
-                var cwd = Directory.GetCurrentDirectory();
-                if (!string.IsNullOrWhiteSpace(cwd) && Directory.Exists(cwd)) { return new LocalCloudNeuron(cwd); }
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException) { LogRecoverable(ex); }
-            return new LocalCloudNeuron();
-        });
+    public static LocalCloudNeuron GetFallbackLocalStorage(string brainId, string? rootDirectory = null)
+    {
+        var baseDir = !string.IsNullOrWhiteSpace(rootDirectory)
+            ? Path.GetFullPath(rootDirectory)
+            : Path.Combine(Path.GetTempPath(), "intochat-vfs", NormalizeBrainId(brainId));
+        var localDir = Path.Combine(baseDir, "local");
+        Directory.CreateDirectory(localDir);
+        return new LocalCloudNeuron(localDir);
+    }
 
-    public static LocalCloudNeuron GetFallbackDriveStorage(string brainId)
-        => _sharedFallbackDriveStorages.GetOrAdd(NormalizeBrainId(brainId), static _ => new LocalCloudNeuron());
+    public static LocalCloudNeuron GetFallbackDriveStorage(string brainId, string? rootDirectory = null)
+    {
+        var baseDir = !string.IsNullOrWhiteSpace(rootDirectory)
+            ? Path.GetFullPath(rootDirectory)
+            : Path.Combine(Path.GetTempPath(), "intochat-vfs", NormalizeBrainId(brainId));
+        var driveDir = Path.Combine(baseDir, "drive");
+        Directory.CreateDirectory(driveDir);
+        return new LocalCloudNeuron(driveDir);
+    }
 
     public async Task<IStorageVfs> BuildVfsAsync(ICapabilityBroker? effectiveBroker, CancellationToken ct = default)
     {
@@ -80,11 +117,11 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         }
 
         var workStorage = ResolveMountStorage(connections, ["cloud", "work"], LocalCloudNeuron.TypeName, fallbackFirstConnection: true)
-            ?? GetFallbackWorkspaceStorage(BrainId);
+            ?? _fallbackWorkStorage;
         var localStorage = ResolveMountStorage(connections, ["local-disk", "disk"], "local-disk", fallbackFirstConnection: false)
-            ?? GetFallbackLocalStorage(BrainId);
+            ?? _fallbackLocalStorage;
         var driveStorage = ResolveMountStorage(connections, ["drive", "blob", "google"], neuronType: null, fallbackFirstConnection: false)
-            ?? GetFallbackDriveStorage(BrainId);
+            ?? _fallbackDriveStorage;
 
         return new StorageVfs(
         [
@@ -117,16 +154,55 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     public static string ToCanonicalVfsPath(string? fileNameOrPath)
     {
         if (string.IsNullOrWhiteSpace(fileNameOrPath)) { return "/work/artifact.bin"; }
+        if (fileNameOrPath.Contains('\0', StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Null byte is not allowed in file path.", nameof(fileNameOrPath));
+        }
+
         var normalized = fileNameOrPath.Trim().Trim('"', '\'', '`').Replace('\\', '/');
+
         if (normalized.StartsWith('/'))
         {
-            var segments = normalized.TrimStart('/').Split('/', 2);
+            var trimmedLeading = normalized.TrimStart('/');
+            var segments = trimmedLeading.Split('/', 2);
             var mount = segments[0].ToLowerInvariant();
-            return mount is "work" or "local" or "drive"
-                ? $"/{mount}/{(segments.Length > 1 ? segments[1] : string.Empty)}".TrimEnd('/')
-                : $"/work/{normalized.TrimStart('/')}";
+            if (mount is "work" or "local" or "drive")
+            {
+                if (segments.Length == 1 || string.IsNullOrWhiteSpace(segments[1]))
+                {
+                    return $"/{mount}";
+                }
+                var subPath = segments[1];
+                if (!SafeRelativePath.TryParse(subPath, out var safeSub))
+                {
+                    throw new ArgumentException($"Invalid or unsafe relative path '{subPath}' under mount '/{mount}'.", nameof(fileNameOrPath));
+                }
+                return $"/{mount}/{safeSub.Value}";
+            }
+
+            if (!SafeRelativePath.TryParse(trimmedLeading, out var safeRelative))
+            {
+                throw new ArgumentException($"Invalid or unsafe path '{fileNameOrPath}'.", nameof(fileNameOrPath));
+            }
+            return $"/work/{safeRelative.Value}";
         }
-        return $"/work/{ExtractCleanFileName(normalized)}";
+
+        if (normalized.Contains("neuron://", StringComparison.OrdinalIgnoreCase))
+        {
+            var clean = ExtractCleanFileName(normalized);
+            if (string.IsNullOrWhiteSpace(clean) || !SafeRelativePath.TryParse(clean, out var safeClean))
+            {
+                throw new ArgumentException($"Invalid or unsafe file name from neuron URI '{fileNameOrPath}'.", nameof(fileNameOrPath));
+            }
+            return $"/work/{safeClean.Value}";
+        }
+
+        if (!SafeRelativePath.TryParse(normalized, out var safePath))
+        {
+            throw new ArgumentException($"Invalid or unsafe relative path '{fileNameOrPath}'.", nameof(fileNameOrPath));
+        }
+
+        return $"/work/{safePath.Value}";
     }
 
     public async Task<IReadOnlyList<WorkspaceFileEntry>> ListFilesAsync(string? query = null, CancellationToken ct = default)
@@ -164,7 +240,34 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             return true;
         }).ConfigureAwait(false);
 
-        foreach (var (entry, _) in _overlay.Values) { AddOrPreferNewest(byName, entry); }
+        foreach (var (mount, storage) in new[] { ("work", _fallbackWorkStorage), ("local", _fallbackLocalStorage), ("drive", _fallbackDriveStorage) })
+        {
+            try
+            {
+                var roots = await storage.Roots(ct).ConfigureAwait(false);
+                foreach (var root in roots)
+                {
+                    var page = await storage.List(root.Id, new ListQuery(PageSize: 100), ct).ConfigureAwait(false);
+                    foreach (var item in page.Items)
+                    {
+                        if (item.Kind != ItemKind.Folder)
+                        {
+                            var connKey = mount == "work" ? "local-disk" : mount;
+                            AddOrPreferNewest(byName, new WorkspaceFileEntry(
+                                Name: item.Name,
+                                Connection: connKey,
+                                ItemId: $"/{mount}/{item.Name}",
+                                Kind: "file",
+                                Size: item.Size,
+                                NeuronUri: BuildNeuronUri(BrainId, connKey, item.Name),
+                                VfsPath: $"/{mount}/{item.Name}",
+                                Modified: item.Modified));
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException) { LogRecoverable(ex); }
+        }
 
         IEnumerable<WorkspaceFileEntry> results = byName.Values;
         if (trimmedQuery is not null)
@@ -210,22 +313,13 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         ct.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(nameOrUriOrPath)) { return null; }
 
-        var cleanName = ExtractCleanFileName(nameOrUriOrPath);
         var canonicalPath = ToCanonicalVfsPath(nameOrUriOrPath);
-
-        if (!string.IsNullOrWhiteSpace(cleanName) && _overlay.TryGetValue(cleanName, out var exactOverlay)) { return exactOverlay.Entry; }
-        if (_overlay.TryGetValue(canonicalPath, out var byPathOverlay)) { return byPathOverlay.Entry; }
-
-        var cleanSlug = SlugSegment(cleanName);
-        foreach (var (entry, _) in _overlay.Values)
-        {
-            if (IsMatchingEntry(entry, cleanName, cleanSlug, canonicalPath, nameOrUriOrPath)) { return entry; }
-        }
+        var cleanName = ExtractCleanFileName(canonicalPath);
 
         var vfsEntry = await WithCallerAsync<WorkspaceFileEntry?>(async effectiveBroker =>
         {
             var vfs = await BuildVfsAsync(effectiveBroker, ct).ConfigureAwait(false);
-            foreach (var candidatePath in new[] { canonicalPath, $"/work/{cleanName}" })
+            foreach (var candidatePath in new[] { canonicalPath, $"/work/{cleanName}", $"/local/{cleanName}", $"/drive/{cleanName}" })
             {
                 try
                 {
@@ -242,6 +336,20 @@ public sealed class WorkspaceFilesService : IFilesVfsService
 
         if (vfsEntry is not null) { return vfsEntry; }
 
+        foreach (var (mount, storage) in new[] { ("work", _fallbackWorkStorage), ("local", _fallbackLocalStorage), ("drive", _fallbackDriveStorage) })
+        {
+            try
+            {
+                var item = await storage.Stat(new ItemId(cleanName), ct).ConfigureAwait(false);
+                if (item is { Kind: not ItemKind.Folder })
+                {
+                    return MapItem(mount == "work" ? "local-disk" : mount, item);
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
+        }
+
+        var cleanSlug = SlugSegment(cleanName);
         var searched = await ListFilesAsync(cleanName, ct).ConfigureAwait(false);
         return FindBestMatch(searched, cleanName, cleanSlug, nameOrUriOrPath)
             ?? FindBestMatch(await ListFilesAsync(null, ct).ConfigureAwait(false), cleanName, cleanSlug, nameOrUriOrPath);
@@ -258,18 +366,22 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         ct.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(nameOrUriOrPath)) { return null; }
 
-        var cleanName = ExtractCleanFileName(nameOrUriOrPath);
         var canonicalPath = ToCanonicalVfsPath(nameOrUriOrPath);
-
-        if (!string.IsNullOrWhiteSpace(cleanName) && _overlay.TryGetValue(cleanName, out var direct)) { return direct.Bytes; }
-        if (_overlay.TryGetValue(canonicalPath, out var byPath)) { return byPath.Bytes; }
+        var cleanName = ExtractCleanFileName(canonicalPath);
 
         var vfsBytes = await WithCallerAsync<byte[]?>(async effectiveBroker =>
         {
             var vfs = await BuildVfsAsync(effectiveBroker, ct).ConfigureAwait(false);
             foreach (var candidatePath in new[] { canonicalPath, $"/work/{cleanName}", $"/local/{cleanName}", $"/drive/{cleanName}" })
             {
-                try { return (await vfs.Read(candidatePath, new ByteRange(0, MaxReadBytes), ct).ConfigureAwait(false)).Bytes.ToArray(); }
+                try
+                {
+                    var read = await vfs.Read(candidatePath, new ByteRange(0, MaxReadBytes), ct).ConfigureAwait(false);
+                    if (read is not null && (read.Bytes.Length > 0 || read.TotalLength == 0))
+                    {
+                        return read.Bytes.ToArray();
+                    }
+                }
                 catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
             }
             return null;
@@ -277,9 +389,21 @@ public sealed class WorkspaceFilesService : IFilesVfsService
 
         if (vfsBytes is not null) { return vfsBytes; }
 
+        foreach (var storage in new[] { _fallbackWorkStorage, _fallbackLocalStorage, _fallbackDriveStorage })
+        {
+            try
+            {
+                var content = await storage.Read(new ItemId(cleanName), new ByteRange(0, MaxReadBytes), ct).ConfigureAwait(false);
+                if (content is not null && (content.Bytes.Length > 0 || content.TotalLength == 0))
+                {
+                    return content.Bytes.ToArray();
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
+        }
+
         var resolved = await ResolveFileAsync(nameOrUriOrPath, ct).ConfigureAwait(false);
         if (resolved is null) { return null; }
-        if (_overlay.TryGetValue(resolved.Name, out var byResolvedName)) { return byResolvedName.Bytes; }
 
         return await WithCallerAsync<byte[]?>(async effectiveBroker =>
         {
@@ -330,6 +454,21 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             try { await vfs.Write(canonicalPath, bytes, ct).ConfigureAwait(false); }
             catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
 
+            try
+            {
+                var targetStorage = mountPoint switch
+                {
+                    "local" => _fallbackLocalStorage,
+                    "drive" => _fallbackDriveStorage,
+                    _ => _fallbackWorkStorage,
+                };
+                await targetStorage.Write(WritePlan.WriteFile(new ItemId(""), cleanName, bytes, ConflictPolicy.Overwrite), ct).ConfigureAwait(false);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                LogRecoverable(error);
+            }
+
             if (effectiveBroker is not null)
             {
                 try
@@ -352,8 +491,6 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             return true;
         }).ConfigureAwait(false);
 
-        _overlay[cleanName] = (entry, bytes);
-        _overlay[canonicalPath] = (entry, bytes);
         await TryRefreshFilesWorkspaceAsync(ct).ConfigureAwait(false);
         return entry;
     }
@@ -367,10 +504,19 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         var canonicalPath = ToCanonicalVfsPath(fileNameOrPath);
         var cleanName = ExtractCleanFileName(canonicalPath);
 
-        _overlay.TryRemove(cleanName, out _);
-        _overlay.TryRemove(canonicalPath, out _);
+        var mount = canonicalPath.Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "work";
+        var relative = canonicalPath.Length > mount.Length + 1 ? canonicalPath.Substring(mount.Length + 1).TrimStart('/') : cleanName;
+        var targetStorage = mount switch
+        {
+            "local" => _fallbackLocalStorage,
+            "drive" => _fallbackDriveStorage,
+            _ => _fallbackWorkStorage,
+        };
 
-        try { await GetFallbackWorkspaceStorage(BrainId).Write(WritePlan.Delete(new ItemId(cleanName)), ct).ConfigureAwait(false); }
+        try { await targetStorage.Write(WritePlan.Delete(new ItemId(relative)), ct).ConfigureAwait(false); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { LogRecoverable(ex); }
+
+        try { await targetStorage.Write(WritePlan.Delete(new ItemId(cleanName)), ct).ConfigureAwait(false); }
         catch (Exception ex) when (ex is not OperationCanceledException) { LogRecoverable(ex); }
 
         await TryRefreshFilesWorkspaceAsync(ct).ConfigureAwait(false);
@@ -470,16 +616,21 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             var endIdx = trimmed.IndexOfAny([' ', ')', '\r', '\n', ']'], neuronIdx);
             var uriSlice = endIdx > neuronIdx ? trimmed[neuronIdx..endIdx] : trimmed[neuronIdx..];
             var lastSlash = uriSlice.LastIndexOf('/');
-            return lastSlash >= 0 && lastSlash + 1 < uriSlice.Length ? uriSlice[(lastSlash + 1)..] : uriSlice;
+            var candidate = lastSlash >= 0 && lastSlash + 1 < uriSlice.Length ? uriSlice[(lastSlash + 1)..] : uriSlice;
+            return SafeRelativePath.TryParse(candidate, out var safeCandidate) ? safeCandidate.Value : candidate;
         }
 
         var normalized = trimmed.Replace('\\', '/');
         var fileName = Path.GetFileName(normalized);
-        return string.IsNullOrWhiteSpace(fileName) ? normalized.Trim('/') : fileName;
+        var rawName = string.IsNullOrWhiteSpace(fileName) ? normalized.Trim('/') : fileName;
+        return SafeRelativePath.TryParse(rawName, out var safe) ? safe.Value : rawName;
     }
 
     internal static string BuildNeuronUri(string brainId, string connection, string name)
-        => $"neuron://{NormalizeBrainId(brainId)}/{SlugSegment(string.IsNullOrWhiteSpace(connection) ? "local-disk" : connection)}.files/{SlugSegment(name)}";
+    {
+        var effectiveBrain = string.IsNullOrWhiteSpace(brainId) ? "brain" : brainId.Trim();
+        return $"neuron://{effectiveBrain}/{SlugSegment(string.IsNullOrWhiteSpace(connection) ? "local-disk" : connection)}.files/{SlugSegment(name)}";
+    }
 
     internal static string SlugSegment(string value)
     {
@@ -495,7 +646,14 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     }
 
     private static string NormalizeBrainId(string? brainId)
-        => string.IsNullOrWhiteSpace(brainId) ? "local" : brainId.Trim();
+    {
+        if (string.IsNullOrWhiteSpace(brainId))
+        {
+            throw new ArgumentException("A valid non-empty brain id is required.", nameof(brainId));
+        }
+        return brainId.Trim();
+    }
 
-    private static void LogRecoverable(Exception error) => _ = error.Message;
+    private static void LogRecoverable(Exception error) =>
+        NullLogger.Instance.LogSwallowed(error, "Recoverable workspace files VFS error.");
 }

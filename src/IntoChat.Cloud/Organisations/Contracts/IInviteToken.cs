@@ -1,5 +1,5 @@
 using DigitalBrain.Access;
-using IntoChat.Cloud.Mail;
+using IntoChat.OS;
 
 namespace IntoChat.Cloud.Organisations;
 
@@ -8,7 +8,7 @@ public interface IInviteToken
 {
     const string Type = "organisations.invite-token";
 
-    static string Key(string tokenHash) => $"{SystemShard.BrainOf(tokenHash)}/invite/{tokenHash}";
+    static string Key(string tokenHash) => $"{NeuronKeys.SystemShard(tokenHash)}/invite/{tokenHash}";
 
     [Internal]
     Task Register(string orgBrain, Guid inviteId, DateTimeOffset expiresAt);

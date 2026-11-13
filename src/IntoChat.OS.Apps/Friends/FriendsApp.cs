@@ -15,6 +15,8 @@ using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps;
+using DigitalBrain.Log;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Apps.Friends
 {
@@ -241,7 +243,7 @@ namespace IntoChat.OS.Apps.Friends
             }
             catch (Exception ex)
             {
-                _ = ex;
+                NullLogger.Instance.LogSwallowed(ex, "Failed to read unit template for alias.");
                 return ("", null);
             }
         }

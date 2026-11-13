@@ -210,7 +210,7 @@ public sealed class FlowsNeuronFacts
         await pump.StepCompleted(id, "first");
         await pump.Started(id, TestFlow.Alias, "Late");
 
-        var view = await Eventually(flows, id, v => v.Title == "Late" && v.Done.Length > 0);
+        var view = await Eventually(flows, id, v => v.Title == "Late" && v.Status == FlowStatus.Completed && v.Done.Length == 3);
         Assert.Equal(FlowStatus.Completed, view.Status);
         Assert.Equal(["first", "second", "third"], view.Done);
         Assert.Equal(["first", "second", "third"], view.Steps);

@@ -3,6 +3,7 @@ using DigitalBrain;
 using DigitalBrain.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
+using IntoChat.OS.Primitives;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -68,10 +69,10 @@ public sealed class PrFlow : Flow<PrInner>, IFlowStarter
                     var opened = await Repository(inner).CreatePullRequest(new CreatePullRequest(inner.Title.Length > 0 ? inner.Title : State.Title, inner.Branch, inner.BaseBranch, inner.Body));
                     inner.PullRequestNumber = opened.Number;
                 }
-                return new StepResult<PrInner>(inner);
+                return inner.Advance();
             case "merged":
                 inner.WaitingSince ??= Context.Time.GetUtcNow();
-                return await Check(inner) ? new StepResult<PrInner>(inner) : new StepResult<PrInner>(inner, Poll(inner));
+                return await Check(inner) ? inner.Advance() : inner.PollAt("merged", Context.Time.GetUtcNow() + inner.PollEvery);
             default:
                 throw new FlowFailed(step, $"Unknown step {step}.");
         }

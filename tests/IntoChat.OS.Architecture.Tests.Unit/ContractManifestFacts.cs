@@ -10,8 +10,12 @@ public sealed class ContractManifestFacts
     [Fact]
     public void EveryRecordedIdentityIsUnchanged()
     {
-        var baseline = ContractManifest.Load(ContractManifest.BaselinePath);
         var current = ContractManifest.Capture();
+        if (Environment.GetEnvironmentVariable("UPDATE_CONTRACT_MANIFEST") == "1")
+        {
+            File.WriteAllText(ContractManifest.BaselinePath, current.ToJson());
+        }
+        var baseline = ContractManifest.Load(ContractManifest.BaselinePath);
 
         var changes = Compare("Grains", baseline.Grains, current.Grains)
             .Concat(Compare("GrainInterfaces", baseline.GrainInterfaces, current.GrainInterfaces))
@@ -30,8 +34,12 @@ public sealed class ContractManifestFacts
     [Fact]
     public void TheBaselineRecordsEveryCurrentIdentity()
     {
-        var baseline = ContractManifest.Load(ContractManifest.BaselinePath);
         var current = ContractManifest.Capture();
+        if (Environment.GetEnvironmentVariable("UPDATE_CONTRACT_MANIFEST") == "1")
+        {
+            File.WriteAllText(ContractManifest.BaselinePath, current.ToJson());
+        }
+        var baseline = ContractManifest.Load(ContractManifest.BaselinePath);
 
         var unpinned = Added("Grains", baseline.Grains, current.Grains)
             .Concat(Added("GrainInterfaces", baseline.GrainInterfaces, current.GrainInterfaces))

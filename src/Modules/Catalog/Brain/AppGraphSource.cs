@@ -1,10 +1,13 @@
 using DigitalBrain;
 using DigitalBrain.Graph;
 using DigitalBrain.Kernel;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -36,6 +39,7 @@ internal sealed class AppGraphSource(IServiceProvider services) : IGraphSource
             catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or UnauthorizedAccessException)
             {
                 // No kernel or app neuron for this brain (a minimal host), or no right to read one: fall back to compiled registrations.
+                (services.GetService<ILoggerFactory>()?.CreateLogger<AppGraphSource>() ?? (ILogger)NullLogger.Instance).LogSwallowed(error, "App instances unreadable for brain graph; falling back to compiled registrations.");
             }
         }
 

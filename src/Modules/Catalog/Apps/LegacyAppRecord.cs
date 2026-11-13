@@ -31,6 +31,29 @@ internal static class LegacyAppRecord
         return [.. found];
     }
 
+    /// <summary>
+    /// Detects legacy markers present in an in-memory <see cref="AppState"/>.
+    /// </summary>
+    internal static string[] DetectMarkers(AppState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return state.Files.Keys.Where(IsProgramFile).Select(key => "file:" + key)
+            .Concat(state.Settings.Keys.Where(IsPrebuilt).Select(key => "setting:" + key))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Strips legacy program files and prebuilt settings from the given state, preserving compiled type and non-legacy entries.
+    /// </summary>
+    internal static void Cleanse(AppState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        state.Files = state.Files.Where(file => !IsProgramFile(file.Key))
+            .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+        state.Settings = state.Settings.Where(setting => !IsPrebuilt(setting.Key))
+            .ToDictionary(setting => setting.Key, setting => setting.Value, StringComparer.Ordinal);
+    }
+
     // Nothing in the units shape stores app.cs (the Builder is refused it; no Author writes it), so it counts as program here.
     internal static bool IsProgramFile(string path)
         => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || path.EndsWith(PrebuiltSuffix, StringComparison.OrdinalIgnoreCase);

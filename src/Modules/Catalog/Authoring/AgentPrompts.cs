@@ -107,8 +107,9 @@ internal static class AgentPrompts
         - needs: the slots it reads the world through, the schedule, and whether it shows a view.
 
         Slots are the only way out. Capability "http" reads JSON or text with GET from the hosts you list;
-        capability "tool" runs a connector tool by name. A slot's name is the parameter name in the code
-        ("x", "weather"): lowercase letters and digits. Never ask for secrets, accounts or tokens: the person
+        capability "tool" runs a connector tool by name; capability "storage" reads and writes files in brain storage.
+        A slot's name is the parameter name in the code
+        ("x", "weather", "storage"): lowercase letters and digits. Never ask for secrets, accounts or tokens: the person
         binds their own connection to each slot when they approve the unit. A unit that needs nothing outside
         has no slots.
 

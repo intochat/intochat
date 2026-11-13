@@ -15,8 +15,12 @@ namespace IntoChat.OS.Authority.Identity;
 
 public static class IdentityHosting
 {
+    private sealed class IdentityRegistration;
+
     public static void AddIdentity(this IServiceCollection services)
     {
+        if (services.Any(service => service.ServiceType == typeof(IdentityRegistration))) { return; }
+        services.AddSingleton<IdentityRegistration>();
         services.TryAddSingleton(TimeProvider.System);
         // The platform endpoints resolve Authority grains through it; a web host that brings its own grain factory gets it here.
         services.TryAddSingleton<AuthorityNeurons>();

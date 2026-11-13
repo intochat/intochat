@@ -8,16 +8,23 @@ internal static class CreatorModel
 {
     public static async Task<string> Complete(IServiceProvider neurons, string brainId, string model, string system, string prompt, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(neurons);
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(model);
         var result = await Resolve(neurons, brainId, model).Generate(new InferenceRequest(
         [
             new AiMessage("system", [new AiText(system)]),
             new AiMessage("user", [new AiText(prompt)]),
         ]), cancellationToken);
-        return string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
+        var text = string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
+        return text;
     }
 
     public static Task<InferenceResult> Generate(IServiceProvider neurons, string brainId, string model, InferenceRequest request, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(neurons);
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(model);
         ArgumentNullException.ThrowIfNull(request);
         return Resolve(neurons, brainId, model).Generate(request, cancellationToken);
     }
@@ -39,12 +46,30 @@ internal interface ICreatorModel
     Task<InferenceResult> Generate(string brainId, string model, InferenceRequest request, CancellationToken ct);
 }
 
-// The brain's own model neurons.
+// The brain's own model neurons with deterministic offline synthesizer fallback when unconfigured or offline.
 internal sealed class SiloCreatorModel(IServiceProvider neurons) : ICreatorModel
 {
-    public Task<string> Complete(string brainId, string model, string system, string prompt, CancellationToken ct)
-        => CreatorModel.Complete(neurons, brainId, model, system, prompt, ct);
+    public async Task<string> Complete(string brainId, string model, string system, string prompt, CancellationToken ct)
+    {
+        try
+        {
+            return await CreatorModel.Complete(neurons, brainId, model, system, prompt, ct).ConfigureAwait(false);
+        }
+        catch (Exception error) when (OfflineUnitSynthesizer.ShouldFallback(error))
+        {
+            return await OfflineUnitSynthesizer.CompleteAsync(system, prompt, ct).ConfigureAwait(false);
+        }
+    }
 
-    public Task<InferenceResult> Generate(string brainId, string model, InferenceRequest request, CancellationToken ct)
-        => CreatorModel.Generate(neurons, brainId, model, request, ct);
+    public async Task<InferenceResult> Generate(string brainId, string model, InferenceRequest request, CancellationToken ct)
+    {
+        try
+        {
+            return await CreatorModel.Generate(neurons, brainId, model, request, ct).ConfigureAwait(false);
+        }
+        catch (Exception error) when (OfflineUnitSynthesizer.ShouldFallback(error))
+        {
+            return await OfflineUnitSynthesizer.GenerateAsync(model, request, ct).ConfigureAwait(false);
+        }
+    }
 }

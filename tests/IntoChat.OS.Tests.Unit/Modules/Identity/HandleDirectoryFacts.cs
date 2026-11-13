@@ -34,8 +34,8 @@ public sealed class HandleDirectoryFacts
     [Fact]
     public void ShardPinsBrainId()
     {
-        Assert.Equal("system-00", HandleShard.BrainOf("vlad"));
-        Assert.StartsWith("system-", HandleShard.BrainOf("bob"));
+        Assert.Equal("system-00", IHandleDirectory.BrainOf("vlad"));
+        Assert.StartsWith("system-", IHandleDirectory.BrainOf("bob"));
     }
 }
 

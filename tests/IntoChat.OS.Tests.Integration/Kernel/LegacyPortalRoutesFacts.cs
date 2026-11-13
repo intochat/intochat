@@ -75,8 +75,8 @@ public sealed class LegacyPortalRoutesFacts
     {
         var project = XDocument.Load(Path.Combine(root, "Intochat.OS.slnx")).Descendants("Project")
             .Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/'))
-            .Single(path => path.EndsWith("/IntoChat.Cloud.Auth.csproj", StringComparison.Ordinal));
-        return Path.Combine(root, Path.GetDirectoryName(project)!);
+            .Single(path => path.EndsWith("/IntoChat.Cloud.csproj", StringComparison.Ordinal));
+        return Path.Combine(root, Path.GetDirectoryName(project)!, "Auth");
     }
 
     private static string RepoRoot()

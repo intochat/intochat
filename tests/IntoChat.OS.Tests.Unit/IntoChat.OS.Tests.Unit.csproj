@@ -10,9 +10,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../../src/IntoChat.OS.Desktop/DesktopKeyBackup.cs" Link="Desktop/DesktopKeyBackup.cs" />
-    <None Include="LocalSetup/fixtures/*.json" CopyToOutputDirectory="PreserveNewest" LinkBase="fixtures" />
-    <Content Include="../../Assets/wire/*.json" Link="wire/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Modules/Windows/hostile-paths.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="LocalSetup/fixtures/*.json" CopyToOutputDirectory="PreserveNewest" Link="fixtures/%(Filename)%(Extension)" />
+    <Content Include="../../src/Assets/wire/*.json" Link="wire/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Modules/Windows/hostile-paths.json" Link="hostile-paths.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/IntoChat.OS/IntoChat.OS.csproj" />

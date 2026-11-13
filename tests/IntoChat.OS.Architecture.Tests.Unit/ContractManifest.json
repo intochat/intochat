@@ -1,6 +1,6 @@
 {
   "Grains": {
-    "IntoChat.OS.Apps.Markdraw.MarkdrawSceneWorker": "markdrawsceneworker",
+    "IntoChat.Cloud.Circle.Server.MachineCredentialNeuron": "circle-server.machine-credential",
     "IntoChat.OS.Authority.Entries.BrainEntriesNeuron": "brain.entries",
     "IntoChat.OS.Authority.Identity.Directory.IdentityDirectoryNeuron": "identity-directory",
     "IntoChat.OS.Authority.Identity.External.ExternalTicketReplayGrain": "identity.external-ticket-replay",
@@ -13,7 +13,7 @@
     "IntoChat.OS.Modules.Apps.DataAnalyticsWorker": "dataanalyticsworker"
   },
   "GrainInterfaces": {
-    "IntoChat.OS.Apps.Markdraw.IMarkdrawSceneWorker": "markdraw.scene-worker",
+    "IntoChat.Cloud.Circle.Server.IMachineCredential": "circle-server.machine-credential",
     "IntoChat.OS.Authority.Identity.External.IExternalTicketReplay": "identity.external-ticket-replay-grain",
     "IntoChat.OS.Authority.Identity.IPrincipalCredential": "identity.principal-credential-grain",
     "IntoChat.OS.Connections.Platform.Entries.IBrainEntries": "brain.entries",
@@ -59,7 +59,6 @@
     "IntoChat.OS.Connections.SemanticType": "semantic.type; Kind=0, Id=1, Primitive=2, Sensitivity=3, LlmExposure=4, InputWidget=5, DisplayWidget=6, Redactor=7, Indexable=8",
     "IntoChat.OS.Connections.StringEntry": "framework.string-entry; Key=0, Value=1",
     "IntoChat.OS.Connections.TypeValidationException": "types.type-validation; Kind=0, AllowedValues=1, RejectedValue=2",
-    "IntoChat.OS.Framework.BrainAffinePlacement": "os.brain-affine-placement; ",
     "IntoChat.OS.Framework.CallDecision": "enforcement.call-decision; Allowed=0, Denial=1, Explanation=2, ConsumesOnce=3",
     "IntoChat.OS.Framework.Feature": "kernel.feature; Name=0, Version=1, Owner=2",
     "IntoChat.OS.Framework.ITypeTable": "kernel.type-table (not generated); ",
@@ -166,6 +165,7 @@
     "IntoChat.OS.Verdict": "brain.verdict; Allowed=0, Reason=1, Rule=2"
   },
   "States": {
+    "IntoChat.Cloud.Circle.Server.MachineCredentialNeuron": "circle-server.machine-credential=cluster:IntoChat.Cloud.Circle.Server.MachineCredentialRecord",
     "IntoChat.OS.Authority.Entries.BrainEntriesNeuron": "entries=platform:IntoChat.OS.Authority.Entries.BrainEntriesState",
     "IntoChat.OS.Authority.Identity.External.ExternalTicketReplayGrain": "external-ticket-replay=platform:IntoChat.OS.Authority.Identity.External.ExternalTicketReplayState",
     "IntoChat.OS.Authority.Identity.PrincipalCredentialGrain": "credential=platform:IntoChat.OS.Authority.Identity.PrincipalCredentialState",
@@ -290,8 +290,6 @@
     "IntoChat.OS.Modules.Circles.Signals.CircleChanged": "CircleChanged",
     "IntoChat.OS.Modules.Circles.Signals.CircleMembershipRevoked": "CircleMembershipRevoked",
     "IntoChat.OS.Modules.Circles.Signals.CircleSpoke": "CircleSpoke",
-    "IntoChat.OS.Modules.Flame.Scene.Signals.SceneChanged": "SceneChanged",
-    "IntoChat.OS.Modules.Flame.Scene.Signals.SceneInput": "SceneInput",
     "IntoChat.OS.Modules.Flutter.Chat.ChatActionActivated": "ChatActionActivated",
     "IntoChat.OS.Modules.Flutter.Chat.ChatChanged": "ChatChanged",
     "IntoChat.OS.Modules.Flutter.Chat.ChatIndexChanged": "ChatIndexChanged",

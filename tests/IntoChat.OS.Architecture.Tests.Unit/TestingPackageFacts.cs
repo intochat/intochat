@@ -55,6 +55,7 @@ public sealed class TestingPackageFacts
         // Silo hosts get Orleans' external systems from the orleans module. These are not OS silo hosts.
         var allowed = new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            ["IntoChat.OS.Kernel"] = "the kernel silo host clustering through Azure table storage",
             ["IntoChat.OS.Modules.Microsoft.Orleans"] = "the module that owns Orleans' Azure storage",
             ["IntoChat.OS.Aspire.Client"] = "an Orleans client joining the cluster through Azure table clustering",
             ["DigitalBrain.Runtime.Orleans.Azure"] = "the runtime's Azure storage profile",

@@ -104,7 +104,7 @@ public static class ShellHostingExtensions
             {
                 throw new InvalidOperationException(
                     $"Flutter host package was not found at '{packageRoot}'. " +
-                    "Pass FlutterHostOptions.WorkingDirectory or place ui/core in the repo.");
+                    "Pass FlutterHostOptions.WorkingDirectory or place ui in the repo.");
             }
 
             var resourceName = string.IsNullOrWhiteSpace(options.ResourceName)
@@ -195,7 +195,7 @@ public static class ShellHostingExtensions
             var shellDirectory = FlutterHostLaunch.ResolveWebPackageDirectory(packageRoot)
                 ?? throw new InvalidOperationException(
                     $"Containerized web shell needs lib/main.dart and a 'web/' folder under " +
-                    $"'{packageRoot}' or its 'shell' sibling.");
+                    $"'{packageRoot}'.");
             var dockerfile = Path.Combine(shellDirectory, "Dockerfile");
             if (!File.Exists(dockerfile))
             {
@@ -203,8 +203,7 @@ public static class ShellHostingExtensions
                     $"Containerized web shell needs a Dockerfile at '{dockerfile}'.");
             }
 
-            // The pub workspace root: the shell's core and ui siblings belong to the build context.
-            var workspaceRoot = Path.GetFullPath(Path.Combine(shellDirectory, ".."));
+            var workspaceRoot = shellDirectory;
 
             // The bind-mount source must exist when docker creates the container; the real
             // content lands in Apply right before start, once the kernel endpoint is allocated.
@@ -279,12 +278,9 @@ public static class ShellHostingExtensions
                 if (File.Exists(manifest) && File.ReadLines(manifest).Any(line => line.TrimEnd() == "workspace:"))
                 { return [directory.FullName]; }
             }
-            var family = Path.GetFullPath(Path.Combine(workingDirectory, ".."));
             return
             [
                 Path.Combine(workingDirectory, "lib"),
-                Path.Combine(family, "ui", "lib"),
-                Path.Combine(family, "core", "lib"),
             ];
         }
 
@@ -358,24 +354,16 @@ public static class ShellHostingExtensions
 
             // Walk up rather than guessing a fixed depth: the caller can be an application AppHost
             // or any test project, and those sit at different depths under the repository root.
-            string[] packageDirectories = ["core", "shell", "ui"];
             string[] packagePathsFromRepositoryRoot =
             [
-                Path.Combine("ui", "core"),
-                Path.Combine("ui", "shell"),
-                Path.Combine("ui", "ui"),
-                Path.Combine("src", "IntoChat.OS.Modules", "Google", "Flutter", "app", "core"),
-                Path.Combine("src", "IntoChat.OS.Modules", "Google", "Flutter", "app", "shell"),
-                Path.Combine("..", "modules", "src", "IntoChat.OS.Modules", "Google", "Flutter", "app", "core"),
-                Path.Combine("..", "modules", "src", "IntoChat.OS.Modules", "Google", "Flutter", "app", "shell"),
+                "ui",
+                Path.Combine("src", "IntoChat.OS.Modules", "Google", "Flutter", "app"),
+                Path.Combine("..", "modules", "src", "IntoChat.OS.Modules", "Google", "Flutter", "app"),
             ];
             for (var current = new DirectoryInfo(Path.GetFullPath(appHostDirectory)); current is not null; current = current.Parent)
             {
-                foreach (var packageDirectory in packageDirectories)
-                {
-                    var uiCandidate = Path.Combine(current.FullName, "ui", packageDirectory);
-                    if (File.Exists(Path.Combine(uiCandidate, "pubspec.yaml"))) { return uiCandidate; }
-                }
+                var uiCandidate = Path.Combine(current.FullName, "ui");
+                if (File.Exists(Path.Combine(uiCandidate, "pubspec.yaml"))) { return uiCandidate; }
                 foreach (var packagePath in packagePathsFromRepositoryRoot)
                 {
                     var candidate = Path.Combine(current.FullName, packagePath);
@@ -384,7 +372,7 @@ public static class ShellHostingExtensions
             }
 
             throw new DirectoryNotFoundException(
-                $"No Flutter package above '{appHostDirectory}'. Expected {string.Join(" or ", packagePathsFromRepositoryRoot)} "
+                $"No Flutter package above '{appHostDirectory}'. Expected ui/pubspec.yaml "
                 + "under the repository root, or pass FlutterHostOptions.WorkingDirectory.");
         }
     }

@@ -55,13 +55,12 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
             if (listing?.Source is not AppSource.Brain published || (source is not null && published != source))
             { throw new KeyNotFoundException("This publication's source is unavailable."); }
             bundle = await SiloNeurons.Get<IApp>(plain, IApp.Key(published.Scope()!, reference.App)).ExportRelease(reference.Version!, reference.Digest!).WaitAsync(ct);
-            if (bundle.Version != reference.Version || AppPublicationDigest.Of(bundle) != reference.Digest)
-            { throw new InvalidDataException("The published content does not match the selected release."); }
+            var release = PublishedRelease.FromBundle(bundle, reference.Publisher, published, DateTimeOffset.UtcNow);
+            release.EnsureMatches(reference.Version!, reference.Digest!);
             // The publication (fork) path: refused before loader.Create makes the copy.
             await CheckCapabilities(scope, bundle.Manifest, ct);
-            var publication = new AppPublicationRef(reference.Publisher, published, reference.App, reference.Version!, reference.Digest!);
-            receipt = new AppInstallReceipt(request.OperationId, publication, name, caller.AccountId);
-            origin = new(reference.Publisher, published, reference.App, reference.Version!, reference.Digest, caller.AccountId);
+            receipt = release.CreateInstallReceipt(request.OperationId, name, caller.AccountId);
+            origin = release.CreateOrigin(caller.AccountId);
         }
         else
         {
@@ -234,9 +233,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         var scope = BrainScope.CurrentId();
         if (listing.Source.Scope() == scope) { return new(listing, true, false); }
         var local = await SiloNeurons.Get<IApp>(plain, IApp.Key(scope, listing.Name)).Read().WaitAsync(ct);
-        var installed = local.Origin is { } origin && origin.Publisher == listing.Publisher && origin.Name == listing.Name;
-        var update = installed && !local.Edited && AppVersions.Compare(listing.Version, local.Origin!.Version) > 0;
-        return new(listing, installed, update);
+        return CatalogEntry.FromListing(listing, local, scope).ToMarketplaceEntry();
     }
 
     // The published bundle a source holds: a person's brain or the shipped catalog.

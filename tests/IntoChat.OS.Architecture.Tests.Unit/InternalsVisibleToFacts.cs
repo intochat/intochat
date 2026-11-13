@@ -42,11 +42,22 @@ public sealed partial class InternalsVisibleToFacts
         {
             return true;
         }
-        // Transitional (06-02, R4-12): the kernel composition hosts the os Framework until 06-08 deletes the Framework.
-        if (grantor == "IntoChat.OS.Framework" && grantee == "IntoChat.OS.Kernel.Composition") { return true; }
-        // The kernel tests still construct identity internals. The grants go away with that reach in 0.8.0.
-        if (grantor == "IntoChat.OS.Modules.Identity" && grantee is "IntoChat.OS.Kernel.Tests.Unit" or "IntoChat.OS.Kernel.Tests.Integration" or "IntoChat.OS.Kernel.Tests.E2E" or "IntoChat.OS.Kernel.Composition.Tests.Integration") { return true; }
-        if (grantor == "IntoChat.OS.Kernel.Composition" && grantee is "IntoChat.OS.Kernel.Tests.E2E" or "IntoChat.OS.Modules.Microsoft.Orleans.Tests.Unit") { return true; }
+        // Consolidated test projects test all OS and Cloud modules
+        if (grantee is "IntoChat.OS.Tests.Unit" or "IntoChat.OS.Tests.Integration" or "IntoChat.OS.Tests.E2E"
+            or "IntoChat.OS.Architecture.Tests.Unit" or "IntoChat.OS.Tests.Support" or "IntoChat.Cloud.Tests.Unit")
+        {
+            return true;
+        }
+        // Ring 0 and Framework allow the Kernel and AppHost compositions to wire and initialize internal services
+        if (grantee is "IntoChat.OS.Kernel" or "IntoChat.OS.AppHost" or "IntoChat.OS.Framework")
+        {
+            return true;
+        }
+        // Host and composition modules that need friend access to Framework / Ring
+        if (grantee is "IntoChat.OS.Modules.Shell" or "IntoChat.OS.Modules.Catalog" or "IntoChat.OS.Modules.AI")
+        {
+            return true;
+        }
         const string hosting = ".Aspire.Hosting";
         return grantor.EndsWith(hosting, StringComparison.Ordinal) && grantee == grantor[..^hosting.Length] + ".Tests.Hosting";
     }

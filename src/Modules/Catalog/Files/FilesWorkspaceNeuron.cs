@@ -12,6 +12,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.Files;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Primitives;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Views;
@@ -185,6 +186,14 @@ internal sealed partial class FilesWorkspaceNeuron(
                 case "mkdir" or "write" or "rename" or "delete" or "paste":
                     if (State.Started.Count(item => !item.Done) >= 8) { throw new InvalidOperationException("Wait for a running operation before starting another."); }
                     var name = input.Name ?? (await Field("name").Read()).Value ?? "";
+                    if (operation is "mkdir" or "write" or "rename")
+                    {
+                        if (string.IsNullOrWhiteSpace(name) || !SafeRelativePath.TryParse(name, out var safeName) || safeName.Value.Contains('/'))
+                        {
+                            throw new ArgumentException("A valid single-segment file or folder name is required.");
+                        }
+                        name = safeName.Value;
+                    }
                     var text = operation == "write" ? input.Text ?? (await Field("content").Read()).Value ?? "" : "";
                     if (System.Text.Encoding.UTF8.GetByteCount(text) > 256 * 1024) { throw new InvalidOperationException("Text files entered here are limited to 256 KiB."); }
                     var plan = app.Plan(operation, name, text);

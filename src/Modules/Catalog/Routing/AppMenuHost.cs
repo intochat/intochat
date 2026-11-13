@@ -5,6 +5,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans;
@@ -15,7 +16,7 @@ namespace IntoChat.OS.Modules.AI.Routing;
 // The scan runs at startup, outside a person's request. A route after that reads the menu.
 // Apps are plain neurons (06-08): their AppChanged is heard on this silo through IClusterListeners and queued, so the refresh
 // runs here, in order, outside the turn that published it.
-internal sealed class AppMenuHost(DigitalBrain.Kernel.IClusterListeners listeners, IServiceProvider plain, IKernel kernel,
+internal sealed class AppMenuHost(DigitalBrain.Kernel.IClusterListeners listeners, IServiceProvider plain,
     AppOperationCatalog catalog, ILogger<AppMenuHost> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -75,7 +76,10 @@ internal sealed class AppMenuHost(DigitalBrain.Kernel.IClusterListeners listener
     {
         List<(string App, MenuOperation[] Operations)> apps = [];
         HashSet<string> keys = new(StringComparer.Ordinal);
-        await foreach (var instance in kernel.InstancesIn(brain, kernel.TypeOf(typeof(IApp)), cancellationToken)) { keys.Add(instance.Key); }
+        if (plain.GetService<IKernel>() is { } kernel)
+        {
+            await foreach (var instance in kernel.InstancesIn(brain, kernel.TypeOf(typeof(IApp)), cancellationToken)) { keys.Add(instance.Key); }
+        }
         keys.Add(changed);
         foreach (var key in keys)
         {
@@ -107,8 +111,6 @@ internal sealed class AppMenuHost(DigitalBrain.Kernel.IClusterListeners listener
             return null;
         }
         if (snapshot.Manifest is null) { return []; }
-        return snapshot.Manifest.Operations
-            .Select(operation => new MenuOperation(name, operation.Name, string.IsNullOrWhiteSpace(operation.Description) ? null : operation.Description))
-            .ToArray();
+        return [.. CatalogEntry.FromSnapshot(name, snapshot, "").ToMenuOperations()];
     }
 }

@@ -7,7 +7,7 @@ using IntoChat.OS.Contracts.Configuration;
 namespace IntoChat.OS.Modules.ArtCraft.Aspire.Hosting;
 
 // Each app runs twice: its headless CLI as an MCP server, and its wasm build behind nginx (optional in headless/cloud mode).
-// Images build from src/IntoChat.OS.Aspire/IntoChat.OS.Aspire.Hosting/Modules/ArtCraft/docker at a pinned upstream commit,
+// Images build from src/IntoChat.OS.AppHost/Hosting/Modules/ArtCraft/docker at a pinned upstream commit,
 // on the fixed ports the module options name.
 public sealed class ArtCraftModuleHosting : ModuleHosting<ArtCraftModule>
 {
@@ -70,8 +70,8 @@ public sealed class ArtCraftModuleHosting : ModuleHosting<ArtCraftModule>
             var inRepo = Path.Combine(
                 repoRoot,
                 "src",
-                "IntoChat.OS.Aspire",
-                "IntoChat.OS.Aspire.Hosting",
+                "IntoChat.OS.AppHost",
+                "Hosting",
                 "Modules",
                 "ArtCraft",
                 "docker");
@@ -83,9 +83,7 @@ public sealed class ArtCraftModuleHosting : ModuleHosting<ArtCraftModule>
 
         return Path.GetFullPath(Path.Combine(
             appHostDirectory,
-            "..",
-            "IntoChat.OS.Aspire",
-            "IntoChat.OS.Aspire.Hosting",
+            "Hosting",
             "Modules",
             "ArtCraft",
             "docker"));

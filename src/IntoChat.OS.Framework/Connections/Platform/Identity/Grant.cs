@@ -81,7 +81,7 @@ public sealed record Grant
             scope: relation,
             expires: expires)
         {
-            Delegable = !GrantRelations.IsUseVia(relation) && delegable,
+            Delegable = !(relation?.StartsWith(GrantRelations.UseViaPrefix, StringComparison.Ordinal) ?? false) && delegable,
         };
 #pragma warning restore CS0618
     }

@@ -5,6 +5,7 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
 using DigitalBrain.Log;
 using DigitalBrain.Operations;
+using IntoChat.OS.Primitives;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.LocalDisk;
@@ -262,7 +263,26 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
     {
         var (rootId, relative) = LocalItemId.Read(id);
         var root = Root(rootId);
-        var combined = relative.Length == 0 ? root.Path : Join(root.Path, relative);
+        string combined;
+        if (relative.Length == 0)
+        {
+            combined = root.Path;
+        }
+        else
+        {
+            if (!SafeRelativePath.TryParse(relative, out var safeRel))
+            {
+                throw new Denied(id);
+            }
+            try
+            {
+                combined = safeRel.ResolveUnder(root.Path);
+            }
+            catch (InvalidOperationException error)
+            {
+                throw new Denied(id, error);
+            }
+        }
         try
         {
             var full = PathConfinement.Resolve(Paths, combined);
@@ -294,10 +314,10 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
 
     private static string Safe(string? name)
     {
-        if (string.IsNullOrWhiteSpace(name) || name.Contains('/') || name.Contains('\\') || name is "." or "..")
+        if (string.IsNullOrWhiteSpace(name) || !SafeRelativePath.TryParse(name, out var safe) || safe.Value.Contains('/'))
         { throw new ArgumentException("The storage plan is invalid."); }
         if (name.EndsWith(PartialSuffix, PathComparison) || name.Equals(TrashName, PathComparison)) { throw new Denied(null); }
-        return name;
+        return safe.Value;
     }
 
     private string Place(string destination, ConflictPolicy policy, string? source, ItemId? id)
@@ -442,16 +462,16 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
 
     private static string Join(string root, string relative)
     {
-        var path = root;
-        foreach (var part in relative.Split('/', StringSplitOptions.RemoveEmptyEntries)) { path = Path.Combine(path, part); }
-        return path;
+        if (string.IsNullOrWhiteSpace(relative)) { return root; }
+        return SafeRelativePath.Parse(relative).ResolveUnder(root);
     }
 
     private static string Relative(string root, string full)
     {
         if (string.Equals(root, full, PathComparison)) { return ""; }
         var prefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
-        return full[prefix.Length..].Replace(Path.DirectorySeparatorChar, '/');
+        var rel = full[prefix.Length..].Replace(Path.DirectorySeparatorChar, '/');
+        return SafeRelativePath.TryParse(rel, out var safe) ? safe.Value : rel;
     }
 
     private static string Name(string path) => Path.GetFileName(Path.TrimEndingDirectorySeparator(path)) is { Length: > 0 } name ? name : path;

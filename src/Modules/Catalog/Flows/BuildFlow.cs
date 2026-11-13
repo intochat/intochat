@@ -7,8 +7,10 @@ using DigitalBrain.Capabilities.Connections.Broker;
 using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.Units;
+using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -183,36 +185,36 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
                         inner.GoalHash = goalHash;
                         inner.Alias = unit.Alias;
                     }
-                    return new StepResult<BuildInner>(inner, null, [new FlowSubject(Id.ToString(), inner.Alias!)]);
+                    return inner.Advance(new FlowSubject(Id.ToString(), inner.Alias!));
                 }
             case "draft":
                 {
                     var unitHash = Sha(inner.UnitJson ?? "");
-                    if (inner.Files is { Count: > 0 } && inner.UnitHash == unitHash) { return new StepResult<BuildInner>(inner); }
+                    if (inner.Files is { Count: > 0 } && inner.UnitHash == unitHash) { return inner.Advance(); }
                     var unit = UnitOf(inner);
                     // "Change it": a unit already deployed under the alias is drafted over its current files.
                     inner.Existing ??= await Current(unit.Alias, ct);
                     var draft = await Task.Run(() => (drafter ?? throw new InvalidOperationException("No drafter configured.")).Draft(Id.Brain.Value, unit, inner.Existing, ct), ct);
                     inner.Files = draft.Files;
                     inner.UnitHash = unitHash;
-                    return new StepResult<BuildInner>(inner);
+                    return inner.Advance();
                 }
             case "verify":
                 await Task.Run(() => Verify(inner, ct), ct);
-                return new StepResult<BuildInner>(inner);
+                return inner.Advance();
             case "deploy":
                 {
-                    if (inner.Deployed) { return new StepResult<BuildInner>(inner); }
+                    if (inner.Deployed) { return inner.Advance(); }
                     var unit = UnitOf(inner);
                     if (Bind(inner, await Resolve(unit.Needs, inner.Chosen, ct)))
                     {
                         // The answers come back through the mailbox, so after the base has saved this wait.
                         RaiseChoices(inner);
                         await Context.Reminders.Start(Recheck, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
-                        return new StepResult<BuildInner>(inner, new Waiting(step, WaitReason.External, null, null), [MissingNote(inner)]);
+                        return inner.WaitExternal(step, null, MissingNote(inner));
                     }
                     await DeployUnit(inner, unit);
-                    return new StepResult<BuildInner>(inner);
+                    return inner.Advance();
                 }
             case "install":
                 return await Install(inner);
@@ -326,7 +328,10 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
                 if (confirmations is not null)
                 {
                     try { await confirmations.Resolve(other, approve: false); }
-                    catch (Exception error) when (error is InvalidOperationException or ArgumentException) { _ = error; }
+                    catch (Exception error) when (error is InvalidOperationException or ArgumentException)
+                    {
+                        ((ILogger?)logger ?? NullLogger.Instance).LogSwallowed(error, "Withdrawing candidate choice plan resolution.");
+                    }
                 }
             }
         }
@@ -384,14 +389,13 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
                 inner.NeedsHash ??= (await Installs().Pending(CancellationToken.None)).FirstOrDefault(pending => pending.PlanId == inner.PlanId)?.NeedsHash;
                 await Report(inner, DigitalBrain.Units.InstallStatus.Pending);
                 await Context.Reminders.Start(Recheck, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
-                return new StepResult<BuildInner>(inner, new Waiting("install", WaitReason.External, null, inner.PlanId),
-                    [new FlowWaiting(Id.ToString(), "install", WaitReason.External, inner.PlanId)]);
+                return inner.WaitExternal("install", inner.PlanId, new FlowWaiting(Id.ToString(), "install", WaitReason.External, inner.PlanId));
             case DigitalBrain.Units.InstallStatus.Refused or DigitalBrain.Units.InstallStatus.Denied:
                 throw new FlowFailed("install", $"{inner.Alias} was not installed: {inner.Missing ?? inner.Install.ToString()}");
             default:
                 await Report(inner, inner.Install ?? DigitalBrain.Units.InstallStatus.Unchanged);
                 await StopRecheck();
-                return new StepResult<BuildInner>(inner);
+                return inner.Advance();
         }
     }
 

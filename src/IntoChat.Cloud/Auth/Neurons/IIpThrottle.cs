@@ -1,5 +1,5 @@
 using DigitalBrain.Access;
-using IntoChat.Cloud.Mail;
+using IntoChat.OS;
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
@@ -8,7 +8,7 @@ public interface IIpThrottle
 {
     const string Type = "auth.ip-throttle";
 
-    static string Key(string ipHash) => $"{SystemShard.BrainOf(ipHash)}/auth/ip/{ipHash}";
+    static string Key(string ipHash) => $"{NeuronKeys.SystemShard(ipHash)}/auth/ip/{ipHash}";
 
     [Internal]
     Task<ThrottleResult> Hit();

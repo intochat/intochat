@@ -18,7 +18,7 @@ public sealed record FlowsState(Dictionary<string, FlowEntry> Flows)
         var finished = flows.Values.Where(candidate => candidate.Finished).ToArray();
         if (finished.Length > KeepFinished)
         {
-            foreach (var old in finished.OrderBy(candidate => candidate.Ended).Take(finished.Length - KeepFinished)) { flows.Remove(old.FlowId); }
+            foreach (var old in finished.OrderBy(candidate => candidate.Ended ?? candidate.Started).Take(finished.Length - KeepFinished)) { flows.Remove(old.FlowId); }
         }
         return this with { Flows = flows };
     }
@@ -47,9 +47,12 @@ public sealed record FlowEntry(
     bool HeadKnown = false,
     string? OperationId = null,
     int HeadAttempts = 0,
-    string? ResolvedStep = null)
+    string? ResolvedStep = null,
+    string[]? ResolvedSteps = null)
 {
     public const int MaxHeadAttempts = 3;
+
+    public string[] ResolvedSteps { get; init; } = ResolvedSteps ?? [];
 
     // The starting caller's AppId and ConversationId, recorded by Start; null for a flow started elsewhere or before they were kept.
     public string? App { get; init; }
@@ -65,20 +68,26 @@ public sealed record FlowEntry(
     {
         ArgumentNullException.ThrowIfNull(head);
         var ended = head.Status is FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled;
+        var finished = ended || Finished;
         return this with
         {
             Title = Title.Length == 0 ? head.Title : Title,
             Owner = head.Owner.Length == 0 ? Owner : head.Owner,
             TraceId = head.TraceId,
             Steps = head.Steps,
-            Done = [.. Done.Union(head.Done, StringComparer.Ordinal)],
+            Done = head.Status == FlowStatus.Completed && head.Steps.Length > 0
+                ? [.. Done.Union(head.Done.Length > 0 ? head.Done : head.Steps, StringComparer.Ordinal)]
+                : [.. Done.Union(head.Done, StringComparer.Ordinal)],
             Status = ended && !Finished ? head.Status : Status == FlowStatus.Pending ? head.Status : Status,
+            Current = finished ? null : Current,
+            Waiting = finished ? null : Waiting,
             Ended = Ended ?? head.Ended,
             ParentFlowId = ParentFlowId ?? head.ParentFlowId,
             Started = head.Started == default ? Started : head.Started,
-            OperationId = head.OperationId,
+            OperationId = finished ? null : head.OperationId,
             HeadKnown = true,
             HeadAttempts = 0,
+            ResolvedSteps = ResolvedSteps,
         };
     }
 }

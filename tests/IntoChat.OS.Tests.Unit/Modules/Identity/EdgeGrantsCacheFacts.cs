@@ -76,7 +76,15 @@ public sealed class EdgeGrantsCacheFacts
     [Fact]
     public void EdgeGrantsCacheExposesAsyncOnlyConnectionBindingChecks()
     {
-        var src = File.ReadAllText(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../src/IntoChat.OS.Modules/IntoChat.OS/Identity/src/IntoChat.OS.Modules.Identity/Authority/Identity/Grants/EdgeGrantsCache.cs")));
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Intochat.OS.slnx"))) { dir = dir.Parent; }
+        Assert.NotNull(dir);
+        var sln = System.Xml.Linq.XDocument.Load(Path.Combine(dir.FullName, "Intochat.OS.slnx"));
+        var rel = sln.Descendants("Project")
+            .Select(p => p.Attribute("Path")?.Value)
+            .First(p => p is not null && p.EndsWith("IntoChat.OS.Framework.csproj", StringComparison.OrdinalIgnoreCase))!;
+        var frameworkDir = Path.GetDirectoryName(Path.Combine(dir.FullName, rel))!;
+        var src = File.ReadAllText(Path.Combine(frameworkDir, "Authority", "Identity", "Grants", "EdgeGrantsCache.cs"));
         Assert.DoesNotContain("GetAwaiter().GetResult()", src, StringComparison.Ordinal);
     }
 }

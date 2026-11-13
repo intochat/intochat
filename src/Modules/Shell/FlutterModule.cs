@@ -39,6 +39,7 @@ public sealed class FlutterModule : DigitalBrain.Modules.Module, IHttpModule
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         WorkspaceEndpoints.Map(endpoints);
+        Screens.ScreensEndpoints.Map(endpoints);
         LiveSignalEndpoints.Map(endpoints);
         BrainEventsEndpoints.Map(endpoints);
         Workspace.UnitReadEndpoints.Map(endpoints);

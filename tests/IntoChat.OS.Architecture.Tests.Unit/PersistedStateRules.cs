@@ -96,7 +96,6 @@ internal static class PersistedStateRules
         "IntoChat.OS.Modules.Apps.AppPresentation.Blackboard",
         "IntoChat.OS.Authority.Integrations.IntegrationState.Settings",
         "IntoChat.OS.Authority.Secrets.SecretsState.Fields",
-        "IntoChat.OS.Modules.Flame.Scene.SceneNode.Parameters",
     };
 
     internal static IEnumerable<string> ConcreteCollectionMembers(Type type) => Members(type)

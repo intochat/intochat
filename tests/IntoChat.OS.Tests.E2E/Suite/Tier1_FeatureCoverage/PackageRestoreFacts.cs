@@ -103,7 +103,7 @@ public sealed class PackageRestoreFacts : E2ETestBase
     [Fact]
     public void T1_F01_TC06_Dx03PackagesListInFrameworkBoundaryFacts_Matches0190PackableSet()
     {
-        var frameworkFactsFile = Path.Combine(SrcDir, "Testing", "IntoChat.OS.Architecture.Tests.Unit", "FrameworkBoundaryFacts.cs");
+        var frameworkFactsFile = Path.Combine(RepoRoot, "tests", "IntoChat.OS.Architecture.Tests.Unit", "FrameworkBoundaryFacts.cs");
         Assert.True(File.Exists(frameworkFactsFile), "FrameworkBoundaryFacts.cs must exist.");
 
         var text = File.ReadAllText(frameworkFactsFile);
@@ -123,24 +123,24 @@ public sealed class PackageRestoreFacts : E2ETestBase
     [Fact]
     public void T1_F03_TC01_AppsModuleCsproj_ReferencesDigitalBrainSimulation()
     {
-        var appsProj = FindCsprojFiles().FirstOrDefault(f => f.EndsWith("IntoChat.OS.Modules.Apps.csproj", StringComparison.OrdinalIgnoreCase));
+        var appsProj = FindCsprojFiles().FirstOrDefault(f => f.EndsWith("IntoChat.OS.Modules.Catalog.csproj", StringComparison.OrdinalIgnoreCase));
         Assert.NotNull(appsProj);
 
         var doc = XDocument.Load(appsProj);
         var hasSim = doc.Descendants("PackageReference").Any(p => p.Attribute("Include")?.Value == "DigitalBrain.Simulation");
-        Assert.True(hasSim, "IntoChat.OS.Modules.Apps.csproj must reference DigitalBrain.Simulation.");
+        Assert.True(hasSim, "IntoChat.OS.Modules.Catalog.csproj must reference DigitalBrain.Simulation.");
     }
 
     [Fact]
     public void T1_F03_TC02_AppsModuleCsproj_DoesNotReferenceDigitalBrainTesting()
     {
-        var appsProj = FindCsprojFiles().FirstOrDefault(f => f.EndsWith("IntoChat.OS.Modules.Apps.csproj", StringComparison.OrdinalIgnoreCase));
+        var appsProj = FindCsprojFiles().FirstOrDefault(f => f.EndsWith("IntoChat.OS.Modules.Catalog.csproj", StringComparison.OrdinalIgnoreCase));
         Assert.NotNull(appsProj);
 
         var doc = XDocument.Load(appsProj);
         var hasTesting = doc.Descendants("PackageReference")
             .Any(p => p.Attribute("Include")?.Value is "DigitalBrain.Testing" or "DigitalBrain.Testing.Silo");
-        Assert.False(hasTesting, "IntoChat.OS.Modules.Apps.csproj must NOT reference DigitalBrain.Testing or DigitalBrain.Testing.Silo.");
+        Assert.False(hasTesting, "IntoChat.OS.Modules.Catalog.csproj must NOT reference DigitalBrain.Testing or DigitalBrain.Testing.Silo.");
     }
 
     [Fact]

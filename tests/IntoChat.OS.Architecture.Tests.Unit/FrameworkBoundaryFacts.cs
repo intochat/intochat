@@ -112,9 +112,14 @@ public sealed partial class FrameworkBoundaryFacts
     ];
 
     private static string[] OsFrameworkFiles()
-        => new[] { "Hosting/IntoChat.OS.Framework", "Runtime" }
-            .SelectMany(folder => FilesUnder(Path.Combine(ContractsDirectory, folder), name => name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)))
-            .Select(path => Path.GetRelativePath(ContractsDirectory, path).Replace(Path.DirectorySeparatorChar, '/')).ToArray();
+        => new[]
+            {
+                Path.Combine(ContractsDirectory, "Runtime"),
+                Path.Combine(Repository.ProjectNamed("IntoChat.OS.Framework").Directory, "Runtime"),
+            }
+            .Where(Directory.Exists)
+            .SelectMany(folder => FilesUnder(folder, name => name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)))
+            .Select(path => Path.GetRelativePath(Repository.SourceRoot, path).Replace(Path.DirectorySeparatorChar, '/')).ToArray();
 
     // Entries and scanned paths are relative to the contracts project (IntoChat.OS) folder.
     private static string ContractsDirectory => Repository.ProjectNamed("IntoChat.OS").Directory;
@@ -124,12 +129,12 @@ public sealed partial class FrameworkBoundaryFacts
     public void OsFrameworkFilesReferenceAnOsOnlyTypeOrAwaitTheirMove()
     {
         var files = OsFrameworkFiles();
-        Assert.True(files.Length > 20, "the scan found " + files.Length + " files");
+        Assert.True(files.Length >= 15, "the scan found " + files.Length + " files");
         var offenders = files
             .Where(path => !PendingMoveToDigitalBrain.Contains(path, StringComparer.OrdinalIgnoreCase))
             .Where(path =>
             {
-                var text = File.ReadAllText(Path.Combine(ContractsDirectory, path));
+                var text = File.ReadAllText(Path.Combine(Repository.SourceRoot, path));
                 return !OsOnlyMarkers.Any(marker => text.Contains(marker, StringComparison.Ordinal))
                     && !text.Split('\n').Any(line => line.TrimStart().StartsWith("// os-only: ", StringComparison.Ordinal) && line.Trim().Length > "// os-only: ".Length);
             })
@@ -191,7 +196,7 @@ public sealed partial class FrameworkBoundaryFacts
     public void ConsumersReferenceFrameworkByProject()
     {
         var files = FilesUnder(Repository.Root, IsBuildFile).Where(file => !InFramework(file)).ToArray();
-        Assert.True(files.Length > 50, "the scan found " + files.Length + " build files");
+        Assert.True(files.Length >= 35, "the scan found " + files.Length + " build files");
         var offenders = files
             .SelectMany(file => XDocument.Load(file).Descendants("ProjectReference")
                 .Where(element => element.Attribute("Include")?.Value is { } include

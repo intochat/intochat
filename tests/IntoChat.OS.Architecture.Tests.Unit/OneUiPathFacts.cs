@@ -12,7 +12,7 @@ public sealed partial class OneUiPathFacts
         "view", "ui.field", "webbrowser", "viewport",
         // Non-UI neurons of the module: a chat's stored projection (rendered as view nodes by its app) and the shell's sources.
         "chat",
-        "chat-index", "ui.compute", "ui.problem-reports", "ui.space", "ui.workspace",
+        "chat-index", "ui.compute", "ui.problem-reports", "ui.screens", "ui.space", "ui.workspace",
     ];
 
     private static readonly string[] Pending = [];
@@ -21,7 +21,7 @@ public sealed partial class OneUiPathFacts
     public void NoNeuronOutsideTheKeptUiKinds()
     {
         var aliases = ProductionArchitecture.Types
-            .Where(type => type.Assembly.GetName().Name == "IntoChat.OS.Modules.Flutter")
+            .Where(type => type.Assembly.GetName().Name is "IntoChat.OS.Modules.Shell" or "IntoChat.OS.Modules.Flutter")
             .Select(type => type.GetCustomAttribute<DigitalBrain.Neurons.NeuronAttribute>(inherit: false)?.Type)
             .OfType<string>()
             .ToHashSet(StringComparer.Ordinal);

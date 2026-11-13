@@ -1,0 +1,237 @@
+using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Confirmation;
+using DigitalBrain.Errors;
+using DigitalBrain.Neurons;
+using DigitalBrain.UI;
+using DigitalBrain.Units;
+using IntoChat.OS.Framework;
+using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Flutter.Screens;
+using IntoChat.OS.Modules.Flutter.Views;
+using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Runtime;
+using TestOS = DigitalBrain.Testing.TestOS;
+using Xunit;
+
+namespace IntoChat.OS.Modules.Flutter;
+
+public sealed class ScreenDirectoryNeuronFacts
+{
+    private const string Scope = "owner";
+
+    private static IDisposable AsPerson(string principal = "alice")
+        => DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(
+            DigitalBrain.Capabilities.CapabilityCallers.Of(principal, principal, Scope));
+
+    private sealed class MockNeuronProxies : INeuronProxies
+    {
+        private readonly Dictionary<string, object> _byKey = new(StringComparer.OrdinalIgnoreCase);
+
+        public void Register<T>(string key, T instance) where T : class
+        {
+            _byKey[key] = instance;
+        }
+
+        public void Register<T>(NeuronId id, T instance) where T : class
+        {
+            _byKey[$"{id.Type}:{id.Brain.Value}/{id.Key}"] = instance;
+            _byKey[id.Key] = instance;
+        }
+
+        public T Get<T>(NeuronId id) where T : class
+        {
+            if (_byKey.TryGetValue($"{id.Brain.Value}/{id.Key}", out var val))
+            {
+                return (T)val;
+            }
+            if (_byKey.TryGetValue($"{id.Type}:{id.Brain.Value}/{id.Key}", out val))
+            {
+                return (T)val;
+            }
+            if (_byKey.TryGetValue(id.Key, out val))
+            {
+                return (T)val;
+            }
+            throw new KeyNotFoundException($"No mock neuron for {id.Type}:{id.Key}");
+        }
+    }
+
+    private sealed class MockWorkspace : IWorkspace
+    {
+        public WorkspaceState State { get; set; } = new(1L, ["owner"], [])
+        {
+            OpenViews = [
+                new WorkspaceViewRef("v-calc", "owner/apps/calculator", "full", ""),
+                new WorkspaceViewRef("v-unit", "owner/units/counter", "full", "")
+            ],
+            FocusedViewId = "v-calc"
+        };
+
+        public Task<WorkspaceState> Apply(WorkspaceUpdate next, string operationId, long expectedRevision) => Task.FromResult(State);
+        public Task<WorkspaceState> Show(string app, string operationId, long expectedRevision) => Task.FromResult(State);
+        public Task<WorkspaceState> Back(string operationId, long expectedRevision) => Task.FromResult(State);
+        public Task<WorkspaceState> Home(string operationId, long expectedRevision) => Task.FromResult(State);
+        public Task<WorkspaceState> Close(string app, string operationId, long expectedRevision) => Task.FromResult(State);
+        public Task<WorkspaceState> Read() => Task.FromResult(State);
+    }
+
+    private sealed class MockApprovals : IApprovals
+    {
+        public List<Approval> Approvals { get; } =
+        [
+            new("plan-1", ApprovalKind.FlowStep, "calculator", "Approve Run", "Detail", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(1), "trace-1")
+        ];
+
+        public Task<IReadOnlyList<Approval>> Pending(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<Approval>>(Approvals);
+    }
+
+    private sealed class MockConfirmationInbox : IConfirmationInbox
+    {
+        public List<(string PlanId, bool Approved)> Resolved { get; } = [];
+
+        public Task<ConfirmationInbox> Read()
+            => Task.FromResult(new ConfirmationInbox(0L, []));
+
+        public Task Resolve(string planId, bool approved)
+        {
+            Resolved.Add((planId, approved));
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class MockView : IView
+    {
+        public PublishedView? Published { get; set; }
+        public List<(long Generation, string Key, string? Value)> Activations { get; } = [];
+
+        public Task Publish(long generation, View view) => Task.CompletedTask;
+
+        public Task<PublishedView?> Read() => Task.FromResult(Published);
+
+        public Task<ViewActivation> Activate(long generation, string key, string? fieldValue)
+        {
+            Activations.Add((generation, key, fieldValue));
+            return Task.FromResult(new ViewActivation(ViewActivationKind.Intent, Intent: new Intent(default, "noop"), Value: fieldValue));
+        }
+    }
+
+    [Fact]
+    public async Task ScreenDirectory_List_MergesWorkspaceAndApprovals()
+    {
+        using var person = AsPerson();
+        await using var os = TestOS.Local().Register(typeof(FlutterModule).Assembly);
+
+        var proxies = new MockNeuronProxies();
+        var ws = new MockWorkspace();
+        var approvals = new MockApprovals();
+        proxies.Register<IWorkspace>(IWorkspace.Key(Scope), ws);
+        proxies.Register<IApprovals>(IApprovals.Key(Scope), approvals);
+
+        var neuron = new ScreenDirectoryNeuron(proxies, Scope);
+
+        var list = await neuron.List();
+
+        Assert.NotEmpty(list);
+        var calc = Assert.Single(list, s => s.AppId == "calculator");
+        Assert.True(calc.OpenInWorkspace);
+        Assert.True(calc.Focused);
+        Assert.Equal(1, calc.PendingApprovals);
+
+        var counter = Assert.Single(list, s => s.AppId == "counter");
+        Assert.True(counter.OpenInWorkspace);
+        Assert.False(counter.Focused);
+
+        var ino = Assert.Single(list, s => s.AppId == "ino");
+        Assert.False(ino.OpenInWorkspace);
+        Assert.False(ino.Focused);
+    }
+
+    [Fact]
+    public async Task ScreenDirectory_Read_ExtractsControlsAcrossTree()
+    {
+        using var person = AsPerson();
+        var proxies = new MockNeuronProxies();
+        var view = new View("Calculator", new Column(
+        [
+            new Text("Title"),
+            new Button("btn-add", "Add", new Emit("calc", "add", null)),
+            new Field("fld-exp", "owner/apps/calc/exp", FieldKind.Text, Placeholder: "Type exp"),
+            new ApprovalCardNode("card-1", "plan-99", "Approve Plan", "Summary", [], Resolve: new Resolve("plan-99")),
+            new NavItemNode("nav-1", "Navigation", "icon", "nav-route", Emit: new Emit("calc", "nav", null))
+        ]));
+        var json = JsonSerializer.SerializeToElement(view, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
+
+        var mockView = new MockView { Published = new PublishedView("owner/apps/calculator/view", 2L, json) };
+        proxies.Register<IView>("owner/apps/calculator/view", mockView);
+        proxies.Register<IWorkspace>(IWorkspace.Key(Scope), new MockWorkspace());
+        proxies.Register<IApprovals>(IApprovals.Key(Scope), new MockApprovals());
+
+        var neuron = new ScreenDirectoryNeuron(proxies, Scope);
+        var snapshot = await neuron.Read("calculator");
+
+        Assert.NotNull(snapshot);
+        Assert.Equal("calculator", snapshot.AppId);
+        Assert.Equal(2L, snapshot.Generation);
+
+        // Verify control extraction
+        Assert.Contains(snapshot.Controls, c => c.Key == "btn-add" && c.Kind == "button" && c.Label == "Add");
+        Assert.Contains(snapshot.Controls, c => c.Key == "fld-exp" && c.Kind == "field");
+        Assert.Contains(snapshot.Controls, c => c.Key == "card-1" && c.Kind == "approvalCard");
+        Assert.Contains(snapshot.Controls, c => c.Key == "nav-1" && c.Kind == "navItem");
+
+        // Verify approval extraction from resolve node
+        Assert.Contains(snapshot.PendingApprovals, a => a.ApprovalId == "plan-99");
+    }
+
+    [Fact]
+    public async Task ScreenDirectory_Act_InvokesActivationAndReturnsUpdatedSnapshot()
+    {
+        using var person = AsPerson();
+        var proxies = new MockNeuronProxies();
+        var view = new View("Calculator", new Column([new Button("btn-1", "One", new Emit("calc", "1", null))]));
+        var json = JsonSerializer.SerializeToElement(view, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
+
+        var mockView = new MockView { Published = new PublishedView("owner/apps/calculator/view", 1L, json) };
+        proxies.Register<IView>("owner/apps/calculator/view", mockView);
+        proxies.Register<IWorkspace>(IWorkspace.Key(Scope), new MockWorkspace());
+        proxies.Register<IApprovals>(IApprovals.Key(Scope), new MockApprovals());
+
+        var neuron = new ScreenDirectoryNeuron(proxies, Scope);
+
+        // Act with generation = null should pick current generation 1L
+        var result = await neuron.Act("calculator", "btn-1", "value", generation: null);
+
+        Assert.True(result.Accepted);
+        Assert.NotNull(result.Screen);
+        var act = Assert.Single(mockView.Activations);
+        Assert.Equal(1L, act.Generation);
+        Assert.Equal("btn-1", act.Key);
+        Assert.Equal("value", act.Value);
+    }
+
+    [Fact]
+    public async Task ScreenDirectory_Approve_ResolvesApproval_AndRefusesDoubleResolution()
+    {
+        using var person = AsPerson();
+        await using var os = TestOS.Local().Register(typeof(FlutterModule).Assembly);
+
+        var proxies = new MockNeuronProxies();
+        var inbox = new MockConfirmationInbox();
+        proxies.Register<IConfirmationInbox>(IConfirmationInbox.Key(Scope), inbox);
+
+        var neuron = new ScreenDirectoryNeuron(proxies, Scope);
+
+        // First approval: accepted
+        var first = await neuron.Approve("plan-42", approved: true);
+        Assert.True(first.Accepted);
+        Assert.Contains("approved", first.Message);
+
+        // Second approval for same planId: refused
+        var second = await neuron.Approve("plan-42", approved: true);
+        Assert.False(second.Accepted);
+        Assert.Contains("already been resolved", second.Message);
+    }
+}

@@ -33,9 +33,13 @@ internal static class UiContractFiles
 
     public static string TestProject => DirectoryOf("IntoChat.OS.Modules.Flutter.Tests.Integration");
 
-    // The Flutter workspace in ../os/ui: core, ui, shell.
+    // The Flutter package in ../os/ui.
     public static string DartFile(string package, string file)
-        => Path.GetFullPath(Path.Combine(Root, "ui", package, "lib", "s" + "rc", file));
+    {
+        var corePath = Path.GetFullPath(Path.Combine(Root, "ui", "lib", "s" + "rc", package == "core" ? "core" : string.Empty, file));
+        if (File.Exists(corePath)) { return corePath; }
+        return Path.GetFullPath(Path.Combine(Root, "ui", "lib", "s" + "rc", file));
+    }
 
     public static string Dart(string package, string file)
         => File.ReadAllText(DartFile(package, file));

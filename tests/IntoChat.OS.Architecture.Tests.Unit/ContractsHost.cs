@@ -34,9 +34,16 @@ internal static class ContractsHost
     private static IEnumerable<Type> Members(Type type)
     {
         const BindingFlags Declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-        return type.GetMethods(Declared).SelectMany(method => method.GetParameters().Select(parameter => parameter.ParameterType).Append(method.ReturnType))
-            .Concat(type.GetProperties(Declared).Select(property => property.PropertyType))
-            .Concat(type.GetConstructors().SelectMany(constructor => constructor.GetParameters()).Select(parameter => parameter.ParameterType));
+        return type.GetMethods(Declared).SelectMany(method => method.GetParameters().Select(parameter => parameter.ParameterType)
+                .Append(method.ReturnType)
+                .Concat(method.CustomAttributes.Select(attribute => attribute.AttributeType)))
+            .Concat(type.GetProperties(Declared).SelectMany(property => property.CustomAttributes.Select(attribute => attribute.AttributeType).Prepend(property.PropertyType)))
+            .Concat(type.GetConstructors().SelectMany(constructor => constructor.GetParameters()).Select(parameter => parameter.ParameterType))
+            .Concat(type.CustomAttributes.Select(attribute => attribute.AttributeType))
+            .Concat(type.GetCustomAttributes<System.Text.Json.Serialization.JsonDerivedTypeAttribute>().Select(derived => derived.DerivedType))
+            .Concat(type.GetInterfaces())
+            .Concat(type.GetNestedTypes(BindingFlags.Public))
+            .Concat(type.BaseType is { } baseType ? [baseType] : []);
     }
 
     private static IEnumerable<Type> Unwrap(Type type)

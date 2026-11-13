@@ -25,6 +25,6 @@ internal static class AuthCaller
 
         var account = user.FindFirst(SessionClaims.Account)?.Value is { Length: > 0 } a ? a : principal;
         var brain = user.FindFirst(SessionClaims.Brain)?.Value is { Length: > 0 } b ? b : account;
-        return new CapabilityCaller(principal, account, brain);
+        return CapabilityCallers.Of(principal, account, brain);
     }
 }

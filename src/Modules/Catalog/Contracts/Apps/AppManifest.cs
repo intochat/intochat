@@ -47,7 +47,23 @@ public sealed record AppRequirements(
         => other is not null && Same(SemanticTypes, other.SemanticTypes) && Same(Connectors, other.Connectors) && Same(Secrets, other.Secrets)
             && Same(Capabilities, other.Capabilities);
 
-    public override int GetHashCode() => AppConsent.Of(this).GetHashCode(StringComparison.Ordinal);
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        AddSorted(ref hash, SemanticTypes);
+        AddSorted(ref hash, Connectors);
+        AddSorted(ref hash, Secrets);
+        AddSorted(ref hash, Capabilities);
+        return hash.ToHashCode();
+    }
+
+    private static void AddSorted(ref HashCode hash, string[]? values)
+    {
+        if (values is null) { hash.Add(0); return; }
+        var ordered = values.Order(StringComparer.Ordinal).ToArray();
+        hash.Add(ordered.Length);
+        foreach (var value in ordered) { hash.Add(value, StringComparer.Ordinal); }
+    }
 
     private static bool Same(string[]? left, string[]? right) => (left ?? []).SequenceEqual(right ?? [], StringComparer.Ordinal);
 
@@ -113,7 +129,7 @@ public sealed record AppManifest(
                 throw new InvalidDataException($"Toolbar entry '{entry.Operation}' is not an operation of this app. It offers: "
                     + string.Join(", ", Operations.Select(operation => operation.Name)) + ".");
             }
-            if (!AppToolbarKinds.All.Contains(entry.Kind, StringComparer.Ordinal))
+            if (entry.Kind is not (AppToolbarKinds.Button or AppToolbarKinds.Toggle or AppToolbarKinds.Slider or AppToolbarKinds.Text))
             { throw new InvalidDataException($"Toolbar entry '{entry.Operation}' has kind '{entry.Kind}'; a kind is button, toggle, slider or text."); }
             if (entry.Kind == AppToolbarKinds.Slider && !(entry.Min < entry.Max))
             { throw new InvalidDataException($"Toolbar slider '{entry.Operation}' needs min below max."); }

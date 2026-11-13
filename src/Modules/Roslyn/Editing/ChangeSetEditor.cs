@@ -1,4 +1,5 @@
 using System.Text;
+using DigitalBrain.Log;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
@@ -8,6 +9,7 @@ using Microsoft.CodeAnalysis.Editing;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Rename;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
@@ -178,6 +180,7 @@ public sealed class ChangeSetEditor(CodeFixCatalog codeFixes)
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
+                NullLogger.Instance.LogSwallowed(error, "CodeFixProvider failed outside its MEF host.");
                 continue;
             }
 #pragma warning restore CA1031

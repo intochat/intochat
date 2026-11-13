@@ -12,11 +12,13 @@ Each app supports:
 3. Native Linux CLI mode (craft-cli / <app>-cli)
 */
 using DigitalBrain;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Mcp;
+using Microsoft.Extensions.Logging.Abstractions;
 using UI = DigitalBrain.UI.Ui;
 
 namespace IntoChat.OS.Apps.ArtCraft;
@@ -85,11 +87,6 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : Screen<TStat
     public new TState State => base.State;
     public View Render() => Render(State);
 
-    private static void Swallow(Exception error, string reason)
-    {
-        _ = error;
-        _ = reason;
-    }
     public ArtCraftAppDescriptor Descriptor { get; } = ArtCraftCatalog.Get(appId);
     public IFilesVfsService? FilesVfs { get; set; }
     protected virtual string ActiveDocumentLabel => "Active";
@@ -130,7 +127,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : Screen<TStat
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                Swallow(error, $"Files VFS resolution is optional when opening {Descriptor.Title}.");
+                NullLogger.Instance.LogSwallowed(error, $"Files VFS resolution is optional when opening {Descriptor.Title}.");
             }
         }
 
@@ -144,7 +141,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : Screen<TStat
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                Swallow(error, $"ArtCraftStudioNeuron MCP endpoint is optional when opening {Descriptor.Title} in local/headless mode.");
+                NullLogger.Instance.LogSwallowed(error, $"ArtCraftStudioNeuron MCP endpoint is optional when opening {Descriptor.Title} in local/headless mode.");
             }
         }
 
@@ -163,7 +160,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : Screen<TStat
             try { result = await engine.Execute(Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode); }
             catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
             {
-                Swallow(error, $"ArtCraftEngineNeuron is optional when running {Descriptor.Title} standalone.");
+                NullLogger.Instance.LogSwallowed(error, $"ArtCraftEngineNeuron is optional when running {Descriptor.Title} standalone.");
             }
         }
 
@@ -175,7 +172,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : Screen<TStat
             mode,
             TryGetOptional<IArtCraftStudio>("artcraft", $"ArtCraftStudioNeuron is optional when running {Descriptor.Title} in unit tests."),
             mcpKey => TryGetOptional<IMcpServer>(mcpKey, $"McpServerNeuron is optional when running {Descriptor.Title} in unit tests."),
-            (err, reason) => Swallow(err, reason),
+            (err, reason) => NullLogger.Instance.LogSwallowed(err, reason),
             FilesVfs);
     }
 
@@ -209,7 +206,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : Screen<TStat
         try { return Get<T>(key); }
         catch (InvalidOperationException error)
         {
-            Swallow(error, reason);
+            NullLogger.Instance.LogSwallowed(error, reason);
             return null;
         }
     }

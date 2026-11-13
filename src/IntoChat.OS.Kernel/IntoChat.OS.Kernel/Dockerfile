@@ -27,14 +27,10 @@ ENV PATH="/opt/flutter/bin:${PATH}"
 RUN flutter --version && flutter precache --web
 WORKDIR /workspace
 COPY ui/pubspec.yaml ui/pubspec.lock ./
-COPY ui/core/pubspec.yaml core/
-COPY ui/ui/pubspec.yaml ui/
-COPY ui/shell/pubspec.yaml shell/
 RUN flutter pub get --enforce-lockfile
 COPY ui/ ./
-WORKDIR /workspace/shell
 RUN flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub \
-    && rm -rf /workspace/.dart_tool /workspace/shell/.dart_tool \
+    && rm -rf /workspace/.dart_tool \
     && for spec in \
         "photocraft:0.21.0" \
         "filmcraft:0.18.0" \
@@ -52,11 +48,11 @@ RUN flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub \
         "texturecraft:0.4.0" \
         "materialcraft:0.2.0"; do \
       app="${spec%%:*}"; ver="${spec##*:}"; \
-      mkdir -p "/workspace/shell/build/web/artcraft/${app}" "/tmp/artcraft-${app}"; \
+      mkdir -p "/workspace/build/web/artcraft/${app}" "/tmp/artcraft-${app}"; \
       curl -fsSL "https://github.com/storytold/${app}/releases/download/v${ver}/${app}-web-${ver}.zip" -o "/tmp/artcraft-${app}.zip" \
       && unzip -q "/tmp/artcraft-${app}.zip" -d "/tmp/artcraft-${app}" \
-      && cp -r "/tmp/artcraft-${app}/${app}-web-${ver}/." "/workspace/shell/build/web/artcraft/${app}/" \
-      && sed -i "s|<head>|<head><base href=\"/artcraft/${app}/\">|" "/workspace/shell/build/web/artcraft/${app}/index.html" \
+      && cp -r "/tmp/artcraft-${app}/${app}-web-${ver}/." "/workspace/build/web/artcraft/${app}/" \
+      && sed -i "s|<head>|<head><base href=\"/artcraft/${app}/\">|" "/workspace/build/web/artcraft/${app}/index.html" \
       && rm -rf "/tmp/artcraft-${app}" "/tmp/artcraft-${app}.zip"; \
     done
 
@@ -81,7 +77,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:11.0.0 AS final
 WORKDIR /app
 
 COPY --from=build /out/silo /app/silo
-COPY --from=ui-build /workspace/shell/build/web /app/wwwroot
+COPY --from=ui-build /workspace/build/web /app/wwwroot
 
 # The image enables the OS catalog; configuration may disable modules
 # (IntoChatOS__Modules__{id}__Enabled=false).

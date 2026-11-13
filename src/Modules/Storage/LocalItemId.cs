@@ -1,5 +1,6 @@
 using System.Text;
 using DigitalBrain.Capabilities.Storage;
+using IntoChat.OS.Primitives;
 
 namespace IntoChat.OS.Modules.LocalDisk;
 
@@ -33,13 +34,7 @@ internal static class LocalItemId
     internal static bool Hostile(string relative)
     {
         if (relative.Length == 0) { return false; }
-        if (relative[0] is '/' or '\\') { return true; }
-        if (relative.Length >= 2 && relative[1] == ':') { return true; }
-        foreach (var part in relative.Split(['/', '\\']))
-        {
-            if (part.Length == 0 || part is "." or "..") { return true; }
-        }
-        return false;
+        return !SafeRelativePath.TryParse(relative, out _);
     }
 
     private static string Base64Url(byte[] bytes)

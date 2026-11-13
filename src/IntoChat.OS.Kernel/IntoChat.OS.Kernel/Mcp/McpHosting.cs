@@ -29,7 +29,7 @@ public static class McpHosting
         services.TryAddSingleton<McpCaller>();
         services.TryAddScoped<NeuronSurface>();
         services.AddMcpServer().WithHttpTransport(options => options.Stateless = true)
-            .WithTools<NeuronTools>().WithTools<McpCaller>();
+            .WithTools<NeuronTools>().WithTools<ScreenTools>().WithTools<McpCaller>();
     }
 
     public static void MapIntoChatOSMcp(this WebApplication app)

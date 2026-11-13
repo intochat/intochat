@@ -249,7 +249,9 @@ public static class GrantRules
 
             var grant = Grant.Normalize(rawGrant);
 
-            if (!string.Equals(grant.Scope, relation, StringComparison.Ordinal))
+            var scopeMatches = string.Equals(grant.Scope, relation, StringComparison.Ordinal)
+                || (string.Equals(grant.Scope, "*", StringComparison.Ordinal) && !GrantRelations.IsUseVia(relation));
+            if (!scopeMatches)
             {
                 continue;
             }

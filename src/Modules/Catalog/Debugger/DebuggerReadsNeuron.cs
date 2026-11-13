@@ -4,8 +4,11 @@ using DigitalBrain;
 using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.Units;
+using DigitalBrain.Log;
 using IntoChat.OS.Modules.Apps.Trace;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Debugger;
 
@@ -16,12 +19,14 @@ public sealed class DebuggerReadsNeuron(
     ISignalHistory history,
     ISynapseCatalogSource? catalogSource = null,
     IEnumerable<CompiledAppsRegistration>? appRegistrations = null,
-    UnitResolver? unitResolver = null) : Neuron, IDebuggerReads
+    UnitResolver? unitResolver = null,
+    ILogger<DebuggerReadsNeuron>? logger = null) : Neuron, IDebuggerReads
 {
     private readonly ISignalHistory _history = history ?? throw new ArgumentNullException(nameof(history));
     private readonly ISynapseCatalogSource? _catalogSource = catalogSource;
     private readonly IEnumerable<CompiledAppsRegistration> _appRegistrations = appRegistrations ?? [];
     private readonly UnitResolver? _unitResolver = unitResolver;
+    private readonly ILogger _logger = (ILogger?)logger ?? NullLogger.Instance;
 
     public async Task<string?> State(string alias)
     {
@@ -167,6 +172,7 @@ public sealed class DebuggerReadsNeuron(
             }
             catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
             {
+                _logger.LogSwallowed(ex, "Failed to inspect unit resolver catalogs for alias.");
             }
         }
 
@@ -180,6 +186,7 @@ public sealed class DebuggerReadsNeuron(
         }
         catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
         {
+            _logger.LogSwallowed(ex, "Failed to describe install for alias.");
         }
 
         return false;
@@ -213,6 +220,7 @@ public sealed class DebuggerReadsNeuron(
             }
             catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
             {
+                _logger.LogSwallowed(ex, "Failed to inspect resolver catalogs for consumed signal.");
             }
         }
 
@@ -229,6 +237,7 @@ public sealed class DebuggerReadsNeuron(
             }
             catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
             {
+                _logger.LogSwallowed(ex, "Failed to list schedules for consumed time.tick signal.");
             }
         }
 

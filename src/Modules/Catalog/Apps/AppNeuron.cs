@@ -51,13 +51,10 @@ internal sealed partial class AppNeuron(
     {
         try
         {
-            var markers = State.Files.Keys.Where(LegacyAppRecord.IsProgramFile).Select(key => "file:" + key)
-                .Concat(State.Settings.Keys.Where(LegacyAppRecord.IsPrebuilt).Select(key => "setting:" + key)).ToArray();
+            var markers = LegacyAppRecord.DetectMarkers(State);
             if (markers.Length == 0) { return false; }
             var next = State.Clone();
-            next.Files = State.Files.Where(file => !LegacyAppRecord.IsProgramFile(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
-            next.Settings = State.Settings.Where(setting => !LegacyAppRecord.IsPrebuilt(setting.Key) && setting.Key != InProcessAppRuntime.CompiledTypeKey)
-                .ToDictionary(setting => setting.Key, setting => setting.Value, StringComparer.Ordinal);
+            LegacyAppRecord.Cleanse(next);
             // A shipped app the host loads (ino, desktop, creator...) is not rebuilt by the Creator: its program is the host's compiled
             // type, so the pre-0.18 leftovers are stripped and the record stays usable.
             var hosted = hostedAppTypes ?? services?.GetService<IHostedAppTypes>();

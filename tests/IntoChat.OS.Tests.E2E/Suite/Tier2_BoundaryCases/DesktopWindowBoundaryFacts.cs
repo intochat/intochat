@@ -99,13 +99,13 @@ public sealed class DesktopWindowBoundaryFacts : E2ETestBase
 {
     private static readonly Lazy<string> _workspaceNeuronSource = new(() =>
     {
-        var path = Path.Combine(SrcDir, "IntoChat.OS.Modules", "Google", "Flutter", SourceSegment, "IntoChat.OS.Modules.Flutter", "Workspace", "WorkspaceNeuron.cs");
+        var path = Path.Combine(SrcDir, "Modules", "Shell", "Workspace", "WorkspaceNeuron.cs");
         return File.Exists(path) ? File.ReadAllText(path) : string.Empty;
     });
 
     private static readonly Lazy<string> _workspaceWindowsSource = new(() =>
     {
-        var path = Path.Combine(SrcDir, "IntoChat.OS.Modules", "Google", "Flutter", SourceSegment, "IntoChat.OS.Modules.Flutter", "Workspace", "WorkspaceWindows.cs");
+        var path = Path.Combine(SrcDir, "Modules", "Shell", "Workspace", "WorkspaceWindows.cs");
         return File.Exists(path) ? File.ReadAllText(path) : string.Empty;
     });
 

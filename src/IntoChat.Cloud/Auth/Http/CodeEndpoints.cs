@@ -68,7 +68,7 @@ internal static partial class CodeEndpoints
         }
 
         // Login challenges verify through their own route; this one serves sign-up (and reset in 12-06).
-        if (IAuthCode.KeyForCodeId(codeId, out var purpose) is null || purpose is not (CodePurpose.Signup or CodePurpose.Reset))
+        if (AuthCodeKeys.ForCodeId(codeId, out var purpose) is null || purpose is not (CodePurpose.Signup or CodePurpose.Reset))
         {
             return AuthProblems.NotFound();
         }

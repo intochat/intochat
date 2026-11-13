@@ -32,22 +32,22 @@ public sealed record DesktopShellState
     public int TurnCount { get; init; }
 }
 
-[Signal("desktop.launch")]
+[Signal("desktop-shell.launch")]
 public sealed record DesktopLaunchSignal(string AppId, string Title, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? By = null) : Signal;
 
-[Signal("desktop.focus")]
+[Signal("desktop-shell.focus")]
 public sealed record DesktopFocusSignal(string WindowId, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? By = null) : Signal;
 
-[Signal("desktop.pin")]
+[Signal("desktop-shell.pin")]
 public sealed record DesktopPinSignal(string WindowId, bool Pinned, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? By = null) : Signal;
 
-[Signal("desktop.minimize")]
+[Signal("desktop-shell.minimize")]
 public sealed record DesktopMinimizeSignal(string WindowId, bool Minimized, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? By = null) : Signal;
 
-[Signal("desktop.close")]
+[Signal("desktop-shell.close")]
 public sealed record DesktopCloseSignal(string WindowId, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? By = null) : Signal;
 
-[Signal("desktop.add-tab")]
+[Signal("desktop-shell.add-tab")]
 public sealed record DesktopAddTabSignal(string WindowId, string AppId, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? By = null) : Signal;
 
 /*

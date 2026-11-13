@@ -38,6 +38,7 @@ public static class BrainHosting
         silo.Services.TryAddSingleton<IOperationHandler<WritePlan>, StorageWriteHandler>();
         DigitalBrain.Runtime.Orleans.BrainStorageHosting.AddJournalPayloads(silo.Services, typeof(DigitalBrain.Confirmation.ConfirmationRequested).Assembly);
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, PlainInstanceRegistration>());
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, IntoChat.OS.Authority.Identity.Grants.SiloAccessCallFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());
         silo.Services.TryAddSingleton<Kernel>();
         silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<Kernel>());

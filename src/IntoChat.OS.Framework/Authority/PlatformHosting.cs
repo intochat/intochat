@@ -74,6 +74,9 @@ public static class PlatformHosting
         services.TryAddSingleton<Identity.Authority.AuthorityMirror>();
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICallFilterStage, GrantCallFilterStage>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, SiloAccessCallFilter>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, Hosting.AccessPolicyValidation>());
+        silo.AddStartupTask<Hosting.AccessPolicyValidation>();
         services.AddOptions<ConnectionsOptions>().BindConfiguration(ConnectionsOptions.SectionName)
             .PostConfigure(options =>
             {

@@ -10,7 +10,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 public sealed partial class UnitsAllTheWayFacts
 {
     // Roslyn is the Roslyn module's product (workspace queries and edits for developer tooling); it never compiles a unit.
-    private const string RoslynModule = "IntoChat.OS.Modules.Microsoft.Roslyn";
+    private const string RoslynModule = "IntoChat.OS.Modules.Roslyn";
 
     // The only production code that holds the SynapseCompiler: the Creator's Builder (check_unit), the Apps module's authoring helpers
     // that run the same analyzers, the build flow that verifies a unit before it installs, and Ino's synapse studio tool.
@@ -29,13 +29,15 @@ public sealed partial class UnitsAllTheWayFacts
         var offenders = new List<string>();
         var sources = NoProgramLanesFacts.ProductionSources().ToArray();
         Assert.NotEmpty(sources);
-        Assert.Contains(sources, path => Repository.Relative(path).Contains("/" + RoslynModule + "/", StringComparison.Ordinal));
+        var roslynDir = Repository.ProjectNamed(RoslynModule).Directory + Path.DirectorySeparatorChar;
+        var pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        Assert.Contains(sources, path => Path.GetFullPath(path).StartsWith(roslynDir, pathComparison));
         var calling = new HashSet<string>(StringComparer.Ordinal);
         foreach (var path in sources)
         {
             var relative = Repository.Relative(path);
             var text = File.ReadAllText(path);
-            if (!relative.Contains("/" + RoslynModule + "/", StringComparison.Ordinal) && text.Contains("Microsoft.CodeAnalysis", StringComparison.Ordinal))
+            if (!Path.GetFullPath(path).StartsWith(roslynDir, pathComparison) && text.Contains("Microsoft.CodeAnalysis", StringComparison.Ordinal))
             { offenders.Add(relative + ": Microsoft.CodeAnalysis"); }
             foreach (Match match in RuntimeCompilation().Matches(text)) { offenders.Add(relative + ": " + match.Value); }
             if (!SynapseCompilerUse().IsMatch(text)) { continue; }
@@ -101,7 +103,12 @@ public sealed partial class UnitsAllTheWayFacts
 
     private static IEnumerable<(string File, string Literal)> HostingNamedApps()
     {
-        var hosting = NoProgramLanesFacts.ProductionSources().Where(path => Repository.Relative(path).Contains("/Hosting/", StringComparison.Ordinal)).ToArray();
+        var appHostDir = Repository.ProjectNamed("IntoChat.OS.AppHost").Directory + Path.DirectorySeparatorChar;
+        var pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var hosting = NoProgramLanesFacts.ProductionSources()
+            .Where(path => Repository.Relative(path).Contains("/Hosting/", StringComparison.Ordinal)
+                && !Path.GetFullPath(path).StartsWith(appHostDir, pathComparison))
+            .ToArray();
         Assert.NotEmpty(hosting);
         var keys = ShippedAppKeys();
         Assert.Contains("creator", keys);
@@ -202,7 +209,7 @@ public sealed partial class UnitsAllTheWayFacts
     [Fact]
     public void EveryNodeKindHasADartRenderer()
     {
-        var nodes = Path.Combine(Repository.Root, "ui/ui/lib/src/nodes");
+        var nodes = Path.Combine(Repository.Root, "ui", "lib", "s" + "rc", "nodes");
         var dispatch = File.ReadAllText(Path.Combine(nodes, "node_renderer.dart"));
         var missing = new List<string>();
         var kinds = DartNodeModelsFacts.DerivedKinds();

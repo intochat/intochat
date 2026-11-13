@@ -1,7 +1,7 @@
 using DigitalBrain.Access;
 using IntoChat.Cloud.Auth.Core;
-using IntoChat.Cloud.Mail;
 using IntoChat.Cloud.Mail.Templates;
+using IntoChat.OS;
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
@@ -12,20 +12,7 @@ public interface IAuthCode
 {
     const string Type = "auth.code";
 
-    static string Key(string subjectKey, CodePurpose purpose) => $"{SystemShard.BrainOf(subjectKey)}/auth/code/{subjectKey}/{purpose}";
-
-    static string KeyForSubject(string subjectHash, CodePurpose purpose) => Key(CodeEngine.SubjectKeyOf(subjectHash), purpose);
-
-    // The slot a code id belongs to; null for a malformed id.
-    static string? KeyForCodeId(string? codeId, out CodePurpose purpose)
-    {
-        if (!CodeId.TryParse(codeId, out purpose, out var subject128, out _))
-        {
-            return null;
-        }
-
-        return Key(Convert.ToHexStringLower(subject128), purpose);
-    }
+    static string Key(string subjectKey, CodePurpose purpose) => $"{NeuronKeys.SystemShard(subjectKey)}/auth/code/{subjectKey}/{purpose}";
 
     [Internal]
     Task<CodeIssue> Issue(CodeIssueRequest request);

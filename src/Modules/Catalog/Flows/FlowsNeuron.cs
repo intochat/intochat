@@ -152,10 +152,21 @@ public sealed class FlowsNeuron(
         return id.ToString();
     }
 
-    public Task Resume(string flowId, string step, WaitOutcome outcome, CancellationToken ct = default)
+    public async Task Resume(string flowId, string step, WaitOutcome outcome, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(step);
-        return Flow(flowId).Resume(step, outcome, Caller());
+        if (State.Flows.TryGetValue(flowId, out var entry))
+        {
+            if (entry.Finished || entry.Done.Contains(step) || entry.ResolvedStep == step || entry.ResolvedSteps.Contains(step, StringComparer.Ordinal))
+            {
+                return;
+            }
+            if (entry.Waiting is not null && !string.Equals(entry.Waiting.Step, step, StringComparison.Ordinal))
+            {
+                return;
+            }
+        }
+        await Flow(flowId).Resume(step, outcome, Caller());
     }
 
     public async Task Cancel(string flowId, string reason, CancellationToken ct = default)
@@ -224,6 +235,7 @@ public sealed class FlowsNeuron(
         // A wait is applied only for the current step (or when none is current), and never for a step already done or whose
         // wait was already resolved; ResolvedStep stays, so a FlowWaiting redelivered after a later step started is ignored.
         return Fold(waiting.FlowId, entry => entry.Finished || entry.Done.Contains(waiting.Step) || entry.ResolvedStep == waiting.Step
+            || entry.ResolvedSteps.Contains(waiting.Step, StringComparer.Ordinal)
             || (entry.Current is not null && entry.Current != waiting.Step) ? entry : entry with
             {
                 Status = FlowStatus.Waiting,
@@ -238,14 +250,22 @@ public sealed class FlowsNeuron(
         ArgumentNullException.ThrowIfNull(resolve);
         // Only the wait the entry shows is ended; a late resolve of an older wait is stale.
         // A resolve that arrives before its FlowWaiting is remembered, so that FlowWaiting does not leave the entry waiting.
-        return Fold(resolve.FlowId, entry => entry.Waiting is null ? (entry.ResolvedStep == resolve.Step ? entry : entry with { ResolvedStep = resolve.Step })
-            : entry.Waiting.Step != resolve.Step ? entry : entry with
-            {
-                ResolvedStep = resolve.Step,
-                Status = resolve.Outcome is WaitOutcome.Approved or WaitOutcome.Arrived && !entry.Finished ? FlowStatus.Running : entry.Status,
-                Waiting = null,
-                Current = null,
-            });
+        return Fold(resolve.FlowId, entry =>
+        {
+            var nextResolvedSteps = entry.ResolvedSteps.Contains(resolve.Step, StringComparer.Ordinal)
+                ? entry.ResolvedSteps
+                : [.. entry.ResolvedSteps, resolve.Step];
+            return entry.Waiting is null
+                ? (entry.ResolvedStep == resolve.Step && entry.ResolvedSteps.SequenceEqual(nextResolvedSteps) ? entry : entry with { ResolvedStep = resolve.Step, ResolvedSteps = nextResolvedSteps })
+                : entry.Waiting.Step != resolve.Step ? entry : entry with
+                {
+                    ResolvedStep = resolve.Step,
+                    ResolvedSteps = nextResolvedSteps,
+                    Status = resolve.Outcome is WaitOutcome.Approved or WaitOutcome.Arrived && !entry.Finished ? FlowStatus.Running : entry.Status,
+                    Waiting = null,
+                    Current = null,
+                };
+        });
     }
 
     [On]
@@ -253,7 +273,14 @@ public sealed class FlowsNeuron(
     {
         ArgumentNullException.ThrowIfNull(done);
         // An entry already finished from the flow's head (read while folding an earlier signal) still takes the outcome's detail.
-        return Fold(done.FlowId, entry => entry.Finished ? (entry.Detail is null && done.Detail is not null ? entry with { Detail = done.Detail } : entry) : entry with
+        return Fold(done.FlowId, entry => entry.Finished ? entry with
+        {
+            Current = null,
+            Waiting = null,
+            OperationId = null,
+            Ended = entry.Ended ?? Context.Time.GetUtcNow(),
+            Detail = done.Detail ?? entry.Detail,
+        } : entry with
         {
             Status = done.Outcome switch { FlowOutcome.Completed => FlowStatus.Completed, FlowOutcome.Failed => FlowStatus.Failed, _ => FlowStatus.Cancelled },
             Current = null,
@@ -297,7 +324,14 @@ public sealed class FlowsNeuron(
 
     private async Task<FlowEntry> WithHead(FlowEntry entry)
     {
-        try { return entry.Merge(await Flow(entry.FlowId).Head()); }
+        try
+        {
+            var head = await Flow(entry.FlowId).Head();
+            var merged = entry.Merge(head);
+            return merged.Finished && merged.Ended is null
+                ? merged with { Ended = Context.Time.GetUtcNow() }
+                : merged;
+        }
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
         {
             var attempts = entry.HeadAttempts + 1;

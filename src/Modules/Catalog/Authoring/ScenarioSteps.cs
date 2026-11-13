@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Text.Json;
+using DigitalBrain.Testing;
 using DigitalBrain.Testing.Synapses;
 using ScenarioTick = DigitalBrain.Testing.Synapses.Tick;
 
@@ -52,7 +53,7 @@ internal static class ScenarioSteps
     {
         var fakes = new FakeSlots();
         if (given.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null) { return fakes; }
-        if (given.ValueKind != JsonValueKind.Object) { throw new FormatException("given must be a JSON object with \"http\" and/or \"tools\"."); }
+        if (given.ValueKind != JsonValueKind.Object) { throw new FormatException("given must be a JSON object with \"http\", \"tools\", and/or \"storage\"."); }
         foreach (var kind in given.EnumerateObject())
         {
             foreach (var slot in Slots(kind))
@@ -63,14 +64,25 @@ internal static class ScenarioSteps
                         var http = slot.Value.EnumerateObject().ToDictionary(p => p.Name, p => HttpPart(slot.Name, p.Name, p.Value), StringComparer.Ordinal);
                         fakes.Http(slot.Name, url => Body(slot.Name, http, url));
                         break;
-                    case "tools":
+                    case "tool" or "tools":
                         var tools = slot.Value.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone(), StringComparer.Ordinal);
                         fakes.Tool(slot.Name, (tool, _) => tools.TryGetValue(tool, out var result)
                             ? result
                             : throw new InvalidOperationException($"the scenario gives slot '{slot.Name}' no result for tool '{tool}'"));
                         break;
+                    case "storage":
+                        var fakeStorage = new FakeStorage(slot.Name);
+                        foreach (var file in slot.Value.EnumerateObject())
+                        {
+                            var bytes = file.Value.ValueKind == JsonValueKind.String
+                                ? System.Text.Encoding.UTF8.GetBytes(file.Value.GetString() ?? "")
+                                : System.Text.Encoding.UTF8.GetBytes(file.Value.GetRawText());
+                            fakeStorage.AddFile(fakeStorage.Root, file.Name, bytes);
+                        }
+                        fakes.Slot<DigitalBrain.Capabilities.Storage.IStorage>(slot.Name, fakeStorage);
+                        break;
                     default:
-                        throw new FormatException($"given has '{kind.Name}'; only \"http\" and \"tools\" are known.");
+                        throw new FormatException($"given has '{kind.Name}'; only \"http\", \"tools\", and \"storage\" are known.");
                 }
             }
         }

@@ -1,5 +1,5 @@
 using DigitalBrain.Access;
-using IntoChat.Cloud.Mail;
+using IntoChat.OS;
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
@@ -9,7 +9,7 @@ public interface IAuthEmailIndex
 {
     const string Type = "auth.email-index";
 
-    static string Key(string emailHash) => $"{SystemShard.BrainOf(emailHash)}/auth/email/{emailHash}";
+    static string Key(string emailHash) => $"{NeuronKeys.SystemShard(emailHash)}/auth/email/{emailHash}";
 
     [Internal]
     Task<AuthEmailIndexState> Get();

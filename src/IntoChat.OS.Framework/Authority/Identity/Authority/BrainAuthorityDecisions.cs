@@ -28,7 +28,12 @@ internal static class BrainAuthorityDecisions
         var principals = await EdgeGrantsCache.Current.ExpandAsync(GrantsBrainOf(request), caller);
         var connectionBound = caller.Kind == CallerKind.App && request.SemanticTypeIds.Length == 0 && GrantRules.AppOf(caller) is not null
             && await EdgeGrantsCache.Current.IsConnectionBoundAsync(caller, request.TargetNeuron);
-        return GrantRules.Evaluate(request, Member(state, caller.PrincipalId), state.Grants, principals, connectionBound);
+        var grants = state.Grants;
+        if (caller.Kind == CallerKind.Agent && !grants.Any(g => g.AppId == CapabilityCallers.AssistantApp))
+        {
+            grants = [.. grants, .. ShippedGrants.ForAssistant(GrantsBrainOf(request))];
+        }
+        return GrantRules.Evaluate(request, Member(state, caller.PrincipalId), grants, principals, connectionBound);
     }
 
     // Grants are owner-declared, so the brain whose grants decide a call is the target's, falling back to the

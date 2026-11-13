@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Neurons;
+using IntoChat.OS.Primitives;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -22,13 +23,31 @@ public sealed class VfsNeuron(IServiceProvider services) : Neuron<VfsState>, IVf
     }
 
     public Task<WorkspaceFileEntry?> ResolveFile(string nameOrUriOrPath)
-        => Vfs.ResolveFileAsync(nameOrUriOrPath);
+    {
+        if (string.IsNullOrWhiteSpace(nameOrUriOrPath) || nameOrUriOrPath.Contains('\0', StringComparison.Ordinal))
+        {
+            return Task.FromResult<WorkspaceFileEntry?>(null);
+        }
+        return Vfs.ResolveFileAsync(nameOrUriOrPath);
+    }
 
     public Task<string?> ReadText(string nameOrUriOrPath)
-        => Vfs.ReadTextAsync(nameOrUriOrPath);
+    {
+        if (string.IsNullOrWhiteSpace(nameOrUriOrPath) || nameOrUriOrPath.Contains('\0', StringComparison.Ordinal))
+        {
+            return Task.FromResult<string?>(null);
+        }
+        return Vfs.ReadTextAsync(nameOrUriOrPath);
+    }
 
     public Task<byte[]?> ReadBytes(string nameOrUriOrPath)
-        => Vfs.ReadBytesAsync(nameOrUriOrPath);
+    {
+        if (string.IsNullOrWhiteSpace(nameOrUriOrPath) || nameOrUriOrPath.Contains('\0', StringComparison.Ordinal))
+        {
+            return Task.FromResult<byte[]?>(null);
+        }
+        return Vfs.ReadBytesAsync(nameOrUriOrPath);
+    }
 
     public Task<WorkspaceFileEntry> WriteFile(string fileNameOrPath, byte[] content)
         => Vfs.WriteFileAsync(fileNameOrPath, content);

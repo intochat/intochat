@@ -42,12 +42,10 @@ public sealed record ChatAppCard(
         return runId.StartsWith(posted, StringComparison.Ordinal) && Guid.TryParseExact(runId[posted.Length..], "N", out request);
     }
 
-    private sealed record StoredLink(string Request, string App, string Input);
-
-    private static List<StoredLink> Links(string? json)
+    private static List<Dictionary<string, string>> Links(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) { return []; }
-        try { return System.Text.Json.JsonSerializer.Deserialize<List<StoredLink>>(json, System.Text.Json.JsonSerializerOptions.Web) ?? []; }
+        try { return System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, string>>>(json, System.Text.Json.JsonSerializerOptions.Web) ?? []; }
         catch (System.Text.Json.JsonException) { return []; }
     }
 
@@ -59,7 +57,10 @@ public sealed record ChatAppCard(
         if (input.Length > MaxInput) { throw new ArgumentException("The link input is too long.", nameof(input)); }
         var links = Links(json);
         var id = request.ToString("N");
-        if (!links.Any(link => link.Request == id)) { links.Add(new(id, app, input)); }
+        if (!links.Any(link => link.TryGetValue("request", out var req) && req == id))
+        {
+            links.Add(new(StringComparer.OrdinalIgnoreCase) { ["request"] = id, ["app"] = app, ["input"] = input });
+        }
         if (links.Count > MaxLinksKept) { links.RemoveRange(0, links.Count - MaxLinksKept); }
         return System.Text.Json.JsonSerializer.Serialize(links, System.Text.Json.JsonSerializerOptions.Web);
     }
@@ -68,8 +69,16 @@ public sealed record ChatAppCard(
     public static ChatAppCard? FindLink(string? json, Guid request)
     {
         var id = request.ToString("N");
-        return Links(json).LastOrDefault(link => link.Request == id) is { } found && IsAppName(found.App)
-            ? new(found.App, found.App, "", true, found.Input) : null;
+        foreach (var link in Links(json).AsEnumerable().Reverse())
+        {
+            if (link.TryGetValue("request", out var req) && req == id
+                && link.TryGetValue("app", out var app) && IsAppName(app))
+            {
+                link.TryGetValue("input", out var input);
+                return new(app, app, "", true, input ?? "");
+            }
+        }
+        return null;
     }
 }
 

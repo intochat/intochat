@@ -16,7 +16,7 @@ internal static partial class BuilderTools
 
     public static readonly IReadOnlyList<InferenceTool> Definitions =
     [
-        new(ReadContracts, "Read the capability contracts a [Slot] parameter can be (IHttpRead, ITool) and the DigitalBrain.UI nodes a view is built from.",
+        new(ReadContracts, "Read the capability contracts a [Slot] parameter can be (IHttpRead, ITool, IStorage) and the DigitalBrain.UI nodes a view is built from.",
             """{"type":"object","properties":{}}"""),
         new(CheckUnit, "Compile the unit's C# files (path to full source, for example XWatch.cs) as a deploy will, with the synapse analyzers and the host allow-list, then run every authored scenario against them on fake slots. Returns passed, diagnostics and scenario failures; both are errors.",
             """{"type":"object","properties":{"files":{"type":"object","additionalProperties":{"type":"string"}}},"required":["files"]}"""),
@@ -42,6 +42,14 @@ internal static partial class BuilderTools
             Task<IReadOnlyList<string>> List();
         }
 
+        namespace DigitalBrain.Capabilities.Storage; // capability "storage": structured and unstructured file storage
+        public interface IStorage
+        {
+            Task<StorageDescriptor> Describe(CancellationToken ct);
+            Task<Content> Read(ItemId id, ByteRange? range, CancellationToken ct);
+            Task<OperationId> Write(WritePlan plan, CancellationToken ct);
+        }
+
         namespace DigitalBrain.UI;  // a view synapse returns new View(title, root)
         public sealed record View(string Title, Node Root);
         public sealed record Column(IReadOnlyList<Node> Children) : Node;
@@ -58,6 +66,34 @@ internal static partial class BuilderTools
         Reaction<TState>.Of(TState state, params Signal[] said)
         """;
 
+    // Compile stage: run SynapseCompiler on unit files
+    public static (bool Success, IReadOnlyList<ScriptCompilationDiagnostic> Diagnostics) CompileStage(SynapseCompiler compiler, SynapseSource source)
+    {
+        ArgumentNullException.ThrowIfNull(compiler);
+        ArgumentNullException.ThrowIfNull(source);
+        var build = compiler.Compile(source);
+        var diagnostics = build.Diagnostics.Select(d => new ScriptCompilationDiagnostic(d.File, d.Id, d.Line, d.Message)).ToArray();
+        return (build.Success, diagnostics);
+    }
+
+    // Verify stage: run scenarios on fake slots and check schedule
+    public static async Task<IReadOnlyList<string>> VerifyStage(SynapseSource source, UnitNeeds? needs, IReadOnlyList<Scenario> scenarios, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(scenarios);
+        var failures = new List<string>();
+        if (needs is not null && ScheduleMismatch(needs.Schedule, source.Files) is { } mismatch) { failures.Add(mismatch); }
+        foreach (var scenario in KeptScenarios.Live(scenarios))
+        {
+            ScenarioSteps.Parsed parsed;
+            try { parsed = ScenarioSteps.Parse(scenario); }
+            catch (FormatException error) { failures.Add($"{scenario.Name}: {error.Message}"); continue; }
+            var transcript = await UnitScenario.Run(source, parsed.Fakes, parsed.Steps, ct).ConfigureAwait(false);
+            failures.AddRange(transcript.Failures.Select(failure => $"{scenario.Name}: {failure}"));
+        }
+        return failures;
+    }
+
     // The check a deploy makes, plus the scenarios: a build that does not compile runs no scenario.
     // needs is the authored needs, or null when there are none to hold the code to (a build flow draft).
     public static async Task<UnitCheck> Check(SynapseCompiler compiler, string alias, IReadOnlyDictionary<string, string> files,
@@ -69,19 +105,9 @@ internal static partial class BuilderTools
         var code = UnitFiles.Code(files);
         if (code.Count == 0) { return new UnitCheck(false, [], ["no .cs files"]); }
         var source = new SynapseSource(alias, code, null);
-        var build = compiler.Compile(source);
-        var diagnostics = build.Diagnostics.Select(d => new ScriptCompilationDiagnostic(d.File, d.Id, d.Line, d.Message)).ToArray();
-        if (!build.Success) { return new UnitCheck(false, diagnostics, []); }
-        var failures = new List<string>();
-        if (needs is not null && ScheduleMismatch(needs.Schedule, code) is { } mismatch) { failures.Add(mismatch); }
-        foreach (var scenario in KeptScenarios.Live(scenarios))
-        {
-            ScenarioSteps.Parsed parsed;
-            try { parsed = ScenarioSteps.Parse(scenario); }
-            catch (FormatException error) { failures.Add($"{scenario.Name}: {error.Message}"); continue; }
-            var transcript = await UnitScenario.Run(source, parsed.Fakes, parsed.Steps, ct).ConfigureAwait(false);
-            failures.AddRange(transcript.Failures.Select(failure => $"{scenario.Name}: {failure}"));
-        }
+        var (compiled, diagnostics) = CompileStage(compiler, source);
+        if (!compiled) { return new UnitCheck(false, diagnostics, []); }
+        var failures = await VerifyStage(source, needs, scenarios, ct).ConfigureAwait(false);
         return new UnitCheck(failures.Count == 0, diagnostics, failures);
     }
 

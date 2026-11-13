@@ -18,6 +18,11 @@ public sealed record CreatorState(Selection? Selected, string? TraceId, long? Re
 
     // The last scenario run's transcript.
     public string? Transcript { get; init; }
+
+    // Active change run being inspected or displayed in center/right panes.
+    public string? ActiveRunId { get; init; }
+
+    public string? SelectedStage { get; init; }
 }
 
 // A selection of the graph: a node (its id; a ghost is draft:<alias>), an edge (its full key) or a pulse (its trace id).

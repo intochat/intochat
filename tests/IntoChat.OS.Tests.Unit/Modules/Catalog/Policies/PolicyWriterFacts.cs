@@ -28,8 +28,11 @@ public sealed class PolicyWriterFacts
         public T Get<T>(NeuronId id) where T : class => os.Get<T>(id);
     }
 
+    [Neuron("policywriter.test.actions")]
+    private sealed class PolicyWriterActionsMarkerNeuron : Neuron { }
+
     private static TestOS Start()
-        => TestOS.Local().Register(typeof(PolicyWriterTestModule).Assembly);
+        => TestOS.Local().Register<PolicyWriterActionsMarkerNeuron>();
 
     private static PolicyWriter CreateWriter(TestOS os, IPolicyModel model)
         => new(model, new TestProxies(os), os.Clock, NullLogger<PolicyWriter>.Instance);

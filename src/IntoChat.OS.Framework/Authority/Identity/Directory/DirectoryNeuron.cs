@@ -325,6 +325,10 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         var brain = BrainOf(State, brainId) ?? new BrainRow { BrainId = brainId };
         var durableGrants = await ReadGrants(BrainAuthorityDecisions.GrantsBrainOf(request));
         var allGrants = durableGrants.Length > 0 ? durableGrants : brain.Grants;
+        if (request.Caller.ToCapabilityCaller()?.Kind == CallerKind.Agent && !allGrants.Any(g => g.AppId == CapabilityCallers.AssistantApp))
+        {
+            allGrants = [.. allGrants, .. ShippedGrants.ForAssistant(BrainAuthorityDecisions.GrantsBrainOf(request))];
+        }
         var decision = await BrainAuthorityDecisions.Decide(brain with { Grants = allGrants }, request);
         if (decision is { Allowed: true })
         {
@@ -388,7 +392,10 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         foreach (var grant in grants)
         {
             var normalized = Grant.Normalize(grant);
-            if (!normalized.Grantee.StartsWith($"app:{brainScopeId}/apps/", StringComparison.Ordinal) || !InBrain(normalized.Target, brainScopeId))
+            var isAssistantGrantee = string.Equals(normalized.Grantee, $"app:{CapabilityCallers.AssistantApp}", StringComparison.Ordinal)
+                || string.Equals(normalized.Grantee, $"app:{brainScopeId}/apps/{CapabilityCallers.AssistantApp}", StringComparison.Ordinal);
+            var isAppGrantee = normalized.Grantee.StartsWith($"app:{brainScopeId}/apps/", StringComparison.Ordinal);
+            if ((!isAppGrantee && !isAssistantGrantee) || (!string.Equals(normalized.Target, "*", StringComparison.Ordinal) && !InBrain(normalized.Target, brainScopeId)))
             { throw new UnauthorizedAccessException("A shipped app is granted only neurons of the brain it is installed in."); }
             if (brain.Grants.Concat(added).Select(Grant.Normalize).Any(held => !held.Revoked
                 && string.Equals(held.Grantee, normalized.Grantee, StringComparison.Ordinal)
@@ -405,6 +412,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     // A target names its brain first ({brain}/...) or, for a plain neuron, after its type ({type}/{brain}/...).
     internal static bool InBrain(string target, string brainId)
     {
+        if (string.Equals(target, "*", StringComparison.Ordinal)) { return true; }
         if (string.Equals(EdgeGrantsCache.ExtractBrain(target), brainId, StringComparison.Ordinal)) { return true; }
         var slash = target.IndexOf('/', StringComparison.Ordinal);
         return slash > 0 && string.Equals(EdgeGrantsCache.ExtractBrain(target[(slash + 1)..]), brainId, StringComparison.Ordinal);
@@ -507,7 +515,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     private static DirectoryState Initialize(DirectoryState state, string accountId, string brainId)
     {
         var brain = BrainOf(state, brainId);
-        if (brain is null) { return ReplaceBrain(state, new BrainRow { BrainId = brainId, AccountId = accountId }); }
+        if (brain is null) { return ReplaceBrain(state, new BrainRow { BrainId = brainId, AccountId = accountId, Grants = ShippedGrants.ForAssistant(brainId) }); }
         if (brain.AccountId is not null && (brain.AccountId != accountId || brain.BrainId != brainId))
         {
             // authority: brain authority scope conflict is an authority invariant

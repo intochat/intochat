@@ -1,14 +1,84 @@
-name: intochat_os_flutter_workspace
+name: intochat_os_flutter_shell
+description: >
+  IntoChat.OS Flutter host shell. Pixels only — never Orleans/MCP.
 publish_to: none
+version: 0.1.0
 
 environment:
   sdk: ^3.13.0
 
-workspace:
-  - core
-  - ui
-  - shell
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.6.0
+  uuid: ^4.6.0
+  grpc: ^5.1.0
+  protobuf: ^6.1.0
+  fixnum: ^1.1.1
+  forui: ^0.26.0
+  material_ui: ^1.2.0
+  gpt_markdown: ^1.2.1
+  flutter_svg: ^2.3.0
+  flutter_chat_core: ^2.9.0
+  flutter_chat_ui: ^2.11.1
+  record: ^7.1.1
+  path_provider: ^2.1.6
+  web: ^1.1.1
+  file_picker: ^8.3.7
+  url_launcher: ^6.3.2
+  webview_windows: ^0.4.0
+  fl_chart: ^1.2.0
+  flame: ^1.38.2
+  flame_behavior_tree: ^0.1.5+5
+  lucide_icons_flutter: 4.0.1
+  markdraw: ^0.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flame_test: ^2.3.1
+  lints: ^6.1.0
+  collection: ^1.19.0
+  test: ^1.25.0
+  protoc_plugin: ^25.0.0
 
 dependency_overrides:
   freezed_annotation: ^3.1.0
   re_editor: 0.9.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/brand/
+    - assets/brands/artcraft/
+    - assets/brands/aspire-icon-32.svg
+    - assets/brands/gmail.svg
+    - assets/brands/salesforce.svg
+    - assets/brands/github.svg
+    - assets/brands/ic-mark.svg
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+    - family: InterDisplay
+      fonts:
+        - asset: assets/fonts/InterDisplay-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/InterDisplay-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/InterDisplay-ExtraBold.ttf
+          weight: 800
+    - family: Schibsted Grotesk
+      fonts:
+        - asset: assets/fonts/SchibstedGrotesk-Variable.ttf
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Variable.ttf

@@ -17,6 +17,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Microsoft.Playwright.Contracts` (`IPageTools`, `IPlaywright`).
+Contracts: assembly `IntoChat.OS.Modules.Playwright` (`IBrowserPageSession`, `IBrowserSessionProvider`, `IPageTools`, `IPlaywright`).
 Hosting: runs in process.
 <!-- END GENERATED -->

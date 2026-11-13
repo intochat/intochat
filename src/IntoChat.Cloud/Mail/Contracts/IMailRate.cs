@@ -1,5 +1,6 @@
 using DigitalBrain.Access;
 using IntoChat.Cloud.Mail.Templates;
+using IntoChat.OS;
 
 namespace IntoChat.Cloud.Mail;
 
@@ -9,7 +10,7 @@ public interface IMailRate
     const string Type = "mail.rate";
 
     static string Key(string recipientHash, MailTemplateId template) =>
-        $"{SystemShard.BrainOf(recipientHash)}/mail-rate/{recipientHash}/{template}";
+        $"{NeuronKeys.SystemShard(recipientHash)}/mail-rate/{recipientHash}/{template}";
 
     [Internal]
     Task<MailRateDecision> TryAcquire(MailTemplateId template);

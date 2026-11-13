@@ -9,16 +9,21 @@ How to test: `dotnet test --project src/IntoChat.OS.Modules/Microsoft/Azure/test
 Documentation: https://github.com/intochat/os.docs (modules).
 
 <!-- BEGIN GENERATED options -->
-Configuration section: `IntoChatOS:Modules:azure:Options` (environment prefix `IntoChatOS__Modules__azure__Options__`).
+Configuration section: `IntoChatOS:Modules:aspire:Options` (environment prefix `IntoChatOS__Modules__aspire__Options__`).
 
 Options:
 
-None.
+| Option | Type | Default | Required |
+| --- | --- | --- | --- |
+| `Fronts` | integration setting | unset | no |
+| `Workdir` | integration setting | unset | yes |
 
 Secrets (names only; values are sealed per brain, never configuration):
 
-None.
+| Secret | Required |
+| --- | --- |
+| `CandidateModel` | no |
 
-Contracts: assembly `IntoChat.OS.Modules.Microsoft.Azure.Contracts` (`IAzure`, `IModuleDeployment`).
+Contracts: assembly `IntoChat.OS.Modules.Azure` (`IAspire`, `IAzureArm`, `IAzure`, `ICandidate`, `ICandidates`, `IDeployment`, `IModuleDeployment`).
 Hosting: runs in process.
 <!-- END GENERATED -->

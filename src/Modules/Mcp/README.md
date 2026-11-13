@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.Mcp.Contracts` (`IMcpServer`).
+Contracts: assembly `IntoChat.OS.Modules.Mcp` (`IBrainToolsConnection`, `IMcpServer`, `IMcpToolConnection`, `IToolSource`).
 Hosting: runs in process.
 <!-- END GENERATED -->

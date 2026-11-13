@@ -9,7 +9,7 @@ internal static class LocalDiskRoots
     internal const string Unavailable = "The folder is unavailable on this computer.";
 
     internal static string? Syntax(string? path)
-        => string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path) ? NeedFullPath : null;
+        => string.IsNullOrWhiteSpace(path) || path.Contains('\0', StringComparison.Ordinal) || !Path.IsPathFullyQualified(path) ? NeedFullPath : null;
 
     internal static string Prepare(string path)
     {

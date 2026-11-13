@@ -6,6 +6,7 @@
   <ItemGroup>
     <PackageReference Include="DigitalBrain" />
     <PackageReference Include="DigitalBrain.Capabilities.Connections" />
+    <PackageReference Include="DigitalBrain.Capabilities.Tools" />
     <PackageReference Include="DigitalBrain.Runtime.Orleans" />
     <PackageReference Include="ModelContextProtocol.Core" />
   </ItemGroup>

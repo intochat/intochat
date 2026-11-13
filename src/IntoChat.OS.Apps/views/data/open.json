@@ -217,7 +217,7 @@
                   "key": "bar",
                   "label": "Bar",
                   "emit": {
-                    "owner": "app.datastudio",
+                    "owner": "app.data",
                     "signal": "data.switch-chart",
                     "args": {
                       "Kind": "bar"
@@ -235,7 +235,7 @@
                   "key": "line",
                   "label": "Line",
                   "emit": {
-                    "owner": "app.datastudio",
+                    "owner": "app.data",
                     "signal": "data.switch-chart",
                     "args": {
                       "Kind": "line"
@@ -253,7 +253,7 @@
                   "key": "pie",
                   "label": "Pie",
                   "emit": {
-                    "owner": "app.datastudio",
+                    "owner": "app.data",
                     "signal": "data.switch-chart",
                     "args": {
                       "Kind": "pie"
@@ -271,7 +271,7 @@
                   "key": "export-csv",
                   "label": "Export CSV",
                   "emit": {
-                    "owner": "app.datastudio",
+                    "owner": "app.data",
                     "signal": "data.export-csv",
                     "args": {
                       "TargetPath": null
@@ -289,7 +289,7 @@
                   "key": "diagram-in-markdraw",
                   "label": "Diagram in Markdraw",
                   "emit": {
-                    "owner": "app.datastudio",
+                    "owner": "app.data",
                     "signal": "data.to-markdraw",
                     "args": {
                       "Document": "/work/data-lineage.markdraw"

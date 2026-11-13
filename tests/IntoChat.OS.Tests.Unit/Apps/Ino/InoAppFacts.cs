@@ -19,6 +19,7 @@ using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
@@ -409,6 +410,65 @@ public sealed class InoAppFacts
         Assert.NotNull(first);
         Assert.NotEqual(first, ino.App.State.AgentKey);
         Assert.Equal($"ino/conversations/{ino.App.State.ConversationId}", ino.App.State.AgentKey);
+    }
+
+    [Fact]
+    public async Task NewConversationMintsCanonicalConversationIdAndKey()
+    {
+        await using var os = AgentOs();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("new", new InoNew());
+
+        var convId = ino.App.State.ConversationId;
+        Assert.NotNull(convId);
+        Assert.StartsWith("c-", convId, StringComparison.Ordinal);
+        Assert.Equal(34, convId.Length);
+        Assert.True(ConversationId.IsCanonicalValue(convId));
+        Assert.Equal($"ino/conversations/{convId}", ino.App.State.AgentKey);
+
+        await ino.Request("new-conversation", new InoNewConversation());
+        var secondConvId = ino.App.State.ConversationId;
+        Assert.NotNull(secondConvId);
+        Assert.StartsWith("c-", secondConvId, StringComparison.Ordinal);
+        Assert.Equal(34, secondConvId.Length);
+        Assert.True(ConversationId.IsCanonicalValue(secondConvId));
+        Assert.NotEqual(convId, secondConvId);
+    }
+
+    [Fact]
+    public async Task InoRenderZeroNeuronUriAndScopeLeaksInRenderedView()
+    {
+        await using var os = AgentOs();
+        var ino = await os.Install<InoApp>();
+
+        // 1. Initial render has zero raw neuron:// or | scope: leaks
+        var initialView = ino.App.Render();
+        var initialTexts = Strings(initialView).ToArray();
+        Assert.All(initialTexts, text =>
+        {
+            Assert.DoesNotContain("neuron://", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("| scope:", text, StringComparison.OrdinalIgnoreCase);
+        });
+
+        // 2. Scenario session has zero raw neuron:// or | scope: leaks
+        await ino.Request("send", new InoSend("/scenario morning-brief"));
+        var scenarioView = ino.App.Render();
+        var scenarioTexts = Strings(scenarioView).ToArray();
+        Assert.All(scenarioTexts, text =>
+        {
+            Assert.DoesNotContain("neuron://", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("| scope:", text, StringComparison.OrdinalIgnoreCase);
+        });
+
+        // 3. Make live app card has zero raw neuron:// or | scope: leaks
+        await ino.Request("make", new InoMake("Build calculator", ["calculator"]));
+        var makeView = ino.App.Render();
+        var makeTexts = Strings(makeView).ToArray();
+        Assert.All(makeTexts, text =>
+        {
+            Assert.DoesNotContain("neuron://", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("| scope:", text, StringComparison.OrdinalIgnoreCase);
+        });
     }
 
     [Fact]

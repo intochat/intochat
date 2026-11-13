@@ -97,11 +97,9 @@ public sealed class AspireFacts
         Assert.Contains("--cpus", osRun.Args);
         Assert.Contains("2", osRun.Args);
 
-        var mcpRun = Assert.Single(runner.Calls, c => c.File == "docker" && c.Args.Contains("candidate-a1b2c3d-mcp"));
-        Assert.Contains("--memory", mcpRun.Args);
-        Assert.Contains("2g", mcpRun.Args);
-        Assert.Contains("--cpus", mcpRun.Args);
-        Assert.Contains("2", mcpRun.Args);
+        Assert.NotNull(running.Endpoints.Mcp);
+        Assert.Equal(running.Endpoints.Mcp, running.Endpoints.Ui);
+        Assert.DoesNotContain(runner.Calls, c => c.File == "docker" && c.Args.Contains("candidate-a1b2c3d-mcp"));
 
         await host.WaitHealthy("a1b2c3d", TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 

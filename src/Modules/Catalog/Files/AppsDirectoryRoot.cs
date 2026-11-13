@@ -13,6 +13,10 @@ public static class AppsDirectoryRoot
     public static string Prepare(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (path.Contains('\0', StringComparison.Ordinal) || !Path.IsPathFullyQualified(path))
+        {
+            throw new ArgumentException("Enter a full folder path on this computer.", nameof(path));
+        }
         var full = PathConfinement.Normalize(path);
         Directory.CreateDirectory(full);
         PathConfinement.RequireNoLinks(full);

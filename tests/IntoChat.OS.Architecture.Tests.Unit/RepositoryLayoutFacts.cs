@@ -13,11 +13,16 @@ public sealed class RepositoryLayoutFacts
 {
     private const string Prefix = "IntoChat.OS.";
 
-    // Contracts that scripts still import as IntoChat.OS.Integrations. The project name is the module;
-    // the namespace moves with the rest of that surface in 0.8.0.
     private static readonly Dictionary<string, string> RootNamespaces = new(StringComparer.Ordinal)
     {
-        ["IntoChat.OS.Modules.Identity.Contracts"] = "IntoChat.OS.Integrations",
+        ["IntoChat.OS.Modules.Azure"] = "IntoChat.OS.Modules.Microsoft.Azure",
+        ["IntoChat.OS.Modules.Catalog"] = "IntoChat.OS.Modules.Apps",
+        ["IntoChat.OS.Modules.GitHub"] = "IntoChat.OS.Modules.Microsoft.GitHub",
+        ["IntoChat.OS.Modules.Playwright"] = "IntoChat.OS.Modules.Microsoft.Playwright",
+        ["IntoChat.OS.Modules.Roslyn"] = "IntoChat.OS.Modules.Microsoft.Roslyn",
+        ["IntoChat.OS.Modules.Shell"] = "IntoChat.OS.Modules.Flutter",
+        ["IntoChat.OS.Modules.Storage"] = "IntoChat.OS.Modules.LocalDisk",
+        ["IntoChat.OS.Modules.Windows"] = "IntoChat.OS.Modules.Microsoft.Windows",
     };
 
     [Fact]
@@ -43,7 +48,7 @@ public sealed class RepositoryLayoutFacts
             var relativePath = Path.GetRelativePath(Repository.Root, file).Replace('\\', '/');
 
             // Allow systemone-adapter server.py
-            if (relativePath.EndsWith("IntoChat.OS.Modules/AI/systemone-adapter/server.py", StringComparison.OrdinalIgnoreCase))
+            if (relativePath.EndsWith("Modules/AI/systemone-adapter/server.py", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -87,7 +92,7 @@ public sealed class RepositoryLayoutFacts
             var directory = Path.GetDirectoryName(path)!.Replace('\\', '/');
             var name = Path.GetFileNameWithoutExtension(path);
             var folderName = Path.GetFileName(directory);
-            Assert.True(folderName == name || name == Prefix + folderName,
+            Assert.True(folderName == name || name == Prefix + folderName || name == "IntoChat.OS.Modules." + folderName,
                 $"{path} directory '{folderName}' is not the project name.");
             var group = directory[..directory.LastIndexOf('/')];
             var folder = entry.Parent!.Name.LocalName == "Folder" ? entry.Parent.Attribute("Name")!.Value : null;
@@ -277,7 +282,9 @@ public sealed class RepositoryLayoutFacts
             .ToArray();
         var folder = "/" + string.Join('/', segments) + "/";
         // A module's Contracts/, implementation and tests/ directories (by module, R4-03) are grouped either with the module or
-        // as their own subfolder.
-        return segments[^1] is "tests" or "Contracts" or ModuleFolderFacts.SourceFolder ? [folder, "/" + string.Join('/', segments[..^1]) + "/"] : [folder];
+        // as their own subfolder. Slnd/slnx may also flatten all entries to root.
+        return segments[^1] is "tests" or "Contracts" or ModuleFolderFacts.SourceFolder
+            ? [null, folder, "/" + string.Join('/', segments[..^1]) + "/"]
+            : [null, folder];
     }
 }

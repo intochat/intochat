@@ -1,5 +1,5 @@
 using DigitalBrain.Access;
-using IntoChat.Cloud.Mail;
+using IntoChat.OS;
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
@@ -8,7 +8,7 @@ public interface IAuthSystemAudit
 {
     const string Type = "auth.system-audit";
 
-    static string Key() => SystemShard.BrainOf("auth-system") + "/auth/system-audit";
+    static string Key() => NeuronKeys.SystemShard("auth-system") + "/auth/system-audit";
 
     [Internal]
     Task Append(AuthAuditEntry entry);

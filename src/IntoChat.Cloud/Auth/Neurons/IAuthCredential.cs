@@ -1,6 +1,6 @@
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Secrets;
-using IntoChat.Cloud.Mail;
+using IntoChat.OS;
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
@@ -10,7 +10,7 @@ public interface IAuthCredential
 {
     const string Type = "auth.credential";
 
-    static string Key(string principalId) => $"{SystemShard.BrainOf(principalId)}/auth/credential/{principalId}";
+    static string Key(string principalId) => $"{NeuronKeys.SystemShard(principalId)}/auth/credential/{principalId}";
 
     [Internal]
     Task SetPassword(string passwordHash);

@@ -4,6 +4,7 @@ using DigitalBrain.Flows;
 using DigitalBrain.Kernel;
 using DigitalBrain.Operations;
 using DigitalBrain.Signals;
+using IntoChat.OS.Primitives;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -50,7 +51,7 @@ public sealed class VerifyFlow(ISignalHistory history, AgentStepOptions? options
             case "telemetry":
                 Judge(inner);
                 await Telemetry(inner);
-                return new StepResult<VerifyInner>(inner);
+                return inner.Advance();
             default:
                 throw new FlowFailed(step, $"Unknown step {step}.");
         }

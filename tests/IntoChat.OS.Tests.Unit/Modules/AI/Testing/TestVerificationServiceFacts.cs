@@ -207,8 +207,8 @@ public sealed class TestVerificationServiceFacts
     public void TestProcessRunner_FindExecutable_FindsPrebuiltRunner()
     {
         var repoRoot = TestProcessRunner.FindRepositoryRoot();
-        var exe = TestProcessRunner.FindExecutable(repoRoot, "IntoChat.OS.Modules.AI.Tests.Unit", "debug")
-            ?? TestProcessRunner.FindExecutable(repoRoot, "IntoChat.OS.Modules.AI.Tests.Unit", "release");
+        var exe = TestProcessRunner.FindExecutable(repoRoot, "IntoChat.OS.Tests.Unit", "debug")
+            ?? TestProcessRunner.FindExecutable(repoRoot, "IntoChat.OS.Tests.Unit", "release");
 
         Assert.NotNull(exe);
         Assert.True(File.Exists(exe));

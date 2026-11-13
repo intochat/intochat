@@ -1,8 +1,11 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Flows;
+using DigitalBrain.Log;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Primitives;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -60,13 +63,16 @@ public abstract class AgentFlow<T>(AgentStepOptions? options = null) : Flow<T> w
         if ((await agent.Read()).Revision == 0)
         {
             try { await agent.Configure(FlowAgent, 0); }
-            catch (InvalidOperationException error) when (error.Message.Contains("revision conflict", StringComparison.OrdinalIgnoreCase)) { _ = error; }
+            catch (InvalidOperationException error) when (error.Message.Contains("revision conflict", StringComparison.OrdinalIgnoreCase))
+            {
+                NullLogger.Instance.LogSwallowed(error, "Flow agent already configured by a concurrent turn.");
+            }
         }
         inner.AgentStep = step;
         inner.Reply = null;
         inner.AgentError = null;
         inner.RunId = await agent.Start(AgentTurn.Text(prompt, runId: $"{Id.Key}/{step}"), Id.ToString());
-        return new StepResult<T>(inner, new Waiting(step, WaitReason.External, null, null));
+        return inner.WaitExternal(step);
     }
 
     [On]

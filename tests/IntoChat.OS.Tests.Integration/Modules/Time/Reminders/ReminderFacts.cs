@@ -120,11 +120,15 @@ public sealed class ReminderFacts(TimeFixture fixture)
         var control = new ReminderControl();
         var (runtime, reminder, host) = await Start("reactivate", control, ct);
         await using var _ = runtime;
-        await reminder.Start(TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
+        await reminder.Start(TimeSpan.Zero, TimeSpan.FromMilliseconds(200));
         var before = await control.NextDeliveryAsync(ct);
-        await CollectIdleActivations(runtime.Services, ct);
         ReminderDelivery after;
-        do { after = await control.NextDeliveryAsync(ct); }
+        do
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(25), ct);
+            await CollectIdleActivations(runtime.Services, ct);
+            after = await control.NextDeliveryAsync(ct);
+        }
         while (ReferenceEquals(before.Activation, after.Activation));
         Assert.Equal(host, after.Id);
         await reminder.Stop();

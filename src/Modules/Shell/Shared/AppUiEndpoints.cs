@@ -3,6 +3,7 @@ using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Errors;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -21,6 +22,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging.Abstractions;
 using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Flutter;
@@ -59,6 +61,18 @@ internal static class AppUiEndpoints
             if (unit is not null)
             {
                 var unitView = await brain.Get<IViewReader>(UnitState(scope, unit)).Read(unit).WaitAsync(ct);
+                if (unitView is null)
+                {
+                    try
+                    {
+                        var screenId = new NeuronId(new BrainId(scope), unit, "default");
+                        unitView = await brain.Get<IScreen>(screenId).Read().WaitAsync(ct);
+                    }
+                    catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
+                    {
+                        NullLogger.Instance.LogSwallowed(error, "Screen view for unit could not be read.");
+                    }
+                }
                 var failing = unitView is null ? null : await brain.Get<IDebuggerReads>(IDebuggerReads.Key(scope)).Failing(unit).WaitAsync(ct);
                 return Results.Ok(new
                 {
@@ -93,6 +107,7 @@ internal static class AppUiEndpoints
                         }
                         catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
                         {
+                            NullLogger.Instance.LogSwallowed(error, "Published screen view could not be read.");
                         }
                     }
                     var directView = await brain.Get<IView>(directViewName).Read().WaitAsync(ct);
@@ -132,6 +147,7 @@ internal static class AppUiEndpoints
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
                 {
+                    NullLogger.Instance.LogSwallowed(error, "Screen view could not be read.");
                 }
             }
             var app = await brain.Get<IApp>(target.App).Read().WaitAsync(ct);
@@ -150,7 +166,20 @@ internal static class AppUiEndpoints
         {
             if (unit is not null)
             {
-                return Results.Json(await brain.Get<IViewReader>(UnitState(scope, unit)).Read(unit).WaitAsync(ct), ViewJson);
+                var unitView = await brain.Get<IViewReader>(UnitState(scope, unit)).Read(unit).WaitAsync(ct);
+                if (unitView is null)
+                {
+                    try
+                    {
+                        var screenId = new NeuronId(new BrainId(scope), unit, "default");
+                        unitView = await brain.Get<IScreen>(screenId).Read().WaitAsync(ct);
+                    }
+                    catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
+                    {
+                        NullLogger.Instance.LogSwallowed(error, "Screen view for unit could not be read.");
+                    }
+                }
+                return Results.Json(unitView, ViewJson);
             }
             if (ScreenAlias(scope, name) is { } screenAlias)
             {
@@ -165,6 +194,7 @@ internal static class AppUiEndpoints
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
                 {
+                    NullLogger.Instance.LogSwallowed(error, "Screen view could not be read.");
                 }
             }
             return Results.Json(await brain.Get<IView>(name).Read().WaitAsync(ct), ViewJson);
@@ -227,6 +257,20 @@ internal static class AppUiEndpoints
             // Activate; Activate re-resolves against its own current generation, so a changed view refuses the emit as stale.
             var reader = brain.Get<IViewReader>(UnitState(scope, alias));
             var published = await reader.Read(alias).WaitAsync(ct);
+            IScreen? screen = null;
+            if (published is null)
+            {
+                try
+                {
+                    var screenId = new NeuronId(new BrainId(scope), alias, "default");
+                    screen = brain.Get<IScreen>(screenId);
+                    published = await screen.Read().WaitAsync(ct);
+                }
+                catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
+                {
+                    NullLogger.Instance.LogSwallowed(error, "Screen for unit could not be read.");
+                }
+            }
             var shownAction = published is { } shown && shown.Generation == generation && ViewValidation.Find(shown.View, key) is { } unitNode
                 ? ViewValidation.ActionOf(unitNode) : ViewActivation.None;
             switch (shownAction.Kind)
@@ -239,6 +283,17 @@ internal static class AppUiEndpoints
             // a display name. A view that declares "by" never publishes (the framework's ViewDeclaresBy), so the edge need not refuse one.
             if (!RuntimeCallerContext.TryGet(out var caller) || string.IsNullOrEmpty(caller.PersonId))
             { throw new UnauthorizedAccessException("Only a signed-in person activates a unit view."); }
+            if (screen is not null)
+            {
+                try { await screen.Activate(alias, generation, key, input.Value, caller.PersonId).WaitAsync(ct); }
+                catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
+                { throw new StaleActionException("This action is no longer available. Read the view again."); }
+                catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)
+                { throw new UnauthorizedAccessException($"A view of {alias} cannot emit to another owner."); }
+                catch (ActivationRefusedException refused)
+                { throw new ArgumentException($"This view node does nothing ({refused.Reason})."); }
+                return Results.Ok(new { delivered = true });
+            }
             try { await reader.Activate(alias, generation, key, input.Value, caller.PersonId).WaitAsync(ct); }
             catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
             { throw new StaleActionException("This action is no longer available. Read the view again."); }
@@ -260,6 +315,7 @@ internal static class AppUiEndpoints
             }
             catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
             {
+                NullLogger.Instance.LogSwallowed(error, "Screen view could not be read for action finding.");
             }
 
             if (published is not null && screen is not null)
@@ -293,7 +349,7 @@ internal static class AppUiEndpoints
                         }
                         try
                         {
-                            await screen.Activate(screenAlias, generation, key, input.Value, caller.PersonId).WaitAsync(ct);
+                            await ScreenAppEmitBridge.ActivateAsync(screen, published, screenAlias, generation, key, input.Value, caller.PersonId, ct: ct).WaitAsync(ct);
                         }
                         catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
                         {
@@ -373,12 +429,21 @@ internal static class AppUiEndpoints
         return remainder.Length > 0 && !remainder.Contains('/') ? "app." + remainder : null;
     }
 
-    // A unit's view is named {scope}/{alias}: one segment, a state alias rather than an app area.
+    // A unit's view is named {scope}/{alias}: one segment, a state alias rather than an app area,
+    // or {scope}/units/{alias}, optionally ending in /view.
     internal static string? UnitAlias(string scope, string name)
     {
         if (!name.StartsWith(scope + "/", StringComparison.Ordinal)) { return null; }
         var alias = name[(scope.Length + 1)..];
-        return alias.Length > 0 && !alias.Contains('/') && alias is not ("apps" or "images" or "applications") ? alias : null;
+        if (alias.StartsWith("units/", StringComparison.Ordinal))
+        {
+            alias = alias[6..];
+        }
+        if (alias.EndsWith("/view", StringComparison.Ordinal))
+        {
+            alias = alias[..^5];
+        }
+        return alias.Length > 0 && !alias.Contains('/') && alias is not ("apps" or "images" or "applications" or "units") ? alias : null;
     }
 
     // The alias's state neuron, {scope}/{alias}/default.
@@ -407,8 +472,9 @@ internal static class AppUiEndpoints
         }
     }
 
-    private static bool OwnsUi(string scope, string name) =>
-        new[] { "/apps/", "/images/", "/applications/" }.Any(area => name.StartsWith(scope + area, StringComparison.Ordinal));
+    internal static bool OwnsUi(string scope, string name) =>
+        new[] { "/apps/", "/images/", "/applications/", "/units/" }.Any(area => name.StartsWith(scope + area, StringComparison.Ordinal))
+        || UnitAlias(scope, name) is not null;
 
     // The client's one UI event; Dart mirror: NodeContext (activate, resolve, input) in ui/ui. A confirmation answer carries PlanId
     // and Approve.

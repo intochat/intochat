@@ -1,6 +1,7 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Kernel;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -13,6 +14,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -201,6 +203,7 @@ internal static class AppsEndpoints
         }
         catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
         {
+            NullLogger.Instance.LogSwallowed(error, "Screen request forwarding failed.");
         }
     }
 

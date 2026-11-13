@@ -63,8 +63,7 @@ internal static class FlutterHostLaunch
         var workDir = ResolveWindowPackageDirectory(packageRoot, deviceTarget)
             ?? throw new InvalidOperationException(
                 $"Window Flutter host needs lib/main.dart and a '{deviceTarget}/' folder " +
-                $"under '{packageRoot}', '{packageRoot}/{ShellPackageDirectoryName}', " +
-                $"or the sibling '../{ShellPackageDirectoryName}' (clients/flutter/shell).");
+                $"under '{packageRoot}'.");
 
         HealWindowsEphemeral(workDir, deviceTarget);
 
@@ -118,8 +117,7 @@ internal static class FlutterHostLaunch
         var workDir = ResolveWebPackageDirectory(packageRoot)
             ?? throw new InvalidOperationException(
                 $"Web Flutter host needs lib/main.dart and a 'web/' folder " +
-                $"under '{packageRoot}', '{packageRoot}/{ShellPackageDirectoryName}', " +
-                $"or the sibling '../{ShellPackageDirectoryName}' (clients/flutter/shell). " +
+                $"under '{packageRoot}'. " +
                 $"Use {nameof(ShellHostingExtensions.RunDesktopApp)}() for Windows chrome.");
 
         // Both web devices (web-server and chrome) honor the port/hostname flags, so the served

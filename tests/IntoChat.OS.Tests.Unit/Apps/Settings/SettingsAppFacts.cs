@@ -88,33 +88,35 @@ public sealed class SettingsAppFacts
     }
 
     [Fact]
-    public void SettingsNavigationAndBackstackTracksHistory()
+    public async Task SettingsNavigationAndBackstackTracksHistory()
     {
-        var app = new SettingsApp();
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var installed = await os.Install<SettingsApp>();
+        var app = installed.App;
         Assert.Equal("general", app.State.Section);
         Assert.Null(app.State.SubPage);
         Assert.Null(app.State.Sheet);
 
-        app.Navigate(new SettingsNavigate("connections", SubPage: "github"));
+        await app.Navigate(new SettingsNavigate("connections", SubPage: "github"));
         Assert.Equal("connections", app.State.Section);
         Assert.Equal("github", app.State.SubPage);
         Assert.Single(app.State.History!);
         Assert.Equal("general", app.State.History![0]);
 
-        app.Navigate(new SettingsNavigate("models", Sheet: "ollama-config"));
+        await app.Navigate(new SettingsNavigate("models", Sheet: "ollama-config"));
         Assert.Equal("models", app.State.Section);
         Assert.Null(app.State.SubPage);
         Assert.Equal("ollama-config", app.State.Sheet);
         Assert.Equal(2, app.State.History!.Count);
         Assert.Equal("connections/github", app.State.History![1]);
 
-        app.GoBack(new SettingsGoBack());
+        await app.GoBack(new SettingsGoBack());
         Assert.Equal("connections", app.State.Section);
         Assert.Equal("github", app.State.SubPage);
         Assert.Null(app.State.Sheet);
         Assert.Single(app.State.History!);
 
-        app.GoBack(new SettingsGoBack());
+        await app.GoBack(new SettingsGoBack());
         Assert.Equal("general", app.State.Section);
         Assert.Null(app.State.SubPage);
         Assert.Empty(app.State.History!);
@@ -133,9 +135,11 @@ public sealed class SettingsAppFacts
     }
 
     [Fact]
-    public void SettingsRendersAllThirteenSectionsSubPagesAndModalSheetsInCSharp()
+    public async Task SettingsRendersAllThirteenSectionsSubPagesAndModalSheetsInCSharp()
     {
-        var app = new SettingsApp();
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var installed = await os.Install<SettingsApp>();
+        var app = installed.App;
         string[] sections =
         [
             "general", "desktop", "apps", "connections", "files",
@@ -153,7 +157,7 @@ public sealed class SettingsAppFacts
 
         foreach (var section in sections)
         {
-            app.Navigate(new SettingsNavigate(section));
+            await app.Navigate(new SettingsNavigate(section));
             Assert.Equal(section, app.State.Section);
             var view = app.Render();
             var json = System.Text.Json.JsonSerializer.Serialize(view, jsonOptions);
@@ -171,14 +175,14 @@ public sealed class SettingsAppFacts
 
         foreach (var (sec, sub, marker) in subPages)
         {
-            app.Navigate(new SettingsNavigate($"{sec}:{sub}"));
+            await app.Navigate(new SettingsNavigate($"{sec}:{sub}"));
             Assert.Equal(sec, app.State.Section);
             Assert.Equal(sub, app.State.SubPage);
             var json = System.Text.Json.JsonSerializer.Serialize(app.Render(), jsonOptions);
             Assert.Contains(marker, json, StringComparison.Ordinal);
         }
 
-        app.Navigate(new SettingsNavigate("connections", SubPage: "google_drive", Sheet: "google_drive", SearchQuery: "Ollama"));
+        await app.Navigate(new SettingsNavigate("connections", SubPage: "google_drive", Sheet: "google_drive", SearchQuery: "Ollama"));
         Assert.Equal("google_drive", app.State.Sheet);
         var sheetJson = System.Text.Json.JsonSerializer.Serialize(app.Render(), jsonOptions);
         Assert.Contains("Sheet · google_drive", sheetJson, StringComparison.Ordinal);
@@ -382,5 +386,75 @@ public sealed class SettingsAppFacts
                 Assert.DoesNotContain(token, json, StringComparison.OrdinalIgnoreCase);
             }
         }
+    }
+
+    [Fact]
+    public async Task SettingsRedactedISecretVaultStatusNeverExposesRawSecrets()
+    {
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var settings = await os.Install<SettingsApp>();
+        var vault = new MemorySecretVault();
+        settings.App.SecretVault = vault;
+
+        // Initially no secrets configured
+        await settings.App.Navigate(new SettingsNavigate("keys"));
+        var initialView = settings.App.Render();
+        var initialJson = System.Text.Json.JsonSerializer.Serialize(initialView);
+        Assert.Contains("Not set", initialJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Status\":\"saved\"", initialJson, StringComparison.Ordinal);
+
+        // Configure ANTHROPIC_API_KEY in vault
+        vault.SetSecret("ANTHROPIC_API_KEY");
+        await settings.Request("open", new SettingsOpen("keys"));
+        await settings.App.Navigate(new SettingsNavigate("keys"));
+        var updatedView = settings.App.Render();
+        var updatedJson = System.Text.Json.JsonSerializer.Serialize(updatedView);
+        Assert.Contains("Configured", updatedJson, StringComparison.Ordinal);
+        Assert.Contains("\"Status\":\"saved\"", updatedJson, StringComparison.Ordinal);
+
+        // Verify variables section redacts secret values
+        await settings.Request("set-variable", new SettingsSetVariable("SERVICE_SECRET_KEY", "sensitive-secret-token"));
+        await settings.App.Navigate(new SettingsNavigate("variables"));
+        var varJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
+        Assert.Contains("SERVICE_SECRET_KEY", varJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("sensitive-secret-token", varJson, StringComparison.Ordinal);
+        Assert.Contains("Configured", varJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BrainPreferenceStorePersistsPreferencesAcrossReload()
+    {
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var settings = await os.Install<SettingsApp>();
+        var userSettings = os.Get<IUserSettings>(new NeuronId(new BrainId("local"), "os.settings", "settings"));
+        var store = new BrainPreferenceStore(userSettings);
+        settings.App.PreferenceStore = store;
+
+        await settings.Request("save-preferences", new SettingsSavePreferences(
+            DisplayName: "Ada Lovelace",
+            Theme: "dark",
+            DefaultModel: "claude-sonnet-4-5",
+            StylePreset: "cyber-synaptic",
+            BarLayout: "compact-pill",
+            ThemeMode: "dark",
+            DesktopTone: "sand",
+            Language: "Norwegian",
+            TimeZone: "Europe/Oslo",
+            DateFormat: "dd.MM.yyyy"));
+
+        Assert.Equal("Ada Lovelace", settings.App.State.DisplayName);
+        Assert.Equal("dark", settings.App.State.Theme);
+        Assert.Equal("claude-sonnet-4-5", settings.App.State.DefaultModel);
+        Assert.Equal("cyber-synaptic", settings.App.State.StylePreset);
+        Assert.Equal("compact-pill", settings.App.State.BarLayout);
+
+        // Load directly through store to verify persistence
+        var loaded = await store.LoadAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("Ada Lovelace", loaded.DisplayName);
+        Assert.Equal("dark", loaded.Theme);
+        Assert.Equal("claude-sonnet-4-5", loaded.DefaultModel);
+        Assert.Equal("cyber-synaptic", loaded.StylePreset);
+        Assert.Equal("compact-pill", loaded.BarLayout);
+        Assert.Equal("Europe/Oslo", loaded.TimeZone);
     }
 }

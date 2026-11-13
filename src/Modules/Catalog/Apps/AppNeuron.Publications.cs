@@ -36,21 +36,19 @@ internal sealed partial class AppNeuron
         next.Published = new AppVersionRecord(next.Version, clock.GetUtcNow(), manifest, next.Spec, next.Files);
         next.Publisher = person.Principal;
         var releases = Releases();
-        var release = Release(next.Published, person.Principal, new AppSource.Brain(person.Account, BrainId()));
+        var release = PublishedRelease.Create(next.Published, person.Principal, new AppSource.Brain(person.Account, BrainId()), Name());
         var existing = releases.FirstOrDefault(item => item.Bundle.Version == next.Version);
         await Check("Publish",
             new PublicationIsNotForeign(listed?.Source.Scope(), BrainId()),
-            new VersionContentIsUnchanged(existing is null || existing.Publication.Reference == release.Publication.Reference));
-        next.Releases = existing is null ? [.. releases, release] : releases;
+            new VersionContentIsUnchanged(existing is null || existing.Publication.Reference == release.Reference));
+        next.Releases = existing is null ? [.. releases, release.ToRecord()] : releases;
         if (existing is not null)
         { next.Published = next.Published with { SavedAt = existing.Publication.PublishedAt }; }
         var name = Name();
         await Save(next, new AppChanged(name, next.Version, next.Status), new AppPublished(name, next.Version));
         // State first: a failed listing write is repaired by publishing again, never the reverse
         // (a listing whose bundle Install cannot read).
-        await Marketplace.Upsert(new MarketplaceListing(
-            person.Principal, new AppSource.Brain(person.Account, BrainId()), name, manifest.Title, manifest.Description,
-            next.Version, manifest.Icon, manifest.Requires));
+        await Marketplace.Upsert(release.ToMarketplaceListing());
         return Describe(State);
     }
 
@@ -79,15 +77,7 @@ internal sealed partial class AppNeuron
             || State.Principal is not { } principal
             || State.Releases.Any(release => release.Bundle.Version == held.Version))
         { return State.Releases; }
-        return [.. State.Releases, Release(held, publisher, new AppSource.Brain(principal.AccountId, principal.BrainId))];
-    }
-
-    private AppReleaseRecord Release(AppVersionRecord version, string publisher, AppSource.Brain source)
-    {
-        var bundle = new AppBundle(Name(), version.Version, version.Manifest, version.Spec, new(version.Files, StringComparer.Ordinal));
-        var preview = bundle.Files.GetValueOrDefault("preview.txt");
-        if (preview is { Length: > 16384 }) { preview = preview[..16384]; }
-        return new(new(new(publisher, source, Name(), version.Version, AppPublicationDigest.Of(bundle)),
-            version.SavedAt, version.Manifest, preview), bundle);
+        var release = PublishedRelease.Create(held, publisher, new AppSource.Brain(principal.AccountId, principal.BrainId), Name());
+        return [.. State.Releases, release.ToRecord()];
     }
 }

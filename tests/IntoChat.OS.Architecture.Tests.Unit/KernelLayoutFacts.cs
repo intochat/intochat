@@ -9,13 +9,13 @@ public sealed class KernelLayoutFacts
     private static readonly string SrcPrefix = "s" + "rc/";
 
     private static string SystemOneHostingStatePath()
-        => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Aspire.Hosting").Directory, "Modules", "AI", "Configuration", "SystemOneHostingState.cs");
+        => Path.Combine(Repository.ProjectNamed("IntoChat.OS.AppHost").Directory, "Hosting", "Modules", "AI", "Configuration", "SystemOneHostingState.cs");
 
     private static string ClientOrleansCsprojPath()
-        => Repository.ProjectNamed("IntoChat.OS.Client.Orleans").Path;
+        => Repository.ProjectNamed("IntoChat.OS.Framework").Path;
 
     private static string ClientOrleansDirectory()
-        => Repository.ProjectNamed("IntoChat.OS.Client.Orleans").Directory;
+        => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Framework").Directory, "ClientOrleans");
 
     private static string ContractManifestPath()
         => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, "ContractManifest.json");
@@ -37,7 +37,7 @@ public sealed class KernelLayoutFacts
     public void F10_02_SystemOneHostingState_ContainsCorrectAdapterDirectoryPath()
     {
         var content = File.ReadAllText(SystemOneHostingStatePath());
-        Assert.Contains(SrcPrefix + "IntoChat.OS.Modules/AI/systemone-adapter", content, StringComparison.Ordinal);
+        Assert.Contains(SrcPrefix + "Modules/AI/systemone-adapter", content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public sealed class KernelLayoutFacts
     public void F10_03_SystemOneAdapter_PathFormatting_ConformsToModuleLayout()
     {
         var content = File.ReadAllText(SystemOneHostingStatePath());
-        Assert.Contains(SrcPrefix + "IntoChat.OS.Modules/AI/", content, StringComparison.Ordinal);
+        Assert.Contains(SrcPrefix + "Modules/AI/", content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class KernelLayoutFacts
     public void F10_B01_AdapterDirectory_UsesForwardSlashes()
     {
         var content = File.ReadAllText(SystemOneHostingStatePath());
-        Assert.Contains("\"" + SrcPrefix + "IntoChat.OS.Modules/AI/systemone-adapter\"", content, StringComparison.Ordinal);
+        Assert.Contains("\"" + SrcPrefix + "Modules/AI/systemone-adapter\"", content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public sealed class KernelLayoutFacts
     public void F10_B02_AdapterDirectory_DoesNotStartWithSlash()
     {
         var content = File.ReadAllText(SystemOneHostingStatePath());
-        Assert.DoesNotContain("\"/" + SrcPrefix + "IntoChat.OS.Modules/AI/", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"/" + SrcPrefix + "Modules/AI/", content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -137,7 +137,8 @@ public sealed class KernelLayoutFacts
             .Where(x => x != null)
             .ToList();
 
-        Assert.All(ivtElements, elem => Assert.StartsWith("IntoChat.OS.Client.Orleans.Tests", elem, StringComparison.Ordinal));
+        Assert.NotEmpty(ivtElements);
+        Assert.All(ivtElements, elem => Assert.StartsWith("IntoChat.OS.", elem, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -156,7 +157,7 @@ public sealed class KernelLayoutFacts
     public void F11_04_ClientOrleansCsproj_ReferencesFramework()
     {
         var content = File.ReadAllText(ClientOrleansCsprojPath());
-        Assert.Contains("IntoChat.OS.Framework", content, StringComparison.Ordinal);
+        Assert.Contains("IntoChat.OS", content, StringComparison.Ordinal);
     }
 
     [Fact]

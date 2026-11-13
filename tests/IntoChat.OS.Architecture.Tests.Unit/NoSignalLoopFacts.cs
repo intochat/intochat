@@ -12,8 +12,8 @@ public sealed partial class NoSignalLoopFacts
     private static readonly string[] ClientAndPrompt =
     [
         "IntoChat.OS/Runtime/Watch/Sources.cs",
-        "IntoChat.OS.Modules.Flutter/Workspace/LiveSignalEndpoints.cs",
-        "IntoChat.OS.Modules.Apps/Authoring/AgentPrompts.cs",
+        "IntoChat.OS.Modules.Shell/Workspace/LiveSignalEndpoints.cs",
+        "IntoChat.OS.Modules.Catalog/Authoring/AgentPrompts.cs",
     ];
 
     [GeneratedRegex(@"WatchRenewing\(|\bObserverManager\b|\bINeuronObserver\b|\bI?LocalSignalHub\b|\bSignalNudge\b|\.Watch\(|\.Unwatch\(", RegexOptions.CultureInvariant)]

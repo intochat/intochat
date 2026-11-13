@@ -1,5 +1,6 @@
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Primitives;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -19,10 +20,14 @@ internal static class LocalDiskEndpoints
     }
 
     private static async Task<IResult> Roots(string brainId, IServiceProvider services)
-        => Results.Ok(await Neuron(services, brainId).Roots().ConfigureAwait(false));
+    {
+        if (!ValidateBrainId(brainId)) { return Results.BadRequest(new { error = "Invalid brain id." }); }
+        return Results.Ok(await Neuron(services, brainId).Roots().ConfigureAwait(false));
+    }
 
     private static async Task<IResult> Change(string brainId, LocalDiskRootInput input, IServiceProvider services, bool allow)
     {
+        if (!ValidateBrainId(brainId)) { return Results.BadRequest(new { error = "Invalid brain id." }); }
         if (LocalDiskRoots.Syntax(input.Path) is { } syntax) { return Results.BadRequest(new { error = syntax }); }
         try
         {
@@ -34,6 +39,11 @@ internal static class LocalDiskEndpoints
         catch (Exception error) when (LocalDiskRoots.FailureText(error) is { } text)
         { return Results.BadRequest(new { error = text }); }
     }
+
+    private static bool ValidateBrainId(string? brainId)
+        => !string.IsNullOrWhiteSpace(brainId)
+           && SafeRelativePath.TryParse(brainId, out var safe)
+           && !safe.Value.Contains('/');
 
     private static ILocalDisk Neuron(IServiceProvider services, string brainId)
         => SiloNeurons.Get<ILocalDisk>(services, new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brainId), LocalDiskNeuron.TypeName, LocalDiskNeuron.KeyName));

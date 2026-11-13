@@ -41,9 +41,9 @@ public sealed partial class RepositoryPathLiteralFacts
     // subject, not a way to configure a run.
     private static readonly string[] ProjectionFacts =
     [
-        "IntoChat.OS.Aspire.Hosting.Tests.Unit/HostEnvironmentFacts.cs",
-        "IntoChat.OS.Aspire.Hosting.Tests.Unit/ConfigurationFileFacts.cs",
-        "IntoChat.OS.Aspire.Hosting.Tests.Unit/LegacyConfigurationGuardFacts.cs",
+        "IntoChat.OS.Tests.Unit/AspireHosting/HostEnvironmentFacts.cs",
+        "IntoChat.OS.Tests.Unit/AspireHosting/ConfigurationFileFacts.cs",
+        "IntoChat.OS.Tests.Unit/AspireHosting/LegacyConfigurationGuardFacts.cs",
     ];
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed partial class RepositoryPathLiteralFacts
         var offenders = Repository.ProjectFiles("*.cs",
                 path => EnvironmentLiteral().IsMatch(File.ReadAllText(path)),
                 project => project.Name.Contains(".Tests", StringComparison.Ordinal)
-                    && !project.Directory.Contains(Path.DirectorySeparatorChar + "Testing" + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                    && project.Name is not ("IntoChat.OS.Tests.Support" or "IntoChat.OS.Architecture.Tests.Unit"))
             .Select(Repository.ProjectKey)
             .Where(key => !ProjectionFacts.Contains(key, StringComparer.Ordinal))
             .Order().ToArray();

@@ -5,6 +5,8 @@ using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.LocalDisk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using DigitalBrain.Log;
 using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -56,6 +58,7 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
 
     internal static async Task EnsureDefaultLocalRootsAsync(IServiceProvider services, string brain)
     {
+        var logger = services.GetService<ILoggerFactory>()?.CreateLogger<FilesHost>() ?? (ILogger)NullLogger.Instance;
         try
         {
             var disk = SiloNeurons.Get<ILocalDisk>(services, new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), "local-disk", "main"));
@@ -65,13 +68,13 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
                 try { await disk.AllowRoot(workspaceRoot); }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
-                    _ = error.Message;
+                    logger.LogSwallowed(error, "Failed to allow default workspace root on local disk.");
                 }
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _ = error.Message;
+            logger.LogSwallowed(error, "Failed to resolve local-disk neuron for default local roots.");
         }
     }
 

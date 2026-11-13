@@ -55,13 +55,11 @@ public sealed partial class CiWorkflowFacts
         Assert.Contains("-p:IntoChatOSOnlyTier=Integration", testIntegration, StringComparison.Ordinal);
         Assert.Contains("azurite", testIntegration, StringComparison.Ordinal);
         Assert.Contains("postgres:16", testIntegration, StringComparison.Ordinal);
-        Assert.Contains("qdrant", testIntegration, StringComparison.Ordinal);
 
         var e2e = Job(ci, "e2e");
         Assert.Contains("needs: [build]", e2e, StringComparison.Ordinal);
         Assert.Contains("--no-build", e2e, StringComparison.Ordinal);
-        Assert.Contains("IntoChat.OS.Kernel.Tests.E2E.csproj", e2e, StringComparison.Ordinal);
-        Assert.Contains("IntoChat.OS.Kernel.Tests.E2E.Aspire.csproj", e2e, StringComparison.Ordinal);
+        Assert.Contains("IntoChat.OS.Tests.E2E.csproj", e2e, StringComparison.Ordinal);
         Assert.DoesNotContain("--filter-trait \"needs=artcraft\"", e2e, StringComparison.Ordinal);
 
         var flutter = Job(ci, "flutter");

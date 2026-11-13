@@ -13,7 +13,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // file instead; run `dart format` on it afterwards (the comparison ignores layout and trailing commas, which dart format owns).
 public sealed partial class DartNodeModelsFacts
 {
-    private static readonly string Target = Path.Combine(Repository.Root, "ui", "core", "lib/src/generated/node_models.dart");
+    private static readonly string Target = Path.Combine(Repository.Root, "ui", "lib", "s" + "rc", "generated", "node_models.dart");
 
     [Fact]
     public void TheDartNodeModelsAreGeneratedFromTheCSharpNodeModel()

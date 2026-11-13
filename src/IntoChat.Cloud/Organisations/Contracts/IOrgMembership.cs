@@ -1,5 +1,5 @@
 using DigitalBrain.Access;
-using IntoChat.Cloud.Mail;
+using IntoChat.OS;
 
 namespace IntoChat.Cloud.Organisations;
 
@@ -8,7 +8,7 @@ public interface IOrgMembership
 {
     const string Type = "organisations.membership";
 
-    static string Key(string principalId) => $"{SystemShard.BrainOf(principalId)}/membership/{principalId}";
+    static string Key(string principalId) => $"{NeuronKeys.SystemShard(principalId)}/membership/{principalId}";
 
     [Internal]
     Task<OrgMembershipState?> Get();

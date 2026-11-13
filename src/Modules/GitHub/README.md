@@ -33,6 +33,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 | `private-key-pem` | yes |
 | `webhook-secret` | yes |
 
-Contracts: assembly `IntoChat.OS.Modules.Microsoft.GitHub.Contracts` (`IRepository`).
+Contracts: assembly `IntoChat.OS.Modules.GitHub` (`IRepository`).
 Hosting: runs in process.
 <!-- END GENERATED -->

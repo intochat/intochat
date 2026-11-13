@@ -43,7 +43,6 @@ public sealed class BootFacts(OsAppHostFixture host)
         var names = model.Resources.Select(r => r.Name).ToHashSet(StringComparer.Ordinal);
 
         Assert.Contains("OperatingSystem-a", names);
-        Assert.Contains("intochat-os-mcp-a", names);
         Assert.Empty(model.Resources.OfType<ContainerResource>());
         Assert.Empty(model.Resources.OfType<YarpResource>());
         Assert.DoesNotContain(model.Resources, r => r.Annotations.Any(a => a.GetType().Name.EndsWith("BuildAnnotation", StringComparison.Ordinal)));

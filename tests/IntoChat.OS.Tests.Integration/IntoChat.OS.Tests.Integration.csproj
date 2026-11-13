@@ -13,7 +13,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="Modules/Catalog/FeatureFixture/**" />
-    <None Include="Modules/Shell/Contracts/*.golden.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Modules/Shell/Contracts/*.golden.json" Link="Contracts/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Modules/Catalog/FeatureFixture/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>

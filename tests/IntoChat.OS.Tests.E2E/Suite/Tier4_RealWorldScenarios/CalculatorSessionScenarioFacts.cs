@@ -94,10 +94,10 @@ public sealed record CalculatorScenarioState(
     private static string Format(double value) => value.ToString("G15", CultureInfo.InvariantCulture);
 }
 
-[Signal("calculator.key")]
+[Signal("interactive-calculator.key")]
 public sealed record CalculatorKeySignal(string Key, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? By = null) : Signal;
 
-[Signal("calculator.clear")]
+[Signal("interactive-calculator.clear")]
 public sealed record CalculatorClearSignal([property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? By = null) : Signal;
 
 public sealed record DivisorNotZeroRule(string? PendingOperator, double Divisor) : Rule("divisor.not-zero")

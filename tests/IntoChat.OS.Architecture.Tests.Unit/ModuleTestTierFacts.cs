@@ -32,14 +32,22 @@ public sealed partial class ModuleTestTierFacts
     [Fact]
     public void EveryNeuronModuleHasAUnitTierOnTestOS()
     {
+        var unit = Repository.ProjectNamed("IntoChat.OS.Tests.Unit");
+        var closure = Closure(unit.Path);
+        Assert.True(closure.Contains("DigitalBrain.Testing") || closure.Contains("DigitalBrain.Testing.Silo"),
+            $"{unit.Name}: does not reach DigitalBrain.Testing (TestOS)");
+        var orleans = Repository.PackageReferences(unit.Path).Where(package => package.StartsWith("Microsoft.Orleans", StringComparison.Ordinal)).ToArray();
+        Assert.Empty(orleans);
+
+        var unitTestsDir = Path.Combine(unit.Directory, "Modules");
         var offenders = new List<string>();
         foreach (var module in NeuronModules())
         {
-            if (!Repository.Projects.TryGetValue(module + ".Tests.Unit", out var unit)) { offenders.Add($"{module}: no {module}.Tests.Unit"); continue; }
-            var closure = Closure(unit.Path);
-            if (!closure.Contains("DigitalBrain.Testing") && !closure.Contains("DigitalBrain.Testing.Silo")) { offenders.Add($"{unit.Name}: does not reach DigitalBrain.Testing (TestOS)"); }
-            var orleans = Repository.PackageReferences(unit.Path).Where(package => package.StartsWith("Microsoft.Orleans", StringComparison.Ordinal)).ToArray();
-            if (orleans.Length > 0) { offenders.Add($"{unit.Name}: references {string.Join(", ", orleans)}"); }
+            var shortName = module["IntoChat.OS.Modules.".Length..];
+            if (!Directory.Exists(Path.Combine(unitTestsDir, shortName)))
+            {
+                offenders.Add($"{module}: no tests under tests/IntoChat.OS.Tests.Unit/Modules/{shortName}");
+            }
         }
         Assert.True(offenders.Count == 0, "Neuron modules need a unit tier on TestOS without Orleans (TEST-01):\n" + string.Join('\n', offenders));
     }
@@ -50,11 +58,13 @@ public sealed partial class ModuleTestTierFacts
         var offenders = new List<string>();
         foreach (var (module, provides) in Providers())
         {
-            var kit = Repository.TestProjects().Where(project => project.Name.StartsWith(module + ".Tests.", StringComparison.Ordinal))
+            var shortName = module["IntoChat.OS.Modules.".Length..];
+            var kit = Repository.TestProjects()
                 .SelectMany(project => Repository.SourceFiles(project.Directory, "*.cs"))
+                .Where(path => Repository.Relative(path).Contains($"/Modules/{shortName}/", StringComparison.OrdinalIgnoreCase))
                 .Any(path => KitSubclass().IsMatch(File.ReadAllText(path)));
             // Drive's storage@1 is the remote Drive neuron. A conformance kit needs a Google account, so it is not an in-process subclass.
-            if (!kit && module != "IntoChat.OS.Modules.Google.Drive") { offenders.Add($"{module} provides {provides} but no test project of it subclasses a capability kit"); }
+            if (!kit && module != "IntoChat.OS.Modules.Google") { offenders.Add($"{module} provides {provides} but no test file of it subclasses a capability kit"); }
         }
         Assert.True(offenders.Count == 0, "Capability providers run the conformance kit (TEST-01, CAP-04):\n" + string.Join('\n', offenders));
     }
@@ -62,8 +72,8 @@ public sealed partial class ModuleTestTierFacts
     [Fact]
     public void TheScanSeesNeuronModulesAndProviders()
     {
-        Assert.Contains("IntoChat.OS.Modules.Identity", NeuronModules());
-        Assert.Contains(Providers(), provider => provider.Module == "IntoChat.OS.Modules.Identity");
+        Assert.Contains("IntoChat.OS.Modules.AI", NeuronModules());
+        Assert.Contains(Providers(), provider => provider.Module == "IntoChat.OS.Modules.Storage");
     }
 
     // Module assemblies in this repository whose static ModuleManifest provides at least one capability.

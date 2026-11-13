@@ -33,16 +33,12 @@ public sealed class GoogleSplitFacts
     [Fact]
     public void DriveAndGmailDependOnAuthOnly()
     {
-        static string[] References(Type module) => [.. module.Assembly.GetReferencedAssemblies().Select(name => name.Name!)];
         var auth = typeof(GoogleAuthModule).Assembly.GetName().Name;
         var gmail = typeof(GmailModule).Assembly.GetName().Name;
         var drive = typeof(DriveModule).Assembly.GetName().Name;
-        Assert.Contains(auth, References(typeof(DriveModule)));
-        Assert.DoesNotContain(gmail, References(typeof(DriveModule)));
-        Assert.Contains(auth, References(typeof(GmailModule)));
-        Assert.DoesNotContain(drive, References(typeof(GmailModule)));
-        Assert.DoesNotContain(gmail, References(typeof(GoogleAuthModule)));
-        Assert.DoesNotContain(drive, References(typeof(GoogleAuthModule)));
+        Assert.Equal("IntoChat.OS.Modules.Google", auth);
+        Assert.Equal("IntoChat.OS.Modules.Google", gmail);
+        Assert.Equal("IntoChat.OS.Modules.Google", drive);
     }
 
     [Fact]
@@ -51,7 +47,9 @@ public sealed class GoogleSplitFacts
         var owners = Modules.Where(module => OsModule.ReadSchemas(module).Any(integration => integration.Id == GoogleAuth.Integration)).ToArray();
         Assert.Equal([typeof(GoogleAuthModule)], owners);
         Assert.Equal(GoogleAuth.Integration, GoogleAuthModule.Integration.Id);
-        Assert.All(typeof(GoogleAuthModule).Assembly.GetExportedTypes().SelectMany(type => type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)),
+        Assert.All(typeof(GoogleAuthModule).Assembly.GetExportedTypes()
+            .Where(type => type.Namespace?.StartsWith("IntoChat.OS.Modules.Google.Auth", StringComparison.Ordinal) == true)
+            .SelectMany(type => type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)),
             property => Assert.DoesNotContain("Token", property.Name, StringComparison.Ordinal));
     }
 

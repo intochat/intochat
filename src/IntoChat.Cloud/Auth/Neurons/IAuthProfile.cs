@@ -1,5 +1,5 @@
 using DigitalBrain.Access;
-using IntoChat.Cloud.Mail;
+using IntoChat.OS;
 
 namespace IntoChat.Cloud.Auth.Neurons;
 
@@ -10,7 +10,7 @@ public interface IAuthProfile
 {
     const string Type = "auth.profile";
 
-    static string Key(string principalId) => $"{SystemShard.BrainOf(principalId)}/auth/profile/{principalId}";
+    static string Key(string principalId) => $"{NeuronKeys.SystemShard(principalId)}/auth/profile/{principalId}";
 
     [Internal]
     Task<ProfileView> Get();

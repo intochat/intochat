@@ -209,35 +209,21 @@ jobs:
           flutter-version: '3.47.2'
           cache: true
 
-      - name: Resolve Flutter workspace
+      - name: Resolve Flutter dependencies
         working-directory: ui
         run: flutter pub get --enforce-lockfile
 
       - name: Dart format check
         working-directory: ui
-        run: dart format --output=none --set-exit-if-changed core ui shell
+        run: dart format --output=none --set-exit-if-changed lib test
 
-      - name: Analyze Flutter packages
+      - name: Analyze Flutter package
         working-directory: ui
-        run: |
-          (cd core && dart analyze --fatal-infos) &
-          p1=$!
-          (cd ui && flutter analyze --no-pub) &
-          p2=$!
-          (cd shell && flutter analyze --no-pub) &
-          p3=$!
-          wait $p1 && wait $p2 && wait $p3
+        run: dart analyze --fatal-infos
 
       - name: Flutter tests
         working-directory: ui
-        run: |
-          (cd core && flutter test --no-pub --concurrency=4) &
-          p1=$!
-          (cd ui && flutter test --no-pub --exclude-tags golden --concurrency=4) &
-          p2=$!
-          (cd shell && flutter test --no-pub --concurrency=4) &
-          p3=$!
-          wait $p1 && wait $p2 && wait $p3
+        run: flutter test --no-pub --exclude-tags golden --concurrency=4
 
   ci:
     name: ci

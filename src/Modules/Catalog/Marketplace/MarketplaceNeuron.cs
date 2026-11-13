@@ -19,5 +19,5 @@ internal sealed class MarketplaceNeuron : DigitalBrain.Neurons.Neuron, IMarketpl
     public Task Remove(string publisher, string name) => Task.CompletedTask;
 
     internal static string? OwnerKey(MarketplaceListing listing)
-        => listing.Source.Scope() is { } scope ? IApp.Key(scope, listing.Name) : null;
+        => CatalogEntry.ResolveOwnerKey(listing);
 }

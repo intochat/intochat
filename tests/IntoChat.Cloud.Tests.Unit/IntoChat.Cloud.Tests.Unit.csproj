@@ -7,8 +7,8 @@
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Auth/Goldens/Account/*.json" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Lobby/Goldens/Lobby/*.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Auth/Goldens/Account/*.json" Link="Goldens/Account/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Lobby/Goldens/Lobby/*.json" Link="Goldens/Lobby/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/IntoChat.OS/IntoChat.OS.csproj" />

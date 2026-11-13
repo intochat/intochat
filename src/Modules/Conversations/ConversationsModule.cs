@@ -1,4 +1,7 @@
 using DigitalBrain.Modules;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.Conversations;
 
@@ -9,5 +12,13 @@ public sealed class ConversationsModule : Module
 
     public static System.Reflection.Assembly? Contracts => typeof(ConversationsModule).Assembly;
 
-    public static ModuleManifest Manifest { get; } = new([], [], [], [], []);
+    public static ModuleManifest Manifest { get; } = new(Provides: [], Requires: [], Needs: [], Settings: [], Secrets: []);
+
+    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        services.TryAddSingleton<IConversationDomainService, ConversationDomainService>();
+    }
 }

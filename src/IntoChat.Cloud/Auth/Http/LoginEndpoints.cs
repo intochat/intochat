@@ -43,7 +43,7 @@ internal static class LoginEndpoints
     {
         var (body, failure) = await AuthProblems.ReadAsync<VerifyRequest>(http.Request);
         if (failure is not null) { return failure; }
-        if (IAuthCode.KeyForCodeId(challengeId, out var purpose) is null || purpose != CodePurpose.Login)
+        if (AuthCodeKeys.ForCodeId(challengeId, out var purpose) is null || purpose != CodePurpose.Login)
         {
             return AuthProblems.NotFound();
         }
@@ -90,7 +90,7 @@ internal static class LoginEndpoints
 
     private static async Task<IResult> ResendAsync(string challengeId, AuthCalls calls)
     {
-        if (IAuthCode.KeyForCodeId(challengeId, out var purpose) is null || purpose != CodePurpose.Login) { return AuthProblems.NotFound(); }
+        if (AuthCodeKeys.ForCodeId(challengeId, out var purpose) is null || purpose != CodePurpose.Login) { return AuthProblems.NotFound(); }
         var challenge = await calls.CodeById(challengeId, (code, _) => code.GetChallenge(challengeId))!;
         if (challenge is null) { return AuthProblems.NotFound(); }
         var issue = await calls.CodeById(challengeId, (code, _) => code.Resend())!;

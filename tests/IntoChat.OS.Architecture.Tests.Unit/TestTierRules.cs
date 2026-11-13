@@ -64,9 +64,9 @@ public sealed partial class TestTierRules
     {
         string[] owners =
         [
-            "IntoChat.OS.Modules.Microsoft.Playwright",
+            "IntoChat.OS.Modules.Playwright",
             "IntoChat.OS.Modules.AI",
-            "IntoChat.OS.Modules.Flutter",
+            "IntoChat.OS.Modules.Shell",
         ];
         var found = new List<string>();
         foreach (var project in Repository.Projects.Values)

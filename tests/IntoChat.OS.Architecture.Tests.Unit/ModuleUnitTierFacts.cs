@@ -5,9 +5,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // whose module has since gained a unit tier is stale and fails too, so the list only ever shrinks.
 public sealed class ModuleUnitTierFacts
 {
-    private static readonly Dictionary<string, string> Exempt = new(StringComparer.Ordinal)
-    {
-    };
+    private static readonly Dictionary<string, string> Exempt = new(StringComparer.Ordinal);
 
     [Fact]
     public void EveryModuleHasAUnitTierOrIsExempt()
@@ -25,7 +23,7 @@ public sealed class ModuleUnitTierFacts
     }
 
     private static bool HasUnitTier(string module)
-        => Repository.Projects.ContainsKey($"IntoChat.OS.Modules.{module}.Tests.Unit");
+        => Directory.Exists(Path.Combine(Repository.Root, "tests", "IntoChat.OS.Tests.Unit", "Modules", module));
 
     // Module main projects: IntoChat.OS.Modules.<Name>, not contracts, hosting, sandbox, shared fixtures or tests.
     private static IEnumerable<string> Modules()
