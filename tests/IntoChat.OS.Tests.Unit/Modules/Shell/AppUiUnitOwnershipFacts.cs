@@ -77,6 +77,10 @@ public sealed class AppUiUnitOwnershipFacts
 
         public FakeUnitScreen(PublishedView published) => _published = published;
 
+        public Task<PublishedView?> Open() => Read();
+
+        public Task Act(ScreenAction action) => Activate(action.Alias ?? _published.Alias, action.Generation, action.NodeKey, action.FieldValue);
+
         public Task<PublishedView?> Read(string? alias = null) => Task.FromResult<PublishedView?>(_published);
 
         public Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null)

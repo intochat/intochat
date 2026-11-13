@@ -177,22 +177,54 @@ internal static class AppsEndpoints
 
     private static IApp App(INeuronProxies brain, string name) => brain.Get<IApp>(AppKey(name));
 
+    internal static System.Text.Json.JsonElement? BuildScreenRequestArgs(string name, string operation, string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) { return null; }
+        var scalar = input;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(input);
+            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                return doc.RootElement.Clone();
+            }
+            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Null)
+            {
+                return null;
+            }
+            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                scalar = doc.RootElement.GetString() ?? string.Empty;
+            }
+        }
+        catch (System.Text.Json.JsonException error)
+        {
+            NullLogger.Instance.LogSwallowed(error, "Screen request input is not JSON; forwarding raw scalar.");
+        }
+
+        var op = operation.Contains('.', StringComparison.Ordinal)
+            ? operation[(operation.IndexOf('.', StringComparison.Ordinal) + 1)..]
+            : operation;
+        var field = (name.ToLowerInvariant(), op.ToLowerInvariant()) switch
+        {
+            ("desktop", "narrow") => "narrow",
+            ("desktop", "open" or "close-app") => "app",
+            ("desktop", "close" or "tab") => "target",
+            ("desktop", "focus" or "newtab" or "favourite") => "windowId",
+            ("desktop", "pin" or "unpin") => "appId",
+            ("desktop", "widget-open" or "widget-close") => "widget",
+            ("settings", "open" or "navigate") => "section",
+            _ => "input",
+        };
+        return field == "input"
+            ? System.Text.Json.JsonSerializer.SerializeToElement(new Dictionary<string, string> { ["input"] = scalar })
+            : System.Text.Json.JsonSerializer.SerializeToElement(new Dictionary<string, string> { ["input"] = scalar, [field] = scalar });
+    }
+
     private static async Task ForwardScreenRequest(INeuronProxies brain, string scope, string name, string operation, string input, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(name) || name.Contains('/')) { return; }
-        System.Text.Json.JsonElement? args = null;
-        if (!string.IsNullOrWhiteSpace(input))
-        {
-            try
-            {
-                using var doc = System.Text.Json.JsonDocument.Parse(input);
-                args = doc.RootElement.Clone();
-            }
-            catch (System.Text.Json.JsonException)
-            {
-                args = System.Text.Json.JsonSerializer.SerializeToElement(new { input });
-            }
-        }
+        var args = BuildScreenRequestArgs(name, operation, input);
         try
         {
             var screenId = new DigitalBrain.NeuronId(new DigitalBrain.BrainId(scope), "app." + name, "default");
@@ -201,7 +233,7 @@ internal static class AppsEndpoints
             var signal = operation.Contains('.', StringComparison.Ordinal) ? operation : $"{name}.{operation}";
             await screen.Request(signal, args).WaitAsync(ct);
         }
-        catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+        catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException or System.Text.Json.JsonException)
         {
             NullLogger.Instance.LogSwallowed(error, "Screen request forwarding failed.");
         }

@@ -21,6 +21,10 @@ internal sealed class RecordingApp : Neuron, IScreen, IApp
         return Task.FromResult(Guid.NewGuid());
     }
 
+    public Task<PublishedView?> Open() => Read(alias: null);
+
+    public Task Act(ScreenAction action) => Activate(action.Alias ?? string.Empty, action.Generation, action.NodeKey, action.FieldValue);
+
     public Task<PublishedView?> Read(string? alias = null) => Task.FromResult<PublishedView?>(null);
 
     public Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null)

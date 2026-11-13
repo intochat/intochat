@@ -168,6 +168,27 @@ internal static class FlutterHostLaunch
     private static void HealWindowsEphemeral(string workingDirectory, string deviceTarget)
     {
         var ephemeralDir = Path.Combine(workingDirectory, deviceTarget, "flutter", "ephemeral");
+        var generatedConfig = Path.Combine(ephemeralDir, "generated_config.cmake");
+        if (File.Exists(generatedConfig))
+        {
+            var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            var expectedBackslash = $"\"PROJECT_DIR={workingDirectory.Replace("\\", "\\\\", StringComparison.Ordinal)}\"";
+            var expectedSlash = $"\"PROJECT_DIR={workingDirectory.Replace('\\', '/')}\"";
+            var config = File.ReadAllText(generatedConfig);
+            if (!config.Contains(expectedBackslash, comparison) && !config.Contains(expectedSlash, comparison))
+            {
+                if (Directory.Exists(ephemeralDir))
+                {
+                    Directory.Delete(ephemeralDir, recursive: true);
+                }
+                var buildDir = Path.Combine(workingDirectory, "build", deviceTarget);
+                if (Directory.Exists(buildDir))
+                {
+                    Directory.Delete(buildDir, recursive: true);
+                }
+            }
+        }
+
         var symlinksDir = Path.Combine(ephemeralDir, ".plugin_symlinks");
         if (Directory.Exists(symlinksDir))
         {

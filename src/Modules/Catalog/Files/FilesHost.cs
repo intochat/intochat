@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using DigitalBrain.Log;
+using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
@@ -6,7 +9,6 @@ using IntoChat.OS.Modules.LocalDisk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using DigitalBrain.Log;
 using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -14,6 +16,8 @@ namespace IntoChat.OS.Modules.Apps;
 // Hosts Files in this process. The workspace neuron still publishes the same views; the script folder no longer does.
 internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.IClusterListeners listeners, ILogger<FilesHost> logger) : IStartupTask
 {
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new(StringComparer.Ordinal);
+
     public async Task Execute(CancellationToken cancellationToken)
     {
         _ = await listeners.Listen<Activated>(nameof(FilesHost), (publisher, _, _) =>
@@ -37,20 +41,41 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
         using var cleared = InProcessCallerScope.ClearCaller();
         try
         {
-            using var kernel = InProcessCallerScope.EnterKernel(brain);
-            await EnsureDefaultLocalRootsAsync(services, brain);
-            var key = IApp.Key(brain, "files");
-            var app = SiloNeurons.Get<IApp>(services, key);
-            var snapshot = await app.Read();
-            if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
+            var gate = _gates.GetOrAdd(brain, static _ => new SemaphoreSlim(1, 1));
+            await gate.WaitAsync();
+            try
             {
-                await app.Import(FilesRequests.Bundle);
+                using var kernel = InProcessCallerScope.EnterKernel(brain);
+                await EnsureDefaultLocalRootsAsync(services, brain);
+                var key = IApp.Key(brain, "files");
+                var app = SiloNeurons.Get<IApp>(services, key);
+                var snapshot = await app.Read();
+                if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
+                {
+                    try
+                    {
+                        await app.Import(FilesRequests.Bundle);
+                    }
+                    catch (RuleViolationException error)
+                    {
+                        snapshot = await app.Read();
+                        if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title)) { throw; }
+                        logger.LogDebug(error, "The files app was already imported concurrently in {Brain}.", brain);
+                    }
+                    snapshot = await app.Read();
+                }
+                var workspace = SiloNeurons.Get<IFilesWorkspace>(services, key + "/workspace");
+                await workspace.Open(CancellationToken.None);
                 snapshot = await app.Read();
+                using (InProcessCallerScope.EnterApp(brain, key))
+                {
+                    await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
+                }
             }
-            var workspace = SiloNeurons.Get<IFilesWorkspace>(services, key + "/workspace");
-            await workspace.Open(CancellationToken.None);
-            snapshot = await app.Read();
-            await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
+            finally
+            {
+                gate.Release();
+            }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         { logger.LogWarning(error, "The files app was not installed in {Brain}.", brain); }
@@ -92,7 +117,10 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
             {
                 await workspace.Open(cancellationToken);
                 var snapshot = await app.Read();
-                await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
+                using (InProcessCallerScope.EnterApp(brain, key))
+                {
+                    await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
+                }
             }
             if (await FilesRequests.Forward(workspace, request, cancellationToken) is { } failure)
             { await app.Progress("attention", failure); }

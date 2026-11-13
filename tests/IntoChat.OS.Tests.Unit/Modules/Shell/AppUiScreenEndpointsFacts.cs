@@ -44,6 +44,10 @@ public sealed class AppUiScreenEndpointsFacts
             _published = published;
         }
 
+        public Task<PublishedView?> Open() => Read();
+
+        public Task Act(ScreenAction action) => Activate(action.Alias ?? _published.Alias, action.Generation, action.NodeKey, action.FieldValue);
+
         public Task<PublishedView?> Read(string? alias = null)
             => Task.FromResult<PublishedView?>(_published);
 

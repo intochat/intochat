@@ -1,11 +1,30 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 internal static class FlutterVmService
 {
+    public static async Task<bool> IsReadyAsync(int ddsPort, CancellationToken cancellationToken, ILogger? logger = null)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(2));
+        try
+        {
+            await using var session = await Session.ConnectAsync(ddsPort, timeout.Token).ConfigureAwait(false);
+            _ = await session.GetMainIsolateIdAsync(timeout.Token).ConfigureAwait(false);
+            return true;
+        }
+        catch (Exception error) when (!cancellationToken.IsCancellationRequested)
+        {
+            (logger ?? NullLogger.Instance).LogDebug(error, "Flutter VM service on 127.0.0.1:{Port} is not ready yet.", ddsPort);
+            return false;
+        }
+    }
+
     public static async Task WaitUntilReadyAsync(int ddsPort, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var deadline = DateTime.UtcNow + timeout;

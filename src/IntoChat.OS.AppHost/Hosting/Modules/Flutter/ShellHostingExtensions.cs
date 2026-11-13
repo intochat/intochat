@@ -178,7 +178,7 @@ public static class ShellHostingExtensions
                             StringComparison.OrdinalIgnoreCase)));
             if (appHost.ExecutionContext.IsRunMode && hasVmService)
             {
-                ArmHotReload(host, launch.WorkingDirectory);
+                ArmHotReload(appHost, host, resourceName, launch.WorkingDirectory);
             }
 
             _flutterHost = host;
@@ -222,9 +222,20 @@ public static class ShellHostingExtensions
                 .AsBrainBrowser(path: "/?semantics=true", readySelector: "flt-semantics");
         }
 
-        private static void ArmHotReload(IResourceBuilder<ExecutableResource> host, string workingDirectory)
+        private static void ArmHotReload(
+            IDistributedApplicationBuilder appHost,
+            IResourceBuilder<ExecutableResource> host,
+            string resourceName,
+            string workingDirectory)
         {
             var ddsPort = ShellNames.FlutterDdsPort;
+            var vmCheck = resourceName + "-vm";
+            appHost.Services.AddHealthChecks().Add(new HealthCheckRegistration(
+                vmCheck,
+                _ => new FlutterVmHealthCheck(ddsPort),
+                failureStatus: null,
+                tags: null));
+            host.WithHealthCheck(vmCheck);
             var watchRoots = ResolveWatchRoots(workingDirectory);
             host
                 .WithArgs(
@@ -374,6 +385,14 @@ public static class ShellHostingExtensions
             throw new DirectoryNotFoundException(
                 $"No Flutter package above '{appHostDirectory}'. Expected ui/pubspec.yaml "
                 + "under the repository root, or pass FlutterHostOptions.WorkingDirectory.");
+        }
+
+        private sealed class FlutterVmHealthCheck(int ddsPort) : IHealthCheck
+        {
+            public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+                => await FlutterVmService.IsReadyAsync(ddsPort, cancellationToken).ConfigureAwait(false)
+                    ? HealthCheckResult.Healthy()
+                    : HealthCheckResult.Unhealthy("Waiting for the Flutter desktop window and Dart VM service.");
         }
     }
 }

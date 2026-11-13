@@ -8,13 +8,13 @@ using Xunit;
 namespace IntoChat.OS.Tests.E2E.Tier1_FeatureCoverage;
 
 /// <summary>
-/// Tier 1 Feature Coverage facts for Feature 1 (Central Packages 0.19.0 Bump),
+/// Tier 1 Feature Coverage facts for Feature 1 (Central Packages 0.20.0 Bump),
 /// Feature 3 (DigitalBrain.Simulation substitution), and Feature 6 (FrameworkBoundaryFacts parity).
 /// </summary>
 public sealed class PackageRestoreFacts : E2ETestBase
 {
     [Fact]
-    public void T1_F01_TC01_CentralPackagesProps_AllDigitalBrainPackagesPinnedTo0190()
+    public void T1_F01_TC01_CentralPackagesProps_AllDigitalBrainPackagesPinnedTo0200()
     {
         var doc = XDocument.Load(PackagesPropsPath);
         var dbPackages = doc.Descendants("PackageVersion")
@@ -24,19 +24,19 @@ public sealed class PackageRestoreFacts : E2ETestBase
         Assert.NotEmpty(dbPackages);
         Assert.True(dbPackages.Count >= 17, $"Expected at least 17 DigitalBrain packages, found {dbPackages.Count}.");
 
-        var non0190Offenders = dbPackages
-            .Where(x => x.Attribute("Version")?.Value != "0.19.0")
+        var non0200Offenders = dbPackages
+            .Where(x => x.Attribute("Version")?.Value != "0.20.0")
             .Select(x => $"{x.Attribute("Include")?.Value}: {x.Attribute("Version")?.Value}")
             .ToList();
 
-        Assert.True(non0190Offenders.Count == 0,
-            "All DigitalBrain packages must be pinned to 0.19.0 in Directory.Packages.props:\n" + string.Join("\n", non0190Offenders));
+        Assert.True(non0200Offenders.Count == 0,
+            "All DigitalBrain packages must be pinned to 0.20.0 in Directory.Packages.props:\n" + string.Join("\n", non0200Offenders));
     }
 
     [Fact]
-    public void T1_F01_TC02_ZeroLegacy018Versions_AcrossEntireRepository()
+    public void T1_F01_TC02_ZeroLegacy018Or019Versions_AcrossEntireRepository()
     {
-        var regex = new Regex(@"\b0\.18\.[0-9a-zA-Z\.\-]+", RegexOptions.Compiled);
+        var regex = new Regex(@"\b0\.(?:18|19)\.[0-9a-zA-Z\.\-]+", RegexOptions.Compiled);
         var buildFiles = Directory.EnumerateFiles(RepoRoot, "*.*", SearchOption.AllDirectories)
             .Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
                         f.EndsWith(".props", StringComparison.OrdinalIgnoreCase) ||
@@ -57,7 +57,7 @@ public sealed class PackageRestoreFacts : E2ETestBase
         }
 
         Assert.True(offenders.Count == 0,
-            "No 0.18.* packages allowed anywhere in repository:\n" + string.Join("\n", offenders));
+            "No 0.18.* or 0.19.* packages allowed anywhere in repository:\n" + string.Join("\n", offenders));
     }
 
     [Fact]
@@ -90,18 +90,18 @@ public sealed class PackageRestoreFacts : E2ETestBase
     }
 
     [Fact]
-    public void T1_F01_TC05_DigitalBrainSimulation_CentrallyDeclaredAt0190()
+    public void T1_F01_TC05_DigitalBrainSimulation_CentrallyDeclaredAt0200()
     {
         var doc = XDocument.Load(PackagesPropsPath);
         var simPackage = doc.Descendants("PackageVersion")
             .FirstOrDefault(p => p.Attribute("Include")?.Value == "DigitalBrain.Simulation");
 
         Assert.NotNull(simPackage);
-        Assert.Equal("0.19.0", simPackage.Attribute("Version")?.Value);
+        Assert.Equal("0.20.0", simPackage.Attribute("Version")?.Value);
     }
 
     [Fact]
-    public void T1_F01_TC06_Dx03PackagesListInFrameworkBoundaryFacts_Matches0190PackableSet()
+    public void T1_F01_TC06_Dx03PackagesListInFrameworkBoundaryFacts_Matches0200PackableSet()
     {
         var frameworkFactsFile = Path.Combine(RepoRoot, "tests", "IntoChat.OS.Architecture.Tests.Unit", "FrameworkBoundaryFacts.cs");
         Assert.True(File.Exists(frameworkFactsFile), "FrameworkBoundaryFacts.cs must exist.");

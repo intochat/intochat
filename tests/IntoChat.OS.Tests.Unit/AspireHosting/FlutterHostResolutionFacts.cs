@@ -47,4 +47,36 @@ public sealed class FlutterHostResolutionFacts
             Assert.NotEmpty(Path.GetExtension(launch.Command));
         }
     }
+
+    [Fact]
+    public void WindowHostHealsRelocatedEphemeralCmakeConfig()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "flutter-heal-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(tempRoot, "lib"));
+            File.WriteAllText(Path.Combine(tempRoot, "lib", "main.dart"), "void main() {}");
+            var ephemeralDir = Path.Combine(tempRoot, "windows", "flutter", "ephemeral");
+            Directory.CreateDirectory(ephemeralDir);
+            File.WriteAllText(
+                Path.Combine(ephemeralDir, "generated_config.cmake"),
+                "list(APPEND FLUTTER_TOOL_ENVIRONMENT\n  \"PROJECT_DIR=E:\\\\old\\\\ui\\\\shell\"\n)\n");
+            var buildDir = Path.Combine(tempRoot, "build", "windows");
+            Directory.CreateDirectory(buildDir);
+            File.WriteAllText(Path.Combine(buildDir, "CMakeCache.txt"), "// stale");
+
+            var launch = FlutterHostLaunch.Resolve(FlutterHostKind.Window, tempRoot, new FlutterHostOptions());
+
+            Assert.Equal("windows", launch.DeviceTarget);
+            Assert.False(Directory.Exists(ephemeralDir));
+            Assert.False(Directory.Exists(buildDir));
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
 }

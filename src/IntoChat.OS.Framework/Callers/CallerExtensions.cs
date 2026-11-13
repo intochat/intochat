@@ -1,4 +1,4 @@
-// os-only: Bridges legacy CapabilityCaller to 0.19.0 DigitalBrain Caller
+// os-only: Bridges legacy CapabilityCaller to 0.20.0 DigitalBrain Caller
 using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Access;
@@ -76,19 +76,39 @@ public static class InProcessCallerScope
     public static IDisposable EnterKernel(string brainId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        var platform = DigitalBrain.Capabilities.CapabilityCallers.Platform(brainId, brainId, brainId);
         var inProcess = Enter();
+        var stamped = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(platform);
         var ambient = (IDisposable)EnterAmbientMethod.Invoke(
             AmbientInstance,
-            [DigitalBrain.Capabilities.CapabilityCallers.Platform(brainId, brainId, brainId).ToCaller()])!;
-        return new KernelScope(ambient, inProcess);
+            [platform.ToCaller()])!;
+        return new KernelScope(ambient, stamped, inProcess);
     }
 
-    private sealed class KernelScope(IDisposable first, IDisposable second) : IDisposable
+    public static IDisposable EnterApp(string brainId, string appKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(appKey);
+        var app = CapabilityCaller.App(appKey) with
+        {
+            AccountId = brainId,
+            BrainId = brainId,
+        };
+        var inProcess = Enter();
+        var stamped = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(app);
+        var ambient = (IDisposable)EnterAmbientMethod.Invoke(
+            AmbientInstance,
+            [app.ToCaller()])!;
+        return new KernelScope(ambient, stamped, inProcess);
+    }
+
+    private sealed class KernelScope(IDisposable first, IDisposable second, IDisposable third) : IDisposable
     {
         public void Dispose()
         {
             first.Dispose();
             second.Dispose();
+            third.Dispose();
         }
     }
 }

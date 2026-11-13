@@ -268,6 +268,8 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         await SyncSmartDesktopAsync(nextLayout, State.IsNarrow);
     }
 
+    private sealed record DesktopOpenViewArgs(string Input, string View, string Section);
+
     [On]
     public async Task Open(DesktopOpen request)
     {
@@ -280,7 +282,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 try
                 {
                     try { await Get<IntoChat.OS.Modules.Apps.IApp>($"apps/{app}").Request("open", view.Trim()); }
-                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException) { await Get<IScreen>("app." + app).Request("open", System.Text.Json.JsonSerializer.SerializeToElement(view.Trim())); }
+                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException) { await Get<IScreen>("app." + app).Request("open", System.Text.Json.JsonSerializer.SerializeToElement(new DesktopOpenViewArgs(view.Trim(), view.Trim(), view.Trim()))); }
                 }
                 catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The app was not there to receive its open view."); }
             }

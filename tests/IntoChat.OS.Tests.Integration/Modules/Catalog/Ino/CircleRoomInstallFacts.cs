@@ -77,9 +77,11 @@ public sealed class CircleRoomInstallFacts
         var check = await brain.Studio.Check(ShippedUnits.Files(Alias)["CircleRoom.cs"]);
         Assert.True(check.Ok, check.Text);
         Assert.DoesNotContain("DB0045", check.Text, StringComparison.Ordinal);
-        // Installed, the room's state answers as its own view reader (a view appears with its first state, as the unit's scenario
-        // fact shows: CircleRoomUnitFacts.AJoinThenAMessageShowsBothInTheView).
-        Assert.Null(await runtime.Get<IViewReader>(new NeuronId(runtime.Brain, Alias, "default")).Read(Alias));
+        // Installed, the room's state answers as its own view reader and renders its initial view on activation.
+        var initialView = await runtime.Get<IViewReader>(new NeuronId(runtime.Brain, Alias, "default")).Read(Alias);
+        Assert.NotNull(initialView);
+        Assert.Equal(Alias, initialView.Alias);
+        Assert.Equal(1L, initialView.Generation);
         Assert.Empty(await brain.Installs.Pending(Ct));
         // The next connect finds the unit installed and finishes the app's build.
         await brain.Born();
