@@ -10,12 +10,10 @@
   <Project Path="src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" />
   <Project Path="src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
   <Project Path="src/Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
-  <Project Path="src/Modules/Authoring/IntoChat.OS.Modules.Authoring.csproj" />
   <Project Path="src/Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />
   <Project Path="src/Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
   <Project Path="src/Modules/Circles/IntoChat.OS.Modules.Circles.csproj" />
   <Project Path="src/Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
-  <Project Path="src/Modules/Conversations/IntoChat.OS.Modules.Conversations.csproj" />
   <Project Path="src/Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
   <Project Path="src/Modules/Google/IntoChat.OS.Modules.Google.csproj" />
   <Project Path="src/Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
@@ -28,7 +26,6 @@
   <Project Path="src/Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
   <Project Path="src/Modules/Time/IntoChat.OS.Modules.Time.csproj" />
   <Project Path="src/Modules/Windows/IntoChat.OS.Modules.Windows.csproj" />
-  <Project Path="src/Modules/Work/IntoChat.OS.Modules.Work.csproj" />
   <Project Path="tests/IntoChat.OS.Architecture.Tests.Unit/IntoChat.OS.Architecture.Tests.Unit.csproj" />
   <Project Path="tests/IntoChat.OS.Tests.Support/IntoChat.OS.Tests.Support.csproj" />
   <Project Path="tests/IntoChat.OS.Tests.Unit/IntoChat.OS.Tests.Unit.csproj" />
