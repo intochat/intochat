@@ -91,17 +91,48 @@ public sealed class NeuronSurface(INeuronProxies brain, IBrainObserver kernel, N
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
         var type = await Contract(contract, ct).ConfigureAwait(false);
         JsonElement[] payload;
-        try { payload = JsonSerializer.Deserialize<JsonElement[]>(arguments, Json) ?? []; }
+        try { payload = string.IsNullOrWhiteSpace(arguments) ? [] : JsonSerializer.Deserialize<JsonElement[]>(arguments, Json) ?? []; }
         catch (JsonException error) { throw new ArgumentException("arguments must be a JSON array: " + error.Message, nameof(arguments)); }
-        var target = type.GetMethods().Concat(type.GetInterfaces().SelectMany(inherited => inherited.GetMethods()))
+        var candidates = type.GetMethods().Concat(type.GetInterfaces().SelectMany(inherited => inherited.GetMethods()))
             .Where(candidate => candidate.Name == method)
-            .SingleOrDefault(candidate => candidate.GetParameters().Count(IsArgument) == payload.Length)
-            ?? throw new ArgumentException($"{type.Name} has no method {method} taking {payload.Length} arguments.");
+            .ToArray();
+        static int TotalArguments(MethodInfo candidate) => candidate.GetParameters().Count(IsArgument);
+        static int RequiredArguments(MethodInfo candidate) => candidate.GetParameters().Count(p => IsArgument(p) && !p.HasDefaultValue);
+        var exactMatches = candidates.Where(candidate => TotalArguments(candidate) == payload.Length).ToArray();
+        var compatibleMatches = exactMatches.Length > 0
+            ? exactMatches
+            : candidates.Where(candidate => RequiredArguments(candidate) <= payload.Length && payload.Length <= TotalArguments(candidate)).ToArray();
+        if (compatibleMatches.Length == 0)
+        {
+            throw new ArgumentException($"{type.Name} has no method {method} taking {payload.Length} arguments.");
+        }
+        if (compatibleMatches.Length > 1)
+        {
+            throw new ArgumentException($"{type.Name}.{method} is ambiguous for {payload.Length} arguments.");
+        }
+        var target = compatibleMatches[0];
         var parameters = target.GetParameters();
         var values = new object?[parameters.Length];
         for (int index = 0, argument = 0; index < parameters.Length; index++)
         {
-            try { values[index] = IsArgument(parameters[index]) ? payload[argument++].Deserialize(parameters[index].ParameterType, Json) : ct; }
+            var parameter = parameters[index];
+            if (!IsArgument(parameter))
+            {
+                values[index] = ct;
+                continue;
+            }
+            if (argument >= payload.Length && parameter.HasDefaultValue)
+            {
+                values[index] = parameter.DefaultValue;
+                continue;
+            }
+            try
+            {
+                var argIndex = argument++;
+                values[index] = payload[argIndex].ValueKind == JsonValueKind.Null && parameter.HasDefaultValue && parameter.ParameterType.IsValueType && Nullable.GetUnderlyingType(parameter.ParameterType) is null
+                    ? parameter.DefaultValue
+                    : payload[argIndex].Deserialize(parameter.ParameterType, Json);
+            }
             catch (JsonException error) { throw new ArgumentException($"Argument {argument - 1} of {method}: {error.Message}", nameof(arguments)); }
         }
         object? returned;

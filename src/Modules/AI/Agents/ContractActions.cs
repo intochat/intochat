@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections.Surface;
@@ -20,12 +21,33 @@ internal static class ContractActions
             Marked(conversation, async () => await surface.Search(query, ct)), NeuronSurfaceTools.SearchName, NeuronSurfaceTools.SearchDescription),
         AIFunctionFactory.Create((string contract, string key, CancellationToken ct) =>
             Marked(conversation, async () => await surface.Get(contract, key, ct)), NeuronSurfaceTools.GetName, NeuronSurfaceTools.GetDescription),
-        AIFunctionFactory.Create((string contract, string key, string method, string arguments, CancellationToken ct) =>
-            Marked(conversation, async () => (object?)await surface.Call(contract, key, method, arguments, ct) ?? new { ok = true }),
+        AIFunctionFactory.Create((
+            string contract,
+            string key,
+            string method,
+            [Description("JSON array of method arguments, e.g. [\"arg1\"] or \"[\\\"arg1\\\"]\" (omit or [] for 0-argument methods).")] JsonElement? arguments = null,
+            CancellationToken ct = default) =>
+            Marked(conversation, async () => (object?)await surface.Call(contract, key, method, NormalizeArguments(arguments), ct) ?? new { ok = true }),
             NeuronSurfaceTools.CallName, NeuronSurfaceTools.CallDescription),
         AIFunctionFactory.Create(() => Marked(conversation, () => Task.FromResult<object>(RuntimeCallerContext.Require())),
             NeuronSurfaceTools.ContextName, NeuronSurfaceTools.ContextDescription),
     ];
+
+    internal static string NormalizeArguments(JsonElement? arguments)
+    {
+        if (arguments is not { } element || element.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+        {
+            return "[]";
+        }
+
+        if (element.ValueKind == JsonValueKind.String)
+        {
+            var raw = element.GetString();
+            return string.IsNullOrWhiteSpace(raw) ? "[]" : raw;
+        }
+
+        return element.GetRawText();
+    }
 
     // The model acts as the agent: a grant-checked caller of its own, whose denials come back to it as error results.
     internal static async Task<object> Marked(string conversation, Func<Task<object>> action)

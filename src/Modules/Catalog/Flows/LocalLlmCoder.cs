@@ -217,11 +217,12 @@ public sealed class LocalLlmCoder : ICoder
                 try
                 {
                     var desc = await inference.Describe(selection, marker: null, cancellationToken: ct, brainId: null).ConfigureAwait(false);
-                    // AiProvider.Host with "default" when no IChatClient is registered throws on CreateClient; verify!
-                    if (!string.Equals(desc.Provider, "Host", StringComparison.OrdinalIgnoreCase)
-                        || _services?.GetService<global::Microsoft.Extensions.AI.IChatClient>() is not null)
+                    // AiProvider.Host with "default" when no IChatClient is registered throws on CreateClient; also require tool support for coding!
+                    if (desc.Tools == CapabilitySupport.Supported
+                        && (!string.Equals(desc.Provider, "Host", StringComparison.OrdinalIgnoreCase)
+                            || _services?.GetService<global::Microsoft.Extensions.AI.IChatClient>() is not null))
                     {
-                        return new InferenceServiceRunner(inference, selection, desc.Model);
+                        return new InferenceServiceRunner(inference, selection, desc.Model, desc.Temperature == CapabilitySupport.Supported);
                     }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
@@ -330,13 +331,14 @@ public sealed class LocalLlmCoder : ICoder
         Task<InferenceResult> InvokeAsync(IReadOnlyList<AiMessage> messages, IReadOnlyList<InferenceTool> tools, CancellationToken ct);
     }
 
-    private sealed class InferenceServiceRunner(IModelInference inference, ModelSelection? selection, string modelId) : IModelTurnRunner
+    private sealed class InferenceServiceRunner(IModelInference inference, ModelSelection? selection, string modelId, bool supportsTemperature) : IModelTurnRunner
     {
         public string ModelId => modelId;
 
         public Task<InferenceResult> InvokeAsync(IReadOnlyList<AiMessage> messages, IReadOnlyList<InferenceTool> tools, CancellationToken ct)
         {
-            var req = new InferenceRequest(messages, Model: selection, Options: new InferenceOptions(Temperature: 0.1f), Tools: tools);
+            var options = supportsTemperature ? new InferenceOptions(Temperature: 0.1f) : null;
+            var req = new InferenceRequest(messages, Model: selection, Options: options, Tools: tools);
             return inference.Generate(req, marker: null, cancellationToken: ct, brainId: null);
         }
     }

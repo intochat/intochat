@@ -40,4 +40,13 @@ public sealed class ContractActionsFacts
         Assert.Equal(("p1", "a1", "b1", "chat-1"), (seen.PrincipalId, seen.AccountId, seen.BrainId, seen.ConversationId));
         Assert.Equal(original, RuntimeCallerContext.Require());
     }
+
+    [Fact]
+    public void NormalizeArgumentsAcceptsNullStringifiedArrayAndNativeJsonArray()
+    {
+        Assert.Equal("[]", ContractActions.NormalizeArguments(null));
+        Assert.Equal("[]", ContractActions.NormalizeArguments(JsonDocument.Parse("null").RootElement));
+        Assert.Equal("[\"owner\",\"pref\",\"body\"]", ContractActions.NormalizeArguments(JsonDocument.Parse("""["owner","pref","body"]""").RootElement));
+        Assert.Equal("[\"owner\",\"pref\",\"body\"]", ContractActions.NormalizeArguments(JsonDocument.Parse(""""["owner","pref","body"]"""").RootElement));
+    }
 }

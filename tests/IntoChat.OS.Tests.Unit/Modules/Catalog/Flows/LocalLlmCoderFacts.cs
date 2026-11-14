@@ -100,9 +100,58 @@ public sealed class LocalLlmCoderFacts : IDisposable
         Assert.Contains("public static int V => 42;", updated, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task LocalLlmCoderOmitsTemperatureWhenModelDescriptorReportsUnknownTemperatureSupport()
+    {
+        InferenceOptions? capturedOptions = new(Temperature: 0.9f);
+        var inference = new ScriptedModelInference(
+            req =>
+            {
+                capturedOptions = req.Options;
+                return new AiMessage(
+                    "assistant",
+                    [
+                        new AiToolCall("call-write", "write_file", """{"path":"code/Note.txt","content":"updated\n"}"""),
+                    ]);
+            },
+            req =>
+            {
+                capturedOptions = req.Options;
+                return new AiMessage(
+                    "assistant",
+                    [
+                        new AiText("Added Note.txt."),
+                    ]);
+            })
+        {
+            TemperatureSupport = CapabilitySupport.Unknown,
+        };
+
+        var services = new ServiceCollection()
+            .AddSingleton<IModelInference>(inference)
+            .BuildServiceProvider();
+        var coder = new LocalLlmCoder(services);
+        var lease = new WorkTreeLease(
+            RunId: "run-2",
+            RepositoryId: "os",
+            SourceRepoPath: _treePath,
+            TreePath: _treePath,
+            RealGitDirPath: _treePath,
+            GitPointerSha256Hex: new string('b', 64),
+            BaseBranch: "main",
+            BaseCommitSha: new string('a', 40),
+            BranchName: "ino/update-note-run2",
+            GitHubRepo: "intochat/os");
+
+        var edit = await coder.EditAsync(lease, "Add Note.txt", Ct);
+        Assert.Null(capturedOptions);
+        Assert.Equal(["code/Note.txt"], edit.TouchedFiles);
+    }
+
     private sealed class ScriptedModelInference(params Func<InferenceRequest, AiMessage>[] turns) : IModelInference
     {
         private readonly Queue<Func<InferenceRequest, AiMessage>> _turns = new(turns);
+        public CapabilitySupport TemperatureSupport { get; init; } = CapabilitySupport.Supported;
 
         public bool HasProfile(string name) => true;
 
@@ -114,7 +163,7 @@ public sealed class LocalLlmCoderFacts : IDisposable
                 "local",
                 CapabilitySupport.Supported,
                 CapabilitySupport.Unsupported,
-                CapabilitySupport.Supported));
+                TemperatureSupport));
 
         public Task<InferenceResult> Generate(InferenceRequest request, Type? marker, CancellationToken cancellationToken, string? brainId)
         {

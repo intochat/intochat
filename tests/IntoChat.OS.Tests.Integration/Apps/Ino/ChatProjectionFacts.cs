@@ -142,6 +142,50 @@ public sealed class ChatProjectionFacts(InoSiloFixture fixture) : IClassFixture<
         Assert.Contains("not a contract this app composes", recordedToolCall.Error, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task NeuronsCallAcceptsNativeJsonArrayAndOptionalDefaultParametersOnIMemory()
+    {
+        var brain = fixture.NewBrain("memargs");
+        using var _ = fixture.AsPerson(brain);
+        var memoryContract = typeof(IMemory).FullName!;
+
+        var stepCount = 0;
+        fixture.Model.Respond((_, _, _) =>
+        {
+            if (Interlocked.Increment(ref stepCount) == 1)
+            {
+                var nativeArrayArgs = JsonDocument.Parse("""["owner","testing","Always use xUnit v3"]""").RootElement.Clone();
+                var callArgs = new Dictionary<string, object?>
+                {
+                    ["contract"] = memoryContract,
+                    ["key"] = $"{brain}/memory",
+                    ["method"] = nameof(IntoChat.OS.Modules.AI.Memory.IMemory.RememberPreference),
+                    ["arguments"] = nativeArrayArgs,
+                };
+                return Task.FromResult(new ChatResponse(new ChatMessage(
+                    AiChatRole.Assistant,
+                    [new FunctionCallContent("call-mem", NeuronSurfaceTools.CallName, callArgs)])));
+            }
+
+            return Task.FromResult(new ChatResponse(new ChatMessage(AiChatRole.Assistant, "Saved preference.")));
+        });
+
+        var agentKey = $"{brain}/ino/conversations/mem-default-args";
+        var agent = SiloNeurons.Get<IAgent>(fixture.Services, agentKey);
+        await agent.Configure(new AgentDefinition { Contracts = [memoryContract] }, 0);
+
+        var runId = await agent.Start(AgentTurn.Text("Remember I prefer xUnit v3"));
+        var finished = await WaitUntilAgentAsync(agent, s => s.Runs.Any(r => r.RunId == runId));
+        var completedRun = Assert.Single(finished.Runs, r => r.RunId == runId);
+
+        Assert.Equal(AgentRunStatus.Completed, completedRun.Status);
+        var toolCall = Assert.Single(completedRun.ToolCalls);
+        Assert.Null(toolCall.Error);
+
+        var snapshot = await SiloNeurons.Get<IntoChat.OS.Modules.AI.Memory.IMemory>(fixture.Services, $"{brain}/memory").Read();
+        Assert.Contains(snapshot.Notes, n => n.Scope == "owner" && n.Subject == "testing" && n.Body == "Always use xUnit v3" && n.Importance == 8);
+    }
+
     private static async Task<ChatState> WaitUntilChatAsync(IChat chat, Func<ChatState, bool> predicate)
     {
         var sw = Stopwatch.StartNew();
