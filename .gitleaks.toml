@@ -12,6 +12,7 @@ commits = [
 paths = [
   '''src/IntoChat\.OS\.Modules/IntoChat\.OS/Identity/.*''',
   '''src/IntoChat\.OS\.Apps\.Tests\.Unit/Calculator/CalculatorAndUsageAppFacts\.cs''',
+  '''tests/IntoChat\.OS\.Tests\.Integration/Apps/Ino/InoWiringFacts\.cs''',
 ]
 regexes = [
   '''(?i)Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==''',

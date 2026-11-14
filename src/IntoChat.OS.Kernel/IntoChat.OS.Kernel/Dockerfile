@@ -58,12 +58,23 @@ RUN flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub \
 
 FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS build
 WORKDIR /src
+ARG GITHUB_ACTOR=intochat
 
 COPY nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props Intochat.OS.slnx global.json VERSION .editorconfig ./
 COPY src/ ./src/
 
 RUN --mount=type=cache,target=/root/.nuget/packages \
-    dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
+    --mount=type=secret,id=github_packages_token,required=false \
+    cp nuget.config /tmp/nuget.build.config \
+    && if [ -s /run/secrets/github_packages_token ]; then \
+         dotnet nuget update source github \
+           --username "${GITHUB_ACTOR}" \
+           --password "$(cat /run/secrets/github_packages_token)" \
+           --store-password-in-clear-text \
+           --configfile /tmp/nuget.build.config; \
+       fi \
+    && dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
+      --configfile /tmp/nuget.build.config \
       -c Release \
       -r linux-x64 \
       --self-contained false \
@@ -71,7 +82,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
       -p:DebugType=none \
       -o /out/silo \
       --nologo \
-    && rm -rf /src/artifacts
+    && rm -rf /tmp/nuget.build.config /src/artifacts
 
 FROM mcr.microsoft.com/dotnet/aspnet:11.0.0 AS final
 WORKDIR /app

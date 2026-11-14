@@ -100,6 +100,10 @@ jobs:
           context: .
           file: src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Dockerfile
           push: true
+          build-args: |
+            GITHUB_ACTOR=${{ github.actor }}
+          secrets: |
+            github_packages_token=${{ secrets.DIGITALBRAIN_READ_TOKEN || secrets.GITHUB_TOKEN }}
           tags: |
             acrintochattest.azurecr.io/os:${{ steps.version.outputs.version }}
             acrintochattest.azurecr.io/os:latest
