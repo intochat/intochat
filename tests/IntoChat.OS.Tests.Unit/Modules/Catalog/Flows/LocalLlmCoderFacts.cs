@@ -59,12 +59,21 @@ public sealed class LocalLlmCoderFacts : IDisposable
         var inference = new ScriptedModelInference(
             _ => new AiMessage("assistant",
             [
+                new AiToolCall("call-0", "list_files", "{}"),
                 new AiToolCall("call-1", "read_file", """{"path":"code/App.cs"}"""),
             ]),
             req =>
             {
-                var toolResult = req.Messages[^1].Content.OfType<AiToolResult>().Single();
-                Assert.Contains("public static int V => 1;", toolResult.ResultJson, StringComparison.Ordinal);
+                var toolResults = req.Messages[^1].Content.OfType<AiToolResult>().ToArray();
+                Assert.Equal(2, toolResults.Length);
+                foreach (var tr in toolResults)
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(tr.ResultJson);
+                    Assert.True(doc.RootElement.GetProperty("ok").GetBoolean());
+                }
+
+                _ = InferenceMapping.ToChatMessage(req.Messages[^1]);
+                Assert.Contains("public static int V => 1;", toolResults[1].ResultJson, StringComparison.Ordinal);
                 return new AiMessage("assistant",
                 [
                     new AiToolCall("call-2", "replace_in_file", """{"path":"code/App.cs","old_text":"public static int V => 1;","new_text":"public static int V => 42;"}"""),

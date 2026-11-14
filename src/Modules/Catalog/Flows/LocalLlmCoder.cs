@@ -49,6 +49,7 @@ public sealed class LocalLlmCoder : ICoder
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
     private static readonly FrozenSet<string> AllowedExtensions = new[]
@@ -184,7 +185,7 @@ public sealed class LocalLlmCoder : ICoder
             foreach (var call in toolCalls)
             {
                 var output = await sandbox.ExecuteToolAsync(call.Name, call.ArgumentsJson, ct).ConfigureAwait(false);
-                toolResults.Add(new AiToolResult(call.CallId, output));
+                toolResults.Add(new AiToolResult(call.CallId, EnsureJsonToolResult(output)));
             }
 
             messages.Add(new AiMessage("tool", [.. toolResults]));
@@ -197,6 +198,24 @@ public sealed class LocalLlmCoder : ICoder
 
         throw new InvalidOperationException(
             $"Coder exhausted {_options.MaxToolRounds} tool rounds using '{runner.ModelId}' without modifying any file.");
+    }
+
+    internal static string EnsureJsonToolResult(string? output)
+    {
+        if (!string.IsNullOrWhiteSpace(output))
+        {
+            try
+            {
+                using var _ = JsonDocument.Parse(output);
+                return output;
+            }
+            catch (JsonException)
+            {
+                return JsonSerializer.Serialize(new { ok = true, content = output }, Json);
+            }
+        }
+
+        return JsonSerializer.Serialize(new { ok = true, content = output ?? string.Empty }, Json);
     }
 
     private async Task<IModelTurnRunner> ResolveModelRunnerAsync(CancellationToken ct)

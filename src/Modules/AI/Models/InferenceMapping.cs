@@ -55,9 +55,26 @@ internal static class InferenceMapping
         AiToolCall call => new FunctionCallContent(call.CallId, call.Name,
             JsonSerializer.Deserialize<Dictionary<string, object?>>(call.ArgumentsJson)
                 ?? throw new ArgumentException("Tool arguments must be a JSON object.")),
-        AiToolResult result => new FunctionResultContent(result.CallId, JsonSerializer.Deserialize<JsonElement>(result.ResultJson)),
+        AiToolResult result => new FunctionResultContent(result.CallId, ParseToolResultJsonOrText(result.ResultJson)),
         _ => throw new NotSupportedException($"Unsupported inference content {content.GetType().Name}."),
     };
+
+    private static JsonElement ParseToolResultJsonOrText(string? raw)
+    {
+        if (string.IsNullOrEmpty(raw))
+        {
+            return JsonSerializer.SerializeToElement(string.Empty);
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<JsonElement>(raw);
+        }
+        catch (JsonException)
+        {
+            return JsonSerializer.SerializeToElement(raw);
+        }
+    }
 
     internal static AiContent FromContent(AIContent content) => content switch
     {

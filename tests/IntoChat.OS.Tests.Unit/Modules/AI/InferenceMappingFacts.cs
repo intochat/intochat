@@ -35,6 +35,11 @@ public sealed class InferenceMappingFacts
         Assert.Equal(("c1", "search"), (call.CallId, call.Name));
         Assert.Contains("\"q\"", call.ArgumentsJson, StringComparison.Ordinal);
         Assert.Contains("true", Assert.IsType<AiToolResult>(back.Content[1]).ResultJson, StringComparison.OrdinalIgnoreCase);
+
+        var rawTextBack = InferenceMapping.FromChatMessage(InferenceMapping.ToChatMessage(
+            new AiMessage("tool", [new AiToolResult("c2", "code/Program.cs\ncode/App.cs")])));
+        var rawTextResult = Assert.IsType<AiToolResult>(rawTextBack.Content[0]);
+        Assert.Contains("code/Program.cs", rawTextResult.ResultJson, StringComparison.Ordinal);
     }
 
     [Fact]
