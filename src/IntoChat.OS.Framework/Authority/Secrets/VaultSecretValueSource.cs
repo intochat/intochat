@@ -17,6 +17,9 @@ internal sealed class VaultSecretValueSource(AuthorityNeurons neurons) : ISecret
         {
             throw new UnauthorizedAccessException("Zero-token auth enforcement: sandbox and app principals cannot read raw vault secret values directly.");
         }
-        return await neurons.Vault(caller.PrincipalId).Values(caller);
+        using (InProcessCallerScope.EnterKernel("system"))
+        {
+            return await neurons.Vault(caller.PrincipalId).Values(caller);
+        }
     }
 }

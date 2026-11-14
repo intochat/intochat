@@ -47,7 +47,12 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
         var resolved = (await _access.ResolveAsync(grant.AccessToken, appId, target, CancellationToken.None)) with { Key = FullKey };
         await _verifier.VerifyAsync(resolved, CancellationToken.None);
         if (Snapshot.InstallationId != 0 && Snapshot.InstallationId != resolved.InstallationId)
-        { await Index(Snapshot.InstallationId).Remove(FullKey); }
+        {
+            using (IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system"))
+            {
+                await Index(Snapshot.InstallationId).Remove(FullKey);
+            }
+        }
         var account = $"{resolved.Owner}/{resolved.Name}";
         var next = (Snapshot.RepositoryId != resolved.RepositoryId
             ? Snapshot with { PullRequests = [], LastWebhookAt = null }
@@ -65,12 +70,22 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
         return grant with { AccessToken = "installation", RefreshToken = null, ExpiresAt = null };
     }
 
-    protected override Task OnConnectedAsync() => Index(Snapshot.InstallationId).Add(FullKey);
+    protected override async Task OnConnectedAsync()
+    {
+        using (IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system"))
+        {
+            await Index(Snapshot.InstallationId).Add(FullKey);
+        }
+    }
 
-    protected override Task OnDisconnectedAsync()
+    protected override async Task OnDisconnectedAsync()
     {
         _verifier.Forget(FullKey);
-        return Snapshot.InstallationId == 0 ? Task.CompletedTask : Index(Snapshot.InstallationId).Remove(FullKey);
+        if (Snapshot.InstallationId == 0) { return; }
+        using (IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system"))
+        {
+            await Index(Snapshot.InstallationId).Remove(FullKey);
+        }
     }
 
     protected override async Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)

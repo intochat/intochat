@@ -308,7 +308,7 @@ internal sealed partial class AppNeuron(
         // Only this app's own listing comes down with it.
         if (State.Publisher is { } publisher)
         {
-            using (InProcessCallerScope.ClearCaller())
+            using (InProcessCallerScope.EnterKernel("system"))
             {
                 if (await Marketplace.Read(publisher, Name()) is { } listed
                     && listed.Source.Scope() == BrainId())

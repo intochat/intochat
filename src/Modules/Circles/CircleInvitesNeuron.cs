@@ -68,7 +68,11 @@ internal sealed class CircleInvitesNeuron(
         var now = Now;
         var expiresAt = now + InviteCode.Clamp(request.ValidFor);
         var code = InviteCode.Generate();
-        var hash = InviteCode.Hash(code, await SiloNeurons.Get<IInviteKey>(services!, IInviteKey.Key).Get());
+        string hash;
+        using (IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system"))
+        {
+            hash = InviteCode.Hash(code, await SiloNeurons.Get<IInviteKey>(services!, IInviteKey.Key).Get());
+        }
         var invite = new CircleCodeInvite
         {
             Id = Guid.NewGuid().ToString("N"),
@@ -83,7 +87,10 @@ internal sealed class CircleInvitesNeuron(
         // Unredeemed invites past their expiry carry nothing worth keeping.
         var kept = Snapshot.Invites.Where(known => known.AcceptedAt is not null || known.ExpiresAt > now);
         await SaveQuietly(new CircleInvitesRecord { Invites = [.. kept, invite] });
-        await SiloNeurons.Get<IInviteCode>(services!, IInviteCode.Key(hash)).Bind(CircleBrain, invite.Id, expiresAt);
+        using (IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system"))
+        {
+            await SiloNeurons.Get<IInviteCode>(services!, IInviteCode.Key(hash)).Bind(CircleBrain, invite.Id, expiresAt);
+        }
         return new MintedInvite(code, expiresAt);
     }
 

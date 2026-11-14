@@ -10,7 +10,7 @@ public sealed class MarketplaceView(IServiceProvider neurons, FeatureCatalog cat
     public async Task<IReadOnlyList<MarketplaceListing>> List(CancellationToken ct)
     {
         MarketplaceListing[] people;
-        using (InProcessCallerScope.ClearCaller())
+        using (InProcessCallerScope.EnterKernel("system"))
         {
             people = await SiloNeurons.Get<IMarketplace>(neurons, IMarketplace.Key).List().WaitAsync(ct);
         }
@@ -23,7 +23,7 @@ public sealed class MarketplaceView(IServiceProvider neurons, FeatureCatalog cat
         {
             return shipped;
         }
-        using (InProcessCallerScope.ClearCaller())
+        using (InProcessCallerScope.EnterKernel("system"))
         {
             return await SiloNeurons.Get<IMarketplace>(neurons, IMarketplace.Key).Read(publisher, name).WaitAsync(ct);
         }

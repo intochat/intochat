@@ -29,7 +29,11 @@ internal sealed partial class AppNeuron
         { throw new UnauthorizedAccessException("Only the brain that owns an app can publish it."); }
         // A listing is one app: the same name from another of the publisher's brains is refused,
         // never a silent takeover of what installers already trust.
-        var listed = await Marketplace.Read(person.Principal, Name());
+        MarketplaceListing? listed;
+        using (InProcessCallerScope.EnterKernel("system"))
+        {
+            listed = await Marketplace.Read(person.Principal, Name());
+        }
         var next = State.Clone();
         var manifest = next.Manifest!;
         next.PublishedVersion = next.Version;
@@ -48,7 +52,10 @@ internal sealed partial class AppNeuron
         await Save(next, new AppChanged(name, next.Version, next.Status), new AppPublished(name, next.Version));
         // State first: a failed listing write is repaired by publishing again, never the reverse
         // (a listing whose bundle Install cannot read).
-        await Marketplace.Upsert(release.ToMarketplaceListing());
+        using (InProcessCallerScope.EnterKernel("system"))
+        {
+            await Marketplace.Upsert(release.ToMarketplaceListing());
+        }
         return Describe(State);
     }
 

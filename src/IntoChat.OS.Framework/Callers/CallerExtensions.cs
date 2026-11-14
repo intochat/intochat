@@ -65,12 +65,28 @@ public static class InProcessCallerScope
         .GetMethod("Enter", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("OrleansCallerAmbient.Enter not found.");
 
+    private static readonly string[] RequestContextKeys =
+    [
+        DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.RequestContextKey,
+        "db.cap.account",
+        "db.cap.brain",
+        "db.cap.app",
+        "db.cap.conversation",
+    ];
+
     public static IDisposable Enter() => (IDisposable)EnterMethod.Invoke(null, null)!;
 
     public static IDisposable ClearCaller()
     {
-        Orleans.Runtime.RequestContext.Remove(DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.RequestContextKey);
-        return (IDisposable)EnterAmbientMethod.Invoke(AmbientInstance, [null])!;
+        var saved = new object?[RequestContextKeys.Length];
+        for (var i = 0; i < RequestContextKeys.Length; i++)
+        {
+            saved[i] = Orleans.Runtime.RequestContext.Get(RequestContextKeys[i]);
+            Orleans.Runtime.RequestContext.Remove(RequestContextKeys[i]);
+        }
+        var inProcess = Enter();
+        var ambient = (IDisposable)EnterAmbientMethod.Invoke(AmbientInstance, [null])!;
+        return new ClearScope(ambient, inProcess, saved);
     }
 
     public static IDisposable EnterKernel(string brainId)
@@ -110,6 +126,26 @@ public static class InProcessCallerScope
             first.Dispose();
             second.Dispose();
             third.Dispose();
+        }
+    }
+
+    private sealed class ClearScope(IDisposable ambient, IDisposable inProcess, object?[] saved) : IDisposable
+    {
+        public void Dispose()
+        {
+            ambient.Dispose();
+            inProcess.Dispose();
+            for (var i = 0; i < RequestContextKeys.Length; i++)
+            {
+                if (saved[i] is { } value)
+                {
+                    Orleans.Runtime.RequestContext.Set(RequestContextKeys[i], value);
+                }
+                else
+                {
+                    Orleans.Runtime.RequestContext.Remove(RequestContextKeys[i]);
+                }
+            }
         }
     }
 }

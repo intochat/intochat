@@ -81,7 +81,7 @@ internal sealed class CircleFactoryNeuron(
         List<AppPublication> items = [];
         HashSet<string> unavailable = new(StringComparer.Ordinal);
         MarketplaceListing[] listings;
-        using (InProcessCallerScope.ClearCaller())
+        using (InProcessCallerScope.EnterKernel("system"))
         {
             listings = await SiloNeurons.Get<IMarketplace>(plain, IMarketplace.Key).List();
         }

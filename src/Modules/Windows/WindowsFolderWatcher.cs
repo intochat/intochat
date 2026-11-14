@@ -232,9 +232,9 @@ internal sealed class WindowsFolderWatcher : IHostedService, IDisposable
         {
             confinedPath = PathConfinement.Resolve([entry.NormalizedRoot], fullPath);
         }
-        catch (UnauthorizedAccessException error)
+        catch (Exception error) when (error is UnauthorizedAccessException or IOException or ObjectDisposedException)
         {
-            _logger?.LogDebug(error, "Ignoring confined path event '{FullPath}' outside '{Root}'.", fullPath, entry.NormalizedRoot);
+            _logger?.LogDebug(error, "Ignoring confined or transient path event '{FullPath}' on '{Root}'.", fullPath, entry.NormalizedRoot);
             return;
         }
 

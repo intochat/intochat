@@ -25,7 +25,7 @@ internal sealed class ConnectionBindings(AuthorityNeurons neurons, IIdentityClie
 
         var callerBrain = BrainScope.Create(caller.AccountId, caller.BrainId).Id;
         if ((await identity.Membership(callerBrain, caller.PersonId))?.AccountId != caller.AccountId) { return false; }
-        if (await neurons.Directory().OwnerOfBrain(ConnectionKeys.Parse(connectionKey).BrainId) is not { } account
+        if (await identity.OwnerOfBrain(ConnectionKeys.Parse(connectionKey).BrainId) is not { } account
             || (await identity.Membership(callerBrain, account.OwnerPrincipalId))?.AccountId != account.AccountId) { return false; }
         // The lookup is the gate's own: unstamped, so the call filter it serves does not evaluate it again.
         var stamped = Orleans.Runtime.RequestContext.Get(RuntimeCallerContext.RequestContextKey);

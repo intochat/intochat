@@ -99,7 +99,10 @@ internal sealed class CircleInviteRedeemer(IServiceProvider plain) : ICircleInvi
     public async Task<RedeemOutcome> Redeem(string code, string machineId, string machineKeyThumbprint, string machineName)
     {
         if (!InviteCode.TryNormalize(code, out var normalized)) { return RedeemOutcome.Rejected; }
-        var hash = InviteCode.Hash(normalized, await SiloNeurons.Get<IInviteKey>(plain, IInviteKey.Key).Get());
-        return await SiloNeurons.Get<IInviteCode>(plain, IInviteCode.Key(hash)).Redeem(new RedeemInvite(hash, machineId, machineKeyThumbprint, machineName));
+        using (IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system"))
+        {
+            var hash = InviteCode.Hash(normalized, await SiloNeurons.Get<IInviteKey>(plain, IInviteKey.Key).Get());
+            return await SiloNeurons.Get<IInviteCode>(plain, IInviteCode.Key(hash)).Redeem(new RedeemInvite(hash, machineId, machineKeyThumbprint, machineName));
+        }
     }
 }
