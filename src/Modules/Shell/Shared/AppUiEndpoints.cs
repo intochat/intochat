@@ -215,6 +215,7 @@ internal static class AppUiEndpoints
         if (input.Kind == UIVocabulary.ConfirmationType)
         {
             if (input.Name != IConfirmationInbox.Key(scope)) { throw new UnauthorizedAccessException(); }
+            ShellPresenceGate.RequireDirectPerson();
             var (planId, approve) = ConfirmationAnswer(input);
             await brain.Get<IConfirmationInbox>(input.Name).Resolve(planId, approve).WaitAsync(ct);
             return Results.Ok(new { delivered = true });
@@ -329,6 +330,7 @@ internal static class AppUiEndpoints
                         return IntentResult(action.Intent!);
 
                     case ViewActivationKind.Resolve:
+                        ShellPresenceGate.RequireDirectPerson();
                         var surfaceAppKey = AppOf(scope, input.Name);
                         if (hosted is null || surfaceAppKey is null || !hosted.IsHostLoaded(surfaceAppKey))
                         {
@@ -386,6 +388,7 @@ internal static class AppUiEndpoints
             case ViewActivationKind.Intent:
                 return IntentResult(activation.Intent!);
             case ViewActivationKind.Resolve:
+                ShellPresenceGate.RequireDirectPerson();
                 // Confirmations are an OS-surface privilege: the view's app must be host-loaded (kernel provenance, IHostedAppTypes).
                 if (hosted is null || appKey is null || !hosted.IsHostLoaded(appKey))
                 { throw new UnauthorizedAccessException($"Only an OS surface can answer a confirmation; {name} cannot."); }

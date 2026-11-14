@@ -22,6 +22,7 @@ namespace IntoChat.OS.Authority.Identity;
 public static class AccountSession
 {
     public const string DefaultLogin = Authority.DefaultOwner.Login;
+    public const string LocalAppId = "local";
     public const string CheckPath = "/auth/check";
 
     private const string BasicScheme = "Basic";
@@ -135,7 +136,41 @@ public static class AccountSession
             return Build(owner ? DefaultLogin : credential.Username, owner ? DefaultLogin : credential.Username, context);
         }
 
-        return posture == IdentityPosture.Open ? Build(DefaultLogin, DefaultLogin, context) : null;
+        if (posture != IdentityPosture.Open)
+        {
+            return null;
+        }
+
+        var presenceProof = context.RequestServices?.GetService<IPresenceProof>();
+        if (context.Request.Headers.TryGetValue(PresenceProofValidator.HeaderName, out var presenceHeaders) && presenceHeaders.Count > 0)
+        {
+            if (presenceHeaders.Count == 1
+                && presenceProof is not null
+                && presenceProof.MatchesHeader(presenceHeaders[0]))
+            {
+                return Build(DefaultLogin, DefaultLogin, context);
+            }
+
+            // An explicit presence header that is missing a validator or fails constant-time verification
+            // fails closed with 401 so stale shells refresh rather than downgrading silently.
+            return null;
+        }
+
+        if (context.Request.Cookies.TryGetValue(PresenceProofValidator.CookieName, out var presenceCookie)
+            && !string.IsNullOrEmpty(presenceCookie))
+        {
+            if (presenceProof is not null
+                && PresenceProofValidator.IsSameOriginRequest(context.Request)
+                && presenceProof.MatchesCookie(presenceCookie))
+            {
+                return Build(DefaultLogin, DefaultLogin, context);
+            }
+
+            return null;
+        }
+
+        // Unproved Open loopback traffic never inherits Actor.Person; stamp a non-person local app caller.
+        return Build(DefaultLogin, DefaultLogin, context) with { AppId = LocalAppId };
     }
 
     private static CapabilityCaller Build(string principalId, string accountId, HttpContext context, string? claimBrain = null)
@@ -157,7 +192,7 @@ public static class AccountSession
 
         // The login and session endpoints exist to establish the session the gate would require.
         var requested = request.Path.Value?.ToLowerInvariant();
-        if (requested is "/identity/session" or "/identity/logout")
+        if (requested is "/identity/session" or "/identity/logout" or PresenceProofValidator.ExchangePath)
         {
             return true;
         }

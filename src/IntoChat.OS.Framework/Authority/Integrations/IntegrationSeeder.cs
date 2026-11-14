@@ -72,6 +72,7 @@ internal sealed class IntegrationSeeder(
             return;
         }
 
+        using var _ = IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system");
         var registration = neurons.Integration(definition.Id);
         var after = await registration.Seed(new ConfigureIntegration { Values = values }).WaitAsync(cancellationToken);
         logger.LogInformation("Integration {IntegrationId} is {Status} after seeding.", definition.Id, after.Status);

@@ -14,13 +14,13 @@ internal sealed class LocalIdentityClient(AuthorityNeurons neurons) : IIdentityC
 
     private static async Task<T> SystemCall<T>(Func<Task<T>> call)
     {
-        using var _ = InProcessCallerScope.ClearCaller();
+        using var _ = InProcessCallerScope.EnterKernel("system");
         return await call();
     }
 
     private static async Task SystemCall(Func<Task> call)
     {
-        using var _ = InProcessCallerScope.ClearCaller();
+        using var _ = InProcessCallerScope.EnterKernel("system");
         await call();
     }
 

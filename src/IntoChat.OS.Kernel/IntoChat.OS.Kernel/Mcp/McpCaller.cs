@@ -34,9 +34,13 @@ internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions>
     internal CapabilityCaller Stamp()
     {
         var context = http.HttpContext ?? throw new UnauthorizedAccessException("MCP requires an HTTP caller.");
-        var caller = AccountSession.ResolveCaller(context, auth.Value)
+        var resolved = AccountSession.ResolveCaller(context, auth.Value)
             ?? throw new UnauthorizedAccessException("MCP requires an authenticated caller.");
+        var caller = AsAgent(resolved);
         RuntimeCallerContext.Stamp(caller);
         return caller;
     }
+
+    internal static CapabilityCaller AsAgent(CapabilityCaller caller)
+        => caller with { AppId = CapabilityCallers.AssistantApp, ConversationId = "mcp" };
 }

@@ -20,9 +20,13 @@ LocalRunDefaults.Apply(builder.Configuration);
 var topology = builder.Configuration[IntoChatOSNames.TopologyKey];
 var catalog = (OperatingSystem.IsWindows() ? OperatingSystemModules.WithWindowsEdge() : OperatingSystemModules.Modules)
     .Where(module => module.LoadsUnder(topology)).ToArray();
+var dashboardEnabled = builder.Configuration.GetValue<bool>("OrleansDashboard:Enabled")
+    || builder.Configuration.GetValue<bool>("IntoChatOS:OrleansDashboard:Enabled")
+    || (builder.Environment.IsDevelopment() && !string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]));
 builder.AddIntoChatOSServer(server =>
 {
-    server.UseOrleansDashboard().AddOperatingSystem(catalog);
+    if (dashboardEnabled) { server.UseOrleansDashboard(); }
+    server.AddOperatingSystem(catalog);
     if (!CloudHost.IsCloud(topology)) { return; }
     server.UseLicenseCheck(new CloudLicenseCheck()).ConfigureServices(CloudHost.Register);
 });
