@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.UI;
 
@@ -9,6 +10,11 @@ namespace IntoChat.OS.Apps;
 // Emits<TSignal>(appName, signal) for strongly typed screen reactions, Intent for what the client does itself.
 public static class AppSignals
 {
+    private static readonly JsonSerializerOptions EmitJson = new(JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
     public static Emit Emit(string owner, string signal, params string[] args)
     {
         var normalizedOwner = owner.StartsWith("app.", StringComparison.Ordinal) || owner.Contains('/') ? owner : "app." + owner;
@@ -27,7 +33,7 @@ public static class AppSignals
     {
         ArgumentNullException.ThrowIfNull(signal);
         var owner = appName.StartsWith("app.", StringComparison.Ordinal) || appName.Contains('/') ? appName : "app." + appName;
-        return new Emit(owner, AliasOf(typeof(TSignal)), JsonSerializer.SerializeToElement(signal, signal.GetType()));
+        return new Emit(owner, AliasOf(typeof(TSignal)), JsonSerializer.SerializeToElement(signal, signal.GetType(), EmitJson));
     }
 
     public static Intent Copy(string text) => new(IntentKind.Copy, text);

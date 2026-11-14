@@ -136,6 +136,15 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         await base.OnActivate(cancellationToken);
         try { await Follow<IUserSettings, UserSettingsChanged>("settings"); }
         catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "settings"); }
+        try
+        {
+            await Context.Synapses.EnsureBrainWide([
+                typeof(DigitalBrain.Confirmation.ConfirmationRequested),
+                typeof(DigitalBrain.Confirmation.ConfirmationResolved),
+                typeof(IntoChat.OS.Modules.Apps.Flows.FlowsChanged),
+            ]);
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "confirmations-synapses"); }
 
         var agentKey = InoModel.AgentKeyOf(State.ConversationId);
         if (await EnsureChatAsync(agentKey))
@@ -461,6 +470,45 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
             : InoModel.Resume(State);
         var approvals = await ReadApprovalsAsync();
         await Show(next with { Approvals = approvals });
+    }
+
+    [DigitalBrain.Neurons.On]
+    public async Task OnConfirmationRequested(DigitalBrain.Confirmation.ConfirmationRequested? requested)
+    {
+        if (requested is null || string.IsNullOrEmpty(requested.PlanId))
+        {
+            return;
+        }
+
+        var approvals = await ReadApprovalsAsync();
+        await Show(State with { Approvals = approvals });
+    }
+
+    [DigitalBrain.Neurons.On]
+    public async Task OnConfirmationResolved(DigitalBrain.Confirmation.ConfirmationResolved? resolved)
+    {
+        if (resolved is null || string.IsNullOrEmpty(resolved.PlanId))
+        {
+            return;
+        }
+
+        var approvals = await ReadApprovalsAsync();
+        await Show(State with { Approvals = approvals });
+    }
+
+    [DigitalBrain.Neurons.On]
+    public async Task OnFlowsChanged(IntoChat.OS.Modules.Apps.Flows.FlowsChanged? changed)
+    {
+        if (changed is null || string.IsNullOrEmpty(changed.FlowId))
+        {
+            return;
+        }
+
+        var approvals = await ReadApprovalsAsync();
+        if (approvals.Length > 0 || (State.Approvals?.Length ?? 0) > 0)
+        {
+            await Show(State with { Approvals = approvals });
+        }
     }
 
     // Fallback handlers when running in isolated unit tests without ShellModule/ChatNeuron.

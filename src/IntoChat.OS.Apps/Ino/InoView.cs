@@ -385,7 +385,8 @@ public static partial class InoView
                     ],
                     SystemName: "Ino",
                     Status: card.Status,
-                    SourceNeuronUri: StripNeuronUri(card.SourceNeuronUri));
+                    SourceNeuronUri: StripNeuronUri(card.SourceNeuronUri),
+                    Resolve: string.Equals(card.Status, "pending", StringComparison.OrdinalIgnoreCase) ? new Resolve(card.Id) : null);
                 break;
             case "choice":
                 yield return new ChoiceCardNode(

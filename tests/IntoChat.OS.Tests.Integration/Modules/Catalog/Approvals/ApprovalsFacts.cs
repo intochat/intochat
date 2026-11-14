@@ -40,6 +40,8 @@ public sealed class PlanRaiser(IConfirmations? confirmations = null) : DigitalBr
 public interface IPlanResolver
 {
     Task Resolve(string planId, bool approve);
+    Task<IReadOnlyList<Approval>> ReadPending();
+    Task<IReadOnlyList<Approval>> ReadPendingOf(string brainId);
 }
 
 // A neuron answering a plan through the inbox, as a flow step or a synapse would.
@@ -50,6 +52,12 @@ public sealed class PlanResolver : DigitalBrain.Neurons.Neuron, IPlanResolver
 
     public Task Resolve(string planId, bool approve)
         => Context.Get<IConfirmationInbox>(new NeuronId(Id.Brain, "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey)).Resolve(planId, approve);
+
+    public Task<IReadOnlyList<Approval>> ReadPending()
+        => Context.Get<IApprovals>(IApprovals.Key(Id.Brain.Value)).Pending();
+
+    public Task<IReadOnlyList<Approval>> ReadPendingOf(string brainId)
+        => Context.Get<IApprovals>(IApprovals.Key(brainId)).Pending();
 }
 
 // Stands in for the silo's synapse host with one staged source.
@@ -192,6 +200,13 @@ public sealed class ApprovalsFacts
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Approvals(runtime).Pending(Ct));
         }
+
+        // Same-brain neuron callers (e.g., InoApp during an async [On] reaction with no HTTP RuntimeCallerContext) can read pending approvals.
+        _ = await Eventually(runtime, list => list.Count == 1);
+        var fromSameBrainNeuron = await runtime.Get<IPlanResolver>(new NeuronId(runtime.Brain, PlanResolver.Alias, "reader")).ReadPending();
+        Assert.Single(fromSameBrainNeuron, a => a.PlanId == "delete:2");
+        var foreignNeuron = runtime.Get<IPlanResolver>(new NeuronId(new BrainId("another-brain"), PlanResolver.Alias, "reader"));
+        await Assert.ThrowsAsync<ArgumentException>(() => foreignNeuron.ReadPendingOf(runtime.Brain.Value));
     }
 
     [Fact]

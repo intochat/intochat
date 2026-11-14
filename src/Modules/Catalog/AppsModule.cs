@@ -50,6 +50,7 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.AddSingleton<IIncomingGrainCallFilter, MarketplaceWriteGuard>();
         services.AddSingleton(new CompiledAppsRegistration(typeof(AppsModule).Assembly));
         services.TryAddSingleton(FeatureCatalog.From);
+        services.TryAddSingleton<IHostedAppTypes, CatalogHostedAppTypes>();
         services.TryAddSingleton<FeatureLoader>();
         services.TryAddSingleton<AppPackageCompiler>();
         services.TryAddSingleton<SlotResolver>();

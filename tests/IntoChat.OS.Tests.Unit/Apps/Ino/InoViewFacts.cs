@@ -196,6 +196,18 @@ public sealed class InoViewFacts
         Assert.DoesNotContain("secretTokenValue12345", captured.Error ?? string.Empty, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void PendingApprovalCardsCarryAResolveActionWhileResolvedCardsDoNot()
+    {
+        var pending = Assert.IsType<ApprovalCardNode>(Assert.Single(InoView.RenderCardNodes(
+            new InoCard("plan-42", "approval", "Open Draft PR", "Create draft PR on intochat/os", "f2pr", "pending", "owner"))));
+        Assert.Equal(new Resolve("plan-42"), pending.Resolve);
+
+        var approved = Assert.IsType<ApprovalCardNode>(Assert.Single(InoView.RenderCardNodes(
+            new InoCard("plan-42", "approval", "Open Draft PR", "Create draft PR on intochat/os", "f2pr", "approved", "owner"))));
+        Assert.Null(approved.Resolve);
+    }
+
     private static IReadOnlyList<string> Texts(View view)
         => new PresentedView("main", view).Texts;
 

@@ -417,7 +417,7 @@ internal static class AppUiEndpoints
         var prefix = scope + "/apps/";
         if (!view.StartsWith(prefix, StringComparison.Ordinal)) { return null; }
         var end = view.IndexOf('/', prefix.Length);
-        return end > prefix.Length ? view[..end] : null;
+        return end > prefix.Length ? view[..end] : view.Length > prefix.Length ? view : null;
     }
 
     internal static string? ScreenAlias(string scope, string name)
@@ -498,7 +498,7 @@ internal static class ViewArgs
     public static void RequireValueUnreserved(JsonElement? args, string? value)
     {
         if (value is null || args is not { ValueKind: JsonValueKind.Object } given) { return; }
-        if (given.EnumerateObject().Any(member => string.Equals(member.Name, Value, StringComparison.OrdinalIgnoreCase)))
+        if (given.EnumerateObject().Any(member => member.Value.ValueKind != JsonValueKind.Null && string.Equals(member.Name, Value, StringComparison.OrdinalIgnoreCase)))
         { throw new ArgumentException("A view's emit already declares \"value\"; a field's text cannot replace it."); }
     }
 
@@ -509,7 +509,7 @@ internal static class ViewArgs
         {
             if (string.Equals(member.Name, By, StringComparison.OrdinalIgnoreCase))
             { throw new ArgumentException("A view's emit cannot declare \"by\": only the edge names who acted."); }
-            if (value is not null && string.Equals(member.Name, Value, StringComparison.OrdinalIgnoreCase))
+            if (value is not null && member.Value.ValueKind != JsonValueKind.Null && string.Equals(member.Name, Value, StringComparison.OrdinalIgnoreCase))
             { throw new ArgumentException("A view's emit already declares \"value\"; a field's text cannot replace it."); }
         }
     }
@@ -526,6 +526,10 @@ internal static class ViewArgs
             return JsonSerializer.SerializeToElement(items);
         }
         var payload = args is { ValueKind: JsonValueKind.Object } given ? System.Text.Json.Nodes.JsonObject.Create(given) ?? [] : new System.Text.Json.Nodes.JsonObject();
+        foreach (var existing in payload.Select(kv => kv.Key).Where(k => string.Equals(k, Value, StringComparison.OrdinalIgnoreCase)).ToArray())
+        {
+            payload.Remove(existing);
+        }
         if (args is { ValueKind: not (JsonValueKind.Object or JsonValueKind.Null or JsonValueKind.Undefined) } other) { payload["args"] = System.Text.Json.Nodes.JsonNode.Parse(other.GetRawText()); }
         payload["value"] = value;
         return JsonSerializer.SerializeToElement(payload);

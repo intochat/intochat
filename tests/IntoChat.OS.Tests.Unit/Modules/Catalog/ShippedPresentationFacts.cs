@@ -51,4 +51,27 @@ public sealed class ShippedPresentationFacts
         Assert.Null(manifests.StudioFor("routed:markdraw."));
         Assert.Null(manifests.StudioFor("routed:creator.new"));
     }
+
+    [Fact]
+    public void AppsModuleRegistersHostedAppTypesForCompiledShippedAppsOnly()
+    {
+        var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(
+            services,
+            new CompiledAppsRegistration(typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly, [typeof(IntoChat.OS.Apps.Ino.InoApp), typeof(IntoChat.OS.Apps.Settings.SettingsApp)]));
+        AppsModule.ConfigureServices(services, new global::Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
+        using var provider = global::Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(services);
+
+        var hosted = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IntoChat.OS.Framework.IHostedAppTypes>(provider);
+        Assert.True(hosted.IsHostLoaded("owner/apps/ino"));
+        Assert.True(hosted.IsHostLoaded("local/apps/settings"));
+        Assert.True(hosted.IsHostLoaded("ino"));
+        Assert.True(hosted.IsHostLoaded("creator"));
+
+        Assert.False(hosted.IsHostLoaded("owner/apps/btcalert"));
+        Assert.False(hosted.IsHostLoaded("btcalert"));
+        Assert.False(hosted.IsHostLoaded("owner/units/btcalert"));
+        Assert.False(hosted.IsHostLoaded("owner/apps/ino/view"));
+        Assert.False(hosted.IsHostLoaded(""));
+    }
 }

@@ -53,6 +53,11 @@ public sealed class FeatureCatalog
     public Task<FeatureOrigin?> Origin(string owner, string name)
         => Task.FromResult(_loaded.Value.Origins.GetValueOrDefault((owner, name)));
 
+    internal bool IsCompiledHostApp(string name)
+        => !string.IsNullOrWhiteSpace(name)
+            && _loaded.Value.Origins.TryGetValue((ShippedApps.Publisher, name), out var origin)
+            && origin is FeatureOrigin.Module;
+
     // Every shipped os app, plus every ShippedApps root.
     public Task<IReadOnlyList<(string Publisher, string Name)>> BootSet()
     {

@@ -216,6 +216,22 @@ public sealed class AppUiEventFacts
     }
 
     [Fact]
+    public async Task AFieldValueOverANullOptionalValueSucceeds()
+    {
+        var emit = IntoChat.OS.Apps.AppSignals.Emits("ino", new IntoChat.OS.Apps.Ino.InoSend());
+        Assert.False(emit.Args!.Value.TryGetProperty("value", out _));
+        Assert.False(emit.Args!.Value.TryGetProperty("Value", out _));
+
+        var merged = ViewArgs.WithValue(JsonSerializer.SerializeToElement(new { Message = (string?)null, Value = (string?)null }), "Hello Ino");
+        Assert.Equal("Hello Ino", merged.GetProperty("value").GetString());
+        Assert.False(merged.TryGetProperty("Value", out _));
+
+        var brain = new RecordingBrain(new(ViewActivationKind.Resolve, Resolve: new Resolve("plan-bare")));
+        await AppUiEndpoints.Deliver(View("owner/apps/ino", "approval", "approve"), brain, Scope, Hosted, Ct);
+        Assert.Equal(("owner/confirmations", "plan-bare", true), Assert.Single(brain.Inbox.Resolved));
+    }
+
+    [Fact]
     public async Task AFieldValueIsAppendedToAnEmitsArrayArgs()
     {
         var brain = new RecordingBrain(new(ViewActivationKind.Emit, Emit: new Emit("tasks", "relate", JsonSerializer.SerializeToElement(new[] { "f/1", "blocks" }))));
