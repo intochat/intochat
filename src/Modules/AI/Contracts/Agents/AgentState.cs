@@ -37,6 +37,8 @@ public sealed record AgentRun(
     public string? FlowId { get; init; }
     // The request trace the run started under; null when the turn arrived outside a trace.
     public string? TraceId { get; init; }
+    // Classified failure reason when Status is Failed; Unknown otherwise.
+    public AgentFailure Failure { get; init; }
 }
 
 // Transcript is read through IAgent.Transcript; it is too large to ride along on every read.

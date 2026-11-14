@@ -21,7 +21,13 @@ public interface IModelCatalog
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<ModelChoices> List(string? defaultModel = null);
     // Validates a choice id ("profile:<name>", "preset:<Marker>") for a tool-using turn.
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<ModelSelection?> Select(string? id, string? defaultModel = null);
+    // Probes local Ollama availability without exposing endpoints or secrets.
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<LocalModelSummary> DetectLocal();
+    // Stores a brain-scoped provider credential in the durable platform entry store.
+    Task SaveProviderCredential(string provider, string credentialValue);
 }
+
+public sealed record LocalModelSummary(bool Available, string? PreferredModel, string[] InstalledModels);
 
 public sealed record ModelChoices(ModelChoice Automatic, ModelChoice[] Models);
 

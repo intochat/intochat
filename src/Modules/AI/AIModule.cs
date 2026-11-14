@@ -68,6 +68,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<IPriceList, ModelPriceList>();
         AIClients.Add(services);
         services.AddHttpClient();
+        services.TryAddSingleton<Models.Ollama.ILocalOllamaProbe, Models.Ollama.HttpLocalOllamaProbe>();
         services.TryAddSingleton<HttpSystemOne>();
         services.TryAddSingleton<ModelCatalog>();
         services.TryAddSingleton<InferenceService>();
@@ -78,6 +79,11 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         AIClients.AddImageGeneration(services, options);
         VoiceToTextHosting.Add(services, options);
         services.TryAddSingleton<IKnowledgeStore, InMemoryKnowledgeStore>();
+        services.TryAddSingleton<IMemoryEmbedder, HybridMemoryEmbedder>();
+        if (FileMemoryDiskStore.TryCreateFromConfiguration(configuration) is { } diskStore)
+        {
+            services.TryAddSingleton<IMemoryDiskStore>(diskStore);
+        }
         // Memory facts, tasks and agent runs join the brain graph (brain-graph-plan Phase 3 + studio-graph-plan §3.1).
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, Memory.KnowledgeGraphSource>();
         services.TryAddSingleton<ITestVerificationService, TestVerificationService>();

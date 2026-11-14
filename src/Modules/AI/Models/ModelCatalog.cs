@@ -27,6 +27,11 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
 
     internal bool HasProfile(string name) => options.CurrentValue.ModelProfiles.ContainsKey(name);
 
+    internal Task<Ollama.LocalOllamaDetection?> DetectLocal(CancellationToken ct)
+        => services.GetService<Ollama.ILocalOllamaProbe>() is { } probe
+            ? probe.Detect(ct)
+            : Task.FromResult<Ollama.LocalOllamaDetection?>(null);
+
     public Task<ResolvedModel> Resolve(ModelSelection? selection, bool requiresTools, CancellationToken ct)
         => Resolve(null, selection, requiresTools, ct);
 
@@ -62,11 +67,26 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
             }
             if (preset is null)
             {
-                var host = new ResolvedModel(AiProvider.Host, "default", null, null, string.Empty, LlmCapabilities.Tools, reasoning, maxTokens);
-                return host with { Revision = Revision(host) };
+                if (services.GetService<IChatClient>() is null
+                    && string.IsNullOrWhiteSpace(configuration.Ollama.Endpoint)
+                    && await DetectLocal(ct).ConfigureAwait(false) is { PreferredModel.Length: > 0 } localAuto)
+                {
+                    provider = AiProvider.Ollama;
+                    modelId = localAuto.PreferredModel;
+                    endpoint = Endpoint(localAuto.Endpoint, AiProvider.Ollama);
+                    declared = LlmCapabilities.Tools;
+                }
+                else
+                {
+                    var host = new ResolvedModel(AiProvider.Host, "default", null, null, string.Empty, LlmCapabilities.Tools, reasoning, maxTokens);
+                    return host with { Revision = Revision(host) };
+                }
             }
-            provider = preset.Provider;
-            modelId = preset.Id;
+            else
+            {
+                provider = preset.Provider;
+                modelId = preset.Id;
+            }
         }
         else if (TryFindProfile(configuration, key, out var matchedProfileName, out var profile))
         {
@@ -114,8 +134,26 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
                 var host = new ResolvedModel(AiProvider.Host, modelId, null, profileName, string.Empty, declared ?? preset?.Capabilities ?? LlmCapabilities.Tools, NormalizeReasoning(reasoning), maxTokens);
                 return host with { Revision = Revision(host) };
             }
-            if (provider == AiProvider.Ollama) { throw new InvalidOperationException($"Provider 'Ollama' is not configured. Set {AIKeys.OllamaEndpoint}."); }
-            await credentials.RequireReady(AiIntegrations.IdOf(provider), ct);
+            if (provider == AiProvider.Ollama)
+            {
+                if (await DetectLocal(ct).ConfigureAwait(false) is { } localDetected)
+                {
+                    endpoint = localDetected.Endpoint;
+                    if (!localDetected.InstalledModels.Any(tag => string.Equals(tag, modelId, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        modelId = localDetected.PreferredModel;
+                    }
+                    declared ??= LlmCapabilities.Tools;
+                }
+                else
+                {
+                    throw new NoProviderConfiguredException($"Provider 'Ollama' is not configured. Set {AIKeys.OllamaEndpoint}.");
+                }
+            }
+            else
+            {
+                await credentials.RequireReady(AiIntegrations.IdOf(provider), ct);
+            }
         }
         // Integration endpoints and keys are materialized together when the client is used; persist
         // only explicit host/profile overrides, where null means the provider integration default.
@@ -327,7 +365,12 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         // Pinned options are applied inside the normal pipeline. Validate them before they
         // can overwrite the per-call ceiling at the provider boundary.
         _ = services.GetService<ProviderExecutionGate>()?.Bound(new ChatOptions { MaxOutputTokens = resolved.MaxOutputTokens });
-        if (resolved.Provider == AiProvider.Host) { return new NonDisposing(services.GetRequiredService<IChatClient>()); }
+        if (resolved.Provider == AiProvider.Host)
+        {
+            var hostClient = services.GetService<IChatClient>()
+                ?? throw new NoProviderConfiguredException("No AI provider is configured.");
+            return new NonDisposing(hostClient);
+        }
         var configuration = new AIOptions();
         configuration.Provider(resolved.Provider).Endpoint = resolved.Endpoint;
         var inner = new RebuildingChatClient(
@@ -398,6 +441,19 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
             if (resolved is not null) { choices.Add(Describe(choice.Id, choice.Label, resolved)); }
             else if (choice.Preset is { } preset && preset.SupportsTools && reason is not null)
             { choices.Add(new(choice.Id, choice.Label, preset.Provider.ToString(), preset.Id, false, [.. Flags(preset.Capabilities)]) { Reason = reason }); }
+        }
+        if (services.GetService<IChatClient>() is null
+            && string.IsNullOrWhiteSpace(options.CurrentValue.Ollama.Endpoint)
+            && await DetectLocal(ct).ConfigureAwait(false) is { } local)
+        {
+            foreach (var tag in local.InstalledModels)
+            {
+                if (choices.Any(existing => existing.Available && string.Equals(existing.Model, tag, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+                choices.Insert(0, new("ollama/" + tag, tag + " (local)", AiProvider.Ollama.ToString(), tag, true, [nameof(LlmCapabilities.Tools)]));
+            }
         }
         return new(Describe(null, "Automatic (workspace default)", automatic is { Provider: not AiProvider.Host } ? automatic : null), [.. choices]);
     }

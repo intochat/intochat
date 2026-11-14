@@ -35,7 +35,7 @@ internal static class ContractActions
         RuntimeCallerContext.Stamp(caller with { AppId = CapabilityCallers.AssistantApp, ConversationId = conversation });
 #pragma warning restore CS0618
         try { return await action(); }
-        catch (Exception error) when (error is ArgumentException or KeyNotFoundException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception error) when (error is ArgumentException or KeyNotFoundException or UnauthorizedAccessException or InvalidOperationException or DigitalBrain.Rules.RuleViolationException)
         { return new { isError = true, message = error.Message }; }
         finally { RuntimeCallerContext.Stamp(caller); }
     }
