@@ -33,6 +33,7 @@ public sealed class PresenceProofValidator : IPresenceProof
     public const string ExchangePath = "/auth/local-presence";
     public const string EnvironmentVariable = "INTOCHAT_PRESENCE_TOKEN";
     public const string ConfigurationKey = "IntoChatOS:Authority:PresenceToken";
+    public const string TokenFileConfigurationKey = "IntoChatOS:Security:PresenceTokenFile";
     public const int SecretByteCount = 32;
     private const int MaxCandidateChars = 512;
 
@@ -208,25 +209,27 @@ public sealed class PresenceProofValidator : IPresenceProof
 
     private static string? ResolvePresenceFilePath(IConfiguration? configuration, RuntimeOptions? runtimeOptions)
     {
-        try
+        var invalidChars = Path.GetInvalidPathChars();
+        if (configuration is not null)
         {
-            if (configuration is not null)
+            var explicitFile = configuration[TokenFileConfigurationKey];
+            if (!string.IsNullOrWhiteSpace(explicitFile) && explicitFile.IndexOfAny(invalidChars) < 0)
             {
-                var options = runtimeOptions ?? new RuntimeOptions { HomeKey = "IntoChatOS:Home", DefaultHomeDirectoryName = ".intochat" };
-                var homeRoot = configuration[options.HomeKey];
-                if (!string.IsNullOrWhiteSpace(homeRoot))
-                {
-                    return Path.Combine(homeRoot, "run", "presence");
-                }
+                return explicitFile;
             }
 
-            var userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            return string.IsNullOrWhiteSpace(userHome) ? null : Path.Combine(userHome, ".intochat", "run", "presence");
+            var options = runtimeOptions ?? new RuntimeOptions { HomeKey = "IntoChatOS:Home", DefaultHomeDirectoryName = ".intochat" };
+            var homeRoot = configuration[options.HomeKey];
+            if (!string.IsNullOrWhiteSpace(homeRoot) && homeRoot.IndexOfAny(invalidChars) < 0)
+            {
+                return Path.Combine(homeRoot, "run", "presence");
+            }
         }
-        catch (Exception)
-        {
-            return null;
-        }
+
+        var userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return string.IsNullOrWhiteSpace(userHome) || userHome.IndexOfAny(invalidChars) >= 0
+            ? null
+            : Path.Combine(userHome, ".intochat", "run", "presence");
     }
 
     private static (byte[] SecretBytes, string CanonicalToken) ParseFileMaterial(byte[] rawBytes)

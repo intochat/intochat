@@ -14,6 +14,16 @@ namespace IntoChat.OS.Authority.Identity.Grants;
 
 public sealed class SiloAccessCallFilter(IServiceProvider services) : IIncomingGrainCallFilter
 {
+    private static readonly Func<bool> IsInProcessCallerScopeActive = ResolveInProcessActiveAccessor();
+
+    private static Func<bool> ResolveInProcessActiveAccessor()
+    {
+        var prop = Type.GetType("DigitalBrain.Runtime.Orleans.Access.InProcessCallerScope, DigitalBrain.Runtime.Orleans")
+            ?.GetProperty("IsActive", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+        return prop?.GetMethod is { } getter
+            ? getter.CreateDelegate<Func<bool>>()
+            : static () => false;
+    }
     public async Task Invoke(IIncomingGrainCallContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -98,10 +108,11 @@ public sealed class SiloAccessCallFilter(IServiceProvider services) : IIncomingG
             caller = capCaller.ToCaller();
         }
 
-        // Handle unstamped caller provenance
+        // Handle unstamped caller provenance: trusted in-process silo hops carry ProcessSecretToken via
+        // InProcessCallerScope.Enter(); unstamped external/edge calls fail closed when UnstampedEdgeIsKernel is false.
         if (caller is null)
         {
-            if (!(services.GetService<AccessOptions>()?.UnstampedEdgeIsKernel ?? true))
+            if (!IsInProcessCallerScopeActive() && !(services.GetService<AccessOptions>()?.UnstampedEdgeIsKernel ?? true))
             {
                 throw new UnauthorizedAccessException($"Unstamped call to '{targetNeuron}' carried no caller provenance.");
             }

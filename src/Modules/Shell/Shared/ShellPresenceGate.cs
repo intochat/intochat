@@ -10,10 +10,19 @@ namespace IntoChat.OS.Modules.Flutter;
 /// </summary>
 internal static class ShellPresenceGate
 {
-    public static void RequireDirectPerson()
+    public static void RequireDirectPerson(bool requireAmbientStamp = false)
     {
-        if (!RuntimeCallerContext.TryGet(out var caller)
-            || caller.Kind != CallerKind.User
+        if (!RuntimeCallerContext.TryGet(out var caller))
+        {
+            if (requireAmbientStamp)
+            {
+                throw new UnauthorizedAccessException("Only a signed-in or presence-proved person can answer a confirmation.");
+            }
+
+            return;
+        }
+
+        if (caller.Kind != CallerKind.User
             || !string.IsNullOrEmpty(caller.ConversationId)
             || string.IsNullOrEmpty(caller.PersonId))
         {

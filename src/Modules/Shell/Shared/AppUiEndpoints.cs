@@ -42,7 +42,7 @@ internal static class AppUiEndpoints
         });
         apps.MapGet("/node", (string kind, string name, INeuronProxies brain, CancellationToken ct) => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct));
         apps.MapPost("/event", (UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
-            => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct));
+            => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct, requirePresenceStamp: true));
 
     }
 
@@ -210,17 +210,17 @@ internal static class AppUiEndpoints
     // One UI event from the shell, under the caller the edge stamped on brain.
     // hosted answers whether the host loaded an app's code; without it no view answers a confirmation.
     // An app view's own Emit becomes AppRequested at its app; an Intent goes back to the client, which performs it.
-    internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? hosted, CancellationToken ct)
+    internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? hosted, CancellationToken ct, bool requirePresenceStamp = false)
     {
         if (input.Kind == UIVocabulary.ConfirmationType)
         {
             if (input.Name != IConfirmationInbox.Key(scope)) { throw new UnauthorizedAccessException(); }
-            ShellPresenceGate.RequireDirectPerson();
             var (planId, approve) = ConfirmationAnswer(input);
+            ShellPresenceGate.RequireDirectPerson(requirePresenceStamp);
             await brain.Get<IConfirmationInbox>(input.Name).Resolve(planId, approve).WaitAsync(ct);
             return Results.Ok(new { delivered = true });
         }
-        if (input.Kind == UIVocabulary.ViewType) { return await DeliverView(input, brain, scope, hosted, ct); }
+        if (input.Kind == UIVocabulary.ViewType) { return await DeliverView(input, brain, scope, hosted, ct, requirePresenceStamp); }
         if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
         switch (input.Kind)
         {
@@ -245,7 +245,7 @@ internal static class AppUiEndpoints
     }
 
     // A view event: the view neuron resolves the keyed node of the generation the client saw; the edge routes what it does.
-    private static async Task<IResult> DeliverView(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? hosted, CancellationToken ct)
+    private static async Task<IResult> DeliverView(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? hosted, CancellationToken ct, bool requirePresenceStamp = false)
     {
         var key = input.Key ?? throw new ArgumentException("A view event names the activated node's key.");
         var generation = input.Generation ?? throw new ArgumentException("A view event names the generation it saw.");
@@ -330,7 +330,6 @@ internal static class AppUiEndpoints
                         return IntentResult(action.Intent!);
 
                     case ViewActivationKind.Resolve:
-                        ShellPresenceGate.RequireDirectPerson();
                         var surfaceAppKey = AppOf(scope, input.Name);
                         if (hosted is null || surfaceAppKey is null || !hosted.IsHostLoaded(surfaceAppKey))
                         {
@@ -340,6 +339,7 @@ internal static class AppUiEndpoints
                         {
                             throw new ArgumentException("An approval is answered approve or deny.");
                         }
+                        ShellPresenceGate.RequireDirectPerson(requirePresenceStamp);
                         await brain.Get<IConfirmationInbox>(IConfirmationInbox.Key(scope)).Resolve(action.Resolve!.PlanId, input.Value == "approve").WaitAsync(ct);
                         return Results.Ok(new { delivered = true });
 
@@ -388,11 +388,11 @@ internal static class AppUiEndpoints
             case ViewActivationKind.Intent:
                 return IntentResult(activation.Intent!);
             case ViewActivationKind.Resolve:
-                ShellPresenceGate.RequireDirectPerson();
                 // Confirmations are an OS-surface privilege: the view's app must be host-loaded (kernel provenance, IHostedAppTypes).
                 if (hosted is null || appKey is null || !hosted.IsHostLoaded(appKey))
                 { throw new UnauthorizedAccessException($"Only an OS surface can answer a confirmation; {name} cannot."); }
                 if (input.Value is not ("approve" or "deny")) { throw new ArgumentException("An approval is answered approve or deny."); }
+                ShellPresenceGate.RequireDirectPerson(requirePresenceStamp);
                 await brain.Get<IConfirmationInbox>(IConfirmationInbox.Key(scope)).Resolve(activation.Resolve!.PlanId, input.Value == "approve").WaitAsync(ct);
                 return Results.Ok(new { delivered = true });
             default:

@@ -27,7 +27,7 @@ internal sealed class GrainGrantPolicySource(IIdentityClient identity, Authority
         if (caller is null || caller.Kind == CallerKind.Platform) { return ValueTask.FromResult<CallDecision?>(null); }
         if (auth?.Value.Posture == IdentityPosture.Open && caller.PrincipalId == AccountSession.DefaultLogin
             && caller.AccountId == AccountSession.DefaultLogin
-            && (caller.Kind is CallerKind.User or CallerKind.Agent || (caller.Kind == CallerKind.App && caller.AppId == AccountSession.LocalAppId)))
+            && (caller.Kind is CallerKind.User or CallerKind.Agent or CallerKind.Scheduler || (caller.Kind == CallerKind.App && caller.AppId == AccountSession.LocalAppId)))
         { return ValueTask.FromResult<CallDecision?>(null); }
         return Decide(request, cancellationToken);
     }

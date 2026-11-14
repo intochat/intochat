@@ -53,6 +53,10 @@ public sealed class Gate20EdgeApprovalWallFacts
             await Assert.ThrowsAsync<UnauthorizedAccessException>(inbox.Read);
         }
 
+        // Internal SiloNeurons hops (e.g. MarketplaceView.List) remain healthy while UnstampedEdgeIsKernel is false
+        using var marketplaceRes = await host.Client.GetAsync($"/brains/{host.Scope}/marketplace", Ct);
+        Assert.Equal(HttpStatusCode.OK, marketplaceRes.StatusCode);
+
         // B02: POST /identity/register and POST /identity/login succeed with 200 OK (never 500 PrivilegeDenied)
         using var registerRes = await host.Client.PostAsJsonAsync(
             "/identity/register",
@@ -65,6 +69,10 @@ public sealed class Gate20EdgeApprovalWallFacts
             new { principalId = "alice", password = "correct-horse-battery-staple" },
             Ct);
         Assert.Equal(HttpStatusCode.OK, loginRes.StatusCode);
+
+        // Cross-brain isolation holds after alice signs in
+        using var crossBrainRes = await host.Client.GetAsync($"/brains/{host.Scope}/marketplace", Ct);
+        Assert.Equal(HttpStatusCode.Forbidden, crossBrainRes.StatusCode);
     }
 
     [Fact]
@@ -73,7 +81,7 @@ public sealed class Gate20EdgeApprovalWallFacts
         await using var host = await EdgeKernelHarness.StartAsync(Ct);
         var proxies = host.Services.GetRequiredService<INeuronProxies>();
         var scope = host.Scope;
-        var planId = $"app:change:gate20:{Guid.NewGuid():N}";
+        var planId = $"gate20:{Guid.NewGuid():N}";
 
         var plan = new ConfirmationPlan(
             planId,
@@ -85,20 +93,16 @@ public sealed class Gate20EdgeApprovalWallFacts
             DenyLabel: "Reject",
             TargetLabel: "intochat/os")
         {
-            Expiry = TimeSpan.FromHours(48),
+            Expiry = TimeSpan.FromMinutes(4),
             RequiresPerson = true,
         };
 
         // Raise a waiting RequiresPerson ConfirmationPlan from an app/flow context (non-person raiser so Request parks it Pending!)
         var requestsId = IConfirmationRequests.Of(new BrainId(scope));
-        using (InProcessCallerScope.EnterApp(scope, "ino.studio", AccountSession.DefaultLogin))
-        {
-            var requests = proxies.Get<IConfirmationRequests>(requestsId);
-            _ = requests.Request(plan);
-        }
+        await RaisePendingPlanAsync(host.Services, scope, requestsId, plan);
 
         var inboxKey = IConfirmationInbox.Key(scope);
-        await WaitUntilPendingAsync(host.Services, scope, planId, Ct);
+        Assert.True(await IsPendingAsync(host.Services, scope, planId));
 
         // -----------------------------------------------------------------------------------------
         // Attack 1: Forged X-IntoChat-Presence header -> rejected at HTTP edge with 401 Unauthorized
@@ -267,26 +271,102 @@ public sealed class Gate20EdgeApprovalWallFacts
         }
 
         Assert.False(await IsPendingAsync(host.Services, scope, planId));
+
+        // -----------------------------------------------------------------------------------------
+        // Local Web (#presence= -> POST /auth/local-presence -> IntoChatPresence SameSite=Strict cookie):
+        // Cross-origin cookie attempt fails with 401; same-origin cookie approves in 1 call!
+        // -----------------------------------------------------------------------------------------
+        var webPlanId = $"gate20-web:{Guid.NewGuid():N}";
+        var webPlan = new ConfirmationPlan(
+            webPlanId,
+            ConfirmationAction.Other,
+            Destructive: false,
+            Title: "Gate 2.0 Web Cookie PR approval",
+            Body: "Promote verified branch from local web shell",
+            ApproveLabel: "Promote PR",
+            DenyLabel: "Reject",
+            TargetLabel: "intochat/os")
+        {
+            Expiry = TimeSpan.FromMinutes(4),
+            RequiresPerson = true,
+        };
+
+        await RaisePendingPlanAsync(host.Services, scope, requestsId, webPlan);
+        Assert.True(await IsPendingAsync(host.Services, scope, webPlanId));
+
+        string cookiePair;
+        using (var exchangeReq = new HttpRequestMessage(HttpMethod.Post, "/auth/local-presence")
+        {
+            Content = JsonContent.Create(new { token = host.PresenceToken }),
+        })
+        {
+            exchangeReq.Headers.Add("Origin", host.BaseAddress.GetLeftPart(UriPartial.Authority));
+            using var exchangeRes = await host.Client.SendAsync(exchangeReq, Ct);
+            Assert.Equal(HttpStatusCode.OK, exchangeRes.StatusCode);
+            var setCookie = Assert.Single(exchangeRes.Headers.GetValues("Set-Cookie"));
+            Assert.Contains("HttpOnly", setCookie, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("SameSite=Strict", setCookie, StringComparison.OrdinalIgnoreCase);
+            cookiePair = setCookie.Split(';', 2)[0];
+        }
+
+        using var rawNoCookiesHandler = new HttpClientHandler { UseCookies = false };
+        using var rawClient = new HttpClient(rawNoCookiesHandler) { BaseAddress = host.BaseAddress };
+
+        using (var crossOriginCookieReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{scope}/apps/event")
+        {
+            Content = JsonContent.Create(new { kind = "confirmation", name = inboxKey, planId = webPlanId, approve = true }),
+        })
+        {
+            crossOriginCookieReq.Headers.Add("Cookie", cookiePair);
+            crossOriginCookieReq.Headers.Add("Origin", "https://evil.example");
+            using var crossOriginRes = await rawClient.SendAsync(crossOriginCookieReq, Ct);
+            Assert.Equal(HttpStatusCode.Unauthorized, crossOriginRes.StatusCode);
+        }
+
+        Assert.True(await IsPendingAsync(host.Services, scope, webPlanId));
+
+        using (var sameOriginCookieReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{scope}/apps/event")
+        {
+            Content = JsonContent.Create(new { kind = "confirmation", name = inboxKey, planId = webPlanId, approve = true }),
+        })
+        {
+            sameOriginCookieReq.Headers.Add("Cookie", cookiePair);
+            sameOriginCookieReq.Headers.Add("Origin", host.BaseAddress.GetLeftPart(UriPartial.Authority));
+            using var sameOriginRes = await rawClient.SendAsync(sameOriginCookieReq, Ct);
+            Assert.Equal(HttpStatusCode.OK, sameOriginRes.StatusCode);
+        }
+
+        using (InProcessCallerScope.EnterKernel(scope))
+        {
+            var webResolved = await proxies.Get<IConfirmationRequests>(requestsId).Outcome(webPlanId);
+            Assert.NotNull(webResolved);
+            Assert.True(webResolved.Approved);
+            Assert.Equal(ConfirmationOutcome.Approved, webResolved.Outcome);
+        }
+    }
+
+    private static async Task RaisePendingPlanAsync(
+        IServiceProvider services,
+        string scope,
+        NeuronId requestsId,
+        ConfirmationPlan plan)
+    {
+        var raiserCaller = CapabilityCallers.Of(
+            AccountSession.DefaultLogin,
+            AccountSession.DefaultLogin,
+            scope,
+            CallerKind.Scheduler,
+            CapabilityCallers.SchedulerApp);
+
+        using var _ = InProcessCallerScope.Enter();
+        using var __ = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(raiserCaller);
+        var requests = services.GetRequiredService<INeuronProxies>().Get<IConfirmationRequests>(requestsId);
+        var immediate = await requests.Request(plan);
+        Assert.Null(immediate);
     }
 
     private static string ExtractText(CallToolResult result)
         => string.Join("\n", result.Content.OfType<TextContentBlock>().Select(b => b.Text));
-
-    private static async Task WaitUntilPendingAsync(IServiceProvider services, string scope, string planId, CancellationToken ct)
-    {
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
-        while (DateTimeOffset.UtcNow < deadline)
-        {
-            if (await IsPendingAsync(services, scope, planId))
-            {
-                return;
-            }
-
-            await Task.Delay(50, ct);
-        }
-
-        throw new TimeoutException($"Confirmation plan '{planId}' did not appear in Pending within 10s.");
-    }
 
     private static async Task<bool> IsPendingAsync(IServiceProvider services, string scope, string planId)
     {
