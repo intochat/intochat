@@ -47,8 +47,9 @@ public sealed class RepositoryLayoutFacts
         {
             var relativePath = Path.GetRelativePath(Repository.Root, file).Replace('\\', '/');
 
-            // Allow systemone-adapter server.py
-            if (relativePath.EndsWith("Modules/AI/systemone-adapter/server.py", StringComparison.OrdinalIgnoreCase))
+            // Allow systemone-adapter server.py and official one-command installers under eng/install/
+            if (relativePath.EndsWith("Modules/AI/systemone-adapter/server.py", StringComparison.OrdinalIgnoreCase)
+                || relativePath.StartsWith("eng/install/", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
