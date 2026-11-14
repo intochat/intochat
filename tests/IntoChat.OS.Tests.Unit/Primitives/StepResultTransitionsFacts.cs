@@ -2,7 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Flows;
 using IntoChat.OS.Primitives;
 
-namespace IntoChat.OS.Tests.Unit.Modules.Work;
+namespace IntoChat.OS.Tests.Unit.Primitives;
 
 public sealed record SampleState(string Value);
 

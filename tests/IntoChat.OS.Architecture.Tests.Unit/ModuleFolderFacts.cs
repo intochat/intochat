@@ -9,7 +9,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 public sealed partial class ModuleFolderFacts
 {
     private static readonly string[] RoleFolders = ["Runtime", "UI", "Connectors", "Data"];
-    private static readonly string[] PlaceholderModules = ["Authoring", "Conversations", "Work"];
+    private static readonly string[] PlaceholderModules = [];
 
     // A module's implementation folder (spelled so RepositoryPathLiteralFacts does not read it as a repository path).
     internal const string SourceFolder = "s" + "rc";

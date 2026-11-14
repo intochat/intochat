@@ -34,12 +34,10 @@
     <ProjectReference Include="../../IntoChat.Cloud/IntoChat.Cloud.csproj" />
     <ProjectReference Include="../../Modules/AI/IntoChat.OS.Modules.AI.csproj" />
     <ProjectReference Include="../../Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
-    <ProjectReference Include="../../Modules/Authoring/IntoChat.OS.Modules.Authoring.csproj" />
     <ProjectReference Include="../../Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />
     <ProjectReference Include="../../Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
     <ProjectReference Include="../../Modules/Circles/IntoChat.OS.Modules.Circles.csproj" />
     <ProjectReference Include="../../Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
-    <ProjectReference Include="../../Modules/Conversations/IntoChat.OS.Modules.Conversations.csproj" />
     <ProjectReference Include="../../Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
     <ProjectReference Include="../../Modules/Google/IntoChat.OS.Modules.Google.csproj" />
     <ProjectReference Include="../../Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
@@ -52,7 +50,6 @@
     <ProjectReference Include="../../Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
     <ProjectReference Include="../../Modules/Time/IntoChat.OS.Modules.Time.csproj" />
     <ProjectReference Include="../../Modules/Windows/IntoChat.OS.Modules.Windows.csproj" />
-    <ProjectReference Include="../../Modules/Work/IntoChat.OS.Modules.Work.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
