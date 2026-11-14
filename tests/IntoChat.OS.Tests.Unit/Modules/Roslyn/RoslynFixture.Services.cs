@@ -9,8 +9,10 @@ public sealed partial class RoslynFixture
     private static void ConfigureBoth(IServiceCollection services)
     {
         services.AddLogging();
+        services.AddOptions<RoslynModuleOptions>();
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<SolutionWorkspace>();
+        services.TryAddSingleton<CodeGraphService>();
         services.TryAddSingleton<ISolutionLoader, MSBuildSolutionLoader>();
         services.TryAddSingleton<CodeFixCatalog>();
         services.TryAddSingleton<ChangeSetEditor>();

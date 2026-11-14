@@ -116,7 +116,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
             catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
         }
 
-        var workStorage = ResolveMountStorage(connections, ["cloud", "work"], LocalCloudNeuron.TypeName, fallbackFirstConnection: true)
+        var workStorage = ResolveMountStorage(connections, ["cloud", "work"], LocalCloudNeuron.TypeName, fallbackFirstConnection: false)
             ?? _fallbackWorkStorage;
         var localStorage = ResolveMountStorage(connections, ["local-disk", "disk"], "local-disk", fallbackFirstConnection: false)
             ?? _fallbackLocalStorage;
@@ -469,12 +469,17 @@ public sealed class WorkspaceFilesService : IFilesVfsService
                 LogRecoverable(error);
             }
 
-            if (effectiveBroker is not null)
+            if (effectiveBroker is not null && mountPoint == "work")
             {
                 try
                 {
                     foreach (var conn in await effectiveBroker.ResolveAll<IStorage>(new BrainId(BrainId), ct).ConfigureAwait(false))
                     {
+                        if (conn.ConnectionKey.Contains("local-disk", StringComparison.OrdinalIgnoreCase)
+                            || conn.ConnectionKey.Contains("disk", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
                         try
                         {
                             var roots = await conn.Capability.Roots(ct).ConfigureAwait(false);

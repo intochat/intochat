@@ -83,6 +83,7 @@ public sealed record InoAppState(
     public InoError? Error { get; init; }
     public Approval[]? Approvals { get; init; }
     public bool Smart { get; init; }
+    public string? SelectedModel { get; init; }
     public string? DetectedLocalModel { get; init; }
     public string[]? DetectedLocalModels { get; init; }
 }

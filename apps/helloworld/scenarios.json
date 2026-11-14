@@ -1,0 +1,23 @@
+[
+  {
+    "name": "toggles-hello-visibility-on-and-off",
+    "given": {},
+    "when": [
+      "then view helloworld contains \"Click the button below\"",
+      "then view helloworld contains \"Say Hello\"",
+      "publish helloworld.toggle {}",
+      "then signal helloworld.toggled",
+      "then state helloworld Visible = true",
+      "then state helloworld Clicks = 1",
+      "then view helloworld contains \"Hello, IntoChat OS!\"",
+      "then view helloworld contains \"Hide Hello\"",
+      "publish helloworld.toggle {}"
+    ],
+    "then": [
+      "state helloworld Visible = false",
+      "state helloworld Clicks = 2",
+      "view helloworld contains \"Click the button below\"",
+      "view helloworld contains \"Say Hello\""
+    ]
+  }
+]

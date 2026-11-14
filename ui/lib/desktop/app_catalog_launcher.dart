@@ -12,11 +12,19 @@ class SmartAppTileSpec {
     this.category = 'App',
   });
 
-  factory SmartAppTileSpec.fromIconSpec(String id, {String? categoryOverride}) {
+  factory SmartAppTileSpec.fromIconSpec(
+    String id, {
+    String? titleOverride,
+    String? categoryOverride,
+  }) {
     final spec = IcAppIcon.resolveSpec(id);
+    final cleanTitle =
+        (titleOverride != null && titleOverride.trim().isNotEmpty)
+        ? titleOverride.trim()
+        : spec.title;
     return SmartAppTileSpec(
       id: id,
-      name: spec.title,
+      name: cleanTitle,
       icon: spec.icon,
       color: spec.gradientTop,
       accentHex: spec.accentHex,
@@ -126,6 +134,7 @@ class _AllAppsLauncherOverlayState extends State<AllAppsLauncherOverlay> {
   static const List<String> _categories = [
     'All',
     'ArtCraft Studio',
+    'Micro-Apps',
     'Intelligence',
     'Workspace',
     'Studio',

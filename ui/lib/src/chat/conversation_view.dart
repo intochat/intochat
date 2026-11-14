@@ -13,6 +13,7 @@ import '../nodes/empty_state.dart';
 import '../nodes/error_line.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
+import '../theme/brand_visuals.dart';
 import 'ui_copyable_message.dart';
 
 /// Declarative conversation surface rendered from a `ConversationNode`.
@@ -275,8 +276,14 @@ class _ConversationViewState extends State<ConversationView> {
 
   Widget _buildBottomDock(BuildContext context, IcColors c, Node? waiting) {
     final stop = widget.node.stop;
+    final composer = widget.node.composer;
     final focused = _composerFocus.hasFocus;
     final canSend = _composerEnabled && _controller.text.trim().isNotEmpty;
+    final hasActiveModel =
+        (composer.activeModelLabel != null &&
+            composer.activeModelLabel!.trim().isNotEmpty) ||
+        (composer.activeProviderIcon != null &&
+            composer.activeProviderIcon!.trim().isNotEmpty);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 10, 24, 16),
@@ -345,7 +352,7 @@ class _ConversationViewState extends State<ConversationView> {
                                   controller: _controller,
                                   focusNode: _composerFocus,
                                   enabled:
-                                      widget.node.composer.enabled &&
+                                      composer.enabled &&
                                       widget.ctx.interactive,
                                   minLines: 1,
                                   maxLines: 6,
@@ -357,7 +364,7 @@ class _ConversationViewState extends State<ConversationView> {
                                     height: 1.45,
                                   ),
                                   decoration: InputDecoration.collapsed(
-                                    hintText: widget.node.composer.placeholder,
+                                    hintText: composer.placeholder,
                                     hintStyle: IcType.text(
                                       14,
                                       color: c.textSubtle,
@@ -368,6 +375,21 @@ class _ConversationViewState extends State<ConversationView> {
                               ),
                             ),
                           ),
+                          if (hasActiveModel) ...[
+                            const SizedBox(width: 8),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 3),
+                              child: IcBrandChip(
+                                key: const ValueKey('composer-active-model'),
+                                spec: BrandVisuals.resolveModelVisual(
+                                  composer.activeModelLabel,
+                                  modelLabel: composer.activeModelLabel,
+                                  providerIcon: composer.activeProviderIcon,
+                                ),
+                                compact: true,
+                              ),
+                            ),
+                          ],
                           const SizedBox(width: 8),
                           _SendIconButton(
                             enabled: canSend,
@@ -448,6 +470,12 @@ class _AssistantMessageItem extends StatelessWidget {
     final cards = message.cards ?? const <Node>[];
     final isRunning = message.status == 'running';
     final model = message.model;
+    final modelLabel = message.modelLabel;
+    final providerIcon = message.providerIcon;
+    final hasModelInfo =
+        (model != null && model.trim().isNotEmpty) ||
+        (modelLabel != null && modelLabel.trim().isNotEmpty) ||
+        (providerIcon != null && providerIcon.trim().isNotEmpty);
     final retry = message.retry;
 
     return Align(
@@ -501,16 +529,24 @@ class _AssistantMessageItem extends StatelessWidget {
                 NodeRenderer.render(cards[i], ctx),
               ],
             ],
-            if ((model != null && model.isNotEmpty) || retry != null) ...[
+            if (hasModelInfo || retry != null) ...[
               const SizedBox(height: 6),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (model != null && model.isNotEmpty)
-                    Text(model, style: IcType.text(12, color: c.textMuted)),
+                  if (hasModelInfo)
+                    Flexible(
+                      child: IcBrandChip(
+                        key: ValueKey('msg-model:${message.id}'),
+                        spec: BrandVisuals.resolveModelVisual(
+                          model,
+                          modelLabel: modelLabel,
+                          providerIcon: providerIcon,
+                        ),
+                      ),
+                    ),
                   if (retry != null) ...[
-                    if (model != null && model.isNotEmpty)
-                      const SizedBox(width: 10),
+                    if (hasModelInfo) const SizedBox(width: 10),
                     Btn(
                       label: retry.label,
                       icon: LucideIcons.rotateCcw,
@@ -535,6 +571,69 @@ class _ActivityPill extends StatelessWidget {
 
   final ActivityNode activity;
 
+  (String, String?) _resolveTitleAndDetail(BrandVisualSpec? brandSpec) {
+    final rawTitle = activity.title.trim();
+    final rawDetail = activity.detail?.trim();
+
+    if (brandSpec == null) {
+      return (
+        rawTitle,
+        (rawDetail != null && rawDetail.isNotEmpty) ? rawDetail : null,
+      );
+    }
+
+    // Split compound titles like `Aspire · Resources` or `IAspire.ListResources`
+    if (rawTitle.contains('·')) {
+      final idx = rawTitle.indexOf('·');
+      final head = rawTitle.substring(0, idx).trim();
+      final tail = rawTitle.substring(idx + 1).trim();
+      final combinedTail = [
+        if (tail.isNotEmpty) tail,
+        if (rawDetail != null && rawDetail.isNotEmpty) rawDetail,
+      ].join(' · ');
+      final resolvedHead =
+          BrandVisuals.tryResolveCapabilityOrAppVisual(head) != null
+          ? brandSpec.label
+          : head;
+      return (resolvedHead, combinedTail.isEmpty ? null : combinedTail);
+    }
+
+    if (rawTitle.contains('.') &&
+        !rawTitle.toLowerCase().startsWith('diagnostics.') &&
+        !rawTitle.toLowerCase().startsWith('roslyn.') &&
+        !rawTitle.toLowerCase().startsWith('ai.') &&
+        !rawTitle.toLowerCase().startsWith('ino.')) {
+      final idx = rawTitle.indexOf('.');
+      final head = rawTitle.substring(0, idx).trim();
+      final tail = rawTitle.substring(idx + 1).trim();
+      if (BrandVisuals.tryResolveCapabilityOrAppVisual(head) != null) {
+        final combinedTail = [
+          if (tail.isNotEmpty) tail,
+          if (rawDetail != null && rawDetail.isNotEmpty) rawDetail,
+        ].join(' · ');
+        return (brandSpec.label, combinedTail.isEmpty ? null : combinedTail);
+      }
+    }
+
+    // Direct capability/brand/studio match (`IAspire`, `brand:aspire`, `photocraft`, etc.)
+    final lower = rawTitle.toLowerCase();
+    if (lower == brandSpec.key ||
+        lower == brandSpec.label.toLowerCase() ||
+        rawTitle.startsWith('I') ||
+        lower.contains(':') ||
+        lower.contains('.')) {
+      return (
+        brandSpec.label,
+        (rawDetail != null && rawDetail.isNotEmpty) ? rawDetail : null,
+      );
+    }
+
+    return (
+      rawTitle,
+      (rawDetail != null && rawDetail.isNotEmpty) ? rawDetail : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
@@ -543,37 +642,67 @@ class _ActivityPill extends StatelessWidget {
     final failed = activity.status == 'failed' || activity.status == 'error';
     final fg = failed ? c.error : (running ? c.working : c.textMuted);
     final bg = failed ? c.errorBg : (running ? c.workingBg : c.surfaceSunk);
-    final detail = activity.detail;
+    final brandSpec = BrandVisuals.tryResolveCapabilityOrAppVisual(
+      activity.title,
+      iconKey: activity.icon,
+    );
+    final (primaryLabel, secondaryDetail) = _resolveTitleAndDetail(brandSpec);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(IcRadius.xs),
-        border: Border.all(color: fg.withValues(alpha: 0.22)),
+        border: Border.all(
+          color: (brandSpec != null && !failed && !running)
+              ? brandSpec.accent.withValues(alpha: 0.28)
+              : fg.withValues(alpha: 0.22),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (running)
-            WorkingSpinner(size: 12, color: fg)
-          else
-            Icon(
-              failed ? LucideIcons.circleAlert : LucideIcons.check,
-              size: 12,
-              color: fg,
-            ),
-          const SizedBox(width: 6),
+          if (brandSpec != null) ...[
+            IcBrandIcon(spec: brandSpec, size: 14),
+            const SizedBox(width: 6),
+          ],
+          if (running) ...[
+            WorkingSpinner(size: 11, color: fg),
+            const SizedBox(width: 5),
+          ] else if (failed) ...[
+            Icon(LucideIcons.circleAlert, size: 12, color: fg),
+            const SizedBox(width: 5),
+          ] else if (brandSpec == null) ...[
+            Icon(LucideIcons.check, size: 12, color: fg),
+            const SizedBox(width: 6),
+          ],
           Flexible(
             child: Text(
-              detail != null && detail.isNotEmpty
-                  ? '${activity.title} · $detail'
-                  : activity.title,
+              primaryLabel,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: IcType.text(12, weight: FontWeight.w500, color: fg),
+              style: IcType.text(
+                12,
+                weight: brandSpec != null ? FontWeight.w600 : FontWeight.w500,
+                color: (brandSpec != null && !failed) ? c.textStrong : fg,
+              ),
             ),
           ),
+          if (secondaryDetail != null && secondaryDetail.isNotEmpty) ...[
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                '· $secondaryDetail',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: IcType.text(12, weight: FontWeight.w500, color: fg),
+              ),
+            ),
+          ],
+          if (brandSpec != null && !running && !failed) ...[
+            const SizedBox(width: 5),
+            Icon(LucideIcons.check, size: 11, color: fg),
+          ],
         ],
       ),
     );

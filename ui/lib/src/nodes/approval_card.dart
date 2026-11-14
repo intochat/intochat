@@ -12,7 +12,12 @@ Widget renderApprovalCard(ApprovalCardNode node, NodeContext ctx) {
   final canResolve = resolve != null && ctx.interactive;
   return ApprovalCard(
     key: ValueKey('approval:${node.id}'),
-    source: cardSource(node.systemName),
+    source: cardSource(
+      node.systemName,
+      iconKey: node.icon,
+      capabilityLabel: node.capabilityLabel,
+      approvalFallbackShield: true,
+    ),
     readOnly: !canResolve,
     data: ApprovalData(
       title: node.title,

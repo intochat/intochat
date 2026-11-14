@@ -122,7 +122,8 @@ public sealed class InoModelFacts
     public void ANewConversationKeepsNothingOfTheOld()
     {
         var old = InoModel.Projected(new InoAppState(), Chat(3, ChatRunStatus.Completed, User("hello"), Answer("Hi.")), Agent)
-            with { GrantSummaries = ["read · files"] };
+            with
+        { GrantSummaries = ["read · files"] };
         var next = InoModel.NewConversation(old, "c2");
         Assert.Equal(("c2", "New chat", 0L, InoModel.Ready), (next.ConversationId, next.Title, next.ChatRevision, next.Status));
         Assert.Empty(next.Messages ?? []);

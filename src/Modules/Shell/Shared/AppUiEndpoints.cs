@@ -105,7 +105,7 @@ internal static class AppUiEndpoints
                                 });
                             }
                         }
-                        catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
+                        catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                         {
                             NullLogger.Instance.LogSwallowed(error, "Published screen view could not be read.");
                         }
@@ -145,9 +145,27 @@ internal static class AppUiEndpoints
                         });
                     }
                 }
-                catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
+                catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                 {
                     NullLogger.Instance.LogSwallowed(error, "Screen view could not be read.");
+                }
+                try
+                {
+                    var unitPublished = await brain.Get<IViewReader>(UnitState(scope, appName)).Read(appName).WaitAsync(ct);
+                    if (unitPublished is not null)
+                    {
+                        return Results.Ok(new
+                        {
+                            viewport.Revision,
+                            viewport.Target,
+                            Root = new ViewRef(UIVocabulary.ViewType, $"{scope}/{appName}"),
+                            Error = (string?)null,
+                        });
+                    }
+                }
+                catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+                {
+                    NullLogger.Instance.LogSwallowed(error, "Unit view could not be read for viewport.");
                 }
             }
             var app = await brain.Get<IApp>(target.App).Read().WaitAsync(ct);
@@ -192,9 +210,22 @@ internal static class AppUiEndpoints
                         return Results.Json(published, ViewJson);
                     }
                 }
-                catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
+                catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                 {
                     NullLogger.Instance.LogSwallowed(error, "Screen view could not be read.");
+                }
+                var candidateUnit = screenAlias["app.".Length..];
+                try
+                {
+                    var unitFallback = await brain.Get<IViewReader>(UnitState(scope, candidateUnit)).Read(candidateUnit).WaitAsync(ct);
+                    if (unitFallback is not null)
+                    {
+                        return Results.Json(unitFallback, ViewJson);
+                    }
+                }
+                catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+                {
+                    NullLogger.Instance.LogSwallowed(error, "Unit view fallback could not be read.");
                 }
             }
             return Results.Json(await brain.Get<IView>(name).Read().WaitAsync(ct), ViewJson);
@@ -251,58 +282,7 @@ internal static class AppUiEndpoints
         var generation = input.Generation ?? throw new ArgumentException("A view event names the generation it saw.");
         if (UnitAlias(scope, input.Name) is { } alias)
         {
-            // A unit's view lives at its state neuron. IViewReader.Activate returns no typed result: it resolves the key itself and
-            // journals the emit, refusing a stale generation, an unknown key, a node with no emit and an emit to another owner. The
-            // edge resolves once, from the one PublishedView whose generation it checks, only to answer an intent (client-local) and
-            // to refuse a resolve (a unit view never reaches the confirmations). Race: the view may change between that Read and
-            // Activate; Activate re-resolves against its own current generation, so a changed view refuses the emit as stale.
-            var reader = brain.Get<IViewReader>(UnitState(scope, alias));
-            var published = await reader.Read(alias).WaitAsync(ct);
-            IScreen? screen = null;
-            if (published is null)
-            {
-                try
-                {
-                    var screenId = new NeuronId(new BrainId(scope), alias, "default");
-                    screen = brain.Get<IScreen>(screenId);
-                    published = await screen.Read().WaitAsync(ct);
-                }
-                catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
-                {
-                    NullLogger.Instance.LogSwallowed(error, "Screen for unit could not be read.");
-                }
-            }
-            var shownAction = published is { } shown && shown.Generation == generation && ViewValidation.Find(shown.View, key) is { } unitNode
-                ? ViewValidation.ActionOf(unitNode) : ViewActivation.None;
-            switch (shownAction.Kind)
-            {
-                case ViewActivationKind.Intent: return IntentResult(shownAction.Intent!);
-                case ViewActivationKind.Resolve: throw new UnauthorizedAccessException($"A unit view cannot answer a confirmation; {alias} cannot.");
-                case ViewActivationKind.Emit: ViewArgs.RequireValueUnreserved(shownAction.Emit!.Args, input.Value); break;
-            }
-            // The state neuron writes "by" into the emit, overwriting whatever the payload says: the caller's stable person id, never
-            // a display name. A view that declares "by" never publishes (the framework's ViewDeclaresBy), so the edge need not refuse one.
-            if (!RuntimeCallerContext.TryGet(out var caller) || string.IsNullOrEmpty(caller.PersonId))
-            { throw new UnauthorizedAccessException("Only a signed-in person activates a unit view."); }
-            if (screen is not null)
-            {
-                try { await screen.Activate(alias, generation, key, input.Value, caller.PersonId).WaitAsync(ct); }
-                catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
-                { throw new StaleActionException("This action is no longer available. Read the view again."); }
-                catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)
-                { throw new UnauthorizedAccessException($"A view of {alias} cannot emit to another owner."); }
-                catch (ActivationRefusedException refused)
-                { throw new ArgumentException($"This view node does nothing ({refused.Reason})."); }
-                return Results.Ok(new { delivered = true });
-            }
-            try { await reader.Activate(alias, generation, key, input.Value, caller.PersonId).WaitAsync(ct); }
-            catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
-            { throw new StaleActionException("This action is no longer available. Read the view again."); }
-            catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)
-            { throw new UnauthorizedAccessException($"A view of {alias} cannot emit to another owner."); }
-            catch (ActivationRefusedException refused)
-            { throw new ArgumentException($"This view node does nothing ({refused.Reason})."); }
-            return Results.Ok(new { delivered = true });
+            return await ActivateUnitViewAsync(brain, scope, alias, generation, key, input.Value, ct);
         }
         if (ScreenAlias(scope, input.Name) is { } screenAlias)
         {
@@ -314,9 +294,26 @@ internal static class AppUiEndpoints
                 screen = brain.Get<IScreen>(screenId);
                 published = await screen.Read().WaitAsync(ct);
             }
-            catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
+            catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
             {
                 NullLogger.Instance.LogSwallowed(error, "Screen view could not be read for action finding.");
+            }
+
+            if (published is null)
+            {
+                var candidateUnit = screenAlias["app.".Length..];
+                try
+                {
+                    var unitPublished = await brain.Get<IViewReader>(UnitState(scope, candidateUnit)).Read(candidateUnit).WaitAsync(ct);
+                    if (unitPublished is not null)
+                    {
+                        return await ActivateUnitViewAsync(brain, scope, candidateUnit, generation, key, input.Value, ct);
+                    }
+                }
+                catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+                {
+                    NullLogger.Instance.LogSwallowed(error, "Unit view fallback could not be read for action finding.");
+                }
             }
 
             if (published is not null && screen is not null)
@@ -398,6 +395,69 @@ internal static class AppUiEndpoints
             default:
                 throw new ArgumentException("This view node does nothing.");
         }
+    }
+
+    private static async Task<IResult> ActivateUnitViewAsync(
+        INeuronProxies brain,
+        string scope,
+        string alias,
+        long generation,
+        string key,
+        string? value,
+        CancellationToken ct)
+    {
+        // A unit's view lives at its state neuron. IViewReader.Activate returns no typed result: it resolves the key itself and
+        // journals the emit, refusing a stale generation, an unknown key, a node with no emit and an emit to another owner. The
+        // edge resolves once, from the one PublishedView whose generation it checks, only to answer an intent (client-local) and
+        // to refuse a resolve (a unit view never reaches the confirmations). Race: the view may change between that Read and
+        // Activate; Activate re-resolves against its own current generation, so a changed view refuses the emit as stale.
+        var reader = brain.Get<IViewReader>(UnitState(scope, alias));
+        var published = await reader.Read(alias).WaitAsync(ct);
+        IScreen? screen = null;
+        if (published is null)
+        {
+            try
+            {
+                var screenId = new NeuronId(new BrainId(scope), alias, "default");
+                screen = brain.Get<IScreen>(screenId);
+                published = await screen.Read().WaitAsync(ct);
+            }
+            catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+            {
+                NullLogger.Instance.LogSwallowed(error, "Screen for unit could not be read.");
+            }
+        }
+        var shownAction = published is { } shown && shown.Generation == generation && ViewValidation.Find(shown.View, key) is { } unitNode
+            ? ViewValidation.ActionOf(unitNode) : ViewActivation.None;
+        switch (shownAction.Kind)
+        {
+            case ViewActivationKind.Intent: return IntentResult(shownAction.Intent!);
+            case ViewActivationKind.Resolve: throw new UnauthorizedAccessException($"A unit view cannot answer a confirmation; {alias} cannot.");
+            case ViewActivationKind.Emit: ViewArgs.RequireValueUnreserved(shownAction.Emit!.Args, value); break;
+        }
+        // The state neuron writes "by" into the emit, overwriting whatever the payload says: the caller's stable person id, never
+        // a display name. A view that declares "by" never publishes (the framework's ViewDeclaresBy), so the edge need not refuse one.
+        if (!RuntimeCallerContext.TryGet(out var caller) || string.IsNullOrEmpty(caller.PersonId))
+        { throw new UnauthorizedAccessException("Only a signed-in person activates a unit view."); }
+        if (screen is not null)
+        {
+            try { await screen.Activate(alias, generation, key, value, caller.PersonId).WaitAsync(ct); }
+            catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
+            { throw new StaleActionException("This action is no longer available. Read the view again."); }
+            catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)
+            { throw new UnauthorizedAccessException($"A view of {alias} cannot emit to another owner."); }
+            catch (ActivationRefusedException refused)
+            { throw new ArgumentException($"This view node does nothing ({refused.Reason})."); }
+            return Results.Ok(new { delivered = true });
+        }
+        try { await reader.Activate(alias, generation, key, value, caller.PersonId).WaitAsync(ct); }
+        catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
+        { throw new StaleActionException("This action is no longer available. Read the view again."); }
+        catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)
+        { throw new UnauthorizedAccessException($"A view of {alias} cannot emit to another owner."); }
+        catch (ActivationRefusedException refused)
+        { throw new ArgumentException($"This view node does nothing ({refused.Reason})."); }
+        return Results.Ok(new { delivered = true });
     }
 
     // The inbox surface's typed answer: a plan id of at most 128 characters and approve true or false; no action string.

@@ -107,6 +107,7 @@ class IcAppIcon extends StatelessWidget {
       gradientBottom: Color(0xFF150A3A),
       icon: LucideIcons.activity,
       brandGlyph: IcBrandGlyph.aspireLogo,
+      pngAsset: 'assets/brands/aspire.png',
       svgAsset: 'assets/brands/aspire-icon-32.svg',
     ),
     'brain': IcAppIconSpec(
@@ -427,6 +428,7 @@ class IcAppIcon extends StatelessWidget {
       gradientTop: Color(0xFF14B8A6),
       gradientBottom: Color(0xFF115E59),
       icon: LucideIcons.boxes,
+      pngAsset: 'assets/brands/artcraft/solidcraft.png',
       brandGlyph: IcBrandGlyph.solidcraftCube,
       isArtCraftBridge: true,
       defaultWebPort: 18097,
@@ -499,13 +501,23 @@ class IcAppIcon extends StatelessWidget {
 
   static String normalizeAppId(String raw) {
     final lower = raw.trim().toLowerCase();
-    if (lower.contains('ino') || lower == 'assistant') return 'ino';
+    if (builtInSpecs.containsKey(lower)) return lower;
+    if (lower == 'assistant' ||
+        lower == 'ino' ||
+        lower.startsWith('ino ') ||
+        lower == 'ino.studio') {
+      return 'ino';
+    }
     if (lower.contains('aspire')) return 'aspire';
-    if (lower.contains('brain')) return 'brain';
-    if (lower.contains('workspace')) return 'workspace';
-    if (lower.contains('file')) return 'files';
-    if (lower.contains('task')) return 'tasks';
-    if (lower.contains('trace')) return 'trace';
+    if (lower == 'brain' || lower == 'brain graph') return 'brain';
+    if (lower == 'workspace') return 'workspace';
+    if (lower == 'file' || lower == 'files' || lower == 'file vault') {
+      return 'files';
+    }
+    if (lower == 'task' || lower == 'tasks') return 'tasks';
+    if (lower == 'trace' || lower == 'traces' || lower == 'system traces') {
+      return 'trace';
+    }
     if (lower.contains('markdraw') || lower.contains('excalidraw')) {
       return 'markdraw';
     }
@@ -516,27 +528,58 @@ class IcAppIcon extends StatelessWidget {
     for (final key in builtInSpecs.keys) {
       if (key.endsWith('craft') && lower.contains(key)) return key;
     }
-    if (lower.contains('creat')) return 'creator';
-    if (lower.contains('galler')) return 'gallery';
-    if (lower.contains('friend') ||
-        lower.contains('post') ||
-        lower.contains('publish')) {
-      return 'friends';
-    }
-    if (lower.contains('setting')) return 'settings';
-    if (lower.contains('circle') ||
-        lower.contains('space') ||
-        lower.contains('hub') ||
-        lower.contains('market')) {
+    if (lower == 'creator' || lower == 'studio') return 'creator';
+    if (lower == 'gallery' || lower == 'ui gallery') return 'gallery';
+    if (lower == 'friends' || lower == 'friend') return 'friends';
+    if (lower == 'post' || lower == 'publish') return 'post';
+    if (lower == 'setting' || lower == 'settings') return 'settings';
+    if (lower == 'circle' ||
+        lower == 'circles' ||
+        lower == 'circleroom' ||
+        lower == 'spaces' ||
+        lower == 'marketplace') {
       return 'circles';
     }
-    if (lower.contains('calc')) return 'calculator';
-    if (lower.contains('visual') || lower.contains('chart')) {
+    if (lower == 'calc' || lower == 'calculator') return 'calculator';
+    if (lower == 'datavisualizer' || lower == 'data visualizer') {
       return 'datavisualizer';
     }
-    if (lower.contains('data')) return 'data';
+    if (lower == 'data' || lower == 'data studio') return 'data';
     return lower;
   }
+
+  static const List<(Color, Color, IconData)> _dynamicPalettes = [
+    (Color(0xFF10B981), Color(0xFF047857), LucideIcons.sparkles),
+    (Color(0xFF6366F1), Color(0xFF3730A3), LucideIcons.blocks),
+    (Color(0xFFF59E0B), Color(0xFFB45309), LucideIcons.zap),
+    (Color(0xFF06B6D4), Color(0xFF0E7490), LucideIcons.terminal),
+    (Color(0xFFEC4899), Color(0xFF9D174D), LucideIcons.rocket),
+    (Color(0xFF8B5CF6), Color(0xFF5B21B6), LucideIcons.cpu),
+    (Color(0xFF14B8A6), Color(0xFF0F766E), LucideIcons.compass),
+    (Color(0xFF3B82F6), Color(0xFF1D4ED8), LucideIcons.globe),
+  ];
+
+  static String humanizeAppTitle(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return 'App';
+    if (trimmed.contains(' ') || trimmed.toLowerCase() != trimmed) {
+      return trimmed;
+    }
+    if (trimmed == 'helloworld') return 'Hello World';
+    if (trimmed == 'btcalert') return 'BTC Alert';
+    if (trimmed.startsWith('btc') && trimmed.length > 3) {
+      return 'BTC ${_capitalize(trimmed.substring(3))}';
+    }
+    final words = trimmed
+        .split(RegExp(r'[-_.]+'))
+        .where((s) => s.isNotEmpty)
+        .map(_capitalize)
+        .toList();
+    return words.isEmpty ? _capitalize(trimmed) : words.join(' ');
+  }
+
+  static String _capitalize(String s) =>
+      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 
   static Color? tryParseHex(String? hex) {
     if (hex == null || hex.trim().isEmpty) return null;
@@ -565,31 +608,47 @@ class IcAppIcon extends StatelessWidget {
     if (base != null &&
         parsedAccent == null &&
         topOverride == null &&
-        iconOverride == null) {
+        (iconOverride == null || iconOverride == base.icon)) {
       return base;
     }
+
+    var hash = 0;
+    for (final unit in norm.codeUnits) {
+      hash = ((hash * 31) + unit) & 0x7fffffff;
+    }
+    final dynamicPalette = _dynamicPalettes[hash % _dynamicPalettes.length];
+    final isBitcoinApp = norm.contains('btc') || norm.contains('bitcoin');
 
     final top =
         topOverride ??
         parsedAccent ??
         base?.gradientTop ??
-        const Color(0xFF5B8CFF);
+        (isBitcoinApp ? const Color(0xFFF7931A) : dynamicPalette.$1);
     final bottom =
         bottomOverride ??
         (parsedAccent != null
             ? Color.lerp(parsedAccent, const Color(0xFF000000), 0.36)!
-            : (base?.gradientBottom ?? const Color(0xFF1D4ED8)));
+            : (base?.gradientBottom ??
+                  (isBitcoinApp
+                      ? const Color(0xFFB45309)
+                      : dynamicPalette.$2)));
 
     return IcAppIconSpec(
       appId: norm,
-      title: base?.title ?? rawAppId,
-      category: base?.category ?? 'App',
+      title: base?.title ?? humanizeAppTitle(rawAppId),
+      category: base?.category ?? 'Micro-Apps',
       gradientTop: top,
       gradientBottom: bottom,
-      icon: iconOverride ?? base?.icon ?? LucideIcons.layoutGrid,
-      useInoStar: base?.useInoStar == true && iconOverride == null,
+      icon:
+          iconOverride ??
+          base?.icon ??
+          (isBitcoinApp ? LucideIcons.coins : dynamicPalette.$3),
+      useInoStar:
+          base?.useInoStar == true &&
+          (iconOverride == null || iconOverride == base?.icon),
       brandGlyph: base?.brandGlyph,
-      svgAsset: base?.svgAsset,
+      svgAsset:
+          base?.svgAsset ?? (isBitcoinApp ? 'assets/brands/bitcoin.svg' : null),
       pngAsset: base?.pngAsset,
       isArtCraftBridge: base?.isArtCraftBridge == true,
       defaultWebPort: base?.defaultWebPort,

@@ -5,6 +5,7 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Compute;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.AI.Inference;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +27,8 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
             : Deployment;
 
     internal bool HasProfile(string name) => options.CurrentValue.ModelProfiles.ContainsKey(name);
+
+    private bool HasHostChatClient => services.GetService<IChatClient>() is not null and not RebuildingChatClient;
 
     internal Task<Ollama.LocalOllamaDetection?> DetectLocal(CancellationToken ct)
         => services.GetService<Ollama.ILocalOllamaProbe>() is { } probe
@@ -67,7 +70,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
             }
             if (preset is null)
             {
-                if (services.GetService<IChatClient>() is null
+                if (!HasHostChatClient
                     && string.IsNullOrWhiteSpace(configuration.Ollama.Endpoint)
                     && await DetectLocal(ct).ConfigureAwait(false) is { PreferredModel.Length: > 0 } localAuto)
                 {
@@ -129,7 +132,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         {
             // When running against a test/host-supplied IChatClient with no external providers configured,
             // preserve the requested model ID on the Host client so dynamic model selection is observable.
-            if (services.GetService<IChatClient>() is not null && !await AnyProviderConfigured(configuration, credentials, ct))
+            if (HasHostChatClient && !await AnyProviderConfigured(configuration, credentials, ct))
             {
                 var host = new ResolvedModel(AiProvider.Host, modelId, null, profileName, string.Empty, declared ?? preset?.Capabilities ?? LlmCapabilities.Tools, NormalizeReasoning(reasoning), maxTokens);
                 return host with { Revision = Revision(host) };
@@ -440,9 +443,18 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
             var (resolved, reason) = await Attempt(brainId, choice.Selection, ct);
             if (resolved is not null) { choices.Add(Describe(choice.Id, choice.Label, resolved)); }
             else if (choice.Preset is { } preset && preset.SupportsTools && reason is not null)
-            { choices.Add(new(choice.Id, choice.Label, preset.Provider.ToString(), preset.Id, false, [.. Flags(preset.Capabilities)]) { Reason = reason }); }
+            {
+                var presetVisual = VisualCatalog.ForModel(preset.Id, preset.Provider.ToString());
+                choices.Add(new(choice.Id, presetVisual.Label, preset.Provider.ToString(), preset.Id, false, [.. Flags(preset.Capabilities)])
+                {
+                    Reason = reason,
+                    IconKey = presetVisual.IconKey,
+                    ProviderLabel = presetVisual.Category,
+                    AccentHex = presetVisual.AccentHex,
+                });
+            }
         }
-        if (services.GetService<IChatClient>() is null
+        if (!HasHostChatClient
             && string.IsNullOrWhiteSpace(options.CurrentValue.Ollama.Endpoint)
             && await DetectLocal(ct).ConfigureAwait(false) is { } local)
         {
@@ -452,7 +464,13 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
                 {
                     continue;
                 }
-                choices.Insert(0, new("ollama/" + tag, tag + " (local)", AiProvider.Ollama.ToString(), tag, true, [nameof(LlmCapabilities.Tools)]));
+                var localVisual = VisualCatalog.ForModel(tag, AiProvider.Ollama.ToString());
+                choices.Insert(0, new("ollama/" + tag, localVisual.Label, AiProvider.Ollama.ToString(), tag, true, [nameof(LlmCapabilities.Tools)])
+                {
+                    IconKey = localVisual.IconKey,
+                    ProviderLabel = localVisual.Category,
+                    AccentHex = localVisual.AccentHex,
+                });
             }
         }
         return new(Describe(null, "Automatic (workspace default)", automatic is { Provider: not AiProvider.Host } ? automatic : null), [.. choices]);
@@ -504,7 +522,8 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         {
             // A local server being configured does not imply every compiled local model is installed.
             if (preset.Provider == AiProvider.Ollama && !options.CurrentValue.Ollama.Models.ContainsKey(preset.Marker.Name)) { continue; }
-            yield return new("preset:" + preset.Marker.Name, preset.Id, new(preset.Marker.Name), preset);
+            var visual = VisualCatalog.ForModel(preset.Id, preset.Provider.ToString());
+            yield return new("preset:" + preset.Marker.Name, visual.Label, new(preset.Marker.Name), preset);
         }
     }
 
@@ -527,9 +546,21 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         catch (Exception error) when (error is ArgumentException or InvalidOperationException or NotSupportedException) { return null; }
     }
 
-    private static ModelChoice Describe(string? id, string label, ResolvedModel? model) => new(id, label,
-        model?.Provider.ToString(), model?.Model, model is not null,
-        model is null ? [] : [.. Flags(model.Capabilities)]);
+    private static ModelChoice Describe(string? id, string label, ResolvedModel? model)
+    {
+        if (model is null)
+        {
+            return new(id, label, null, null, false, []);
+        }
+
+        var visual = VisualCatalog.ForModel(model.Model, model.Provider.ToString());
+        return new(id, label, model.Provider.ToString(), model.Model, true, [.. Flags(model.Capabilities)])
+        {
+            IconKey = visual.IconKey,
+            ProviderLabel = visual.Category,
+            AccentHex = visual.AccentHex,
+        };
+    }
 
     private static string Revision(ResolvedModel resolved)
         => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(resolved with { Revision = string.Empty }))));

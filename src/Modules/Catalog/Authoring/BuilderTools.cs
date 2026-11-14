@@ -3,6 +3,7 @@ using DigitalBrain;
 using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.Testing.Synapses;
 using DigitalBrain.Units;
+using global::Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Modules.AI.Inference;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -13,6 +14,21 @@ internal static partial class BuilderTools
 {
     public const string ReadContracts = "read_contracts";
     public const string CheckUnit = "check_unit";
+
+    public static int MaxSidecarChars => SynapseCompiler.MaxSidecarChars;
+
+    private static readonly Lazy<SynapseCompiler> DefaultCompiler = new(() => new SynapseCompiler(ReferenceSet.FromDefaultContext()));
+
+    public static Task<UnitCheck> VerifyPackageAsync(
+        IServiceProvider? services,
+        string alias,
+        IReadOnlyDictionary<string, string> files,
+        IReadOnlyList<Scenario> scenarios,
+        CancellationToken ct = default)
+    {
+        var compiler = services?.GetService<SynapseCompiler>() ?? DefaultCompiler.Value;
+        return Check(compiler, alias, files, needs: null, scenarios, ct);
+    }
 
     public static readonly IReadOnlyList<InferenceTool> Definitions =
     [

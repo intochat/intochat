@@ -138,7 +138,8 @@ internal static class AgentPrompts
         again: do not repeat them; add a scenario for what changes. Only when the person's sentence says the opposite of an
         earlier scenario, give the new scenario "supersedes": "<the earlier scenario's name>".
 
-        Reply with JSON only, no prose and no code fences, for example:
+        Reply with JSON only, no prose and no code fences.
+        Example 1 (external poll + view):
         {"alias": "x.watch", "title": "X watch",
          "spec": "Watches mentions of @elonmusk on X...",
          "state": {"Unseen": "int", "Latest": "string", "LastId": "string"},
@@ -152,6 +153,16 @@ internal static class AgentPrompts
                         "given": {"http": {"x": {"mentions": {"data": [{"id": "1", "text": "hi"}]}}}},
                         "when": ["tick 6m", "tick 6m"],
                         "then": ["state x.watch Unseen = 1"]}]}
+        Example 2 (interactive button toggle with no external slots, e.g. Hello World):
+        {"alias": "hello.world", "title": "Hello World",
+         "spec": "Initially shows 'Click the button below' and a 'Say Hello' button (key 'toggle-hello') that emits 'hello.toggle'. Clicking toggles Visible and shows 'Hello, IntoChat OS!' with button 'Hide Hello'.",
+         "state": {"Visible": "bool", "Clicks": "int"},
+         "signals": [{"alias": "hello.toggled", "fields": {"Visible": "bool", "Clicks": "int"}}],
+         "needs": {"slots": [], "schedule": null, "view": true},
+         "scenarios": [{"name": "button click toggles greeting on and off",
+                        "given": {},
+                        "when": ["then view hello.world contains \"Click the button below\"", "then view hello.world contains \"Say Hello\"", "publish hello.toggle {}", "then view hello.world contains \"Hello, IntoChat OS!\"", "publish hello.toggle {}"],
+                        "then": ["state hello.world Visible = false", "state hello.world Clicks = 2", "view hello.world contains \"Click the button below\""]}]}
         """;
 
     // The Builder for a unit: the AuthoredUnit in, the unit's .cs files out, checked with check_unit until green.
@@ -180,7 +191,8 @@ internal static class AgentPrompts
         - The `Every` in code must be exactly needs.schedule; check_unit fails when they differ or only one exists.
         - When needs.view is true, one `[Synapse("<alias>")]` method takes the state and returns a `View`
           (`new View(title, root)` of Column, Row, Text, Badge, StatCardNode, Button). A Button has a stable key and emits
-          to the unit's own alias: `new Button("seen", "Mark seen", new Emit("<alias>", "<signal.alias>"))`.
+          to the unit's own alias: `new Button("toggle-hello", "Say Hello", new Emit("<alias>", "<signal.alias>"))`.
+          Every interactive unit MUST render at least one `Button` node in its initial `View` (even when `Visible == false` or `Count == 0`) so the person can click it immediately!
           The view is pure: no slot, no await, the state in and a View out.
         - Global usings already cover System, System.Collections.Generic, System.Threading(.Tasks), DigitalBrain,
           DigitalBrain.Time and DigitalBrain.UI; add `using System.Linq;`, `using System.Text.Json;` and

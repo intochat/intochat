@@ -83,7 +83,8 @@ public sealed record DesktopAppState(
     string? FocusedViewId,
     WorkspaceViewRef[] Pins,
     WorkspaceViewRef[] Favourites,
-    string WidgetsText)
+    string WidgetsText,
+    string[]? DeployedUnits = null)
 {
     public DesktopAppState() : this(
         "smart-desktop",
@@ -145,12 +146,16 @@ public sealed class DesktopApp : Screen<DesktopAppState>
 
     private IDesktopRecords Records => Get<IDesktopRecords>(IDesktopRecords.Key);
 
+    public static readonly IReadOnlyList<string> DefaultDockApps =
+        ["ino", "photocraft", "filmcraft", "markdraw", "creator", "files", "settings"];
+
     public static readonly IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> NativeCatalog =
     [
         ("ino", "Ino Assistant", "neuron://local/apps/ino", "sparkles", "Intelligence", "orleans-grain"),
         ("files", "Files", "neuron://local/apps/files", "folder", "Workspace", "orleans-grain"),
         ("workspace", "Workspace", "neuron://local/apps/workspace", "compass", "Workspace", "orleans-grain"),
         ("tasks", "Tasks", "neuron://local/apps/tasks", "tasks", "Workspace", "orleans-grain"),
+        ("calculator", "Calculator", "neuron://local/apps/calculator", "calculator", "Workspace", "orleans-grain"),
         ("data", "Data Studio", "neuron://local/apps/data", "bar-chart-2", "Studio", "orleans-grain"),
         ("markdraw", "Markdraw", "neuron://local/apps/markdraw", "pen-tool", "Studio", "orleans-grain"),
         ("creator", "Creator 3D Loop", "neuron://local/apps/creator", "cpu", "Studio", "orleans-grain"),
@@ -165,6 +170,53 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             ArtCraftCatalog.All.Select(app => (app.Id, app.Title, $"neuron://local/apps/{app.Id}", app.Icon, app.Category, "wasm-ui+mcp+cli"))
         ).ToArray();
 
+    public IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> EffectiveCatalog()
+    {
+        var brain = CurrentBrainOrLocal();
+        var items = Catalog
+            .Select(entry => entry with { Uri = entry.Uri.Replace("neuron://local/", $"neuron://{brain}/", StringComparison.Ordinal) })
+            .ToList();
+        var knownIds = items.Select(i => i.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var unitAlias in State.DeployedUnits ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(unitAlias) || !knownIds.Add(unitAlias))
+            {
+                continue;
+            }
+            items.Add((unitAlias, FormatAppTitle(unitAlias), $"neuron://{brain}/units/{unitAlias}", "zap", "Micro-App", "synapse-unit"));
+        }
+
+        return items;
+    }
+
+    private string CurrentBrainOrLocal()
+    {
+        try
+        {
+            var val = Id.Brain.Value;
+            return string.IsNullOrEmpty(val) ? "local" : val;
+        }
+        catch (InvalidOperationException ex)
+        {
+            NullLogger.Instance.LogSwallowed(ex, "Id.Brain is unassigned in standalone tests; defaulting to local.");
+            return "local";
+        }
+    }
+
+    private static string FormatAppTitle(string appId)
+    {
+        if (string.IsNullOrWhiteSpace(appId)) { return "App"; }
+        var known = Catalog.FirstOrDefault(c => string.Equals(c.Id, appId, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(known.Title))
+        {
+            return appId.Equals("ino", StringComparison.OrdinalIgnoreCase) ? "Ino"
+                : appId.Equals("creator", StringComparison.OrdinalIgnoreCase) ? "Creator"
+                : known.Title;
+        }
+        return char.ToUpperInvariant(appId[0]) + appId[1..];
+    }
+
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await base.OnActivate(cancellationToken);
@@ -176,12 +228,48 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         {
             NullLogger.Instance.LogSwallowed(ex, "Workspace follow is optional when running in standalone mode.");
         }
+        try
+        {
+            await Follow<ISynapseStudio, SynapseStudioChanged>("ino/synapses");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            NullLogger.Instance.LogSwallowed(ex, "SynapseStudio follow is optional when running in standalone mode.");
+        }
+        try
+        {
+            await Context.Synapses.EnsureBrainWide([typeof(DigitalBrain.Confirmation.ConfirmationResolved)]);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            NullLogger.Instance.LogSwallowed(ex, "ConfirmationResolved follow is optional when running in standalone mode.");
+        }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
 
     [On]
     public async Task HandleWorkspaceChanged(WorkspaceChanged _)
     {
+        await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
+    }
+
+    [On]
+    public async Task HandleSynapseStudioChanged(SynapseStudioChanged? changed)
+    {
+        if (changed is null || string.IsNullOrEmpty(changed.Alias))
+        {
+            return;
+        }
+        await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
+    }
+
+    [On]
+    public async Task HandleConfirmationResolved(DigitalBrain.Confirmation.ConfirmationResolved? resolved)
+    {
+        if (resolved is null || string.IsNullOrEmpty(resolved.PlanId))
+        {
+            return;
+        }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
 
@@ -286,7 +374,8 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 }
                 catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The app was not there to receive its open view."); }
             }
-            await ApplyDesktopWorkspaceChangeAsync(s => OpenDesktopAppInState(s, app));
+            var brain = CurrentBrainOrLocal();
+            await ApplyDesktopWorkspaceChangeAsync(s => OpenDesktopAppInState(s, app, brain: brain));
         }
         else
         {
@@ -326,10 +415,11 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             ? (existingPins.Contains(appId, StringComparer.OrdinalIgnoreCase) ? existingPins : [.. existingPins, appId])
             : existingPins.Where(p => !string.Equals(p, appId, StringComparison.OrdinalIgnoreCase)).ToArray();
         await Show(State with { PinnedApps = nextPinnedApps });
+        var brain = CurrentBrainOrLocal();
         await ApplyDesktopWorkspaceChangeAsync(s =>
         {
             if (s.Pins.Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase)) == isPin) { return (null, []); }
-            var appKey = IntoChat.OS.Modules.Apps.IApp.Key("local", appId);
+            var appKey = IntoChat.OS.Modules.Apps.IApp.Key(brain, appId);
             WorkspaceViewRef[] nextPins = isPin
                 ? [.. s.Pins, new WorkspaceViewRef(appId, appKey, "full", string.Empty)]
                 : [.. s.Pins.Where(p => !string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase))];
@@ -360,7 +450,8 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.App)) { return; }
-        await ApplyDesktopWorkspaceChangeAsync(s => CloseDesktopAppInState(s, request.App));
+        var brain = CurrentBrainOrLocal();
+        await ApplyDesktopWorkspaceChangeAsync(s => CloseDesktopAppInState(s, request.App, brain));
     }
 
     [On]
@@ -404,7 +495,8 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     public async Task NewTab(DesktopNewTab request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await ApplyDesktopWorkspaceChangeAsync(s => OpenDesktopAppInState(s, "ino", request.WindowId, asNewTab: true));
+        var brain = CurrentBrainOrLocal();
+        await ApplyDesktopWorkspaceChangeAsync(s => OpenDesktopAppInState(s, "ino", request.WindowId, asNewTab: true, brain: brain));
     }
 
     [On]
@@ -412,12 +504,15 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.WindowId)) { return; }
+        var brain = CurrentBrainOrLocal();
         await ApplyDesktopWorkspaceChangeAsync(s =>
         {
             var w = s.Windows.FirstOrDefault(win => win.Id == request.WindowId);
             var activeTab = w?.Tabs.FirstOrDefault(t => t.Id == w.ActiveTabId) ?? w?.Tabs.LastOrDefault();
             if (activeTab is null) { return (null, []); }
-            var appId = IntoChat.OS.Modules.Apps.IApp.NameOf("local", activeTab.App) ?? activeTab.Id;
+            var appId = IntoChat.OS.Modules.Apps.IApp.NameOf(brain, activeTab.App)
+                ?? IntoChat.OS.Modules.Apps.IApp.NameOf("local", activeTab.App)
+                ?? activeTab.Id;
             var exists = s.Favourites.Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));
             WorkspaceViewRef[] nextFavs = exists
                 ? [.. s.Favourites.Where(f => !string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase))]
@@ -491,15 +586,58 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 Extents = [.. activeWindows.Chunk(3).Select(_ => 0.0)],
             };
 
-        var dock = new Row(
-        [
-            new Row(
+        var deployedUnits = state.DeployedUnits ?? [];
+        var pinnedIds = (state.Pins ?? []).Select(p => p.Id).Where(id => !string.IsNullOrWhiteSpace(id)).ToArray();
+        var hasDynamicDockItems = deployedUnits.Length > 0 || pinnedIds.Length > 0;
+
+        Node[] dockLeftButtons;
+        if (!hasDynamicDockItems)
+        {
+            dockLeftButtons =
             [
                 new Button("dock-ino", "Ino", Emit: Emits(new DesktopOpen("ino")), Tone: ButtonTone.Accent) { Icon = "ino" },
                 new Button("dock-files", "Files", Emit: Emits(new DesktopOpen("files"))),
                 new Button("dock-settings", "Settings", Emit: Emits(new DesktopSettings())),
                 new Button("newtab", "New tab", Emit: Emits(new DesktopNewTab())) { Icon = "plus", Small = true },
-            ]) { Gap = 4 },
+            ];
+        }
+        else
+        {
+            var buttons = new List<Node>
+            {
+                new Button("dock-ino", "Ino", Emit: Emits(new DesktopOpen("ino")), Tone: ButtonTone.Accent) { Icon = "ino" },
+                new Button("dock-photocraft", "PhotoCraft", Emit: Emits(new DesktopOpen("photocraft"))) { Icon = "artcraft:photocraft" },
+                new Button("dock-filmcraft", "FilmCraft", Emit: Emits(new DesktopOpen("filmcraft"))) { Icon = "artcraft:filmcraft" },
+                new Button("dock-markdraw", "Markdraw", Emit: Emits(new DesktopOpen("markdraw"))) { Icon = "pen-tool" },
+                new Button("dock-creator", "Creator", Emit: Emits(new DesktopOpen("creator"))) { Icon = "cpu" },
+                new Button("dock-files", "Files", Emit: Emits(new DesktopOpen("files"))),
+                new Button("dock-settings", "Settings", Emit: Emits(new DesktopSettings())),
+            };
+
+            var builtInSet = new HashSet<string>(DefaultDockApps, StringComparer.OrdinalIgnoreCase);
+            foreach (var pinId in pinnedIds)
+            {
+                if (builtInSet.Add(pinId))
+                {
+                    buttons.Add(new Button($"dock-pin-{pinId}", FormatAppTitle(pinId), Emit: Emits(new DesktopOpen(pinId))));
+                }
+            }
+
+            foreach (var unitAlias in deployedUnits)
+            {
+                if (builtInSet.Add(unitAlias))
+                {
+                    buttons.Add(new Button($"dock-unit-{unitAlias}", FormatAppTitle(unitAlias), Emit: Emits(new DesktopOpen(unitAlias))) { Icon = "zap" });
+                }
+            }
+
+            buttons.Add(new Button("newtab", "New tab", Emit: Emits(new DesktopNewTab())) { Icon = "plus", Small = true });
+            dockLeftButtons = [.. buttons];
+        }
+
+        var dock = new Row(
+        [
+            new Row(dockLeftButtons) { Gap = 4 },
             new Row(
             [
                 new Text("Usage"),
@@ -537,9 +675,16 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "DebuggerReads is optional."); }
 
+        string[] deployedUnits = State.DeployedUnits ?? [];
         try
         {
             var units = await Get<ISynapseStudio>("ino/synapses").List();
+            deployedUnits = units
+                .Select(u => u.Aliases.FirstOrDefault() ?? u.SourceKey)
+                .Where(alias => !string.IsNullOrWhiteSpace(alias))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(alias => alias, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
             if (units.Length > 0 && activeNeurons == 10) { activeNeurons += units.Length; }
         }
         catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "SynapseStudio is optional."); }
@@ -584,6 +729,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             Favourites = favs,
             PinnedApps = pinnedApps,
             WidgetsText = widgetsText,
+            DeployedUnits = deployedUnits,
         });
     }
 
@@ -657,11 +803,12 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         WorkspaceState s,
         string rawAppName,
         string? targetWindowId = null,
-        bool asNewTab = false)
+        bool asNewTab = false,
+        string brain = "local")
     {
         var appName = rawAppName.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(appName) || appName == "desktop") { return (null, []); }
-        var appKey = IntoChat.OS.Modules.Apps.IApp.Key("local", appName);
+        var appKey = IntoChat.OS.Modules.Apps.IApp.Key(brain, appName);
         var windows = s.Windows.Where(w => w.Tabs is { Length: > 0 }).ToList();
 
         if (!asNewTab)
@@ -730,16 +877,20 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         return (BuildWorkspaceUpdate(s, updatedWindows, s.FocusedViewId == closedTabId ? nextActive : s.FocusedViewId), []);
     }
 
-    private static (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) CloseDesktopAppInState(WorkspaceState s, string rawAppName)
+    private static (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) CloseDesktopAppInState(WorkspaceState s, string rawAppName, string brain = "local")
     {
-        var appKey = IntoChat.OS.Modules.Apps.IApp.Key("local", rawAppName.Trim().ToLowerInvariant());
+        var normalized = rawAppName.Trim().ToLowerInvariant();
+        var appKey = IntoChat.OS.Modules.Apps.IApp.Key(brain, normalized);
+        var fallbackKey = IntoChat.OS.Modules.Apps.IApp.Key("local", normalized);
         var closedIds = new List<string>();
         var nextWindows = new List<WorkspaceWindow>();
         var changed = false;
 
         foreach (var w in s.Windows.Where(w => w.Tabs is { Length: > 0 }))
         {
-            var keptTabs = w.Tabs.Where(t => !string.Equals(t.App, appKey, StringComparison.OrdinalIgnoreCase)).ToArray();
+            var keptTabs = w.Tabs.Where(t =>
+                !string.Equals(t.App, appKey, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(t.App, fallbackKey, StringComparison.OrdinalIgnoreCase)).ToArray();
             if (keptTabs.Length != w.Tabs.Length) { changed = true; }
             if (keptTabs.Length == 0) { closedIds.Add(w.Id); }
             else { nextWindows.Add(new WorkspaceWindow(w.Id, keptTabs, keptTabs.Any(t => t.Id == w.ActiveTabId) ? w.ActiveTabId : keptTabs[^1].Id)); }

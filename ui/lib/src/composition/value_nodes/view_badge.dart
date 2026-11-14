@@ -3,6 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../components/kit/kit_toast.dart';
 import '../../nodes/node_common.dart';
+import '../../theme/brand_visuals.dart';
 import '../../theme/ui_colors.dart';
 import '../../theme/ui_icon.dart';
 import '../../theme/ui_theme.dart';
@@ -50,7 +51,12 @@ final class ViewBadge extends StatelessWidget {
             UiTone.error => (c.errorBg, c.error, LucideIcons.triangleAlert),
             UiTone.neutral => (c.recessed, c.muted, null),
           };
-    final glyph = (icon != null ? uiIcon(icon!) : null) ?? defaultIcon;
+    final brandSpec = (icon != null && icon!.contains(':'))
+        ? BrandVisuals.tryResolveCapabilityOrAppVisual(null, iconKey: icon)
+        : null;
+    final glyph = brandSpec == null
+        ? ((icon != null ? uiIcon(icon!) : null) ?? defaultIcon)
+        : null;
     return Align(
       alignment: AlignmentDirectional.centerStart,
       widthFactor: 1,
@@ -66,7 +72,10 @@ final class ViewBadge extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (glyph != null) ...[
+            if (brandSpec != null) ...[
+              IcBrandIcon(spec: brandSpec, size: 12),
+              const SizedBox(width: 4),
+            ] else if (glyph != null) ...[
               Icon(glyph, size: 12, color: ink),
               const SizedBox(width: 4),
             ],

@@ -32,6 +32,29 @@ internal sealed class ShippedManifests(IReadOnlyDictionary<string, AppManifest> 
         => manifests.TryGetValue(app, out var manifest) && !string.IsNullOrWhiteSpace(manifest.Icon) && !manifest.Icon.EndsWith(".svg", StringComparison.Ordinal)
             ? manifest.Icon : "grid";
 
+    // Canonical namespaced icon key (e.g. artcraft:photocraft, artcraft:filmcraft, capability:<id>) for shell/dock/card surfaces.
+    public string IconKey(string id)
+    {
+        if (IntoChat.OS.Modules.ArtCraft.ArtCraftCatalog.TryGet(id, out var artcraft))
+        {
+            return artcraft.IconKey;
+        }
+
+        var normalized = (id ?? "").Trim().ToLowerInvariant();
+        if (normalized == "ino")
+        {
+            return "brand:intochat";
+        }
+
+        var manifestIcon = Icon(normalized);
+        if (manifestIcon.Contains(':', StringComparison.Ordinal))
+        {
+            return manifestIcon;
+        }
+
+        return string.IsNullOrEmpty(normalized) ? "grid" : $"capability:{normalized}";
+    }
+
     // The apps in the desktop's dock, in dock order.
     public IReadOnlyList<string> DockApps()
         => [.. manifests.Where(entry => entry.Value.Dock is not null).OrderBy(entry => entry.Value.Dock).ThenBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => entry.Key)];

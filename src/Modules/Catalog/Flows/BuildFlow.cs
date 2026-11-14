@@ -109,8 +109,8 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
         this.logger = logger;
     }
 
-    // Choice plans this activation is asking, and the one-use proofs it handed their detached asks.
-    private readonly HashSet<string> _asking = new(StringComparer.Ordinal);
+    // Choice plans this activation is asking, with their cancellation tokens, and the one-use proofs handed their detached asks.
+    private readonly Dictionary<string, CancellationTokenSource> _asking = new(StringComparer.Ordinal);
     private readonly HashSet<string> _proofs = new(StringComparer.Ordinal);
 
     protected override IReadOnlyList<string> Steps => Names;
@@ -257,8 +257,11 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
         if (inner.ChoicePlans is not { Count: > 0 } plans) { return; }
         foreach (var (planId, choice) in plans)
         {
-            if (!_asking.Add(planId)) { continue; }
-            _ = AskChoice(ChoicePlan(planId, choice, plans.Count(plan => plan.Value[0] == choice[0]), inner, State.Title));
+            if (_asking.ContainsKey(planId)) { continue; }
+            var cts = new CancellationTokenSource();
+            _asking[planId] = cts;
+            var plan = ChoicePlan(planId, choice, plans.Count(p => p.Value[0] == choice[0]), inner, State.Title);
+            _ = AskChoice(plan, cts.Token);
         }
     }
 
@@ -294,21 +297,31 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     }
 
     // Raises the plan without awaiting it in the turn; the answer comes back through the flow's own mailbox with a one-use proof.
-    private async Task AskChoice(ConfirmationPlan plan)
+    private async Task AskChoice(ConfirmationPlan plan, CancellationToken ct)
     {
         bool approved;
-        try { approved = confirmations is not null && (await confirmations.Confirm(plan, CancellationToken.None)).Outcome == ConfirmationOutcome.Approved; }
+        try { approved = confirmations is not null && (await confirmations.Confirm(plan, ct)).Outcome == ConfirmationOutcome.Approved; }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            CleanupAsking(plan.Id);
+            return;
+        }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
             BuildLog.ChoiceAskFailed((ILogger?)logger ?? NullLogger.Instance, error, Id.ToString(), plan.Id);
-            _asking.Remove(plan.Id);
+            CleanupAsking(plan.Id);
             return;
         }
         var proof = Guid.NewGuid().ToString("N");
         _proofs.Add(proof);
         try { await Context.Get<IBuildChoices>(Id).ChoiceAnswered(plan.Id, approved, proof); }
         catch (Exception error) when (error is not OutOfMemoryException) { _proofs.Remove(proof); }
-        finally { _asking.Remove(plan.Id); }
+        finally { CleanupAsking(plan.Id); }
+    }
+
+    private void CleanupAsking(string planId)
+    {
+        if (_asking.Remove(planId, out var cts)) { cts.Dispose(); }
     }
 
     // An approved candidate binds its slot and withdraws the slot's other plans; once every slot is chosen, deploy ends its wait and
@@ -325,13 +338,15 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
             foreach (var other in plans.Where(plan => plan.Value[0] == slot).Select(plan => plan.Key).ToArray())
             {
                 plans.Remove(other);
-                if (confirmations is not null)
+                if (_asking.Remove(other, out var cts))
                 {
-                    try { await confirmations.Resolve(other, approve: false); }
-                    catch (Exception error) when (error is InvalidOperationException or ArgumentException)
-                    {
-                        ((ILogger?)logger ?? NullLogger.Instance).LogSwallowed(error, "Withdrawing candidate choice plan resolution.");
-                    }
+                    try { await cts.CancelAsync(); }
+                    finally { cts.Dispose(); }
+                }
+                try { await Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain)).Withdraw(other); }
+                catch (Exception error) when (error is InvalidOperationException or ArgumentException or UnauthorizedAccessException)
+                {
+                    ((ILogger?)logger ?? NullLogger.Instance).LogSwallowed(error, "Withdrawing candidate choice plan resolution.");
                 }
             }
         }

@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IntoChat OS — Local-First AI Operating System</title>
+  <meta name="description" content="Install IntoChat OS in one command. Run Ino with Sonnet 4.6 or local Qwen 2.5 Coder 14B on your RTX GPU, synthesize live C# micro-apps, inspect .NET Aspire, ship GitHub PRs, and create across all 17 ArtCraft studios." />
+  <meta name="color-scheme" content="dark" />
+  <style>
+    :root {
+      --bg-0: #07090e;
+      --bg-1: #0c1018;
+      --bg-2: #111724;
+      --bg-3: #171f30;
+      --border: #1e283d;
+      --border-strong: #2d3c5a;
+      --text-0: #f4f7fc;
+      --text-1: #b4c0d4;
+      --text-2: #7b8ba5;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.22);
+      --cyan: #06b6d4;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --anthropic: #d97757;
+      --aspire: #7c4dff;
+      --radius-lg: 16px;
+      --radius-md: 11px;
+      --radius-sm: 7px;
+      --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--bg-0);
+      color: var(--text-0);
+      font-family: var(--sans);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background:
+        radial-gradient(950px 440px at 50% -80px, rgba(99, 102, 241, 0.19), transparent 70%),
+        radial-gradient(700px 380px at 88% 180px, rgba(6, 182, 212, 0.11), transparent 72%),
+        var(--bg-0);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .container {
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Top Navigation */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      backdrop-filter: blur(14px);
+      background: rgba(7, 9, 14, 0.82);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+      gap: 16px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.02rem;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-badge {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--cyan);
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      padding: 2px 7px;
+      border-radius: 999px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      font-size: 0.9rem;
+      color: var(--text-1);
+    }
+
+    .nav-links a:hover {
+      color: var(--text-0);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 9px 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-strong);
+      background: var(--bg-2);
+      color: var(--text-0);
+      cursor: pointer;
+      transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .btn:hover {
+      border-color: #4f6391;
+      background: var(--bg-3);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 55%, #0891b2 100%);
+      border-color: rgba(129, 140, 248, 0.55);
+      color: #ffffff;
+      box-shadow: 0 8px 26px rgba(79, 70, 229, 0.34);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #7174f7 0%, #5b52ef 55%, #06b6d4 100%);
+      border-color: #a5b4fc;
+      transform: translateY(-1px);
+    }
+
+    /* Hero */
+    .hero {
+      padding: 68px 0 56px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: rgba(99, 102, 241, 0.11);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      color: #c7d2fe;
+      font-size: 0.8rem;
+      font-family: var(--mono);
+      margin-bottom: 20px;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 10px var(--emerald);
+    }
+
+    .hero h1 {
+      font-size: clamp(2.35rem, 5vw, 3.9rem);
+      line-height: 1.08;
+      letter-spacing: -0.035em;
+      font-weight: 800;
+      max-width: 920px;
+      margin-bottom: 18px;
+    }
+
+    .gradient-text {
+      background: linear-gradient(95deg, #ffffff 0%, #a5b4fc 48%, #22d3ee 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .hero-sub {
+      font-size: 1.13rem;
+      color: var(--text-1);
+      max-width: 790px;
+      margin-bottom: 30px;
+    }
+
+    /* Install Switcher Card */
+    .install-panel {
+      background: linear-gradient(180deg, rgba(17, 23, 36, 0.96), rgba(11, 15, 24, 0.98));
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      max-width: 860px;
+      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
+      margin-bottom: 22px;
+    }
+
+    .install-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .install-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .install-tab {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-2);
+      cursor: pointer;
+      transition: all 0.14s ease;
+    }
+
+    .install-tab:hover {
+      color: var(--text-0);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .install-tab[aria-selected="true"] {
+      color: var(--text-0);
+      background: var(--bg-3);
+      border-color: var(--border-strong);
+    }
+
+    .detected-pill {
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      color: var(--emerald);
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.28);
+      padding: 3px 9px;
+      border-radius: 999px;
+    }
+
+    .command-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: #06080d;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 13px 15px;
+    }
+
+    .command-code {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 0.92rem;
+      color: #e2e8f0;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .prompt-sigil {
+      color: var(--cyan);
+      user-select: none;
+      font-weight: 700;
+    }
+
+    .copy-btn {
+      flex-shrink: 0;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      padding: 7px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-2);
+      color: var(--text-0);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .copy-btn:hover {
+      border-color: var(--cyan);
+    }
+
+    .copy-btn.copied {
+      border-color: var(--emerald);
+      color: var(--emerald);
+      background: rgba(16, 185, 129, 0.12);
+    }
+
+    .install-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 12px;
+      font-size: 0.8rem;
+      color: var(--text-2);
+      font-family: var(--mono);
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 42px;
+    }
+
+    /* Interactive OS Live Preview Shell */
+    .os-shell {
+      border: 1px solid var(--border-strong);
+      border-radius: 18px;
+      background: #090d15;
+      box-shadow: 0 32px 90px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(99, 102, 241, 0.14);
+      overflow: hidden;
+    }
+
+    .os-titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 16px;
+      background: #0d1320;
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .window-dots {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+    }
+    .dot-r { background: #ef4444; }
+    .dot-y { background: #f59e0b; }
+    .dot-g { background: #10b981; }
+
+    .os-status-strip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--text-1);
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      background: rgba(23, 31, 48, 0.85);
+      font-size: 0.74rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .chip-anthropic {
+      border-color: rgba(217, 119, 87, 0.45);
+      background: rgba(217, 119, 87, 0.12);
+      color: #f6b8a2;
+    }
+
+    .chip-qwen {
+      border-color: rgba(139, 92, 246, 0.45);
+      background: rgba(139, 92, 246, 0.13);
+      color: #ddd6fe;
+    }
+
+    .chip-aspire {
+      border-color: rgba(124, 77, 255, 0.5);
+      background: rgba(81, 43, 212, 0.22);
+      color: #dcd0ff;
+    }
+
+    .chip-github {
+      border-color: rgba(148, 163, 184, 0.36);
+      background: rgba(30, 41, 59, 0.65);
+      color: #e2e8f0;
+    }
+
+    .os-workspace {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+      min-height: 430px;
+    }
+
+    @media (max-width: 940px) {
+      .os-workspace {
+        grid-template-columns: 1fr;
+      }
+      .nav-links {
+        display: none;
+      }
+    }
+
+    /* Left Pane: Ino Conversation */
+    .ino-pane {
+      border-right: 1px solid var(--border);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      background: rgba(11, 15, 24, 0.75);
+    }
+
+    .pane-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .pane-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+
+    .model-toggle {
+      cursor: pointer;
+    }
+
+    .msg-user {
+      align-self: flex-end;
+      background: #1a2540;
+      border: 1px solid #2b3d66;
+      border-radius: 12px 12px 3px 12px;
+      padding: 10px 13px;
+      font-size: 0.88rem;
+      max-width: 88%;
+      color: #e8eef9;
+    }
+
+    .activity-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .activity-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      padding: 7px 10px;
+      border-radius: 8px;
+      background: #0d1320;
+      border: 1px solid var(--border);
+      color: var(--text-1);
+    }
+
+    .activity-left {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-ok {
+      color: var(--emerald);
+      font-weight: 600;
+    }
+
+    .msg-ino {
+      background: #101726;
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.88rem;
+      color: var(--text-0);
+    }
+
+    .msg-ino-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 7px;
+      font-size: 0.78rem;
+    }
+
+    /* Right Pane: Live Sandboxed Micro-App Surface */
+    .surface-pane {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      background: linear-gradient(180deg, rgba(13, 19, 32, 0.9), rgba(8, 11, 18, 0.95));
+    }
+
+    .surface-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .surface-tab {
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      padding: 5px 11px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #0b0f18;
+      color: var(--text-2);
+      cursor: pointer;
+    }
+
+    .surface-tab[aria-selected="true"] {
+      color: var(--text-0);
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.15);
+    }
+
+    .app-card {
+      flex: 1;
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      background: #070a11;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .app-card[hidden] {
+      display: none;
+    }
+
+    .hello-banner {
+      padding: 18px;
+      border-radius: 10px;
+      border: 1px dashed var(--border-strong);
+      background: rgba(99, 102, 241, 0.07);
+      text-align: center;
+      transition: all 0.18s ease;
+    }
+
+    .hello-banner.visible {
+      border-style: solid;
+      border-color: var(--emerald);
+      background: rgba(16, 185, 129, 0.11);
+      box-shadow: 0 0 28px rgba(16, 185, 129, 0.14);
+    }
+
+    .hello-greeting {
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #ecfdf5;
+    }
+
+    .hello-muted {
+      font-size: 0.88rem;
+      color: var(--text-2);
+      font-family: var(--mono);
+    }
+
+    .journal-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      color: var(--text-2);
+    }
+
+    /* Sections (#foundation, #sandboxing, #studios) */
+    section.block {
+      padding: 72px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .section-kicker {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--cyan);
+      margin-bottom: 10px;
+    }
+
+    .section-title {
+      font-size: clamp(1.75rem, 3.2vw, 2.5rem);
+      letter-spacing: -0.03em;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+
+    .section-desc {
+      color: var(--text-1);
+      max-width: 740px;
+      margin-bottom: 36px;
+    }
+
+    .bento-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    @media (max-width: 920px) {
+      .bento-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .bento-card {
+      background: linear-gradient(180deg, var(--bg-1), #090c13);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .bento-card:hover {
+      border-color: var(--border-strong);
+    }
+
+    .bento-card h3 {
+      font-size: 1.08rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .bento-card p {
+      font-size: 0.9rem;
+      color: var(--text-1);
+    }
+
+    .code-snippet {
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      background: #05070b;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #cbd5e1;
+      overflow-x: auto;
+    }
+
+    /* 17 ArtCraft Studios Showcase */
+    .studios-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));
+      gap: 12px;
+    }
+
+    .studio-tile {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      transition: transform 0.12s ease, border-color 0.15s ease;
+    }
+
+    .studio-tile:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-strong);
+    }
+
+    .studio-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-weight: 800;
+      font-size: 0.8rem;
+      flex-shrink: 0;
+    }
+
+    .studio-name {
+      font-weight: 700;
+      font-size: 0.88rem;
+    }
+
+    .studio-role {
+      font-size: 0.74rem;
+      color: var(--text-2);
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 36px 0 54px;
+      color: var(--text-2);
+      font-size: 0.84rem;
+    }
+
+    .footer-inner {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a href="#" class="brand" aria-label="IntoChat OS Home">
+        <svg width="26" height="26" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <rect width="32" height="32" rx="8" fill="#6366F1"/>
+          <path d="M9 16.5L14 21.5L23.5 11" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>IntoChat OS</span>
+        <span class="brand-badge">v0.17 · Local-First</span>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="#foundation">Foundation</a>
+        <a href="#sandboxing">3-Tier Sandbox</a>
+        <a href="#studios">17 ArtCraft Studios</a>
+        <a href="#lifecycle">Daemon CLI</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="btn" href="https://github.com/intochat/os" rel="noopener">GitHub</a>
+        <a class="btn btn-primary" href="https://os.intochat.io/try" id="nav-try-cta">Try Instant in Browser</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <div class="eyebrow">
+          <span class="pulse-dot" aria-hidden="true"></span>
+          <span>Native AOT &lt;1.5s Cold Boot · Zero Admin · Zero Host Secret Leakage</span>
+        </div>
+
+        <h1>
+          Your Personal AI Operating System.<br />
+          <span class="gradient-text">Live C# Micro-Apps, Local GPU &amp; Hardware Confinement.</span>
+        </h1>
+
+        <p class="hero-sub">
+          Ask <strong>Ino</strong>—powered by <strong>Sonnet 4.6</strong> or local <strong>Qwen 2.5 Coder 14B</strong> on your RTX GPU—to build interactive desktop apps in seconds, inspect live <strong>.NET Aspire</strong> traces, open verified <strong>GitHub PRs</strong>, or create inside <strong>PhotoCraft</strong> and the 17 ArtCraft studios.
+        </p>
+
+        <!-- OS-Auto-Detected One-Command Install Switcher -->
+        <div class="install-panel" aria-label="One-command installer">
+          <div class="install-header">
+            <div class="install-tabs" role="tablist" aria-label="Install method">
+              <button class="install-tab" role="tab" id="tab-ps1" data-method="ps1" aria-selected="true" type="button">Windows PowerShell</button>
+              <button class="install-tab" role="tab" id="tab-sh" data-method="sh" aria-selected="false" type="button">macOS / Linux</button>
+              <button class="install-tab" role="tab" id="tab-winget" data-method="winget" aria-selected="false" type="button">winget</button>
+              <button class="install-tab" role="tab" id="tab-brew" data-method="brew" aria-selected="false" type="button">Homebrew</button>
+            </div>
+            <span class="detected-pill" id="detected-os-badge">Detected: Windows x64</span>
+          </div>
+
+          <div class="command-row">
+            <div class="command-code">
+              <span class="prompt-sigil" id="install-sigil">PS&gt;</span>
+              <code id="install-command-text">irm https://intochat.io/install.ps1 | iex</code>
+            </div>
+            <button class="copy-btn" id="copy-install-btn" type="button" aria-label="Copy install command">
+              <span id="copy-install-label">Copy</span>
+            </button>
+          </div>
+
+          <div class="install-meta">
+            <span>SHA-256 verified · Unpacks to ~/.intochat · DPAPI sealed master.key</span>
+            <span>CLI: <code>intochat --status</code> · <code>intochat --background</code> · <code>intochat --quit</code></span>
+          </div>
+        </div>
+
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://os.intochat.io/try" id="hero-try-cta">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span>Try Instant in Browser (30-min Ephemeral Brain)</span>
+          </a>
+          <a class="btn" href="#foundation">Explore #foundation Architecture</a>
+        </div>
+
+        <!-- Live Interactive IntoChat OS Hero Workspace -->
+        <div class="os-shell" aria-label="Interactive IntoChat OS Live Workspace Preview">
+          <div class="os-titlebar">
+            <div class="window-dots" aria-hidden="true">
+              <span class="dot dot-r"></span>
+              <span class="dot dot-y"></span>
+              <span class="dot dot-g"></span>
+            </div>
+            <div class="os-status-strip">
+              <!-- Ino Brand Badge -->
+              <span class="chip">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="#6366F1" aria-hidden="true"><circle cx="12" cy="12" r="10"/></svg>
+                Ino Supervisor
+              </span>
+              <!-- Sonnet 4.6 Anthropic Badge -->
+              <button type="button" class="chip chip-anthropic model-toggle" id="hero-model-switch" title="Click to toggle cloud Sonnet 4.6 vs local Qwen 2.5 Coder 14B">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#D97757" stroke-width="2.4" aria-hidden="true">
+                  <path d="M12 3L4 21h3.5l1.8-4.2h5.4L16.5 21H20L12 3z"/>
+                </svg>
+                <span id="active-model-label">Sonnet 4.6 · Anthropic</span>
+              </button>
+              <!-- Qwen Local GPU Badge -->
+              <span class="chip chip-qwen">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" stroke-width="2.1" aria-hidden="true">
+                  <rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/>
+                </svg>
+                Qwen 2.5 Coder 14B · Local RTX GPU
+              </span>
+              <!-- .NET Aspire Badge -->
+              <span class="chip chip-aspire">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="#7C4DFF" aria-hidden="true">
+                  <polygon points="12 2 22 12 12 22 2 12"/>
+                </svg>
+                Aspire · IAspire
+              </span>
+            </div>
+          </div>
+
+          <div class="os-workspace">
+            <!-- Left: Ino Stream -->
+            <div class="ino-pane">
+              <div class="pane-header">
+                <div class="pane-title">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#818CF8" stroke-width="2.2" aria-hidden="true">
+                    <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 14a4 4 0 1 1 4-4 4 4 0 0 1-4 4z"/>
+                  </svg>
+                  <span>Ino · Personal OS Agent</span>
+                </div>
+                <span class="detected-pill">Brain: local · DPAPI Sealed</span>
+              </div>
+
+              <div class="msg-user">
+                Create a Hello World micro-app where clicking a button toggles "Hello, IntoChat OS!", and keep my BTC &lt; $85k watcher running in the background.
+              </div>
+
+              <div class="activity-list" aria-label="Capability Activity Trace">
+                <div class="activity-row">
+                  <span class="activity-left">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#6366F1" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
+                    <span>Ino Studio · Make("helloworld") · Roslyn Compile + Scenarios</span>
+                  </span>
+                  <span class="status-ok">142ms ✓</span>
+                </div>
+                <div class="activity-row">
+                  <span class="activity-left">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#7C4DFF" aria-hidden="true"><polygon points="12 2 22 12 12 22 2 12"/></svg>
+                    <span>Aspire · Resources (Healthy: Silo, UnitHost, Ollama RTX)</span>
+                  </span>
+                  <span class="status-ok">4ms ✓</span>
+                </div>
+                <div class="activity-row">
+                  <span class="activity-left">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E2E8F0" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+                    <span>GitHub · WorkTree Feature-to-PR Gate (Human Approval Ready)</span>
+                  </span>
+                  <span class="status-ok">Armed ✓</span>
+                </div>
+              </div>
+
+              <div class="msg-ino">
+                <div class="msg-ino-head">
+                  <strong>Ino</strong>
+                  <span class="chip chip-anthropic" id="reply-model-chip">Sonnet 4.6</span>
+                </div>
+                <p>
+                  Compiled, verified against <code>scenarios.json</code>, and deployed <code>helloworld</code> to your isolated <strong>UnitHost</strong> worker. Try clicking <strong>Say Hello</strong> in the live surface on the right!
+                </p>
+              </div>
+            </div>
+
+            <!-- Right: Interactive Live Micro-App Surface -->
+            <div class="surface-pane">
+              <div class="pane-header">
+                <div class="surface-tabs" role="tablist" aria-label="Live OS Surface">
+                  <button class="surface-tab" role="tab" data-surface="helloworld" aria-selected="true" type="button">helloworld.cs (Live)</button>
+                  <button class="surface-tab" role="tab" data-surface="btcalert" aria-selected="false" type="button">btcalert [Every("1m")]</button>
+                  <button class="surface-tab" role="tab" data-surface="photocraft" aria-selected="false" type="button">PhotoCraft Studio</button>
+                </div>
+              </div>
+
+              <!-- Surface 1: Interactive Hello World -->
+              <div class="app-card" id="surface-helloworld">
+                <div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span style="font-weight:700;font-size:0.95rem;">Screen&lt;HelloWorldState&gt;</span>
+                    <span class="chip" id="hello-turn-counter">Commits: 1</span>
+                  </div>
+                  <div class="hello-banner" id="hello-output-box">
+                    <p class="hello-muted" id="hello-placeholder">State.Visible == false · Click the button below to emit [Signal("toggle-hello")]</p>
+                    <p class="hello-greeting" id="hello-live-text" hidden>Hello, IntoChat OS!</p>
+                  </div>
+                </div>
+
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                  <button class="btn btn-primary" id="hello-toggle-btn" type="button">
+                    Say Hello
+                  </button>
+                  <span style="font-family:var(--mono);font-size:0.76rem;color:var(--text-2);" id="hello-latency-readout">
+                    UnitHost pipe turn: 0.8ms · Zero MasterKey in worker env
+                  </span>
+                </div>
+
+                <div class="journal-bar">
+                  <span>Endpoint: /brains/local/apps/helloworld/view</span>
+                  <span>Sandbox: IntoChat.OS.UnitHost (5s watchdog)</span>
+                </div>
+              </div>
+
+              <!-- Surface 2: Interactive BTC < $85k Scheduled Micro-App -->
+              <div class="app-card" id="surface-btcalert" hidden>
+                <div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span style="font-weight:700;font-size:0.95rem;">BTC &lt; $85,000 Threshold Watcher</span>
+                    <span class="chip" style="border-color:rgba(245,158,11,0.45);color:#fcd34d;">[Every("1m")] Daemon Active</span>
+                  </div>
+                  <div class="hello-banner" id="btc-status-box">
+                    <p style="font-family:var(--mono);font-size:1.25rem;font-weight:700;" id="btc-price-label">BTC/USD: $86,420</p>
+                    <p class="hello-muted" id="btc-alert-text">Above $85,000 threshold · Running silently on hide-on-close (--background)</p>
+                  </div>
+                </div>
+
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                  <button class="btn btn-primary" id="btc-dip-btn" type="button">Simulate Dip ($84,190)</button>
+                  <button class="btn" id="btc-reset-btn" type="button">Reset ($86,420)</button>
+                </div>
+
+                <div class="journal-bar">
+                  <span>Survives UI window close until <code>intochat --quit</code></span>
+                  <span>Capability: IHttpRead + INotifications</span>
+                </div>
+              </div>
+
+              <!-- Surface 3: PhotoCraft Studio Preview -->
+              <div class="app-card" id="surface-photocraft" hidden>
+                <div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span style="font-weight:700;font-size:0.95rem;">PhotoCraft · Non-Destructive Layer Studio</span>
+                    <span class="chip" style="border-color:rgba(6,182,212,0.45);color:#67e8f9;">artcraft:photocraft</span>
+                  </div>
+                  <div class="hello-banner visible" id="photocraft-canvas" style="background:linear-gradient(135deg, rgba(6,182,212,0.16), rgba(99,102,241,0.18));">
+                    <p class="hello-greeting" id="photocraft-layer-status">Subject Matte · Background Removed (Alpha 100%)</p>
+                    <p class="hello-muted" style="margin-top:4px;">3 Non-Destructive Layers · Local Instant Compositor</p>
+                  </div>
+                </div>
+
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                  <button class="btn btn-primary" id="photocraft-bg-btn" type="button">Toggle Background Matte</button>
+                </div>
+
+                <div class="journal-bar">
+                  <span>Part of the 17 ArtCraft Native Studios</span>
+                  <span>100% Local Windows Execution</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- #foundation OpenClaw-Style Architecture Bento -->
+    <section class="block" id="foundation">
+      <div class="container">
+        <div class="section-kicker">#foundation · DigitalBrain + IntoChat OS</div>
+        <h2 class="section-title">Engineered Like an Operating System, Not a Chat Wrapper.</h2>
+        <p class="section-desc">
+          Every neuron, capability slot, secret, and micro-app runs over deterministic encrypted journals (<code>BrainLog</code>), explicit capability contracts, and hardware-enforced OS boundaries.
+        </p>
+
+        <div class="bento-grid">
+          <article class="bento-card">
+            <h3>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97757" stroke-width="2.2" aria-hidden="true"><path d="M12 3L4 21h3.5l1.8-4.2h5.4L16.5 21H20L12 3z"/></svg>
+              First-Class Cloud &amp; Local Models
+            </h3>
+            <p>
+              Switch seamlessly between <strong>Sonnet 4.6 (Anthropic)</strong>, Opus 4.6, GPT-5.4, Gemini 3.6 Pro, and 100% offline <strong>Qwen 2.5 Coder 14B</strong> over local Ollama RTX GPUs—with zero hardcoded OpenAI lock-in.
+            </p>
+            <div class="code-snippet">IModelCatalog.Resolve(brain, requiresTools: true)</div>
+          </article>
+
+          <article class="bento-card">
+            <h3>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="#7C4DFF" aria-hidden="true"><polygon points="12 2 22 12 12 22 2 12"/></svg>
+              .NET Aspire &amp; Roslyn CodeGraph
+            </h3>
+            <p>
+              Ino inspects live service health and OpenTelemetry distributed traces via <code>IAspire</code> and navigates repositories in &lt;200ms using incremental Roslyn symbol &amp; caller indexing (<code>ICodeGraph</code>).
+            </p>
+            <div class="code-snippet">IAspire.Resources() · ICodeGraph.FindCallers()</div>
+          </article>
+
+          <article class="bento-card">
+            <h3>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.2" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              GitHub Feature-to-PR Shield
+            </h3>
+            <p>
+              Code changes build and test inside isolated git worktrees (<code>IWorkTree</code>) with read-only <code>.git</code> confinement. Pushing a branch or opening a GitHub PR requires explicit human approval.
+            </p>
+            <div class="code-snippet">IInoStudio.ProposeChangeOnBranch() -&gt; ApprovalCard</div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3-Tier Confinement -->
+    <section class="block" id="sandboxing">
+      <div class="container">
+        <div class="section-kicker">Defense-in-Depth Confinement</div>
+        <h2 class="section-title">Three Hardware &amp; Kernel Isolation Tiers.</h2>
+        <p class="section-desc">
+          Untrusted code never touches your DPAPI <code>master.key</code>, <code>~/.ssh</code>, or ambient tokens.
+        </p>
+
+        <div class="bento-grid">
+          <article class="bento-card">
+            <h3>Tier 1 · UnitHost Process Pipe</h3>
+            <p>
+              Dynamic C# micro-apps compile in-memory with Roslyn and execute in <code>IntoChat.OS.UnitHost</code> over anonymous JSON pipes with a hard 5-second turn watchdog and scrubbed environment.
+            </p>
+            <div class="code-snippet">IntoChat.OS.Sandbox --unit-host (256MB Job Cap)</div>
+          </article>
+
+          <article class="bento-card">
+            <h3>Tier 2 · AppContainer &amp; Bubblewrap</h3>
+            <p>
+              External compilers and CLI tools run inside Windows Job Objects (<code>KILL_ON_JOB_CLOSE</code> + <code>0xFF</code> UI lock + Less-Privileged AppContainer), Linux <code>bwrap --unshare-net</code>, or macOS Seatbelt.
+            </p>
+            <div class="code-snippet">PROC_THREAD_ATTRIBUTE_HANDLE_LIST + LPAC</div>
+          </article>
+
+          <article class="bento-card">
+            <h3>Tier 3 · Disposable Batch Sandbox</h3>
+            <p>
+              Heavy untrusted batch jobs run inside rootless Docker, deterministic Windows Sandbox <code>.wsb</code> micro-VMs, or Microsoft WinApp CLI v0.7.0 sparse AppContainer packages with sensitive host paths blocked.
+            </p>
+            <div class="code-snippet">docker run --rm --network none --read-only --cap-drop ALL</div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- PhotoCraft & All 17 ArtCraft Studios -->
+    <section class="block" id="studios">
+      <div class="container">
+        <div class="section-kicker">Built-In Creative Workstation</div>
+        <h2 class="section-title">PhotoCraft &amp; All 17 ArtCraft Studios Included.</h2>
+        <p class="section-desc">
+          Every studio is a native citizen of IntoChat OS—launchable from the dock, <code>Ctrl+K</code> command palette, or orchestrated directly by Ino.
+        </p>
+
+        <div class="studios-grid" id="artcraft-grid" aria-label="17 ArtCraft Studios"></div>
+      </div>
+    </section>
+
+    <!-- Daemon Lifecycle CLI -->
+    <section class="block" id="lifecycle">
+      <div class="container">
+        <div class="section-kicker">Native AOT Supervisor</div>
+        <h2 class="section-title">Instant Boot. Sub-Millisecond Status. Clean Background Daemon.</h2>
+        <p class="section-desc">
+          Closing the desktop window keeps your scheduled <code>[Every("1m")]</code> micro-apps and PR watchers alive in the background until you explicitly stop the kernel.
+        </p>
+
+        <div class="bento-grid">
+          <article class="bento-card">
+            <h3>Sub-5ms Health Probe</h3>
+            <p>Queries the OS TCP socket table and atomic <code>~/.intochat/run/kernel.pid</code> without closed-port SYN timeouts.</p>
+            <div class="code-snippet">intochat --status</div>
+          </article>
+          <article class="bento-card">
+            <h3>Hide-on-Close Daemon</h3>
+            <p>Run headless or minimize to background so scheduled watchers and alerts keep ticking cleanly.</p>
+            <div class="code-snippet">intochat --background</div>
+          </article>
+          <article class="bento-card">
+            <h3>Authenticated Graceful Quit</h3>
+            <p>Authenticates via owner-only <code>~/.intochat/run/presence</code>, flushes <code>BrainLog</code>, and cleans PID state.</p>
+            <div class="code-snippet">intochat --quit</div>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <div>
+        <strong>IntoChat OS</strong> · MIT Licensed · Built on DigitalBrain &amp; .NET 11
+      </div>
+      <div style="display:flex;gap:18px;">
+        <a href="https://os.intochat.io/try">Try in Browser</a>
+        <a href="https://intochat.io/install.ps1">install.ps1</a>
+        <a href="https://intochat.io/install.sh">install.sh</a>
+        <a href="https://github.com/intochat/os">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var INSTALL_METHODS = {
+        ps1: {
+          sigil: "PS>",
+          command: "irm https://intochat.io/install.ps1 | iex",
+          badge: "Windows PowerShell"
+        },
+        sh: {
+          sigil: "$",
+          command: "curl -fsSL https://intochat.io/install.sh | sh",
+          badge: "macOS / Linux POSIX"
+        },
+        winget: {
+          sigil: "PS>",
+          command: "winget install IntoChat.OS",
+          badge: "Windows Package Manager"
+        },
+        brew: {
+          sigil: "$",
+          command: "brew install --cask intochat",
+          badge: "Homebrew Cask"
+        }
+      };
+
+      var ARTCRAFT_STUDIOS = [
+        { id: "photocraft", code: "Ps", name: "PhotoCraft", role: "Raster & Layer Studio", color: "#06B6D4" },
+        { id: "filmcraft", code: "Fm", name: "FilmCraft", role: "Timeline & Nonlinear Video", color: "#8B5CF6" },
+        { id: "vectorcraft", code: "Vc", name: "VectorCraft", role: "Precision Vector Paths", color: "#F59E0B" },
+        { id: "lightcraft", code: "Lr", name: "LightCraft", role: "RAW Color & Grading", color: "#38BDF8" },
+        { id: "effectcraft", code: "Fx", name: "EffectCraft", role: "Motion & VFX Compositor", color: "#A855F7" },
+        { id: "designcraft", code: "Ds", name: "DesignCraft", role: "UI & Publication Layout", color: "#EC4899" },
+        { id: "pdfcraft", code: "Pd", name: "PdfCraft", role: "Document Preflight & Sign", color: "#EF4444" },
+        { id: "wordcraft", code: "Wd", name: "WordCraft", role: "Structured Longform Docs", color: "#3B82F6" },
+        { id: "soundcraft", code: "Au", name: "SoundCraft", role: "Multitrack Audio & Mastering", color: "#10B981" },
+        { id: "deckcraft", code: "Dk", name: "DeckCraft", role: "Keynote & Story Decks", color: "#F97316" },
+        { id: "cadcraft", code: "Cd", name: "CadCraft", role: "Parametric 2D/3D CAD", color: "#14B8A6" },
+        { id: "gridcraft", code: "Gr", name: "GridCraft", role: "Reactive Sheets & Models", color: "#22C55E" },
+        { id: "figcraft", code: "Fg", name: "FigCraft", role: "Interactive Wireframes", color: "#E879F9" },
+        { id: "texturecraft", code: "Tx", name: "TextureCraft", role: "Procedural PBR Maps", color: "#FBBF24" },
+        { id: "materialcraft", code: "Mt", name: "MaterialCraft", role: "Shader & Surface Graph", color: "#FB7185" },
+        { id: "solidcraft", code: "Sl", name: "SolidCraft", role: "3D Mesh & B-Rep Assembly", color: "#60A5FA" },
+        { id: "artcraft", code: "Ac", name: "ArtCraft Hub", role: "Unified Creative Suite", color: "#6366F1" }
+      ];
+
+      var tabButtons = Array.prototype.slice.call(document.querySelectorAll(".install-tab"));
+      var sigilEl = document.getElementById("install-sigil");
+      var commandEl = document.getElementById("install-command-text");
+      var detectedBadgeEl = document.getElementById("detected-os-badge");
+      var copyBtn = document.getElementById("copy-install-btn");
+      var copyLabel = document.getElementById("copy-install-label");
+      var activeMethod = "ps1";
+
+      function selectInstallMethod(method, isAutoDetected) {
+        var spec = INSTALL_METHODS[method] || INSTALL_METHODS.ps1;
+        activeMethod = method;
+        sigilEl.textContent = spec.sigil;
+        commandEl.textContent = spec.command;
+        if (isAutoDetected) {
+          detectedBadgeEl.textContent = "Auto-detected: " + spec.badge;
+        } else {
+          detectedBadgeEl.textContent = "Selected: " + spec.badge;
+        }
+        tabButtons.forEach(function (btn) {
+          var selected = btn.getAttribute("data-method") === method;
+          btn.setAttribute("aria-selected", selected ? "true" : "false");
+        });
+      }
+
+      function detectPlatformMethod() {
+        var ua = (navigator.userAgent || "").toLowerCase();
+        var plat = (navigator.platform || "").toLowerCase();
+        if (plat.indexOf("mac") >= 0 || ua.indexOf("macintosh") >= 0 || ua.indexOf("darwin") >= 0) {
+          return "sh";
+        }
+        if (plat.indexOf("linux") >= 0 || ua.indexOf("linux") >= 0) {
+          return "sh";
+        }
+        return "ps1";
+      }
+
+      tabButtons.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          selectInstallMethod(btn.getAttribute("data-method") || "ps1", false);
+        });
+      });
+
+      copyBtn.addEventListener("click", function () {
+        var cmd = INSTALL_METHODS[activeMethod].command;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(cmd).catch(function () {});
+        }
+        copyBtn.classList.add("copied");
+        copyLabel.textContent = "Copied!";
+        window.setTimeout(function () {
+          copyBtn.classList.remove("copied");
+          copyLabel.textContent = "Copy";
+        }, 1800);
+      });
+
+      // Model badge interactive switcher in Hero
+      var modelSwitchBtn = document.getElementById("hero-model-switch");
+      var activeModelLabel = document.getElementById("active-model-label");
+      var replyModelChip = document.getElementById("reply-model-chip");
+      var usingLocalQwen = false;
+
+      modelSwitchBtn.addEventListener("click", function () {
+        usingLocalQwen = !usingLocalQwen;
+        if (usingLocalQwen) {
+          activeModelLabel.textContent = "Qwen 2.5 Coder 14B · Ollama RTX";
+          replyModelChip.textContent = "Qwen 2.5 Coder 14B";
+        } else {
+          activeModelLabel.textContent = "Sonnet 4.6 · Anthropic";
+          replyModelChip.textContent = "Sonnet 4.6";
+        }
+      });
+
+      // Surface tabs switcher (Hello World / BTC Watcher / PhotoCraft)
+      var surfaceTabs = Array.prototype.slice.call(document.querySelectorAll(".surface-tab"));
+      var surfacePanels = {
+        helloworld: document.getElementById("surface-helloworld"),
+        btcalert: document.getElementById("surface-btcalert"),
+        photocraft: document.getElementById("surface-photocraft")
+      };
+
+      surfaceTabs.forEach(function (tab) {
+        tab.addEventListener("click", function () {
+          var target = tab.getAttribute("data-surface") || "helloworld";
+          surfaceTabs.forEach(function (t) {
+            t.setAttribute("aria-selected", t === tab ? "true" : "false");
+          });
+          Object.keys(surfacePanels).forEach(function (key) {
+            surfacePanels[key].hidden = key !== target;
+          });
+        });
+      });
+
+      // Interactive Live "Hello World" Micro-App inside Hero
+      var helloVisible = false;
+      var helloCommits = 1;
+      var helloBtn = document.getElementById("hello-toggle-btn");
+      var helloBox = document.getElementById("hello-output-box");
+      var helloPlaceholder = document.getElementById("hello-placeholder");
+      var helloLiveText = document.getElementById("hello-live-text");
+      var helloTurnCounter = document.getElementById("hello-turn-counter");
+      var helloLatency = document.getElementById("hello-latency-readout");
+
+      helloBtn.addEventListener("click", function () {
+        helloVisible = !helloVisible;
+        helloCommits += 1;
+        helloTurnCounter.textContent = "Commits: " + String(helloCommits);
+        if (helloVisible) {
+          helloBox.classList.add("visible");
+          helloPlaceholder.hidden = true;
+          helloLiveText.hidden = false;
+          helloBtn.textContent = "Hide Hello";
+          helloLatency.textContent = "BrainLog committed #" + String(helloCommits) + " in 0.6ms · Visible = true";
+        } else {
+          helloBox.classList.remove("visible");
+          helloPlaceholder.hidden = false;
+          helloLiveText.hidden = true;
+          helloBtn.textContent = "Say Hello";
+          helloLatency.textContent = "BrainLog committed #" + String(helloCommits) + " in 0.5ms · Visible = false";
+        }
+      });
+
+      // Interactive BTC < $85k Micro-App
+      var btcBox = document.getElementById("btc-status-box");
+      var btcPrice = document.getElementById("btc-price-label");
+      var btcAlert = document.getElementById("btc-alert-text");
+
+      document.getElementById("btc-dip-btn").addEventListener("click", function () {
+        btcBox.classList.add("visible");
+        btcPrice.textContent = "BTC/USD: $84,190  [ALERT FIRED]";
+        btcAlert.textContent = "INotifications.NotifyAsync -> Threshold < $85,000 crossed! Delivered to OS Tray & Inbox.";
+      });
+
+      document.getElementById("btc-reset-btn").addEventListener("click", function () {
+        btcBox.classList.remove("visible");
+        btcPrice.textContent = "BTC/USD: $86,420";
+        btcAlert.textContent = "Above $85,000 threshold · Running silently on hide-on-close (--background)";
+      });
+
+      // Interactive PhotoCraft Matte toggle
+      var matteRemoved = true;
+      var photoCanvas = document.getElementById("photocraft-canvas");
+      var photoStatus = document.getElementById("photocraft-layer-status");
+      document.getElementById("photocraft-bg-btn").addEventListener("click", function () {
+        matteRemoved = !matteRemoved;
+        if (matteRemoved) {
+          photoCanvas.classList.add("visible");
+          photoStatus.textContent = "Subject Matte · Background Removed (Alpha 100%)";
+        } else {
+          photoCanvas.classList.remove("visible");
+          photoStatus.textContent = "Original Studio Plate · 3 Layers Visible";
+        }
+      });
+
+      // Populate all 17 ArtCraft Studios grid
+      var studiosGrid = document.getElementById("artcraft-grid");
+      ARTCRAFT_STUDIOS.forEach(function (studio) {
+        var tile = document.createElement("div");
+        tile.className = "studio-tile";
+
+        var badge = document.createElement("div");
+        badge.className = "studio-icon";
+        badge.style.background = studio.color + "22";
+        badge.style.border = "1px solid " + studio.color + "66";
+        badge.style.color = studio.color;
+        badge.textContent = studio.code;
+
+        var meta = document.createElement("div");
+        var title = document.createElement("div");
+        title.className = "studio-name";
+        title.textContent = studio.name;
+        var role = document.createElement("div");
+        role.className = "studio-role";
+        role.textContent = studio.role;
+
+        meta.appendChild(title);
+        meta.appendChild(role);
+        tile.appendChild(badge);
+        tile.appendChild(meta);
+        studiosGrid.appendChild(tile);
+      });
+
+      selectInstallMethod(detectPlatformMethod(), true);
+    })();
+  </script>
+</body>
+</html>

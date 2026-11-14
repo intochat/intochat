@@ -117,18 +117,24 @@ final class ActivityNode {
     required this.title,
     required this.status,
     required this.detail,
+    required this.icon,
+    required this.category,
   });
 
   final String id;
   final String title;
   final String status;
   final String? detail;
+  final String? icon;
+  final String? category;
 
   factory ActivityNode.fromJson(Map<String, dynamic> json) => ActivityNode(
     id: _string(json['id']),
     title: _string(json['title']),
     status: _string(json['status'], 'done'),
     detail: _stringOrNull(json['detail']),
+    icon: _stringOrNull(json['icon']),
+    category: _stringOrNull(json['category']),
   );
 }
 
@@ -189,6 +195,8 @@ final class ApprovalCardNode extends Node {
     required this.status,
     required this.resolve,
     required this.sourceNeuronUri,
+    required this.icon,
+    required this.capabilityLabel,
   });
 
   @override
@@ -204,6 +212,8 @@ final class ApprovalCardNode extends Node {
   final String status;
   final Resolve? resolve;
   final String? sourceNeuronUri;
+  final String? icon;
+  final String? capabilityLabel;
 
   factory ApprovalCardNode.fromJson(Map<String, dynamic> json) =>
       ApprovalCardNode(
@@ -222,6 +232,8 @@ final class ApprovalCardNode extends Node {
             ? Resolve.fromJson(_map(json['resolve']))
             : null,
         sourceNeuronUri: _stringOrNull(json['sourceNeuronUri']),
+        icon: _stringOrNull(json['icon']),
+        capabilityLabel: _stringOrNull(json['capabilityLabel']),
       );
 }
 
@@ -590,18 +602,24 @@ final class ComposerNode {
     required this.onSubmit,
     required this.placeholder,
     required this.enabled,
+    required this.activeModelLabel,
+    required this.activeProviderIcon,
   });
 
   final String key;
   final Emit onSubmit;
   final String placeholder;
   final bool enabled;
+  final String? activeModelLabel;
+  final String? activeProviderIcon;
 
   factory ComposerNode.fromJson(Map<String, dynamic> json) => ComposerNode(
     key: _string(json['key']),
     onSubmit: Emit.fromJson(_map(json['onSubmit'])),
     placeholder: _string(json['placeholder'], 'Message'),
     enabled: _bool(json['enabled'], true),
+    activeModelLabel: _stringOrNull(json['activeModelLabel']),
+    activeProviderIcon: _stringOrNull(json['activeProviderIcon']),
   );
 }
 
@@ -1074,6 +1092,8 @@ final class MessageNode {
     required this.status,
     required this.model,
     required this.retry,
+    required this.modelLabel,
+    required this.providerIcon,
   });
 
   final String id;
@@ -1084,6 +1104,8 @@ final class MessageNode {
   final String status;
   final String? model;
   final ButtonNode? retry;
+  final String? modelLabel;
+  final String? providerIcon;
 
   factory MessageNode.fromJson(Map<String, dynamic> json) => MessageNode(
     id: _string(json['id']),
@@ -1103,6 +1125,8 @@ final class MessageNode {
     retry: json['retry'] is Map
         ? ButtonNode.fromJson(_map(json['retry']))
         : null,
+    modelLabel: _stringOrNull(json['modelLabel']),
+    providerIcon: _stringOrNull(json['providerIcon']),
   );
 }
 

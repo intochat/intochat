@@ -607,7 +607,8 @@ internal sealed class AgentNeuron(
                         ? AgentFailure.TimedOut
                         : (cancelled ? AgentFailure.Unknown : (failure?.Failure ?? AgentFailure.Unknown));
                     run = Close(Streamed(), cancelled ? AgentRunStatus.Cancelled : AgentRunStatus.Failed, error, cancelled ? "tool_cancelled" : "tool_interrupted")
-                        with { Failure = failureKind };
+                        with
+                    { Failure = failureKind };
                     // The end is announced whether or not it could be stored: a Start caller must never wait forever.
                     var persisted = true;
                     try { await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, run) }); }

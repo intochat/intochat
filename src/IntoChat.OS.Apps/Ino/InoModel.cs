@@ -1,3 +1,4 @@
+using System.Text.Json;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Modules.AI.Agents;
@@ -291,6 +292,7 @@ public static class InoModel
             AgentKey = AgentKeyOf(conversationId),
             GrantSummaries = s.GrantSummaries,
             Smart = s.Smart,
+            SelectedModel = s.SelectedModel,
             DetectedLocalModel = s.DetectedLocalModel,
             DetectedLocalModels = s.DetectedLocalModels,
         };
@@ -360,9 +362,60 @@ public static class InoModel
         {
             Model = entry.Model,
             Failure = failure,
-            Activities = [.. entry.Activities.Select(a => new InoActivity(a.Id, a.Title, a.Result, a.Error))],
+            Activities = [.. entry.Activities.Select(a => new InoActivity(a.Id, FormatActivityTitle(a.Title, a.Input), a.Result, a.Error))],
             Cards = entryCards,
         };
+    }
+
+    internal static string FormatActivityTitle(string? title, string? input)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = title.Trim();
+        if (trimmed is "neurons_call" or "neurons_get" or "neurons_list"
+            && !string.IsNullOrWhiteSpace(input)
+            && input.AsSpan().TrimStart().StartsWith("{", StringComparison.Ordinal))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(input);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    var root = doc.RootElement;
+                    var contract = root.TryGetProperty("contract", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
+                    var key = root.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String ? k.GetString() : null;
+                    var method = root.TryGetProperty("method", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : null;
+
+                    var target = !string.IsNullOrWhiteSpace(key)
+                        && (string.IsNullOrWhiteSpace(contract)
+                            || contract.EndsWith(".IArtCraftStudio", StringComparison.Ordinal)
+                            || contract.Equals("IArtCraftStudio", StringComparison.OrdinalIgnoreCase)
+                            || contract.EndsWith(".IApp", StringComparison.Ordinal)
+                            || contract.Equals("IApp", StringComparison.OrdinalIgnoreCase))
+                        ? key
+                        : !string.IsNullOrWhiteSpace(contract)
+                            ? contract
+                            : key;
+
+                    if (!string.IsNullOrWhiteSpace(target))
+                    {
+                        var combined = !string.IsNullOrWhiteSpace(method) && !string.Equals(method, "Request", StringComparison.OrdinalIgnoreCase)
+                            ? $"{target}.{method}"
+                            : target;
+                        return InoView.ResolveActivityVisual(new InoActivity(string.Empty, combined)).Label;
+                    }
+                }
+            }
+            catch (JsonException)
+            {
+                return trimmed;
+            }
+        }
+
+        return trimmed;
     }
 
     internal static string ClassifyErrorText(string? errorText)

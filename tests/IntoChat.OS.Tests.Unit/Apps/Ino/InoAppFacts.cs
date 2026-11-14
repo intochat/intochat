@@ -81,6 +81,7 @@ public sealed class InoAppFacts
         Assert.Contains(typeof(IAspire).FullName!, def.Contracts);
         Assert.Contains(typeof(ITraceReader).FullName!, def.Contracts);
         Assert.Contains(typeof(IFlows).FullName!, def.Contracts);
+        Assert.Contains("IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph", def.Contracts);
         Assert.Contains("ProposeChange", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("RememberPreference", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("GetTracesAsync", def.Instructions, StringComparison.Ordinal);

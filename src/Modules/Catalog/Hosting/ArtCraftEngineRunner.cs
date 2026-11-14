@@ -7,8 +7,12 @@ namespace IntoChat.OS.Modules.Apps;
 
 public static class ArtCraftEngineRunner
 {
-    public const string CyanPreviewPngDataUrl = "";
-    public const string GradientPreviewPngDataUrl = "";
+    public const string CyanPreviewPngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAG0lEQVR42mNg23blP9/Sl/8ZOCZu+q90+d1/AFXbCldN0M4zAAAAAElFTkSuQmCC";
+    public const string GradientPreviewPngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAG0lEQVR42mNQTX79Pznt43+GNx4z//8sFvsPAFrfCnnWE457AAAAAElFTkSuQmCC";
+    public const string CutoutPreviewPngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mNg23blPwMMWOz98R8ALDwFfMvokZ0AAAAASUVORK5CYII=";
+    public const string MonochromePreviewPngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAG0lEQVR42mO4cuXG/4ULV/1nKCys+m9v7/YfAGi3Con1rNr9AAAAAElFTkSuQmCC";
+    public const string WarmPresetPngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAG0lEQVR42mP4vV/l/9d53P8Zbpaz/X8VwfMfAF/yCh1YDS1vAAAAAElFTkSuQmCC";
+    public const string VividPresetPngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAG0lEQVR42mMQ2Nn4n23blf8M3THf/n+xj/sPAFX+CkUl2JwpAAAAAElFTkSuQmCC";
 
     private static readonly (string[] Terms, string CmdId, string Title, string DefaultJson, string Suffix, string[] Layers)[] PhotoCommands =
     [
@@ -24,6 +28,12 @@ public static class ArtCraftEngineRunner
         (["desaturate", "grayscale", "black and white", "monochrome", "image.adjustments.desaturate"],
             "image.adjustments.desaturate", "Desaturate (Monochrome Tonemap)", "{}", "mono.png",
             ["Desaturate Adjustment (Luminance · 100%)", "Base Raster Layer (100%)"]),
+        (["warm", "vintage", "golden hour", "sepia", "preset.warm"],
+            "preset.warm", "Apply Warm Cinema Filter Preset", "{\"temperature\":18,\"tint\":4,\"contrast\":8}", "warm.png",
+            ["Warm Cinema LUT Adjustment (100% · Soft Light)", "Base Raster Layer (100%)"]),
+        (["vivid", "pop", "vibrance", "saturate", "preset.vivid"],
+            "preset.vivid", "Apply Vivid Studio Filter Preset", "{\"vibrance\":28,\"clarity\":14}", "vivid.png",
+            ["Vivid Studio Adjustment (100% · Normal)", "Base Raster Layer (100%)"]),
         (["flip", "mirror", "image.imageRotation.flipCanvasHorizontal"],
             "image.imageRotation.flipCanvasHorizontal", "Flip Canvas Horizontal", "{}", "flipped.png",
             ["Flipped Composite Layer (100%)"]),
@@ -281,7 +291,7 @@ public static class ArtCraftEngineRunner
         Action<Exception, string>? onRecoverableError,
         IFilesVfsService? vfs)
     {
-        var previewUrl = isNewGradient ? GradientPreviewPngDataUrl : CyanPreviewPngDataUrl;
+        var previewUrl = SelectPreviewPngDataUrl(cmdId, isNewGradient);
         var modeBadge = mode switch
         {
             "mcp" => $"MCP Server ({descriptor.Id}-mcp)",
@@ -427,6 +437,23 @@ public static class ArtCraftEngineRunner
         }
 
         return currentDocument;
+    }
+
+    public static string SelectPreviewPngDataUrl(string? cmdId, bool isNewGradient = false)
+    {
+        if (isNewGradient || string.Equals(cmdId, "layer.newFillLayer.gradient", StringComparison.OrdinalIgnoreCase))
+        {
+            return GradientPreviewPngDataUrl;
+        }
+
+        return cmdId switch
+        {
+            "layer.removeBackground" => CutoutPreviewPngDataUrl,
+            "image.adjustments.desaturate" => MonochromePreviewPngDataUrl,
+            "preset.warm" => WarmPresetPngDataUrl,
+            "preset.vivid" => VividPresetPngDataUrl,
+            _ => CyanPreviewPngDataUrl,
+        };
     }
 
     private static byte[] DecodeDataUrlBytes(string? dataUrl, string fallbackText)

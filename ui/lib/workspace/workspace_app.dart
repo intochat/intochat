@@ -64,6 +64,24 @@ class WorkspaceAppState extends State<WorkspaceApp>
 
   // The apps an OpenWindow intent may open: the launcher's and the brain's installed apps.
   Set<String> _knownApps = knownAppsFor(const []);
+  List<SmartAppTileSpec> _dynamicDesktopApps = const [];
+
+  List<SmartAppTileSpec> _paletteApps() {
+    final seen = <String>{for (final s in allSmartAppSpecs) s.id};
+    final merged = <SmartAppTileSpec>[...allSmartAppSpecs];
+    for (final s in _dynamicDesktopApps) {
+      if (seen.add(s.id)) merged.add(s);
+    }
+    for (final id in _knownApps) {
+      final norm = id.trim().toLowerCase();
+      if (norm.isNotEmpty && seen.add(norm)) {
+        merged.add(
+          SmartAppTileSpec.fromIconSpec(norm, categoryOverride: 'Micro-Apps'),
+        );
+      }
+    }
+    return merged;
+  }
 
   Future<void> _readKnownApps(String brain) async {
     try {
@@ -354,6 +372,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
           'brainId': brain,
         }, client.jsonRequest);
         if (!mounted) return;
+        if (!changingBrain) unawaited(_readKnownApps(brain));
         if (result.toast.isNotEmpty) _toast(result.toast, tone: result.tone);
         if (result.reopen case final String reopen) {
           await _activate({
@@ -392,6 +411,11 @@ class WorkspaceAppState extends State<WorkspaceApp>
               ? null
               : neuron,
         );
+      } else if (app != null && app.trim().isNotEmpty) {
+        final normApp = app.trim().toLowerCase();
+        if (!_knownApps.contains(normApp)) {
+          setState(() => _knownApps = {..._knownApps, normApp});
+        }
       }
       if (action['kind'] == 'connections') {
         if (!mounted) return;
@@ -668,7 +692,22 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     .map((_) {}),
                                 onAction: (event) => widget.programmingClient!
                                     .appRequest(_brain!, 'event', body: event),
-                                knowsApp: (app) => _knownApps.contains(app),
+                                knowsApp: (app) =>
+                                    _knownApps.contains(app) ||
+                                    _knownApps.contains(app.toLowerCase()),
+                                installedApps: _knownApps.toList(),
+                                onDynamicAppsChanged: (extras) {
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _dynamicDesktopApps = extras;
+                                    for (final spec in extras) {
+                                      _knownApps = {
+                                        ..._knownApps,
+                                        spec.id.toLowerCase(),
+                                      };
+                                    }
+                                  });
+                                },
                                 requestApp: (app, operation, input) => widget
                                     .programmingClient!
                                     .requestApp(_brain!, app, operation, input),
@@ -739,6 +778,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
                     ),
               if (_paletteOpen)
                 CommandPalette(
+                  apps: _paletteApps(),
                   onClose: () => setState(() => _paletteOpen = false),
                   onLaunchApp: (appId) {
                     if (appId == 'settings') {

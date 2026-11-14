@@ -29,6 +29,7 @@ public sealed class RoslynModule : DigitalBrain.Modules.Module
             .Validate(options => !string.IsNullOrWhiteSpace(options.WorkspaceKey), "Roslyn workspace key must not be empty.")
             .ValidateOnStart();
         services.TryAddSingleton<SolutionWorkspace>();
+        services.TryAddSingleton<CodeGraphService>();
         services.TryAddSingleton<ISolutionLoader, MSBuildSolutionLoader>();
         services.TryAddSingleton<CodeFixCatalog>();
         services.TryAddSingleton<ChangeSetEditor>();

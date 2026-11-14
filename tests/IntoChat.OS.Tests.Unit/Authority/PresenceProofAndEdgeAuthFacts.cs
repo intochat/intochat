@@ -260,7 +260,8 @@ public sealed class PresenceProofAndEdgeAuthFacts
         var stage = new GrantCallFilterStage(source);
 
         var localCaller = (CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin)
-            with { AppId = AccountSession.LocalAppId }).ToCaller();
+            with
+        { AppId = AccountSession.LocalAppId }).ToCaller();
 
         var uiDecision = await stage.EvaluateAsync(new CallRequest
         {

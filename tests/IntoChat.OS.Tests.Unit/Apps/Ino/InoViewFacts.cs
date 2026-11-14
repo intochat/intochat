@@ -202,10 +202,154 @@ public sealed class InoViewFacts
         var pending = Assert.IsType<ApprovalCardNode>(Assert.Single(InoView.RenderCardNodes(
             new InoCard("plan-42", "approval", "Open Draft PR", "Create draft PR on intochat/os", "f2pr", "pending", "owner"))));
         Assert.Equal(new Resolve("plan-42"), pending.Resolve);
+        Assert.Equal("brand:github", pending.Icon);
+        Assert.Equal("GitHub", pending.CapabilityLabel);
 
         var approved = Assert.IsType<ApprovalCardNode>(Assert.Single(InoView.RenderCardNodes(
             new InoCard("plan-42", "approval", "Open Draft PR", "Create draft PR on intochat/os", "f2pr", "approved", "owner"))));
         Assert.Null(approved.Resolve);
+        Assert.Equal("brand:github", approved.Icon);
+        Assert.Equal("GitHub", approved.CapabilityLabel);
+
+        var inboxApproval = Assert.IsType<ApprovalCardNode>(InoView.RenderApproval(
+            new IntoChat.OS.Modules.Apps.Approvals.Approval(
+                "plan-99",
+                IntoChat.OS.Modules.Apps.Approvals.ApprovalKind.FlowStep,
+                "change-flow-99",
+                "Push branch and open PR?",
+                "Touches 2 files in repo os.",
+                At,
+                At.AddDays(7),
+                "trace-99")));
+        Assert.Equal("brand:github", inboxApproval.Icon);
+        Assert.Equal("GitHub", inboxApproval.CapabilityLabel);
+    }
+
+    [Fact]
+    public void ConversationFormatsActivityTitlesAndModelBadgesUsingVisualCatalog()
+    {
+        var state = new InoAppState() with
+        {
+            SelectedModel = "claude-sonnet-4-6",
+            Messages =
+            [
+                new InoMessage("r1/user", "user", "Inspect cluster and symbols"),
+                new InoMessage("r1/assistant", "assistant", "All green.")
+                {
+                    Model = "claude-sonnet-4-6",
+                    Activities =
+                    [
+                        new InoActivity("a1", "IAspire.GetResourcesAsync", "3 healthy"),
+                        new InoActivity("a2", "aspire"),
+                        new InoActivity("a3", "ino.studio"),
+                        new InoActivity("a4", "IWorkTree"),
+                        new InoActivity("a5", "ICodeGraph.SearchSymbols", "4 matches"),
+                    ],
+                },
+            ],
+        };
+
+        var conversation = InoView.Conversation(state);
+        Assert.Equal("Sonnet 4.6", conversation.Composer.ActiveModelLabel);
+        Assert.Equal("provider:anthropic", conversation.Composer.ActiveProviderIcon);
+
+        var assistant = conversation.Messages[1];
+        Assert.Equal("Sonnet 4.6", assistant.Model);
+        Assert.Equal("Sonnet 4.6", assistant.ModelLabel);
+        Assert.Equal("provider:anthropic", assistant.ProviderIcon);
+        Assert.NotNull(assistant.Activities);
+        Assert.Equal(
+            [
+                "Aspire · Resources",
+                "Aspire",
+                "Ino Studio",
+                "GitHub",
+                "CodeGraph · Search Symbols",
+            ],
+            assistant.Activities!.Select(static a => a.Title).ToArray());
+        Assert.Equal(
+            [
+                "brand:aspire",
+                "brand:aspire",
+                "brand:intochat",
+                "brand:github",
+                "capability:codegraph",
+            ],
+            assistant.Activities!.Select(static a => a.Icon).ToArray());
+        Assert.Equal(
+            [
+                "Developer",
+                "Developer",
+                "Studio",
+                "Developer",
+                "Developer",
+            ],
+            assistant.Activities!.Select(static a => a.Category).ToArray());
+
+        var aspireVisual = InoView.ResolveActivityVisual(new InoActivity("a1", "IAspire.GetResourcesAsync"));
+        Assert.Equal(("Aspire · Resources", "brand:aspire"), (aspireVisual.Label, aspireVisual.IconKey));
+
+        var codeGraphVisual = InoView.ResolveActivityVisual(new InoActivity("a5", "ICodeGraph.SearchSymbols"));
+        Assert.Equal(("CodeGraph · Search Symbols", "capability:codegraph"), (codeGraphVisual.Label, codeGraphVisual.IconKey));
+
+        var modelVisual = InoView.ResolveModelVisual("claude-sonnet-4-6");
+        Assert.NotNull(modelVisual);
+        Assert.Equal(("Sonnet 4.6", "provider:anthropic"), (modelVisual.Value.Label, modelVisual.Value.IconKey));
+    }
+
+    [Fact]
+    public void ProjectedChatFormatsNeuronsCallJsonIntoBrandActivityLabels()
+    {
+        var chat = new IntoChat.OS.Modules.Flutter.Chat.ChatState
+        {
+            Name = "local/ino/chats/main",
+            Revision = 1,
+            Selection = new IntoChat.OS.Modules.Flutter.Chat.ChatSelection("local/ino/conversations/main", 1),
+            Projection = new IntoChat.OS.Modules.Flutter.Chat.ChatProjection(
+                "local/ino/conversations/main",
+                1,
+                1,
+                [
+                    new IntoChat.OS.Modules.Flutter.Chat.ChatEntry("r1/user", IntoChat.OS.Modules.Flutter.Chat.ChatRole.User, "check health"),
+                    new IntoChat.OS.Modules.Flutter.Chat.ChatEntry("r1/assistant", IntoChat.OS.Modules.Flutter.Chat.ChatRole.Assistant, "Healthy")
+                    {
+                        Model = "qwen2.5-coder:14b",
+                        Activities =
+                        [
+                            new IntoChat.OS.Modules.Flutter.Chat.ChatActivity(
+                                "call-1",
+                                "neurons_call",
+                                """{"contract":"IntoChat.OS.Modules.Microsoft.Aspire.IAspire","key":"local/aspire","method":"GetResourcesAsync"}""",
+                                "ok"),
+                            new IntoChat.OS.Modules.Flutter.Chat.ChatActivity(
+                                "call-2",
+                                "neurons_call",
+                                """{"contract":"IntoChat.OS.Modules.ArtCraft.IArtCraftStudio","key":"local/artcraft/photocraft","method":"ExecuteCommand"}""",
+                                "done"),
+                        ],
+                    },
+                ]),
+            Run = new IntoChat.OS.Modules.Flutter.Chat.ChatRunSnapshot(
+                "local/ino/conversations/main",
+                1,
+                1,
+                "r1",
+                IntoChat.OS.Modules.Flutter.Chat.ChatRunStatus.Completed),
+        };
+
+        var projected = InoModel.Projected(new InoAppState(), chat, "local/ino/conversations/main");
+        var conversation = InoView.Conversation(projected);
+        var assistant = conversation.Messages[1];
+
+        Assert.Equal("Qwen 2.5 Coder 14B", assistant.Model);
+        Assert.Equal("Qwen 2.5 Coder 14B", assistant.ModelLabel);
+        Assert.Equal("provider:ollama", assistant.ProviderIcon);
+        Assert.Equal(
+            ["Aspire · Resources", "PhotoCraft · Execute Command"],
+            assistant.Activities!.Select(static a => a.Title).ToArray());
+        Assert.Equal(
+            ["brand:aspire", "artcraft:photocraft"],
+            assistant.Activities!.Select(static a => a.Icon).ToArray());
     }
 
     private static IReadOnlyList<string> Texts(View view)

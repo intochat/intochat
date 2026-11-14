@@ -8,6 +8,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../components/kit/kit_toast.dart';
 import '../design/cards/card_shell.dart';
+import '../theme/brand_visuals.dart';
 
 /// Semantic node tone resolved across `Badge`, `TagPill`, `Text`, and `InfoBar`.
 enum UiNodeTone { neutral, accent, done, working, error }
@@ -29,9 +30,45 @@ UiNodeTone nodeToneOf(String tone) => switch (tone.toLowerCase()) {
   _ => UiNodeTone.neutral,
 };
 
-/// The card source line for a node's system name.
-CardSource cardSource(String name) =>
-    CardSource(name, const Icon(LucideIcons.box, size: 14));
+/// The card source line for a node's system name, upgraded with allowlisted
+/// brand/provider/capability icons when recognized.
+CardSource cardSource(
+  String name, {
+  String? iconKey,
+  String? capabilityLabel,
+  bool approvalFallbackShield = false,
+}) {
+  final preferredLabel =
+      (capabilityLabel != null && capabilityLabel.trim().isNotEmpty)
+      ? capabilityLabel.trim()
+      : null;
+  final resolved = BrandVisuals.tryResolveCapabilityOrAppVisual(
+    preferredLabel ?? name,
+    iconKey: iconKey,
+  );
+  if (resolved != null) {
+    final displayLabel =
+        preferredLabel ??
+        ((name.trim().isEmpty ||
+                name == 'DigitalBrain' ||
+                name.startsWith('I') ||
+                name.contains(':'))
+            ? resolved.label
+            : name);
+    return CardSource(displayLabel, IcBrandIcon(spec: resolved, size: 15));
+  }
+  if (approvalFallbackShield) {
+    final shield = BrandVisuals.catalog['capability:shield']!;
+    return CardSource(
+      preferredLabel ?? (name.trim().isEmpty ? shield.label : name),
+      IcBrandIcon(spec: shield, size: 15),
+    );
+  }
+  return CardSource(
+    preferredLabel ?? name,
+    const Icon(LucideIcons.box, size: 14),
+  );
+}
 
 /// A child-button callback: activates the button's key when it is enabled and the view is live.
 VoidCallback? pressOf(ButtonNode? button, NodeContext ctx) =>

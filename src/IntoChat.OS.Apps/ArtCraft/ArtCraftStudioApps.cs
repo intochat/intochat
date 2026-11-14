@@ -158,7 +158,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : Screen<TStat
         if (FilesVfs is null && TryGetOptional<IArtCraftEngine>("apps/artcraft-engine", $"ArtCraftEngineNeuron is optional when running {Descriptor.Title} standalone.") is { } engine)
         {
             try { result = await engine.Execute(Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode); }
-            catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
+            catch (Exception error) when (error is not OperationCanceledException)
             {
                 NullLogger.Instance.LogSwallowed(error, $"ArtCraftEngineNeuron is optional when running {Descriptor.Title} standalone.");
             }
@@ -204,7 +204,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : Screen<TStat
     private T? TryGetOptional<T>(string key, string reason) where T : class
     {
         try { return Get<T>(key); }
-        catch (InvalidOperationException error)
+        catch (Exception error) when (error is not OperationCanceledException)
         {
             NullLogger.Instance.LogSwallowed(error, reason);
             return null;
@@ -245,7 +245,7 @@ public abstract class ArtCraftStudioAppBase : ArtCraftStudioAppCore<ArtCraftStud
                 ],
                 Settings: [],
                 Slots: [],
-                Icon: "icon.svg",
+                Icon: d.IconKey,
                 Toolbar:
                 [
                     new("open", Icon: "link", Label: "Connect studio"),

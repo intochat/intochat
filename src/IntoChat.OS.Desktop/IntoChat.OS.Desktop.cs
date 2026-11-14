@@ -2,10 +2,10 @@
 // Starts IntoChat.OS.Kernel and the Flutter desktop shell IN PARALLEL (<1.5s cold start),
 // using a sub-millisecond in-memory socket check instead of a 2s closed-port HTTP probe,
 // canonical home ~/.intochat (overridable via IntoChatOS__Home), DPAPI-protected master.key,
-// and an owner-only per-boot presence token in ~/.intochat/run/presence passed via INTOCHAT_PRESENCE_TOKEN.
+// atomic ~/.intochat/run/kernel.pid lifecycle tracking, and an owner-only per-boot presence token
+// in ~/.intochat/run/presence passed via INTOCHAT_PRESENCE_TOKEN.
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -28,17 +28,32 @@ if (args.Length == 2 && args[0] is "--export-key" or "--import-key")
     return KeyBackupCommand.Run(args[0], Path.GetFullPath(args[1]), effectiveKeyPath, headless);
 }
 
-if (args.Contains("--quit") || args.Contains("stop"))
+if (DesktopBootstrap.IsStatusCommand(args))
 {
-    return StopRunningKernel(layout);
+    TryAttachParentConsole();
+    var snapshot = DesktopBootstrap.ProbeStatus(layout, kernelUrl.Port);
+    Console.Out.WriteLine(DesktopBootstrap.FormatStatus(snapshot, DesktopBootstrap.IsTextFormatRequested(args)));
+    return args.Contains("--check-healthy") && !snapshot.Healthy ? 1 : 0;
+}
+
+if (DesktopBootstrap.IsQuitCommand(args))
+{
+    TryAttachParentConsole();
+    _ = await DesktopBootstrap.StopRunningKernelAsync(layout, kernelUrl.Port);
+    return 0;
 }
 
 try
 {
     if (args.Contains("--verify-boot"))
     {
+        TryAttachParentConsole();
         return RunVerifyBoot(layout, kernelUrl);
     }
+
+    var backgroundDaemon = DesktopBootstrap.IsBackgroundDaemon(args);
+    var kernelOnly = args.Contains("--kernel-only") || backgroundDaemon;
+    var keepKernelAliveOnClose = DesktopBootstrap.ShouldKeepKernelAliveOnWindowClose(args);
 
     var alreadyListening = DesktopBootstrap.IsPortListening(kernelUrl.Port);
     string presenceToken;
@@ -55,18 +70,21 @@ try
             masterKey,
             presenceToken,
             Path.Combine(layout.LogsDirectory, "kernel.log"));
-        DesktopBootstrap.WriteKernelPidRecord(layout.KernelPidFilePath, ownedKernel.Id, kernelUrl.Port);
+        DesktopBootstrap.WriteKernelPidRecord(
+            layout.KernelPidFilePath,
+            ownedKernel.Id,
+            kernelUrl.Port,
+            unitHostPid: null,
+            background: keepKernelAliveOnClose || kernelOnly);
     }
     else
     {
         presenceToken = DesktopBootstrap.EnsurePresenceToken(layout.PresenceFilePath, createNew: false);
     }
 
-    // Start shell IMMEDIATELY in parallel with kernel boot when launching the desktop window!
+    // Start shell IMMEDIATELY in parallel with kernel boot when launching the desktop window.
     Process? shellProcess = null;
-    var kernelOnly = args.Contains("--kernel-only");
     var webMode = args.Contains("--web");
-    var noTray = args.Contains("--no-tray") || headless;
 
     if (!kernelOnly && !webMode)
     {
@@ -114,9 +132,9 @@ try
         return 0;
     }
 
-    if (noTray)
+    if (!keepKernelAliveOnClose)
     {
-        // Clean lifecycle for --no-tray / headless runs: wait for shell if running, and terminate owned kernel on exit.
+        // Clean lifecycle for --no-tray / ephemeral headless runs: wait for shell if running, and terminate owned kernel on exit.
         try
         {
             if (shellProcess is not null)
@@ -134,12 +152,13 @@ try
         {
             if (ownedKernel is not null)
             {
-                TerminateOwnedKernel(ownedKernel, layout);
+                await TerminateOwnedKernelAsync(ownedKernel, layout, kernelUrl.Port);
             }
         }
     }
 
-    // Default interactive desktop run: supervise until shell exits (or tray Quit is requested when running as supervisor).
+    // Hide-on-close / background tray daemon mode: closing the UI window leaves IntoChat.OS.Kernel alive for
+    // [Every("1m")] micro-apps and pending PR approvals until `intochat --quit` / `--stop` is invoked.
     if (shellProcess is not null)
     {
         using (shellProcess)
@@ -163,10 +182,19 @@ catch (Exception failure) when (failure is InvalidOperationException or IOExcept
     }
     else
     {
+        TryAttachParentConsole();
         await Console.Error.WriteLineAsync(failure.Message);
     }
 
     return 1;
+}
+
+static void TryAttachParentConsole()
+{
+    if (OperatingSystem.IsWindows())
+    {
+        _ = NativeMethods.AttachConsole(-1);
+    }
 }
 
 static int RunVerifyBoot(DesktopLayout layout, Uri kernelUrl)
@@ -196,35 +224,11 @@ static int RunVerifyBoot(DesktopLayout layout, Uri kernelUrl)
     return 0;
 }
 
-static int StopRunningKernel(DesktopLayout layout)
-{
-    if (DesktopBootstrap.TryReadKernelPidRecord(layout.KernelPidFilePath, out var pid, out _))
-    {
-        try
-        {
-            using var proc = Process.GetProcessById(pid);
-            if (!proc.HasExited)
-            {
-                proc.Kill(entireProcessTree: true);
-                _ = proc.WaitForExit(5_000);
-            }
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or Win32Exception)
-        {
-            // Process already exited; proceed to clean up run state files.
-            _ = ex.Message;
-        }
-    }
-
-    TryDeleteFile(layout.KernelPidFilePath);
-    TryDeleteFile(layout.PresenceFilePath);
-    return 0;
-}
-
-static void TerminateOwnedKernel(Process ownedKernel, DesktopLayout layout)
+static async Task TerminateOwnedKernelAsync(Process ownedKernel, DesktopLayout layout, int port)
 {
     try
     {
+        _ = await DesktopBootstrap.StopRunningKernelAsync(layout, port);
         if (!ownedKernel.HasExited)
         {
             ownedKernel.Kill(entireProcessTree: true);
@@ -238,23 +242,13 @@ static void TerminateOwnedKernel(Process ownedKernel, DesktopLayout layout)
     finally
     {
         ownedKernel.Dispose();
-        TryDeleteFile(layout.KernelPidFilePath);
-        TryDeleteFile(layout.PresenceFilePath);
-    }
-}
-
-static void TryDeleteFile(string path)
-{
-    try
-    {
-        if (File.Exists(path))
+        _ = DesktopBootstrap.TryDeleteRunFile(layout.KernelPidFilePath);
+        if (!string.IsNullOrWhiteSpace(layout.LegacyKernelPidFilePath))
         {
-            File.Delete(path);
+            _ = DesktopBootstrap.TryDeleteRunFile(layout.LegacyKernelPidFilePath);
         }
-    }
-    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-    {
-        _ = ex.Message;
+
+        _ = DesktopBootstrap.TryDeleteRunFile(layout.PresenceFilePath);
     }
 }
 
@@ -282,8 +276,15 @@ static async Task<bool> Healthy(HttpClient http, Uri kernel)
         using var response = await http.GetAsync(new Uri(kernel, "health"));
         return response.IsSuccessStatusCode;
     }
-    catch (HttpRequestException) { return false; }
-    catch (TaskCanceledException) { return false; }
+    catch (HttpRequestException ex)
+    {
+        _ = ex.Message;
+        return false;
+    }
+    catch (TaskCanceledException)
+    {
+        return false;
+    }
 }
 
 static Process StartKernel(string osDirectory, Uri url, DesktopLayout layout, string masterKey, string presenceToken, string log)

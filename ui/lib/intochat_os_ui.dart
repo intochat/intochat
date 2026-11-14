@@ -28,6 +28,7 @@ export 'src/preferences/ui_preference_control.dart';
 export 'src/lumen/neuron_icon.dart';
 export 'src/models/window_state.dart';
 export 'src/signals/rejected.dart';
+export 'src/theme/brand_visuals.dart';
 export 'src/theme/ui_colors.dart';
 export 'src/theme/ui_theme.dart';
 

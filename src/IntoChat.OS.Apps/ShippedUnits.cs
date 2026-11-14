@@ -28,8 +28,116 @@ public static class ShippedUnits
         "relay.webhook",
     ];
 
+    public static IReadOnlyList<string> Interactive { get; } =
+    [
+        "helloworld",
+    ];
+
+    private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> BuiltInInteractiveFiles =
+        new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal)
+        {
+            ["helloworld"] = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["HelloWorld.cs"] = """
+                    using DigitalBrain;
+                    using DigitalBrain.UI;
+
+                    namespace Units.HelloWorld;
+
+                    [Signal("helloworld.toggled")]
+                    public sealed record HelloToggled(bool Visible, int Clicks) : Signal;
+
+                    [State("helloworld")]
+                    public sealed record HelloWorldState(
+                        bool Visible = false,
+                        int Clicks = 0)
+                    {
+                        public HelloWorldState() : this(false, 0) { }
+                    }
+
+                    public static class HelloWorldUnit
+                    {
+                        private const string UnitAlias = "helloworld";
+                        private const string ToggleSignal = "helloworld.toggle";
+
+                        [Synapse("helloworld.toggle", "helloworld")]
+                        public static Reaction<HelloWorldState> Toggle(SignalEnvelope envelope, HelloWorldState state)
+                        {
+                            var nextVisible = !state.Visible;
+                            var nextClicks = state.Clicks + 1;
+                            return Reaction<HelloWorldState>.Of(
+                                state with { Visible = nextVisible, Clicks = nextClicks },
+                                new HelloToggled(nextVisible, nextClicks));
+                        }
+
+                        [Synapse("helloworld")]
+                        public static View View(HelloWorldState state) =>
+                            new("Hello World", new Surface(
+                            [
+                                new Row(
+                                [
+                                    new Badge(state.Visible ? "Greeting Visible" : "Ready", state.Visible ? "success" : "neutral"),
+                                    new StatCardNode("clicks", "Clicks", state.Clicks.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                                ]),
+                                new Text(state.Visible ? "Hello, IntoChat OS!" : "Click the button below"),
+                                new Button(
+                                    Key: "toggle-hello",
+                                    Label: state.Visible ? "Hide Hello" : "Say Hello",
+                                    Emit: new Emit(UnitAlias, ToggleSignal),
+                                    Tone: ButtonTone.Accent),
+                            ], Title: "Hello World", Subtitle: "Interactive Micro-App"));
+                    }
+                    """,
+                ["spec.md"] = """
+                    # Hello World
+
+                    Interactive micro-app where clicking the toggle button (`toggle-hello`) reveals and hides `"Hello, IntoChat OS!"` with zero external capability slots.
+                    """,
+                ["scenarios.json"] = """
+                    [
+                      {
+                        "name": "toggles-hello-visibility-on-and-off",
+                        "given": {},
+                        "when": [
+                          "then view helloworld contains \"Click the button below\"",
+                          "then view helloworld contains \"Say Hello\"",
+                          "publish helloworld.toggle {}",
+                          "then signal helloworld.toggled",
+                          "then state helloworld Visible = true",
+                          "then state helloworld Clicks = 1",
+                          "then view helloworld contains \"Hello, IntoChat OS!\"",
+                          "then view helloworld contains \"Hide Hello\"",
+                          "publish helloworld.toggle {}"
+                        ],
+                        "then": [
+                          "state helloworld Visible = false",
+                          "state helloworld Clicks = 2",
+                          "view helloworld contains \"Click the button below\"",
+                          "view helloworld contains \"Say Hello\""
+                        ]
+                      }
+                    ]
+                    """,
+                ["SKILL.md"] = """
+                    ---
+                    name: helloworld
+                    title: Hello World
+                    description: Interactive micro-app with a toggle button ("Say Hello" / "Hide Hello") that reveals and hides "Hello, IntoChat OS!".
+                    capabilities: []
+                    schedule: none
+                    ---
+
+                    # Hello World (`helloworld`)
+
+                    Interactive UI micro-app requiring zero external connectors or secrets.
+                    """,
+            },
+        };
+
     public static bool IsKnown(string alias)
-        => All.Contains(alias, StringComparer.Ordinal) || Legacy.Contains(alias, StringComparer.Ordinal);
+        => All.Contains(alias, StringComparer.Ordinal)
+        || Legacy.Contains(alias, StringComparer.Ordinal)
+        || Interactive.Contains(alias, StringComparer.Ordinal);
 
     // A shipped unit's files keyed by path: its .cs source, spec.md and scenarios.json. Empty for an alias the OS does not ship.
     public static IReadOnlyDictionary<string, string> Files(string alias)
@@ -43,6 +151,10 @@ public static class ShippedUnits
             using var stream = assembly.GetManifestResourceStream(name) ?? throw new InvalidOperationException($"{name} is not embedded.");
             using var reader = new StreamReader(stream);
             files[name[prefix.Length..]] = reader.ReadToEnd();
+        }
+        if (files.Count == 0 && BuiltInInteractiveFiles.TryGetValue(alias, out var interactive))
+        {
+            return new Dictionary<string, string>(interactive, StringComparer.Ordinal);
         }
         return files;
     }

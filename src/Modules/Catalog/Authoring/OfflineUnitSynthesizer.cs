@@ -27,7 +27,8 @@ internal static partial class OfflineUnitSynthesizer
             or KeyNotFoundException
             or NotSupportedException
             or HttpRequestException
-            or TimeoutException;
+            or TimeoutException
+            or IntoChat.OS.Modules.AI.Models.ProviderUnavailableException;
     }
 
     public static Task<string> CompleteAsync(string system, string prompt, CancellationToken ct)
@@ -71,7 +72,13 @@ internal static partial class OfflineUnitSynthesizer
         string title = "Counter App";
         string description = "An interactive stateful tracking app.";
 
-        if (lower.Contains("calc"))
+        if (lower.Contains("hello") || lower.Contains("greeting"))
+        {
+            name = "hello-world";
+            title = "Hello World";
+            description = "An interactive Hello World micro-app with a toggle button that reveals 'Hello, IntoChat OS!'.";
+        }
+        else if (lower.Contains("calc"))
         {
             name = "calculator-app";
             title = "Calculator";
@@ -133,6 +140,12 @@ internal static partial class OfflineUnitSynthesizer
             return SynthesizeRefinement(prompt);
         }
 
+        // Check for explicit interactive Hello World / greeting UI unit before generic workflow keywords
+        if (lower.Contains("hello") || lower.Contains("greeting"))
+        {
+            return SynthesizeInteractiveUnit(prompt);
+        }
+
         // Check if this is a reactive multi-step workflow unit (J3)
         if (lower.Contains("reactive") || lower.Contains("chain") || lower.Contains("pipeline") || lower.Contains("workflow")
             || lower.Contains("schedule") || lower.Contains("synapse") || lower.Contains("watch") || lower.Contains("every"))
@@ -147,6 +160,38 @@ internal static partial class OfflineUnitSynthesizer
     private static AuthoredUnit SynthesizeInteractiveUnit(string prompt)
     {
         var lower = prompt.ToLowerInvariant();
+
+        if (lower.Contains("hello") || lower.Contains("greeting"))
+        {
+            return new AuthoredUnit(
+                Alias: "hello.world",
+                Title: "Hello World",
+                Spec: "# Hello World\n\nAn interactive micro-app where clicking the toggle button reveals and hides `Hello, IntoChat OS!`.\n\n- Initially `Visible` is `false` and the screen prompts `Click the button below` with button `Say Hello` (`toggle-hello`).\n- When `hello.toggle` is emitted by clicking `toggle-hello`, `Visible` flips and `Clicks` increments.\n- When `Visible` is `true`, the screen displays `Hello, IntoChat OS!` and button `Hide Hello` (`toggle-hello`).",
+                State: new Dictionary<string, string> { ["Visible"] = "bool", ["Clicks"] = "int" },
+                Signals: [new AuthoredSignal("hello.toggled", new Dictionary<string, string> { ["Visible"] = "bool", ["Clicks"] = "int" })],
+                Needs: new UnitNeeds([], null, true),
+                Scenarios:
+                [
+                    new Scenario(
+                        "toggles hello visibility on and off",
+                        JsonDocument.Parse("{}").RootElement,
+                        [
+                            "then view hello.world contains \"Click the button below\"",
+                            "then view hello.world contains \"Say Hello\"",
+                            "publish hello.toggle {}",
+                            "then signal hello.toggled",
+                            "then state hello.world Visible = true",
+                            "then state hello.world Clicks = 1",
+                            "then view hello.world contains \"Hello, IntoChat OS!\"",
+                            "publish hello.toggle {}",
+                        ],
+                        [
+                            "state hello.world Visible = false",
+                            "state hello.world Clicks = 2",
+                            "view hello.world contains \"Click the button below\"",
+                        ]),
+                ]);
+        }
 
         if (lower.Contains("calc"))
         {
@@ -345,6 +390,50 @@ internal static partial class OfflineUnitSynthesizer
         var alias = unit.Alias;
         var stateRecordName = ToPascal(alias) + "State";
         var unitClassName = ToPascal(alias) + "Unit";
+
+        if (alias.StartsWith("hello", StringComparison.Ordinal))
+        {
+            var toggleSignal = alias.Contains('.', StringComparison.Ordinal) ? "hello.toggle" : $"{alias}.toggle";
+            var toggledSignal = unit.Signals.FirstOrDefault()?.Alias
+                ?? (alias.Contains('.', StringComparison.Ordinal) ? "hello.toggled" : $"{alias}.toggled");
+
+            return $$"""
+                using DigitalBrain;
+                using DigitalBrain.UI;
+
+                namespace Units.HelloWorld;
+
+                [Signal("{{toggledSignal}}")]
+                public sealed record HelloToggled(bool Visible, int Clicks) : Signal;
+
+                [State("{{alias}}")]
+                public sealed record {{stateRecordName}}(bool Visible = false, int Clicks = 0)
+                {
+                    public {{stateRecordName}}() : this(false, 0) { }
+                }
+
+                public static class {{unitClassName}}
+                {
+                    [Synapse("{{toggleSignal}}", "{{alias}}")]
+                    public static Reaction<{{stateRecordName}}> Toggle(SignalEnvelope env, {{stateRecordName}} state)
+                    {
+                        var nextVisible = !state.Visible;
+                        var nextClicks = state.Clicks + 1;
+                        return Reaction<{{stateRecordName}}>.Of(
+                            state with { Visible = nextVisible, Clicks = nextClicks },
+                            new HelloToggled(nextVisible, nextClicks));
+                    }
+
+                    [Synapse("{{alias}}")]
+                    public static View Show({{stateRecordName}} state) => new("Hello World", new Surface(
+                    [
+                        new Badge(state.Visible ? "Greeting Visible" : "Ready", state.Visible ? "success" : "neutral"),
+                        new Text(state.Visible ? "Hello, IntoChat OS!" : "Click the button below"),
+                        new Button("toggle-hello", state.Visible ? "Hide Hello" : "Say Hello", new Emit("{{alias}}", "{{toggleSignal}}"), Tone: ButtonTone.Accent),
+                    ], Title: "Hello World", Subtitle: $"Toggled {state.Clicks} time(s)"));
+                }
+                """;
+        }
 
         if (alias.StartsWith("calc"))
         {

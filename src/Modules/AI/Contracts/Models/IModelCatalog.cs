@@ -36,4 +36,11 @@ public sealed record ModelChoice(string? Id, string Label, string? Provider,
 {
     // Why an unavailable model cannot be chosen; null when available. Additive: older readers ignore it.
     public string? Reason { get; init; }
+
+    // Additive visual identity fields resolved via VisualCatalog so model pickers and badges render crisp brand icons.
+    public string? IconKey { get; init; }
+
+    public string? ProviderLabel { get; init; }
+
+    public string? AccentHex { get; init; }
 }

@@ -90,55 +90,55 @@ internal static class UnitHostWorker
                         ProcessId: Environment.ProcessId);
 
                 case "env":
-                {
-                    var snapshot = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
                     {
-                        if (entry.Key is string k && entry.Value is string v)
+                        var snapshot = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
                         {
-                            snapshot[k] = v;
+                            if (entry.Key is string k && entry.Value is string v)
+                            {
+                                snapshot[k] = v;
+                            }
                         }
-                    }
 
-                    return new UnitHostFrameResponse(
-                        Id: request.Id,
-                        Ok: true,
-                        EnvironmentSnapshot: snapshot,
-                        ProcessId: Environment.ProcessId);
-                }
+                        return new UnitHostFrameResponse(
+                            Id: request.Id,
+                            Ok: true,
+                            EnvironmentSnapshot: snapshot,
+                            ProcessId: Environment.ProcessId);
+                    }
 
                 case "deploy":
-                {
-                    if (request.Deploy is null)
                     {
-                        return new UnitHostFrameResponse(request.Id, Ok: false, Error: "Deploy payload is required.");
-                    }
+                        if (request.Deploy is null)
+                        {
+                            return new UnitHostFrameResponse(request.Id, Ok: false, Error: "Deploy payload is required.");
+                        }
 
-                    var deployed = await host.DeployAsync(request.Deploy, cancellationToken).ConfigureAwait(false);
-                    return new UnitHostFrameResponse(request.Id, Ok: true, Deploy: deployed, ProcessId: Environment.ProcessId);
-                }
+                        var deployed = await host.DeployAsync(request.Deploy, cancellationToken).ConfigureAwait(false);
+                        return new UnitHostFrameResponse(request.Id, Ok: true, Deploy: deployed, ProcessId: Environment.ProcessId);
+                    }
 
                 case "dispatch":
-                {
-                    if (request.Dispatch is null)
                     {
-                        return new UnitHostFrameResponse(request.Id, Ok: false, Error: "Dispatch payload is required.");
-                    }
+                        if (request.Dispatch is null)
+                        {
+                            return new UnitHostFrameResponse(request.Id, Ok: false, Error: "Dispatch payload is required.");
+                        }
 
-                    var dispatched = await host.DispatchAsync(request.Dispatch, cancellationToken).ConfigureAwait(false);
-                    return new UnitHostFrameResponse(request.Id, Ok: true, Dispatch: dispatched, ProcessId: Environment.ProcessId);
-                }
+                        var dispatched = await host.DispatchAsync(request.Dispatch, cancellationToken).ConfigureAwait(false);
+                        return new UnitHostFrameResponse(request.Id, Ok: true, Dispatch: dispatched, ProcessId: Environment.ProcessId);
+                    }
 
                 case "unload":
-                {
-                    if (request.Unload is null)
                     {
-                        return new UnitHostFrameResponse(request.Id, Ok: false, Error: "Unload payload is required.");
-                    }
+                        if (request.Unload is null)
+                        {
+                            return new UnitHostFrameResponse(request.Id, Ok: false, Error: "Unload payload is required.");
+                        }
 
-                    var unloaded = await host.UnloadAsync(request.Unload.BrainId, request.Unload.AppKey, cancellationToken).ConfigureAwait(false);
-                    return new UnitHostFrameResponse(request.Id, Ok: true, Unload: unloaded, ProcessId: Environment.ProcessId);
-                }
+                        var unloaded = await host.UnloadAsync(request.Unload.BrainId, request.Unload.AppKey, cancellationToken).ConfigureAwait(false);
+                        return new UnitHostFrameResponse(request.Id, Ok: true, Unload: unloaded, ProcessId: Environment.ProcessId);
+                    }
 
                 default:
                     return new UnitHostFrameResponse(request.Id, Ok: false, Error: $"Unsupported UnitHost op '{request.Op}'.");

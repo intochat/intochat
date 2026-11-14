@@ -10,7 +10,7 @@ public interface IReminder
     /// Replace the persistent periodic registration. Missed ticks are not replayed.
     /// </summary>
     Task Start(TimeSpan dueTime, TimeSpan period);
-    
+
     /// <summary>
     /// Remove the registration. A previously queued tick may still arrive.
     /// </summary>

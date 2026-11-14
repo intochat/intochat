@@ -1,6 +1,8 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Markdraw;
+using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 
@@ -103,11 +105,17 @@ public static partial class InoView
 
             var activities = msg.Activities.Length > 0
                 ? msg.Activities
-                    .Select(a => new ActivityNode(
-                        a.Id,
-                        StripInternalToolLabel(a.Title),
-                        Status: a.Error is { Length: > 0 } ? "failed" : "done",
-                        Detail: StripNeuronUri(a.Error ?? a.Result)))
+                    .Select(a =>
+                    {
+                        var activityVisual = ResolveActivityVisual(a);
+                        return new ActivityNode(
+                            a.Id,
+                            activityVisual.Label,
+                            Status: a.Error is { Length: > 0 } ? "failed" : "done",
+                            Detail: StripNeuronUri(a.Error ?? a.Result),
+                            Icon: activityVisual.IconKey,
+                            Category: activityVisual.Category);
+                    })
                     .ToArray()
                 : null;
 
@@ -115,6 +123,7 @@ public static partial class InoView
                 ? new Button(RetryKey, "Try again", Emit: AppSignals.Emits("ino", new InoRetry()))
                 : null;
 
+            var modelVisual = ResolveModelVisual(msg.Model);
             messageNodes.Add(new MessageNode(
                 msg.Id,
                 msg.Role,
@@ -122,8 +131,10 @@ public static partial class InoView
                 Cards: cardList.Count > 0 ? cardList : null,
                 Activities: activities,
                 Status: msg.Status,
-                Model: msg.Model,
-                Retry: retry));
+                Model: modelVisual?.Label ?? msg.Model,
+                Retry: retry,
+                ModelLabel: modelVisual?.Label,
+                ProviderIcon: modelVisual?.IconKey));
         }
 
         Node? waiting = null;
@@ -149,6 +160,7 @@ public static partial class InoView
             ? new EmptyStateNode("What do you need?")
             : null;
         var composerEnabled = s.ActiveRunId is null && s.Pending is null && !s.Blocked;
+        var activeModelVisual = ResolveModelVisual(s.SelectedModel);
 
         return new Conversation(
             ConversationKey,
@@ -157,7 +169,9 @@ public static partial class InoView
                 ComposerKey,
                 AppSignals.Emits("ino", new InoSend()),
                 "Ask anything.",
-                Enabled: composerEnabled),
+                Enabled: composerEnabled,
+                ActiveModelLabel: activeModelVisual?.Label,
+                ActiveProviderIcon: activeModelVisual?.IconKey),
             Waiting: waiting,
             Status: ConversationStatusOf(s),
             Error: errorLine,
@@ -228,6 +242,131 @@ public static partial class InoView
         }
 
         return "ready";
+    }
+
+    public static VisualDescriptor? ResolveModelVisual(string? model)
+        => string.IsNullOrWhiteSpace(model) ? null : VisualCatalog.ForModel(model);
+
+    public static VisualDescriptor ResolveApprovalVisual(string? sourceOrSubject)
+    {
+        if (VisualCatalog.TryForContract(sourceOrSubject, out var found))
+        {
+            return found;
+        }
+
+        if (!string.IsNullOrWhiteSpace(sourceOrSubject))
+        {
+            var trimmed = sourceOrSubject.Trim();
+            if (trimmed.StartsWith("change-", StringComparison.OrdinalIgnoreCase))
+            {
+                return VisualCatalog.ForContract("IGitHub");
+            }
+        }
+
+        return VisualCatalog.ForContract("IConfirmations");
+    }
+
+    public static VisualDescriptor ResolveActivityVisual(InoActivity activity)
+    {
+        ArgumentNullException.ThrowIfNull(activity);
+        if (string.IsNullOrWhiteSpace(activity.Title))
+        {
+            return new VisualDescriptor("Tool call", "capability:studio", "#64748B", "Tool");
+        }
+
+        var clean = StripNeuronUri(activity.Title);
+        var separatorIndex = clean.IndexOf(" · ", StringComparison.Ordinal);
+        if (separatorIndex > 0)
+        {
+            var head = clean[..separatorIndex].Trim();
+            var tail = clean[(separatorIndex + 3)..].Trim();
+            if (VisualCatalog.TryForContract(head, out var preformatted))
+            {
+                return string.IsNullOrWhiteSpace(tail)
+                    ? preformatted
+                    : preformatted with { Label = $"{preformatted.Label} · {tail}" };
+            }
+        }
+
+        if (VisualCatalog.TryForContract(clean, out var direct))
+        {
+            var action = ExtractMethodSuffix(clean, direct.Label);
+            return string.IsNullOrWhiteSpace(action)
+                ? direct
+                : direct with { Label = $"{direct.Label} · {action}" };
+        }
+
+        return clean switch
+        {
+            "neurons_search" => new VisualDescriptor("Capability Search", "capability:studio", "#6366F1", "Studio"),
+            "neurons_list" => new VisualDescriptor("Capability List", "capability:studio", "#6366F1", "Studio"),
+            "neurons_context" => new VisualDescriptor("Brain Context", "brand:intochat", "#6366F1", "Studio"),
+            _ => new VisualDescriptor(StripInternalToolLabel(clean), "capability:studio", "#64748B", "Tool"),
+        };
+    }
+
+    private static string? ExtractMethodSuffix(string rawTitle, string resolvedLabel)
+    {
+        var lastDot = rawTitle.LastIndexOf('.');
+        if (lastDot < 0 || lastDot + 1 >= rawTitle.Length)
+        {
+            return null;
+        }
+
+        var candidate = rawTitle[(lastDot + 1)..].Trim();
+        // If the entire dotted token was itself the neuron alias (e.g. "diagnostics.aspire", "ino.studio", "roslyn.codegraph"),
+        // there is no method suffix to append.
+        if (VisualCatalog.TryForContract(candidate, out _)
+            || VisualCatalog.TryForContract(rawTitle[(rawTitle.LastIndexOf('.', lastDot - 1) + 1)..], out _))
+        {
+            var twoSegment = rawTitle.LastIndexOf('.', lastDot - 1) is var prevDot and >= 0
+                ? rawTitle[(prevDot + 1)..]
+                : rawTitle;
+            if (!candidate.Any(char.IsUpper) || VisualCatalog.TryForContract(candidate, out _))
+            {
+                return null;
+            }
+
+            // Handle Interface.Method where Interface matched via TryForContract (e.g., IAspire.GetResourcesAsync).
+            _ = twoSegment;
+        }
+
+        if (!candidate.Any(char.IsUpper))
+        {
+            return null;
+        }
+
+        if (candidate.EndsWith("Async", StringComparison.Ordinal) && candidate.Length > "Async".Length)
+        {
+            candidate = candidate[..^"Async".Length];
+        }
+
+        if (candidate.StartsWith("Get", StringComparison.Ordinal) && candidate.Length > 3 && char.IsUpper(candidate[3]))
+        {
+            candidate = candidate[3..];
+        }
+
+        var humanized = HumanizeMethodName(candidate);
+        return string.IsNullOrWhiteSpace(humanized) || string.Equals(humanized, resolvedLabel, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : humanized;
+    }
+
+    private static string HumanizeMethodName(string method)
+    {
+        var sb = new StringBuilder(method.Length + 4);
+        for (var i = 0; i < method.Length; i++)
+        {
+            var c = method[i];
+            if (i > 0 && char.IsUpper(c) && (char.IsLower(method[i - 1]) || char.IsDigit(method[i - 1])))
+            {
+                sb.Append(' ');
+            }
+
+            sb.Append(c);
+        }
+
+        return sb.ToString().Trim();
     }
 
     private static string StripInternalToolLabel(string? title)
@@ -328,15 +467,21 @@ public static partial class InoView
         return new ErrorLineNode(line.What, line.Detail, BuildErrorAction(line));
     }
 
-    internal static Node RenderApproval(Approval approval) => new ApprovalCardNode(
-        $"approval-{approval.PlanId}",
-        approval.PlanId,
-        approval.Title,
-        approval.Detail,
-        [new ApprovalRowNode("Subject", "", approval.Subject)],
-        SystemName: "Ino",
-        Status: "pending",
-        Resolve: new Resolve(approval.PlanId));
+    internal static Node RenderApproval(Approval approval)
+    {
+        var approvalVisual = ResolveApprovalVisual(approval.Subject);
+        return new ApprovalCardNode(
+            $"approval-{approval.PlanId}",
+            approval.PlanId,
+            approval.Title,
+            approval.Detail,
+            [new ApprovalRowNode("Subject", "", approval.Subject)],
+            SystemName: "Ino",
+            Status: "pending",
+            Resolve: new Resolve(approval.PlanId),
+            Icon: approvalVisual.IconKey,
+            CapabilityLabel: approvalVisual.Label);
+    }
 
     public static string StripNeuronUri(string? uri)
     {
@@ -373,6 +518,7 @@ public static partial class InoView
         switch (card.Kind)
         {
             case "approval":
+                var cardApprovalVisual = ResolveApprovalVisual(StripNeuronUri(card.SourceNeuronUri));
                 yield return new ApprovalCardNode(
                     $"card-{card.Id}",
                     card.Id,
@@ -386,7 +532,9 @@ public static partial class InoView
                     SystemName: "Ino",
                     Status: card.Status,
                     SourceNeuronUri: StripNeuronUri(card.SourceNeuronUri),
-                    Resolve: string.Equals(card.Status, "pending", StringComparison.OrdinalIgnoreCase) ? new Resolve(card.Id) : null);
+                    Resolve: string.Equals(card.Status, "pending", StringComparison.OrdinalIgnoreCase) ? new Resolve(card.Id) : null,
+                    Icon: cardApprovalVisual.IconKey,
+                    CapabilityLabel: cardApprovalVisual.Label);
                 break;
             case "choice":
                 yield return new ChoiceCardNode(

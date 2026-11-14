@@ -175,6 +175,7 @@ public static class ServerHostingExtensions
         if (app.Services.GetRequiredService<IntoChatOSServerBuilder>().Dashboard) { app.MapOrleansDashboard(); }
         // /health, /ready and /alive (ServiceDefaults.HealthProbes): deployments and the YARP front probe them.
         app.MapDefaultEndpoints();
+        IntoChat.OS.Kernel.RuntimeShutdownEndpoints.Map(app);
         IntoChat.OS.Kernel.Sandbox.SandboxEdgeEndpoints.Map(app);
         app.MapIntoChatOSModules();
         app.MapIntoChatOSPlatform();

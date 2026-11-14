@@ -38,11 +38,18 @@ public sealed class LobbyModule : Module
         services.AddOptions<LobbyModuleOptions>().BindConfiguration(OptionsSection);
         services.TryAddSingleton(provider => provider.GetRequiredService<IOptions<LobbyModuleOptions>>().Value);
         services.TryAddSingleton<LobbyVisitorBudget>();
+        services.TryAddSingleton<GuestTryOptions>();
+        services.TryAddSingleton<GuestTrySessionService>();
         services.TryAddSingleton<ILobbyTokenKey, LobbyTokenKeys>();
         services.AddModuleHttpSurface<LobbyHttpSurface>();
+        services.AddModuleHttpSurface<GuestTryHttpSurface>();
     }
 
-    public static void MapHttp(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints) => new LobbyHttpSurface().Map(endpoints);
+    public static void MapHttp(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints)
+    {
+        new LobbyHttpSurface().Map(endpoints);
+        new GuestTryHttpSurface().Map(endpoints);
+    }
 }
 
 public sealed class LobbyModuleOptions

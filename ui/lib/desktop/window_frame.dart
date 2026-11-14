@@ -1,4 +1,4 @@
-﻿import 'dart:ui';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
@@ -552,12 +552,16 @@ class _TitleBarState extends State<_TitleBar>
                   ),
                 ),
               ),
-              // Centre: title 13/600 (+ optional sandbox status pill)
+              // Centre: app icon + title 13/600 (+ optional sandbox status pill)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 96),
+                padding: EdgeInsets.symmetric(
+                  horizontal: w.bounds.width >= 460 ? 148 : 96,
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    IcAppIcon(appId: w.appId, accentHex: w.accentHex, size: 16),
+                    const SizedBox(width: 7),
                     Flexible(
                       child: Text(
                         w.title,
@@ -580,12 +584,58 @@ class _TitleBarState extends State<_TitleBar>
                   ],
                 ),
               ),
-              // Right: OS tools overflow group (reload, pin, settings menu)
+              // Right: Split workspace snap + OS tools overflow group (reload, pin, settings menu)
               Align(
                 alignment: Alignment.centerRight,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (widget.canMove && w.bounds.width >= 460) ...[
+                      _OverflowActionButton(
+                        key: ValueKey('window-snap-left-btn-${w.id}'),
+                        tooltip: 'Split workspace left half',
+                        icon: LucideIcons.panelLeft,
+                        color: c.textMuted,
+                        onTap: () {
+                          widget.onFocus?.call();
+                          if (w.zoomed) w.toggleZoom();
+                          final halfW = ((widget.desk.width - 36) / 2).clamp(
+                            320.0,
+                            widget.desk.width,
+                          );
+                          final fullH = (widget.desk.height - 24).clamp(
+                            260.0,
+                            widget.desk.height,
+                          );
+                          w.setBounds(Rect.fromLTWH(12, 12, halfW, fullH));
+                        },
+                      ),
+                      const SizedBox(width: 2),
+                      _OverflowActionButton(
+                        key: ValueKey('window-snap-right-btn-${w.id}'),
+                        tooltip: 'Split workspace right half',
+                        icon: LucideIcons.panelRight,
+                        color: c.textMuted,
+                        onTap: () {
+                          widget.onFocus?.call();
+                          if (w.zoomed) w.toggleZoom();
+                          final halfW = ((widget.desk.width - 36) / 2).clamp(
+                            320.0,
+                            widget.desk.width,
+                          );
+                          final fullH = (widget.desk.height - 24).clamp(
+                            260.0,
+                            widget.desk.height,
+                          );
+                          final rightX = (widget.desk.width - halfW - 12).clamp(
+                            12.0,
+                            widget.desk.width,
+                          );
+                          w.setBounds(Rect.fromLTWH(rightX, 12, halfW, fullH));
+                        },
+                      ),
+                      const SizedBox(width: 2),
+                    ],
                     _OverflowActionButton(
                       key: ValueKey('window-reload-btn-${w.id}'),
                       tooltip: 'Reload viewport (long-press for hard restart)',

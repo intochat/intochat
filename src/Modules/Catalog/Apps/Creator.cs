@@ -11,7 +11,6 @@ using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Inference;
-using IntoChat.OS.Modules.AI.Models.OpenAI;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Runtime;
@@ -31,14 +30,15 @@ internal sealed class Creator(
     SynapseCompiler? compiler = null) : IDrafter
 {
     private readonly ICreatorModel models = model ?? new SiloCreatorModel(plain);
+    private readonly bool fallbackOnMalformedExhaustion = model is null;
     private const int MaxAuthorRetries = 2;
     private const int MaxBuilderRounds = 12;
     private const int MaxRequestLength = 4000;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private static readonly JsonSerializerOptions Indented = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
-    private string AuthorModel => options.Value.AuthorModel ?? nameof(IGpt56Luna);
-    private string BuilderModel => options.Value.BuilderModel ?? nameof(IGpt56Luna);
+    private string AuthorModel => string.IsNullOrWhiteSpace(options.Value.AuthorModel) ? CreatorModel.AutoModel : options.Value.AuthorModel.Trim();
+    private string BuilderModel => string.IsNullOrWhiteSpace(options.Value.BuilderModel) ? CreatorModel.AutoModel : options.Value.BuilderModel.Trim();
 
     // With no name, the Author names the app and it exists — Drafted, in the caller's brain —
     // when this returns. With a name, it reshapes that app's spec.
@@ -137,9 +137,24 @@ internal sealed class Creator(
                 _ = KeptScenarios.Merge(existing, unit.Scenarios, request);
                 return unit;
             }
-            catch (Exception error) when (error is JsonException or InvalidDataException or ArgumentException or FormatException && retry < MaxAuthorRetries)
+            catch (Exception error) when (error is JsonException or InvalidDataException or ArgumentException or FormatException)
             {
-                prompt += $"\n\nYour previous reply could not be used: {error.Message} Reply with the JSON object only.";
+                if (retry < MaxAuthorRetries)
+                {
+                    prompt += $"\n\nYour previous reply could not be used: {error.Message} Reply with the JSON object only.";
+                    continue;
+                }
+
+                if (!fallbackOnMalformedExhaustion)
+                {
+                    throw;
+                }
+
+                logger.LogWarning(error, "Author exhausted {Retries} retries for '{Request}'; falling back to OfflineUnitSynthesizer.", MaxAuthorRetries, request);
+                var fallbackUnit = OfflineUnitSynthesizer.SynthesizeAuthoredUnit(builder.ToString());
+                Validate(fallbackUnit);
+                _ = KeptScenarios.Merge(existing, fallbackUnit.Scenarios, request);
+                return fallbackUnit;
             }
         }
     }
@@ -188,9 +203,21 @@ internal sealed class Creator(
             {
                 return Parse<AuthoredApp>(await Complete(brainId, AuthorModel, AgentPrompts.Author, prompt, cancellationToken));
             }
-            catch (Exception error) when (error is JsonException or InvalidDataException or ArgumentException && retry < MaxAuthorRetries)
+            catch (Exception error) when (error is JsonException or InvalidDataException or ArgumentException)
             {
-                prompt += $"\n\nYour previous reply could not be used: {error.Message} Reply with the JSON object only.";
+                if (retry < MaxAuthorRetries)
+                {
+                    prompt += $"\n\nYour previous reply could not be used: {error.Message} Reply with the JSON object only.";
+                    continue;
+                }
+
+                if (!fallbackOnMalformedExhaustion)
+                {
+                    throw;
+                }
+
+                logger.LogWarning(error, "App Author exhausted {Retries} retries; falling back to OfflineUnitSynthesizer.", MaxAuthorRetries);
+                return Parse<AuthoredApp>(await OfflineUnitSynthesizer.CompleteAsync(AgentPrompts.Author, prompt, cancellationToken));
             }
         }
     }
@@ -240,6 +267,17 @@ internal sealed class Creator(
             foreach (var call in calls) { results.Add(new AiToolResult(call.CallId, await ExecuteBuilderTool(call, alias, needs, scenarios, cancellationToken))); }
             messages.Add(new AiMessage("tool", results.ToArray()));
         }
+        if (fallbackOnMalformedExhaustion)
+        {
+            logger.LogWarning("Builder exhausted {Rounds} rounds for unit '{Alias}'; falling back to OfflineUnitSynthesizer.", MaxBuilderRounds, alias);
+            var synthesized = OfflineUnitSynthesizer.SynthesizeUnitFiles(task);
+            var check = await BuilderTools.Check(Compiler, alias, synthesized, needs, scenarios, cancellationToken);
+            if (check.Passed)
+            {
+                return synthesized;
+            }
+        }
+
         throw new InvalidDataException($"The Builder used {MaxBuilderRounds} rounds without producing a unit that passes check_unit.");
     }
 

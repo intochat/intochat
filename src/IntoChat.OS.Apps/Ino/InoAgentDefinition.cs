@@ -28,6 +28,7 @@ public static class InoAgentDefinition
             [
                 typeof(IInoStudio).FullName!, typeof(IInoData).FullName!, typeof(IInoSettings).FullName!, typeof(IInoFiles).FullName!, typeof(ISynapseStudio).FullName!, typeof(IInoFocus).FullName!,
                 typeof(IMemory).FullName!, typeof(IRouter).FullName!, typeof(IAspire).FullName!, typeof(ITraceReader).FullName!, typeof(IFlows).FullName!,
+                "IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph",
             ],
             Contexts =
             [

@@ -22,6 +22,11 @@ namespace IntoChat.OS.Modules.Apps;
 // implement answers 202 and finishes in the background; sharing is export/import.
 internal static class AppsEndpoints
 {
+    private static readonly System.Text.Json.JsonSerializerOptions ViewJsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web)
+    {
+        MaxDepth = 128,
+    };
+
     public sealed record TextRequest(string? Text);
     public sealed record SettingsRequest(Dictionary<string, string>? Settings, Dictionary<string, string>? Connections);
     public sealed record RollbackRequest(string Version);
@@ -34,6 +39,42 @@ internal static class AppsEndpoints
         var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
 
         apps.MapGet("/packages", () => Results.Ok(ShippedPackages.All));
+
+        apps.MapGet("/skills", (INeuronProxies brain, CancellationToken ct) => Respond(async () =>
+        {
+            var studio = brain.Get<ISynapseStudio>(ISynapseStudio.Key(BrainScope.CurrentId()).ToString());
+            var skills = await SkillDiscovery.DiscoverAsync(studio, ct: ct).ConfigureAwait(false);
+            return Results.Ok(skills);
+        }));
+
+        apps.MapGet("/units/{alias}/export-zip", (string alias, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
+        {
+            var studio = brain.Get<ISynapseStudio>(ISynapseStudio.Key(BrainScope.CurrentId()).ToString());
+            var bytes = await AppPackageArchive.ExportZipAsync(alias, studio, ct).ConfigureAwait(false);
+            return Results.File(bytes, "application/zip", $"{alias}.zip");
+        }));
+
+        apps.MapPost("/units/import-zip", (
+            HttpRequest httpRequest,
+            INeuronProxies brain,
+            IServiceProvider services,
+            CancellationToken ct) => Respond(async () =>
+        {
+            if (!IsPerson()) { return Results.Json(new { error = "Only you can import app packages." }, statusCode: 403); }
+            using var ms = new MemoryStream();
+            await httpRequest.Body.CopyToAsync(ms, ct).ConfigureAwait(false);
+            var aliasOverride = httpRequest.Query.TryGetValue("alias", out var aliasVals) ? aliasVals.FirstOrDefault() : null;
+            var studio = brain.Get<ISynapseStudio>(ISynapseStudio.Key(BrainScope.CurrentId()).ToString());
+            var result = await AppPackageArchive.ImportZipAsync(
+                ms.ToArray(),
+                studio,
+                aliasOverride,
+                services: services,
+                ct: ct).ConfigureAwait(false);
+            return result.Succeeded
+                ? Results.Ok(result)
+                : Results.UnprocessableEntity(result);
+        }));
 
         apps.MapPost("/packages/compile", (
             AppPackage package,
@@ -146,6 +187,16 @@ internal static class AppsEndpoints
                 : Results.Ok(View(snapshot));
         }));
 
+        apps.MapGet("/{name}/view", (string name, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(name);
+            var scope = BrainScope.CurrentId();
+            var published = await ReadLiveAppOrUnitViewAsync(brain, scope, name.Trim(), ct).ConfigureAwait(false);
+            return published is null
+                ? throw new KeyNotFoundException($"No live view is published for '{name}' in brain '{scope}'.")
+                : Results.Json(published, ViewJsonOptions);
+        }));
+
         apps.MapPost("/{name}/author", (string name, TextRequest request, [FromServices] Creator creator, INeuronProxies brain, CancellationToken ct) => Respond(async () =>
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(request?.Text);
@@ -164,9 +215,21 @@ internal static class AppsEndpoints
             var operation = request?.Operation ?? "ask";
             var input = request?.Input ?? "{}";
             var scope = BrainScope.CurrentId();
-            var id = await App(brain, name).Request(operation, input).WaitAsync(ct);
-            await ForwardScreenRequest(brain, scope, name, operation, input, ct);
-            return Results.Accepted($"/brains/{scope}/apps/{name}", new { requestId = id });
+            try
+            {
+                var id = await App(brain, name).Request(operation, input).WaitAsync(ct);
+                _ = await ForwardScreenRequest(brain, scope, name, operation, input, ct);
+                return Results.Accepted($"/brains/{scope}/apps/{name}", new { requestId = id });
+            }
+            catch (KeyNotFoundException)
+            {
+                if (await ForwardScreenRequest(brain, scope, name, operation, input, ct))
+                {
+                    return Results.Accepted($"/brains/{scope}/apps/{name}", new { requestId = Guid.NewGuid().ToString("N") });
+                }
+
+                throw;
+            }
         }));
 
         apps.MapPut("/{name}/settings", (string name, SettingsRequest request, INeuronProxies brain) => Respond(async ()
@@ -292,9 +355,63 @@ internal static class AppsEndpoints
             : System.Text.Json.JsonSerializer.SerializeToElement(new Dictionary<string, string> { ["input"] = scalar, [field] = scalar });
     }
 
-    private static async Task ForwardScreenRequest(INeuronProxies brain, string scope, string name, string operation, string input, CancellationToken ct)
+    private static async Task<PublishedView?> ReadLiveAppOrUnitViewAsync(
+        INeuronProxies brain,
+        string scope,
+        string name,
+        CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(name) || name.Contains('/')) { return; }
+        var brainId = new DigitalBrain.BrainId(scope);
+        try
+        {
+            var unitStateId = new DigitalBrain.NeuronId(brainId, name, "default");
+            var unitView = await brain.Get<IViewReader>(unitStateId).Read(name).WaitAsync(ct).ConfigureAwait(false);
+            if (unitView is not null)
+            {
+                return unitView;
+            }
+        }
+        catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+        {
+            NullLogger.Instance.LogSwallowed(error, "Unit view reader was not available for live view lookup.");
+        }
+
+        foreach (var candidateType in new[] { "app." + name, name })
+        {
+            try
+            {
+                var screenId = new DigitalBrain.NeuronId(brainId, candidateType, "default");
+                var screenView = await brain.Get<DigitalBrain.IScreen>(screenId).Read().WaitAsync(ct).ConfigureAwait(false);
+                if (screenView is not null)
+                {
+                    return screenView;
+                }
+            }
+            catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+            {
+                NullLogger.Instance.LogSwallowed(error, "Screen view reader was not available for live view lookup.");
+            }
+        }
+
+        try
+        {
+            var published = await brain.Get<IntoChat.OS.Modules.Flutter.Views.IView>($"{scope}/apps/{name}/view").Read().WaitAsync(ct).ConfigureAwait(false);
+            if (published is not null)
+            {
+                return published;
+            }
+        }
+        catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+        {
+            NullLogger.Instance.LogSwallowed(error, "IView lookup was not available for live view lookup.");
+        }
+
+        return null;
+    }
+
+    private static async Task<bool> ForwardScreenRequest(INeuronProxies brain, string scope, string name, string operation, string input, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.Contains('/')) { return false; }
         var args = BuildScreenRequestArgs(name, operation, input);
         try
         {
@@ -303,10 +420,12 @@ internal static class AppsEndpoints
             _ = await screen.Read().WaitAsync(ct);
             var signal = operation.Contains('.', StringComparison.Ordinal) ? operation : $"{name}.{operation}";
             await screen.Request(signal, args).WaitAsync(ct);
+            return true;
         }
         catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException or System.Text.Json.JsonException)
         {
             NullLogger.Instance.LogSwallowed(error, "Screen request forwarding failed.");
+            return false;
         }
     }
 

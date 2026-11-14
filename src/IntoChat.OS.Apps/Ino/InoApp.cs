@@ -163,16 +163,22 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         var grants = await ReadGrantSummariesAsync();
         var local = await DetectLocalModelsAsync();
 
+        var effectiveOpenModel = ResolveEffectiveModel(settings, local);
+        var explicitModelChoice = settings.Variables.Any(v => v.Key == ModelChosenVariable && string.Equals(v.Value, "on", StringComparison.OrdinalIgnoreCase));
         var (nextState, migrate) = InoModel.DecideOpen(
             State,
             request.Mode,
             settings.DisplayName,
-            settings.DefaultModel,
+            effectiveOpenModel ?? settings.DefaultModel,
             smart,
             approvals,
             grants,
             local?.PreferredModel,
             local?.InstalledModels);
+        if (explicitModelChoice && !string.IsNullOrWhiteSpace(effectiveOpenModel))
+        {
+            nextState = nextState with { SelectedModel = effectiveOpenModel.Trim() };
+        }
         var agentKey = InoModel.AgentKeyOf(State.ConversationId);
         await Show(nextState);
 
@@ -295,7 +301,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
             await FollowAgentControlSignalsAsync(agentKey);
             var effectiveModel = ResolveEffectiveModel(settings, local);
             var runId = await agent.Start(AgentTurn.Text(next.Pending.Text, model: effectiveModel));
-            await Show(InoModel.Started(State, runId));
+            await Show(InoModel.Started(State, runId) with { SelectedModel = effectiveModel ?? State.SelectedModel });
         }
         catch (InvalidOperationException error) when (error.Message.StartsWith(InoModel.BlockedPrefix, StringComparison.Ordinal))
         {
@@ -352,6 +358,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         {
             Error = null,
             Status = $"Switched model to {model}",
+            SelectedModel = model,
             DetectedLocalModel = local?.PreferredModel ?? model,
             DetectedLocalModels = local?.InstalledModels ?? State.DetectedLocalModels,
         });
@@ -401,6 +408,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         await Show(State with
         {
             Error = null,
+            SelectedModel = defaultModel,
             Status = $"Saved {provider} credential · Ready on {defaultModel}",
         });
 
@@ -718,13 +726,14 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         await EnsureProfileContextAsync();
         try { await EnsureConfiguredAsync(Get<IAgent>(InoModel.AgentKeyOf(State.ConversationId)), settings, null); }
         catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "agent"); }
+        var nextSelectedModel = string.IsNullOrWhiteSpace(settings.DefaultModel) ? State.SelectedModel : settings.DefaultModel.Trim();
         if (!State.Status.StartsWith("Switched model to ", StringComparison.Ordinal))
         {
-            await Show(State with { Smart = smart, Status = $"Synced settings: {changed.DisplayName} ({changed.DefaultModel})" });
+            await Show(State with { Smart = smart, SelectedModel = nextSelectedModel, Status = $"Synced settings: {changed.DisplayName} ({changed.DefaultModel})" });
         }
         else
         {
-            await Show(State with { Smart = smart });
+            await Show(State with { Smart = smart, SelectedModel = nextSelectedModel });
         }
     }
 
@@ -963,7 +972,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
                 await EnsureProfileContextAsync();
                 try { await EnsureConfiguredAsync(Get<IAgent>(InoModel.AgentKeyOf(State.ConversationId)), updated, null); }
                 catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "agent"); }
-                await Show(State with { Status = $"Switched model to {nextModel}", Error = null });
+                await Show(State with { SelectedModel = nextModel, Status = $"Switched model to {nextModel}", Error = null });
                 return;
             case "scenario":
             case "session":

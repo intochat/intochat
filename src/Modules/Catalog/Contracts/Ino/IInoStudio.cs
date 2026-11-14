@@ -7,7 +7,16 @@ public interface IInoStudio
 {
     // Starts the unit flow for the goal: the unit is authored, verified against its scenarios, deployed and waits for the person's
     // consent to its needs. The card points at the flow on the Tasks board; nothing is approved on the user's behalf.
+    [Interleaves]
     Task<InoToolResult> Make(string goal);
+
+    /// <summary>
+    /// Authors, compiles, scenario-verifies, and deploys an interactive micro-app for <paramref name="goal"/>,
+    /// optionally hinting a preferred unit <paramref name="alias"/> and <paramref name="title"/>.
+    /// </summary>
+    [Interleaves]
+    Task<InoToolResult> CreateInteractiveApp(string? alias, string? title, string goal, CancellationToken ct = default)
+        => Make(string.IsNullOrWhiteSpace(alias) ? goal : $"Create interactive app '{title ?? alias}' (alias {alias}): {goal}");
 
     Task<InoToolResult> Launch(string appId);
 

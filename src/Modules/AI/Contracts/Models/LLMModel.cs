@@ -20,7 +20,9 @@ public abstract class LLMModel : AiModel
         new OpenAI.Gpt54Nano(),
         new Anthropic.Fable5(),
         new Anthropic.Opus5(),
+        new Anthropic.Opus46(),
         new Anthropic.Sonnet5(),
+        new Anthropic.Sonnet46(),
         new Anthropic.Haiku45(),
         new Google.Gemini31Pro(),
         new Google.Gemini36Pro(),
@@ -50,6 +52,12 @@ public abstract class LLMModel : AiModel
         {
             key = key["preset:".Length..].Trim();
         }
+        key = key.ToLowerInvariant() switch
+        {
+            "sonnet-4.6" or "sonnet-4-6" => "claude-sonnet-4-6",
+            "opus-4.6" or "opus-4-6" => "claude-opus-4-6",
+            _ => key,
+        };
         return FindByMarkerName(key)
             ?? FindById(key)
             ?? All.FirstOrDefault(model =>

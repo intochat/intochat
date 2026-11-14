@@ -14,6 +14,8 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Neurons.Neuron("ino.studio")]
 public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Neurons.Neuron, IInoStudio
 {
+    private static readonly TimeSpan MakePollBudget = TimeSpan.FromSeconds(25);
+    private static readonly TimeSpan MakePollInterval = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan ProposePollBudget = TimeSpan.FromSeconds(18);
     private static readonly TimeSpan ProposePollInterval = TimeSpan.FromMilliseconds(250);
 
@@ -51,6 +53,88 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         }
 
         var tasks = $"neuron://{brainId}/apps/tasks#{flowId}";
+        if (services.GetService<IDrafter>() is not null && NeuronId.TryParse(flowId, out var flowNeuronId))
+        {
+            var deadline = DateTimeOffset.UtcNow + MakePollBudget;
+            FlowView? settled = null;
+            while (DateTimeOffset.UtcNow < deadline)
+            {
+                var current = await Get<IFlows>(IFlows.Key(brainId)).Read(flowId).ConfigureAwait(true);
+                if (current is not null && current.Status is FlowStatus.Waiting or FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled)
+                {
+                    settled = current;
+                    break;
+                }
+
+                await Task.Delay(MakePollInterval).ConfigureAwait(true);
+            }
+
+            if (settled is not null)
+            {
+                BuildInner? built = null;
+                try
+                {
+                    var head = await Get<IFlowStarter>(flowNeuronId).Head().ConfigureAwait(true);
+                    built = JsonSerializer.Deserialize<BuildInner>(head.InnerJson, BuildFlow.Json);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    built = null;
+                }
+
+                var alias = !string.IsNullOrWhiteSpace(built?.Alias) ? built.Alias! : settled.Subject;
+                if (settled.Status == FlowStatus.Completed && !string.IsNullOrWhiteSpace(alias))
+                {
+                    var liveViewPath = $"/brains/{brainId}/apps/{alias}/view";
+                    var doneCard = new InoCard(
+                        flowId,
+                        "flow",
+                        $"Live: {alias}",
+                        $"Verified & live at {liveViewPath}",
+                        tasks,
+                        "completed",
+                        tasks);
+                    return new InoToolResult(
+                        $"Built, verified, deployed, and installed interactive unit '{alias}' ({flowId}). Live view: `{liveViewPath}` (UI event target: `{brainId}/{alias}`). Inspect the transcript on the Tasks board ({tasks}).",
+                        doneCard);
+                }
+
+                if (settled.Status == FlowStatus.Waiting && settled.WaitingStep == "install" && !string.IsNullOrWhiteSpace(alias))
+                {
+                    var liveViewPath = $"/brains/{brainId}/apps/{alias}/view";
+                    var planNote = !string.IsNullOrWhiteSpace(built?.PlanId) ? $" (consent plan `{built.PlanId}`)" : string.Empty;
+                    var waitingCard = new InoCard(
+                        flowId,
+                        "flow",
+                        $"Ready to install: {alias}",
+                        $"Verified & deployed; awaiting your consent{planNote}.",
+                        tasks,
+                        "waiting",
+                        tasks);
+                    return new InoToolResult(
+                        $"Built, verified, and deployed unit '{alias}' ({flowId}); awaiting your install consent{planNote} on the Tasks board ({tasks}). Once you approve, its interactive view is immediately live at `{liveViewPath}` (UI event target: `{brainId}/{alias}`).",
+                        waitingCard);
+                }
+
+                if (settled.Status is FlowStatus.Failed or FlowStatus.Cancelled)
+                {
+                    var detail = settled.Detail ?? settled.Status.ToString();
+                    var failedCard = new InoCard(
+                        flowId,
+                        "flow",
+                        $"Build {settled.Status.ToString().ToLowerInvariant()}: {title}",
+                        detail,
+                        tasks,
+                        "failed",
+                        tasks);
+                    return new InoToolResult(
+                        $"Build flow {flowId} {settled.Status.ToString().ToLowerInvariant()}: {detail}. Inspect the verify transcript on the Tasks board ({tasks}).",
+                        failedCard,
+                        Ok: false);
+                }
+            }
+        }
+
         var card = new InoCard(
             flowId,
             "flow",
@@ -61,6 +145,16 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
             tasks);
         return new InoToolResult(
             $"Started building {title} ({flowId}). The verify transcript and the consent to the unit's needs will appear on the Tasks board ({tasks}).", card);
+    }
+
+    public Task<InoToolResult> CreateInteractiveApp(string? alias, string? title, string goal, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(goal);
+        var cleanGoal = goal.Trim();
+        var prompt = !string.IsNullOrWhiteSpace(alias) && !cleanGoal.Contains(alias.Trim(), StringComparison.OrdinalIgnoreCase)
+            ? $"Create an interactive app{(string.IsNullOrWhiteSpace(title) ? "" : $" titled '{title.Trim()}'")} with alias '{alias.Trim()}': {cleanGoal}"
+            : cleanGoal;
+        return Make(prompt);
     }
 
     public async Task<InoToolResult> Launch(string appId)
@@ -90,7 +184,14 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         DigitalBrain.Units.DeployedSource[] units;
         try { units = await studio.List(); }
         catch (Exception error) when (error is not OperationCanceledException) { return new InoToolResult(text + $"\nUnits are not available: {error.Message}"); }
-        if (units.Length == 0) { return new InoToolResult(text + "\nUnits: none deployed."); }
+        if (units.Length == 0)
+        {
+            var workspaceSkills = await SkillDiscovery.DiscoverAsync(studio).ConfigureAwait(true);
+            var skillsSuffix = workspaceSkills.Count == 0
+                ? string.Empty
+                : "\nSkills:\n" + string.Join("\n", workspaceSkills.Select(s => $"- [skill] {s.Alias} ({s.Source}): {s.Description}"));
+            return new InoToolResult(text + "\nUnits: none deployed." + skillsSuffix);
+        }
         var lines = new List<string>();
         foreach (var unit in units)
         {
@@ -100,7 +201,11 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
             catch (Exception error) when (error is not OperationCanceledException) { lines.Add($"- {alias} ({unit.Status}): sidecars unavailable"); continue; }
             lines.Add($"- {alias} ({unit.Status}): spec.md {Kept(sidecars, "spec.md")}, scenarios.json {Kept(sidecars, "scenarios.json")}");
         }
-        return new InoToolResult(text + "\nUnits:\n" + string.Join("\n", lines));
+        var discovered = await SkillDiscovery.DiscoverAsync(studio).ConfigureAwait(true);
+        var discoveredSection = discovered.Count == 0
+            ? string.Empty
+            : "\nSkills:\n" + string.Join("\n", discovered.Select(s => $"- [skill] {s.Alias} ({s.Source}): {s.Description}"));
+        return new InoToolResult(text + "\nUnits:\n" + string.Join("\n", lines) + discoveredSection);
     }
 
     public Task<InoToolResult> ProposeChange(string repository, string goal, CancellationToken ct = default)

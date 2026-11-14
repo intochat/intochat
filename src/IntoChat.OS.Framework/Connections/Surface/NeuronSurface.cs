@@ -81,14 +81,16 @@ public sealed class NeuronSurface(INeuronProxies brain, IBrainObserver kernel, N
     public async Task<string> Get(string contract, string key, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        var normalizedKey = NormalizeBrainPlaceholder(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);
-        return DigitalBrain.Contracts.PlainNeuronContracts.IdOf(type, key).ToString();
+        return DigitalBrain.Contracts.PlainNeuronContracts.IdOf(type, normalizedKey).ToString();
     }
 
     public async Task<JsonElement?> Call(string contract, string key, string method, string arguments, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
+        key = NormalizeBrainPlaceholder(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);
         JsonElement[] payload;
         try { payload = string.IsNullOrWhiteSpace(arguments) ? [] : JsonSerializer.Deserialize<JsonElement[]>(arguments, Json) ?? []; }
@@ -149,7 +151,7 @@ public sealed class NeuronSurface(INeuronProxies brain, IBrainObserver kernel, N
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);
-        return Neuron(type, key);
+        return Neuron(type, NormalizeBrainPlaceholder(key));
     }
 
     // The runtime id of the neuron a plain contract and key name (06-07b: a plain neuron is watched through the session synapse
@@ -157,8 +159,33 @@ public sealed class NeuronSurface(INeuronProxies brain, IBrainObserver kernel, N
     public async Task<DigitalBrain.NeuronId?> PlainId(string contract, string key, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        var normalizedKey = NormalizeBrainPlaceholder(key);
         var type = await Contract(contract, ct).ConfigureAwait(false);
-        return DigitalBrain.Contracts.PlainNeuronContracts.Is(type) ? DigitalBrain.Contracts.PlainNeuronContracts.IdOf(type, key) : null;
+        return DigitalBrain.Contracts.PlainNeuronContracts.Is(type) ? DigitalBrain.Contracts.PlainNeuronContracts.IdOf(type, normalizedKey) : null;
+    }
+
+    private static string NormalizeBrainPlaceholder(string key)
+    {
+        if (!key.Contains("{brain}", StringComparison.OrdinalIgnoreCase) && !key.Contains("{brainScope}", StringComparison.OrdinalIgnoreCase))
+        {
+            return key;
+        }
+
+        string? currentBrain = null;
+        if (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.TryGet(out var caller)
+            && DigitalBrain.Brains.BrainScope.IsValidId(caller.BrainId))
+        {
+            currentBrain = caller.BrainId;
+        }
+
+        if (string.IsNullOrWhiteSpace(currentBrain))
+        {
+            return key;
+        }
+
+        return key
+            .Replace("{brain}", currentBrain, StringComparison.OrdinalIgnoreCase)
+            .Replace("{brainScope}", currentBrain, StringComparison.OrdinalIgnoreCase);
     }
 
     private bool Allowed(string name) => allowed is null || allowed.Contains(name);

@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.singleton.1.9.0.schema.json
+PackageIdentifier: IntoChat.OS
+PackageVersion: 0.17.0
+PackageLocale: en-US
+Publisher: IntoChat
+PublisherUrl: https://intochat.io
+PublisherSupportUrl: https://github.com/intochat/os/issues
+PackageName: IntoChat OS
+PackageUrl: https://intochat.io
+License: MIT
+LicenseUrl: https://github.com/intochat/os/blob/master/LICENSE
+ShortDescription: Local-first AI operating system with Ino, live C# micro-apps, ArtCraft studios, and hardware-confined sandboxes.
+Moniker: intochat
+Tags:
+  - ai
+  - agent
+  - developer-tools
+  - dotnet
+  - local-first
+  - operating-system
+  - sandbox
+Commands:
+  - intochat
+Installers:
+  - Architecture: x64
+    InstallerType: zip
+    NestedInstallerType: portable
+    NestedInstallerFiles:
+      - RelativeFilePath: IntoChat.OS.Desktop.exe
+        PortableCommandAlias: intochat
+    InstallerUrl: https://releases.intochat.io/stable/0.17.0/intochat-0.17.0-win-x64.zip
+    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
+  - Architecture: arm64
+    InstallerType: zip
+    NestedInstallerType: portable
+    NestedInstallerFiles:
+      - RelativeFilePath: IntoChat.OS.Desktop.exe
+        PortableCommandAlias: intochat
+    InstallerUrl: https://releases.intochat.io/stable/0.17.0/intochat-0.17.0-win-arm64.zip
+    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
+ManifestType: singleton
+ManifestVersion: 1.9.0

@@ -29,16 +29,18 @@ class CommandPaletteEntry {
 /// Keyboard-first Raycast-style Command Palette (`⌘K` / `/`) across apps,
 /// settings, UI identities, and Ino prompts.
 class CommandPalette extends StatefulWidget {
-  const CommandPalette({
+  CommandPalette({
     super.key,
     required this.onClose,
+    List<SmartAppTileSpec>? apps,
     this.onLaunchApp,
     this.onAskIno,
     this.onSelectPreset,
     this.onCycleBarLayout,
-  });
+  }) : apps = apps ?? allSmartAppSpecs;
 
   final VoidCallback onClose;
+  final List<SmartAppTileSpec> apps;
   final ValueChanged<String>? onLaunchApp;
   final ValueChanged<String>? onAskIno;
   final ValueChanged<IcStylePreset>? onSelectPreset;
@@ -70,7 +72,7 @@ class _CommandPaletteState extends State<CommandPalette> {
   List<CommandPaletteEntry> _buildEntries() {
     final q = _text.text.trim().toLowerCase();
     final all = <CommandPaletteEntry>[
-      for (final spec in allSmartAppSpecs)
+      for (final spec in widget.apps)
         CommandPaletteEntry(
           id: 'app:${spec.id}',
           label: 'Open ${spec.name}',

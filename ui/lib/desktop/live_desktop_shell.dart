@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -69,6 +69,8 @@ class LiveDesktopShell extends StatefulWidget {
     this.read,
     this.requestApp,
     this.notificationsClient,
+    this.installedApps = const <String>[],
+    this.onDynamicAppsChanged,
     required this.knowsApp,
   });
 
@@ -114,6 +116,12 @@ class LiveDesktopShell extends StatefulWidget {
   /// Optional client for real OS notifications; falls back to [entries] when present.
   final IntoChatOSUiClient? notificationsClient;
 
+  /// Optional list of brain-installed / runtime-deployed app IDs to surface in the Launcher & Dock.
+  final List<String> installedApps;
+
+  /// Optional callback notified whenever runtime apps discovered on the desktop change.
+  final ValueChanged<List<SmartAppTileSpec>>? onDynamicAppsChanged;
+
   @override
   State<LiveDesktopShell> createState() => _LiveDesktopShellState();
 }
@@ -132,6 +140,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   final Set<String> _clientClosedWindowIds = {};
   final Set<String> _clientOpenedWidgets = {};
   final Set<String> _clientClosedWidgets = {};
+  Set<String> _dynamicAppIds = const {};
+  String _lastDynamicSignature = '';
   bool _showDesktopOnly = false;
 
   DesktopPopoverKind _popover = DesktopPopoverKind.none;
@@ -666,13 +676,60 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     }
   }
 
+  bool _knowsDesktopApp(String app) {
+    final norm = app.trim().toLowerCase();
+    if (norm.isEmpty) return false;
+    return widget.knowsApp(app) ||
+        widget.knowsApp(norm) ||
+        _dynamicAppIds.contains(norm);
+  }
+
+  Map<String, String> _collectDynamicApps(
+    List<_ParsedDesktopWindow> windows,
+    Map<String, Map<String, dynamic>> dockButtons,
+  ) {
+    final discovered = <String, String>{};
+    for (final entry in dockButtons.entries) {
+      final btn = entry.value;
+      final rawArg = (btn['argument'] as String?)?.trim();
+      final rawId = (rawArg != null && rawArg.isNotEmpty)
+          ? rawArg.toLowerCase()
+          : entry.key.substring(5).trim().toLowerCase();
+      if (rawId.isEmpty) continue;
+      final label = (btn['text'] as String?)?.trim();
+      discovered[rawId] = (label != null && label.isNotEmpty)
+          ? label
+          : IcAppIcon.humanizeAppTitle(rawId);
+    }
+    for (final w in windows) {
+      final rawId = w.appId.trim().toLowerCase();
+      if (rawId.isEmpty) continue;
+      discovered.putIfAbsent(
+        rawId,
+        () => w.title.trim().isNotEmpty
+            ? w.title.trim()
+            : IcAppIcon.humanizeAppTitle(rawId),
+      );
+    }
+    for (final id in [
+      ..._clientOpenedApps,
+      ..._pinnedAppIds,
+      ...widget.installedApps,
+    ]) {
+      final clean = id.trim().toLowerCase();
+      if (clean.isEmpty) continue;
+      discovered.putIfAbsent(clean, () => IcAppIcon.humanizeAppTitle(clean));
+    }
+    return discovered;
+  }
+
   void _shellGesture(String app, String operation, String input) {
     final request = widget.requestApp;
     final scope = app == 'desktop' || app == 'settings' ? app : 'window';
     if (request == null || !desktopShellOperationAllowed(scope, operation)) {
       return;
     }
-    if (scope == 'window' && !widget.knowsApp(app)) return;
+    if (scope == 'window' && !_knowsDesktopApp(app)) return;
     unawaited(
       request(
         app,
@@ -737,10 +794,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       'post' => 'Post',
       'workspace' => 'Workspace',
       'settings' => 'Settings',
-      _ =>
-        appId.isEmpty
-            ? 'App'
-            : '${appId[0].toUpperCase()}${appId.substring(1)}',
+      _ => IcAppIcon.humanizeAppTitle(appId),
     };
   }
 
@@ -752,22 +806,22 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     if (IcAppIcon.builtInSpecs.containsKey(normalized)) {
       return normalized;
     }
-    final lower = title.toLowerCase();
+    final lower = title.trim().toLowerCase();
     for (final s in allSmartAppSpecs) {
-      if (lower.contains(s.id) || lower.contains(s.name.toLowerCase())) {
+      if (lower == s.id || lower == s.name.toLowerCase()) {
         return s.id;
       }
     }
-    if (lower.contains('ino')) return 'ino';
+    if (lower == 'ino' || lower.startsWith('ino ')) return 'ino';
     if (lower.contains('photocraft')) return 'photocraft';
     if (lower.contains('filmcraft') || lower.contains('videocraft')) {
       return 'filmcraft';
     }
     if (lower.contains('gallery')) return 'gallery';
-    if (lower.contains('creator')) return 'creator';
-    if (lower.contains('file')) return 'files';
-    if (lower.contains('post')) return 'post';
-    if (lower.contains('workspace')) return 'workspace';
+    if (lower == 'creator') return 'creator';
+    if (lower == 'files' || lower == 'file') return 'files';
+    if (lower == 'post') return 'post';
+    if (lower == 'workspace') return 'workspace';
     if (lower.contains('setting')) return 'settings';
     if (lower.contains('circle')) return 'circleroom';
     return lower.replaceAll(RegExp(r'[^a-z0-9]'), '');
@@ -1289,6 +1343,43 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     final windows = _parseWindows(effectiveRoot);
     final dockButtons = _parseDockButtons(effectiveRoot);
     final openWidgets = _parseOpenWidgets(effectiveRoot);
+    final discoveredApps = _collectDynamicApps(windows, dockButtons);
+    _dynamicAppIds = discoveredApps.keys.toSet();
+
+    final defaultDockIds = {for (final s in defaultSmartAppSpecs) s.id};
+    final catalogIds = {for (final s in allSmartAppSpecs) s.id};
+    final extraRuntimeSpecs = <SmartAppTileSpec>[
+      for (final entry in discoveredApps.entries)
+        if (!catalogIds.contains(entry.key))
+          SmartAppTileSpec.fromIconSpec(
+            entry.key,
+            titleOverride: entry.value,
+            categoryOverride: 'Micro-Apps',
+          ),
+    ];
+    final dockApps = <SmartAppTileSpec>[
+      ...defaultSmartAppSpecs,
+      for (final entry in discoveredApps.entries)
+        if (!defaultDockIds.contains(entry.key))
+          SmartAppTileSpec.fromIconSpec(entry.key, titleOverride: entry.value),
+    ];
+    final launcherApps = <SmartAppTileSpec>[
+      ...allSmartAppSpecs,
+      ...extraRuntimeSpecs,
+    ];
+
+    if (widget.onDynamicAppsChanged != null) {
+      final sig = [for (final s in extraRuntimeSpecs) '${s.id}:${s.name}']
+          .join('|');
+      if (sig != _lastDynamicSignature) {
+        _lastDynamicSignature = sig;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            widget.onDynamicAppsChanged?.call(extraRuntimeSpecs);
+          }
+        });
+      }
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1362,6 +1453,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                   hasOpenWindows: visibleWindows.isNotEmpty,
                   stylePreset: widget.stylePreset,
                   barLayout: widget.barLayout,
+                  apps: dockApps,
                   openCardIds: openWidgets,
                   onOpenCard: (cardId) {
                     setState(() {
@@ -1566,7 +1658,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                         load: widget.load,
                                         watch: widget.watch,
                                         onAction: widget.onAction,
-                                        knowsApp: widget.knowsApp,
+                                        knowsApp: _knowsDesktopApp,
                                         signals: _journalFor(
                                           w.viewportRef['name'] as String,
                                         ),
@@ -1588,7 +1680,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 load: widget.load,
                                 watch: widget.watch,
                                 onAction: widget.onAction,
-                                knowsApp: widget.knowsApp,
+                                knowsApp: _knowsDesktopApp,
                                 signals: _journalFor(
                                   spec.viewportRef['name'] as String,
                                 ),
@@ -1637,6 +1729,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                 child: OsBar(
                   barLayout: widget.barLayout,
                   stylePreset: widget.stylePreset,
+                  apps: dockApps,
                   openAppIds: openAppIds,
                   focusedAppId: topWindow?.appId,
                   paletteOpen: widget.paletteOpen,
@@ -1862,6 +1955,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
               if (_allAppsOpen)
                 Positioned.fill(
                   child: AllAppsLauncherOverlay(
+                    apps: launcherApps,
                     onClose: () => setState(() => _allAppsOpen = false),
                     onLaunchApp: (appId) {
                       setState(() => _allAppsOpen = false);

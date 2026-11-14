@@ -223,7 +223,8 @@ public sealed class Gate20EdgeApprovalWallFacts
             AccountSession.DefaultLogin,
             scope,
             CallerKind.Agent,
-            CapabilityCallers.AssistantApp) with { ConversationId = "ino-turn" };
+            CapabilityCallers.AssistantApp) with
+        { ConversationId = "ino-turn" };
 
         using (InProcessCallerScope.Enter())
         using (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(agentCaller))
