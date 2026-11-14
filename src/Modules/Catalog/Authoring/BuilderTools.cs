@@ -50,29 +50,46 @@ internal static partial class BuilderTools
             Task<OperationId> Write(WritePlan plan, CancellationToken ct);
         }
 
+        namespace IntoChat.OS.Modules.Apps.Notifications; // capability "notifications": brain notification inbox
+        public interface INotifications
+        {
+            Task<JsonElement> Notify(string title, string body, string priority, CancellationToken ct);
+        }
+
         namespace DigitalBrain.UI;  // a view synapse returns new View(title, root)
         public sealed record View(string Title, Node Root);
+        public sealed record Surface(IReadOnlyList<Node> Children, string Kind = "acrylic", string? Title = null, string? Subtitle = null, double Padding = 18) : Node;
         public sealed record Column(IReadOnlyList<Node> Children) : Node;
         public sealed record Row(IReadOnlyList<Node> Children) : Node;
         public sealed record Text(string Value) : Node;
         public sealed record Badge(string Label, string Tone = "neutral", string? Icon = null) : Node;   // tone: neutral, accent, success, warning, danger
         public sealed record StatCardNode(string Key, string Label, string Value, string? Delta = null) : Node;
+        public sealed record Field(string Key, string Name, FieldKind Kind, string? Placeholder = null, Emit? OnSubmit = null) : Node;
         public sealed record Button(string Key, string Label, Emit? Emit = null, Intent? Intent = null, bool Enabled = true, string Tone = "neutral") : Node;   // Key is stable within the view; give Emit
         public sealed record Emit(string Owner, string Signal, JsonElement? Args = null);                    // Owner = the unit's own alias
 
         namespace DigitalBrain;
         [State("alias")] record; [Signal("signal.alias")] record : Signal; [Slot] parameter;
         [Synapse(typeof(Tick), "alias", Every = "every 6m")]  [Synapse(typeof(TSignal), "alias")]  [Synapse("signal.alias", "alias")] (SignalEnvelope)  [Synapse("alias")] (view)
+        // Synchronous Asks<T> pattern (never use C# anonymous types `new { ... }`; use Dictionary<string, string> or records):
+        // [Synapse(typeof(Tick), "alias", Every = "every 1m")] static Reaction<TState> Poll(Tick tick, TState state, [Slot] Asks<IHttpRead> http) => Reaction<TState>.Of(state).Ask(http.GetJson(url, key: "spot"));
+        // [Synapse(typeof(Answered), "alias")] static Reaction<TState> Heard(Answered all, Answer answer, TState state) => ...
         Reaction<TState>.Of(TState state, params Signal[] said)
         """;
 
-    // Compile stage: run SynapseCompiler on unit files
+    // Compile stage: run SynapseCompiler and closed-world PE boundary check on unit files
     public static (bool Success, IReadOnlyList<ScriptCompilationDiagnostic> Diagnostics) CompileStage(SynapseCompiler compiler, SynapseSource source)
     {
         ArgumentNullException.ThrowIfNull(compiler);
         ArgumentNullException.ThrowIfNull(source);
         var build = compiler.Compile(source);
-        var diagnostics = build.Diagnostics.Select(d => new ScriptCompilationDiagnostic(d.File, d.Id, d.Line, d.Message)).ToArray();
+        var diagnostics = build.Diagnostics.Select(d => new ScriptCompilationDiagnostic(d.File, d.Id, d.Line, d.Message)).ToList();
+        if (build.Success && SynapseCompiler.Verify(build) is { } boundaryError)
+        {
+            diagnostics.Add(new ScriptCompilationDiagnostic("", "DB0099", 0, boundaryError));
+            return (false, diagnostics);
+        }
+
         return (build.Success, diagnostics);
     }
 

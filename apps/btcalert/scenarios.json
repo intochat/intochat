@@ -1,0 +1,67 @@
+[
+  {
+    "name": "alerts-once-on-threshold-drop-and-validates-rules",
+    "given": {
+      "http": {
+        "market": {
+          "api.coinbase.com": {
+            "$each": [
+              { "data": { "amount": "84250.00", "currency": "USD" } },
+              { "data": { "amount": "83900.00", "currency": "USD" } }
+            ]
+          }
+        }
+      },
+      "notifications": {
+        "notify": {
+          "*": { "id": "notif-1", "deduplicated": false }
+        }
+      }
+    },
+    "when": [
+      "tick 1m",
+      "then signal btcalert.pricedropped",
+      "then state btcalert Armed = false",
+      "then state btcalert AlertsSent = 1",
+      "then view btcalert contains \"$84,250.00\"",
+      "then view btcalert contains \"Triggered\"",
+      "tick 1m",
+      "then state btcalert LastPrice = 83900.00",
+      "then state btcalert AlertsSent = 1",
+      "publish btcalert.setthreshold {\"value\": -5}",
+      "then signal rule.rejected",
+      "publish btcalert.rearm",
+      "then state btcalert Armed = true",
+      "then view btcalert contains \"Armed\""
+    ],
+    "then": [
+      "state btcalert Armed = true",
+      "state btcalert AlertsSent = 1"
+    ]
+  },
+  {
+    "name": "stays-armed-when-spot-is-above-threshold",
+    "given": {
+      "http": {
+        "market": {
+          "api.coinbase.com": { "data": { "amount": "88500.00", "currency": "USD" } }
+        }
+      },
+      "notifications": {
+        "notify": {
+          "*": { "id": "notif-none", "deduplicated": false }
+        }
+      }
+    },
+    "when": [
+      "tick 1m"
+    ],
+    "then": [
+      "state btcalert LastPrice = 88500.00",
+      "state btcalert Armed = true",
+      "state btcalert AlertsSent = 0",
+      "never signal btcalert.pricedropped",
+      "view btcalert contains \"$88,500.00\""
+    ]
+  }
+]

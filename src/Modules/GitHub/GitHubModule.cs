@@ -3,8 +3,10 @@ using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
+using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
@@ -63,6 +65,7 @@ public sealed class GitHubModule : DigitalBrain.Modules.Module
         services.AddSingleton<IGitHubUserAccess, GitHubUserAccess>();
         services.AddSingleton<GitHubWebhookIngress>();
         services.AddSingleton<IHttpSurface, GitHubWebhookSurface>();
+        services.TryAddSingleton<IWorkTree, WorkTreeService>();
         services.AddHttpClient(GitHubUserAccess.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
     }

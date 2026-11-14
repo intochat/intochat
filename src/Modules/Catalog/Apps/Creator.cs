@@ -289,7 +289,13 @@ internal sealed class Creator(
         {
             if (string.IsNullOrEmpty(slot.Name) || slot.Name.Any(c => !char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c)))
             { throw new InvalidDataException($"'{slot.Name}' is not a valid slot name: lowercase letters and digits."); }
-            if (slot.Capability is not ("http" or "tool")) { throw new InvalidDataException($"Slot '{slot.Name}' has capability '{slot.Capability}'; a slot is \"http\" or \"tool\"."); }
+            var capability = slot.Capability?.EndsWith("@1", StringComparison.Ordinal) == true
+                ? slot.Capability[..^2]
+                : slot.Capability;
+            if (capability is not ("http" or "tool" or "storage" or "notifications"))
+            {
+                throw new InvalidDataException($"Slot '{slot.Name}' has capability '{slot.Capability}'; a slot is \"http\", \"tool\", \"storage\", or \"notifications\".");
+            }
         }
         // Every scenario must read in the one grammar before the Builder sees it.
         foreach (var scenario in unit.Scenarios) { _ = ScenarioSteps.Parse(scenario); }

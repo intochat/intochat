@@ -159,20 +159,48 @@ public sealed class BrainToolsConnection(
         return Task.FromResult(ConnectionProbeResult.Connected("Brain tools aggregator ready."));
     }
 
-    private Task<IReadOnlyList<IToolSource>> GetSourcesAsync()
+    private async Task<IReadOnlyList<IToolSource>> GetSourcesAsync()
     {
         var result = new List<IToolSource>(_sources);
 
-        // In a live brain, read tool sources through the capability source if available
+        // In a live brain, discover plain neuron tool sources via IBrainObserver + SiloNeurons
         var sp = services ?? ServiceProvider;
-        if (sp is not null)
+        if (sp is not null && !string.IsNullOrWhiteSpace(Id.Brain.Value))
         {
             try
             {
-                var capSource = sp.GetService(typeof(ToolCapabilitySource)) as ToolCapabilitySource;
-                if (capSource is not null && !string.IsNullOrWhiteSpace(Id.Brain.Value))
+                if (sp.GetService(typeof(DigitalBrain.Kernel.IBrainObserver)) is DigitalBrain.Kernel.IBrainObserver observer)
                 {
-                    // Capability source is available
+                    foreach (var source in (await observer.Types(CancellationToken.None).ConfigureAwait(false))
+                        .Where(type => type.Kind == DigitalBrain.Kernel.TypeKind.Neuron))
+                    {
+                        var contract = AppDomain.CurrentDomain.GetAssemblies()
+                            .Where(assembly => !assembly.IsDynamic)
+                            .Select(assembly => assembly.GetType(source.Name, throwOnError: false))
+                            .FirstOrDefault(type => type is { IsInterface: true }
+                                && typeof(IToolSource).IsAssignableFrom(type)
+                                && DigitalBrain.Contracts.PlainNeuronContracts.Is(type));
+                        if (contract is null)
+                        {
+                            continue;
+                        }
+
+                        await foreach (var instance in observer.Instances(source.Alias, CancellationToken.None).ConfigureAwait(false))
+                        {
+                            try
+                            {
+                                var liveSource = (IToolSource)DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get(sp, contract, instance.Key);
+                                if (!result.Contains(liveSource))
+                                {
+                                    result.Add(liveSource);
+                                }
+                            }
+                            catch (Exception innerError) when (innerError is not OperationCanceledException)
+                            {
+                                global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(innerError, "Skipping unavailable live tool source.");
+                            }
+                        }
+                    }
                 }
             }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -181,6 +209,6 @@ public sealed class BrainToolsConnection(
             }
         }
 
-        return Task.FromResult<IReadOnlyList<IToolSource>>(result);
+        return result;
     }
 }
