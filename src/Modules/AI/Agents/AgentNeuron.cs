@@ -223,12 +223,29 @@ internal sealed class AgentNeuron(
         if (ids.Length == 0) { return; }
         try
         {
-            var hits = await Context.Get<IMemory>(new DigitalBrain.NeuronId(Id.Brain, "ai.memory", "memory")).Recall(query, 3);
+            var pack = await Context.Get<IMemory>(new DigitalBrain.NeuronId(Id.Brain, "ai.memory", "memory")).RecallPack(query, null, 5);
             foreach (var id in ids)
             {
                 var context = Context.Get<IAgentContext>(id);
-                if (hits.Length == 0) { await context.Remove("recall"); }
-                else { await context.Set(new("recall", string.Join("\n", hits.Select(hit => "- " + hit.Text)), [])); }
+                if (pack.OwnerRules.Length == 0)
+                {
+                    await context.Remove("owner-rules");
+                }
+                else
+                {
+                    var rulesText = "Owner rules and preferences:\n"
+                        + string.Join("\n", pack.OwnerRules.Select(rule => $"- [{rule.Scope}] {rule.Subject}: {rule.Body}"));
+                    await context.Set(new("owner-rules", rulesText, []));
+                }
+
+                if (pack.RecalledItems.Length == 0)
+                {
+                    await context.Remove("recall");
+                }
+                else
+                {
+                    await context.Set(new("recall", string.Join("\n", pack.RecalledItems.Select(hit => "- " + hit.Text)), []));
+                }
             }
         }
         catch (Exception error) { Logger.LogWarning(error, "Memory recall could not be written; the turn runs without it."); }
@@ -554,7 +571,9 @@ internal sealed class AgentNeuron(
                             break;
                         case AgentTurnEvent.Failed failed:
                             // The loop sees only a cancelled token; a run out of time failed, it was not cancelled.
-                            failure = failed.Cancelled && TimedOut(timeout, ct) ? new(timedOut, Cancelled: false) : failed;
+                            failure = failed.Cancelled && TimedOut(timeout, ct)
+                                ? new(timedOut, Cancelled: false) { Failure = AgentFailure.TimedOut }
+                                : failed;
                             current = failure;
                             break;
                     }
@@ -584,13 +603,17 @@ internal sealed class AgentNeuron(
                     // The error and the text so far are masked; a redactor that fails leaves the held-back text and a generic error.
                     try { await Refresh(true); error = await Mask(error); }
                     catch (Exception mask) { Logger.LogWarning(mask, "Agent run {RunId} could not mask its outcome.", runId); error = "Execution failed before committing its result."; }
-                    run = Close(Streamed(), cancelled ? AgentRunStatus.Cancelled : AgentRunStatus.Failed, error, cancelled ? "tool_cancelled" : "tool_interrupted");
+                    var failureKind = expired
+                        ? AgentFailure.TimedOut
+                        : (cancelled ? AgentFailure.Unknown : (failure?.Failure ?? AgentFailure.Unknown));
+                    run = Close(Streamed(), cancelled ? AgentRunStatus.Cancelled : AgentRunStatus.Failed, error, cancelled ? "tool_cancelled" : "tool_interrupted")
+                        with { Failure = failureKind };
                     // The end is announced whether or not it could be stored: a Start caller must never wait forever.
                     var persisted = true;
                     try { await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, run) }); }
                     catch (Exception persist) { persisted = false; Abandon(persist, runId); }
                     await Announce(persisted);
-                    await Notify(new TurnFailed(Key, runId, error, cancelled), persisted);
+                    await Notify(new TurnFailed(Key, runId, error, cancelled) { Failure = failureKind }, persisted);
                 }
             }
             finally { _active = null; }

@@ -25,5 +25,8 @@ public abstract record AgentTurnEvent
         string Code = "tool_failed", string Message = "The tool call failed.") : AgentTurnEvent;
     public sealed record Completed(IReadOnlyList<AiMessage> Messages, AgentUsage? Usage) : AgentTurnEvent;
     public sealed record Finished : AgentTurnEvent;
-    public sealed record Failed(string Message, bool Cancelled = false) : AgentTurnEvent;
+    public sealed record Failed(string Message, bool Cancelled = false) : AgentTurnEvent
+    {
+        public AgentFailure Failure { get; init; }
+    }
 }

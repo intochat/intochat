@@ -166,7 +166,7 @@ internal static class AIClients
         {
             var catalog = provider.GetRequiredService<ModelCatalog>();
             var resolved = await catalog.Resolve(null, requiresTools: false, cancellationToken);
-            if (resolved.Provider is AiProvider.Host) { throw new InvalidOperationException("No chat provider is configured. Provision a provider integration or configure an Ollama endpoint."); }
+            if (resolved.Provider is AiProvider.Host) { throw new NoProviderConfiguredException("No chat provider is configured. Provision a provider integration or configure an Ollama endpoint."); }
             return await catalog.CreateClient(resolved, cancellationToken, invokesTools: true);
         }
         var model = configuration.Default.Model is { Length: > 0 } markerName
@@ -182,7 +182,7 @@ internal static class AIClients
         {
             if (await Factories[model.Provider].IsConfigured(configuration, credentials, cancellationToken)) { return model; }
         }
-        throw new InvalidOperationException("No LLM provider is configured. Provision a provider integration, supply an Ollama endpoint, or pin " + DefaultModelKey + ".");
+        throw new NoProviderConfiguredException("No LLM provider is configured. Provision a provider integration, supply an Ollama endpoint, or pin " + DefaultModelKey + ".");
     }
 
     private static IEmbeddingGenerator<string, Embedding<float>> DefaultEmbeddingGenerator(IServiceProvider provider)

@@ -19,7 +19,7 @@ internal sealed class OllamaProviderFactory : ILlmProviderFactory
         => CreateChatClient(configuration.Ollama.Models.GetValueOrDefault(model.Marker.Name)?.Model ?? model.Id, configuration, credentials, cancellationToken: cancellationToken);
 
     public Task<IChatClient> CreateChatClient(string model, AIOptions configuration, IAiCredentials credentials, string? endpoint = null, CancellationToken cancellationToken = default)
-        => Task.FromResult<IChatClient>(new ChatClientBuilder(CreateApiClient(configuration, model, model, "WithLlm", useMarkerOverride: false))
+        => Task.FromResult<IChatClient>(new ChatClientBuilder(CreateApiClient(configuration, model, model, "WithLlm", useMarkerOverride: false, endpointOverride: endpoint))
             .ConfigureOptions(static options =>
             {
                 options.AdditionalProperties ??= [];
@@ -40,21 +40,22 @@ internal sealed class OllamaProviderFactory : ILlmProviderFactory
         string marker,
         string defaultTag,
         string hostingMethod,
-        bool useMarkerOverride = true)
+        bool useMarkerOverride = true,
+        string? endpointOverride = null)
     {
         var tag = useMarkerOverride ? configuration.Ollama.Models.GetValueOrDefault(marker)?.Model ?? defaultTag : defaultTag;
         var http = new HttpClient
         {
-            BaseAddress = RequireEndpoint(configuration, marker, hostingMethod),
+            BaseAddress = RequireEndpoint(configuration, marker, hostingMethod, endpointOverride),
             Timeout = RequestTimeout,
         };
 
         return new OllamaApiClient(http, tag);
     }
 
-    private static Uri RequireEndpoint(AIOptions configuration, string marker, string hostingMethod)
+    private static Uri RequireEndpoint(AIOptions configuration, string marker, string hostingMethod, string? endpointOverride = null)
     {
-        var endpoint = configuration.Ollama.Endpoint;
+        var endpoint = !string.IsNullOrWhiteSpace(endpointOverride) ? endpointOverride : configuration.Ollama.Endpoint;
         if (Uri.TryCreate(endpoint, UriKind.Absolute, out var endpointUri)
             && (string.Equals(endpointUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(endpointUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
@@ -62,7 +63,7 @@ internal sealed class OllamaProviderFactory : ILlmProviderFactory
             return endpointUri;
         }
 
-        throw new InvalidOperationException(
+        throw new NoProviderConfiguredException(
             $"{marker} requires {EndpointConfigurationKey} to be an absolute HTTP(S) URI. "
             + $"Configure it through AIModule.{hostingMethod} in AppHost.");
     }

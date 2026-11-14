@@ -35,7 +35,10 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
             {
                 // Only the run's own token makes a cancellation; a provider or tool timing out is a failure.
                 var cancelled = error is OperationCanceledException && ct.IsCancellationRequested;
-                failure = new(cancelled ? "The run was interrupted." : error.Message, cancelled);
+                failure = new(cancelled ? "The run was interrupted." : error.Message, cancelled)
+                {
+                    Failure = cancelled ? AgentFailure.Unknown : AgentFailures.Classify(error),
+                };
                 break;
             }
             yield return steps.Current;
@@ -58,10 +61,13 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
         }
         var overrides = contexts.Where(entry => entry.EffectiveTags.Contains(ContextTags.Inference)).Select(entry => InferenceOverride.Parse(entry.Text)).ToArray();
         var surface = services.GetService<NeuronSurface>();
-        // Context may name contracts this host does not deploy; only deployed ones join the turn.
-        string[] named = [.. contexts.SelectMany(entry => entry.Contracts).Where(name => !plan.Contracts.Contains(name)).Distinct(StringComparer.Ordinal)];
-        var known = named.Length == 0 || surface is null ? [] : await surface.Contracts(ct);
-        string[] composed = surface is null ? [] : [.. plan.Contracts, .. named.Where(known.Contains)];
+        // B06: Callable tools come strictly from the agent definition's declared contracts; context entries never widen tools.
+        string[] composed = surface is null ? [] : [.. plan.Contracts];
+        if (composed.Length > 0 && surface is not null)
+        {
+            var hosted = (await surface.Contracts(ct)).ToHashSet(StringComparer.Ordinal);
+            composed = [.. composed.Where(hosted.Contains)];
+        }
         // The model's actions are fixed here, once: the neuron surface over the contracts the app composed.
         var tools = composed.Length == 0 || surface is null ? new List<AIFunction>() : [.. ContractActions.Create(await surface.Restrict(composed, ct), plan.Conversation)];
 
@@ -166,6 +172,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                 if (fault is not null)
                 {
                     var cancelled = fault.SourceException is OperationCanceledException;
+                    if (!cancelled) { fault.SourceException.Data["AgentToolFailed"] = true; }
                     yield return new AgentTurnEvent.ToolFailed(call.CallId, call.Name, cancelled ? "tool_cancelled" : "tool_failed",
                         cancelled ? "The tool call was interrupted." : fault.SourceException.Message);
                     fault.Throw();

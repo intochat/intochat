@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Screens;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Creator;
@@ -18,7 +19,13 @@ using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Apps.Trace;
+using IntoChat.OS.Modules.Flutter.Chat;
+using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -32,10 +39,17 @@ public sealed class InoAppFacts
         public ValueTask<int> TailLength(CancellationToken cancellationToken) => ValueTask.FromResult(0);
     }
 
+    private sealed class OfflineLocalProbe : ILocalOllamaProbe
+    {
+        public Task<LocalOllamaDetection?> Detect(CancellationToken ct = default)
+            => Task.FromResult<LocalOllamaDetection?>(null);
+    }
+
     private static IServiceProvider WithRedactor(IServiceProvider? parent = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<ISecretRedactor, NoSecrets>();
+        services.AddSingleton<ILocalOllamaProbe, OfflineLocalProbe>();
         services.AddSingleton(TimeProvider.System);
         var provider = services.BuildServiceProvider();
         if (parent is null) { return provider; }
@@ -59,9 +73,22 @@ public sealed class InoAppFacts
     public Task InoBaseline(ScreenOperationCase operation) => ScreenBaseline.RunAsync(operation);
 
     [Fact]
+    public void InoAgentDefinitionExposesStudioMemoryAspireTraceReaderAndFlows()
+    {
+        var def = InoAgentDefinition.For(new UserSettingsState() with { DisplayName = "Vlad", DefaultModel = "qwen2.5-coder:14b" });
+        Assert.Contains(typeof(IInoStudio).FullName!, def.Contracts);
+        Assert.Contains(typeof(IMemory).FullName!, def.Contracts);
+        Assert.Contains(typeof(IAspire).FullName!, def.Contracts);
+        Assert.Contains(typeof(ITraceReader).FullName!, def.Contracts);
+        Assert.Contains(typeof(IFlows).FullName!, def.Contracts);
+        Assert.Contains("ProposeChange", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("RememberPreference", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("GetTracesAsync", def.Instructions, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task InoAndPostBddScenariosAndSystemNeuronsPass()
     {
-        var ct = TestContext.Current.CancellationToken;
         using var person = Edge.AsPerson();
         await using var checkOs = TestOS.Local(options => options.Services = WithRedactor());
         checkOs.Register<DesktopRecordsNeuron>();
@@ -85,13 +112,13 @@ public sealed class InoAppFacts
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
         os.Register(typeof(CreatorApp).Assembly);
-        var settings = os.Get<IUserSettings>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("local"), "os.settings", "settings"));
+        var settings = os.Get<IUserSettings>(new NeuronId(new BrainId("local"), "os.settings", "settings"));
         var updated = await settings.SetProfile("Vlad", "light", "gpt-5");
         Assert.Equal("Vlad", updated.DisplayName);
         Assert.Equal("light", updated.Theme);
         Assert.Equal("gpt-5", updated.DefaultModel);
 
-        var profile = os.Get<IProfile>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("local"), "os.profile", "profile"));
+        var profile = os.Get<IProfile>(new NeuronId(new BrainId("local"), "os.profile", "profile"));
         var pinned = await profile.SetBio("vlad", "AI OS Architect", ["creator"]);
         Assert.Equal("vlad", pinned.Handle);
         Assert.Equal("AI OS Architect", pinned.Bio);
@@ -100,7 +127,7 @@ public sealed class InoAppFacts
         var inoInstalled = await os.Install<InoApp>();
         await settings.SetProfile("ElonWatcher", "dark", "qwen3.5:4b");
         await os.Idle();
-        Assert.Contains(inoInstalled.Main.Texts, text => text.Contains("Synced settings: ElonWatcher (qwen3.5:4b)", StringComparison.Ordinal));
+        Assert.Contains("Synced settings: ElonWatcher (qwen3.5:4b)", inoInstalled.App.State.Status, StringComparison.Ordinal);
 
         var uiIdentity = await settings.SetUiIdentity("spatial-glass", "compact-pill");
         Assert.Equal("spatial-glass", uiIdentity.StylePreset);
@@ -124,7 +151,6 @@ public sealed class InoAppFacts
         Assert.Contains("photocraft", desktopInstalled.App.State.PinnedApps);
         await desktopInstalled.Request("auto-arrange", new DesktopAutoArrange());
         Assert.Contains("Auto-Arranged", desktopInstalled.App.State.Status, StringComparison.Ordinal);
-
     }
 
     private static readonly BrainId Brain = new("local");
@@ -151,14 +177,14 @@ public sealed class InoAppFacts
         Assert.Equal("ino/conversations/main", ino.App.State.AgentKey);
         var started = Assert.Single(os.Journal(Brain).Signals(AgentOf("main")).Select(entry => entry.Signal).OfType<TurnStarted>());
         Assert.Equal("hello there", started.UserText);
-        // Without a configured model provider on AgentOs, Drive fails asynchronously: ActiveRunId is either still running or already settled to Failed.
         if (ino.App.State.ActiveRunId is not null)
         {
             Assert.Equal(started.RunId, ino.App.State.ActiveRunId);
         }
         else
         {
-            Assert.StartsWith("Failed:", ino.App.State.Status, StringComparison.Ordinal);
+            Assert.Equal(InoModel.Failed, ino.App.State.Status);
+            Assert.Equal("no-provider", ino.App.State.Error?.Code);
         }
     }
 
@@ -169,14 +195,13 @@ public sealed class InoAppFacts
         var ino = await os.Install<InoApp>();
         var settingsApp = await os.Install<SettingsApp>();
         var userSettings = os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings"));
-        // 1. Initial send uses the default model ("qwen3.5:4b")
+
         await ino.Request("send", new InoSend("turn 1"));
         Assert.Equal("qwen3.5:4b", BackgroundAgent.LastConfiguredModel);
         Assert.Equal("qwen3.5:4b", BackgroundAgent.LastTurnModel);
         await Deliver(ino, new TurnCompleted("ino/conversations/main", "run-1", "reply 1"));
         BackgroundAgent.Starts = 0;
 
-        // 2. Switch model via `/model claude-sonnet-4-5` slash command in InoApp
         await ino.Request("send", new InoSend("/model claude-sonnet-4-5"));
         Assert.Equal("Switched model to claude-sonnet-4-5", ino.App.State.Status);
         await os.Idle();
@@ -189,7 +214,6 @@ public sealed class InoAppFacts
         await Deliver(ino, new TurnCompleted("ino/conversations/main", "run-1", "reply 2"));
         BackgroundAgent.Starts = 0;
 
-        // 3. Switch model via SettingsApp.SavePreferences ("gpt-5")
         await settingsApp.Request("save-preferences", new SettingsSavePreferences(
             DisplayName: "Ada Lovelace",
             Theme: "dark",
@@ -203,7 +227,6 @@ public sealed class InoAppFacts
         await ino.Request("send", new InoSend("turn 3"));
         Assert.Equal("gpt-5", BackgroundAgent.LastTurnModel);
 
-        // 4. Verify real AgentContextNeuron + AgentNeuron on AgentOs also receive the switched model and start the turn with it
         await using var agentOs = AgentOs();
         var liveIno = await agentOs.Install<InoApp>();
         var liveProfile = agentOs.Get<IAgentContext>(new NeuronId(Brain, "agent-context", "context/user.profile"));
@@ -239,57 +262,12 @@ public sealed class InoAppFacts
         Assert.Equal(1, BackgroundAgent.Starts);
         Assert.Equal(0, BackgroundAgent.Runs);
         Assert.Equal("run-1", ino.App.State.ActiveRunId);
-        Assert.Equal("Thinking", ino.App.State.Status);
+        Assert.Equal(InoModel.Working, ino.App.State.Status);
         Assert.Equal(["ino/conversations/main"], await os.Get<IInoConversations>(new NeuronId(Brain, "ino.conversations", IInoConversations.DefaultKey)).Current());
     }
 
     [Fact]
-    public async Task ToolCallProgressSetsStatusUsingTool()
-    {
-        await using var os = BackgroundOs();
-        var ino = await os.Install<InoApp>();
-        await ino.Request("send", new InoSend("hello"));
-
-        await Deliver(ino, new TurnProgressed("ino/conversations/main", "run-1", "tool-call", null, "neuron_call", "{}", 1));
-
-        Assert.Equal("Using neuron_call", ino.App.State.Status);
-    }
-
-    [Fact]
-    public async Task CardProgressAppendsOneCard()
-    {
-        await using var os = BackgroundOs();
-        var ino = await os.Install<InoApp>();
-        await ino.Request("send", new InoSend("hello"));
-        var card = new InoCard("settings-models", "settings", "Settings · models", "Open settings", "neuron://local/apps/settings", "ready");
-        var web = System.Text.Json.JsonSerializerOptions.Web;
-
-        // The agent reports a card twice, as the tool result and as its card step: Ino shows it once.
-        await Deliver(ino, new TurnProgressed("ino/conversations/main", "run-1", "tool-result", null, "neuron_call", System.Text.Json.JsonSerializer.Serialize(new InoToolResult("Opened settings.", card), web), 2));
-        await Deliver(ino, new TurnProgressed("ino/conversations/main", "run-1", "card", null, "neuron_call", System.Text.Json.JsonSerializer.Serialize(card, web), 3));
-
-        Assert.Equal(card, Assert.Single(ino.App.State.ActiveCards));
-    }
-
-    [Fact]
-    public async Task DuplicateProgressIsIgnored()
-    {
-        await using var os = BackgroundOs();
-        var ino = await os.Install<InoApp>();
-        await ino.Request("send", new InoSend("hello"));
-        var card = new InoCard("c", "settings", "Settings", "Open", "neuron://local/apps/settings", "ready");
-        var payload = System.Text.Json.JsonSerializer.Serialize(new InoToolResult("ok", card), System.Text.Json.JsonSerializerOptions.Web);
-        var step = new TurnProgressed("ino/conversations/main", "run-1", "tool-result", null, "neuron_call", payload, 2);
-
-        await Deliver(ino, step);
-        await Deliver(ino, step);
-
-        Assert.Single(ino.App.State.ActiveCards);
-        Assert.Equal(["run-1:2"], ino.App.State.SeenProgress ?? []);
-    }
-
-    [Fact]
-    public async Task TurnCompletedReloadsTranscript()
+    public async Task TurnCompletedUpdatesConversationAndRecordsCompute()
     {
         await using var os = BackgroundOs();
         var ino = await os.Install<InoApp>();
@@ -298,9 +276,9 @@ public sealed class InoAppFacts
 
         await Deliver(ino, new TurnCompleted("ino/conversations/main", "run-1", "Hi from the background"));
 
-        Assert.Equal("Ready", ino.App.State.Status);
+        Assert.Equal(InoModel.Ready, ino.App.State.Status);
         Assert.Null(ino.App.State.ActiveRunId);
-        Assert.Contains("Hi from the background", Strings(ino.App.Render()));
+        Assert.Contains("Hi from the background", Texts(ino.App.Render()));
         Assert.Equal(("ino", 1_000L), FakeCompute.Records.Single());
     }
 
@@ -314,7 +292,8 @@ public sealed class InoAppFacts
         await Deliver(ino, new AgentBlocked("ino/conversations/main", true));
 
         Assert.True(ino.App.State.Blocked);
-        Assert.Equal("Paused", ino.App.State.Status);
+        Assert.Equal(InoModel.Paused, ino.App.State.Status);
+        Assert.Contains("Ino is paused.", Texts(ino.App.Render()));
     }
 
     [Fact]
@@ -323,7 +302,7 @@ public sealed class InoAppFacts
         await using var os = BackgroundOs();
         var ino = await os.Install<InoApp>();
         await ino.Request("send", new InoSend("hello"));
-        Assert.Contains("Stop", Strings(ino.App.Render()));
+        Assert.Contains("Stop", Texts(ino.App.Render()));
 
         await ino.Request("stop", new InoStop());
 
@@ -340,7 +319,7 @@ public sealed class InoAppFacts
 
         var settings = await os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings")).Read();
         Assert.Contains(settings.Variables, v => v.Key == "ino.smart" && v.Value == "on");
-        Assert.Contains("Smart mode: on", Strings(ino.App.Render()));
+        Assert.True(ino.App.State.Smart);
     }
 
     private static TestOS BackgroundOs()
@@ -354,47 +333,52 @@ public sealed class InoAppFacts
         return os;
     }
 
-    // Deliver simulated agent signals directly to Ino's handlers.
     private static Task Deliver<TSignal>(InstalledApp<InoApp> ino, TSignal signal) where TSignal : Signal
         => signal switch
         {
-            TurnProgressed p => ino.App.OnTurnProgressed(p),
             TurnCompleted c => ino.App.OnTurnCompleted(c),
             TurnFailed f => ino.App.OnTurnFailed(f),
             AgentBlocked b => ino.App.OnAgentBlocked(b),
-            _ => throw new NotSupportedException($"Unknown signal {typeof(TSignal).Name}")
+            _ => throw new NotSupportedException($"Unknown signal {typeof(TSignal).Name}"),
         };
 
     [Fact]
     public void AToolResultWithACardRendersACard()
     {
         var card = new InoCard("settings-models", "settings", "Settings · models / local-server", "Open settings", "neuron://local/apps/settings", "ready");
-        var run = new AgentRun("r1", AgentRunStatus.Completed, "where is my ollama server?", DateTimeOffset.UtcNow)
+        var serialized = System.Text.Json.JsonSerializer.Serialize(new InoToolResult("Opened settings.", card), System.Text.Json.JsonSerializerOptions.Web);
+        var chat = new ChatState
         {
-            ToolCalls =
-            [
-                new AgentToolCall("c1", "neuron_call", "{}", System.Text.Json.JsonSerializer.Serialize(new InoToolResult("Opened settings.", card), System.Text.Json.JsonSerializerOptions.Web)),
-                new AgentToolCall("c2", "neuron_call", "{}", """{"text":"no card"}"""),
-                new AgentToolCall("c3", "neuron_call", "{}", Error: "denied"),
-            ],
+            Name = "local/ino/chats/main",
+            Revision = 1,
+            Selection = new ChatSelection("local/ino/conversations/main", 1),
+            Projection = new ChatProjection(
+                "local/ino/conversations/main",
+                1,
+                1,
+                [
+                    new ChatEntry("r1/user", ChatRole.User, "where is my ollama server?"),
+                    new ChatEntry("r1/assistant", ChatRole.Assistant, "Opened settings.")
+                    {
+                        Activities =
+                        [
+                            new ChatActivity("c1", "neuron_call", "{}", serialized),
+                            new ChatActivity("c2", "neuron_call", "{}", """{"text":"no card"}"""),
+                            new ChatActivity("c3", "neuron_call", "{}", Error: "denied"),
+                        ],
+                    },
+                ]),
+            Run = new ChatRunSnapshot("local/ino/conversations/main", 1, 1, "r1", ChatRunStatus.Completed),
         };
 
-        var cards = InoCards.FromToolCalls(run.ToolCalls);
-
-        Assert.Equal(card, Assert.Single(cards));
-        var view = InoViewRenderer.Render(new InoAppState() with { Cards = cards }, []);
-        Assert.Contains("Settings · models / local-server", Strings(view));
+        var state = InoModel.Projected(new InoAppState(), chat, "local/ino/conversations/main");
+        Assert.Equal(card, Assert.Single(state.ActiveCards));
+        var view = InoView.Screen(state);
+        Assert.Contains("Settings · models / local-server", Texts(view));
     }
 
-    // Every string a rendered view holds, walked through its node records.
-    private static IEnumerable<string> Strings(object? value) => value switch
-    {
-        null => [],
-        string text => [text],
-        System.Collections.IEnumerable items => items.Cast<object?>().SelectMany(Strings),
-        Node or View => value.GetType().GetProperties().Where(p => p.GetIndexParameters().Length == 0).SelectMany(p => Strings(p.GetValue(value))),
-        _ => [],
-    };
+    private static IReadOnlyList<string> Texts(View view)
+        => new PresentedView("main", view).Texts;
 
     [Fact]
     public async Task NewRotatesTheAgentKey()
@@ -441,29 +425,23 @@ public sealed class InoAppFacts
         await using var os = AgentOs();
         var ino = await os.Install<InoApp>();
 
-        // 1. Initial render has zero raw neuron:// or | scope: leaks
-        var initialView = ino.App.Render();
-        var initialTexts = Strings(initialView).ToArray();
+        var initialTexts = Texts(ino.App.Render());
         Assert.All(initialTexts, text =>
         {
             Assert.DoesNotContain("neuron://", text, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("| scope:", text, StringComparison.OrdinalIgnoreCase);
         });
 
-        // 2. Scenario session has zero raw neuron:// or | scope: leaks
         await ino.Request("send", new InoSend("/scenario morning-brief"));
-        var scenarioView = ino.App.Render();
-        var scenarioTexts = Strings(scenarioView).ToArray();
+        var scenarioTexts = Texts(ino.App.Render());
         Assert.All(scenarioTexts, text =>
         {
             Assert.DoesNotContain("neuron://", text, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("| scope:", text, StringComparison.OrdinalIgnoreCase);
         });
 
-        // 3. Make live app card has zero raw neuron:// or | scope: leaks
         await ino.Request("make", new InoMake("Build calculator", ["calculator"]));
-        var makeView = ino.App.Render();
-        var makeTexts = Strings(makeView).ToArray();
+        var makeTexts = Texts(ino.App.Render());
         Assert.All(makeTexts, text =>
         {
             Assert.DoesNotContain("neuron://", text, StringComparison.OrdinalIgnoreCase);
@@ -486,10 +464,11 @@ public sealed class InoAppFacts
         await ino.Request("send", new InoSend("hello"));
 
         Assert.True(ino.App.State.Blocked);
-        Assert.Equal("Paused", ino.App.State.Status);
-        var bar = Assert.Single(ino.Main.Nodes.OfType<InfoBar>());
-        Assert.Equal("critical", bar.Tone);
-        Assert.Contains("maintenance window", bar.Message, StringComparison.Ordinal);
+        Assert.Equal(InoModel.Paused, ino.App.State.Status);
+        var c = InoView.Conversation(ino.App.State);
+        Assert.NotNull(c.Error);
+        Assert.Equal("Ino is paused.", c.Error!.What);
+        Assert.Contains("maintenance window", c.Error.Detail ?? string.Empty, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -498,7 +477,7 @@ public sealed class InoAppFacts
         await using var os = AgentOs();
         os.Register<GrantsNeuron>();
         var grants = os.Get<IGrantsNeuron>(new NeuronId(Brain, IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey));
-#pragma warning disable CS0618 // the AppId agent tool calls run under
+#pragma warning disable CS0618
         await grants.Grant(new Grant { AppId = CapabilityCallers.AssistantApp, Scope = "run", Target = "local/ino/settings", WorkspaceId = "local" });
 #pragma warning restore CS0618
         await grants.Grant(new Grant { AppId = "other", Scope = "run", Target = "local/elsewhere", WorkspaceId = "local" });
@@ -508,19 +487,6 @@ public sealed class InoAppFacts
 
         Assert.Contains(ino.Side.Entries, entry => entry.Title == "run · local/ino/settings");
         Assert.DoesNotContain(ino.Side.Entries, entry => entry.Title.Contains("elsewhere", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task ACancelledRunClearsTheActiveRun()
-    {
-        await using var os = BackgroundOs();
-        var ino = await os.Install<InoApp>();
-        await ino.Request("send", new InoSend("hello"));
-
-        await Deliver(ino, new TurnFailed("ino/conversations/main", "run-1", "cancelled", Cancelled: true));
-
-        Assert.Null(ino.App.State.ActiveRunId);
-        Assert.Equal("Cancelled", ino.App.State.Status);
     }
 
     [Fact]
@@ -600,14 +566,13 @@ public sealed class InoAppFacts
 
         await ino.Request("link", new InoPasteLink(request, "notes", "page=3", "Notes, page 3"));
         await ino.Request("link", new InoPasteLink(request, "notes", "page=3", "Notes, page 3"));
-        // The records neuron is deactivated and activated again: the link reads back from its store.
         await os.Restart();
 
         var records = await os.Get<IInoRecords>(new NeuronId(Brain, "apps.ino-records", IInoRecords.Key)).Read();
         Assert.Equal(new InoLink(request.ToString("N"), "notes", "page=3"), Assert.Single(records.Links));
         var stored = System.Text.Json.JsonSerializer.Serialize(records.Links, System.Text.Json.JsonSerializerOptions.Web);
-        Assert.Equal("page=3", IntoChat.OS.Modules.Flutter.Chat.ChatAppCard.FindLink(stored, request)?.Input);
-        Assert.Contains(RecordingAgent.Posts, post => post == ("Notes, page 3", IntoChat.OS.Modules.Flutter.Chat.ChatAppCard.LinkPostId(request)));
+        Assert.Equal("page=3", ChatAppCard.FindLink(stored, request)?.Input);
+        Assert.Contains(RecordingAgent.Posts, post => post == ("Notes, page 3", ChatAppCard.LinkPostId(request)));
     }
 
     [Fact]
@@ -635,7 +600,6 @@ public sealed class InoAppFacts
         public Task<WorkspaceFileEntry> WriteTextAsync(string fileNameOrPath, string content, CancellationToken ct = default) => throw new IOException("disk gone");
     }
 
-    // An agent that counts Post calls and Run starts.
     [Neuron(AgentSignals.NeuronType)]
     private sealed class RecordingAgent : Neuron, IAgent
     {
@@ -666,7 +630,6 @@ public sealed class InoAppFacts
         }
     }
 
-    // An agent whose Start hands the run off and returns at once; the test delivers the run's signals.
     [Neuron(AgentSignals.NeuronType)]
     private sealed class BackgroundAgent : Neuron, IAgent
     {

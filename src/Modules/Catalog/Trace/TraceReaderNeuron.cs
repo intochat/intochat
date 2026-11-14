@@ -8,7 +8,7 @@ using DigitalBrain.Signals;
 
 namespace IntoChat.OS.Modules.Apps.Trace;
 
-// Forwards to the brain's signal history. Payloads are shown as journaled, with any inline bearer or API key tokens redacted.
+// Forwards to the brain's signal history. Payloads are shown as journaled, with inline tokens, PATs, URL credentials, and passwords redacted.
 [Neuron("trace.reader"), StatelessNeuron]
 public sealed partial class TraceReaderNeuron(ISignalHistory history) : Neuron, ITraceReader
 {
@@ -32,7 +32,9 @@ public sealed partial class TraceReaderNeuron(ISignalHistory history) : Neuron, 
     public static string Redact(string payload)
     {
         ArgumentNullException.ThrowIfNull(payload);
-        return SecretTokenPattern().Replace(payload, "[REDACTED]");
+        var step1 = UrlCredentialsPattern().Replace(payload, "$1[REDACTED]@");
+        var step2 = SecretTokenPattern().Replace(step1, "[REDACTED]");
+        return ConnectionSecretPattern().Replace(step2, "$1$2[REDACTED]");
     }
 
     public static TraceEntry Entry(JournaledSignal journaled)
@@ -47,6 +49,12 @@ public sealed partial class TraceReaderNeuron(ISignalHistory history) : Neuron, 
             journaled.At, journaled.TraceId, journaled.CausationId, payload);
     }
 
-    [GeneratedRegex(@"(?:Bearer\s+[A-Za-z0-9._\-]{8,}|sk-(?:proj-|ant-)?[A-Za-z0-9_\-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|AIza[0-9A-Za-z_\-]{20,}|xox[baprs]-[0-9A-Za-z\-]{10,}|vault://[A-Za-z0-9._\-/]+)", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?:Bearer\s+[A-Za-z0-9._\-/+]+=*|sk-(?:proj-|ant-(?:api\d{2}-)?)?[A-Za-z0-9_\-]{8,}|github_pat_[A-Za-z0-9_]{12,}|gh[pousr]_[A-Za-z0-9_]{8,}|AIza[0-9A-Za-z_\-]{20,}|xox[baprs]-[0-9A-Za-z\-]{10,}|vault://[A-Za-z0-9._\-/:]+)", RegexOptions.CultureInvariant)]
     private static partial Regex SecretTokenPattern();
+
+    [GeneratedRegex(@"(https?://)[^/\s:@""']+:[^/\s@""']+@", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex UrlCredentialsPattern();
+
+    [GeneratedRegex(@"(?i)\b(password|pwd|client_secret|access_token|refresh_token|api_key|apikey)\s*([=:])\s*([^\s;,""'\}]+)", RegexOptions.CultureInvariant)]
+    private static partial Regex ConnectionSecretPattern();
 }

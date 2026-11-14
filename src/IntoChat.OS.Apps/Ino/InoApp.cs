@@ -2,10 +2,10 @@
 # Ino
 Role: Shell
 Shipped: true
-Operations: open, send, stop, smart, connect-db, query-db, new, new-conversation, voice, make
+Operations: open, send, retry, stop, smart, use-local, save-provider, connect-db, query-db, new, new-conversation, voice, make, link
 
-The brain's personal assistant. Every message starts a background run on one agent (IAgent) per conversation, which acts
-through the Ino tool contracts; Ino follows the run through a set watch over ino.conversations and renders tool-result cards inline. Slash commands stay in the UI.
+The brain's personal assistant. Every message starts a background run on one agent (IAgent) per conversation while Ino projects
+the conversation through ChatNeuron (IChat) into pure InoModel state and renders a Conversation node via InoView.
 */
 using DigitalBrain;
 using DigitalBrain.Neurons;
@@ -14,13 +14,12 @@ using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Observers;
 using IntoChat.OS.Modules.AI.Agents.Signals;
-using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Chat;
-using DigitalBrain.Log;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Ino;
 
@@ -30,10 +29,18 @@ public sealed record InoOpen(string? Mode = null) : DigitalBrain.Signal;
 [DigitalBrain.Signal("ino.send")]
 public sealed record InoSend(string? Message = null, string? Text = null, string? Value = null) : DigitalBrain.Signal
 {
-    // Value is the composer field's text, which a view submit adds to the emit.
     [System.Text.Json.Serialization.JsonIgnore]
     public string? EffectiveMessage => !string.IsNullOrWhiteSpace(Message) ? Message : !string.IsNullOrWhiteSpace(Text) ? Text : Value;
 }
+
+[DigitalBrain.Signal("ino.retry")]
+public sealed record InoRetry : DigitalBrain.Signal;
+
+[DigitalBrain.Signal("ino.use-local")]
+public sealed record InoUseLocalModel(string? Model = null, string? Value = null) : DigitalBrain.Signal;
+
+[DigitalBrain.Signal("ino.save-provider")]
+public sealed record InoSaveProvider(string? Value = null, string? Provider = null) : DigitalBrain.Signal;
 
 [DigitalBrain.Signal("ino.link")]
 public sealed record InoPasteLink(Guid Request = default, string? App = null, string? Input = null, string? Text = null) : DigitalBrain.Signal;
@@ -65,28 +72,28 @@ public sealed record InoQueryDb(string? Sql = null) : DigitalBrain.Signal;
 [Neuron("app.ino")]
 public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
 {
-    private const string BlockedPrefix = "Blocked: ";
-    private const string NewTitle = "New chat";
-    private const string MigrationNote = "Earlier conversation is in the archive.";
-    private const string MigrationId = "migration";
     private const string SmartVariable = "ino.smart";
+    private const string ModelChosenVariable = "ino.model.chosen";
+    private const string StockDefaultModel = "qwen3.5:4b";
     private const string ApprovalsKey = "approvals/index";
     private const string DataKey = "ino/data";
-    private const int SeenKept = 256;
+    private const string ModelsKey = "main";
 
-    // Render cannot await: the last transcript the agent answered, refreshed after each turn.
-    private AiMessage[] _transcript = [];
-    // Read from the settings and the approval inbox on open and on change; Render shows the last read.
-    private bool _smart;
-    private Approval[] _approvals = [];
+    private static readonly ILoggerFactory FallbackLoggerFactory = LoggerFactory.Create(static builder => builder.SetMinimumLevel(LogLevel.Warning));
+    private static readonly ILogger FallbackLogger = FallbackLoggerFactory.CreateLogger<InoApp>();
 
+    private bool _chatBound;
+
+    public ILogger<InoApp>? Logger { get; set; }
     public IFilesVfsService? FilesVfs { get; set; }
+
+    private ILogger Log => Logger ?? FallbackLogger;
 
     public const string AppName = "ino";
 
     public static AppBundle Bundle { get; } = new(
         "ino",
-        "3.5.0",
+        "3.6.0",
         new AppManifest(
             Title: "Ino",
             Description: "Talk to your brain, use its capabilities, query databases, and create apps.",
@@ -94,8 +101,11 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
             [
                 new("open", "Show Ino."),
                 new("send", "Send a message to Ino's agent."),
+                new("retry", "Send the last message again."),
                 new("stop", "Stop the running turn."),
                 new("smart", "Turn smart mode on or off."),
+                new("use-local", "Bind a locally detected Ollama model."),
+                new("save-provider", "Save a cloud provider credential to the brain's Secure store."),
                 new("connect-db", "Connect a PostgreSQL database via connection string."),
                 new("query-db", "Execute a read-only SQL query against the connected database."),
                 new("new", "Start a new conversation."),
@@ -112,6 +122,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
             [
                 new("send", Kind: "text", Label: "Message your brain"),
                 new("new-conversation", Icon: "chat", Label: "New conversation"),
+                new("smart", Icon: "sparkles", Label: "Smart mode"),
                 new("voice", Icon: "mic", Label: "Voice"),
             ]),
         "",
@@ -124,7 +135,13 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     {
         await base.OnActivate(cancellationToken);
         try { await Follow<IUserSettings, UserSettingsChanged>("settings"); }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Settings synapse is optional."); }
+        catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "settings"); }
+
+        var agentKey = InoModel.AgentKeyOf(State.ConversationId);
+        if (await EnsureChatAsync(agentKey))
+        {
+            await ProjectCurrentChatAsync(agentKey);
+        }
     }
 
     [DigitalBrain.Neurons.On]
@@ -132,59 +149,65 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     {
         ArgumentNullException.ThrowIfNull(request);
         var settings = await Get<IUserSettings>("settings").Read();
-        _smart = IsSmart(settings);
-        var (nextState, migrate) = InoDecisions.DecideOpen(State, request.Mode, settings.DisplayName, settings.DefaultModel);
-        var agentKey = InoDecisions.AgentKeyOf(State.ConversationId);
+        var smart = IsSmart(settings);
+        var approvals = await ReadApprovalsAsync();
+        var grants = await ReadGrantSummariesAsync();
+        var local = await DetectLocalModelsAsync();
+
+        var (nextState, migrate) = InoModel.DecideOpen(
+            State,
+            request.Mode,
+            settings.DisplayName,
+            settings.DefaultModel,
+            smart,
+            approvals,
+            grants,
+            local?.PreferredModel,
+            local?.InstalledModels);
+        var agentKey = InoModel.AgentKeyOf(State.ConversationId);
         await Show(nextState);
+
         try
         {
             await EnsureProfileContextAsync();
             var agent = Get<IAgent>(agentKey);
             if (migrate)
             {
-                // The key is set only once the note is in, so a failed Post is retried on the next open.
-                await agent.Post(MigrationNote, MigrationId);
+                await agent.Post(InoModel.MigrationNote, InoModel.MigrationId);
                 await Show(State with { AgentKey = agentKey });
             }
-            await EnsureConfiguredAsync(agent, settings);
-            await FollowAsync(agentKey);
+
+            await EnsureConfiguredAsync(agent, settings, local);
+            await FollowAgentControlSignalsAsync(agentKey);
             var read = await agent.Read();
-            _transcript = await agent.Transcript();
-            await Show(InoDecisions.DecideAgentRead(State, read.Blocked, State.BlockedReason));
-            await ReconcileAsync(agent, State.ActiveRunId);
+            if (read.Blocked)
+            {
+                await Show(InoModel.Pause(State, State.BlockedReason));
+            }
+            else if (State.Blocked)
+            {
+                await Show(InoModel.Resume(State));
+            }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "The agent is optional when Ino runs without the AI module.");
+            InoLog.LogOptionalUnavailable(Log, error, "agent");
         }
-        await RefreshApprovalsAsync();
-        await RefreshGrantsAsync();
+
+        if (await EnsureChatAsync(agentKey))
+        {
+            await ProjectCurrentChatAsync(agentKey);
+        }
     }
 
     [DigitalBrain.Neurons.On]
-    public Task OnGrantsChanged(GrantsChanged? changed)
+    public async Task OnGrantsChanged(GrantsChanged? changed)
     {
-        _ = changed; // any version change re-reads the list
-        return RefreshGrantsAsync();
+        _ = changed;
+        var grants = await ReadGrantSummariesAsync();
+        await Show(State with { GrantSummaries = grants });
     }
 
-    private async Task RefreshGrantsAsync()
-    {
-        try
-        {
-            var grants = await Get<IGrantsNeuron>(IGrantsNeuron.DefaultKey).List();
-#pragma warning disable CS0618 // the AppId every agent tool call runs under (see ContractActions.Marked)
-            var assistant = DigitalBrain.Capabilities.CapabilityCallers.AssistantApp;
-#pragma warning restore CS0618
-            await Show(InoDecisions.DecideGrants(State, grants, assistant));
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            NullLogger.Instance.LogSwallowed(error, "The grants neuron is optional when Ino runs without the identity module.");
-        }
-    }
-
-    // A pasted link is remembered in Ino's records neuron (the chat reads its card from there) and posted to the agent under its plain id.
     [DigitalBrain.Neurons.On]
     public async Task Link(InoPasteLink request)
     {
@@ -199,143 +222,315 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         {
             await records.Write(kept with { Links = [.. kept.Links.TakeLast(ChatAppCard.MaxLinksKept - 1), new InoLink(id, request.App!, input)] });
         }
-        await Get<IAgent>(AgentKeyOf(State.ConversationId)).Post(string.IsNullOrWhiteSpace(request.Text) ? request.App! : request.Text, ChatAppCard.LinkPostId(request.Request));
+        await Get<IAgent>(InoModel.AgentKeyOf(State.ConversationId)).Post(string.IsNullOrWhiteSpace(request.Text) ? request.App! : request.Text, ChatAppCard.LinkPostId(request.Request));
     }
 
     [DigitalBrain.Neurons.On]
     public async Task Send(InoSend request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var text = string.IsNullOrWhiteSpace(request.EffectiveMessage) ? "hello" : request.EffectiveMessage.Trim();
+        string text;
+        if (request.Message is null && request.Text is null && request.Value is null)
+        {
+            text = "hello";
+        }
+        else
+        {
+            var candidate = request.Message ?? request.Text ?? request.Value ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(candidate))
+            {
+                return;
+            }
+            text = candidate.Length > InoModel.MaxMessageChars ? candidate : candidate.Trim();
+        }
+
         var settings = await Get<IUserSettings>("settings").Read();
         if (text.StartsWith('/'))
         {
             await HandleSlashCommandAsync(text, settings);
             return;
         }
+
         if (await IsComputeBudgetExceededAsync())
         {
-            await Show(InoDecisions.DecideComputeBudgetExceeded(State));
+            await Show(InoModel.BudgetExceeded(State));
             return;
         }
 
-        await Show(InoDecisions.DecideBeforeSend(State, text));
+        var next = InoModel.Sent(State, text, Guid.NewGuid().ToString("N"), NowUtc());
+        if (ReferenceEquals(next, State))
+        {
+            return;
+        }
+
+        await Show(next);
+        if (next.Pending is null)
+        {
+            return;
+        }
+
+        var agentKey = InoModel.AgentKeyOf(State.ConversationId);
+        var local = await DetectLocalModelsAsync();
+        if (local is not null && (State.DetectedLocalModel != local.PreferredModel || State.DetectedLocalModels is null))
+        {
+            await Show(State with { DetectedLocalModel = local.PreferredModel, DetectedLocalModels = local.InstalledModels });
+        }
+
+        await EnsureChatAsync(agentKey);
+
         try
         {
             await EnsureProfileContextAsync();
-            var agentKey = InoDecisions.AgentKeyOf(State.ConversationId);
             var agent = Get<IAgent>(agentKey);
-            await EnsureConfiguredAsync(agent, settings);
-            await FollowAsync(agentKey);
-            var runId = await agent.Start(AgentTurn.Text(text, model: string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : settings.DefaultModel.Trim()));
-            await Show(InoDecisions.DecideSendStarted(State, runId));
-            await ReconcileAsync(agent, runId);
+            await EnsureConfiguredAsync(agent, settings, local);
+            await FollowAgentControlSignalsAsync(agentKey);
+            var effectiveModel = ResolveEffectiveModel(settings, local);
+            var runId = await agent.Start(AgentTurn.Text(next.Pending.Text, model: effectiveModel));
+            await Show(InoModel.Started(State, runId));
         }
-        catch (InvalidOperationException error) when (error.Message.StartsWith(BlockedPrefix, StringComparison.Ordinal))
+        catch (InvalidOperationException error) when (error.Message.StartsWith(InoModel.BlockedPrefix, StringComparison.Ordinal))
         {
-            await Pause(error.Message);
+            var reason = error.Message[InoModel.BlockedPrefix.Length..];
+            await Show(InoModel.StartFailed(State, new InoError("paused", reason)));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "The agent could not start; the status line reports why.");
-            await Show(State with { Status = $"Ino could not answer: {error.Message}", ActiveRunId = null });
+            InoLog.LogTurnStartFailed(Log, error, agentKey);
+            var code = InoModel.ClassifyErrorText(error.Message);
+            await Show(InoModel.StartFailed(State, new InoError(code)));
         }
     }
 
-    // Nothing else wakes the profile writer: touching it makes its synapse on the settings and writes user.profile now.
-    private async Task EnsureProfileContextAsync()
+    [DigitalBrain.Neurons.On]
+    public async Task Retry(InoRetry request)
     {
-        try { await Get<IProfileContextWriter>("ino/profile-writer").Ensure(); }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The profile context is optional; the agent answers without it."); }
-    }
-
-    private async Task<bool> IsComputeBudgetExceededAsync()
-    {
-        try { return (await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").Read()).BudgetExceeded; }
-        catch (Exception error) when (error is not OperationCanceledException)
+        ArgumentNullException.ThrowIfNull(request);
+        if (State.ActiveRunId is not null || State.Pending is not null)
         {
-            NullLogger.Instance.LogSwallowed(error, "Compute metering is optional when Ino runs without the Flutter compute neuron.");
-            return false;
+            return;
         }
-    }
 
-    // The agent's own record settles what a missed signal would have: a run Ino holds that has ended is closed, and a run the agent has that Ino lost is adopted.
-    private async Task ReconcileAsync(IAgent agent, string? runId)
-    {
-        var read = await agent.Read();
-        var next = InoDecisions.DecideReconcile(State, read.ActiveRun, read.Runs, runId, out var reloadTranscript);
-        if (reloadTranscript)
+        var lastUserText = (State.Messages ?? []).LastOrDefault(m => m.Role == "user")?.Text;
+        if (string.IsNullOrWhiteSpace(lastUserText))
         {
-            _transcript = await agent.Transcript();
+            return;
         }
-        await Show(next);
+
+        await Send(new InoSend(Message: lastUserText));
     }
 
-    // The set watch follows the registry's current agent; naming it there moves the watch to this conversation.
-    private async Task FollowAsync(string agentKey)
+    [DigitalBrain.Neurons.On]
+    public async Task UseLocalModel(InoUseLocalModel request)
     {
-        try { await Get<IInoConversations>(IInoConversations.DefaultKey).Use(agentKey); }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Without the registry Ino starts the run but does not see its progress."); }
+        ArgumentNullException.ThrowIfNull(request);
+        var local = await DetectLocalModelsAsync();
+        var model = !string.IsNullOrWhiteSpace(request.Model) ? request.Model.Trim()
+            : !string.IsNullOrWhiteSpace(request.Value) ? request.Value.Trim()
+            : local?.PreferredModel
+            ?? State.DetectedLocalModel
+            ?? StockDefaultModel;
+
+        var settingsNeuron = Get<IUserSettings>("settings");
+        var current = await settingsNeuron.Read();
+        await settingsNeuron.SetVariable(ModelChosenVariable, "on");
+        var updated = await settingsNeuron.SetProfile(current.DisplayName, current.Theme, model);
+        await EnsureProfileContextAsync();
+        try { await EnsureConfiguredAsync(Get<IAgent>(InoModel.AgentKeyOf(State.ConversationId)), updated, local); }
+        catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "agent"); }
+
+        var hadProviderFailure = State.Error?.Code is "no-provider" or "provider-rejected-key";
+        await Show(State with
+        {
+            Error = null,
+            Status = $"Switched model to {model}",
+            DetectedLocalModel = local?.PreferredModel ?? model,
+            DetectedLocalModels = local?.InstalledModels ?? State.DetectedLocalModels,
+        });
+
+        if (hadProviderFailure)
+        {
+            await Retry(new InoRetry());
+        }
+    }
+
+    [DigitalBrain.Neurons.On]
+    public async Task SaveProvider(InoSaveProvider request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var credential = request.Value?.Trim();
+        if (string.IsNullOrWhiteSpace(credential))
+        {
+            return;
+        }
+
+        var provider = !string.IsNullOrWhiteSpace(request.Provider)
+            ? request.Provider.Trim().ToLowerInvariant()
+            : InferProviderFromCredential(credential);
 
         try
         {
-            await Follow<IAgent, TurnProgressed>(agentKey);
-            await Follow<IAgent, TurnCompleted>(agentKey);
-            await Follow<IAgent, TurnFailed>(agentKey);
-            await Follow<IAgent, AgentBlocked>(agentKey);
+            await Get<IModelCatalog>(new NeuronId(new BrainId(CurrentBrainId), "ai.models", ModelsKey))
+                .SaveProviderCredential(provider, credential);
         }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Agent synapses are optional."); }
-    }
-
-    private bool IsCurrent(string agentId) => string.Equals(agentId, InoDecisions.AgentKeyOf(State.ConversationId), StringComparison.Ordinal);
-
-    [DigitalBrain.Neurons.On]
-    public async Task OnTurnProgressed(TurnProgressed progressed)
-    {
-        ArgumentNullException.ThrowIfNull(progressed);
-        if (!IsCurrent(progressed.AgentId)) { return; }
-        var next = InoDecisions.DecideTurnProgressed(State, progressed);
-        if (next != State)
+        catch (Exception error) when (error is not OperationCanceledException)
         {
-            await Show(next);
-        }
-    }
-
-    [DigitalBrain.Neurons.On]
-    public async Task OnTurnCompleted(TurnCompleted completed)
-    {
-        ArgumentNullException.ThrowIfNull(completed);
-        if (!IsCurrent(completed.AgentId)) { return; }
-        try { _transcript = await Get<IAgent>(completed.AgentId).Transcript(); }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The reply stays in the agent; the next open reloads it."); }
-        try { await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").Record("ino", Math.Max(1_000L, (completed.Reply?.Length ?? 0) * 25L)); }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Compute metering is optional when Ino runs without the Flutter compute neuron."); }
-        await RefreshApprovalsAsync();
-        await Show(InoDecisions.DecideTurnCompleted(State));
-    }
-
-    [DigitalBrain.Neurons.On]
-    public async Task OnTurnFailed(TurnFailed failed)
-    {
-        ArgumentNullException.ThrowIfNull(failed);
-        if (!IsCurrent(failed.AgentId)) { return; }
-        if (failed.Error.StartsWith(BlockedPrefix, StringComparison.Ordinal))
-        {
-            await Pause(failed.Error);
-            await Show(State with { ActiveRunId = null });
+            InoLog.LogProviderSaveFailed(Log, error, provider);
+            await Show(State with { Error = new InoError("unknown"), Status = InoModel.Failed });
             return;
         }
-        await Show(InoDecisions.DecideTurnFailed(State, failed));
+
+        var defaultModel = DefaultModelForProvider(provider);
+        var settingsNeuron = Get<IUserSettings>("settings");
+        var current = await settingsNeuron.Read();
+        await settingsNeuron.SetVariable(ModelChosenVariable, "on");
+        var updated = await settingsNeuron.SetProfile(current.DisplayName, current.Theme, defaultModel);
+        await EnsureProfileContextAsync();
+        try { await EnsureConfiguredAsync(Get<IAgent>(InoModel.AgentKeyOf(State.ConversationId)), updated, null); }
+        catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "agent"); }
+
+        var hadProviderFailure = State.Error?.Code is "no-provider" or "provider-rejected-key";
+        await Show(State with
+        {
+            Error = null,
+            Status = $"Saved {provider} credential · Ready on {defaultModel}",
+        });
+
+        if (hadProviderFailure)
+        {
+            await Retry(new InoRetry());
+        }
     }
 
     [DigitalBrain.Neurons.On]
-    public async Task OnAgentBlocked(AgentBlocked blocked)
+    public async Task OnChatChanged(ChatChanged? changed)
     {
-        ArgumentNullException.ThrowIfNull(blocked);
-        if (!IsCurrent(blocked.Agent)) { return; }
-        if (blocked.Blocked) { await Pause(BlockedPrefix + "An interrupt holds the agent."); }
-        else { await Show(InoDecisions.DecideAgentBlocked(State, blocked)); }
-        await RefreshApprovalsAsync();
+        if (changed is null || string.IsNullOrEmpty(changed.Name))
+        {
+            return;
+        }
+
+        var expectedChatName = $"{CurrentBrainId}/{InoModel.ChatKeyOf(State.ConversationId)}";
+        if (!string.Equals(changed.Name, expectedChatName, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await ProjectCurrentChatAsync(InoModel.AgentKeyOf(State.ConversationId));
+    }
+
+    [DigitalBrain.Neurons.On]
+    public async Task OnChatRunChanged(ChatRunChanged? changed)
+    {
+        if (changed is null || string.IsNullOrEmpty(changed.Name))
+        {
+            return;
+        }
+
+        var expectedChatName = $"{CurrentBrainId}/{InoModel.ChatKeyOf(State.ConversationId)}";
+        if (!string.Equals(changed.Name, expectedChatName, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await ProjectCurrentChatAsync(InoModel.AgentKeyOf(State.ConversationId));
+
+        if (changed.Status == ChatRunStatus.Completed)
+        {
+            var lastReply = (State.Messages ?? []).LastOrDefault(m => m.Role == "assistant")?.Text;
+            await RecordComputeAsync(lastReply);
+            var approvals = await ReadApprovalsAsync();
+            await Show(State with { Approvals = approvals });
+        }
+    }
+
+    [DigitalBrain.Neurons.On]
+    public async Task OnAgentBlocked(AgentBlocked? blocked)
+    {
+        if (blocked is null || string.IsNullOrEmpty(blocked.Agent))
+        {
+            return;
+        }
+
+        if (!IsCurrent(blocked.Agent))
+        {
+            return;
+        }
+
+        var next = blocked.Blocked
+            ? InoModel.Pause(State, "An interrupt holds the agent.")
+            : InoModel.Resume(State);
+        var approvals = await ReadApprovalsAsync();
+        await Show(next with { Approvals = approvals });
+    }
+
+    // Fallback handlers when running in isolated unit tests without ShellModule/ChatNeuron.
+    [DigitalBrain.Neurons.On]
+    public async Task OnTurnCompleted(TurnCompleted? completed)
+    {
+        if (_chatBound || completed is null || string.IsNullOrEmpty(completed.AgentId) || !IsCurrent(completed.AgentId))
+        {
+            return;
+        }
+
+        await RecordComputeAsync(completed.Reply);
+        var approvals = await ReadApprovalsAsync();
+        var userText = State.Pending?.Text;
+        var existing = State.Messages ?? [];
+        var appended = new List<InoMessage>(existing);
+        if (!string.IsNullOrEmpty(userText))
+        {
+            appended.Add(new InoMessage($"{completed.RunId}/user", "user", userText));
+        }
+        appended.Add(new InoMessage($"{completed.RunId}/assistant", "assistant", completed.Reply ?? string.Empty));
+        await Show(State with
+        {
+            Pending = null,
+            ActiveRunId = null,
+            Status = InoModel.Ready,
+            Error = null,
+            Messages = [.. appended],
+            Approvals = approvals,
+        });
+    }
+
+    [DigitalBrain.Neurons.On]
+    public async Task OnTurnFailed(TurnFailed? failed)
+    {
+        if (_chatBound || failed is null || string.IsNullOrEmpty(failed.AgentId) || !IsCurrent(failed.AgentId))
+        {
+            return;
+        }
+
+        var errorMsg = failed.Error ?? string.Empty;
+        if (errorMsg.StartsWith(InoModel.BlockedPrefix, StringComparison.Ordinal))
+        {
+            await Show(InoModel.Pause(State, errorMsg));
+            return;
+        }
+
+        if (failed.Cancelled)
+        {
+            await Show(State with { Pending = null, ActiveRunId = null, Status = InoModel.Ready, Error = null });
+            return;
+        }
+
+        var code = AgentFailures.CodeOf(failed.Failure) ?? InoModel.ClassifyErrorText(errorMsg);
+        var userText = State.Pending?.Text;
+        var existing = State.Messages ?? [];
+        var appended = new List<InoMessage>(existing);
+        if (!string.IsNullOrEmpty(userText))
+        {
+            appended.Add(new InoMessage($"{failed.RunId}/user", "user", userText));
+        }
+        appended.Add(new InoMessage($"{failed.RunId}/assistant", "assistant", string.Empty, "failed") { Failure = code });
+        await Show(State with
+        {
+            Pending = null,
+            ActiveRunId = null,
+            Status = InoModel.Failed,
+            Error = new InoError(code),
+            Messages = [.. appended],
+        });
     }
 
     [DigitalBrain.Neurons.On]
@@ -344,15 +539,20 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         ArgumentNullException.ThrowIfNull(request);
         try
         {
-            var agent = Get<IAgent>(InoDecisions.AgentKeyOf(State.ConversationId));
-            if (State.ActiveRunId is null) { await ReconcileAsync(agent, null); }
-            if (State.ActiveRunId is null) { return; }
-            await Show(InoDecisions.DecideStop(State));
+            var agent = Get<IAgent>(InoModel.AgentKeyOf(State.ConversationId));
+            if (State.ActiveRunId is null)
+            {
+                var read = await agent.Read();
+                if (read.ActiveRun is null)
+                {
+                    return;
+                }
+            }
             await agent.Cancel();
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "The agent is optional when Ino runs without the AI module.");
+            InoLog.LogOptionalUnavailable(Log, error, "agent");
         }
     }
 
@@ -360,90 +560,8 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     public async Task Smart(InoSmart request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        _smart = IsSmart(await Get<IUserSettings>("settings").SetVariable(SmartVariable, request.On ? "on" : "off"));
-    }
-
-    private static bool IsSmart(UserSettingsState settings)
-        => settings.Variables.Any(v => v.Key == SmartVariable && string.Equals(v.Value, "on", StringComparison.OrdinalIgnoreCase));
-
-    private async Task RefreshApprovalsAsync()
-    {
-        try { _approvals = [.. await Get<IApprovals>(ApprovalsKey).Pending()]; }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Approvals are optional when the inbox is not reachable."); }
-    }
-
-    // Configure on first use and keep the idle agent's definition synchronized with user settings (persona & default model).
-    private async Task EnsureConfiguredAsync(IAgent agent, UserSettingsState settings)
-    {
-        var current = await agent.Read();
-        var definition = InoAgentDefinition.For(settings);
-        if (current.Revision == 0)
-        {
-            try { await agent.Configure(definition, 0); }
-            catch (InvalidOperationException error) when (error.Message.Contains("revision conflict", StringComparison.OrdinalIgnoreCase)) { NullLogger.Instance.LogSwallowed(error, "Agent configure revision conflict; concurrent configure occurred."); }
-            try { await Get<IToneObserver>(ToneKeyOf(State.ConversationId)).Follow(AgentKeyOf(State.ConversationId)); }
-            catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The tone is a refinement; the agent answers without it."); }
-            return;
-        }
-
-        if (current.ActiveRun is null
-            && (!string.Equals(current.Definition.Model?.Model, definition.Model?.Model, StringComparison.Ordinal)
-                || !string.Equals(current.Definition.Instructions, definition.Instructions, StringComparison.Ordinal)))
-        {
-            try { await agent.Configure(definition, current.Revision); }
-            catch (InvalidOperationException error) { NullLogger.Instance.LogSwallowed(error, "A concurrent turn or configuration updated the agent first."); }
-        }
-    }
-
-    private Task Pause(string message)
-        => Show(State with { Blocked = true, BlockedReason = message[BlockedPrefix.Length..], Status = "Paused" });
-
-    private static string AgentKeyOf(string conversationId) => InoDecisions.AgentKeyOf(conversationId);
-
-    private static string ToneKeyOf(string conversationId) => InoDecisions.ToneKeyOf(conversationId);
-
-    private async Task HandleSlashCommandAsync(string rawCommand, UserSettingsState settings)
-    {
-        var parts = rawCommand[1..].Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var cmd = parts.Length > 0 ? parts[0].ToLowerInvariant() : "help";
-        var arg = parts.Length > 1 ? parts[1] : string.Empty;
-
-        switch (cmd)
-        {
-            case "new":
-                await New(new InoNew());
-                return;
-            case "clear":
-                _transcript = [];
-                await Show(State with { Turns = [], Cards = [], Status = "Session cleared" });
-                return;
-            case "pin":
-                await Show(State with { IsPinned = !State.IsPinned, Status = State.IsPinned ? "Unpinned session" : "Pinned session to Arc bar" });
-                return;
-            case "rename":
-                var nextTitle = string.IsNullOrWhiteSpace(arg) ? "Renamed session" : arg;
-                await Show(State with { Title = nextTitle, Status = $"Renamed to '{nextTitle}'" });
-                return;
-            case "model":
-                var nextModel = string.IsNullOrWhiteSpace(arg) ? "claude-sonnet-4-5" : arg.Trim();
-                var updated = await Get<IUserSettings>("settings").SetProfile(settings.DisplayName, settings.Theme, nextModel);
-                await EnsureProfileContextAsync();
-                try { await EnsureConfiguredAsync(Get<IAgent>(AgentKeyOf(State.ConversationId)), updated); }
-                catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The agent is optional when Ino runs without the AI module."); }
-                await Show(State with { Status = $"Switched model to {nextModel}" });
-                return;
-            case "scenario":
-            case "session":
-                await Show(InoViewRenderer.BuildScenarioSessionState(string.IsNullOrWhiteSpace(arg) ? "q4-renewal" : arg.ToLowerInvariant(), settings));
-                return;
-            default:
-                await Show(State with
-                {
-                    Status = $"Executed /{cmd}",
-                    Turns = [.. State.Turns, new InoTurn(rawCommand, "Commands: `/scenario q4-renewal|morning-brief|invoice-check|first-run`, `/new`, `/rename <title>`, `/pin`, `/model <id>`, `/clear`.", $"slash:{cmd}", 0)],
-                });
-                return;
-        }
+        var updated = await Get<IUserSettings>("settings").SetVariable(SmartVariable, request.On ? "on" : "off");
+        await Show(State with { Smart = IsSmart(updated) });
     }
 
     [DigitalBrain.Neurons.On]
@@ -454,11 +572,11 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         {
             var data = Get<IInoData>(DataKey);
             var result = await data.Connect(request.ConnectionString ?? string.Empty);
-            await Show(InoDecisions.DecideConnectDb(State, (await data.Read()).ConnectedDatabase, result.Text, result.Card));
+            await Show(InoModel.DecideConnectDb(State, (await data.Read()).ConnectedDatabase, result.Text, result.Card));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "The connection failed; the status line reports why.");
+            InoLog.LogDatabaseFailed(Log, error, "connect-db");
             await Show(State with { Status = $"Could not connect: {error.Message}" });
         }
     }
@@ -473,44 +591,48 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         try { result = await DataAnalyticsEngine.ExecuteAsync(sql, database, FilesVfs); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "The query failed; the status line reports why.");
+            InoLog.LogDatabaseFailed(Log, error, "query-db");
             await Show(State with { Status = $"Could not run the query: {error.Message}" });
             return;
         }
+
         if (TryGetOptional<IMemory>("memory") is { } memory)
         {
-            await memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {result.Rows.Length} | Chart: {result.ChartTitle}", importance: 6);
+            try { await memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {result.Rows.Length} | Chart: {result.ChartTitle}", importance: 6); }
+            catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "memory"); }
         }
-        await Show(InoDecisions.DecideQueryDbSuccess(State, result, database));
+
+        await Show(InoModel.DecideQueryDbSuccess(State, result, database));
     }
 
     [DigitalBrain.Neurons.On]
     public Task New(InoNew request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return StartConversation();
+        return StartConversationAsync();
     }
 
     [DigitalBrain.Neurons.On]
     public Task NewConversation(InoNewConversation request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return StartConversation();
+        return StartConversationAsync();
     }
 
-    private async Task StartConversation()
+    private async Task StartConversationAsync()
     {
-        var conversationId = InoDecisions.MintConversationId();
-        _transcript = [];
-        await Show(InoDecisions.DecideNew(State, conversationId));
-        await FollowAsync(InoDecisions.AgentKeyOf(conversationId));
+        var conversationId = InoModel.MintConversationId();
+        var agentKey = InoModel.AgentKeyOf(conversationId);
+        await Show(InoModel.NewConversation(State, conversationId));
+        await FollowAgentControlSignalsAsync(agentKey);
+        await EnsureChatAsync(agentKey);
     }
 
     [DigitalBrain.Neurons.On]
     public async Task Voice(InoVoice request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await Show(InoDecisions.DecideVoice(State));
+        await Show(InoModel.DecideVoice(State));
     }
 
     [DigitalBrain.Neurons.On]
@@ -524,35 +646,327 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
             try { target = (await studio.Build(sentence)).Name; }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(error, "AppStudio build requires a live model and sandbox; falling back to local capture.");
+                InoLog.LogOptionalUnavailable(Log, error, "app-studio");
             }
         }
         if (TryGetOptional<IMemory>("memory") is { } memory)
         {
-            await memory.CaptureEpisode("ino.make", $"Target: {target} | Sentence: {sentence}", importance: 6);
+            try { await memory.CaptureEpisode("ino.make", $"Target: {target} | Sentence: {sentence}", importance: 6); }
+            catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "memory"); }
         }
-        await Show(InoDecisions.DecideMake(State, target, sentence, CurrentBrainId));
+        await Show(InoModel.DecideMake(State, target, sentence, CurrentBrainId));
     }
 
     [DigitalBrain.Neurons.On]
     public async Task OnSettingsChanged(UserSettingsChanged? changed)
     {
-        if (changed is null) { return; }
+        if (changed is null || string.IsNullOrEmpty(changed.DisplayName) && string.IsNullOrEmpty(changed.DefaultModel))
+        {
+            return;
+        }
+
         var settings = await Get<IUserSettings>("settings").Read();
-        _smart = IsSmart(settings);
+        var smart = IsSmart(settings);
         await EnsureProfileContextAsync();
-        try { await EnsureConfiguredAsync(Get<IAgent>(AgentKeyOf(State.ConversationId)), settings); }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The agent is optional when Ino runs without the AI module."); }
+        try { await EnsureConfiguredAsync(Get<IAgent>(InoModel.AgentKeyOf(State.ConversationId)), settings, null); }
+        catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "agent"); }
         if (!State.Status.StartsWith("Switched model to ", StringComparison.Ordinal))
         {
-            await Show(State with { Status = $"Synced settings: {changed.DisplayName} ({changed.DefaultModel})" });
+            await Show(State with { Smart = smart, Status = $"Synced settings: {changed.DisplayName} ({changed.DefaultModel})" });
+        }
+        else
+        {
+            await Show(State with { Smart = smart });
         }
     }
 
+    private async Task<bool> EnsureChatAsync(string agentKey)
+    {
+        var chatKey = InoModel.ChatKeyOf(State.ConversationId);
+        var fullAgentKey = $"{CurrentBrainId}/{agentKey}";
+        try
+        {
+            var chat = Get<IChat>(chatKey);
+            var current = await chat.Read();
+            if (!string.Equals(current.Selection?.Agent, fullAgentKey, StringComparison.Ordinal))
+            {
+                await chat.SelectAgent(fullAgentKey, current.Selection?.Revision ?? 0, Guid.NewGuid());
+            }
+            await Follow<IChat, ChatChanged>(chatKey);
+            await Follow<IChat, ChatRunChanged>(chatKey);
+            _chatBound = true;
+            return true;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _chatBound = false;
+            InoLog.LogOptionalUnavailable(Log, error, "chat");
+            return false;
+        }
+    }
+
+    private async Task ProjectCurrentChatAsync(string agentKey)
+    {
+        var chatKey = InoModel.ChatKeyOf(State.ConversationId);
+        var fullAgentKey = $"{CurrentBrainId}/{agentKey}";
+        try
+        {
+            var chatState = await Get<IChat>(chatKey).Read();
+            var runFailures = await ReadAgentRunFailuresAsync(agentKey, chatState);
+            var next = InoModel.Projected(State, chatState, fullAgentKey, runFailures);
+            if (!ReferenceEquals(next, State))
+            {
+                await Show(next);
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            InoLog.LogOptionalUnavailable(Log, error, "chat-read");
+        }
+    }
+
+    private async Task<IReadOnlyDictionary<string, AgentFailure>?> ReadAgentRunFailuresAsync(string agentKey, ChatState chat)
+    {
+        var hasFailed = chat.Run?.Status == ChatRunStatus.Failed
+            || (chat.Projection?.Messages.Any(m => string.Equals(m.Status, "failed", StringComparison.Ordinal)) ?? false);
+        if (!hasFailed)
+        {
+            return null;
+        }
+
+        try
+        {
+            var state = await Get<IAgent>(agentKey).Read();
+            var map = new Dictionary<string, AgentFailure>(StringComparer.Ordinal);
+            foreach (var run in state.Runs)
+            {
+                if (run.Failure != AgentFailure.Unknown)
+                {
+                    map[run.RunId] = run.Failure;
+                }
+            }
+            if (state.ActiveRun is { Failure: not AgentFailure.Unknown } active)
+            {
+                map[active.RunId] = active.Failure;
+            }
+            return map;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            InoLog.LogOptionalUnavailable(Log, error, "agent-failures");
+            return null;
+        }
+    }
+
+    private async Task FollowAgentControlSignalsAsync(string agentKey)
+    {
+        try { await Get<IInoConversations>(IInoConversations.DefaultKey).Use(agentKey); }
+        catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "conversations-registry"); }
+
+        try
+        {
+            await Follow<IAgent, AgentBlocked>(agentKey);
+            if (!_chatBound)
+            {
+                await Follow<IAgent, TurnCompleted>(agentKey);
+                await Follow<IAgent, TurnFailed>(agentKey);
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "agent-synapses"); }
+    }
+
+    private async Task EnsureProfileContextAsync()
+    {
+        try { await Get<IProfileContextWriter>("ino/profile-writer").Ensure(); }
+        catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "profile-context"); }
+    }
+
+    private async Task<bool> IsComputeBudgetExceededAsync()
+    {
+        try { return (await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").Read()).BudgetExceeded; }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            InoLog.LogOptionalUnavailable(Log, error, "compute");
+            return false;
+        }
+    }
+
+    private async Task RecordComputeAsync(string? reply)
+    {
+        try { await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").Record("ino", Math.Max(1_000L, (reply?.Length ?? 0) * 25L)); }
+        catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "compute-record"); }
+    }
+
+    private async Task<Approval[]> ReadApprovalsAsync()
+    {
+        try { return [.. await Get<IApprovals>(ApprovalsKey).Pending()]; }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            InoLog.LogOptionalUnavailable(Log, error, "approvals");
+            return State.Approvals ?? [];
+        }
+    }
+
+    private async Task<string[]> ReadGrantSummariesAsync()
+    {
+        try
+        {
+            var grants = await Get<IGrantsNeuron>(IGrantsNeuron.DefaultKey).List();
+#pragma warning disable CS0618
+            var assistant = DigitalBrain.Capabilities.CapabilityCallers.AssistantApp;
+#pragma warning restore CS0618
+            return InoModel.SummarizeGrants(grants, assistant);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            InoLog.LogOptionalUnavailable(Log, error, "grants");
+            return State.GrantSummaries ?? [];
+        }
+    }
+
+    private async Task<LocalModelSummary?> DetectLocalModelsAsync()
+    {
+        try
+        {
+            var catalog = Get<IModelCatalog>(new NeuronId(new BrainId(CurrentBrainId), "ai.models", ModelsKey));
+            var summary = await catalog.DetectLocal();
+            return summary.Available ? summary : null;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            InoLog.LogOptionalUnavailable(Log, error, "local-models");
+            return null;
+        }
+    }
+
+    private static string? ResolveEffectiveModel(UserSettingsState settings, LocalModelSummary? local)
+    {
+        var explicitChoice = settings.Variables.Any(v => v.Key == ModelChosenVariable && string.Equals(v.Value, "on", StringComparison.OrdinalIgnoreCase));
+        if (!explicitChoice
+            && string.Equals(settings.DefaultModel?.Trim(), StockDefaultModel, StringComparison.OrdinalIgnoreCase)
+            && local is { Available: true, PreferredModel.Length: > 0 })
+        {
+            return local.PreferredModel;
+        }
+
+        return string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : settings.DefaultModel.Trim();
+    }
+
+    private async Task EnsureConfiguredAsync(IAgent agent, UserSettingsState settings, LocalModelSummary? local)
+    {
+        var effectiveSettings = ResolveEffectiveModel(settings, local) is { } preferred
+            && !string.Equals(preferred, settings.DefaultModel, StringComparison.Ordinal)
+            ? settings with { DefaultModel = preferred }
+            : settings;
+
+        var current = await agent.Read();
+        var definition = InoAgentDefinition.For(effectiveSettings);
+        if (current.Revision == 0)
+        {
+            try { await agent.Configure(definition, 0); }
+            catch (InvalidOperationException error) when (error.Message.Contains("revision conflict", StringComparison.OrdinalIgnoreCase))
+            {
+                InoLog.LogOptionalUnavailable(Log, error, "agent-configure-conflict");
+            }
+            try { await Get<IToneObserver>(InoModel.ToneKeyOf(State.ConversationId)).Follow(InoModel.AgentKeyOf(State.ConversationId)); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                InoLog.LogOptionalUnavailable(Log, error, "tone-observer");
+            }
+            return;
+        }
+
+        if (current.ActiveRun is null
+            && (!string.Equals(current.Definition.Model?.Model, definition.Model?.Model, StringComparison.Ordinal)
+                || !string.Equals(current.Definition.Instructions, definition.Instructions, StringComparison.Ordinal)))
+        {
+            try { await agent.Configure(definition, current.Revision); }
+            catch (InvalidOperationException error)
+            {
+                InoLog.LogOptionalUnavailable(Log, error, "agent-reconfigure-conflict");
+            }
+        }
+    }
+
+    private async Task HandleSlashCommandAsync(string rawCommand, UserSettingsState settings)
+    {
+        var parts = rawCommand[1..].Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var cmd = parts.Length > 0 ? parts[0].ToLowerInvariant() : "help";
+        var arg = parts.Length > 1 ? parts[1] : string.Empty;
+
+        switch (cmd)
+        {
+            case "new":
+            case "clear":
+                await StartConversationAsync();
+                return;
+            case "pin":
+                await Show(State with { IsPinned = !State.IsPinned, Status = State.IsPinned ? "Unpinned session" : "Pinned session to Arc bar" });
+                return;
+            case "rename":
+                var nextTitle = string.IsNullOrWhiteSpace(arg) ? "Renamed session" : arg;
+                await Show(State with { Title = nextTitle, Status = $"Renamed to '{nextTitle}'" });
+                return;
+            case "model":
+                var nextModel = string.IsNullOrWhiteSpace(arg) ? "claude-sonnet-4-5" : arg.Trim();
+                var settingsNeuron = Get<IUserSettings>("settings");
+                await settingsNeuron.SetVariable(ModelChosenVariable, "on");
+                var updated = await settingsNeuron.SetProfile(settings.DisplayName, settings.Theme, nextModel);
+                await EnsureProfileContextAsync();
+                try { await EnsureConfiguredAsync(Get<IAgent>(InoModel.AgentKeyOf(State.ConversationId)), updated, null); }
+                catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "agent"); }
+                await Show(State with { Status = $"Switched model to {nextModel}", Error = null });
+                return;
+            case "scenario":
+            case "session":
+                await Show(InoView.BuildScenarioSessionState(string.IsNullOrWhiteSpace(arg) ? "q4-renewal" : arg.ToLowerInvariant(), settings));
+                return;
+            default:
+                await Show(State with
+                {
+                    Status = $"Executed /{cmd}",
+                    Turns = [.. State.Turns, new InoTurn(rawCommand, "Commands: `/new`, `/rename <title>`, `/pin`, `/model <id>`, `/clear`.", $"slash:{cmd}", 0)],
+                });
+                return;
+        }
+    }
+
+    private static bool IsSmart(UserSettingsState settings)
+        => settings.Variables.Any(v => v.Key == SmartVariable && string.Equals(v.Value, "on", StringComparison.OrdinalIgnoreCase));
+
+    private bool IsCurrent(string agentId)
+        => string.Equals(agentId, InoModel.AgentKeyOf(State.ConversationId), StringComparison.Ordinal);
+
+    private DateTimeOffset NowUtc()
+    {
+        try { return Context.Time.GetUtcNow(); }
+        catch (InvalidOperationException error)
+        {
+            InoLog.LogOptionalUnavailable(Log, error, "clock");
+            return DateTimeOffset.UtcNow;
+        }
+    }
+
+    private static string InferProviderFromCredential(string credential)
+    {
+        if (credential.StartsWith("sk-ant-", StringComparison.OrdinalIgnoreCase)) { return "anthropic"; }
+        if (credential.StartsWith("sk-or-", StringComparison.OrdinalIgnoreCase)) { return "openrouter"; }
+        if (credential.StartsWith("AIza", StringComparison.Ordinal)) { return "google"; }
+        return "openai";
+    }
+
+    private static string DefaultModelForProvider(string provider) => provider switch
+    {
+        "anthropic" => "claude-sonnet-4-5",
+        "google" => "gemini-2.5-pro",
+        "openrouter" => "openrouter/openai/gpt-4o-mini",
+        _ => "gpt-5",
+    };
+
     public new InoAppState State => base.State;
     public View Render() => Render(State);
-    public View RenderSide() => InoViewRenderer.RenderSide(State);
-    protected override View Render(InoAppState state) => InoViewRenderer.Render(state, _transcript, _approvals, _smart);
+    public View RenderSide() => InoView.Side(State);
+    protected override View Render(InoAppState state) => InoView.Screen(state);
 
     private string CurrentBrainId
     {
@@ -561,7 +975,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
             try { return Id.Brain.Value is { Length: > 0 } b ? b : "local"; }
             catch (InvalidOperationException error)
             {
-                NullLogger.Instance.LogSwallowed(error, "Unattached neuron uses default local brain id in isolated tests.");
+                InoLog.LogOptionalUnavailable(Log, error, "brain-id");
                 return "local";
             }
         }
@@ -572,8 +986,23 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         try { return Get<T>(key); }
         catch (InvalidOperationException error)
         {
-            NullLogger.Instance.LogSwallowed(error, $"{typeof(T).Name} is optional when running in isolated unit tests.");
+            InoLog.LogOptionalUnavailable(Log, error, typeof(T).Name);
             return null;
         }
     }
+}
+
+internal static partial class InoLog
+{
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Ino optional dependency '{Target}' was not available.")]
+    public static partial void LogOptionalUnavailable(ILogger logger, Exception exception, string target);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Ino failed to start turn on agent '{AgentKey}'.")]
+    public static partial void LogTurnStartFailed(ILogger logger, Exception exception, string agentKey);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Ino database operation '{Operation}' failed.")]
+    public static partial void LogDatabaseFailed(ILogger logger, Exception exception, string operation);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Ino failed to save credential for provider '{Provider}'.")]
+    public static partial void LogProviderSaveFailed(ILogger logger, Exception exception, string provider);
 }

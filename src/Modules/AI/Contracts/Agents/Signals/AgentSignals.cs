@@ -42,6 +42,8 @@ public sealed record TurnFailed(string AgentId, string RunId, string Error, bool
     public long Version { get; init; }
 
     public string? RunKey { get; init; }
+
+    public AgentFailure Failure { get; init; }
 }
 
 [Signal("agent.transcript-cleared")]
