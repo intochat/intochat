@@ -2,6 +2,12 @@ using System.Security.Cryptography;
 using System.Text;
 using IntoChat.OS.Sandbox;
 
+if (args.Contains("--unit-host", StringComparer.Ordinal))
+{
+    var exitCode = await UnitHostWorker.RunAsync(Console.OpenStandardInput(), Console.OpenStandardOutput()).ConfigureAwait(false);
+    Environment.Exit(exitCode);
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 var configuredUrls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
