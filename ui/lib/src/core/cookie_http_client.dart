@@ -6,7 +6,7 @@ import 'basic_credentials.dart';
 /// Loopback dev auth does not need cookies once a bootstrap owner exists, but
 /// login/bootstrap cookies keep Flutter working when loopback cannot apply.
 final class CookieHttpClient extends http.BaseClient {
-  CookieHttpClient(this._inner, {this.credentials});
+  CookieHttpClient(this._inner, {this.credentials, this.presenceToken});
 
   final http.Client _inner;
   final Map<String, String> _cookies = {};
@@ -16,6 +16,10 @@ final class CookieHttpClient extends http.BaseClient {
   /// without touching their own send sites.
   final BasicCredentials? credentials;
 
+  /// Desktop local presence proof (`X-IntoChat-Presence: <token>`) attached to
+  /// every outgoing HTTP and SSE request when non-empty.
+  final String? presenceToken;
+
   Map<String, String> get cookies => Map.unmodifiable(_cookies);
 
   @override
@@ -23,6 +27,15 @@ final class CookieHttpClient extends http.BaseClient {
     final credential = credentials;
     if (credential != null && !request.headers.containsKey('authorization')) {
       request.headers['authorization'] = credential.authorizationHeader;
+    }
+
+    final presence = presenceToken;
+    if (presence != null &&
+        presence.isNotEmpty &&
+        !request.headers.keys.any(
+          (k) => k.toLowerCase() == 'x-intochat-presence',
+        )) {
+      request.headers['X-IntoChat-Presence'] = presence;
     }
 
     if (_cookies.isNotEmpty && !request.headers.containsKey('cookie')) {

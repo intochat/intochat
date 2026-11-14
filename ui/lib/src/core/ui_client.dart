@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 import 'basic_credentials.dart';
 import 'cookie_http_client.dart';
 import 'session_http_client_io.dart'
-    if (dart.library.html) 'session_http_client_web.dart'
+    if (dart.library.js_interop) 'session_http_client_web.dart'
     as transport;
 import 'host_environment.dart';
 import 'journal_tail_client.dart';
@@ -28,17 +28,21 @@ import 'models/workspace_models.dart';
 final class IntoChatOSUiClient {
   /// Gated on the kernel; 404 when the kernel runs ungated.
   static const authCheckPath = '/auth/check';
+  static const localPresencePath = '/auth/local-presence';
 
   IntoChatOSUiClient({
     required this.baseUri,
     http.Client? httpClient,
     BasicCredentials? credentials,
+    String? presenceToken,
   }) : workspaceIdentity = credentials?.username ?? 'local-owner',
+       _presenceToken = presenceToken,
        _http = httpClient is CookieHttpClient
            ? httpClient
            : CookieHttpClient(
                httpClient ?? transport.createSessionHttpClient(),
                credentials: credentials,
+               presenceToken: presenceToken,
              ),
        _ownsClient = httpClient == null,
        _credentials = credentials;
@@ -47,6 +51,7 @@ final class IntoChatOSUiClient {
     http.Client? httpClient,
     Map<String, String>? processEnvironment,
     BasicCredentials? credentials,
+    String? presenceToken,
   }) {
     return IntoChatOSUiClient(
       baseUri: IntoChatOSHostEnv.requireUiBaseUri(
@@ -54,6 +59,23 @@ final class IntoChatOSUiClient {
       ),
       httpClient: httpClient,
       credentials: credentials,
+      presenceToken:
+          presenceToken ??
+          IntoChatOSHostEnv.resolvePresenceToken(
+            processEnvironment: processEnvironment,
+          ),
+    );
+  }
+
+  /// Exchanges a web `#presence=<token>` fragment proof for an `HttpOnly; SameSite=Strict`
+  /// `IntoChatPresence` cookie before probing the kernel session.
+  Future<void> exchangeLocalPresence(String token) async {
+    if (token.isEmpty) return;
+    await _request(
+      'POST',
+      localPresencePath,
+      body: {'token': token},
+      timeout: const Duration(seconds: 10),
     );
   }
 
@@ -222,6 +244,7 @@ final class IntoChatOSUiClient {
   final CookieHttpClient _http;
   final bool _ownsClient;
   final BasicCredentials? _credentials;
+  final String? _presenceToken;
 
   /// Live updates ride the neuron channel when the client owns its transport (a real kernel),
   /// unless the build is told to keep HTTP polling (`--dart-define=INTOCHATOS_UI_TRANSPORT=http`)
@@ -253,6 +276,8 @@ final class IntoChatOSUiClient {
     baseUri,
     authorization: _credentials?.authorizationHeader,
     sessionHeaders: () => {
+      if (_presenceToken case final String token when token.isNotEmpty)
+        'x-intochat-presence': token,
       if (_http.cookies.isNotEmpty)
         'cookie': _http.cookies.entries
             .map((entry) => '${entry.key}=${entry.value}')

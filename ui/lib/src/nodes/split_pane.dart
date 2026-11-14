@@ -8,8 +8,12 @@ Widget renderSplitPane(SplitPaneNode node, NodeContext ctx) => LayoutBuilder(
   builder: (context, constraints) {
     final leading = NodeRenderer.render(node.leading, ctx.deeper());
     final trailing = NodeRenderer.render(node.trailing, ctx.deeper());
+    final stretch =
+        constraints.hasBoundedHeight && NodeRenderer.fills(node.trailing);
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: stretch
+          ? CrossAxisAlignment.stretch
+          : CrossAxisAlignment.start,
       spacing: node.gap.clamp(0, 128),
       children: [
         SizedBox(width: node.leadingExtent.clamp(0, 1200), child: leading),

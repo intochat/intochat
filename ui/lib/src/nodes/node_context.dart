@@ -44,6 +44,9 @@ class NeuronEventQueue extends ChangeNotifier {
   }
 }
 
+/// What happened when [NodeContext.activateReporting] posted a view activation.
+enum ActivationOutcome { accepted, stale, refused }
+
 /// What the renderer needs from its host to draw one published view.
 @immutable
 class NodeContext {
@@ -52,6 +55,7 @@ class NodeContext {
     this.generation = 0,
     this.send,
     this.load,
+    this.reload,
     this.watch,
     this.onActivate,
     this.knowsApp,
@@ -70,6 +74,9 @@ class NodeContext {
 
   final NeuronAction? send;
   final NeuronLoader? load;
+
+  /// Forces the owning host to reload its published view and update [generation].
+  final Future<void> Function()? reload;
 
   /// The node's change events (`FieldChanged` for a field).
   final Stream<void> Function(String kind, String name)? watch;
@@ -97,6 +104,7 @@ class NodeContext {
     generation: generation,
     send: send,
     load: load,
+    reload: reload,
     watch: watch,
     onActivate: onActivate,
     knowsApp: knowsApp,
@@ -133,7 +141,17 @@ class NodeContext {
     String? value,
     BuildContext? context,
   }) async {
-    if (!interactive) return;
+    await activateReporting(key, value: value, context: context);
+  }
+
+  /// Activates the keyed node of this view and reports whether the server
+  /// accepted it, refused it as stale (`409` with `status: "stale"`), or refused it.
+  Future<ActivationOutcome> activateReporting(
+    String key, {
+    String? value,
+    BuildContext? context,
+  }) async {
+    if (!interactive) return ActivationOutcome.refused;
     final Object? response;
     try {
       response = await _send({
@@ -143,29 +161,36 @@ class NodeContext {
         'key': key,
         'value': ?value,
       });
+    } on UiRequestException catch (error) {
+      if (error.statusCode == 409 && error.status == 'stale') {
+        return ActivationOutcome.stale;
+      }
+      return ActivationOutcome.refused;
     } catch (_) {
       // The host has shown the refusal and reads the view again.
-      return;
+      return ActivationOutcome.refused;
     }
     if (response is Map && response['intent'] is Map) {
       final intent = Map<String, dynamic>.from(response['intent'] as Map);
       // An intent kind this client does not know is refused, never guessed.
       final kind = intentKindOf(intent['intentKind'] ?? intent['kind']);
-      if (kind == null) return;
-      await perform(
-        IntentNode(intentKind: kind, arg: intent['arg'] as String?),
-        context: context != null && context.mounted ? context : null,
-      );
+      if (kind != null) {
+        await perform(
+          IntentNode(intentKind: kind, arg: intent['arg'] as String?),
+          context: context != null && context.mounted ? context : null,
+        );
+      }
     }
+    return ActivationOutcome.accepted;
   }
 
-  /// Resolves a confirmation plan on the OS inbox surface: the typed record
-  /// `{kind:"confirmation", name, planId, approve}` (AppUiEndpoints.UiEvent).
+  /// Resolves a confirmation plan: `{kind:"confirmation", name, planId, approve}`
+  /// (AppUiEndpoints.UiEvent).
   Future<void> resolve(String planId, {required bool approve}) async {
-    if (!interactive || !confirmation) return;
+    if (!interactive) return;
     await _send({
       'kind': 'confirmation',
-      'name': view,
+      'name': confirmation ? view : '$scope/confirmations',
       'planId': planId,
       'approve': approve,
     });

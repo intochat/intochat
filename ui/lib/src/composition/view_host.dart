@@ -180,9 +180,14 @@ class _ViewHostState extends State<ViewHost> {
     try {
       return await _events.dispatch(send, event);
     } catch (error) {
-      // A refusal (a stale generation, a changed view) shows and the view is read again.
+      // A refusal (a stale generation, a changed view) reads the view again;
+      // a 409 marked stale is retried silently by the caller without a snackbar.
+      final stale =
+          error is UiRequestException &&
+          error.statusCode == 409 &&
+          error.status == 'stale';
       unawaited(_reload());
-      if (mounted) {
+      if (mounted && !stale) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(content: Text('Could not save change: $error')),
         );
@@ -230,7 +235,10 @@ class _ViewHostState extends State<ViewHost> {
         onRetry: _error == null ? null : _reload,
       );
     }
-    final enabled = widget.enabled && widget.onAction != null;
+    final enabled =
+        widget.enabled &&
+        widget.onAction != null &&
+        !(widget.kind == 'confirmation' && widget.embedded);
     switch (widget.kind) {
       case 'view':
       case 'confirmation':
@@ -251,6 +259,7 @@ class _ViewHostState extends State<ViewHost> {
               : 0,
           send: widget.onAction == null ? null : _dispatch,
           load: widget.load,
+          reload: _reload,
           watch: widget.watch,
           onActivate: widget.onActivate,
           knowsApp: widget.knowsApp,
@@ -265,13 +274,16 @@ class _ViewHostState extends State<ViewHost> {
           confirmation: widget.kind == 'confirmation' && !widget.embedded,
           enabled: enabled,
         );
-        final rendered = SingleChildScrollView(
-          primary: false,
-          child: NodeRenderer.view(
-            AppView.fromJson(Map<String, dynamic>.from(view)),
-            ctx,
-          ),
-        );
+        final appView = AppView.fromJson(Map<String, dynamic>.from(view));
+        final fills = NodeRenderer.fills(appView.root);
+        final renderedView = NodeRenderer.view(appView, ctx);
+        final rendered = fills
+            ? LayoutBuilder(
+                builder: (context, constraints) => constraints.hasBoundedHeight
+                    ? SizedBox.expand(child: renderedView)
+                    : SizedBox(height: 560, child: renderedView),
+              )
+            : SingleChildScrollView(primary: false, child: renderedView);
         final signals = _brainSignals;
         return signals == null
             ? rendered
