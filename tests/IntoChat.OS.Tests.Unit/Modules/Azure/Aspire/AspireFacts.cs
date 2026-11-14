@@ -62,7 +62,7 @@ public sealed class AspireFacts
         var consoleLines = await aspire.GetConsoleLogsAsync("OperatingSystem", 10);
         Assert.Single(consoleLines);
         var errorTraces = await aspire.GetTracesAsync("OperatingSystem", errorsOnly: true);
-        Assert.Single(errorTraces);
+        Assert.Contains(errorTraces, t => t.TraceId == "trace-1" && t.Name == "calculator.add" && t.Error == "DivideByZeroException");
     }
 
     [Fact]

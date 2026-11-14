@@ -228,6 +228,7 @@ public sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetrySt
         {
             merged = merged.Where(span => string.Equals(span.Resource, resourceName, StringComparison.OrdinalIgnoreCase)
                 || (string.Equals(resourceName, "OperatingSystem", StringComparison.OrdinalIgnoreCase)
+                    && !span.Resource.EndsWith("Test", StringComparison.OrdinalIgnoreCase)
                     && (span.Resource.StartsWith("IntoChat", StringComparison.OrdinalIgnoreCase)
                         || span.Resource.StartsWith("DigitalBrain", StringComparison.OrdinalIgnoreCase)
                         || span.Resource.StartsWith("Microsoft.AspNetCore", StringComparison.OrdinalIgnoreCase))));
