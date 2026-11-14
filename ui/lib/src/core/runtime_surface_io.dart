@@ -5,3 +5,5 @@ String? queryUiBase() => null;
 String? storedUiBase() => null;
 
 void storeUiBase(String value) {}
+
+String? consumeWebPresenceToken() => null;

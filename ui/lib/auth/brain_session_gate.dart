@@ -9,7 +9,7 @@ import 'credential_store.dart' as store;
 import 'login_screen.dart';
 import 'local_account.dart';
 import 'local_account_io.dart'
-    if (dart.library.html) 'local_account_web.dart'
+    if (dart.library.js_interop) 'local_account_web.dart'
     as local;
 
 /// Builds the signed-in shell once a client is available.
@@ -35,11 +35,15 @@ final class BrainSessionGate extends StatefulWidget {
     required this.builder,
     this.createClient = _fromEnvironment,
     this.readLocalAccount = local.readLocalAccount,
+    this.initialWebPresenceToken,
+    this.consumeWebPresenceToken = IntoChatOSHostEnv.consumeWebPresenceToken,
   });
 
   final ShellBuilder builder;
   final ClientFactory createClient;
   final Future<LocalAccount?> Function(Uri) readLocalAccount;
+  final String? initialWebPresenceToken;
+  final String? Function() consumeWebPresenceToken;
 
   @override
   State<BrainSessionGate> createState() => _BrainSessionGateState();
@@ -60,10 +64,13 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
   String? _statusMessage;
   String? _loginError;
   String _lastUsername = '';
+  String? _pendingWebPresenceToken;
 
   @override
   void initState() {
     super.initState();
+    _pendingWebPresenceToken =
+        widget.initialWebPresenceToken ?? widget.consumeWebPresenceToken();
     final stored = store.readStoredCredentials();
     _lastUsername = stored?.username ?? '';
     unawaited(_attempt(stored, fromStartup: true));
@@ -80,6 +87,22 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
     } on Object {
       if (mounted) setState(() => _phase = _Phase.connectionFailed);
       return 'Unable to connect to your account.';
+    }
+    if (fromStartup) {
+      final presenceToken = _pendingWebPresenceToken;
+      if (presenceToken != null && presenceToken.isNotEmpty) {
+        try {
+          await client.exchangeLocalPresence(presenceToken);
+          _pendingWebPresenceToken = null;
+        } on UiRequestException {
+          // Invalid or expired fragment proof: clear it and proceed to normal session check.
+          _pendingWebPresenceToken = null;
+        } on Object {
+          client.close();
+          if (mounted) setState(() => _phase = _Phase.connectionFailed);
+          return 'Unable to connect to your account.';
+        }
+      }
     }
     if (fromStartup && credentials == null) {
       try {

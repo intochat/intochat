@@ -1,5 +1,9 @@
 import 'dart:js_interop';
 
+import 'package:web/web.dart' as web;
+
+import 'presence_fragment.dart';
+
 Uri? sameOriginUiBase() {
   final origin = Uri.base.origin;
   if (origin.isEmpty) {
@@ -40,5 +44,31 @@ void storeUiBase(String value) {
     _setItem(_storageKey.toJS, value.toJS);
   } catch (_) {
     // Not remembered; the page address still applies to this session.
+  }
+}
+
+String? _consumedWebPresenceToken;
+bool _inspectedWebPresenceHash = false;
+
+/// Extracts `#presence=<token>` from `window.location.hash` once at startup and
+/// immediately strips it from the browser address bar via `history.replaceState`.
+String? consumeWebPresenceToken() {
+  if (_inspectedWebPresenceHash) {
+    final token = _consumedWebPresenceToken;
+    _consumedWebPresenceToken = null;
+    return token;
+  }
+  _inspectedWebPresenceHash = true;
+  try {
+    final rawHash = web.window.location.hash;
+    final parsed = parsePresenceFragment(rawHash);
+    if (parsed == null) return null;
+    final pathname = web.window.location.pathname;
+    final search = web.window.location.search;
+    final cleanUrl = '$pathname$search${parsed.remainingHash}';
+    web.window.history.replaceState(null, '', cleanUrl);
+    return parsed.token;
+  } catch (_) {
+    return null;
   }
 }

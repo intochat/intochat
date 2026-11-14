@@ -1,5 +1,6 @@
 library;
 
+export 'src/chat/conversation_view.dart';
 export 'src/chat/ui_chat.dart';
 export 'src/chat/ui_copyable_message.dart';
 export 'src/components/browser/ui_web_browser.dart';
@@ -32,6 +33,10 @@ export 'src/theme/ui_theme.dart';
 
 export 'src/composition/view_host.dart';
 export 'src/nodes/brain_scene.dart';
+export 'src/nodes/diff_card.dart';
+export 'src/nodes/empty_state.dart';
+export 'src/nodes/error_line.dart';
+export 'src/nodes/metric_tile.dart';
 export 'src/nodes/node_common.dart' show UiNodeTone, nodeToneOf, toneOf;
 export 'src/nodes/node_context.dart';
 export 'src/nodes/node_renderer.dart';

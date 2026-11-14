@@ -9,15 +9,20 @@ import 'auth/brain_session_gate.dart';
 import 'workspace/workspace_app.dart';
 import 'workspace/workspace_store.dart';
 import 'open_url_io.dart'
-    if (dart.library.html) 'open_url_web.dart'
+    if (dart.library.js_interop) 'open_url_web.dart'
     as open_url;
 
 // Kept for the application lifetime so the test opt-in remains active.
 // ignore: unused_element
 SemanticsHandle? _semantics;
 
-Future<void> main() async {
+Future<void> main([List<String> args = const []]) async {
+  IntoChatOSHostEnv.setCliArguments(args);
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Strip any `#presence=<token>` fragment from the address bar immediately on web
+  // before reading `defaultRouteName` or building any Navigator.
+  final webPresenceToken = IntoChatOSHostEnv.consumeWebPresenceToken();
 
   // Headless drivers (Playwright e2e) cannot read Flutter's canvas. They opt in
   // to the semantics DOM with ?semantics=true so native text locators work.
@@ -39,6 +44,7 @@ Future<void> main() async {
   // kernel accepted before any stream opens.
   runApp(
     BrainSessionGate(
+      initialWebPresenceToken: webPresenceToken,
       builder: (client, status, switchAccount) => buildShell(
         chat: chat,
         onSwitchAccount: () async {

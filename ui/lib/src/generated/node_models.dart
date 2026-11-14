@@ -94,6 +94,11 @@ sealed class Node {
     'navItem' => NavItemNode.fromJson(json),
     'statCard' => StatCardNode.fromJson(json),
     'webBrowser' => WebBrowserNode.fromJson(json),
+    'conversation' => ConversationNode.fromJson(json),
+    'errorLine' => ErrorLineNode.fromJson(json),
+    'emptyState' => EmptyStateNode.fromJson(json),
+    'metricTile' => MetricTileNode.fromJson(json),
+    'diffCard' => DiffCardNode.fromJson(json),
     final kind => UnknownNode(kind is String ? kind : '', json),
   };
 }
@@ -104,6 +109,27 @@ final class UnknownNode extends Node {
   @override
   final String kind;
   final Map<String, dynamic> json;
+}
+
+final class ActivityNode {
+  const ActivityNode({
+    required this.id,
+    required this.title,
+    required this.status,
+    required this.detail,
+  });
+
+  final String id;
+  final String title;
+  final String status;
+  final String? detail;
+
+  factory ActivityNode.fromJson(Map<String, dynamic> json) => ActivityNode(
+    id: _string(json['id']),
+    title: _string(json['title']),
+    status: _string(json['status'], 'done'),
+    detail: _stringOrNull(json['detail']),
+  );
 }
 
 final class AppShellNode extends Node {
@@ -558,6 +584,75 @@ final class ColumnNode extends Node {
   );
 }
 
+final class ComposerNode {
+  const ComposerNode({
+    required this.key,
+    required this.onSubmit,
+    required this.placeholder,
+    required this.enabled,
+  });
+
+  final String key;
+  final Emit onSubmit;
+  final String placeholder;
+  final bool enabled;
+
+  factory ComposerNode.fromJson(Map<String, dynamic> json) => ComposerNode(
+    key: _string(json['key']),
+    onSubmit: Emit.fromJson(_map(json['onSubmit'])),
+    placeholder: _string(json['placeholder'], 'Message'),
+    enabled: _bool(json['enabled'], true),
+  );
+}
+
+final class ConversationNode extends Node {
+  const ConversationNode({
+    required this.key,
+    required this.messages,
+    required this.composer,
+    required this.waiting,
+    required this.status,
+    required this.error,
+    required this.stop,
+    required this.empty,
+  });
+
+  @override
+  String get kind => 'conversation';
+
+  final String key;
+  final List<MessageNode> messages;
+  final ComposerNode composer;
+  final Node? waiting;
+  final String status;
+  final ErrorLineNode? error;
+  final ButtonNode? stop;
+  final EmptyStateNode? empty;
+
+  factory ConversationNode.fromJson(Map<String, dynamic> json) =>
+      ConversationNode(
+        key: _string(json['key']),
+        messages: [
+          for (final item in _list(json['messages']))
+            MessageNode.fromJson(_map(item)),
+        ],
+        composer: ComposerNode.fromJson(_map(json['composer'])),
+        waiting: json['waiting'] is Map
+            ? Node.fromJson(_map(json['waiting']))
+            : null,
+        status: _string(json['status'], 'ready'),
+        error: json['error'] is Map
+            ? ErrorLineNode.fromJson(_map(json['error']))
+            : null,
+        stop: json['stop'] is Map
+            ? ButtonNode.fromJson(_map(json['stop']))
+            : null,
+        empty: json['empty'] is Map
+            ? EmptyStateNode.fromJson(_map(json['empty']))
+            : null,
+      );
+}
+
 final class DataTableNode extends Node {
   const DataTableNode({
     required this.title,
@@ -585,6 +680,84 @@ final class DataTableNode extends Node {
     ],
     sourceNeuronUri: _stringOrNull(json['sourceNeuronUri']),
     from: _string(json['from'], 'DigitalBrain'),
+  );
+}
+
+final class DiffCardNode extends Node {
+  const DiffCardNode({
+    required this.id,
+    required this.repo,
+    required this.targetBranch,
+    required this.headSha,
+    required this.filesChanged,
+    required this.additions,
+    required this.deletions,
+    required this.files,
+  });
+
+  @override
+  String get kind => 'diffCard';
+
+  final String id;
+  final String repo;
+  final String targetBranch;
+  final String headSha;
+  final int filesChanged;
+  final int additions;
+  final int deletions;
+  final List<DiffFileNode> files;
+
+  factory DiffCardNode.fromJson(Map<String, dynamic> json) => DiffCardNode(
+    id: _string(json['id']),
+    repo: _string(json['repo']),
+    targetBranch: _string(json['targetBranch']),
+    headSha: _string(json['headSha']),
+    filesChanged: _int(json['filesChanged']),
+    additions: _int(json['additions']),
+    deletions: _int(json['deletions']),
+    files: [
+      for (final item in _list(json['files']))
+        DiffFileNode.fromJson(_map(item)),
+    ],
+  );
+}
+
+final class DiffFileNode {
+  const DiffFileNode({
+    required this.path,
+    required this.changeKind,
+    required this.additions,
+    required this.deletions,
+    required this.hunks,
+  });
+
+  final String path;
+  final String changeKind;
+  final int additions;
+  final int deletions;
+  final List<DiffHunkNode> hunks;
+
+  factory DiffFileNode.fromJson(Map<String, dynamic> json) => DiffFileNode(
+    path: _string(json['path']),
+    changeKind: _string(json['changeKind']),
+    additions: _int(json['additions']),
+    deletions: _int(json['deletions']),
+    hunks: [
+      for (final item in _list(json['hunks']))
+        DiffHunkNode.fromJson(_map(item)),
+    ],
+  );
+}
+
+final class DiffHunkNode {
+  const DiffHunkNode({required this.header, required this.lines});
+
+  final String header;
+  final List<String> lines;
+
+  factory DiffHunkNode.fromJson(Map<String, dynamic> json) => DiffHunkNode(
+    header: _string(json['header']),
+    lines: [for (final item in _list(json['lines'])) _string(item)],
   );
 }
 
@@ -655,6 +828,32 @@ final class Emit {
   );
 }
 
+final class EmptyStateNode extends Node {
+  const EmptyStateNode({
+    required this.title,
+    required this.body,
+    required this.suggestions,
+  });
+
+  @override
+  String get kind => 'emptyState';
+
+  final String title;
+  final String? body;
+  final List<ButtonNode>? suggestions;
+
+  factory EmptyStateNode.fromJson(Map<String, dynamic> json) => EmptyStateNode(
+    title: _string(json['title']),
+    body: _stringOrNull(json['body']),
+    suggestions: json['suggestions'] == null
+        ? null
+        : [
+            for (final item in _list(json['suggestions']))
+              ButtonNode.fromJson(_map(item)),
+          ],
+  );
+}
+
 final class Entry {
   const Entry({
     required this.id,
@@ -673,6 +872,29 @@ final class Entry {
     title: _string(json['title']),
     subtitle: _stringOrNull(json['subtitle']),
     trailing: _stringOrNull(json['trailing']),
+  );
+}
+
+final class ErrorLineNode extends Node {
+  const ErrorLineNode({
+    required this.what,
+    required this.detail,
+    required this.action,
+  });
+
+  @override
+  String get kind => 'errorLine';
+
+  final String what;
+  final String? detail;
+  final ButtonNode? action;
+
+  factory ErrorLineNode.fromJson(Map<String, dynamic> json) => ErrorLineNode(
+    what: _string(json['what']),
+    detail: _stringOrNull(json['detail']),
+    action: json['action'] is Map
+        ? ButtonNode.fromJson(_map(json['action']))
+        : null,
   );
 }
 
@@ -839,6 +1061,100 @@ final class JobStepNode {
     label: _string(json['label']),
     status: _string(json['status'], 'waiting'),
     detail: _stringOrNull(json['detail']),
+  );
+}
+
+final class MessageNode {
+  const MessageNode({
+    required this.id,
+    required this.role,
+    required this.text,
+    required this.cards,
+    required this.activities,
+    required this.status,
+    required this.model,
+    required this.retry,
+  });
+
+  final String id;
+  final String role;
+  final String text;
+  final List<Node>? cards;
+  final List<ActivityNode>? activities;
+  final String status;
+  final String? model;
+  final ButtonNode? retry;
+
+  factory MessageNode.fromJson(Map<String, dynamic> json) => MessageNode(
+    id: _string(json['id']),
+    role: _string(json['role']),
+    text: _string(json['text']),
+    cards: json['cards'] == null
+        ? null
+        : [for (final item in _list(json['cards'])) Node.fromJson(_map(item))],
+    activities: json['activities'] == null
+        ? null
+        : [
+            for (final item in _list(json['activities']))
+              ActivityNode.fromJson(_map(item)),
+          ],
+    status: _string(json['status'], 'completed'),
+    model: _stringOrNull(json['model']),
+    retry: json['retry'] is Map
+        ? ButtonNode.fromJson(_map(json['retry']))
+        : null,
+  );
+}
+
+final class MetricTileNode extends Node {
+  const MetricTileNode({
+    required this.id,
+    required this.appId,
+    required this.title,
+    required this.value,
+    required this.delta,
+    required this.deltaTone,
+    required this.statusLabel,
+    required this.statusTone,
+    required this.sparkline,
+    required this.threshold,
+    required this.actions,
+  });
+
+  @override
+  String get kind => 'metricTile';
+
+  final String id;
+  final String appId;
+  final String title;
+  final String value;
+  final String? delta;
+  final String deltaTone;
+  final String? statusLabel;
+  final String statusTone;
+  final List<double>? sparkline;
+  final double? threshold;
+  final List<ButtonNode>? actions;
+
+  factory MetricTileNode.fromJson(Map<String, dynamic> json) => MetricTileNode(
+    id: _string(json['id']),
+    appId: _string(json['appId']),
+    title: _string(json['title']),
+    value: _string(json['value']),
+    delta: _stringOrNull(json['delta']),
+    deltaTone: _string(json['deltaTone'], 'neutral'),
+    statusLabel: _stringOrNull(json['statusLabel']),
+    statusTone: _string(json['statusTone'], 'neutral'),
+    sparkline: json['sparkline'] == null
+        ? null
+        : [for (final item in _list(json['sparkline'])) _double(item)],
+    threshold: _doubleOrNull(json['threshold']),
+    actions: json['actions'] == null
+        ? null
+        : [
+            for (final item in _list(json['actions']))
+              ButtonNode.fromJson(_map(item)),
+          ],
   );
 }
 

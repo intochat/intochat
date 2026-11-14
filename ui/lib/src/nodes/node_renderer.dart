@@ -11,15 +11,20 @@ import 'chart.dart';
 import 'choice_card.dart';
 import 'collection.dart';
 import 'column.dart';
+import 'conversation.dart';
 import 'data_table.dart';
+import 'diff_card.dart';
 import 'divider.dart';
 import 'draft_card.dart';
+import 'empty_state.dart';
+import 'error_line.dart';
 import 'field.dart';
 import 'grid.dart';
 import 'heading.dart';
 import 'info_bar.dart';
 import 'intent.dart';
 import 'job_card.dart';
+import 'metric_tile.dart';
 import 'nav_item.dart';
 import 'neuron_ref.dart';
 import 'node_context.dart';
@@ -42,6 +47,13 @@ import 'web_browser.dart';
 /// The one renderer: a published `DigitalBrain.UI.View` node tree to widgets.
 abstract final class NodeRenderer {
   static const maxDepth = 48;
+
+  /// True for a root node that manages its own vertical scrolling and fills its host box.
+  static bool fills(Node root) => switch (root) {
+    ConversationNode() => true,
+    SplitPaneNode(:final trailing) => fills(trailing),
+    _ => false,
+  };
 
   /// Draws a whole view: its root node.
   static Widget view(AppView view, NodeContext ctx) => render(view.root, ctx);
@@ -85,6 +97,11 @@ abstract final class NodeRenderer {
       NavItemNode() => renderNavItem(node, ctx),
       StatCardNode() => renderStatCard(node, ctx),
       WebBrowserNode() => renderWebBrowser(node, ctx),
+      ConversationNode() => renderConversation(node, ctx),
+      ErrorLineNode() => renderErrorLine(node, ctx),
+      EmptyStateNode() => renderEmptyState(node, ctx),
+      MetricTileNode() => renderMetricTile(node, ctx),
+      DiffCardNode() => renderDiffCard(node, ctx),
       UnknownNode() => const _Unsupported(),
     };
   }
