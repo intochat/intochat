@@ -62,6 +62,9 @@ public static class IdentityHosting
                 };
             });
         services.TryAddSingleton<DigitalBrain.Runtime.Http.ISessionIssuer, AccountSessionIssuer>();
+        services.TryAddSingleton<IPresenceProof>(provider => new PresenceProofValidator(
+            provider.GetService<Microsoft.Extensions.Configuration.IConfiguration>(),
+            provider.GetService<DigitalBrain.Runtime.Orleans.RuntimeOptions>()));
         services.AddKernelCors();
         services.TryAddSingleton(LocalBrainAccess);
     }

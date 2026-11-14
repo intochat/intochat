@@ -23,7 +23,7 @@ internal sealed class AccountSessionIssuer(IServiceProvider services) : DigitalB
         ArgumentNullException.ThrowIfNull(request);
         SessionClaims.Validate(request);
         SessionIssued issued;
-        if (services.GetService<ISessions>() is { } sessions)
+        if (services.GetService<IIdentitySessionPort>() is not null && services.GetService<ISessions>() is { } sessions)
         {
             // identity@1 Validate/Issue/End are privileged to the auth module. The cookie edge stamps that module for the call.
             using (RuntimeCallerContext.Stamp(AuthModuleCaller))
@@ -45,7 +45,9 @@ internal sealed class AccountSessionIssuer(IServiceProvider services) : DigitalB
     public async Task EndAsync(HttpContext http, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(http);
-        if (SessionPrincipal.SessionId(http.User) is { Length: > 0 } sid && services.GetService<ISessions>() is { } sessions)
+        if (SessionPrincipal.SessionId(http.User) is { Length: > 0 } sid
+            && services.GetService<IIdentitySessionPort>() is not null
+            && services.GetService<ISessions>() is { } sessions)
         {
             try
             {

@@ -35,8 +35,25 @@ public static class McpHosting
     public static void MapIntoChatOSMcp(this WebApplication app)
     {
         app.MapMcp("/mcp").AddEndpointFilter(async (context, next) =>
-            await BrainAccessFilter.Decide(context.HttpContext, RuntimeCallerContext.Require().BrainId) is { } denied
-                ? denied : await next(context));
-        BrainRoutes.Group(app).MapMcp("/mcp");
+        {
+            var caller = RuntimeCallerContext.Require();
+            if (await BrainAccessFilter.Decide(context.HttpContext, caller.BrainId) is { } denied)
+            {
+                return denied;
+            }
+
+            using (RuntimeCallerContext.Stamp(McpCaller.AsAgent(caller)))
+            {
+                return await next(context);
+            }
+        });
+        BrainRoutes.Group(app).MapMcp("/mcp").AddEndpointFilter(async (context, next) =>
+        {
+            var caller = RuntimeCallerContext.Require();
+            using (RuntimeCallerContext.Stamp(McpCaller.AsAgent(caller)))
+            {
+                return await next(context);
+            }
+        });
     }
 }

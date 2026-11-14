@@ -31,6 +31,7 @@ internal static class IdentityEndpoints
     public static void Map(IEndpointRouteBuilder routes)
     {
         routes.MapGet(AccountSession.CheckPath, static () => Results.NoContent());
+        routes.MapPost(PresenceProofValidator.ExchangePath, ExchangeLocalPresence);
         if (routes.ServiceProvider.GetRequiredService<IOptions<IdentityHostOptions>>().Value.BuiltInPasswordEndpoints)
         {
             routes.MapPost("/identity/register", RegisterAsync);
@@ -171,12 +172,38 @@ internal static class IdentityEndpoints
             : Results.Ok(caller);
     }
 
+    private static IResult ExchangeLocalPresence(LocalPresenceRequest input, HttpContext http, IOptions<AuthOptions> auth)
+    {
+        if (auth.Value.Posture != IdentityPosture.Open
+            || !PresenceProofValidator.IsSameOriginRequest(http.Request)
+            || http.RequestServices.GetService<IPresenceProof>() is not { } proof
+            || !proof.MatchesHeader(input.Token))
+        {
+            return Results.Unauthorized();
+        }
+
+        http.Response.Cookies.Append(
+            PresenceProofValidator.CookieName,
+            proof.IssueCookieValue(),
+            new CookieOptions
+            {
+                HttpOnly = true,
+                SameSite = SameSiteMode.Strict,
+                Secure = http.Request.IsHttps,
+                Path = "/",
+                IsEssential = true,
+            });
+        return Results.Ok(new { ok = true });
+    }
+
     private static async Task<IResult> LogoutAsync(HttpContext http)
     {
+        http.Response.Cookies.Delete(PresenceProofValidator.CookieName, new CookieOptions { Path = "/", SameSite = SameSiteMode.Strict });
         await http.RequestServices.GetRequiredService<ISessionIssuer>().EndAsync(http);
         return Results.NoContent();
     }
 
+    internal sealed record LocalPresenceRequest(string? Token = null);
     internal sealed record LoginRequest(string PrincipalId, string? Password = null);
     internal sealed record BrainSelection(string AccountId, string BrainId);
     internal sealed record RegisterRequest(string PrincipalId, string? Password = null, string? DisplayName = null);
