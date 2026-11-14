@@ -39,6 +39,35 @@ internal static class ScenarioSteps
         public string Next() => answers[Math.Min(Interlocked.Increment(ref _calls), answers.Length) - 1]();
     }
 
+    private sealed class FakeNotifications(string slot, Dictionary<string, JsonElement> configured) : IntoChat.OS.Modules.Apps.Notifications.INotifications
+    {
+        private int _sent;
+
+        public Task<JsonElement> Notify(string title, string body, string priority, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            var id = Interlocked.Increment(ref _sent);
+            var match = configured.Keys
+                .Where(part => part != "*" && (title.Contains(part, StringComparison.Ordinal) || body.Contains(part, StringComparison.Ordinal)))
+                .OrderByDescending(part => part.Length)
+                .FirstOrDefault()
+                ?? (configured.ContainsKey("*") ? "*" : null);
+
+            if (match is not null)
+            {
+                return Task.FromResult(configured[match]);
+            }
+
+            return Task.FromResult(JsonSerializer.SerializeToElement(new
+            {
+                id = $"{slot}-{id}",
+                deduplicated = false,
+                title,
+                priority,
+            }));
+        }
+    }
+
     public static Parsed Parse(Scenario scenario)
     {
         ArgumentNullException.ThrowIfNull(scenario);
@@ -81,8 +110,12 @@ internal static class ScenarioSteps
                         }
                         fakes.Slot<DigitalBrain.Capabilities.Storage.IStorage>(slot.Name, fakeStorage);
                         break;
+                    case "notifications":
+                        var notifyResults = slot.Value.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone(), StringComparer.Ordinal);
+                        fakes.Slot<IntoChat.OS.Modules.Apps.Notifications.INotifications>(slot.Name, new FakeNotifications(slot.Name, notifyResults));
+                        break;
                     default:
-                        throw new FormatException($"given has '{kind.Name}'; only \"http\", \"tools\", and \"storage\" are known.");
+                        throw new FormatException($"given has '{kind.Name}'; only \"http\", \"tools\", \"storage\", and \"notifications\" are known.");
                 }
             }
         }

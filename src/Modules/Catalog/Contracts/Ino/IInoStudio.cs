@@ -12,6 +12,36 @@ public interface IInoStudio
     Task<InoToolResult> Launch(string appId);
 
     // The studios and the deployed units, each with whether its spec.md and scenarios.json are kept.
-    [DigitalBrain.Contracts.ReadOnlyCall]
+    [ReadOnlyCall]
     Task<InoToolResult> List();
+
+    /// <summary>
+    /// Starts a hardened Feature-to-PR run on an allowlisted repository (<paramref name="repository"/>, e.g. <c>"os"</c>):
+    /// prepares an isolated worktree, runs the local coder, verifies the Triple Git Lock &amp; path gate, creates 1 commit,
+    /// and parks at a SHA-bound Person confirmation gate (<c>RequiresPerson = true</c>) before pushing or opening a Draft PR.
+    /// </summary>
+    [Interleaves]
+    Task<InoToolResult> ProposeChange(string repository, string goal, CancellationToken ct = default)
+        => Task.FromResult(new InoToolResult("Feature-to-PR is not available in this studio instance.", Ok: false));
+
+    /// <summary>
+    /// Starts a hardened Feature-to-PR run targeting an explicit <paramref name="baseBranch"/>.
+    /// </summary>
+    [Interleaves]
+    Task<InoToolResult> ProposeChangeOnBranch(string repository, string goal, string baseBranch, CancellationToken ct = default)
+        => Task.FromResult(new InoToolResult("Feature-to-PR is not available in this studio instance.", Ok: false));
+
+    /// <summary>
+    /// Reads the current status, commit SHA, changed files, confirmation plan ID, and Draft PR URL / pushed ref of a Feature-to-PR run.
+    /// </summary>
+    [ReadOnlyCall, Interleaves]
+    Task<InoToolResult> ChangeStatus(string flowId, CancellationToken ct = default)
+        => Task.FromResult(new InoToolResult("Feature-to-PR status is not available in this studio instance.", Ok: false));
+
+    /// <summary>
+    /// Lists the allowlisted Git repositories configured for Feature-to-PR on this host (<c>~/.intochat/repos.json</c>).
+    /// </summary>
+    [ReadOnlyCall, Interleaves]
+    Task<InoToolResult> Repositories(CancellationToken ct = default)
+        => Task.FromResult(new InoToolResult("Repository allowlist is not available in this studio instance.", Ok: false));
 }

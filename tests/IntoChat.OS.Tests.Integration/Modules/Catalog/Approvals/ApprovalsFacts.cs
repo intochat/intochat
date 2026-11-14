@@ -162,13 +162,22 @@ public sealed class ApprovalsFacts
         var flows = Flows(runtime);
         var flowId = await flows.Start(TestFlow.Alias, "Self", null, Inner(), Ct);
         var pending = await Eventually(runtime, list => list.Any(a => a.Kind == ApprovalKind.FlowStep));
+        var planId = pending.Single(a => a.Kind == ApprovalKind.FlowStep).PlanId;
         var resolver = runtime.Get<IPlanResolver>(new NeuronId(runtime.Brain, PlanResolver.Alias, "resolver"));
 
-        using (AsPerson(runtime)) { await resolver.Resolve(pending.Single(a => a.Kind == ApprovalKind.FlowStep).PlanId, approve: true); }
+        using (AsPerson(runtime))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resolver.Resolve(planId, approve: true));
+        }
 
-        var end = await EndOf(flows, flowId);
-        Assert.NotEqual(FlowStatus.Completed, end);
-        Assert.Equal(FlowStatus.Cancelled, end);
+        // The forged neuron resolution is rejected without poisoning the human's pending plan
+        Assert.Equal(FlowStatus.Waiting, (await flows.Read(flowId, Ct))!.Status);
+        using (AsPerson(runtime))
+        {
+            Assert.Contains(await Approvals(runtime).Pending(Ct), a => a.PlanId == planId);
+        }
+
+        await flows.Cancel(flowId, "done", Ct);
     }
 
     [Fact]
