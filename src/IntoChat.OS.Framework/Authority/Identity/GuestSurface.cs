@@ -6,8 +6,9 @@ namespace IntoChat.OS.Authority.Identity;
 // with Door. Whatever is not named here is refused.
 public static class GuestSurface
 {
-    // Reserved for guests: no principal can be registered under it (PrincipalIdIsAvailable), so the principal alone marks a
-    // guest, on every hop and after MCP re-stamps the caller as the agent.
+    // Reserved for guests: sign-up refuses it (PrincipalIdIsAvailable, PrincipalPasswords.Register), so the principal alone
+    // marks a guest, also after MCP re-stamps the caller as the agent. The directory's Ensure* calls do not check it: that is
+    // how the guest itself is made.
     public const string BrainPrefix = "try-";
 
     // A guest is never a person: its session is stamped as this app, as unproved loopback traffic is stamped LocalAppId.

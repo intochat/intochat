@@ -15,7 +15,7 @@ namespace IntoChat.OS.Mcp;
 
 public static class McpHosting
 {
-    // What the watch below stamps as. It is not a guest tool, so a guest opens no signal watch.
+    // What the watch below stamps as when no caller is stamped yet. It is not a guest tool.
     private const string SignalWatch = "a signal watch";
 
     public static void AddIntoChatOSMcp(this IServiceCollection services)
@@ -25,8 +25,13 @@ public static class McpHosting
         services.AddIdentity();
         services.AddLocalPlatformClients();
         // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.
-        services.TryAddScoped<ISignalWatch>(provider => provider.GetRequiredService<IIntoChatOSBrains>().Open(
-            (RuntimeCallerContext.TryGet(out var caller) ? caller : provider.GetRequiredService<McpCaller>().Stamp(SignalWatch)).BrainId));
+        services.TryAddScoped<ISignalWatch>(provider =>
+        {
+            var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : provider.GetRequiredService<McpCaller>().Stamp(SignalWatch);
+            // A guest opens no signal watch, whichever way its caller was stamped.
+            if (GuestSurface.Is(caller)) { throw new UnauthorizedAccessException($"A guest session cannot use {SignalWatch}."); }
+            return provider.GetRequiredService<IIntoChatOSBrains>().Open(caller.BrainId);
+        });
         services.TryAddSingleton<IBrainObserver>(IntoChat.OS.Kernel.Composition.Kernel.For);
         services.AddHttpContextAccessor();
         services.TryAddSingleton<McpCaller>();

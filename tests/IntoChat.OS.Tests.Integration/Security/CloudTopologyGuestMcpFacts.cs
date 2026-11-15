@@ -104,6 +104,8 @@ public sealed class CloudTopologyGuestMcpFacts(CloudTopologyGuestMcpFacts.CloudG
     public async Task Guest_IsRefused_AtEveryClosedMcpDoor(string door, string tool, string argumentsJson)
     {
         var arguments = JsonNode.Parse(argumentsJson.Replace("{brain}", host.BrainId, StringComparison.Ordinal))!.AsObject();
+        // The tool exists on this server, so a misspelled name cannot pass as a refusal.
+        Assert.Contains(tool, await host.ToolNamesAsync(Ct));
 
         var answer = await host.CallToolAsync(tool, arguments, Ct);
 
@@ -407,6 +409,16 @@ public sealed class CloudTopologyGuestMcpFacts(CloudTopologyGuestMcpFacts.CloudG
             var text = string.Concat(result.GetProperty("content").EnumerateArray()
                 .Select(block => block.TryGetProperty("text", out var value) ? value.GetString() : null));
             return new ToolAnswer(result.TryGetProperty("isError", out var isError) && isError.ValueKind == JsonValueKind.True, text);
+        }
+
+        // Every tool the server offers on the guest's brain.
+        public async Task<string[]> ToolNamesAsync(CancellationToken ct)
+        {
+            using var request = McpRequest($"/brains/{BrainId}/mcp", "tools/list", new JsonObject());
+            using var response = await Client.SendAsync(request, ct);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var rpc = JsonDocument.Parse(RpcPayload(await response.Content.ReadAsStringAsync(ct)));
+            return [.. rpc.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray().Select(tool => tool.GetProperty("name").GetString()!)];
         }
 
         // The JSON-RPC message of a streamable HTTP answer: the first data line of an event stream, else the body.
