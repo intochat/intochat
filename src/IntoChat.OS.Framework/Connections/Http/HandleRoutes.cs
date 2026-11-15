@@ -33,7 +33,11 @@ public static class HandleRoutes
             var normalizedHandle = IHandleDirectory.Normalize(handle);
             var handleDirectory = ResolveDirectory(http.RequestServices, normalizedHandle);
 
-            var brainId = await handleDirectory.Resolve();
+            string? brainId;
+            using (InProcessCallerScope.EnterKernel("system"))
+            {
+                brainId = await handleDirectory.Resolve();
+            }
 
             if (string.IsNullOrWhiteSpace(brainId))
             {

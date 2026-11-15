@@ -1,12 +1,11 @@
+using System.Collections.Concurrent;
 using System.Text;
-using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Modules.Options;
 using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Http.Surface;
-using DigitalBrain.Runtime.Orleans.Access;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.Cloud.Auth;
 using IntoChat.Cloud.Auth.Licensing;
@@ -18,6 +17,7 @@ using IntoChat.Cloud.Mail;
 using IntoChat.Cloud.Mail.Templates;
 using IntoChat.Cloud.Organisations;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -26,6 +26,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using OsIdentity = IntoChat.OS.Framework.Modules.Platform.Identity;
 
 namespace IntoChat.OS.Kernel;
 
@@ -60,6 +61,7 @@ public static class CloudHost
     public static WebApplication UseGuestTrySessions(this WebApplication app)
     {
         ArgumentNullException.ThrowIfNull(app);
+        var provisionedBrains = new ConcurrentDictionary<string, GuestBrainEntry>(StringComparer.Ordinal);
         app.Use(async (context, next) =>
         {
             if (context.User.Identity?.IsAuthenticated != true
@@ -74,6 +76,7 @@ public static class CloudHost
                     && session is not null
                     && string.Equals(session.BrainId, targetBrainId, StringComparison.Ordinal))
                 {
+                    await EnsureGuestBrainAsync(context.RequestServices, session, now, provisionedBrains, context.RequestAborted).ConfigureAwait(false);
                     context.User = AccountSession.SessionUser(
                         CapabilityCallers.Of(session.BrainId, session.BrainId, session.BrainId));
                 }
@@ -82,6 +85,77 @@ public static class CloudHost
             await next(context).ConfigureAwait(false);
         });
         return app;
+    }
+
+    private static async Task EnsureGuestBrainAsync(
+        IServiceProvider services,
+        GuestTrySession session,
+        DateTimeOffset now,
+        ConcurrentDictionary<string, GuestBrainEntry> provisionedBrains,
+        CancellationToken cancellationToken)
+    {
+        foreach (var pair in provisionedBrains)
+        {
+            if (pair.Value.ExpiresAt <= now && provisionedBrains.TryRemove(pair.Key, out var expired))
+            {
+                expired.Gate.Dispose();
+            }
+        }
+
+        var entry = provisionedBrains.GetOrAdd(session.BrainId, static (_, exp) => new GuestBrainEntry(exp), session.ExpiresAt);
+        if (entry.Initialized && entry.ExpiresAt > now)
+        {
+            return;
+        }
+
+        await entry.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (entry.Initialized && entry.ExpiresAt > now)
+            {
+                return;
+            }
+
+            if (services.GetService<IIdentityClient>() is { } identity)
+            {
+                await identity.EnsureAccount(new OsIdentity.Account
+                {
+                    AccountId = session.BrainId,
+                    OwnerPrincipalId = session.BrainId,
+                    Name = "Guest Try",
+                    CreatedAt = session.IssuedAt,
+                }).WaitAsync(cancellationToken).ConfigureAwait(false);
+
+                var provision = await identity.EnsureBrain(new OsIdentity.Member
+                {
+                    PrincipalId = session.BrainId,
+                    AccountId = session.BrainId,
+                    BrainId = session.BrainId,
+                    Role = OsIdentity.MemberRole.Owner,
+                    DisplayName = "Guest",
+                    JoinedAt = session.IssuedAt,
+                }).WaitAsync(cancellationToken).ConfigureAwait(false);
+
+                if (services.GetService<IBrainBirths>() is { } births)
+                {
+                    await births.Born(provision).WaitAsync(cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            entry.ExpiresAt = session.ExpiresAt;
+            entry.Initialized = true;
+        }
+        finally
+        {
+            entry.Gate.Release();
+        }
+    }
+
+    private sealed class GuestBrainEntry(DateTimeOffset expiresAt)
+    {
+        public SemaphoreSlim Gate { get; } = new(1, 1);
+        public DateTimeOffset ExpiresAt { get; set; } = expiresAt;
+        public volatile bool Initialized;
     }
 
     internal static bool TryMatchGuestBrainPath(PathString path, out string brainId)
@@ -120,7 +194,7 @@ public static class CloudHost
             try
             {
                 Member? member;
-                using (InProcessCallerScope.Enter())
+                using (ModuleScope.EnterCapability(KernelAuthHost.Module))
                 {
                     member = await sessions.Validate(sid, context.HttpContext.RequestAborted).ConfigureAwait(false);
                 }
@@ -158,54 +232,75 @@ internal sealed class KernelAuthHost : IAuthHostSeam
 
     public CapabilityCaller? CurrentCaller => RuntimeCallerContext.Current;
 
-    public IDisposable StampModuleCaller(CapabilityCaller module) => InProcessCallerScope.Enter();
+    public IDisposable StampModuleCaller(CapabilityCaller module) => ModuleScope.EnterCapability(module);
 
     public async Task<T> InModuleCall<T>(Func<Task<T>> call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        using var scope = InProcessCallerScope.Enter();
+        using var scope = ModuleScope.EnterKernelCall();
         return await call().ConfigureAwait(false);
     }
 }
 
 internal sealed class KernelOrganisationHost : IOrganisationHost
 {
+    internal static readonly CapabilityCaller Module = CapabilityCallers.Of(OrganisationsModule.Id, OrganisationsModule.Id, "system", CallerKind.App, OrganisationsModule.Id);
+
     public CapabilityCaller? CurrentCaller => RuntimeCallerContext.Current;
 
-    public IDisposable StampModule() => InProcessCallerScope.Enter();
+    public IDisposable StampModule() => ModuleScope.EnterCapability(Module);
 
     public async Task InModuleCall(Func<Task> call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        using var scope = InProcessCallerScope.Enter();
+        using var scope = ModuleScope.EnterKernelCall();
         await call().ConfigureAwait(false);
     }
 
     public async Task<T> InModuleCall<T>(Func<Task<T>> call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        using var scope = InProcessCallerScope.Enter();
+        using var scope = ModuleScope.EnterKernelCall();
         return await call().ConfigureAwait(false);
     }
 }
 
 internal sealed class KernelMailHost : IMailHost
 {
-    public IDisposable StampModule() => InProcessCallerScope.Enter();
+    internal static readonly CapabilityCaller Module = CapabilityCallers.Of(MailModule.Id, MailModule.Id, "system", CallerKind.App, MailModule.Id);
+
+    public IDisposable StampModule() => ModuleScope.EnterCapability(Module);
+
+    public async Task<T> InModuleCall<T>(Func<Task<T>> call)
+    {
+        ArgumentNullException.ThrowIfNull(call);
+        using var scope = ModuleScope.EnterKernelCall();
+        return await call().ConfigureAwait(false);
+    }
 }
 
 internal sealed class ModuleScope : IDisposable
 {
-    private readonly IDisposable? inner;
+    private readonly IDisposable inner;
     private readonly object? previous;
     private bool disposed;
 
-    public ModuleScope(IDisposable? inner)
+    private ModuleScope(IDisposable inner)
     {
         this.inner = inner;
         previous = Orleans.Runtime.RequestContext.Get(RuntimeCallerContext.ModuleCallKey);
         Orleans.Runtime.RequestContext.Set(RuntimeCallerContext.ModuleCallKey, true);
     }
+
+    public static IDisposable EnterCapability(CapabilityCaller module)
+    {
+        var inProcess = InProcessCallerScope.Enter();
+        var stamped = RuntimeCallerContext.Stamp(module);
+        return new ModuleScope(new CompositeScope(stamped, inProcess));
+    }
+
+    public static IDisposable EnterKernelCall()
+        => new ModuleScope(InProcessCallerScope.EnterKernel("system"));
 
     public void Dispose()
     {
@@ -219,7 +314,16 @@ internal sealed class ModuleScope : IDisposable
         {
             Orleans.Runtime.RequestContext.Set(RuntimeCallerContext.ModuleCallKey, previous);
         }
-        inner?.Dispose();
+        inner.Dispose();
+    }
+
+    private sealed class CompositeScope(IDisposable first, IDisposable second) : IDisposable
+    {
+        public void Dispose()
+        {
+            first.Dispose();
+            second.Dispose();
+        }
     }
 }
 
@@ -235,6 +339,7 @@ internal sealed class CloudLobbyAuth(ICloudSignIn signIn) : ILobbyAuth
 
 internal sealed class SecretLobbyTokenKey(IServiceProvider services) : ILobbyTokenKey
 {
+    internal static readonly CapabilityCaller Module = CapabilityCallers.Of(LobbyModule.Id, LobbyModule.Id, "system", CallerKind.App, LobbyModule.Id);
     private byte[]? key;
 
     public byte[] Key => key ??= Read();
@@ -242,7 +347,7 @@ internal sealed class SecretLobbyTokenKey(IServiceProvider services) : ILobbyTok
     private byte[] Read()
     {
         var secrets = services.GetRequiredKeyedService<ISecrets>(Capability.Secrets.V1Id);
-        using var scope = InProcessCallerScope.Enter();
+        using var scope = ModuleScope.EnterCapability(Module);
         var reference = secrets.Named(LobbyModule.TokenSecret).GetAwaiter().GetResult();
         if (reference.Status != SecretStatus.Set)
         {
@@ -282,16 +387,41 @@ internal sealed class CloudOrganisationMail(IMailSender sender) : IOrganisationM
 
 internal sealed class CloudOrganisationIdentity(IServiceProvider services) : IOrganisationIdentity
 {
-    private IIdentity Identity => services.GetRequiredKeyedService<IIdentity>(Capability.Identity.V1Id);
+    private IIdentityClient Identity => services.GetRequiredService<IIdentityClient>();
 
-    public Task<Member?> Membership(string brainId, string principalId, CancellationToken cancellationToken = default)
-        => Identity.Membership(brainId, principalId, cancellationToken);
+    public async Task<Member?> Membership(string brainId, string principalId, CancellationToken cancellationToken = default)
+    {
+        var member = await Identity.Membership(brainId, principalId).WaitAsync(cancellationToken).ConfigureAwait(false);
+        return member is null ? null : ToCapabilityMember(member);
+    }
 
-    public Task<Member?> EnsureMember(Member member, CancellationToken cancellationToken = default)
-        => Identity.EnsureMember(member, cancellationToken);
+    public async Task<Member?> EnsureMember(Member member, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(member);
+        var ensured = await Identity.EnsureMember(new OsIdentity.Member
+        {
+            PrincipalId = member.PrincipalId,
+            AccountId = member.AccountId,
+            BrainId = member.BrainId,
+            Role = (OsIdentity.MemberRole)(int)member.Role,
+            DisplayName = member.DisplayName,
+            JoinedAt = member.JoinedAt,
+        }).WaitAsync(cancellationToken).ConfigureAwait(false);
+        return ensured is null ? null : ToCapabilityMember(ensured);
+    }
 
     public Task RemovePrincipalMember(string brainId, string principalId, CancellationToken cancellationToken = default)
-        => Identity.RemovePrincipalMember(brainId, principalId, cancellationToken);
+        => Identity.RemovePrincipalMember(brainId, principalId).WaitAsync(cancellationToken);
+
+    private static Member ToCapabilityMember(OsIdentity.Member member) => new()
+    {
+        PrincipalId = member.PrincipalId,
+        AccountId = member.AccountId,
+        BrainId = member.BrainId,
+        Role = (MemberRole)(int)member.Role,
+        DisplayName = member.DisplayName,
+        JoinedAt = member.JoinedAt,
+    };
 }
 
 internal sealed class CloudGuestTryBrainAccess(IBrainAccess inner, GuestTrySessionService trySessions, TimeProvider clock) : IBrainAccess

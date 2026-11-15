@@ -102,8 +102,10 @@ internal sealed class RateLimitedMailSender(IMailSender inner, IRecipientHasher 
     public async Task<MailSendResult> SendAsync(MailMessage message, CancellationToken ct)
     {
         var recipientHash = hasher.Hash("mail-rate", message.To);
-        using var stamp = host?.StampModule();
-        var decision = await neurons.Get<IMailRate>(MailIds.Of(IMailRate.Type, IMailRate.Key(recipientHash, message.Template))).TryAcquire(message.Template);
+        var rate = neurons.Get<IMailRate>(MailIds.Of(IMailRate.Type, IMailRate.Key(recipientHash, message.Template)));
+        var decision = host is not null
+            ? await host.InModuleCall(() => rate.TryAcquire(message.Template))
+            : await rate.TryAcquire(message.Template);
         return decision.Allowed
             ? await inner.SendAsync(message, ct)
             : new MailSendResult(MailSendOutcome.RateLimited, null, decision.RetryAt);

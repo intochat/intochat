@@ -4,4 +4,6 @@ namespace IntoChat.Cloud.Mail;
 public interface IMailHost
 {
     IDisposable StampModule();
+
+    Task<T> InModuleCall<T>(Func<Task<T>> call) => call();
 }

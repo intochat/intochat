@@ -119,7 +119,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
         }
 
         // 4. Include known standard apps if not already in open views
-        foreach (var standardApp in new[] { "ino", "calculator", "creator", "data", "tasks", "settings", "files" })
+        foreach (var standardApp in new[] { "ino", "calculator", "creator", "photocraft", "data", "tasks", "settings", "files" })
         {
             if (!summaries.ContainsKey(standardApp))
             {

@@ -66,7 +66,7 @@ public sealed class SiloAccessCallFilter(IServiceProvider services) : IIncomingG
             // Neuron method invocations
             if (context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is RuntimeInvocation call)
             {
-                await AuthorizeNeuronCallAsync(context, call).ConfigureAwait(false);
+                await AuthorizeNeuronCallAsync(context, call);
             }
         }
         else
@@ -144,7 +144,7 @@ public sealed class SiloAccessCallFilter(IServiceProvider services) : IIncomingG
         CallDecision? decision = null;
         foreach (var stage in stages)
         {
-            decision = await stage.EvaluateAsync(request).ConfigureAwait(false);
+            decision = await stage.EvaluateAsync(request);
             if (decision is not null)
             {
                 break;
