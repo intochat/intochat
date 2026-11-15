@@ -9,13 +9,16 @@ Open-source Photoshop-compatible layered image editor (PSD, layers, alpha masks,
 2. MCP Server mode (IArtCraftStudio + IMcpServer at {brain}/mcp/photocraft) for multi-step agentic tool workflows.
 3. Interactive WASM Web UI + instant local Windows raster preview mode for full-card canvas editing.
 */
-using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.Neurons;
+using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.ArtCraft;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.UI;
+using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.PhotoCraft;
 
@@ -40,13 +43,7 @@ public sealed record PhotoCraftToggleLayer(int? LayerIndex = null, string? Layer
 [Signal("photocraft.apply-preset")]
 public sealed record PhotoCraftApplyPreset(string? Preset = null, string? Document = null, string? Mode = null) : Signal;
 
-public sealed record PhotoCraftHistoryEntry(
-    string Id,
-    string CommandId,
-    string Title,
-    string ExecutionMode,
-    string OutputDocument,
-    string CliInvocation);
+public sealed record PhotoCraftHistoryEntry(string Id, string CommandId, string Title, string ExecutionMode, string OutputDocument, string CliInvocation);
 
 public sealed record PhotoCraftAppState(
     string ExecutionMode,
@@ -65,20 +62,96 @@ public sealed record PhotoCraftAppState(
     string? ActivePreset = null)
 {
     public PhotoCraftAppState() : this(
-        "wasm-ui",
-        "/work/portrait.png",
-        "/work/portrait.nobg.png",
-        "layer.removeBackground",
-        "Ready · PhotoCraft Studio",
+        "wasm-ui", "/work/portrait.png", "/work/portrait.nobg.png", "layer.removeBackground", "Ready · PhotoCraft Studio",
         "photocraft-cli run /work/portrait.png --cmd layer.removeBackground --params '{\"featherPx\":1,\"output\":\"layer-mask\"}' --out /work/portrait.nobg.png --format png",
-        ArtCraftEngineRunner.CyanPreviewPngDataUrl,
-        "PhotoCraft tools connected.",
-        [
-            "Subject Layer (100% · Normal)",
-            "Background Layer (Locked · 100%)",
-        ],
-        [])
+        ArtCraftEngineRunner.CyanPreviewPngDataUrl, "PhotoCraft tools connected.",
+        ["Subject Layer (100% · Normal)", "Background Layer (Locked · 100%)"], [])
+    { }
+
+    [Invariant("ExecutionMode is wasm-ui, mcp, or native-linux."), JsonIgnore]
+    public bool ValidExecutionMode => ExecutionMode is "wasm-ui" or "mcp" or "native-linux";
+
+    [Invariant("Edit history is bounded at 10 entries."), JsonIgnore]
+    public bool HistoryBounded => (History?.Length ?? 0) <= 10;
+
+    [Invariant("PreviewDataUrl is an inline PNG data URL."), JsonIgnore]
+    public bool ValidPngPreview => PreviewDataUrl.StartsWith("data:image/png;base64,", StringComparison.Ordinal);
+
+    public Rule SupportedExecutionMode(string? mode) =>
+        Decision.Rule("invalid_execution_mode", string.IsNullOrWhiteSpace(mode) || mode.Trim().ToLowerInvariant() is not ("wasm-ui" or "mcp" or "native-linux"), "Execution mode must be wasm-ui, mcp, or native-linux.");
+
+    public Rule ValidLayerIndex(int index) =>
+        Decision.Rule("layer_out_of_range", index < 0 || index >= EffectiveLayers.Length, $"Layer index {index} is outside 0..{EffectiveLayers.Length - 1}.");
+
+    private string[] EffectiveLayers => Layers is { Length: > 0 } ? Layers : ["Subject Layer (100% · Normal)", "Background Layer (Locked · 100%)"];
+
+    public Decision<PhotoCraftAppState> SwitchExecutionMode([Sample("wasm-ui", "mcp", "native-linux", "invalid")] string mode)
     {
+        if (Decision.Check("switch-mode", SupportedExecutionMode(mode)) is { } refusal) { return refusal; }
+        var normalized = mode.Trim().ToLowerInvariant();
+        return Decision.Accept(this with { ExecutionMode = normalized, Status = $"Switched PhotoCraft execution backend to {normalized}." });
+    }
+
+    public Decision<PhotoCraftAppState> ToggleLayerByIndex([Sample(0, 1, 9)] int index)
+    {
+        if (Decision.Check("toggle-layer", ValidLayerIndex(index)) is { } refusal) { return refusal; }
+
+        var baseLayers = EffectiveLayers;
+        var hiddenSet = (HiddenLayerIndices ?? []).ToHashSet();
+        var nowHidden = hiddenSet.Add(index);
+        if (!nowHidden) { hiddenSet.Remove(index); }
+
+        var updatedLayers = baseLayers.Select((layer, idx) =>
+        {
+            var clean = layer.StartsWith("[Hidden] ", StringComparison.Ordinal) ? layer["[Hidden] ".Length..] : layer;
+            return hiddenSet.Contains(idx) ? $"[Hidden] {clean}" : clean;
+        }).ToArray();
+
+        var cliParams = JsonSerializer.Serialize(new { layerIndex = index, visible = !nowHidden });
+        var currentHistory = History ?? [];
+        var entry = new PhotoCraftHistoryEntry(
+            $"edit-{currentHistory.Length + 1}", "layer.toggleVisibility", $"{(nowHidden ? "Hide" : "Show")} Layer {index + 1}",
+            ExecutionMode, OutputDocument,
+            $"photocraft-cli run {ActiveDocument} --cmd layer.toggleVisibility --params '{cliParams}' --out {OutputDocument} --format png");
+
+        return Decision.Accept(this with
+        {
+            Layers = updatedLayers,
+            HiddenLayerIndices = [.. hiddenSet.Order()],
+            PreviewDataUrl = hiddenSet.Count > 0 ? ArtCraftEngineRunner.CutoutPreviewPngDataUrl : ArtCraftEngineRunner.SelectPreviewPngDataUrl(LastCommandId),
+            LastCommandId = entry.CommandId,
+            LastCommandTitle = entry.Title,
+            LastCliInvocation = entry.CliInvocation,
+            Status = $"{(nowHidden ? "Hid" : "Revealed")} layer {index + 1} ({updatedLayers[index]}) · Local preview updated",
+            History = [.. currentHistory.TakeLast(9), entry],
+        });
+    }
+
+    [IgnoreExplore]
+    public PhotoCraftAppState ApplyEngineOutcome(ArtCraftEngineResult result, string? activePreset)
+    {
+        if (!result.IsValidCommand)
+        {
+            return this with { ExecutionMode = result.ExecutionMode, LastCommandId = result.CommandId, LastCommandTitle = result.CommandTitle, LastCliInvocation = string.Empty, Status = result.Summary };
+        }
+
+        var currentHistory = History ?? [];
+        var entry = new PhotoCraftHistoryEntry($"edit-{currentHistory.Length + 1}", result.CommandId, result.CommandTitle, result.ExecutionMode, result.OutputDocument, result.CliInvocation);
+        return this with
+        {
+            ExecutionMode = result.ExecutionMode,
+            ActiveDocument = result.InputDocument,
+            OutputDocument = result.OutputDocument,
+            LastCommandId = result.CommandId,
+            LastCommandTitle = result.CommandTitle,
+            LastCliInvocation = result.CliInvocation,
+            PreviewDataUrl = string.IsNullOrWhiteSpace(result.PreviewDataUrl) ? ArtCraftEngineRunner.SelectPreviewPngDataUrl(result.CommandId) : result.PreviewDataUrl,
+            Status = result.Summary,
+            Layers = result.LayersOrTracks,
+            HiddenLayerIndices = [],
+            ActivePreset = activePreset ?? ActivePreset,
+            History = [.. currentHistory.TakeLast(9), entry],
+        };
     }
 }
 
@@ -88,8 +161,7 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
     public const string AppName = ShippedApps.PhotoCraft;
 
     public static AppBundle Bundle { get; } = new(
-        "photocraft",
-        "1.1.0",
+        "photocraft", "1.1.0",
         new AppManifest(
             Title: "PhotoCraft",
             Description: "Photoshop-compatible layered image studio for editing images, removing backgrounds, adjusting levels, and generating graphics.",
@@ -103,17 +175,9 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
                 new("toggle-layer", "Toggle visibility of a raster/adjustment layer by index or name."),
                 new("apply-preset", "Apply a local filter preset (warm, vivid, monochrome, cutout, gradient) with instant preview."),
             ],
-            Settings: [],
-            Slots: [],
-            Icon: "image",
-            Dock: 5, Studio: true,
-            Toolbar:
-            [
-                new("open", Icon: "link", Label: "Connect editor"),
-                new("remove-background", Icon: "wand-sparkles", Label: "Remove Background"),
-            ]),
-        "",
-        new Dictionary<string, string>(StringComparer.Ordinal))
+            Settings: [], Slots: [], Icon: "image", Dock: 5, Studio: true,
+            Toolbar: [new("open", Icon: "link", Label: "Connect editor"), new("remove-background", Icon: "wand-sparkles", Label: "Remove Background")]),
+        "", new Dictionary<string, string>(StringComparer.Ordinal))
     {
         CompiledType = typeof(PhotoCraftApp).AssemblyQualifiedName,
     };
@@ -132,10 +196,8 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
     {
         ArgumentNullException.ThrowIfNull(request);
         return ApplyEngineExecutionAsync(
-            NormalizeTextOrCurrent(request.Prompt, "remove background from portrait.png"),
-            explicitParamsJson: null,
-            NormalizeTextOrCurrent(request.Document, State.ActiveDocument),
-            NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
+            NormalizeTextOrCurrent(request.Prompt, "remove background from portrait.png"), null,
+            NormalizeTextOrCurrent(request.Document, State.ActiveDocument), NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
     [On]
@@ -143,11 +205,7 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
     {
         ArgumentNullException.ThrowIfNull(request);
         var targetDoc = NormalizeTextOrCurrent(request.Document, State.ActiveDocument);
-        return ApplyEngineExecutionAsync(
-            $"remove background from {targetDoc}",
-            explicitParamsJson: null,
-            targetDoc,
-            NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
+        return ApplyEngineExecutionAsync($"remove background from {targetDoc}", null, targetDoc, NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
     [On]
@@ -155,10 +213,8 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
     {
         ArgumentNullException.ThrowIfNull(request);
         return ApplyEngineExecutionAsync(
-            NormalizeTextOrCurrent(request.CommandId, "layer.removeBackground"),
-            request.ParametersJson,
-            NormalizeTextOrCurrent(request.Document, State.ActiveDocument),
-            NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
+            NormalizeTextOrCurrent(request.CommandId, "layer.removeBackground"), request.ParametersJson,
+            NormalizeTextOrCurrent(request.Document, State.ActiveDocument), NormalizeModeOrCurrent(request.Mode, State.ExecutionMode));
     }
 
     [On]
@@ -170,64 +226,21 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
     }
 
     [On]
-    public async Task ToggleLayer(PhotoCraftToggleLayer request)
+    public Task ToggleLayer(PhotoCraftToggleLayer request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var baseLayers = State.Layers is { Length: > 0 }
-            ? State.Layers
-            : ["Subject Layer (100% · Normal)", "Background Layer (Locked · 100%)"];
-
+        var baseLayers = State.Layers is { Length: > 0 } ? State.Layers : ["Subject Layer (100% · Normal)", "Background Layer (Locked · 100%)"];
         var index = request.LayerIndex ?? 0;
         if (request.LayerIndex is null && !string.IsNullOrWhiteSpace(request.LayerName))
         {
             var found = Array.FindIndex(baseLayers, l => l.Contains(request.LayerName.Trim(), StringComparison.OrdinalIgnoreCase));
             if (found >= 0) { index = found; }
         }
-        index = Math.Clamp(index, 0, baseLayers.Length - 1);
-
-        var hiddenSet = (State.HiddenLayerIndices ?? []).ToHashSet();
-        var nowHidden = hiddenSet.Add(index);
-        if (!nowHidden)
-        {
-            hiddenSet.Remove(index);
-        }
-
-        var updatedLayers = baseLayers.Select((layer, idx) =>
-        {
-            var clean = layer.StartsWith("[Hidden] ", StringComparison.Ordinal)
-                ? layer["[Hidden] ".Length..]
-                : layer;
-            return hiddenSet.Contains(idx) ? $"[Hidden] {clean}" : clean;
-        }).ToArray();
-
-        var nextPreview = hiddenSet.Count > 0
-            ? ArtCraftEngineRunner.CutoutPreviewPngDataUrl
-            : ArtCraftEngineRunner.SelectPreviewPngDataUrl(State.LastCommandId);
-
-        var cliParams = JsonSerializer.Serialize(new LayerVisibilityParams(index, !nowHidden), JsonSerializerOptions.Web);
-        var entry = new PhotoCraftHistoryEntry(
-            $"edit-{State.History.Length + 1}",
-            "layer.toggleVisibility",
-            $"{(nowHidden ? "Hide" : "Show")} Layer {index + 1}",
-            State.ExecutionMode,
-            State.OutputDocument,
-            $"photocraft-cli run {State.ActiveDocument} --cmd layer.toggleVisibility --params '{cliParams}' --out {State.OutputDocument} --format png");
-
-        await Show(State with
-        {
-            Layers = updatedLayers,
-            HiddenLayerIndices = [.. hiddenSet.Order()],
-            PreviewDataUrl = nextPreview,
-            LastCommandId = entry.CommandId,
-            LastCommandTitle = entry.Title,
-            LastCliInvocation = entry.CliInvocation,
-            Status = $"{(nowHidden ? "Hid" : "Revealed")} layer {index + 1} ({updatedLayers[index]}) · Local preview updated",
-            History = [.. State.History.TakeLast(9), entry],
-        });
+        return ApplyDecisionAsync(State.ToggleLayerByIndex(Math.Clamp(index, 0, baseLayers.Length - 1)));
     }
 
     [On]
-    public async Task ApplyPreset(PhotoCraftApplyPreset request)
+    public Task ApplyPreset(PhotoCraftApplyPreset request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var preset = NormalizeTextOrCurrent(request.Preset, "warm").ToLowerInvariant();
@@ -240,102 +253,42 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
             "levels" or "auto" => "adjust levels photo",
             _ => "preset.warm",
         };
-
-        await ApplyEngineExecutionAsync(
-            command,
-            explicitParamsJson: null,
-            NormalizeTextOrCurrent(request.Document, State.ActiveDocument),
-            NormalizeModeOrCurrent(request.Mode, State.ExecutionMode),
-            activePreset: preset);
+        return ApplyEngineExecutionAsync(command, null, NormalizeTextOrCurrent(request.Document, State.ActiveDocument), NormalizeModeOrCurrent(request.Mode, State.ExecutionMode), preset);
     }
 
-    protected override View Render(PhotoCraftAppState state)
+    public Task RemoveBackgroundDefaultAsync() => RemoveBackground(new PhotoCraftRemoveBackground(State.ActiveDocument, State.ExecutionMode));
+    public Task ApplyQuickPresetAsync(string preset) => ApplyPreset(new PhotoCraftApplyPreset(preset, State.ActiveDocument, State.ExecutionMode));
+
+    protected override Node Render(PhotoCraftAppState state)
     {
         var hidden = (state.HiddenLayerIndices ?? []).ToHashSet();
-        var presetButtons = new Node[]
-        {
-            new Button("preset-cutout", "Remove Background", Emit: EmitPhoto(new PhotoCraftRemoveBackground(state.ActiveDocument, state.ExecutionMode)), Tone: ButtonTone.Accent) { Icon = "wand-sparkles", Small = true },
-            new Button("preset-warm", "Warm Cinema", Emit: EmitPhoto(new PhotoCraftApplyPreset("warm", state.ActiveDocument, state.ExecutionMode))) { Small = true },
-            new Button("preset-vivid", "Vivid Pop", Emit: EmitPhoto(new PhotoCraftApplyPreset("vivid", state.ActiveDocument, state.ExecutionMode))) { Small = true },
-            new Button("preset-mono", "Monochrome", Emit: EmitPhoto(new PhotoCraftApplyPreset("monochrome", state.ActiveDocument, state.ExecutionMode))) { Small = true },
-            new Button("preset-gradient", "Gradient Canvas", Emit: EmitPhoto(new PhotoCraftApplyPreset("gradient", state.ActiveDocument, state.ExecutionMode))) { Small = true },
-        };
+        var layers = state.Layers ?? [];
 
-        var layerNodes = (state.Layers ?? []).Select((layer, idx) =>
-            (Node)new Button(
-                $"toggle-layer-{idx}",
-                hidden.Contains(idx) ? $"Show: {layer}" : $"Hide: {layer}",
-                Emit: EmitPhoto(new PhotoCraftToggleLayer(idx)))
-            { Small = true }).ToArray();
-
-        return new View(
-            Descriptor.Title,
-            new Column(
+        return RenderStudioShell(
+            state.Status, state.ActiveDocument, state.OutputDocument, state.WebUrl ?? "http://localhost:18082", state.ExecutionMode,
+            "Layer Stack", layers,
+            headerActions:
             [
-                new Text($"{state.Status} · {state.ActiveDocument} -> {state.OutputDocument}") { Tone = "muted", Tabular = true },
-                new Row(presetButtons) { Gap = 6 },
-                new Row(layerNodes) { Gap = 6 },
-                new Text($"Preview ready ({(string.IsNullOrEmpty(state.PreviewDataUrl) ? "pending" : "PNG inline")}) · History: {state.History.Length} step(s)") { Tone = "muted", Tabular = true },
-                DigitalBrain.UI.Ui.WebBrowser(state.WebUrl ?? "http://localhost:18082", $"{Descriptor.Title} WASM Studio", $"{Descriptor.Id}-wasm", 0, state.ExecutionMode),
-            ])
-            {
-                Gap = 6,
-            });
+                GhostButton("WASM").Key("mode-wasm-ui").Small().OnClick<PhotoCraftAppState>(x => x.SwitchExecutionMode("wasm-ui")),
+                GhostButton("MCP").Key("mode-mcp").Small().OnClick<PhotoCraftAppState>(x => x.SwitchExecutionMode("mcp")),
+                GhostButton("CLI").Key("mode-native-linux").Small().OnClick<PhotoCraftAppState>(x => x.SwitchExecutionMode("native-linux")),
+                PrimaryButton("Remove Background", "wand-sparkles").Key("preset-cutout").Small().OnClick(() => RemoveBackgroundDefaultAsync()),
+            ],
+            inspectorExtras:
+            [
+                MutedText($"Preview ({(string.IsNullOrEmpty(state.PreviewDataUrl) ? "pending" : "PNG inline")}) · History: {(state.History ?? []).Length}/10").Tabular(),
+                HStack(Space.Xs)[
+                    Button("Warm Cinema").Key("preset-warm").Small().OnClick(() => ApplyQuickPresetAsync("warm")),
+                    Button("Vivid Pop").Key("preset-vivid").Small().OnClick(() => ApplyQuickPresetAsync("vivid"))
+                ],
+                HStack(Space.Xs)[
+                    Button("Monochrome").Key("preset-mono").Small().OnClick(() => ApplyQuickPresetAsync("monochrome")),
+                    Button("Gradient Canvas").Key("preset-gradient").Small().OnClick(() => ApplyQuickPresetAsync("gradient"))
+                ],
+                VStack(Space.Xs, [.. layers.Select((layer, idx) => GhostButton(hidden.Contains(idx) ? $"Show: {layer}" : $"Hide: {layer}").Key($"toggle-layer-{idx}").Small().OnClick<PhotoCraftAppState>(x => x.ToggleLayerByIndex(idx)).ToNode())]),
+            ]);
     }
 
-    private sealed record LayerVisibilityParams(int LayerIndex, bool Visible);
-
-    private static Emit EmitPhoto<TSignal>(TSignal signal) where TSignal : Signal
-    {
-        var alias = typeof(TSignal).GetCustomAttribute<SignalAttribute>(false)?.Alias ?? typeof(TSignal).Name;
-        return new Emit("app.photocraft", alias, JsonSerializer.SerializeToElement(signal));
-    }
-
-    private async Task ApplyEngineExecutionAsync(
-        string instructionOrCommand,
-        string? explicitParamsJson,
-        string targetDoc,
-        string mode,
-        string? activePreset = null)
-    {
-        var result = await ExecuteStudioCommandAsync(instructionOrCommand, explicitParamsJson, targetDoc, mode);
-        if (!result.IsValidCommand)
-        {
-            await Show(State with
-            {
-                ExecutionMode = result.ExecutionMode,
-                LastCommandId = result.CommandId,
-                LastCommandTitle = result.CommandTitle,
-                LastCliInvocation = string.Empty,
-                Status = result.Summary,
-            });
-            return;
-        }
-
-        var entry = new PhotoCraftHistoryEntry(
-            $"edit-{State.History.Length + 1}",
-            result.CommandId,
-            result.CommandTitle,
-            result.ExecutionMode,
-            result.OutputDocument,
-            result.CliInvocation);
-
-        await Show(State with
-        {
-            ExecutionMode = result.ExecutionMode,
-            ActiveDocument = result.InputDocument,
-            OutputDocument = result.OutputDocument,
-            LastCommandId = result.CommandId,
-            LastCommandTitle = result.CommandTitle,
-            LastCliInvocation = result.CliInvocation,
-            PreviewDataUrl = string.IsNullOrWhiteSpace(result.PreviewDataUrl)
-                ? ArtCraftEngineRunner.SelectPreviewPngDataUrl(result.CommandId)
-                : result.PreviewDataUrl,
-            Status = result.Summary,
-            Layers = result.LayersOrTracks,
-            HiddenLayerIndices = [],
-            ActivePreset = activePreset ?? State.ActivePreset,
-            History = [.. State.History.TakeLast(9), entry],
-        });
-    }
+    private async Task ApplyEngineExecutionAsync(string instructionOrCommand, string? explicitParamsJson, string targetDoc, string mode, string? activePreset = null) =>
+        await Show(State.ApplyEngineOutcome(await ExecuteStudioCommandAsync(instructionOrCommand, explicitParamsJson, targetDoc, mode), activePreset));
 }
