@@ -5,11 +5,12 @@ import 'node_context.dart';
 import '../design/cards/approval_card.dart';
 import 'node_common.dart';
 
-/// An approval card resolves either on the OS confirmation inbox surface or
-/// inline inside a host-owned app view when [node.resolve] is set and [ctx.interactive] is true.
+/// An approval card can only be resolved on the OS confirmation inbox surface
+/// when [node.resolve] is set, [ctx.confirmation] is true, and [ctx.interactive] is true;
+/// elsewhere it renders read-only.
 Widget renderApprovalCard(ApprovalCardNode node, NodeContext ctx) {
   final resolve = node.resolve;
-  final canResolve = resolve != null && ctx.interactive;
+  final canResolve = resolve != null && ctx.confirmation && ctx.interactive;
   return ApprovalCard(
     key: ValueKey('approval:${node.id}'),
     source: cardSource(
@@ -37,25 +38,14 @@ Widget renderApprovalCard(ApprovalCardNode node, NodeContext ctx) {
     ),
     state: _state(node.status),
     onApprove: canResolve
-        ? () => _resolveApproval(node, resolve.planId, ctx, approve: true)
+        ? () => ctx.resolve(resolve.planId, approve: true)
         : null,
     onReject: canResolve
-        ? () => _resolveApproval(node, resolve.planId, ctx, approve: false)
+        ? () => ctx.resolve(resolve.planId, approve: false)
         : null,
   );
 }
 
-Future<void> _resolveApproval(
-  ApprovalCardNode node,
-  String planId,
-  NodeContext ctx, {
-  required bool approve,
-}) {
-  if (ctx.confirmation || node.key.isEmpty) {
-    return ctx.resolve(planId, approve: approve);
-  }
-  return ctx.activate(node.key, value: approve ? 'approve' : 'deny');
-}
 
 ApprovalState _state(String status) => switch (status.toLowerCase()) {
   'approved' => ApprovalState.approved,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -273,46 +275,31 @@ void main() {
     expect(find.byType(TextField), findsNothing);
   });
 
-  testWidgets(
-    'a card of a message is drawn under it, including live approval',
-    (tester) async {
-      final events = <Map<String, dynamic>>[];
-      await _host(
-        tester,
-        _conversation(
-          messages: [
-            _message(
-              'm1',
-              'assistant',
-              'Here is the staged change.',
-              cards: [
-                {
-                  'kind': 'approvalCard',
-                  'key': 'approve-plan-1',
-                  'id': 'plan-1',
-                  'title': 'Push branch ino/fix',
-                  'summary': '1 commit verified',
-                  'rows': [
-                    {'label': 'Target', 'oldValue': null, 'newValue': 'main'},
-                  ],
-                  'status': 'pending',
-                  'resolve': {'planId': 'plan-1'},
-                },
-              ],
-            ),
-          ],
-        ),
-        events: events,
-      );
+  testWidgets('a card of a message is drawn under it', (tester) async {
+    await _host(
+      tester,
+      _conversation(
+        messages: [
+          _message(
+            'm1',
+            'assistant',
+            'Here is the staged change.',
+            cards: [
+              {
+                'kind': 'card',
+                'title': 'Staged summary',
+                'body': '1 commit verified',
+                'children': <Object>[],
+              },
+            ],
+          ),
+        ],
+      ),
+    );
 
-      expect(find.text('Push branch ino/fix'), findsOneWidget);
-      await tester.tap(find.text('Approve'));
-      await tester.pumpAndSettle();
-
-      expect(events.single['key'], 'approve-plan-1');
-      expect(events.single['value'], 'approve');
-    },
-  );
+    expect(find.text('Staged summary'), findsOneWidget);
+    expect(find.text('1 commit verified'), findsOneWidget);
+  });
 
   testWidgets('the empty state is drawn when there are no messages', (
     tester,
@@ -362,4 +349,122 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('message 59'), findsOneWidget);
   });
+
+  testWidgets(
+    'an approval card inside a conversation view renders read-only without approve actions',
+    (tester) async {
+      final events = <Map<String, dynamic>>[];
+      await _host(
+        tester,
+        _conversation(
+          messages: [
+            _message(
+              'm1',
+              'assistant',
+              'Here is the staged change.',
+              cards: [
+                {
+                  'kind': 'approvalCard',
+                  'key': 'approve-plan-1',
+                  'id': 'plan-1',
+                  'title': 'Push branch ino/fix',
+                  'summary': '1 commit verified',
+                  'rows': [
+                    {'label': 'Target', 'oldValue': null, 'newValue': 'main'},
+                  ],
+                  'status': 'pending',
+                  'resolve': {'planId': 'plan-1'},
+                },
+              ],
+            ),
+          ],
+        ),
+        events: events,
+      );
+
+      expect(find.text('Push branch ino/fix'), findsOneWidget);
+      expect(find.text('Pending approval'), findsOneWidget);
+      expect(find.text('Approve'), findsNothing);
+      expect(find.text('Reject'), findsNothing);
+      expect(events, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'Enter over a non-empty composer draft sends nothing and approves nothing when a prompt arrives',
+    (tester) async {
+      final events = <Map<String, dynamic>>[];
+      var hasWaiting = false;
+      final controller = StreamController<void>.broadcast();
+      addTearDown(controller.close);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: UiTheme.intochat(Brightness.light),
+          home: Scaffold(
+            body: ViewHost(
+              knowsApp: (_) => false,
+              kind: 'view',
+              name: _view,
+              load: (kind, name) async => {
+                'generation': hasWaiting ? 2 : 1,
+                'view': {
+                  'title': 'Chat',
+                  'root': _conversation(
+                    waiting: hasWaiting
+                        ? {
+                            'kind': 'choiceCard',
+                            'key': 'wait-choice',
+                            'id': 'c-wait',
+                            'question': 'Deploy staged branch?',
+                            'options': [
+                              {
+                                'title': 'Approve deploy',
+                                'pick': {
+                                  'key': 'pick-approve',
+                                  'label': 'Approve deploy',
+                                  'emit': {'owner': 'app.ino', 'signal': 'pick'},
+                                },
+                              },
+                              {
+                                'title': 'Cancel',
+                                'pick': {
+                                  'key': 'pick-cancel',
+                                  'label': 'Cancel',
+                                  'emit': {'owner': 'app.ino', 'signal': 'pick'},
+                                },
+                              },
+                            ],
+                          }
+                        : null,
+                  ),
+                },
+              },
+              watch: (kind, name) => controller.stream,
+              onAction: (event) async {
+                events.add(event);
+                return null;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'Wait, let me finish');
+      await tester.pump();
+
+      hasWaiting = true;
+      controller.add(null);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Deploy staged branch?'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(events, isEmpty);
+    },
+  );
 }

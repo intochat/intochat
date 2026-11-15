@@ -12,6 +12,7 @@ using IntoChat.OS.Modules.Flutter.Screens;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Runtime;
+using Microsoft.Extensions.Logging;
 using TestOS = DigitalBrain.Testing.TestOS;
 using Xunit;
 
@@ -105,6 +106,7 @@ public sealed class ScreenDirectoryNeuronFacts
     private sealed class MockView : IView
     {
         public PublishedView? Published { get; set; }
+        public ViewActivation? ActivationResult { get; set; }
         public List<(long Generation, string Key, string? Value)> Activations { get; } = [];
 
         public Task Publish(long generation, View view) => Task.CompletedTask;
@@ -114,7 +116,9 @@ public sealed class ScreenDirectoryNeuronFacts
         public Task<ViewActivation> Activate(long generation, string key, string? fieldValue)
         {
             Activations.Add((generation, key, fieldValue));
-            return Task.FromResult(new ViewActivation(ViewActivationKind.Intent, Intent: new Intent(default, "noop"), Value: fieldValue));
+            return Task.FromResult(ActivationResult is { } res
+                ? res with { Value = fieldValue }
+                : new ViewActivation(ViewActivationKind.Intent, Intent: new Intent(default, "noop"), Value: fieldValue));
         }
     }
 
@@ -213,6 +217,32 @@ public sealed class ScreenDirectoryNeuronFacts
     }
 
     [Fact]
+    public async Task ScreenDirectory_Act_RefusesResolveOnAppView()
+    {
+        using var person = AsPerson();
+        var proxies = new MockNeuronProxies();
+        var view = new View("Calculator", new Column([new ApprovalCardNode("card-1", "plan-99", "Approve", "Summary", [], Resolve: new Resolve("plan-99"))]));
+        var json = JsonSerializer.SerializeToElement(view, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
+
+        var mockView = new MockView
+        {
+            Published = new PublishedView("owner/apps/calculator/view", 1L, json),
+            ActivationResult = new ViewActivation(ViewActivationKind.Resolve, Resolve: new Resolve("plan-99")),
+        };
+        var inbox = new MockConfirmationInbox();
+        proxies.Register<IView>("owner/apps/calculator/view", mockView);
+        proxies.Register<IConfirmationInbox>(IConfirmationInbox.Key(Scope), inbox);
+        proxies.Register<IWorkspace>(IWorkspace.Key(Scope), new MockWorkspace());
+        proxies.Register<IApprovals>(IApprovals.Key(Scope), new MockApprovals());
+
+        var neuron = new ScreenDirectoryNeuron(proxies, Scope);
+        var result = await neuron.Act("calculator", "card-1", "approve", generation: 1L);
+
+        Assert.False(result.Accepted);
+        Assert.Empty(inbox.Resolved);
+    }
+
+    [Fact]
     public async Task ScreenDirectory_Approve_ResolvesApproval_AndRefusesDoubleResolution()
     {
         using var person = AsPerson();
@@ -233,5 +263,34 @@ public sealed class ScreenDirectoryNeuronFacts
         var second = await neuron.Approve("plan-42", approved: true);
         Assert.False(second.Accepted);
         Assert.Contains("already been resolved", second.Message);
+    }
+
+    [Fact]
+    public async Task ScreenDirectory_List_LogsSwallowedWorkspaceFailureToInjectedLogger()
+    {
+        var proxies = new MockNeuronProxies();
+        var logger = new RecordingLogger<ScreenDirectoryNeuron>();
+        var neuron = new ScreenDirectoryNeuron(proxies, Scope, logger);
+
+        await neuron.List();
+
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Debug
+            && e.Message.Contains("Workspace could not be read for screen directory.", StringComparison.Ordinal));
+    }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<(LogLevel Level, string Message, Exception? Error)> Entries { get; } = [];
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Entries.Add((logLevel, formatter(state, exception), exception));
+
+        private sealed class NullScope : IDisposable
+        {
+            public static readonly NullScope Instance = new();
+            public void Dispose() { }
+        }
     }
 }

@@ -65,7 +65,7 @@ public sealed class ViewNeuronFacts
     }
 
     [Fact]
-    public async Task ActivateResolvesEmitIntentAndResolveByKey()
+    public async Task ActivateResolvesEmitAndIntentByKey()
     {
         using var person = Edge.AsPerson();
         await using var os = Started();
@@ -83,13 +83,24 @@ public sealed class ViewNeuronFacts
         var rename = await view.Activate(1, "title", "Ship docs");
         Assert.Equal(("rename", "Ship docs"), (rename.Emit!.Signal, rename.Value));
 
-        var approval = await view.Activate(1, "approval", "approve");
-        Assert.Equal(new Resolve("plan-1"), approval.Resolve);
-
         var nav = await view.Activate(1, "nav-filter", null);
         Assert.Equal(ViewActivationKind.Emit, nav.Kind);
         Assert.Equal(("tasks", "filter"), (nav.Emit!.Owner, nav.Emit.Signal));
         Assert.Equal("\"all\"", nav.Emit.Args!.Value.GetRawText());
+    }
+
+    [Fact]
+    public async Task ActivateOnApprovalCardDoesNotReturnResolveAction()
+    {
+        using var person = Edge.AsPerson();
+        await using var os = Started();
+        var view = os.Get<IView>(Tasks);
+        await view.Publish(1, Sample);
+
+        var approval = await view.Activate(1, "approval", "approve");
+
+        Assert.Equal(ViewActivationKind.None, approval.Kind);
+        Assert.Null(approval.Resolve);
     }
 
     [Fact]

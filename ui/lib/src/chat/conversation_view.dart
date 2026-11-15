@@ -42,6 +42,7 @@ class _ConversationViewState extends State<ConversationView> {
 
   bool _submitting = false;
   bool _hadWaiting = false;
+  bool _suppressWaitingDefault = false;
 
   @override
   void initState() {
@@ -51,7 +52,7 @@ class _ConversationViewState extends State<ConversationView> {
     _controller.addListener(_onDraftChange);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (widget.node.waiting != null) {
+      if (widget.node.waiting != null && !_suppressWaitingDefault) {
         PromptKeys.focus(_dockFocus);
       }
     });
@@ -62,11 +63,20 @@ class _ConversationViewState extends State<ConversationView> {
     super.didUpdateWidget(oldWidget);
     final hasWaiting = widget.node.waiting != null;
     if (hasWaiting && !_hadWaiting) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && widget.node.waiting != null) {
-          PromptKeys.focus(_dockFocus);
-        }
-      });
+      // Never steal focus or preselect the default option when a prompt arrives over an active draft.
+      final hasDraft = _controller.text.isNotEmpty;
+      _suppressWaitingDefault = hasDraft;
+      if (!hasDraft) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted &&
+              widget.node.waiting != null &&
+              !_suppressWaitingDefault) {
+            PromptKeys.focus(_dockFocus);
+          }
+        });
+      }
+    } else if (!hasWaiting && _hadWaiting) {
+      _suppressWaitingDefault = false;
     }
     _hadWaiting = hasWaiting;
 
@@ -323,9 +333,11 @@ class _ConversationViewState extends State<ConversationView> {
                       label: 'Waiting for your response',
                       child: PromptScope(
                         docked: true,
+                        suppressDefault: _suppressWaitingDefault,
                         child: PromptKeys(
                           focusNode: _dockFocus,
-                          autofocus: true,
+                          autofocus: !_suppressWaitingDefault,
+                          defaultSelection: !_suppressWaitingDefault,
                           child: NodeRenderer.render(
                             waiting,
                             widget.ctx.deeper(),

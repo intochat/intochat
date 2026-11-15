@@ -3,6 +3,7 @@ using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.Apps;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Desktop;
 
@@ -120,6 +121,35 @@ public sealed class DesktopAppFacts
 
         await desktop.Request("pin", new DesktopPinApp("helloworld", Pinned: true));
         Assert.Contains("helloworld", desktop.App.State.PinnedApps, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void DesktopApp_LogsSwallowedFallbackToConstructorInjectedLogger()
+    {
+        var logger = new RecordingLogger<DesktopApp>();
+        var app = new DesktopApp(logger);
+
+        var catalog = app.EffectiveCatalog();
+
+        Assert.NotEmpty(catalog);
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Debug
+            && e.Message.Contains("Id.Brain is unassigned in standalone tests", StringComparison.Ordinal));
+    }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Entries.Add((logLevel, formatter(state, exception)));
+
+        private sealed class NullScope : IDisposable
+        {
+            public static readonly NullScope Instance = new();
+            public void Dispose() { }
+        }
     }
 
     [DigitalBrain.Neurons.Neuron("ino.synapses")]

@@ -339,9 +339,17 @@ public sealed class SettingsAppFacts
             await settings.Request("open", new SettingsOpen());
             await settings.App.Navigate(new SettingsNavigate("notifications"));
 
-            var notificationsJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
-            Assert.Contains("plan-99", notificationsJson, StringComparison.Ordinal);
-            Assert.Contains("Delete /work/budget.csv?", notificationsJson, StringComparison.Ordinal);
+            var wireJson = System.Text.Json.JsonSerializer.Serialize(
+                settings.App.Render(),
+                DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
+            Assert.Contains("plan-99", wireJson, StringComparison.Ordinal);
+            Assert.Contains("Delete /work/budget.csv?", wireJson, StringComparison.Ordinal);
+            Assert.Contains("\"resolve\":null", wireJson, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"planId\"", wireJson, StringComparison.OrdinalIgnoreCase);
+
+            await settings.App.Navigate(new SettingsNavigate("keyboard"));
+            var keyboardJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
+            Assert.DoesNotContain("Ctrl+N", keyboardJson, StringComparison.Ordinal);
         }
         finally
         {

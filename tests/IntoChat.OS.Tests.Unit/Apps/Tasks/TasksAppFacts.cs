@@ -58,7 +58,7 @@ public sealed class TasksAppFacts
     }
 
     [Fact]
-    public void CardShowsStepsAndApproveDeny()
+    public void CardShowsStepsAsReadOnlyWithoutResolveAction()
     {
         var flow = Flow("c", FlowStatus.Waiting, waiting: WaitReason.Approval);
         var approval = new Approval("plan-1", ApprovalKind.FlowStep, flow.FlowId, "Approve plan", "Three subtasks", T0, T0.AddDays(2), flow.TraceId);
@@ -69,19 +69,19 @@ public sealed class TasksAppFacts
         Assert.Contains("✓ draft", strings);
         Assert.Contains("● approve", strings);
         Assert.Contains("○ start", strings);
-        Assert.Equal("plan-1", Assert.Single(Nodes(side).OfType<ApprovalCardNode>()).Resolve?.PlanId);
+        Assert.Null(Assert.Single(Nodes(side).OfType<ApprovalCardNode>()).Resolve);
     }
 
     [Fact]
-    public void ApproveButtonTargetsConfirmationsNeuron()
+    public void RenderSideApprovalCardIsReadOnlyWithoutResolveAction()
     {
         var flow = Flow("c", FlowStatus.Waiting, waiting: WaitReason.Approval);
-        var approval = new Approval("plan-1", ApprovalKind.FlowStep, flow.FlowId, "Approve plan", "", T0, T0.AddDays(2), flow.TraceId);
+        var approval = new Approval("plan-1", ApprovalKind.FlowStep, flow.FlowId, "Approve plan", "Three subtasks", T0, T0.AddDays(2), flow.TraceId);
 
         var side = TasksViewRenderer.RenderSide(new TasksState("board", new FlowQuery(), flow.FlowId), [flow], [approval], null);
 
         var card = Assert.Single(Nodes(side).OfType<ApprovalCardNode>());
-        Assert.Equal("plan-1", card.Resolve?.PlanId);
+        Assert.Null(card.Resolve);
     }
 
     [Fact]

@@ -5,6 +5,7 @@ using DigitalBrain.Capabilities.Tools;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.Tools;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Mcp;
 
@@ -21,9 +22,13 @@ public sealed record McpToolConnectionState : ConnectionState
 
 // A connection neuron representing an external MCP tool source offering tool@1.
 [Neuron(IMcpToolConnection.TypeName, State = "mcp.tool")]
-public sealed class McpToolConnection(IMcpServer? underlyingServer = null)
+public sealed class McpToolConnection(
+    IMcpServer? underlyingServer = null,
+    ILogger<McpToolConnection>? logger = null)
     : ConnectionNeuron<McpToolConnectionState>, IMcpToolConnection
 {
+    private readonly ILogger _log = logger ?? McpConsoleLog.For<McpToolConnection>();
+
     private IMcpServer Server => underlyingServer
         ?? (Context is not null
             ? Context.Get<IMcpServer>(NeuronId.Parse($"{Id.Brain.Value}/mcp.server/{Id.Key}"))
@@ -110,7 +115,7 @@ public sealed class McpToolConnection(IMcpServer? underlyingServer = null)
         }
         catch (JsonException error)
         {
-            global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(error, "Wrapping non-JSON MCP tool result text.");
+            _log.LogSwallowed(error, "Wrapping non-JSON MCP tool result text.");
             return JsonSerializer.SerializeToElement(new { result = result.Text });
         }
     }
@@ -135,7 +140,7 @@ public sealed class McpToolConnection(IMcpServer? underlyingServer = null)
             return Task.FromResult(0);
         }, CancellationToken.None).ConfigureAwait(false);
 
-        var (url, title) = ParseSpec(rawValue);
+        var (url, title) = ParseSpec(rawValue, _log);
         Snapshot.Url = url;
         Snapshot.Title = string.IsNullOrWhiteSpace(title) ? (Uri.TryCreate(url, UriKind.Absolute, out var parsed) ? parsed.Host : "MCP Server") : title;
         Snapshot.Connected = true;
@@ -158,7 +163,7 @@ public sealed class McpToolConnection(IMcpServer? underlyingServer = null)
 
     protected override async Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
     {
-        var (url, title) = ParseSpec(credential.Value);
+        var (url, title) = ParseSpec(credential.Value, _log);
         if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var endpoint) || endpoint.Scheme is not ("http" or "https"))
         {
             return ConnectionProbeResult.Failing("Invalid MCP server URL. Absolute HTTP/HTTPS URL required.");
@@ -186,11 +191,11 @@ public sealed class McpToolConnection(IMcpServer? underlyingServer = null)
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(error, "Ignoring MCP server disconnect error.");
+            _log.LogSwallowed(error, "Ignoring MCP server disconnect error.");
         }
     }
 
-    private static (string Url, string Title) ParseSpec(string raw)
+    private static (string Url, string Title) ParseSpec(string raw, ILogger log)
     {
         var trimmed = (raw ?? "").Trim();
         if (trimmed.StartsWith('{'))
@@ -205,7 +210,7 @@ public sealed class McpToolConnection(IMcpServer? underlyingServer = null)
             }
             catch (JsonException error)
             {
-                global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(error, "Falling back to raw MCP connection string as URL.");
+                log.LogSwallowed(error, "Falling back to raw MCP connection string as URL.");
             }
         }
         return (trimmed, "");

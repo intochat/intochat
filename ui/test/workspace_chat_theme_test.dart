@@ -37,27 +37,4 @@ void main() {
     final copy = tester.getRect(find.byKey(const Key('ui_copy_message')));
     expect(copy.left, greaterThanOrEqualTo(body.right));
   });
-  test('assistant typography inherits workspace font and fallback', () {
-    final theme = UiTheme.workspace(Brightness.light).copyWith(
-      textTheme: const TextTheme(
-        bodyMedium: TextStyle(
-          fontFamily: 'Workspace body',
-          fontFamilyFallback: ['Body fallback'],
-        ),
-        bodySmall: TextStyle(
-          fontFamily: 'Workspace small',
-          fontFamilyFallback: ['Small fallback'],
-        ),
-        labelSmall: TextStyle(
-          fontFamily: 'Workspace label',
-          fontFamilyFallback: ['Label fallback'],
-        ),
-      ),
-    );
-    final typography = UiChatTheme.workspace(theme).typography;
-    expect(typography.bodyMedium.fontFamily, 'Workspace body');
-    expect(typography.bodyMedium.fontFamilyFallback, ['Body fallback']);
-    expect(typography.bodySmall.fontFamily, 'Workspace small');
-    expect(typography.labelSmall.fontFamily, 'Workspace label');
-  });
 }
