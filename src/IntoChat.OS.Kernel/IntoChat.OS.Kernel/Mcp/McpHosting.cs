@@ -44,7 +44,11 @@ public static class McpHosting
     {
         app.MapMcp("/mcp").AddEndpointFilter(async (context, next) =>
         {
-            var caller = RuntimeCallerContext.Require();
+            if (!RuntimeCallerContext.TryGet(out var caller))
+            {
+                return Results.Unauthorized();
+            }
+
             if (await BrainAccessFilter.Decide(context.HttpContext, caller.BrainId) is { } denied)
             {
                 return denied;
@@ -58,7 +62,11 @@ public static class McpHosting
         // The one door a /try guest has. The root /mcp map above is not one.
         BrainRoutes.Group(app).MapMcp("/mcp").WithMetadata(GuestSurface.Door.Instance).AddEndpointFilter(async (context, next) =>
         {
-            var caller = RuntimeCallerContext.Require();
+            if (!RuntimeCallerContext.TryGet(out var caller))
+            {
+                return Results.Unauthorized();
+            }
+
             using (RuntimeCallerContext.Stamp(McpCaller.AsAgent(caller)))
             {
                 return await next(context);

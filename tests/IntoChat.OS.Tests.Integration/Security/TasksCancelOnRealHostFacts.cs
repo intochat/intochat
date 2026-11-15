@@ -93,12 +93,9 @@ public sealed class TasksCancelOnRealHostFacts
         await using var host = await Host();
         var (flowId, planId) = await PlanWaitingForApproval(host);
 
-        // No presence proof: the edge stamps the app "local". The request is one-way, so the route accepts it.
-        Accepted(await Send(host, "/apps/tasks/request", new { operation = "cancel", input = JsonSerializer.Serialize(new { flowId }) }, presence: false));
-
-        var refused = await Eventually(() => ReadTasks(host), screen => screen.Texts.Any(text => text.Contains("Could not cancel", StringComparison.Ordinal)),
-            "Tasks never said the cancel was refused");
-        Assert.Contains(refused.Texts, text => text.Contains($"Could not cancel: flow {flowId} {Refusal}", StringComparison.Ordinal));
+        // No presence proof: fail-closed edge rejects unproved loopback calls with 401 (no "local" fallback).
+        var unproved = await Send(host, "/apps/tasks/request", new { operation = "cancel", input = JsonSerializer.Serialize(new { flowId }) }, presence: false);
+        Assert.Equal(HttpStatusCode.Unauthorized, unproved.Status);
         await StillWaitsForThePerson(host, flowId, planId);
     }
 

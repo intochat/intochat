@@ -1,11 +1,15 @@
+using System.Buffers.Text;
+using System.Security.Cryptography;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Aspire.Hosting;
+using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Execution;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +21,8 @@ namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
 public static class ShellHostingExtensions
 {
+    internal const string PresenceDartDefinePrefix = "--dart-define=INTOCHAT_PRESENCE_TOKEN=";
+
     public static IntoChatOSModuleBuilder<IntoChat.OS.Modules.Flutter.Aspire.Hosting.FlutterModuleHosting> RunDesktopApp(
         this IntoChatOSModuleBuilder<IntoChat.OS.Modules.Flutter.Aspire.Hosting.FlutterModuleHosting> module,
         Action<FlutterHostOptions>? configure = null)
@@ -69,6 +75,8 @@ public static class ShellHostingExtensions
 
     private sealed class ShellHostingState(IntoChatOSBuilder brain) : IntoChatOSModuleProjection
     {
+        private readonly string _presenceToken = MintPresenceToken(out _);
+        private string? _presenceTokenHash;
         private IResourceBuilder<ExecutableResource>? _flutterHost;
         private IResourceBuilder<ContainerResource>? _shellContainer;
         private string? _servedConfigPath;
@@ -76,6 +84,14 @@ public static class ShellHostingExtensions
         private FlutterHostKind _flutterKind;
         private IResourceBuilder<IResourceWithEndpoints>? _front;
         private EndpointReference? _firstKernel;
+
+        private string PresenceTokenHash => _presenceTokenHash ??= PresenceProofValidator.ComputeTokenHash(_presenceToken);
+
+        private static string MintPresenceToken(out byte[] rawBytes)
+        {
+            rawBytes = RandomNumberGenerator.GetBytes(PresenceProofValidator.SecretByteCount);
+            return Base64Url.EncodeToString(rawBytes);
+        }
 
         // Native gRPC needs TLS/ALPN through the front; the web shell uses gRPC-Web over HTTP.
         private EndpointReference Kernel => _front?.GetEndpoint(_flutterKind == FlutterHostKind.Window ? "https" : ShellNames.HttpEndpointName) ?? _firstKernel!;
@@ -134,9 +150,15 @@ public static class ShellHostingExtensions
 
             var host = appHost
                 .AddExecutable(resourceName, launch.Command, launch.WorkingDirectory, launch.Args)
+                .WithEnvironment(static context => ChildEnvironmentPolicy.ScrubObjects(context.EnvironmentVariables))
                 .WithEnvironment(ShellNames.ShellEnvironmentVariable, shell)
                 .WithEnvironment(ShellNames.ChatEnvironmentVariable, chat)
                 .WithParentRelationship(brain.Resource);
+
+            if (kind == FlutterHostKind.Window)
+            {
+                host.WithArgs($"{PresenceDartDefinePrefix}{_presenceToken}");
+            }
 
             if (kind == FlutterHostKind.Web)
             {
@@ -161,7 +183,7 @@ public static class ShellHostingExtensions
                         static endpoint => endpoint.TargetHost = ShellNames.FlutterWebHostname,
                         createIfNotExists: false)
                     .WithHttpHealthCheck("/")
-                    .AsBrainBrowser(path: "/?semantics=true", readySelector: "flt-semantics");
+                    .AsBrainBrowser(path: $"/?semantics=true#presence={_presenceToken}", readySelector: "flt-semantics");
                 host.WithArgs(ReferenceExpression.Create($"--web-port={host.GetEndpoint(ShellNames.HttpEndpointName).Property(EndpointProperty.TargetPort)}"));
                 _flutterWebDirectory = launch.WorkingDirectory;
             }
@@ -215,11 +237,12 @@ public static class ShellHostingExtensions
                 .AddDockerfile(resourceName, workspaceRoot, Path.GetRelativePath(workspaceRoot, dockerfile))
                 // Image identity is the docker layer cache's job: the Dockerfile and app/.dockerignore
                 // define the inputs, and an unchanged-source rebuild is a cache hit.
+                .WithEnvironment(static context => ChildEnvironmentPolicy.ScrubObjects(context.EnvironmentVariables))
                 .WithHttpEndpoint(targetPort: 80, name: ShellNames.HttpEndpointName)
                 .WithHttpHealthCheck("/")
                 .WithBindMount(_servedConfigPath, ShellServedConfig.ContainerPath, isReadOnly: true)
                 .WithParentRelationship(brain.Resource)
-                .AsBrainBrowser(path: "/?semantics=true", readySelector: "flt-semantics");
+                .AsBrainBrowser(path: $"/?semantics=true#presence={_presenceToken}", readySelector: "flt-semantics");
         }
 
         private static void ArmHotReload(
@@ -304,6 +327,12 @@ public static class ShellHostingExtensions
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
             ArgumentNullException.ThrowIfNull(builder);
+            if (_shellContainer is null && _flutterHost is null)
+            {
+                return;
+            }
+
+            builder.WithEnvironment(PresenceProofValidator.TokenHashEnvironmentVariable, PresenceTokenHash);
             var corsOrigin = ModuleConfiguration.EnvironmentName(IntoChat.OS.Connections.Identity.Configuration.KernelCorsOptions.SectionName, nameof(IntoChat.OS.Connections.Identity.Configuration.KernelCorsOptions.AllowedOrigin));
 
             if (_shellContainer is not null)

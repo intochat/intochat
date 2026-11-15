@@ -3,6 +3,7 @@ using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Storage.Confinement;
 using DigitalBrain.Errors;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Framework.Execution;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
@@ -28,6 +29,7 @@ internal sealed class ConsoleNeuron(MachineIdentity identity, IServiceProvider s
         // cmd.exe parses its own command line, so the command goes through verbatim rather than argv-quoted.
         var start = new ProcessStartInfo("cmd.exe", "/c " + command)
         { WorkingDirectory = directory, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        ChildEnvironmentPolicy.Scrub(start);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("cmd.exe did not start.");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(seconds));

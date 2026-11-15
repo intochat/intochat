@@ -1,6 +1,10 @@
 using System.Diagnostics;
 using System.Security.AccessControl;
+using System.Security.Cryptography;
 using System.Security.Principal;
+using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Contracts.Configuration;
+using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Desktop.Tests.Unit;
 
@@ -127,10 +131,23 @@ public sealed class DesktopBootstrapFacts
             Assert.Equal("true", env[DesktopBootstrap.ConfiguredCustodyAcknowledgedEnvVar]);
             Assert.Equal("Open", env[DesktopBootstrap.AuthPostureEnvVar]);
             Assert.Equal("Open", env[DesktopBootstrap.AuthorityIdentityPostureEnvVar]);
-            Assert.Equal(presenceToken, env[DesktopBootstrap.PresenceTokenEnvVar]);
+            Assert.False(env.ContainsKey(DesktopBootstrap.PresenceTokenEnvVar));
             Assert.Equal(layout.PresenceFilePath, env[DesktopBootstrap.PresenceTokenFileEnvVar]);
             Assert.Equal(layout.HomeDirectory, env[DesktopBootstrap.HomeEnvVar]);
-            Assert.Equal(masterKey, env[DesktopBootstrap.MasterKeyEnvVar]);
+            Assert.False(env.ContainsKey(DesktopBootstrap.MasterKeyEnvVar));
+            Assert.False(env.ContainsKey(IntoChatOSNames.MasterKeyEnvironmentVariable));
+
+            var configPrefix = $"--{DesktopBootstrap.ConfigurationFileConfigKey}=";
+            var configArg = Assert.Single(kernelStart.ArgumentList, a => a.StartsWith(configPrefix, StringComparison.Ordinal));
+            var kernelConfig = new ConfigurationBuilder()
+                .AddJsonFile(configArg[configPrefix.Length..], optional: false, reloadOnChange: false)
+                .Build();
+            Assert.Equal(masterKey, kernelConfig[IntoChatOSNames.MasterKeyConfigurationKey]);
+            Assert.Equal(layout.PresenceFilePath, kernelConfig[PresenceProofValidator.TokenFileConfigurationKey]);
+            Assert.Equal(
+                PresenceProofValidator.ComputeTokenHash(presenceToken),
+                kernelConfig[PresenceProofValidator.TokenHashConfigurationKey]);
+
             Assert.Equal("false", env[DesktopBootstrap.OrleansDashboardEnabledEnvVar]);
             Assert.Equal("false", env[DesktopBootstrap.IntoChatOrleansDashboardEnabledEnvVar]);
             Assert.Equal("salesforce,gmail", env[DesktopBootstrap.ModulesDisabledEnvVar]);
@@ -149,7 +166,9 @@ public sealed class DesktopBootstrapFacts
 
             Assert.True(shellStart.CreateNoWindow);
             Assert.Equal(kernelUrl.ToString(), shellStart.Environment[DesktopBootstrap.ShellUiBaseEnvVar]);
-            Assert.Equal(presenceToken, shellStart.Environment[DesktopBootstrap.PresenceTokenEnvVar]);
+            Assert.False(shellStart.Environment.ContainsKey(DesktopBootstrap.PresenceTokenEnvVar));
+            Assert.False(shellStart.Environment.ContainsKey(DesktopBootstrap.MasterKeyEnvVar));
+            Assert.Contains($"--presence-token={presenceToken}", shellStart.ArgumentList);
         }
         finally
         {

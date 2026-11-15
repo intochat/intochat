@@ -53,8 +53,16 @@ public sealed class Gate20EdgeApprovalWallFacts
             await Assert.ThrowsAsync<UnauthorizedAccessException>(inbox.Read);
         }
 
+        // Unproved loopback calls fail closed at the edge with 401 (no "local" fallback)
+        using (var unprovedRes = await host.Client.GetAsync($"/brains/{host.Scope}/marketplace", Ct))
+        {
+            Assert.Equal(HttpStatusCode.Unauthorized, unprovedRes.StatusCode);
+        }
+
         // Internal SiloNeurons hops (e.g. MarketplaceView.List) remain healthy while UnstampedEdgeIsKernel is false
-        using var marketplaceRes = await host.Client.GetAsync($"/brains/{host.Scope}/marketplace", Ct);
+        using var marketplaceReq = new HttpRequestMessage(HttpMethod.Get, $"/brains/{host.Scope}/marketplace");
+        marketplaceReq.Headers.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+        using var marketplaceRes = await host.Client.SendAsync(marketplaceReq, Ct);
         Assert.Equal(HttpStatusCode.OK, marketplaceRes.StatusCode);
 
         // B02: POST /identity/register and POST /identity/login succeed with 200 OK (never 500 PrivilegeDenied)
@@ -158,7 +166,7 @@ public sealed class Gate20EdgeApprovalWallFacts
         Assert.True(await IsPendingAsync(host.Services, scope, planId));
 
         // -----------------------------------------------------------------------------------------
-        // Attack 2: Unproved loopback HTTP caller (no X-IntoChat-Presence -> stamped App("local"))
+        // Attack 2: Unproved loopback HTTP caller (no X-IntoChat-Presence -> rejected 401 at edge)
         // Attempt via both /apps/event and /screens/approvals/{id}
         // -----------------------------------------------------------------------------------------
         using (var unprovedEventRes = await host.Client.PostAsJsonAsync(
@@ -172,7 +180,7 @@ public sealed class Gate20EdgeApprovalWallFacts
             },
             Ct))
         {
-            Assert.Equal(HttpStatusCode.Forbidden, unprovedEventRes.StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, unprovedEventRes.StatusCode);
         }
 
         using (var unprovedScreenRes = await host.Client.PostAsJsonAsync(
@@ -180,7 +188,7 @@ public sealed class Gate20EdgeApprovalWallFacts
             new { approved = true, reason = "unproved loopback attempt" },
             Ct))
         {
-            Assert.False(unprovedScreenRes.IsSuccessStatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, unprovedScreenRes.StatusCode);
         }
 
         Assert.True(await IsPendingAsync(host.Services, scope, planId));
@@ -463,7 +471,6 @@ public sealed class Gate20EdgeApprovalWallFacts
                     [AuthOptions.PostureKey] = "Open",
                     [TopologyContext.SiloPortKey] = ports.SiloPort.ToString(CultureInfo.InvariantCulture),
                     [TopologyContext.GatewayPortKey] = ports.GatewayPort.ToString(CultureInfo.InvariantCulture),
-                    [PresenceProofValidator.EnvironmentVariable] = null,
                 });
 
                 LocalRunDefaults.Apply(builder.Configuration);

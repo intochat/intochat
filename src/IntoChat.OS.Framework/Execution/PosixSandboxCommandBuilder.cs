@@ -51,29 +51,7 @@ public static class PosixSandboxCommandBuilder
     }
 
     public static bool IsBlockedSecretVariableName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return true;
-        }
-
-        if (name.StartsWith("IntoChatOS__", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(name, "INTOCHAT_PRESENCE_TOKEN", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        string[] suffixes = ["_KEY", "_TOKEN", "_SECRET", "_PASSWORD", "MASTERKEY", "APIKEY", "CONNECTIONSTRING"];
-        foreach (var suffix in suffixes)
-        {
-            if (name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+        => ChildEnvironmentPolicy.IsBlockedSecretVariableName(name);
 
     public static IReadOnlyList<string> BuildBubblewrapArguments(ConfinementSpec spec)
     {
@@ -292,6 +270,7 @@ public sealed class PosixConfinedProcessRunner : IConfinedProcessRunner
         }
 
         psi.Environment.Clear();
+        ChildEnvironmentPolicy.Scrub(psi);
         foreach (var (key, value) in PosixSandboxCommandBuilder.BuildCleanPosixEnvironment(spec, tempDir))
         {
             psi.Environment[key] = value;
@@ -348,7 +327,7 @@ public sealed class PosixConfinedProcessRunner : IConfinedProcessRunner
         }
         catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
         {
-            _ = ex.Message;
+            Trace.TraceWarning("PosixConfinedProcessRunner failed to terminate process tree: {0}", ex.Message);
         }
     }
 }

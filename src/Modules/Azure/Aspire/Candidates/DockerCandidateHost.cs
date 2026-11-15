@@ -7,6 +7,7 @@ using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Execution;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 
@@ -313,6 +314,7 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         var modules = Env(ModuleConfiguration.ModulesSectionName) + "__";
         foreach (var key in environment.Keys.Where(key => key.StartsWith(modules, StringComparison.Ordinal)).ToArray())
         { environment.Remove(key); }
+        ChildEnvironmentPolicy.ScrubCustodyAndSecretVariables(environment);
         foreach (var (key, value) in OrleansIdentity(sha)) { environment[key] = value; }
         // An Orleans client, not a silo: it finds the gateway through Azure table clustering and keeps its
         // cookie keys beside the grain state, both by connection string.
@@ -360,6 +362,7 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         // spans by then, and the SDK's default 5s batch delay outlived the whole verification (seen live).
         foreach (var cadence in ExportCadence)
         { if (live[cadence] is { Length: > 0 } value) { environment[cadence] = value; } }
+        ChildEnvironmentPolicy.ScrubCustodyAndSecretVariables(environment);
         return environment;
     }
 

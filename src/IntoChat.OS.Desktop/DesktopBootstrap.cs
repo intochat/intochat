@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.Buffers.Text;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -8,6 +10,7 @@ using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
+using IntoChat.OS.Framework.Execution;
 
 internal static class DesktopBootstrap
 {
@@ -19,6 +22,7 @@ internal static class DesktopBootstrap
     public const string DesktopEnvironmentEnvVar = "INTOCHATOS_DESKTOP_ENVIRONMENT";
     public const string AspNetCoreEnvironmentEnvVar = "ASPNETCORE_ENVIRONMENT";
     public const string AspNetCoreUrlsEnvVar = "ASPNETCORE_URLS";
+    public const string ConfigurationFileConfigKey = "IntoChatOS:ConfigurationFile";
     public const string MasterKeyEnvVar = "IntoChatOS__MasterKey";
     public const string TopologyEnvVar = "IntoChatOS__Topology";
     public const string ConfiguredCustodyAcknowledgedEnvVar = "IntoChatOS__Platform__Storage__ConfiguredCustodyAcknowledged";
@@ -26,12 +30,33 @@ internal static class DesktopBootstrap
     public const string AuthorityIdentityPostureEnvVar = "IntoChatOS__Authority__Identity__Posture";
     public const string PresenceTokenEnvVar = "INTOCHAT_PRESENCE_TOKEN";
     public const string PresenceTokenFileEnvVar = "IntoChatOS__Security__PresenceTokenFile";
+    public const string PresenceTokenHashConfigKey = "IntoChatOS:Security:PresenceTokenHash";
     public const string PresenceHeaderName = "X-Presence-Token";
+    public const string CanonicalPresenceHeaderName = "X-IntoChat-Presence";
     public const string ModulesDisabledEnvVar = "INTOCHAT_OS_MODULES_DISABLED";
     public const string OrleansDashboardEnabledEnvVar = "OrleansDashboard__Enabled";
     public const string IntoChatOrleansDashboardEnabledEnvVar = "IntoChatOS__OrleansDashboard__Enabled";
     public const string ShellUiBaseEnvVar = "INTOCHATOS_UI_BASE";
     public const string SpikeWindowsEnvVar = "SPIKE_WINDOWS";
+
+    private static readonly string[] LegacyAppDataDirectoryNames = ["IntoChatOS", "IntoChat", "intochat"];
+    private static readonly string[] LegacyMigratedFiles = ["machine-id"];
+    private static readonly string[] LegacyMigratedDirectories = ["state", "behaviors", "brains", "channels", "identity", "config"];
+    private static readonly HashSet<string> LegacyExcludedDirectories = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "assets",
+        "deploy-tools",
+        "test-credentials",
+        "run",
+        "logs",
+        "secrets",
+    };
+
+    public static string KernelConfigFilePath(DesktopLayout layout)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        return Path.Combine(layout.RunDirectory, "kernel.config.json");
+    }
 
     public static readonly string[] DefaultDisabledDesktopModules = ["salesforce", "gmail"];
 
@@ -236,9 +261,242 @@ internal static class DesktopBootstrap
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or Win32Exception)
         {
-            _ = ex.Message;
+            Trace.TraceWarning("PID check for {0} failed: {1}", pid, ex.Message);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Detects legacy desktop homes under <c>%LOCALAPPDATA%\IntoChat*</c> and copies master keys and state
+    /// into <paramref name="layout"/> before a new master key is minted, without overwriting existing files
+    /// and without copying install artifacts such as <c>deploy-tools</c> or <c>assets</c>.
+    /// </summary>
+    public static bool MigrateLegacyHome(DesktopLayout layout, string? localAppDataPath = null)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        if (File.Exists(layout.MasterKeyPath))
+        {
+            return false;
+        }
+
+        var appDataRoot = !string.IsNullOrWhiteSpace(localAppDataPath)
+            ? localAppDataPath
+            : Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (string.IsNullOrWhiteSpace(appDataRoot) || !Directory.Exists(appDataRoot))
+        {
+            return false;
+        }
+
+        var sourceDir = FindBestLegacyHomeDirectory(appDataRoot, layout.HomeDirectory);
+        if (sourceDir is null)
+        {
+            return false;
+        }
+
+        var migratedAny = false;
+        Directory.CreateDirectory(layout.HomeDirectory);
+        RestrictDirectoryToCurrentUser(layout.HomeDirectory);
+        Directory.CreateDirectory(layout.SecretsDirectory);
+        RestrictDirectoryToCurrentUser(layout.SecretsDirectory);
+
+        foreach (var candidateKey in (string[])
+        [
+            Path.Combine(sourceDir, "secrets", "master.key"),
+            Path.Combine(sourceDir, "master.key"),
+            Path.Combine(sourceDir, "master-key.dpapi"),
+        ])
+        {
+            if (File.Exists(candidateKey))
+            {
+                if (string.Equals(Path.GetFileName(candidateKey), "master-key.dpapi", StringComparison.OrdinalIgnoreCase)
+                    && !File.Exists(layout.LegacyMasterKeyPath))
+                {
+                    File.Copy(candidateKey, layout.LegacyMasterKeyPath, overwrite: false);
+                    RestrictFileToCurrentUser(layout.LegacyMasterKeyPath);
+                }
+
+                if (!File.Exists(layout.MasterKeyPath))
+                {
+                    File.Copy(candidateKey, layout.MasterKeyPath, overwrite: false);
+                    RestrictFileToCurrentUser(layout.MasterKeyPath);
+                }
+
+                migratedAny = true;
+                break;
+            }
+        }
+
+        foreach (var fileName in LegacyMigratedFiles)
+        {
+            var srcFile = Path.Combine(sourceDir, fileName);
+            var dstFile = Path.Combine(layout.HomeDirectory, fileName);
+            if (File.Exists(srcFile) && !File.Exists(dstFile))
+            {
+                File.Copy(srcFile, dstFile, overwrite: false);
+                migratedAny = true;
+            }
+        }
+
+        foreach (var dirName in LegacyMigratedDirectories)
+        {
+            if (LegacyExcludedDirectories.Contains(dirName))
+            {
+                continue;
+            }
+
+            var srcSubDir = Path.Combine(sourceDir, dirName);
+            if (!Directory.Exists(srcSubDir))
+            {
+                continue;
+            }
+
+            var dstSubDir = Path.Combine(layout.HomeDirectory, dirName);
+            if (CopyDirectoryWithoutOverwrite(srcSubDir, dstSubDir))
+            {
+                migratedAny = true;
+            }
+        }
+
+        return migratedAny;
+    }
+
+    /// <summary>
+    /// Ensures a master key file exists at <paramref name="masterKeyPath"/>, migrating any legacy home first
+    /// before minting and sealing a fresh key.
+    /// </summary>
+    public static byte[] EnsureMasterKey(
+        string masterKeyPath,
+        string legacyMasterKeyPath,
+        Func<string> generateKey,
+        Func<byte[], byte[]> seal,
+        string? localAppDataPath = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(masterKeyPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(legacyMasterKeyPath);
+        ArgumentNullException.ThrowIfNull(generateKey);
+        ArgumentNullException.ThrowIfNull(seal);
+
+        var secretsDir = Path.GetDirectoryName(masterKeyPath);
+        var homeDir = !string.IsNullOrWhiteSpace(secretsDir) && string.Equals(Path.GetFileName(secretsDir), "secrets", StringComparison.OrdinalIgnoreCase)
+            ? Path.GetDirectoryName(secretsDir)
+            : secretsDir;
+        if (!string.IsNullOrWhiteSpace(homeDir))
+        {
+            var layout = ResolveLayout(homeDir);
+            MigrateLegacyHome(layout, localAppDataPath);
+        }
+
+        if (File.Exists(masterKeyPath))
+        {
+            return File.ReadAllBytes(masterKeyPath);
+        }
+
+        if (File.Exists(legacyMasterKeyPath))
+        {
+            var migratedBytes = File.ReadAllBytes(legacyMasterKeyPath);
+            WriteSealedKeyBytes(masterKeyPath, migratedBytes);
+            return migratedBytes;
+        }
+
+        var freshRaw = Encoding.UTF8.GetBytes(generateKey());
+        var sealedBytes = seal(freshRaw);
+        WriteSealedKeyBytes(masterKeyPath, sealedBytes);
+        return sealedBytes;
+    }
+
+    private static string? FindBestLegacyHomeDirectory(string appDataRoot, string targetHomeDirectory)
+    {
+        var fullTarget = Path.GetFullPath(targetHomeDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var orderedCandidates = new List<string>();
+
+        foreach (var preferred in LegacyAppDataDirectoryNames)
+        {
+            var candidate = Path.Combine(appDataRoot, preferred);
+            if (seen.Add(candidate))
+            {
+                orderedCandidates.Add(candidate);
+            }
+        }
+
+        foreach (var wildcard in Directory.GetDirectories(appDataRoot, "IntoChat*", SearchOption.TopDirectoryOnly))
+        {
+            if (seen.Add(wildcard))
+            {
+                orderedCandidates.Add(wildcard);
+            }
+        }
+
+        string? fallbackWithState = null;
+        foreach (var candidate in orderedCandidates)
+        {
+            var fullCandidate = Path.GetFullPath(candidate).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (string.Equals(fullCandidate, fullTarget, StringComparison.OrdinalIgnoreCase) || !Directory.Exists(fullCandidate))
+            {
+                continue;
+            }
+
+            if (File.Exists(Path.Combine(fullCandidate, "secrets", "master.key"))
+                || File.Exists(Path.Combine(fullCandidate, "master.key"))
+                || File.Exists(Path.Combine(fullCandidate, "master-key.dpapi")))
+            {
+                return fullCandidate;
+            }
+
+            if (fallbackWithState is null && LegacyMigratedDirectories.Any(d => Directory.Exists(Path.Combine(fullCandidate, d)) && Directory.EnumerateFileSystemEntries(Path.Combine(fullCandidate, d)).Any()))
+            {
+                fallbackWithState = fullCandidate;
+            }
+        }
+
+        return fallbackWithState;
+    }
+
+    private static bool CopyDirectoryWithoutOverwrite(string sourceDir, string targetDir)
+    {
+        var copiedAny = false;
+        Directory.CreateDirectory(targetDir);
+        foreach (var filePath in Directory.GetFiles(sourceDir))
+        {
+            var destFile = Path.Combine(targetDir, Path.GetFileName(filePath));
+            if (!File.Exists(destFile))
+            {
+                File.Copy(filePath, destFile, overwrite: false);
+                copiedAny = true;
+            }
+        }
+
+        foreach (var subDir in Directory.GetDirectories(sourceDir))
+        {
+            var name = Path.GetFileName(subDir);
+            if (LegacyExcludedDirectories.Contains(name))
+            {
+                continue;
+            }
+
+            if (CopyDirectoryWithoutOverwrite(subDir, Path.Combine(targetDir, name)))
+            {
+                copiedAny = true;
+            }
+        }
+
+        return copiedAny;
+    }
+
+    private static void WriteSealedKeyBytes(string path, byte[] bytes)
+    {
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(dir))
+        {
+            Directory.CreateDirectory(dir);
+            RestrictDirectoryToCurrentUser(dir);
+        }
+
+        var temp = path + ".tmp." + Environment.ProcessId.ToString(CultureInfo.InvariantCulture);
+        File.WriteAllBytes(temp, bytes);
+        RestrictFileToCurrentUser(temp);
+        File.Move(temp, path, overwrite: true);
+        RestrictFileToCurrentUser(path);
     }
 
     public static string GeneratePresenceToken()
@@ -265,7 +523,7 @@ internal static class DesktopBootstrap
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _ = ex.Message;
+            Trace.TraceWarning("Failed to read presence file '{0}': {1}", presenceFilePath, ex.Message);
             return null;
         }
     }
@@ -380,17 +638,19 @@ internal static class DesktopBootstrap
         };
 
         var environment = start.Environment;
+        ChildEnvironmentPolicy.Scrub(environment);
+        var configPath = WriteKernelConfigFile(layout, masterKey, presenceToken);
+        start.ArgumentList.Add($"--{ConfigurationFileConfigKey}={configPath}");
+
         environment[AspNetCoreEnvironmentEnvVar] = readEnv(DesktopEnvironmentEnvVar) is { Length: > 0 } named
             ? named
             : "Production";
         environment[AspNetCoreUrlsEnvVar] = kernelUrl.GetLeftPart(UriPartial.Authority);
         environment[HomeEnvVar] = layout.HomeDirectory;
         environment[TopologyEnvVar] = "local";
-        environment[MasterKeyEnvVar] = masterKey;
         environment[ConfiguredCustodyAcknowledgedEnvVar] = "true";
         environment[AuthPostureEnvVar] = "Open";
         environment[AuthorityIdentityPostureEnvVar] = "Open";
-        environment[PresenceTokenEnvVar] = presenceToken;
         environment[PresenceTokenFileEnvVar] = layout.PresenceFilePath;
         environment[OrleansDashboardEnabledEnvVar] = "false";
         environment[IntoChatOrleansDashboardEnabledEnvVar] = "false";
@@ -421,6 +681,87 @@ internal static class DesktopBootstrap
         return start;
     }
 
+    internal static string WriteKernelConfigFile(DesktopLayout layout, string masterKey, string presenceToken)
+    {
+        Directory.CreateDirectory(layout.RunDirectory);
+        RestrictDirectoryToCurrentUser(layout.RunDirectory);
+        var configPath = KernelConfigFilePath(layout);
+        var tempPath = configPath + ".tmp." + Environment.ProcessId.ToString(CultureInfo.InvariantCulture);
+        var tokenHash = ComputePresenceTokenHash(presenceToken);
+
+        using (var buffer = new MemoryStream())
+        {
+            using (var json = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = true }))
+            {
+                json.WriteStartObject();
+                json.WriteStartObject("IntoChatOS");
+                json.WriteString("MasterKey", masterKey);
+                json.WriteStartObject("Security");
+                json.WriteString("PresenceTokenFile", layout.PresenceFilePath);
+                json.WriteString("PresenceTokenHash", tokenHash);
+                json.WriteEndObject();
+                json.WriteEndObject();
+                json.WriteEndObject();
+            }
+
+            File.WriteAllBytes(tempPath, buffer.ToArray());
+        }
+
+        RestrictFileToCurrentUser(tempPath);
+        File.Move(tempPath, configPath, overwrite: true);
+        RestrictFileToCurrentUser(configPath);
+        return configPath;
+    }
+
+    internal static string ComputePresenceTokenHash(string token)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        var trimmed = token.AsSpan().Trim();
+        Span<byte> secret = stackalloc byte[512];
+
+        if (trimmed.Length >= 64 && trimmed.Length % 2 == 0 && IsHex(trimmed)
+            && Convert.FromHexString(trimmed, secret, out _, out var secretLen) == OperationStatus.Done
+            && secretLen >= 32)
+        {
+            return HashLowerHex(secret[..secretLen]);
+        }
+
+        if (Base64Url.IsValid(trimmed)
+            && Base64Url.TryDecodeFromChars(trimmed, secret, out secretLen)
+            && secretLen >= 32)
+        {
+            return HashLowerHex(secret[..secretLen]);
+        }
+
+        if (Convert.TryFromBase64Chars(trimmed, secret, out secretLen) && secretLen >= 32)
+        {
+            return HashLowerHex(secret[..secretLen]);
+        }
+
+        var utf8 = Encoding.UTF8.GetBytes(trimmed.ToString());
+        return HashLowerHex(utf8);
+    }
+
+    private static string HashLowerHex(ReadOnlySpan<byte> bytes)
+    {
+        Span<byte> digest = stackalloc byte[SHA256.HashSizeInBytes];
+        SHA256.HashData(bytes, digest);
+        return Convert.ToHexStringLower(digest);
+    }
+
+    private static bool IsHex(ReadOnlySpan<char> chars)
+    {
+        foreach (var c in chars)
+        {
+            if (!Uri.IsHexDigit(c))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public static ProcessStartInfo BuildShellStartInfo(
         string shellDirectory,
         Uri kernelUrl,
@@ -438,8 +779,9 @@ internal static class DesktopBootstrap
             CreateNoWindow = createNoWindow,
             WorkingDirectory = shellDirectory,
         };
+        ChildEnvironmentPolicy.Scrub(start.Environment);
         start.Environment[ShellUiBaseEnvVar] = kernelUrl.ToString();
-        start.Environment[PresenceTokenEnvVar] = presenceToken;
+        start.ArgumentList.Add($"--presence-token={presenceToken}");
         return start;
     }
 
@@ -555,7 +897,7 @@ internal static class DesktopBootstrap
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {
-            _ = ex.Message;
+            Trace.TraceWarning("Failed to read kernel PID file '{0}': {1}", pidFilePath, ex.Message);
             return false;
         }
     }
@@ -742,6 +1084,7 @@ internal static class DesktopBootstrap
         }
 
         cleaned = TryDeleteRunFile(layout.PresenceFilePath) || cleaned;
+        cleaned = TryDeleteRunFile(KernelConfigFilePath(layout)) || cleaned;
 
         return new DesktopStopResult(
             GracefulShutdownAccepted: gracefulAccepted,
@@ -761,6 +1104,7 @@ internal static class DesktopBootstrap
             : new HttpClient { Timeout = TimeSpan.FromMilliseconds(1_500) };
 
         using var request = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port}/runtime/shutdown");
+        request.Headers.TryAddWithoutValidation(CanonicalPresenceHeaderName, presenceToken);
         request.Headers.TryAddWithoutValidation(PresenceHeaderName, presenceToken);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", presenceToken);
 
@@ -771,7 +1115,7 @@ internal static class DesktopBootstrap
         }
         catch (HttpRequestException ex)
         {
-            _ = ex.Message;
+            Trace.TraceWarning("Graceful shutdown request failed on port {0}: {1}", port, ex.Message);
             return false;
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -798,7 +1142,7 @@ internal static class DesktopBootstrap
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or Win32Exception)
         {
-            _ = ex.Message;
+            Trace.TraceWarning("Failed to terminate process {0}: {1}", pid, ex.Message);
         }
     }
 
@@ -819,7 +1163,7 @@ internal static class DesktopBootstrap
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _ = ex.Message;
+            Trace.TraceWarning("Failed to delete run file '{0}': {1}", path, ex.Message);
         }
 
         return false;
