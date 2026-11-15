@@ -384,7 +384,8 @@ public static partial class InoView
                 break;
 
             case "approval":
-                var visual = ResolveApprovalVisual(StripNeuronUri(card.SourceNeuronUri));
+                // A tool result's card reports an approval; it never answers one. The plan is answered on the inbox approval (RenderApproval).
+                var cardApprovalVisual = ResolveApprovalVisual(StripNeuronUri(card.SourceNeuronUri));
                 yield return new ApprovalCardNode(
                     $"card-{card.Id}", card.Id, card.Title, card.Summary,
                     [
@@ -392,9 +393,11 @@ public static partial class InoView
                         new ApprovalRowNode("Source", "local", StripNeuronUri(card.SourceNeuronUri)),
                         new ApprovalRowNode("Scope", "ino", StripNeuronUri(card.EffectiveScopeUri)),
                     ],
-                    SystemName: "Ino", Status: card.Status, SourceNeuronUri: StripNeuronUri(card.SourceNeuronUri),
-                    Resolve: string.Equals(card.Status, "pending", StringComparison.OrdinalIgnoreCase) ? new Resolve(card.Id) : null,
-                    Icon: visual.IconKey, CapabilityLabel: visual.Label);
+                    SystemName: "Ino",
+                    Status: card.Status,
+                    SourceNeuronUri: StripNeuronUri(card.SourceNeuronUri),
+                    Icon: cardApprovalVisual.IconKey,
+                    CapabilityLabel: cardApprovalVisual.Label);
                 break;
 
             case "choice":

@@ -175,29 +175,32 @@ public sealed partial class WorkTreeService : IWorkTree
         }
         Directory.CreateDirectory(Path.GetDirectoryName(treePath)!);
 
-        // Determine origin URL (if any) without modifying the source checkout
+        // Read the origin without modifying the source checkout. A run with nowhere to push is not started:
+        // its approval would name a remote that is not there, and publish would push to whatever origin is added later.
         var originUrl = await TryGetOriginUrlAsync(sourcePath, ct).ConfigureAwait(false);
+        var pushUrl = await TryGetOriginUrlAsync(sourcePath, ct, push: true).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(originUrl) || string.IsNullOrWhiteSpace(pushUrl))
+        {
+            throw new InvalidOperationException($"Repository '{repo.Id}' has no 'origin' remote configured.");
+        }
+
         var githubRepo = repo.GitHubRepo ?? ParseGitHubOwnerRepo(originUrl);
         var allowLocalFileTransport = IsLocalFilesystemRemote(originUrl);
 
         // Fetch origin refs safely (updates refs/remotes/origin/* only; never touches working tree, index, HEAD, or stashes!)
-        if (!string.IsNullOrWhiteSpace(originUrl))
+        var fetch = await RunProcessAsync(
+            "git",
+            BuildSourceGitArgs(sourcePath, allowLocalFileTransport, "fetch", "origin", "--prune", "--no-tags"),
+            workingDirectory: sourcePath,
+            ct: ct).ConfigureAwait(false);
+        if (fetch.ExitCode != 0)
         {
-            var fetch = await RunProcessAsync(
-                "git",
-                BuildSourceGitArgs(sourcePath, allowLocalFileTransport, "fetch", "origin", "--prune", "--no-tags"),
-                workingDirectory: sourcePath,
-                ct: ct).ConfigureAwait(false);
-            if (fetch.ExitCode != 0)
-            {
-                _logger.LogWarning("Non-fatal git fetch warning on {Repo}: {StdErr}", repo.Id, fetch.StdErr);
-            }
+            _logger.LogWarning("Non-fatal git fetch warning on {Repo}: {StdErr}", repo.Id, fetch.StdErr);
         }
 
         var (resolvedBaseBranch, startRef) = await ResolveBaseBranchAndStartRefAsync(
             sourcePath,
             baseBranch ?? repo.DefaultBaseBranch,
-            hasOrigin: !string.IsNullOrWhiteSpace(originUrl),
             ct).ConfigureAwait(false);
 
         var baseShaResult = await RunProcessAsync(
@@ -207,6 +210,20 @@ public sealed partial class WorkTreeService : IWorkTree
             ct: ct).ConfigureAwait(false);
         EnsureSuccess(baseShaResult, $"resolve base commit '{startRef}'");
         var baseSha = baseShaResult.StdOut.Trim();
+
+        // The push sends every commit the remote lacks, and the approval shows one. A base that is only local
+        // (a branch never pushed, or one an earlier run left behind) would carry its own commits along unseen.
+        var unpushed = await RunProcessAsync(
+            "git",
+            BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, "rev-list", "--count", baseSha, "--not", "--remotes=origin"),
+            workingDirectory: sourcePath,
+            ct: ct).ConfigureAwait(false);
+        EnsureSuccess(unpushed, $"compare base '{resolvedBaseBranch}' with origin");
+        if (unpushed.StdOut.Trim() != "0")
+        {
+            throw new SecurityException(
+                $"Refusing to start from base '{resolvedBaseBranch}': it has {unpushed.StdOut.Trim()} commit(s) the remote does not have. Push the base first or name a branch that is on the remote.");
+        }
 
         // Prune stale worktree metadata if an earlier crashed run left a dead registration
         _ = await RunProcessAsync(
@@ -246,7 +263,8 @@ public sealed partial class WorkTreeService : IWorkTree
             BaseBranch: resolvedBaseBranch,
             BaseCommitSha: baseSha,
             BranchName: branchName,
-            GitHubRepo: githubRepo);
+            GitHubRepo: githubRepo,
+            OriginUrl: WithoutCredentials(pushUrl));
     }
 
     public async Task<WorkTreeCommit> VerifyAndCommitAsync(
@@ -389,6 +407,13 @@ public sealed partial class WorkTreeService : IWorkTree
         if (string.IsNullOrWhiteSpace(originUrl))
         {
             throw new InvalidOperationException($"Repository '{lease.RepositoryId}' has no 'origin' remote configured.");
+        }
+
+        // The person approved a push to the remote the lease recorded. A lease made before the remote was recorded is not checked.
+        var pushUrl = WithoutCredentials(await TryGetOriginUrlAsync(lease.SourceRepoPath, ct, push: true).ConfigureAwait(false));
+        if (lease.OriginUrl is { } approvedUrl && !string.Equals(approvedUrl, pushUrl, StringComparison.Ordinal))
+        {
+            throw new SecurityException($"Refusing to push: origin now pushes to '{pushUrl}', but the approval showed '{approvedUrl}'.");
         }
 
         var allowLocalFileTransport = IsLocalFilesystemRemote(originUrl);
@@ -590,7 +615,7 @@ public sealed partial class WorkTreeService : IWorkTree
             lease,
             allowLocalFileTransport: false,
             ct,
-            "diff", "--no-color", "--no-ext-diff", "--no-renames", "--unified=3", $"{lease.BaseCommitSha}..{commitSha}").ConfigureAwait(false);
+            "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "--unified=3", $"{lease.BaseCommitSha}..{commitSha}").ConfigureAwait(false);
         EnsureSuccess(diffResult, "render host unified diff");
         return diffResult.StdOut;
     }
@@ -715,20 +740,50 @@ public sealed partial class WorkTreeService : IWorkTree
         }
     }
 
-    private async Task<string?> TryGetOriginUrlAsync(string sourcePath, CancellationToken ct)
+    // push: every address a push goes to, one per line. A pushurl or a pushInsteadOf rule can make them differ from the one fetched from.
+    private async Task<string?> TryGetOriginUrlAsync(string sourcePath, CancellationToken ct, bool push = false)
     {
+        string[] getUrl = push ? ["remote", "get-url", "--push", "--all", "origin"] : ["remote", "get-url", "origin"];
         var res = await RunProcessAsync(
             "git",
-            BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, "remote", "get-url", "origin"),
+            BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, getUrl),
             workingDirectory: sourcePath,
             ct: ct).ConfigureAwait(false);
         return res.ExitCode == 0 && !string.IsNullOrWhiteSpace(res.StdOut) ? res.StdOut.Trim() : null;
     }
 
+    /// <summary>
+    /// The remote address without the user name, password or token a URL can carry before its host.
+    /// A remote with several push addresses gives one per line.
+    /// </summary>
+    public static string? WithoutCredentials(string? remoteUrl)
+    {
+        if (string.IsNullOrWhiteSpace(remoteUrl))
+        {
+            return null;
+        }
+
+        return string.Join('\n', remoteUrl
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(static url =>
+            {
+                var scheme = url.IndexOf("://", StringComparison.Ordinal);
+                if (scheme < 0)
+                {
+                    return url;
+                }
+
+                var hostStart = scheme + 3;
+                // Git ends the host at '/', '?' or '#', whichever comes first.
+                var pathStart = url.IndexOfAny(['/', '?', '#'], hostStart);
+                var at = (pathStart < 0 ? url[hostStart..] : url[hostStart..pathStart]).LastIndexOf('@');
+                return at < 0 ? url : url[..hostStart] + url[(hostStart + at + 1)..];
+            }));
+    }
+
     private async Task<(string BaseBranch, string StartRef)> ResolveBaseBranchAndStartRefAsync(
         string sourcePath,
         string? requestedBranch,
-        bool hasOrigin,
         CancellationToken ct)
     {
         if (!string.IsNullOrWhiteSpace(requestedBranch))
@@ -739,7 +794,7 @@ public sealed partial class WorkTreeService : IWorkTree
                 clean = clean["origin/".Length..];
             }
 
-            if (hasOrigin && await RefExistsAsync(sourcePath, $"refs/remotes/origin/{clean}", ct).ConfigureAwait(false))
+            if (await RefExistsAsync(sourcePath, $"refs/remotes/origin/{clean}", ct).ConfigureAwait(false))
             {
                 return (clean, $"refs/remotes/origin/{clean}");
             }
@@ -750,34 +805,31 @@ public sealed partial class WorkTreeService : IWorkTree
         }
 
         // 1. Try git symbolic-ref refs/remotes/origin/HEAD (e.g. refs/remotes/origin/refactor/ddd-clean-os)
-        if (hasOrigin)
+        var sym = await RunProcessAsync(
+            "git",
+            BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, "symbolic-ref", "-q", "refs/remotes/origin/HEAD"),
+            workingDirectory: sourcePath,
+            ct: ct).ConfigureAwait(false);
+        if (sym.ExitCode == 0 && sym.StdOut.Trim() is { Length: > 0 } symRef)
         {
-            var sym = await RunProcessAsync(
-                "git",
-                BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, "symbolic-ref", "-q", "refs/remotes/origin/HEAD"),
-                workingDirectory: sourcePath,
-                ct: ct).ConfigureAwait(false);
-            if (sym.ExitCode == 0 && sym.StdOut.Trim() is { Length: > 0 } symRef)
+            const string prefix = "refs/remotes/origin/";
+            if (symRef.StartsWith(prefix, StringComparison.Ordinal))
             {
-                const string prefix = "refs/remotes/origin/";
-                if (symRef.StartsWith(prefix, StringComparison.Ordinal))
+                var branch = symRef[prefix.Length..];
+                if (await RefExistsAsync(sourcePath, symRef, ct).ConfigureAwait(false))
                 {
-                    var branch = symRef[prefix.Length..];
-                    if (await RefExistsAsync(sourcePath, symRef, ct).ConfigureAwait(false))
-                    {
-                        return (branch, symRef);
-                    }
+                    return (branch, symRef);
                 }
             }
+        }
 
-            // 2. Probe well-known remote branches
-            foreach (var candidate in new[] { "refactor/ddd-clean-os", "main", "master" })
+        // 2. Probe well-known remote branches
+        foreach (var candidate in new[] { "refactor/ddd-clean-os", "main", "master" })
+        {
+            var remoteRef = $"refs/remotes/origin/{candidate}";
+            if (await RefExistsAsync(sourcePath, remoteRef, ct).ConfigureAwait(false))
             {
-                var remoteRef = $"refs/remotes/origin/{candidate}";
-                if (await RefExistsAsync(sourcePath, remoteRef, ct).ConfigureAwait(false))
-                {
-                    return (candidate, remoteRef);
-                }
+                return (candidate, remoteRef);
             }
         }
 
@@ -789,7 +841,7 @@ public sealed partial class WorkTreeService : IWorkTree
             ct: ct).ConfigureAwait(false);
         if (headBranch.ExitCode == 0 && headBranch.StdOut.Trim() is { Length: > 0 } b && b != "HEAD")
         {
-            if (hasOrigin && await RefExistsAsync(sourcePath, $"refs/remotes/origin/{b}", ct).ConfigureAwait(false))
+            if (await RefExistsAsync(sourcePath, $"refs/remotes/origin/{b}", ct).ConfigureAwait(false))
             {
                 return (b, $"refs/remotes/origin/{b}");
             }

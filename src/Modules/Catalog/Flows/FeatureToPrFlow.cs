@@ -164,35 +164,15 @@ public sealed class FeatureToPrFlow(
         var runId = EffectiveRunId(inner);
         var sha = inner.CommitSha ?? throw new InvalidOperationException("Cannot raise Feature-to-PR confirmation plan without a verified CommitSha.");
         var planId = BuildPlanId(runId, sha);
-        var branch = inner.Lease?.BranchName ?? "ino/change";
-        var repoLabel = inner.Lease?.GitHubRepo ?? inner.Repository;
+        var repoLabel = inner.Lease?.GitHubRepo ?? inner.Lease?.RepositoryId ?? inner.Repository;
 
-        var body = new StringBuilder();
-        body.AppendLine($"Repository: {repoLabel} (base: {inner.Lease?.BaseBranch ?? "main"})");
-        body.AppendLine($"Branch: {branch}");
-        body.AppendLine($"Commit: {sha}");
-        body.AppendLine($"Files ({inner.ChangedFiles.Length}): {string.Join(", ", inner.ChangedFiles)} (+{inner.Additions} / -{inner.Deletions})");
-        if (!string.IsNullOrWhiteSpace(inner.CoderSummary))
-        {
-            body.AppendLine();
-            body.AppendLine(inner.CoderSummary);
-        }
-
-        if (!string.IsNullOrWhiteSpace(inner.HostRenderedDiff))
-        {
-            body.AppendLine();
-            var preview = inner.HostRenderedDiff.Length <= 2400
-                ? inner.HostRenderedDiff
-                : inner.HostRenderedDiff[..2400] + "\n... (diff truncated)";
-            body.AppendLine(preview);
-        }
-
+        // The body is drawn, never cut and never refused here: the steps refuse what the card cannot show.
         return new ConfirmationPlan(
             Id: planId,
             Action: ConfirmationAction.Other,
             Destructive: true,
             Title: $"Push & open Draft PR on {repoLabel} ({sha[..Math.Min(8, sha.Length)]})?",
-            Body: body.ToString().Trim(),
+            Body: ChangeCard.Body(inner),
             ApproveLabel: "Push & Open Draft PR",
             DenyLabel: "Discard Worktree",
             TargetLabel: $"{repoLabel}@{sha[..Math.Min(8, sha.Length)]}")
@@ -261,15 +241,29 @@ public sealed class FeatureToPrFlow(
 
         inner.CommitSha = committed.CommitSha;
         inner.ChangedFiles = [.. committed.ChangedFiles];
-        inner.HostRenderedDiff = committed.HostRenderedDiff;
         inner.Additions = committed.Additions;
         inner.Deletions = committed.Deletions;
+
+        // Asked before the diff is stored: a failed run saves this same state, and a diff no card can show stays out of it.
+        if (ChangeCard.Refusal(inner, committed.HostRenderedDiff) is { } refusal)
+        {
+            throw new FlowFailed("verify-and-commit", refusal);
+        }
+
+        inner.HostRenderedDiff = committed.HostRenderedDiff;
         return inner.Advance();
     }
 
     private StepResult<FeatureToPrInner> ApprovalGateStep(string step, FeatureToPrInner inner)
     {
         var sha = inner.CommitSha ?? throw new FlowFailed(step, "Cannot enter approval-gate without a verified CommitSha.");
+
+        // Asked again here for a run that committed before the limit existed: no plan is raised for a change the card cannot show.
+        if (ChangeCard.Refusal(inner, inner.HostRenderedDiff) is { } refusal)
+        {
+            throw new FlowFailed(step, refusal);
+        }
+
         var runId = EffectiveRunId(inner);
         var planId = BuildPlanId(runId, sha);
         var expires = Context.Time.GetUtcNow().Add(ApprovalWindow);
