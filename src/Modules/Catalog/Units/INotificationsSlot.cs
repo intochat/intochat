@@ -3,11 +3,10 @@ using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Contracts;
-using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.Sdk;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Notifications;
 
@@ -40,11 +39,22 @@ public sealed record NotificationsSlotConnectionState : ConnectionState
 /// Brain-scoped connection neuron providing <c>notifications@1</c> backed by the brain's durable <c>notifications.inbox</c> neuron.
 /// </summary>
 [Neuron(TypeName, State = "notifications")]
-public sealed class NotificationsSlotConnection(ILogger<NotificationsSlotConnection>? logger = null)
-    : ConnectionNeuron<NotificationsSlotConnectionState>, INotifications
+public sealed class NotificationsSlotConnection : ConnectionNeuron<NotificationsSlotConnectionState>, INotifications
 {
     public const string TypeName = "notifications.connection";
-    private readonly ILogger _logger = logger ?? NullLogger<NotificationsSlotConnection>.Instance;
+
+    private static readonly ILoggerFactory ConsoleLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
+    private static readonly ILogger ConsoleLogger = ConsoleLoggerFactory.CreateLogger<NotificationsSlotConnection>();
+
+    private readonly ILogger _logger;
+
+    public NotificationsSlotConnection() : this(null) { }
+
+    [ActivatorUtilitiesConstructor]
+    public NotificationsSlotConnection(ILogger<NotificationsSlotConnection>? logger = null)
+    {
+        _logger = (ILogger?)logger ?? ConsoleLogger;
+    }
 
     public async Task<JsonElement> Notify(string title, string body, string priority, CancellationToken ct)
     {
@@ -59,33 +69,22 @@ public sealed class NotificationsSlotConnection(ILogger<NotificationsSlotConnect
             _ => NotificationPriority.Normal,
         };
 
-        if (Context is not null)
+        if (Context is null)
         {
-            try
-            {
-                var inbox = Context.Get<IntoChat.Sdk.INotifications>(
-                    new NeuronId(Id.Brain, "notifications.inbox", "inbox"));
-                var receipt = await inbox.SendAsync(
-                    new NotificationRequest(title.Trim(), body ?? string.Empty, parsedPriority),
-                    ct).ConfigureAwait(false);
-                return JsonSerializer.SerializeToElement(new
-                {
-                    id = receipt.Id,
-                    deduplicated = receipt.Deduplicated,
-                    createdUtc = receipt.CreatedUtc,
-                });
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogSwallowed(ex, "Notifications inbox neuron unavailable; returning local synthetic notification receipt.");
-            }
+            throw new InvalidOperationException("Notifications slot connection is not attached to a brain context.");
         }
 
+        _logger.LogDebug("Delivering unit notification '{Title}' to notifications.inbox.", title.Trim());
+        var inbox = Context.Get<IntoChat.Sdk.INotifications>(
+            new NeuronId(Id.Brain, "notifications.inbox", "inbox"));
+        var receipt = await inbox.SendAsync(
+            new NotificationRequest(title.Trim(), body ?? string.Empty, parsedPriority),
+            ct).ConfigureAwait(false);
         return JsonSerializer.SerializeToElement(new
         {
-            id = Guid.NewGuid().ToString("N"),
-            deduplicated = false,
-            createdUtc = DateTimeOffset.UtcNow,
+            id = receipt.Id,
+            deduplicated = receipt.Deduplicated,
+            createdUtc = receipt.CreatedUtc,
         });
     }
 

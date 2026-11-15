@@ -2,7 +2,6 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.Brains;
 using DigitalBrain.Invocation;
-using DigitalBrain.Log;
 using DigitalBrain.Modules.Options;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -30,7 +29,6 @@ internal sealed class Creator(
     SynapseCompiler? compiler = null) : IDrafter
 {
     private readonly ICreatorModel models = model ?? new SiloCreatorModel(plain);
-    private readonly bool fallbackOnMalformedExhaustion = model is null;
     private const int MaxAuthorRetries = 2;
     private const int MaxBuilderRounds = 12;
     private const int MaxRequestLength = 4000;
@@ -145,16 +143,7 @@ internal sealed class Creator(
                     continue;
                 }
 
-                if (!fallbackOnMalformedExhaustion)
-                {
-                    throw;
-                }
-
-                logger.LogWarning(error, "Author exhausted {Retries} retries for '{Request}'; falling back to OfflineUnitSynthesizer.", MaxAuthorRetries, request);
-                var fallbackUnit = OfflineUnitSynthesizer.SynthesizeAuthoredUnit(builder.ToString());
-                Validate(fallbackUnit);
-                _ = KeptScenarios.Merge(existing, fallbackUnit.Scenarios, request);
-                return fallbackUnit;
+                throw;
             }
         }
     }
@@ -189,7 +178,7 @@ internal sealed class Creator(
         }
         catch (Exception failure)
         {
-            if (failureIsVisibleElsewhere) { logger.LogSwallowed(failure, "attention report failed"); }
+            if (failureIsVisibleElsewhere) { logger.LogDebug(failure, "attention report failed"); }
             else { logger.LogWarning(failure, "attention report failed for an app."); }
         }
     }
@@ -211,13 +200,7 @@ internal sealed class Creator(
                     continue;
                 }
 
-                if (!fallbackOnMalformedExhaustion)
-                {
-                    throw;
-                }
-
-                logger.LogWarning(error, "App Author exhausted {Retries} retries; falling back to OfflineUnitSynthesizer.", MaxAuthorRetries);
-                return Parse<AuthoredApp>(await OfflineUnitSynthesizer.CompleteAsync(AgentPrompts.Author, prompt, cancellationToken));
+                throw;
             }
         }
     }
@@ -266,16 +249,6 @@ internal sealed class Creator(
             var results = new List<AiContent>();
             foreach (var call in calls) { results.Add(new AiToolResult(call.CallId, await ExecuteBuilderTool(call, alias, needs, scenarios, cancellationToken))); }
             messages.Add(new AiMessage("tool", results.ToArray()));
-        }
-        if (fallbackOnMalformedExhaustion)
-        {
-            logger.LogWarning("Builder exhausted {Rounds} rounds for unit '{Alias}'; falling back to OfflineUnitSynthesizer.", MaxBuilderRounds, alias);
-            var synthesized = OfflineUnitSynthesizer.SynthesizeUnitFiles(task);
-            var check = await BuilderTools.Check(Compiler, alias, synthesized, needs, scenarios, cancellationToken);
-            if (check.Passed)
-            {
-                return synthesized;
-            }
         }
 
         throw new InvalidDataException($"The Builder used {MaxBuilderRounds} rounds without producing a unit that passes check_unit.");

@@ -17,6 +17,14 @@ internal static class CreatorModel
     public const string AutoModel = "auto";
     private const string DefaultOllamaEndpoint = "http://127.0.0.1:11434";
 
+    private static bool IsRecoverableProviderError(Exception ex) => ex is InvalidOperationException
+        or ArgumentException
+        or KeyNotFoundException
+        or NotSupportedException
+        or HttpRequestException
+        or TimeoutException
+        or IntoChat.OS.Modules.AI.Models.ProviderUnavailableException;
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true,
@@ -76,7 +84,7 @@ internal static class CreatorModel
                     {
                         return await inference.Generate(request with { Model = selection }, marker: null, cancellationToken: ct, brainId: brainId).ConfigureAwait(false);
                     }
-                    catch (Exception error) when (explicitModel is not null && OfflineUnitSynthesizer.ShouldFallback(error))
+                    catch (Exception error) when (explicitModel is not null && IsRecoverableProviderError(error))
                     {
                         NullLogger.Instance.LogSwallowed(error, "Explicit Creator model selection failed; retrying automatic brain default.");
                         var autoResolved = await ResolveCatalogModelAsync(neurons, catalog, brainId, explicitModel: null, requiresTools, ct).ConfigureAwait(false);
@@ -115,7 +123,7 @@ internal static class CreatorModel
                     return await inference.Generate(request with { Model = selection }, marker: null, cancellationToken: ct, brainId: brainId).ConfigureAwait(false);
                 }
             }
-            catch (Exception error) when (error is not OperationCanceledException && OfflineUnitSynthesizer.ShouldFallback(error))
+            catch (Exception error) when (error is not OperationCanceledException && IsRecoverableProviderError(error))
             {
                 NullLogger.Instance.LogSwallowed(error, "IModelInference unavailable; probing local Ollama fallback.");
             }
@@ -127,7 +135,7 @@ internal static class CreatorModel
             {
                 return await ((ILLM)SiloNeurons.Get(neurons, compiledMarker.Marker, ModelAddress.Key(brainId))).Generate(request, ct).ConfigureAwait(false);
             }
-            catch (Exception error) when (OfflineUnitSynthesizer.ShouldFallback(error))
+            catch (Exception error) when (IsRecoverableProviderError(error))
             {
                 NullLogger.Instance.LogSwallowed(error, "Compiled ILLM neuron unavailable; probing local Ollama fallback.");
             }
@@ -184,7 +192,7 @@ internal static class CreatorModel
 
                 return resolved;
             }
-            catch (Exception error) when (error is not OperationCanceledException && OfflineUnitSynthesizer.ShouldFallback(error))
+            catch (Exception error) when (error is not OperationCanceledException && IsRecoverableProviderError(error))
             {
                 NullLogger.Instance.LogSwallowed(error, "ModelCatalog candidate could not resolve; trying next Creator model candidate.");
             }
@@ -322,27 +330,9 @@ internal interface ICreatorModel
 // The brain's own model catalog / local Ollama with deterministic offline synthesizer fallback when unconfigured or offline.
 internal sealed class SiloCreatorModel(IServiceProvider neurons) : ICreatorModel
 {
-    public async Task<string> Complete(string brainId, string model, string system, string prompt, CancellationToken ct)
-    {
-        try
-        {
-            return await CreatorModel.Complete(neurons, brainId, model, system, prompt, ct).ConfigureAwait(false);
-        }
-        catch (Exception error) when (OfflineUnitSynthesizer.ShouldFallback(error))
-        {
-            return await OfflineUnitSynthesizer.CompleteAsync(system, prompt, ct).ConfigureAwait(false);
-        }
-    }
+    public Task<string> Complete(string brainId, string model, string system, string prompt, CancellationToken ct)
+        => CreatorModel.Complete(neurons, brainId, model, system, prompt, ct);
 
-    public async Task<InferenceResult> Generate(string brainId, string model, InferenceRequest request, CancellationToken ct)
-    {
-        try
-        {
-            return await CreatorModel.Generate(neurons, brainId, model, request, ct).ConfigureAwait(false);
-        }
-        catch (Exception error) when (OfflineUnitSynthesizer.ShouldFallback(error))
-        {
-            return await OfflineUnitSynthesizer.GenerateAsync(model, request, ct).ConfigureAwait(false);
-        }
-    }
+    public Task<InferenceResult> Generate(string brainId, string model, InferenceRequest request, CancellationToken ct)
+        => CreatorModel.Generate(neurons, brainId, model, request, ct);
 }

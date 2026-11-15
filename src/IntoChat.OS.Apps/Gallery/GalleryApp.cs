@@ -12,13 +12,13 @@ Showcases all 7 canonical UI Kit component families across interactive tabs, an 
 */
 using System.Globalization;
 using DigitalBrain;
-using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Gallery;
 
@@ -370,6 +370,19 @@ public sealed record GalleryAppState(
 [Screen("app.gallery", Title = "UI Gallery", Icon = Icons.Sparkles)]
 public sealed class GalleryApp : AggregateScreen<GalleryAppState>
 {
+    private static readonly ILoggerFactory ConsoleLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
+    private static readonly ILogger ConsoleLogger = ConsoleLoggerFactory.CreateLogger<GalleryApp>();
+
+    private readonly ILogger _logger;
+
+    public GalleryApp() : this(null) { }
+
+    [ActivatorUtilitiesConstructor]
+    public GalleryApp(ILogger<GalleryApp>? logger = null)
+    {
+        _logger = (ILogger?)logger ?? ConsoleLogger;
+    }
+
     public const string AppName = "gallery";
 
     public static AppBundle Bundle { get; } = new(
@@ -599,12 +612,14 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     protected override Node Render(GalleryAppState state)
         => GalleryRendering.RenderRoot(state, LastRejection);
 
+    private ILogger Log => _logger;
+
     private T? TryGetOptional<T>(string key) where T : class
     {
         try { return Get<T>(key); }
         catch (Exception ex)
         {
-            NullLogger.Instance.LogSwallowed(ex, $"{typeof(T).Name} is optional when GalleryApp runs in tests.");
+            Log.LogDebug(ex, "{Service} is optional when GalleryApp runs in tests.", typeof(T).Name);
             return null;
         }
     }

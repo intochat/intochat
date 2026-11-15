@@ -111,7 +111,9 @@ public sealed class StudioAndCraftReactorFacts
             Assert.Equal(app.Descriptor.Title, view.Title);
             var json = JsonSerializer.Serialize(view, RuntimeProtocol.OptionsFor(typeof(View)));
             Assert.Contains("\"kind\":\"appShell\"", json, StringComparison.Ordinal);
-            Assert.Contains("\"surfaceKind\":\"image:contain\"", json, StringComparison.Ordinal);
+            Assert.DoesNotContain("data:image/png;base64,", json, StringComparison.Ordinal);
+            Assert.DoesNotContain("-cli", json, StringComparison.Ordinal);
+            Assert.DoesNotContain("1808", json, StringComparison.Ordinal);
             Assert.DoesNotContain("\"kind\":\"webBrowser\"", json, StringComparison.Ordinal);
             Assert.DoesNotContain("\"surfaceKind\":\"acrylic\"", json, StringComparison.Ordinal);
 

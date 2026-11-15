@@ -14,7 +14,6 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
-using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
@@ -24,7 +23,8 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Flutter.Fields;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Creator;
 
@@ -71,6 +71,21 @@ public sealed record CreatorReject(string? ApprovalId = null) : DigitalBrain.Sig
 [Neuron("app.creator")]
 public sealed class CreatorApp : Screen<CreatorState>
 {
+    private static readonly ILoggerFactory ConsoleLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
+    private static readonly ILogger ConsoleLogger = ConsoleLoggerFactory.CreateLogger<CreatorApp>();
+
+    private readonly ILogger _logger;
+
+    public CreatorApp() : this(null) { }
+
+    [ActivatorUtilitiesConstructor]
+    public CreatorApp(ILogger<CreatorApp>? logger = null)
+    {
+        _logger = (ILogger?)logger ?? ConsoleLogger;
+    }
+
+    private ILogger Log => _logger;
+
     private const string FlowsKey = "flows/index";
     private const string ApprovalsKey = "approvals/index";
     private const string SynapsesKey = "ino/synapses";
@@ -199,7 +214,7 @@ public sealed class CreatorApp : Screen<CreatorState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "The change could not start; the status line reports why.");
+            Log.LogDebug(error, "The change could not start; the status line reports why.");
             await Show(State with { Status = $"Could not change {alias}: {error.Message}" });
         }
         await RefreshAsync();
@@ -234,7 +249,7 @@ public sealed class CreatorApp : Screen<CreatorState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "A scenario run that fails says why in its transcript.");
+            Log.LogDebug(error, "A scenario run that fails says why in its transcript.");
             transcript = $"The scenarios did not run: {error.Message}";
         }
         finally
@@ -262,7 +277,7 @@ public sealed class CreatorApp : Screen<CreatorState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "Ino's studio is optional; the status line reports why.");
+            Log.LogDebug(error, "Ino's studio is optional; the status line reports why.");
             await Show(State with { Status = $"Could not make it: {error.Message}" });
         }
         await RefreshAsync();
@@ -308,7 +323,7 @@ public sealed class CreatorApp : Screen<CreatorState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "Sharing to profile is optional when the profile neuron is not registered.");
+            Log.LogDebug(error, "Sharing to profile is optional when the profile neuron is not registered.");
             await Show(State with { Status = $"Could not share {alias}: {error.Message}" });
         }
     }
@@ -336,7 +351,7 @@ public sealed class CreatorApp : Screen<CreatorState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "Deploying a shipped unit requires the synapse studio neuron.");
+            Log.LogDebug(error, "Deploying a shipped unit requires the synapse studio neuron.");
             await Show(State with { Status = $"Could not deploy {alias}: {error.Message}" });
         }
         await RefreshAsync();
@@ -367,7 +382,7 @@ public sealed class CreatorApp : Screen<CreatorState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "Approval resolution failed.");
+            Log.LogDebug(error, "Approval resolution failed.");
             await Show(State with { Status = $"Could not approve {approvalId}: {error.Message}" });
         }
         await RefreshAsync();
@@ -387,7 +402,7 @@ public sealed class CreatorApp : Screen<CreatorState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "Reject resolution failed.");
+            Log.LogDebug(error, "Reject resolution failed.");
             await Show(State with { Status = $"Could not reject {approvalId}: {error.Message}" });
         }
         await RefreshAsync();
@@ -406,11 +421,11 @@ public sealed class CreatorApp : Screen<CreatorState>
     private async Task RefreshAsync()
     {
         try { _flows = await Get<IFlows>(FlowsKey).List(new FlowQuery()); }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The flows index is optional; the dialogue shows the last read."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "The flows index is optional; the dialogue shows the last read."); }
         try { _approvals = [.. await Get<IApprovals>(ApprovalsKey).Pending()]; }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Approvals are optional when the inbox is not reachable."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Approvals are optional when the inbox is not reachable."); }
         try { _topology = await Get<IDebuggerReads>(IDebuggerReads.DefaultKey).Topology(); }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The topology read is optional; the graph shows the last read."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "The topology read is optional; the graph shows the last read."); }
         _topology = _topology with { Flows = _flows };
         if (string.IsNullOrEmpty(State.ConversationId))
         {
@@ -418,7 +433,7 @@ public sealed class CreatorApp : Screen<CreatorState>
             {
                 if ((await Get<IInoConversations>(IInoConversations.DefaultKey).Current()).FirstOrDefault() is { } agent) { await Show(State with { ConversationId = agent }); }
             }
-            catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The Ino conversation is optional; the dialogue shows the build flows."); }
+            catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "The Ino conversation is optional; the dialogue shows the build flows."); }
         }
         await Show(State with { Status = State.Status });
     }
@@ -450,7 +465,7 @@ public sealed class CreatorApp : Screen<CreatorState>
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(error, "The state read is optional; the inspector says it is unavailable.");
+                Log.LogDebug(error, "The state read is optional; the inspector says it is unavailable.");
                 notice = $"state unavailable: {error.Message}";
             }
         }
@@ -480,7 +495,7 @@ public sealed class CreatorApp : Screen<CreatorState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "The journal read is optional; the inspector says it is unavailable.");
+            Log.LogDebug(error, "The journal read is optional; the inspector says it is unavailable.");
             return new Inspection(Selection.Edge, key) { Alias = alias, Notice = $"journal unavailable: {error.Message}" };
         }
     }
@@ -501,7 +516,7 @@ public sealed class CreatorApp : Screen<CreatorState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "The trace reader is optional; the inspector says it is unavailable.");
+            Log.LogDebug(error, "The trace reader is optional; the inspector says it is unavailable.");
             return new Inspection(Selection.Pulse, traceId) { Notice = $"trace reader unavailable: {error.Message}" };
         }
         var hops = TraceFold.Fold([.. entries.Take(MaxHops)]);
@@ -521,7 +536,7 @@ public sealed class CreatorApp : Screen<CreatorState>
             foreach (var (path, text) in await studio.SourceFiles(alias)) { files[path] = text; }
             foreach (var (path, text) in await studio.Sidecars(alias)) { files[path] = text; }
         }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The unit's files are optional; the inspector shows what was read."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "The unit's files are optional; the inspector shows what was read."); }
 
         if (files.Count == 0 && !string.IsNullOrWhiteSpace(Id.Brain.Value))
         {
@@ -538,7 +553,7 @@ public sealed class CreatorApp : Screen<CreatorState>
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(error, "Export fallback for installed app bundle failed.");
+                Log.LogDebug(error, "Export fallback for installed app bundle failed.");
             }
         }
 
@@ -561,7 +576,7 @@ public sealed class CreatorApp : Screen<CreatorState>
     private async Task RecordCreatorComputeAsync(long micros)
     {
         try { await Get<ICompute>("compute").Record("creator", micros); }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Compute metering is optional when the compute neuron is not registered."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Compute metering is optional when the compute neuron is not registered."); }
     }
 
     private async Task<bool> IsCreatorBudgetExceededAsync()
@@ -569,7 +584,7 @@ public sealed class CreatorApp : Screen<CreatorState>
         try { return (await Get<ICompute>("compute").Read()).BudgetExceeded; }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "Compute metering is optional when the compute neuron is not registered.");
+            Log.LogDebug(error, "Compute metering is optional when the compute neuron is not registered.");
             return false;
         }
     }

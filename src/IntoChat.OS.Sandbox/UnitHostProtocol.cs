@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace IntoChat.OS.Sandbox;
 
-/// <summary>Wire frame sent from the host <see cref="UnitHostRunner"/> to the out-of-process <c>--unit-host</c> worker over anonymous stdin.</summary>
+/// <summary>Wire frame sent from the host to the out-of-process <c>--unit-host</c> worker over anonymous stdin.</summary>
 public sealed record UnitHostFrameRequest(
     string Id,
     string Op,

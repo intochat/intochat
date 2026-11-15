@@ -150,7 +150,9 @@ internal static class GalleryRendering
                         FlexSpacer(),
                         Breadcrumb(Text("Workspace"), Text("UI Kit v2"), StatusPill(StatusKind.Done, "Live"))),
                     Grid(2, Space.Md)[
-                        ImageView(ArtCraftEngineRunner.GradientPreviewPngDataUrl, "Inline PNG Raster Canvas (ImageView)", height: 180),
+                        Surface(SurfaceKind.Elevated, "ImageView Canvas", "Connect a live VFS or studio image source to preview raster frames.")[
+                            MutedText("No raster preview attached.")
+                        ],
                         CodeBlock("Declarative C# Kit v2", "HeaderBar(\"Studio\", \"Ready\",\n    PrimaryButton(\"Deploy\").Guard(state.CanDeploy));", "csharp", maxHeight: 180)
                     ],
                     Expander("Disclosure Panel (Expander)", "Click to inspect bounded progressive disclosure", expanded: false,
@@ -355,7 +357,7 @@ internal static class GalleryRendering
                         "Live Silo Spans",
                         ["Span", "Status", "Duration", "Module"],
                         tableRows,
-                        sourceNeuronUri: "neuron://local/postgres/main#query-result")
+                        sourceNeuronUri: "neuron://local/aspire#telemetry")
                 ]
             ]
         ];

@@ -12,13 +12,7 @@ public sealed record AspireTelemetryState(
     AspireLogEntry[] StructuredLogs,
     AspireTraceSpan[] Traces)
 {
-    public AspireTelemetryState() : this(
-        [
-            new AspireResourceView("OperatingSystem", "Running", "http://localhost:5390"),
-            new AspireResourceView("intochat-os-mcp", "Running", "http://localhost:5391"),
-        ],
-        [],
-        [])
+    public AspireTelemetryState() : this([], [], [])
     {
     }
 }
@@ -76,12 +70,15 @@ internal static partial class AspireLiveTelemetry
         var list = new List<AspireResourceView>();
         var osUrl = FirstEndpoint(
             configuration?["ASPNETCORE_URLS"],
+            configuration?["INTOCHAT_OS_URL"],
             Environment.GetEnvironmentVariable("ASPNETCORE_URLS"),
             Environment.GetEnvironmentVariable("INTOCHAT_OS_URL"))
-            ?? baseline.FirstOrDefault(r => string.Equals(r.Name, "OperatingSystem", StringComparison.OrdinalIgnoreCase))?.Endpoint
-            ?? "http://127.0.0.1:5390";
+            ?? baseline.FirstOrDefault(r => string.Equals(r.Name, "OperatingSystem", StringComparison.OrdinalIgnoreCase))?.Endpoint;
 
-        list.Add(new AspireResourceView("OperatingSystem", "Running", StripUrlCredentials(osUrl)));
+        if (!string.IsNullOrWhiteSpace(osUrl))
+        {
+            list.Add(new AspireResourceView("OperatingSystem", "Running", StripUrlCredentials(osUrl)));
+        }
 
         foreach (var item in baseline)
         {
@@ -273,68 +270,4 @@ public sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetrySt
         "CRITICAL" or "FATAL" => 5,
         _ => 0,
     };
-}
-
-public sealed class FakeAspire : IAspire
-{
-    private readonly List<AspireResourceView> _resources =
-    [
-        new AspireResourceView("OperatingSystem", "Running", "http://localhost:5390"),
-        new AspireResourceView("intochat-os-mcp", "Running", "http://localhost:5391"),
-    ];
-    private readonly List<AspireLogEntry> _logs = [];
-    private readonly List<AspireTraceSpan> _traces = [];
-
-    public Task<AspireResourceView[]> GetResourcesAsync() => Task.FromResult(_resources.ToArray());
-
-    public Task<string[]> GetConsoleLogsAsync(string resourceName, int tailLines = 50)
-    {
-        var lines = _logs
-            .Where(log => string.Equals(log.Resource, resourceName, StringComparison.OrdinalIgnoreCase))
-            .TakeLast(Math.Clamp(tailLines, 1, 500))
-            .Select(log => $"[{log.Severity}] {log.Resource}: {log.Message}" + (log.Exception is null ? "" : $" ({log.Exception})"))
-            .ToArray();
-        return Task.FromResult(lines);
-    }
-
-    public Task<AspireLogEntry[]> GetStructuredLogsAsync(string? resourceName = null, string? minSeverity = null)
-    {
-        var query = _logs.AsEnumerable();
-        if (!string.IsNullOrWhiteSpace(resourceName))
-        {
-            query = query.Where(log => string.Equals(log.Resource, resourceName, StringComparison.OrdinalIgnoreCase));
-        }
-
-        return Task.FromResult(query.ToArray());
-    }
-
-    public Task<AspireTraceSpan[]> GetTracesAsync(string? resourceName = null, bool errorsOnly = false)
-    {
-        var query = _traces.AsEnumerable();
-        if (!string.IsNullOrWhiteSpace(resourceName))
-        {
-            query = query.Where(span => string.Equals(span.Resource, resourceName, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (errorsOnly)
-        {
-            query = query.Where(span => !string.IsNullOrWhiteSpace(span.Error) || string.Equals(span.Status, "Error", StringComparison.OrdinalIgnoreCase));
-        }
-
-        return Task.FromResult(query.ToArray());
-    }
-
-    public Task RecordLogAsync(AspireLogEntry entry)
-    {
-        ArgumentNullException.ThrowIfNull(entry);
-        _logs.Add(entry);
-        return Task.CompletedTask;
-    }
-
-    public Task RecordTraceAsync(AspireTraceSpan span)
-    {
-        ArgumentNullException.ThrowIfNull(span);
-        _traces.Add(span);
-        return Task.CompletedTask;
-    }
 }
