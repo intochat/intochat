@@ -53,6 +53,8 @@ internal static class FilesRequests
                 new("sort-modified", "Sort by modified time."),
                 new("sort-name", "Sort by name."),
                 new("sort-size", "Sort by size."),
+                new("view-list", "Switch directory listing to list view."),
+                new("view-grid", "Switch directory listing to grid view."),
                 new("upload", "Upload into this folder; include ExpectedRevision."),
             ],
             Settings: [], Slots: [],
@@ -76,7 +78,7 @@ internal static class FilesRequests
         {
             var payload = string.IsNullOrWhiteSpace(request.Input) ? new Forwarded()
                 : JsonSerializer.Deserialize<Forwarded>(request.Input, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-            var readOnly = request.Operation is "open" or "storage" or "browse" or "select" or "search" or "more" or "preview" or "up" or "ask-ino";
+            var readOnly = request.Operation is "open" or "storage" or "browse" or "select" or "search" or "more" or "preview" or "up" or "ask-ino" or "view-list" or "view-grid";
             if (!readOnly && payload.ExpectedRevision is null)
             { return "Read the current Files workspace revision before changing files."; }
             await workspace.Request(request.Operation, payload.Input ?? new(), payload.ExpectedRevision ?? await workspace.Revision(), request.RequestId, ct);

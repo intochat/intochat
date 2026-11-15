@@ -39,6 +39,7 @@ internal sealed record FilesWorkspaceState
     public bool Ready { get; init; }
     public int Width { get; init; } = 1440;
     public bool PreviewOpen { get; init; }
+    public string ViewMode { get; init; } = "list";
 }
 
 // The provider-neutral app owns navigation; this host owns durable request receipts, runtime operations and UI delivery.
@@ -188,14 +189,17 @@ internal sealed partial class FilesWorkspaceNeuron(
                     var name = input.Name ?? (await Field("name").Read()).Value ?? "";
                     if (operation is "mkdir" or "write" or "rename")
                     {
-                        if (string.IsNullOrWhiteSpace(name) || !SafeRelativePath.TryParse(name, out var safeName) || safeName.Value.Contains('/'))
+                        var nameRule = FilesPathRules.ValidateSingleSegmentName(name);
+                        if (nameRule.Broken)
                         {
-                            throw new ArgumentException("A valid single-segment file or folder name is required.");
+                            throw new ArgumentException(nameRule.Message);
                         }
+                        SafeRelativePath.TryParse(name, out var safeName);
                         name = safeName.Value;
                     }
                     var text = operation == "write" ? input.Text ?? (await Field("content").Read()).Value ?? "" : "";
-                    if (System.Text.Encoding.UTF8.GetByteCount(text) > 256 * 1024) { throw new InvalidOperationException("Text files entered here are limited to 256 KiB."); }
+                    var sizeRule = FilesPathRules.ValidateInlineTextSize(text);
+                    if (sizeRule.Broken) { throw new InvalidOperationException(sizeRule.Message); }
                     var plan = app.Plan(operation, name, text);
                     await Persist(State with { PendingRequest = operation });
                     var started = await operations.Start(plan, ct);
@@ -215,6 +219,8 @@ internal sealed partial class FilesWorkspaceNeuron(
                 case "sort-name": app.SortBy("name"); await Store(app); break;
                 case "sort-size": app.SortBy("size"); await Store(app); break;
                 case "sort-modified": app.SortBy("modified"); await Store(app); break;
+                case "view-list": await Persist(State with { ViewMode = "list" }); break;
+                case "view-grid": await Persist(State with { ViewMode = "grid" }); break;
                 case "back-folder": await app.BackToFolder(ct); await Store(app, resetPage: true); break;
                 case "back-files": await Persist(State with { PreviewOpen = false }); break;
                 case "retry":

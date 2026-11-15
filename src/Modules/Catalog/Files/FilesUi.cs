@@ -1,10 +1,54 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
+using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using IntoChat.OS.Primitives;
+using IntoChat.OS.UI;
+using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// The Files views' node vocabulary over DigitalBrain.UI: every button emits to the files app with the revision it was drawn at.
+/// <summary>
+/// Shared domain <see cref="Rule"/> invariants for <c>Files</c> path, name, and inline write validation (<c>UK-17</c>).
+/// Enforced identically on UI controls (<c>.Guard(rule)</c>) and inside <see cref="FilesWorkspaceNeuron"/>.
+/// </summary>
+internal static class FilesPathRules
+{
+    public const int MaxInlineTextBytes = 256 * 1024;
+
+    public static Rule ValidateSingleSegmentName(string? name)
+    {
+        var invalid = string.IsNullOrWhiteSpace(name)
+            || !SafeRelativePath.TryParse(name, out var safe)
+            || safe.Value.Contains('/', StringComparison.Ordinal);
+        return Decision.Rule(
+            "single_segment_name",
+            invalid,
+            "A valid single-segment file or folder name is required.");
+    }
+
+    public static Rule ValidateInlineTextSize(string? text)
+    {
+        var byteCount = string.IsNullOrEmpty(text) ? 0 : Encoding.UTF8.GetByteCount(text);
+        return Decision.Rule(
+            "inline_text_limit",
+            byteCount > MaxInlineTextBytes,
+            "Text files entered here are limited to 256 KiB.");
+    }
+
+    public static Rule CanWriteFolder(bool writable) => Decision.Require(
+        "folder_writable",
+        writable,
+        "Current storage location is read-only.");
+
+    public static Rule CanCreateSubfolder(bool canCreate) => Decision.Require(
+        "folder_create_allowed",
+        canCreate,
+        "Open a writable folder before creating a subfolder.");
+}
+
+// The Files views' node vocabulary over IntoChat.OS.UI.Kit: every button emits to the files app with the revision it was drawn at.
 internal static class FilesUi
 {
     public const string Primary = ButtonTone.Accent;
@@ -23,27 +67,88 @@ internal static class FilesUi
             input = new FilesWorkspaceInput(Index: index, Everywhere: verb == "search-all"),
         }, JsonSerializerOptions.Web));
 
-    public static Node Text(string text) => new Text(text);
+    public static Node Text(string text) => Kit.Text(text);
 
-    public static Node Button(string key, string text, Emit action, bool enabled = true, string style = Secondary, string? icon = null)
-        => new Button(key, text, action, Enabled: enabled, Tone: style) { Icon = icon };
+    public static Node Muted(string text) => MutedText(text);
 
-    public static Node CopyButton(string key, string label, string text)
-        => new Button(key, label, Intent: new Intent(IntentKind.Copy, text)) { Icon = "copy" };
+    public static Node Button(
+        string key,
+        string text,
+        Emit action,
+        bool enabled = true,
+        string style = Secondary,
+        string? icon = null,
+        Rule? guard = null,
+        bool small = true)
+    {
+        ButtonBuilder builder = style switch
+        {
+            Primary => PrimaryButton(text, icon),
+            Danger => DangerButton(text, icon),
+            _ => Kit.Button(text, icon),
+        };
+        builder.Key(key).Small(small).Emits(action);
+        if (guard is not null)
+        {
+            builder.Guard(guard);
+        }
 
-    public static Node Column(Node[] children, double gap = 12, double[]? extents = null) => new Column(children) { Gap = gap, Extents = extents };
+        if (!enabled)
+        {
+            builder.Disabled();
+        }
 
-    public static Node Row(Node[] children, double gap = 12, double[]? extents = null) => new Row(children) { Gap = gap, Extents = extents };
+        return builder.ToNode();
+    }
 
-    public static Node List(Node[] rows) => new Column(rows);
+    public static Node CopyButton(string key, string label, string text, bool small = true)
+        => Kit.Button(label, "copy")
+            .Key(key)
+            .Small(small)
+            .WithIntent(IntentKind.Copy, text)
+            .ToNode();
 
-    public static Node Card(string title, string? detail = null, Node[]? children = null) => new Card(title, detail ?? "", children ?? []);
+    public static Node Column(Node[] children, double gap = Space.Md, double[]? extents = null)
+    {
+        var stack = VStack(gap, children);
+        return extents is null ? stack.ToNode() : stack.Extents(extents).ToNode();
+    }
 
-    public static Node Badge(string text, string tone) => new Badge(text, tone);
+    public static Node Row(Node[] children, double gap = Space.Sm, double[]? extents = null)
+    {
+        var stack = HStack(gap, children);
+        return extents is null ? stack.ToNode() : stack.Extents(extents).ToNode();
+    }
 
-    public static Node Divider(string? label = null) => new Divider(label);
+    public static Node List(Node[] rows) => VStack(Space.Xs, rows);
 
-    public static Node Field(string key, string name, FieldKind kind = FieldKind.Text) => new Field(key, name, kind);
+    public static Node Card(string title, string? detail = null, Node[]? children = null)
+        => Kit.Card(title, detail ?? "", children ?? []);
 
-    public static Node Reference(string kind, string name) => new NeuronRef(kind, name);
+    public static Node Panel(string title, string? subtitle = null, Node[]? children = null, string kind = SurfaceKind.Elevated)
+        => Surface(kind, title, subtitle, 16, children ?? []);
+
+    public static Node Badge(string text, string tone)
+    {
+        var status = tone switch
+        {
+            "done" => StatusKind.Done,
+            Working => StatusKind.Working,
+            "error" or Danger => StatusKind.Error,
+            _ => StatusKind.Idle,
+        };
+        return StatusPill(status, text);
+    }
+
+    public static Node Divider(string? label = null) => Kit.Divider(label);
+
+    public static Node Field(string key, string name, FieldKind kind = FieldKind.Text, string? placeholder = null) => kind switch
+    {
+        FieldKind.Search => SearchField(placeholder ?? "Search…", name).Key(key).ToNode(),
+        FieldKind.Secret => SecretField(name, placeholder).Key(key).ToNode(),
+        FieldKind.Multiline => new Field(key, name, FieldKind.Multiline, placeholder),
+        _ => TextField(name, placeholder).Key(key).ToNode(),
+    };
+
+    public static Node Reference(string kind, string name) => Slot(name, kind);
 }

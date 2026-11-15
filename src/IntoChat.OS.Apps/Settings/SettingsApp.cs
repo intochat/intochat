@@ -2,19 +2,23 @@
 # Settings
 Role: Shell
 Shipped: true
-Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable, set-budget
+Operations: open, read, refresh-connections, save-preferences, reload-preferences, reconcile-preferences, navigate, go-back, export-brain, import-brain, set-variable, set-budget, ui.command
 
-Declarative macOS System Settings-style application for IntoChat OS.
-Owns the 13 settings sections, master-detail subpages (AppPage, MemoryPage, ConnectionPage, PersonPage, LocalServerPage),
-modal sheets, search index, and navigation backstack. Preferences read and persist through UserSettingsNeuron (IUserSettings)
-and BrainPreferenceStore.
+Declarative macOS Sonoma-style System Settings application for IntoChat OS (`UK-16` / `INT-1364`).
+Owns the 13 settings sections, master-detail subpages (`AppPage`, `MemoryPage`, `ConnectionPage`,
+`PersonPage`, `LocalServerPage`), modal sheets, search index, navigation backstack, and pure immutable
+`SettingsAppState` DDD Aggregate projections (zero transient mutable grain fields!).
 */
 using System.Globalization;
 using DigitalBrain;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
+using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Apps.Approvals;
+using IntoChat.OS.Modules.Flutter.Compute;
+using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Apps.Settings;
@@ -63,10 +67,20 @@ public sealed record SettingsImportBrain(string? ArchiveJson = null) : Signal;
 public sealed record SettingsSetVariable(string? Key = null, string? Value = null) : Signal;
 
 [Signal("settings.set-budget")]
-public sealed record SettingsSetBudget(long MonthlyBudgetMicros = IntoChat.OS.Modules.Flutter.Compute.ComputeState.DefaultMonthlyBudgetMicros) : Signal;
+public sealed record SettingsSetBudget(long MonthlyBudgetMicros = ComputeState.DefaultMonthlyBudgetMicros) : Signal;
 
-public sealed record SettingsSearchEntry(string SectionId, string Title, string Keywords, string ActionUri, string Icon = "settings", string Group = "Preferences");
+public sealed record SettingsSearchEntry(
+    string SectionId,
+    string Title,
+    string Keywords,
+    string ActionUri,
+    string Icon = "settings",
+    string Group = "Preferences");
 
+/// <summary>
+/// Rich DDD Aggregate owning all Settings navigation, preferences, and projected external state
+/// (compute spend/cap, pending approvals, and redacted secret statuses) without transient grain fields.
+/// </summary>
 public sealed record SettingsAppState(
     string Title,
     string Status,
@@ -78,7 +92,6 @@ public sealed record SettingsAppState(
     string? Sheet = null,
     IReadOnlyList<string>? History = null,
     string SearchQuery = "",
-    Node? OverrideBody = null,
     string StylePreset = "fluent-acrylic",
     string BarLayout = "floating-glass",
     string ThemeMode = "auto",
@@ -93,28 +106,172 @@ public sealed record SettingsAppState(
     IReadOnlyList<string>? DeployedUnits = null,
     IReadOnlyList<ProfileFriend>? TeamFriends = null)
 {
+    public const long MinMonthlyBudgetMicros = 1_000_000L;       // $1.00
+    public const long MaxMonthlyBudgetMicros = 10_000_000_000L;  // $10,000.00
+
     public static IReadOnlyList<string> DefaultConnectionKeys { get; } = [];
     public static IReadOnlyList<string> DefaultFriendGrants { get; } = [];
 
+    // Projected immutable read-model fields (eliminating transient mutable grain fields on SettingsApp):
+    public string ComputeSpendUsd { get; init; } = "$0.00";
+    public string ComputeBudgetUsd { get; init; } = "$50.00";
+    public long MonthlyBudgetMicros { get; init; } = ComputeState.DefaultMonthlyBudgetMicros;
+    public bool ComputeBudgetExceeded { get; init; }
+    public string ComputeRowsSummary { get; init; } = "0 model(s) metered";
+    public IReadOnlyList<Approval> PendingApprovals { get; init; } = [];
+    public IReadOnlyDictionary<string, bool>? SecretStatuses { get; init; }
+    public bool NotifyApprovals { get; init; } = true;
+    public bool NotifyBackgroundJobs { get; init; } = true;
+    public bool NotifyConnectionHealth { get; init; } = true;
+    public bool QuietHoursEnabled { get; init; }
+    public bool ShowOsBarNotifications { get; init; } = true;
+    public bool ShowOsBarComputeMeter { get; init; } = true;
+    public bool ShowOsBarClock { get; init; } = true;
+
     public SettingsAppState() : this(
-        "Settings", "Settings", "User", "dark", "qwen3.5:4b",
-        "general", null, null, [], "", null,
-        "fluent-acrylic", "floating-glass", "auto", "cream", "English", "UTC", "17 Oct 2026",
-        [], [], null, [], [], [])
+        "Settings",
+        "Settings",
+        "User",
+        "dark",
+        "qwen3.5:4b",
+        "general",
+        null,
+        null,
+        [],
+        "",
+        "fluent-acrylic",
+        "floating-glass",
+        "auto",
+        "cream",
+        "English",
+        "UTC",
+        "17 Oct 2026",
+        [],
+        [],
+        null,
+        [],
+        [],
+        [])
     {
     }
+
+    [Invariant("Active section is always one of the 13 canonical Settings sections.")]
+    public bool ValidSectionInvariant => SettingsApp.SearchIndex.Any(entry => entry.SectionId == Section);
+
+    [Invariant("Monthly compute budget cap is always positive and within platform bounds.")]
+    public Rule ValidBudgetCapInvariant => ValidateBudget(MonthlyBudgetMicros);
+
+    [Invariant("Navigation history never exceeds 20 entries.")]
+    public bool BoundedHistoryInvariant => (History?.Count ?? 0) <= 20;
+
+    public bool CanGoBack => !string.IsNullOrEmpty(SubPage) || !string.IsNullOrEmpty(Sheet) || (History is { Count: > 0 });
+
+    public Rule CanReturnRule => Decision.Require(
+        "can_go_back",
+        CanGoBack,
+        "No previous settings page or sheet to return to.");
+
+    public static Rule ValidateBudget(long monthlyBudgetMicros) => Decision.Rule(
+        "valid_monthly_budget",
+        monthlyBudgetMicros < MinMonthlyBudgetMicros || monthlyBudgetMicros > MaxMonthlyBudgetMicros,
+        $"Monthly compute cap must be between $1.00 and $10,000.00 (received {monthlyBudgetMicros} micro-credits).");
+
+    public static Rule ValidateVariableKey(string? key) => Decision.Rule(
+        "variable_key_required",
+        string.IsNullOrWhiteSpace(key),
+        "Variable key cannot be empty.");
+
+    public SettingsAppState Navigate(
+        [Sample("general", "models", "billing", "apps:ino")] string? section,
+        [Sample(null, "local-server")] string? subPage = null,
+        string? sheet = null,
+        string? searchQuery = null)
+        => SettingsDecisions.DecideNavigate(this, section, subPage, sheet, searchQuery);
+
+    public SettingsAppState GoBack() => SettingsDecisions.DecideGoBack(this);
+
+    public SettingsAppState Filter([Sample("", "Ollama", "vault")] string query)
+        => this with
+        {
+            SearchQuery = query?.Trim() ?? string.Empty,
+            Status = string.IsNullOrWhiteSpace(query)
+                ? $"Showing all {SettingsApp.SearchIndex.Count} sections"
+                : $"Filtered sections matching '{query.Trim()}'",
+        };
+
+    public Decision<SettingsAppState> ApplyPreferences(
+        [Sample("Ada")] string? displayName = null,
+        [Sample("dark", "light")] string? theme = null,
+        [Sample("qwen3.5:4b", "claude-sonnet-4-5")] string? defaultModel = null,
+        [Sample("fluent-acrylic")] string? stylePreset = null,
+        [Sample("floating-glass")] string? barLayout = null,
+        [Sample("auto")] string? themeMode = null,
+        [Sample("cream")] string? desktopTone = null)
+    {
+        var nextName = string.IsNullOrWhiteSpace(displayName) ? DisplayName : displayName.Trim();
+        var nextTheme = string.IsNullOrWhiteSpace(theme) ? Theme : theme.Trim();
+        var nextModel = string.IsNullOrWhiteSpace(defaultModel) ? DefaultModel : defaultModel.Trim();
+        var nextPreset = string.IsNullOrWhiteSpace(stylePreset) ? StylePreset : stylePreset.Trim();
+        var nextBar = string.IsNullOrWhiteSpace(barLayout) ? BarLayout : barLayout.Trim();
+        var nextMode = string.IsNullOrWhiteSpace(themeMode) ? ThemeMode : themeMode.Trim();
+        var nextTone = string.IsNullOrWhiteSpace(desktopTone) ? DesktopTone : desktopTone.Trim();
+
+        return Decision.Accept(this with
+        {
+            Title = "Settings",
+            Status = $"Saved: {nextName} ({nextTheme}, {nextModel}, {nextPreset}, {nextBar})",
+            DisplayName = nextName,
+            Theme = nextTheme,
+            DefaultModel = nextModel,
+            StylePreset = nextPreset,
+            BarLayout = nextBar,
+            ThemeMode = nextMode,
+            DesktopTone = nextTone,
+        });
+    }
+
+    public Decision<SettingsAppState> ApplyBudgetCap([Sample(50_000_000L, 0L)] long monthlyBudgetMicros)
+    {
+        var check = Decision.Check("set-budget", ValidateBudget(monthlyBudgetMicros));
+        if (check is not null)
+        {
+            return check;
+        }
+
+        var usd = FormatUsd(monthlyBudgetMicros);
+        return Decision.Accept(this with
+        {
+            Section = "billing",
+            MonthlyBudgetMicros = monthlyBudgetMicros,
+            ComputeBudgetUsd = usd,
+            Status = $"Updated monthly compute cap to {usd}.",
+        });
+    }
+
+    [IgnoreExplore]
+    public SettingsAppState ToggleNotificationPreference(string key) => key switch
+    {
+        "approvals" => this with { NotifyApprovals = !NotifyApprovals },
+        "jobs" => this with { NotifyBackgroundJobs = !NotifyBackgroundJobs },
+        "connections" => this with { NotifyConnectionHealth = !NotifyConnectionHealth },
+        "quiet" => this with { QuietHoursEnabled = !QuietHoursEnabled },
+        "bar-notifications" => this with { ShowOsBarNotifications = !ShowOsBarNotifications },
+        "bar-compute" => this with { ShowOsBarComputeMeter = !ShowOsBarComputeMeter },
+        "bar-clock" => this with { ShowOsBarClock = !ShowOsBarClock },
+        _ => this,
+    };
+
+    public static string FormatUsd(long micros)
+        => (micros / 1_000_000.0).ToString("$0.00", CultureInfo.InvariantCulture);
+
+    public override string ToString()
+        => $"{Section}{(SubPage is null ? "" : "/" + SubPage)}{(Sheet is null ? "" : "#" + Sheet)} · {ComputeBudgetUsd}";
 }
 
 [Neuron("app.settings")]
-public sealed class SettingsApp() : Screen<SettingsAppState>
+[Screen("app.settings", Title = "Settings", Icon = Icons.Sliders)]
+public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
 {
-    private string _computeSpendUsd = "$0.00";
-    private string _computeBudgetUsd = "$50.00";
-    private bool _computeBudgetExceeded;
-    private string _computeRowsSummary = "0 model(s) metered";
-    private IntoChat.OS.Modules.Apps.Approvals.Approval[] _pendingApprovals = [];
-    private IReadOnlyDictionary<string, bool>? _cachedSecretStatuses;
-
     public ISecretVault? SecretVault { get; set; }
     public BrainPreferenceStore? PreferenceStore { get; set; }
 
@@ -157,6 +314,7 @@ public sealed class SettingsApp() : Screen<SettingsAppState>
                 new("import-brain", "Restore a portable JSON archive into this brain's settings, profile, and deployed Synapse units."),
                 new("set-variable", "Save or update a brain configuration variable in UserSettingsNeuron."),
                 new("set-budget", "Update this brain's 30-day monthly compute spend cap in micro-credits."),
+                new(UiCommand.SignalAlias, "Dispatch a typed UI Kit aggregate command."),
             ],
             Settings: [],
             Slots: [],
@@ -172,11 +330,13 @@ public sealed class SettingsApp() : Screen<SettingsAppState>
 
     public static IReadOnlyList<SettingsSearchEntry> FilterSections(string? query) => SettingsDecisions.FilterSections(query);
 
+    protected override string Title => State.Title;
+
     [On]
     public Task Open(SettingsOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return RefreshFromNeuronsAsync();
+        return RefreshFromNeuronsAsync(request.Section);
     }
 
     [On]
@@ -197,21 +357,35 @@ public sealed class SettingsApp() : Screen<SettingsAppState>
     public Task ReconcilePreferences(SettingsReconcilePreferences request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return UpdateAsync(State with { Title = "Settings", Status = "Settings", OverrideBody = null });
+        return UpdateAsync(State with { Title = "Settings", Status = "Settings" });
     }
 
-    private async Task RefreshFromNeuronsAsync()
+    private async Task RefreshFromNeuronsAsync(string? requestedSection = null)
     {
-        await TryRefreshComputeSummaryAsync();
-        await TryRefreshPendingApprovalsAsync();
-        _cachedSecretStatuses = await InspectSecretStatusesAsync();
+        var computeProjection = await ReadComputeSummaryAsync(State);
+        var approvals = await TryReadPendingApprovalsAsync();
         var user = await Get<IUserSettings>("settings").Read();
         var deployedUnits = await TryReadDeployedUnitsAsync();
         var teamFriends = await TryReadTeamFriendsAsync();
-        await ApplyUserSettingsAsync(user, $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})", deployedUnits, teamFriends);
+        var secrets = await InspectSecretStatusesAsync(user.Variables ?? State.Variables ?? []);
+        var targetSection = string.IsNullOrWhiteSpace(requestedSection) ? State.Section : NormalizeSection(requestedSection);
+
+        var next = SettingsDecisions.DecideApplyUserSettings(
+            computeProjection with
+            {
+                PendingApprovals = approvals,
+                SecretStatuses = secrets,
+            },
+            user,
+            $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})",
+            deployedUnits,
+            teamFriends,
+            section: targetSection);
+
+        await UpdateAsync(next);
     }
 
-    private async Task<IReadOnlyDictionary<string, bool>> InspectSecretStatusesAsync()
+    private async Task<IReadOnlyDictionary<string, bool>> InspectSecretStatusesAsync(IReadOnlyList<UserVariableEntry> variables)
     {
         var dict = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         var vault = SecretVault ?? TryGetOptional<ISecretVault>("vault");
@@ -230,8 +404,10 @@ public sealed class SettingsApp() : Screen<SettingsAppState>
                     NullLogger.Instance.LogSwallowed(error, "Failed probing secret vault; falling back to local variable/connection check.");
                 }
             }
-            dict[key] = (State.Variables ?? []).Any(v => string.Equals(v.Key, key, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(v.Value));
+
+            dict[key] = variables.Any(v => string.Equals(v.Key, key, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(v.Value));
         }
+
         return dict;
     }
 
@@ -241,8 +417,9 @@ public sealed class SettingsApp() : Screen<SettingsAppState>
         IReadOnlyList<string>? deployedUnits = null,
         IReadOnlyList<ProfileFriend>? teamFriends = null,
         string? section = null,
-        string? archiveJson = null)
-        => UpdateAsync(SettingsDecisions.DecideApplyUserSettings(State, user, status, deployedUnits, teamFriends, section, archiveJson));
+        string? archiveJson = null,
+        SettingsAppState? baseline = null)
+        => UpdateAsync(SettingsDecisions.DecideApplyUserSettings(baseline ?? State, user, status, deployedUnits, teamFriends, section, archiveJson));
 
     private async Task<IReadOnlyList<string>> TryReadDeployedUnitsAsync()
     {
@@ -271,31 +448,40 @@ public sealed class SettingsApp() : Screen<SettingsAppState>
         }
     }
 
-    private async Task TryRefreshPendingApprovalsAsync()
+    private async Task<IReadOnlyList<Approval>> TryReadPendingApprovalsAsync()
     {
         try
         {
-            _pendingApprovals = [.. await Get<IntoChat.OS.Modules.Apps.Approvals.IApprovals>("approvals/index").Pending()];
+            return [.. await Get<IApprovals>("approvals/index").Pending()];
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             NullLogger.Instance.LogSwallowed(error, "ApprovalsNeuron is optional when SettingsApp runs in standalone tests.");
+            return State.PendingApprovals;
         }
     }
 
-    private async Task TryRefreshComputeSummaryAsync()
+    private async Task<SettingsAppState> ReadComputeSummaryAsync(SettingsAppState baseline)
     {
         try
         {
-            var compute = await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").Read();
-            _computeSpendUsd = (compute.SpentMicros / 1_000_000.0).ToString("$0.00", CultureInfo.InvariantCulture);
-            _computeBudgetUsd = (compute.MonthlyBudgetMicros / 1_000_000.0).ToString("$0.00", CultureInfo.InvariantCulture);
-            _computeBudgetExceeded = compute.BudgetExceeded;
-            _computeRowsSummary = $"{compute.Rows.Length} model(s) metered";
+            var compute = await Get<ICompute>("compute").Read();
+            var budgetMicros = compute.MonthlyBudgetMicros > 0
+                ? compute.MonthlyBudgetMicros
+                : ComputeState.DefaultMonthlyBudgetMicros;
+            return baseline with
+            {
+                ComputeSpendUsd = SettingsAppState.FormatUsd(compute.SpentMicros),
+                ComputeBudgetUsd = SettingsAppState.FormatUsd(budgetMicros),
+                MonthlyBudgetMicros = budgetMicros,
+                ComputeBudgetExceeded = compute.BudgetExceeded,
+                ComputeRowsSummary = $"{compute.Rows.Length} model(s) metered",
+            };
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             NullLogger.Instance.LogSwallowed(error, "ComputeNeuron is optional when SettingsApp runs in standalone tests.");
+            return baseline;
         }
     }
 
@@ -303,14 +489,14 @@ public sealed class SettingsApp() : Screen<SettingsAppState>
     public Task Navigate(SettingsNavigate request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return UpdateAsync(SettingsDecisions.DecideNavigate(State, request.Section, request.SubPage, request.Sheet, request.SearchQuery));
+        return UpdateAsync(State.Navigate(request.Section, request.SubPage, request.Sheet, request.SearchQuery));
     }
 
     [On]
     public Task GoBack(SettingsGoBack request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return UpdateAsync(SettingsDecisions.DecideGoBack(State));
+        return UpdateAsync(State.GoBack());
     }
 
     [On]
@@ -324,15 +510,18 @@ public sealed class SettingsApp() : Screen<SettingsAppState>
     public async Task SavePreferences(SettingsSavePreferences request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (new[] { request.DisplayName, request.Theme, request.DefaultModel, request.StylePreset, request.BarLayout, request.ThemeMode, request.DesktopTone, request.Language, request.TimeZone, request.DateFormat }.All(string.IsNullOrWhiteSpace))
+        if (new[]
+            {
+                request.DisplayName, request.Theme, request.DefaultModel, request.StylePreset, request.BarLayout,
+                request.ThemeMode, request.DesktopTone, request.Language, request.TimeZone, request.DateFormat,
+            }.All(string.IsNullOrWhiteSpace))
         {
-            await UpdateAsync(State with { Title = "Settings", Status = "Nothing to save.", OverrideBody = null });
+            await UpdateAsync(State with { Title = "Settings", Status = "Nothing to save." });
             return;
         }
 
         var store = PreferenceStore ?? new BrainPreferenceStore(Get<IUserSettings>("settings"));
         var updated = await store.SaveAsync(request, State);
-
         await ApplyUserSettingsAsync(updated, $"Saved: {updated.DisplayName} ({updated.Theme}, {updated.DefaultModel}, {updated.StylePreset}, {updated.BarLayout})");
     }
 
@@ -340,16 +529,18 @@ public sealed class SettingsApp() : Screen<SettingsAppState>
     public async Task SetVariable(SettingsSetVariable request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.Key))
+        if (SettingsAppState.ValidateVariableKey(request.Key).Broken)
         {
-            await UpdateAsync(State with { Status = "Variable key cannot be empty.", OverrideBody = null });
+            await UpdateAsync(State with { Status = "Variable key cannot be empty." });
             return;
         }
-        var key = request.Key.Trim();
+
+        var key = request.Key!.Trim();
         var val = request.Value ?? "";
         var updated = await Get<IUserSettings>("settings").SetVariable(key, val);
-        _cachedSecretStatuses = await InspectSecretStatusesAsync();
-        await UpdateAsync(SettingsDecisions.DecideSetVariable(State, key, updated.Variables ?? []));
+        var variables = updated.Variables ?? [];
+        var secrets = await InspectSecretStatusesAsync(variables);
+        await UpdateAsync(SettingsDecisions.DecideSetVariable(State with { SecretStatuses = secrets }, key, variables));
     }
 
     [On]
@@ -358,18 +549,26 @@ public sealed class SettingsApp() : Screen<SettingsAppState>
         ArgumentNullException.ThrowIfNull(request);
         var cap = request.MonthlyBudgetMicros > 0
             ? request.MonthlyBudgetMicros
-            : IntoChat.OS.Modules.Flutter.Compute.ComputeState.DefaultMonthlyBudgetMicros;
+            : ComputeState.DefaultMonthlyBudgetMicros;
+        var decision = State.ApplyBudgetCap(cap);
+        if (decision.IsRefused)
+        {
+            await ApplyDecisionAsync(decision);
+            return;
+        }
+
+        var next = decision.Next;
         try
         {
-            await Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>("compute").SetBudget(cap);
-            await TryRefreshComputeSummaryAsync();
+            await Get<ICompute>("compute").SetBudget(cap);
+            next = await ReadComputeSummaryAsync(next);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             NullLogger.Instance.LogSwallowed(error, "ComputeNeuron is optional when SettingsApp runs in standalone tests.");
-            _computeBudgetUsd = (cap / 1_000_000.0).ToString("$0.00", CultureInfo.InvariantCulture);
         }
-        await UpdateAsync(SettingsDecisions.DecideSetBudget(State, _computeBudgetUsd));
+
+        await UpdateAsync(SettingsDecisions.DecideSetBudget(next, next.ComputeBudgetUsd));
     }
 
     [On]
@@ -387,7 +586,7 @@ public sealed class SettingsApp() : Screen<SettingsAppState>
         var archiveJson = string.IsNullOrWhiteSpace(request.ArchiveJson) ? State.ExportedArchiveJson : request.ArchiveJson;
         if (string.IsNullOrWhiteSpace(archiveJson))
         {
-            await UpdateAsync(State with { Section = "danger", Status = "No portable brain archive JSON provided to import.", OverrideBody = null });
+            await UpdateAsync(State with { Section = "danger", Status = "No portable brain archive JSON provided to import." });
             return;
         }
 
@@ -395,32 +594,32 @@ public sealed class SettingsApp() : Screen<SettingsAppState>
         var settings = Get<IUserSettings>("settings");
         await PortableBrainArchive.ImportAsync(snapshot, settings, Get<IProfile>("profile"), Get<ISynapseStudio>("ino/synapses"));
         var user = await settings.Read();
-        await TryRefreshComputeSummaryAsync();
-        await TryRefreshPendingApprovalsAsync();
-        _cachedSecretStatuses = await InspectSecretStatusesAsync();
+        var computeProjection = await ReadComputeSummaryAsync(State);
+        var approvals = await TryReadPendingApprovalsAsync();
+        var secrets = await InspectSecretStatusesAsync(user.Variables ?? []);
         var deployedUnits = await TryReadDeployedUnitsAsync();
         var teamFriends = await TryReadTeamFriendsAsync();
+
         await ApplyUserSettingsAsync(
             user,
             $"Restored portable brain archive from {snapshot.BrainId} ({snapshot.Units.Count} unit(s)).",
             deployedUnits,
             teamFriends,
             section: "danger",
-            archiveJson: archiveJson);
+            archiveJson: archiveJson,
+            baseline: computeProjection with
+            {
+                PendingApprovals = approvals,
+                SecretStatuses = secrets,
+            });
     }
 
     public new SettingsAppState State => base.State;
 
-    public View Render() => Render(State);
+    public View Render() => PreviewView(State);
 
-    protected override View Render(SettingsAppState state)
-        => SettingsViewRenderer.Render(state, new SettingsViewContext(
-            _computeSpendUsd,
-            _computeBudgetUsd,
-            _computeBudgetExceeded,
-            _computeRowsSummary,
-            _pendingApprovals,
-            _cachedSecretStatuses));
+    protected override Node Render(SettingsAppState state)
+        => SettingsViewRenderer.RenderRoot(state, LastRejection);
 
     private Task UpdateAsync(SettingsAppState next) => Show(next);
 
