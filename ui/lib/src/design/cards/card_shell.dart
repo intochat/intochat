@@ -26,6 +26,7 @@ class CardShell extends StatelessWidget {
     required this.child,
     this.status,
     this.width = 560,
+    this.showSourceHeader = true,
   });
 
   final CardSource source;
@@ -34,6 +35,7 @@ class CardShell extends StatelessWidget {
   /// Optional chip on the right of the source line.
   final Widget? status;
   final double width;
+  final bool showSourceHeader;
 
   @override
   Widget build(BuildContext context) {
@@ -65,26 +67,31 @@ class CardShell extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              children: [
-                SizedBox(width: 16, height: 16, child: source.icon),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    source.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: IcType.text(
-                      12,
-                      weight: FontWeight.w600,
-                      color: c.textMuted,
+            if (showSourceHeader) ...[
+              Row(
+                children: [
+                  SizedBox(width: 16, height: 16, child: source.icon),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      source.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: IcType.text(
+                        12,
+                        weight: FontWeight.w600,
+                        color: c.textMuted,
+                      ),
                     ),
                   ),
-                ),
-                if (status != null) ...[const SizedBox(width: 8), status!],
-              ],
-            ),
-            const SizedBox(height: 12),
+                  if (status != null) ...[const SizedBox(width: 8), status!],
+                ],
+              ),
+              const SizedBox(height: 12),
+            ] else if (status != null) ...[
+              Align(alignment: Alignment.centerRight, child: status!),
+              const SizedBox(height: 8),
+            ],
             child,
           ],
         ),

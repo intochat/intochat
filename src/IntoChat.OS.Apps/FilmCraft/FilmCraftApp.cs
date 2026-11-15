@@ -114,6 +114,20 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
         CompiledType = typeof(FilmCraftApp).AssemblyQualifiedName,
     };
 
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        await base.OnActivate(cancellationToken);
+        if (IsLegacyUnhostedWasmState(State.ExecutionMode, State.WebUrl))
+        {
+            await Show(State with
+            {
+                ExecutionMode = "mcp",
+                WebUrl = Descriptor.StaticWebPath,
+                Status = $"FilmCraft tools connected ({FormatModeLabel("mcp")}) · Sequence: {State.ActiveSequence}",
+            });
+        }
+    }
+
     [On]
     public async Task Open(FilmCraftStudioOpen request)
     {
@@ -177,7 +191,7 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
         ];
 
         return RenderStudioShell(
-            state.Status, state.ActiveSequence, state.OutputFile, state.WebUrl ?? "http://localhost:18083", state.ExecutionMode,
+            state.Status, state.ActiveSequence, state.OutputFile, state.WebUrl ?? Descriptor.StaticWebPath, state.ExecutionMode,
             "Timeline Tracks", tracks,
             headerActions:
             [

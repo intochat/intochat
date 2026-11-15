@@ -242,9 +242,14 @@ public sealed class GallerySettingsFilesReactorFacts
         var listScreen = FilesScreen.Compose(app.Snapshot, 1440, previewOpen: true, viewMode: "list");
         var listWire = JsonSerializer.Serialize(listScreen.Main, RuntimeProtocol.OptionsFor(typeof(Node)));
         Assert.Contains("\"kind\":\"splitPane\"", listWire, StringComparison.Ordinal);
-        Assert.Contains("\"kind\":\"dataTable\"", listWire, StringComparison.Ordinal);
+        Assert.Contains("\"key\":\"item-open-0\"", listWire, StringComparison.Ordinal);
+        Assert.DoesNotContain("Folder contents", listWire, StringComparison.Ordinal);
         Assert.Contains(FilesCopy.QuickViewHeading, listWire, StringComparison.Ordinal);
         Assert.DoesNotContain("\"mono\":true", listWire, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Equal(
+            "Windows Storage",
+            FilesScreen.FormatStorageLabel(new FilesStorage("c1", "5584b766030a4193913bc55bf278b487", "windows", ItemFlags.None, null)));
 
         var gridScreen = FilesScreen.Compose(app.Snapshot, 1440, previewOpen: true, viewMode: "grid");
         var gridWire = JsonSerializer.Serialize(gridScreen.Main, RuntimeProtocol.OptionsFor(typeof(Node)));

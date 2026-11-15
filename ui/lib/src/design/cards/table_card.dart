@@ -103,6 +103,7 @@ class TablePreviewCard extends StatefulWidget {
     this.onCopyNeuronUri,
     this.onSelectRow,
     this.visibleRows = 6,
+    this.width = 560,
   });
 
   final CardSource source;
@@ -116,6 +117,7 @@ class TablePreviewCard extends StatefulWidget {
   final ValueChanged<String>? onCopyNeuronUri;
   final ValueChanged<int>? onSelectRow;
   final int visibleRows;
+  final double width;
 
   @override
   State<TablePreviewCard> createState() => _TablePreviewCardState();
@@ -458,12 +460,22 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
       ),
     };
 
+    final isGenericAppSource =
+        d.from.trim().isEmpty || d.from.trim() == 'DigitalBrain';
     final countLabel = query.isNotEmpty
         ? '$filteredCount of $totalCount rows'
+        : isGenericAppSource
+        ? '$totalCount ${totalCount == 1 ? 'row' : 'rows'}'
         : '$totalCount ${totalCount == 1 ? 'row' : 'rows'} from ${d.from}';
+    final hasFooterActions =
+        d.sourceNeuronUri != null ||
+        widget.onDownload != null ||
+        widget.onOpen != null;
 
     return CardShell(
       source: widget.source,
+      width: widget.width,
+      showSourceHeader: !isGenericAppSource,
       status: widget.state == TableState.loading
           ? CardChip(
               label: 'Looking up',
@@ -476,28 +488,29 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Text(
-                  d.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: IcType.text(
-                    15,
-                    weight: FontWeight.w600,
-                    color: c.textStrong,
+          if (d.title.trim().isNotEmpty || widget.state == TableState.ready)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Text(
+                    d.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: IcType.text(
+                      15,
+                      weight: FontWeight.w600,
+                      color: c.textStrong,
+                    ),
                   ),
                 ),
-              ),
-              if (widget.state == TableState.ready)
-                Text(
-                  countLabel,
-                  style: IcType.text(12.5, color: c.textMuted, tnum: true),
-                ),
-            ],
-          ),
+                if (widget.state == TableState.ready)
+                  Text(
+                    countLabel,
+                    style: IcType.text(12.5, color: c.textMuted, tnum: true),
+                  ),
+              ],
+            ),
           if (showQuickFilter) ...[
             const SizedBox(height: 10),
             _buildFilterBox(c),
@@ -513,7 +526,7 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
               child: body,
             ),
           ),
-          if (widget.state == TableState.ready) ...[
+          if (widget.state == TableState.ready && hasFooterActions) ...[
             const SizedBox(height: 12),
             Wrap(
               alignment: WrapAlignment.end,
@@ -531,18 +544,20 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
                       widget.onCopyNeuronUri?.call(uri);
                     },
                   ),
-                Btn(
-                  label: 'Download CSV',
-                  icon: LucideIcons.download,
-                  small: true,
-                  onTap: widget.onDownload,
-                ),
-                Btn(
-                  label: 'Open in Sheets',
-                  icon: LucideIcons.grid3x3,
-                  small: true,
-                  onTap: widget.onOpen,
-                ),
+                if (widget.onDownload != null)
+                  Btn(
+                    label: 'Download CSV',
+                    icon: LucideIcons.download,
+                    small: true,
+                    onTap: widget.onDownload,
+                  ),
+                if (widget.onOpen != null)
+                  Btn(
+                    label: 'Open in Sheets',
+                    icon: LucideIcons.grid3x3,
+                    small: true,
+                    onTap: widget.onOpen,
+                  ),
               ],
             ),
           ],

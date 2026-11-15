@@ -234,8 +234,12 @@ class _ConversationViewState extends State<ConversationView> {
     List<MessageNode> messages,
     ErrorLineNode? error,
   ) {
+    final visibleMessages = <MessageNode>[
+      for (final msg in messages)
+        if (!_isEmptyFailedAssistantStub(msg)) msg,
+    ];
     final hasError = error != null;
-    final itemCount = messages.length + (hasError ? 1 : 0);
+    final itemCount = visibleMessages.length + (hasError ? 1 : 0);
 
     return ListView.builder(
       controller: _scrollController,
@@ -259,8 +263,8 @@ class _ConversationViewState extends State<ConversationView> {
         }
 
         final msgOffset = hasError ? reversedIndex - 1 : reversedIndex;
-        final messageIndex = messages.length - 1 - msgOffset;
-        final msg = messages[messageIndex];
+        final messageIndex = visibleMessages.length - 1 - msgOffset;
+        final msg = visibleMessages[messageIndex];
         return Padding(
           key: ValueKey('msg:${msg.id}'),
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -278,6 +282,16 @@ class _ConversationViewState extends State<ConversationView> {
         );
       },
     );
+  }
+
+  static bool _isEmptyFailedAssistantStub(MessageNode msg) {
+    if (msg.role != 'assistant') return false;
+    if (msg.status != 'failed' && msg.status != 'interrupted') return false;
+    if (msg.text.trim().isNotEmpty) return false;
+    if (msg.cards != null && msg.cards!.isNotEmpty) return false;
+    if (msg.activities != null && msg.activities!.isNotEmpty) return false;
+    if (msg.retry != null) return false;
+    return true;
   }
 
   Widget _buildBottomDock(BuildContext context, IcColors c, Node? waiting) {

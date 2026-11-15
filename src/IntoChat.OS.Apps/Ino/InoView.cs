@@ -83,7 +83,8 @@ public static partial class InoView
             }
 
             var activities = msg.Activities.Length > 0 ? msg.Activities.Select(ToActivityNode).ToArray() : null;
-            Button? retry = isLast && msg.Role == "assistant" && msg.Status is "failed" or "interrupted"
+            var errorCarriesRetry = s.Error is { } activeErr && InoErrors.Of(activeErr).Retry;
+            Button? retry = isLast && msg.Role == "assistant" && msg.Status is "failed" or "interrupted" && !errorCarriesRetry
                 ? Button("Try again", Icons.RefreshCw).Small().Key(RetryKey).Emits(AppSignals.Emits("ino", new InoRetry())).ToButton()
                 : null;
             var modelVisual = ResolveModelVisual(msg.Model);

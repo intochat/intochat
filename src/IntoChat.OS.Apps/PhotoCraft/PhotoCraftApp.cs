@@ -182,6 +182,20 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
         CompiledType = typeof(PhotoCraftApp).AssemblyQualifiedName,
     };
 
+    protected override async Task OnActivate(CancellationToken cancellationToken)
+    {
+        await base.OnActivate(cancellationToken);
+        if (IsLegacyUnhostedWasmState(State.ExecutionMode, State.WebUrl))
+        {
+            await Show(State with
+            {
+                ExecutionMode = "mcp",
+                WebUrl = Descriptor.StaticWebPath,
+                Status = $"PhotoCraft tools connected ({FormatModeLabel("mcp")}) · Active: {State.ActiveDocument}",
+            });
+        }
+    }
+
     [On]
     public async Task Open(PhotoCraftStudioOpen request)
     {
@@ -289,8 +303,8 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
         ];
 
         return RenderStudioShell(
-            state.Status, state.ActiveDocument, state.OutputDocument, state.WebUrl ?? "http://localhost:18082", state.ExecutionMode,
-            "Layer Stack", layers,
+            state.Status, state.ActiveDocument, state.OutputDocument, state.WebUrl ?? Descriptor.StaticWebPath, state.ExecutionMode,
+            "Layer Stack", [],
             headerActions:
             [
                 (state.ExecutionMode == "mcp" ? Button("MCP") : GhostButton("MCP")).Key("mode-mcp").Small().OnClick<PhotoCraftAppState>(x => x.SwitchExecutionMode("mcp")),
@@ -302,11 +316,14 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
             [
                 MutedText($"Preview ({(string.IsNullOrEmpty(state.PreviewDataUrl) ? "pending" : "PNG inline")}) · History: {history.Length}/10").Tabular(),
                 state.ExecutionMode == "wasm-ui" ? presetBar : null,
-                SectionHeader("Visibility"),
+                SectionHeader("Layers", $"{layers.Length} layer(s)"),
                 VStack(Space.Xs, [.. layers.Select((layer, idx) =>
                 {
-                    var shortLabel = layer.Length > 28 ? layer[..25] + "…" : layer;
-                    return GhostButton(hidden.Contains(idx) ? $"Show · {shortLabel}" : $"Hide · {shortLabel}")
+                    var cleanLayer = layer.StartsWith("[Hidden] ", StringComparison.Ordinal) ? layer["[Hidden] ".Length..] : layer;
+                    var shortLabel = cleanLayer.Length > 28 ? cleanLayer[..25] + "…" : cleanLayer;
+                    return GhostButton(
+                            hidden.Contains(idx) ? $"Show · {shortLabel}" : $"Hide · {shortLabel}",
+                            hidden.Contains(idx) ? "eye-off" : "eye")
                         .Key($"toggle-layer-{idx}")
                         .Small()
                         .OnClick<PhotoCraftAppState>(x => x.ToggleLayerByIndex(idx))

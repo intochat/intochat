@@ -564,6 +564,7 @@ public static class InoModel
         if (string.IsNullOrWhiteSpace(errorText)) { return "unknown"; }
         var trimmed = errorText.Trim();
         if (AgentFailures.ParseCode(trimmed) != AgentFailure.Unknown) { return trimmed; }
+        if (trimmed.Contains("model", StringComparison.OrdinalIgnoreCase) && ContainsAny(trimmed, "not found", "try pulling", "pull it first")) { return "no-provider"; }
         return ContainsAny(trimmed, "No model provider", "No AI chat client", "not configured", "Unconfigured", "Ollama endpoint is not configured", "missing ApiKey") ? "no-provider"
             : ContainsAny(trimmed, "401", "403", "Unauthorized", "Forbidden", "invalid api key", "authentication") ? "provider-rejected-key"
             : ContainsAny(trimmed, "timed out", "timeout") ? "timed-out"

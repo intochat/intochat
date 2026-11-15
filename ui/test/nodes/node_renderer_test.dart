@@ -772,11 +772,11 @@ void main() {
             {'kind': 'heading', 'value': 'H$level', 'level': level},
         ],
       });
-      expect(tester.widget<Text>(find.text('H1')).style?.fontSize, 28);
-      expect(tester.widget<Text>(find.text('H2')).style?.fontSize, 24);
-      expect(tester.widget<Text>(find.text('H3')).style?.fontSize, 18);
-      expect(tester.widget<Text>(find.text('H4')).style?.fontSize, 15);
-      expect(tester.widget<Text>(find.text('H5')).style?.fontSize, 13.5);
+      expect(tester.widget<Text>(find.text('H1')).style?.fontSize, 26);
+      expect(tester.widget<Text>(find.text('H2')).style?.fontSize, 20);
+      expect(tester.widget<Text>(find.text('H3')).style?.fontSize, 16);
+      expect(tester.widget<Text>(find.text('H4')).style?.fontSize, 14);
+      expect(tester.widget<Text>(find.text('H5')).style?.fontSize, 13);
     });
 
     testWidgets('navItem renders 32px pill and dispatches key on tap', (

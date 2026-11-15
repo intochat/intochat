@@ -24,8 +24,14 @@ bool _isNumericColumn(List<List<String>> rows, int columnIndex) {
 
 Widget renderDataTable(DataTableNode node, NodeContext ctx) {
   final actionKey = ctx.nodeKeys['dataTable:${node.title}'];
+  final isChatCard =
+      ctx.view.contains('/apps/ino') &&
+      node.from.trim().isNotEmpty &&
+      node.from.trim() != 'DigitalBrain';
   return TablePreviewCard(
     source: cardSource(node.from),
+    width: isChatCard ? 560 : double.infinity,
+    visibleRows: isChatCard ? 8 : 25,
     data: TableData(
       title: node.title,
       columns: [

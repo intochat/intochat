@@ -1,9 +1,12 @@
 using DigitalBrain;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
 using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Connections.Surface;
+using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Signals;
@@ -104,6 +107,38 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
         Assert.Equal("gpt-5", Assert.Single(finalState.Runs, r => r.RunId == thirdRunId).Model?.Model);
     }
 
+    [Fact]
+    public async Task StartInvokedFromAppCallerRedactsOwnerSecretsWithoutTriggeringZeroTokenAppDenial()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, ct, siloServices: services =>
+        {
+            services.AddSingleton<IChatClient>(StubChatClient.Replying("Here is a joke and token sk_live_topsecret999!"));
+            services.AddSingleton(new NeuronSurface(null!, null!, null!));
+            services.AddSingleton<IAiCredentials, NoProviders>();
+            services.AddSingleton<ISecretValueSource>(new ZeroTokenGuardedSecretSource("sk_live_topsecret999"));
+            services.AddSingleton<ISecretRedactor, SecretRedactor>();
+            services.AddOptions<AIOptions>();
+            services.AddSingleton<ModelCatalog>();
+        });
+
+        var id = runtime.Id("agent", "ino/conversations/main");
+        var agent = runtime.Get<IAgent>(id);
+        var appCaller = CapabilityCallers.Of(AppPrincipal.Id("owner/apps/ino"), runtime.Brain.Value, runtime.Brain.Value, CallerKind.App, "owner/apps/ino");
+
+        string runId;
+        using (RuntimeCallerContext.Stamp(appCaller))
+        {
+            runId = await agent.Start(Turn("Hi, tell me a joke"));
+        }
+
+        await runtime.WaitForSignals<TurnCompleted>(id, 1, Within, ct);
+
+        var completedRun = Assert.Single((await agent.Read()).Runs, r => r.RunId == runId);
+        Assert.Equal(AgentRunStatus.Completed, completedRun.Status);
+        Assert.Equal("Here is a joke and token ****!", completedRun.Reply);
+    }
+
     private static AgentTurn Turn(string text) => new(new AiMessage("user", [new AiText(text)]));
 
     private async Task<INeuronRuntime> Start(StubChatClient client, CancellationToken ct)
@@ -138,5 +173,18 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
         public ValueTask<string?> Redact(string? text, CancellationToken cancellationToken) => ValueTask.FromResult(text);
 
         public ValueTask<int> TailLength(CancellationToken cancellationToken) => ValueTask.FromResult(0);
+    }
+
+    private sealed class ZeroTokenGuardedSecretSource(params string[] secrets) : ISecretValueSource
+    {
+        public ValueTask<IReadOnlyList<string>> CurrentValues(CancellationToken cancellationToken)
+        {
+            if (RuntimeCallerContext.TryGet(out var caller)
+                && (caller.Kind == CallerKind.App || AppPrincipal.IsApp(caller.PrincipalId)))
+            {
+                throw new UnauthorizedAccessException("Zero-token auth enforcement: sandbox and app principals cannot read raw vault secret values directly.");
+            }
+            return ValueTask.FromResult<IReadOnlyList<string>>(secrets);
+        }
     }
 }

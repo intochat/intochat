@@ -516,8 +516,8 @@ public static class ArtCraftEngineRunner
 
     private static string BuildStudioPreviewPng(string palette)
     {
-        const int width = 240;
-        const int height = 144;
+        const int width = 320;
+        const int height = 180;
         var raw = new byte[height * (1 + width * 4)];
         var offset = 0;
 
@@ -525,42 +525,140 @@ public static class ArtCraftEngineRunner
         {
             raw[offset++] = 0; // filter: None
             var v = y / (float)(height - 1);
+
             for (var x = 0; x < width; x++)
             {
                 var u = x / (float)(width - 1);
-                var dx = (x - width * 0.5f) / (width * 0.24f);
-                var dy = (y - height * 0.46f) / (height * 0.30f);
-                var dist = MathF.Sqrt(dx * dx + dy * dy);
-                var inSubject = dist <= 1.0f;
 
-                (byte r, byte g, byte b, byte a) = palette switch
+                // Smooth cinema landscape ridge + architectural focal prism with anti-aliased SDF
+                var ridgeA = 0.63f - 0.11f * MathF.Sin(u * 4.2f + 0.55f) - 0.05f * MathF.Cos(u * 9.5f - 0.8f);
+                var ridgeB = 0.72f - 0.07f * MathF.Cos(u * 5.6f + 1.4f);
+
+                // Sun / aperture key light disc (smooth anti-aliased glow)
+                var sx = (u - 0.68f) * (width / (float)height);
+                var sy = v - 0.34f;
+                var sunDist = MathF.Sqrt(sx * sx + sy * sy);
+                var sunDisc = Math.Clamp((0.145f - sunDist) * 45f, 0f, 1f);
+                var sunGlow = MathF.Exp(-sunDist * 5.4f);
+
+                // Architectural subject silhouette / portrait monolith in foreground
+                var px = MathF.Abs(u - 0.36f);
+                var py = MathF.Abs(v - 0.54f);
+                var boxSdf = MathF.Max(px - 0.095f, py - 0.21f);
+                var subjectMask = Math.Clamp((0.008f - boxSdf) * 90f, 0f, 1f);
+                var rimMask = Math.Clamp((0.012f - MathF.Abs(boxSdf)) * 75f, 0f, 1f);
+
+                // Subtle 1px studio rule-of-thirds & frame border
+                var isFrame = x == 0 || x == width - 1 || y == 0 || y == height - 1;
+                var isGuide = (x == width / 3 || x == width * 2 / 3 || y == height / 3 || y == height * 2 / 3)
+                              && (x + y) % 4 < 2;
+
+                float fr, fg, fb, fa = 1f;
+                switch (palette)
                 {
-                    "cutout" => inSubject
-                        ? ((byte)(36 + (int)(170 * (1f - dist))), (byte)(172 + (int)(65 * u)), (byte)(226 - (int)(45 * v)), (byte)255)
-                        : ((byte)0, (byte)0, (byte)0, (byte)0),
-                    "gradient" => (
-                        (byte)(37 + (int)(212 * u)),
-                        (byte)(99 + (int)(45 * (1f - v))),
-                        (byte)(235 - (int)(210 * u)),
-                        (byte)255),
-                    "mono" => inSubject
-                        ? ((byte)(212 - (int)(84 * dist)), (byte)(212 - (int)(84 * dist)), (byte)(216 - (int)(84 * dist)), (byte)255)
-                        : ((byte)(36 + (int)(40 * (1f - v))), (byte)(36 + (int)(40 * (1f - v))), (byte)(40 + (int)(40 * (1f - v))), (byte)255),
-                    "warm" => inSubject
-                        ? ((byte)(242 - (int)(50 * dist)), (byte)(164 - (int)(48 * dist)), (byte)(92 - (int)(30 * dist)), (byte)255)
-                        : ((byte)(58 + (int)(80 * (1f - v))), (byte)(38 + (int)(44 * u)), (byte)(28 + (int)(24 * (1f - u))), (byte)255),
-                    "vivid" => inSubject
-                        ? ((byte)(132 + (int)(110 * u)), (byte)(64 + (int)(168 * (1f - dist))), (byte)(246 - (int)(60 * v)), (byte)255)
-                        : ((byte)(18 + (int)(54 * u)), (byte)(30 + (int)(80 * (1f - v))), (byte)(78 + (int)(92 * u)), (byte)255),
-                    _ => inSubject
-                        ? ((byte)(34 + (int)(120 * (1f - dist))), (byte)(186 + (int)(52 * u)), (byte)(228 - (int)(36 * v)), (byte)255)
-                        : ((byte)(18 + (int)(28 * u)), (byte)(32 + (int)(48 * (1f - v))), (byte)(56 + (int)(64 * u)), (byte)255),
-                };
+                    case "cutout":
+                        {
+                            var fgAlpha = MathF.Max(subjectMask, sunDisc * 0.92f);
+                            if (fgAlpha <= 0.01f)
+                            {
+                                // Subtle dark studio alpha grid instead of glaring high-contrast grey blocks
+                                var cell = (x / 10 + y / 10) % 2 == 0;
+                                fr = cell ? 24f : 31f;
+                                fg = cell ? 26f : 33f;
+                                fb = cell ? 31f : 39f;
+                                fa = 0.92f;
+                            }
+                            else
+                            {
+                                fr = 28f + 175f * sunGlow + 54f * rimMask;
+                                fg = 152f + 76f * (1f - v) + 42f * rimMask;
+                                fb = 214f + 32f * u;
+                                fa = 1f;
+                            }
+                            break;
+                        }
+                    case "gradient":
+                        {
+                            fr = 24f + 188f * u + 28f * sunGlow;
+                            fg = 48f + 92f * (1f - v) + 44f * u;
+                            fb = 132f + 104f * (1f - u) * (0.65f + 0.35f * (1f - v));
+                            break;
+                        }
+                    case "mono":
+                        {
+                            var luma = 26f + 110f * (1f - v) * 0.55f + 118f * sunGlow;
+                            if (v > ridgeA) { luma *= 0.52f; }
+                            if (v > ridgeB) { luma *= 0.68f; }
+                            luma = luma * (1f - subjectMask) + (48f + 95f * (1f - v)) * subjectMask + 75f * rimMask;
+                            fr = luma;
+                            fg = luma;
+                            fb = luma + 4f;
+                            break;
+                        }
+                    case "warm":
+                        {
+                            fr = 34f + 168f * sunGlow + 56f * (1f - v);
+                            fg = 24f + 104f * sunGlow + 28f * (1f - v);
+                            fb = 28f + 42f * (1f - v) + 32f * sunGlow;
+                            if (v > ridgeA) { fr *= 0.48f; fg *= 0.44f; fb *= 0.54f; }
+                            if (v > ridgeB) { fr *= 0.68f; fg *= 0.65f; fb *= 0.72f; }
+                            fr = fr * (1f - subjectMask) + 38f * subjectMask + 125f * rimMask;
+                            fg = fg * (1f - subjectMask) + 28f * subjectMask + 82f * rimMask;
+                            fb = fb * (1f - subjectMask) + 30f * subjectMask + 46f * rimMask;
+                            break;
+                        }
+                    case "vivid":
+                        {
+                            fr = 28f + 164f * sunGlow + 78f * u;
+                            fg = 22f + 86f * (1f - v) + 72f * sunGlow;
+                            fb = 68f + 142f * (1f - u * 0.4f) * (1f - v * 0.45f);
+                            if (v > ridgeA) { fr *= 0.46f; fg *= 0.48f; fb *= 0.58f; }
+                            fr = fr * (1f - subjectMask) + 42f * subjectMask + 112f * rimMask;
+                            fg = fg * (1f - subjectMask) + 36f * subjectMask + 148f * rimMask;
+                            fb = fb * (1f - subjectMask) + 74f * subjectMask + 164f * rimMask;
+                            break;
+                        }
+                    default:
+                        {
+                            fr = 18f + 64f * sunGlow + 24f * u;
+                            fg = 34f + 122f * sunGlow + 52f * (1f - v);
+                            fb = 58f + 146f * sunGlow + 68f * (1f - v * 0.5f);
+                            if (v > ridgeA) { fr *= 0.50f; fg *= 0.52f; fb *= 0.58f; }
+                            if (v > ridgeB) { fr *= 0.70f; fg *= 0.72f; fb *= 0.76f; }
+                            fr = fr * (1f - subjectMask) + 24f * subjectMask + 70f * rimMask;
+                            fg = fg * (1f - subjectMask) + 44f * subjectMask + 148f * rimMask;
+                            fb = fb * (1f - subjectMask) + 66f * subjectMask + 176f * rimMask;
+                            break;
+                        }
+                }
 
-                raw[offset++] = r;
-                raw[offset++] = g;
-                raw[offset++] = b;
-                raw[offset++] = a;
+                if (sunDisc > 0.01f && palette != "gradient")
+                {
+                    var discWeight = sunDisc * 0.55f;
+                    fr = fr * (1f - discWeight) + 248f * discWeight;
+                    fg = fg * (1f - discWeight) + (palette == "warm" ? 204f : 238f) * discWeight;
+                    fb = fb * (1f - discWeight) + (palette == "warm" ? 142f : 246f) * discWeight;
+                }
+
+                if (isGuide)
+                {
+                    fr = fr * 0.88f + 255f * 0.12f;
+                    fg = fg * 0.88f + 255f * 0.12f;
+                    fb = fb * 0.88f + 255f * 0.12f;
+                }
+
+                if (isFrame)
+                {
+                    fr = 54f;
+                    fg = 58f;
+                    fb = 66f;
+                    fa = 1f;
+                }
+
+                raw[offset++] = (byte)Math.Clamp((int)fr, 0, 255);
+                raw[offset++] = (byte)Math.Clamp((int)fg, 0, 255);
+                raw[offset++] = (byte)Math.Clamp((int)fb, 0, 255);
+                raw[offset++] = (byte)Math.Clamp((int)(fa * 255f), 0, 255);
             }
         }
 

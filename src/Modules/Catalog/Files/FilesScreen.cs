@@ -51,11 +51,13 @@ internal static class FilesScreen
         {
             var quota = storage.Error is null ? QuotaText.For(storage.Space ?? Quota.Unknown, storage.Kind) : FilesCopy.Unavailable;
             var isCurrentStorage = string.Equals(state.Connection, storage.Connection, StringComparison.Ordinal);
-            return Card(storage.Label, quota)[
+            var displayLabel = FormatStorageLabel(storage);
+            var kindBadge = FormatStorageKindLabel(storage.Kind);
+            return Card(displayLabel, quota)[
                 HStack(Space.Xs)[
                     StatusPill(
                         storage.Error is not null ? StatusKind.Error : (isCurrentStorage ? StatusKind.Done : StatusKind.Idle),
-                        storage.Error is not null ? FilesCopy.Unavailable : (isCurrentStorage ? "Active" : storage.Kind)),
+                        storage.Error is not null ? FilesCopy.Unavailable : (isCurrentStorage ? "Active" : kindBadge)),
                     FilesUi.Button(
                         "storage-open-" + index,
                         storage.Error is null ? "Browse" : FilesCopy.TryAgain,
@@ -205,8 +207,8 @@ internal static class FilesScreen
 
         var preview = Preview(state, revision);
         var itemsNode = BuildItemList(state, rev, pageOffset, isGridView);
-        var list = Surface(SurfaceKind.Elevated, "Directory Listing", isGridView ? "Finder tile grid" : "Sortable file table")[
-            VStack(Space.Sm, [headers, .. notices, itemsNode])
+        var list = Surface(SurfaceKind.Elevated)[
+            VStack(Space.Sm, [headers, Divider(), .. notices, itemsNode])
         ].ToNode();
 
         var searchBarRow = Grid(2, Space.Sm)[
@@ -319,21 +321,6 @@ internal static class FilesScreen
         }
         else
         {
-            var tableSummaryRows = slice
-                .Select(entry => (IReadOnlyList<string>)
-                [
-                    entry.Item.Name,
-                    entry.Item.Kind == ItemKind.Folder ? "Folder" : FileExtensionBadge(entry.Item.Name),
-                    FormatItemSize(entry.Item),
-                    FormatItemModified(entry.Item),
-                ])
-                .ToArray();
-
-            rows.Add(Table(
-                "Folder contents",
-                [FilesCopy.NameHeader, "Kind", FilesCopy.SizeHeader, FilesCopy.ModifiedHeader],
-                tableSummaryRows));
-
             for (var i = 0; i < slice.Length; i++)
             {
                 var entry = slice[i];
@@ -399,10 +386,49 @@ internal static class FilesScreen
         var item = entry.Item;
         var modPart = FormatItemModified(item);
         var whereSuffix = state.Connection is null && !state.Searching
-            ? " · " + (state.Storages.FirstOrDefault(s => string.Equals(s.Connection, entry.Connection, StringComparison.Ordinal))?.Label ?? entry.Connection)
+            ? " · " + (state.Storages.FirstOrDefault(s => string.Equals(s.Connection, entry.Connection, StringComparison.Ordinal)) is { } st
+                ? FormatStorageLabel(st)
+                : HumanizeOpaqueIdentifier(entry.Connection, "Storage"))
             : "";
         if (item.Kind == ItemKind.Folder) { return $"Folder · -- · {modPart}{whereSuffix}"; }
-        return $"File · {FormatItemSize(item)} · {modPart}{whereSuffix}";
+        return $"{FileExtensionBadge(item.Name)} · {FormatItemSize(item)} · {modPart}{whereSuffix}";
+    }
+
+    internal static string FormatStorageLabel(FilesStorage storage)
+    {
+        if (string.IsNullOrWhiteSpace(storage.Label))
+        {
+            return FormatStorageKindLabel(storage.Kind);
+        }
+
+        var trimmed = storage.Label.Trim();
+        if (IsOpaqueHexOrGuid(trimmed))
+        {
+            return FormatStorageKindLabel(storage.Kind);
+        }
+
+        return trimmed;
+    }
+
+    private static string FormatStorageKindLabel(string? kind) => (kind ?? "").Trim().ToLowerInvariant() switch
+    {
+        "windows" => "Windows Storage",
+        "local" or "local-disk" => "Local Disk",
+        "google-drive" => "Google Drive",
+        "onedrive" => "OneDrive",
+        "dropbox" => "Dropbox",
+        "s3" => "Cloud Storage",
+        _ => "Connected Storage",
+    };
+
+    private static string HumanizeOpaqueIdentifier(string raw, string fallback)
+        => string.IsNullOrWhiteSpace(raw) || IsOpaqueHexOrGuid(raw.Trim()) ? fallback : raw.Trim();
+
+    private static bool IsOpaqueHexOrGuid(string value)
+    {
+        if (value.Length == 32 && value.All(Uri.IsHexDigit)) { return true; }
+        if (value.Length == 36 && Guid.TryParse(value, out _)) { return true; }
+        return false;
     }
 
     public static IReadOnlyList<FilesItem> Ordered(FilesState state)
@@ -468,7 +494,9 @@ internal static class FilesScreen
 
     private static string? ActiveFolderDisplayPath(FilesState state) => state.Breadcrumbs.Length > 0
         ? string.Join("/", state.Breadcrumbs.Select(c => c.Item.Name).Where(n => !string.IsNullOrWhiteSpace(n)))
-        : state.Connection is { } conn ? state.Storages.FirstOrDefault(s => s.Connection == conn)?.Label ?? conn : null;
+        : state.Connection is { } conn
+            ? (state.Storages.FirstOrDefault(s => s.Connection == conn) is { } st ? FormatStorageLabel(st) : HumanizeOpaqueIdentifier(conn, "Storage"))
+            : null;
 
     private static string? ActiveFolderNeuronUri(FilesState state)
     {
@@ -508,7 +536,7 @@ internal static class FilesScreen
         if (state.Connection is { } activeConn)
         {
             var storageIdx = Array.FindIndex(state.Storages, s => string.Equals(s.Connection, activeConn, StringComparison.Ordinal));
-            var storageLabel = storageIdx >= 0 ? state.Storages[storageIdx].Label : activeConn;
+            var storageLabel = storageIdx >= 0 ? FormatStorageLabel(state.Storages[storageIdx]) : HumanizeOpaqueIdentifier(activeConn, "Storage");
             var storageAction = storageIdx >= 0 ? FilesUi.Act(rev, "storage", storageIdx) : FilesUi.Act(rev, "open");
             pathSegments.Add(FilesUi.Button(
                 "crumb-storage",

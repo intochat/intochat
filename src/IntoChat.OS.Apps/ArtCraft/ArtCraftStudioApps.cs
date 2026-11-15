@@ -197,15 +197,34 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
                 : null
         ];
 
+        var effectiveWebUrl = ResolveEmbeddedWebUrl(webUrl);
         Node body = executionMode == "wasm-ui"
             ? VStack(Space.Md)[
-                Banner("Embedded WASM Studio", $"Connecting WebView2 canvas to {webUrl ?? Descriptor.DefaultWebUrl}. Switch to MCP or CLI for instant local engine execution."),
-                WebBrowser(webUrl ?? Descriptor.DefaultWebUrl, $"{Descriptor.Title} WASM Studio", $"{Descriptor.Id}-wasm", height: 480, executionMode: executionMode)
+                Banner("Embedded WASM Studio", $"Hosted via IntoChat OS Kernel ({effectiveWebUrl}). Switch to MCP or CLI for instant headless execution."),
+                WebBrowser(effectiveWebUrl, $"{Descriptor.Title} WASM Studio", $"{Descriptor.Id}-wasm", height: 480, executionMode: executionMode)
             ]
             : nativeCanvas ?? BuildDefaultNativeCanvas(activeDoc, outputDoc, executionMode, itemsTitle, items, cliInvocation, mcpUri);
 
         return AppShell($"{Descriptor.Id}-shell", sidebar: sidebar, body: body, toolbar: toolbar);
     }
+
+    protected string ResolveEmbeddedWebUrl(string? candidateUrl)
+    {
+        if (string.IsNullOrWhiteSpace(candidateUrl)) { return Descriptor.StaticWebPath; }
+        var trimmed = candidateUrl.Trim();
+        if (trimmed.StartsWith("http://localhost:180", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("http://127.0.0.1:180", StringComparison.OrdinalIgnoreCase))
+        {
+            return Descriptor.StaticWebPath;
+        }
+        return trimmed;
+    }
+
+    protected static bool IsLegacyUnhostedWasmState(string? executionMode, string? webUrl)
+        => string.Equals(executionMode, "wasm-ui", StringComparison.OrdinalIgnoreCase)
+           && (string.IsNullOrWhiteSpace(webUrl)
+               || webUrl.StartsWith("http://localhost:180", StringComparison.OrdinalIgnoreCase)
+               || webUrl.StartsWith("http://127.0.0.1:180", StringComparison.OrdinalIgnoreCase));
 
     private Node BuildDefaultNativeCanvas(
         string activeDoc, string outputDoc, string executionMode, string itemsTitle, IReadOnlyList<string> items, string? cliInvocation, string? mcpUri)
@@ -255,7 +274,21 @@ public abstract class ArtCraftStudioAppBase(string appId) : ArtCraftStudioAppCor
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await base.OnActivate(cancellationToken);
-        if (State.AppId != Descriptor.Id) { await Show(ArtCraftStudioAppState.For(Descriptor.Id)); }
+        if (State.AppId != Descriptor.Id)
+        {
+            await Show(ArtCraftStudioAppState.For(Descriptor.Id));
+            return;
+        }
+
+        if (IsLegacyUnhostedWasmState(State.ExecutionMode, State.WebUrl))
+        {
+            await Show(State with
+            {
+                ExecutionMode = "mcp",
+                WebUrl = Descriptor.StaticWebPath,
+                Status = $"{Descriptor.Title} tools connected ({FormatModeLabel("mcp")}) · Active: {State.ActiveDocument}",
+            });
+        }
     }
 
     protected static AppBundle CreateBundle(string appId, Type appType)
