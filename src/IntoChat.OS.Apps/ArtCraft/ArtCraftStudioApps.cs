@@ -13,7 +13,6 @@ Each app supports:
 */
 using System.Text.Json.Serialization;
 using DigitalBrain;
-using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
@@ -21,7 +20,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Mcp;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.ArtCraft;
@@ -53,8 +52,9 @@ public sealed record ArtCraftStudioAppState(
 {
     public ArtCraftStudioAppState() : this(
         "artcraft", "mcp", "/work/project.craft", "/work/project.export.png", "suite.inspect",
-        "Inspect ArtCraft Workspace", "craft-cli run /work/project.craft --cmd suite.inspect",
-        "ArtCraft tools connected.", ["ArtCraft Suite Hub · Connected"], "http://localhost:18080/", "neuron://local/mcp/artcraft")
+        "Inspect ArtCraft Workspace", string.Empty,
+        "ArtCraft MCP server not connected. Connect ArtCraft in Settings to use tools.",
+        ["ArtCraft Suite Hub · Disconnected"], null, "neuron://local/mcp/artcraft")
     { }
 
     [Invariant("ExecutionMode is wasm-ui, mcp, or native-linux."), JsonIgnore]
@@ -93,9 +93,14 @@ public sealed record ArtCraftStudioAppState(
         var d = ArtCraftCatalog.Get(appId);
         return new(
             d.Id, "mcp", d.DefaultDocument, d.DefaultOutputDocument, d.DefaultCommandId, $"Ready · {d.Title}",
-            $"{d.CliBinary} run {d.DefaultDocument} --cmd {d.DefaultCommandId} --params '{d.DefaultParametersJson}' --out {d.DefaultOutputDocument}",
-            $"{d.Title} tools connected.", d.DefaultLayersOrTracks, d.DefaultWebUrl, $"neuron://local/mcp/{d.Id}");
+            string.Empty, $"{d.Title} MCP server not connected.",
+            d.DefaultLayersOrTracks, null, $"neuron://local/mcp/{d.Id}");
     }
+}
+
+internal static class ArtCraftAppLog
+{
+    internal static readonly ILogger Logger = LoggerFactory.Create(_ => { }).CreateLogger("IntoChat.OS.Apps.ArtCraft");
 }
 
 public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScreen<TState>, IWithFilesVfs
@@ -113,7 +118,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
     {
         var mode = NormalizeModeOrCurrent(requestedMode, currentMode);
         var doc = NormalizeTextOrCurrent(requestedDocument, currentDocument);
-        var webUrl = currentWebUrl ?? Descriptor.DefaultWebUrl;
+        var webUrl = currentWebUrl;
         var mcpUri = currentMcpUri;
 
         if (FilesVfs is not null)
@@ -136,10 +141,11 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(error, $"Files VFS resolution is optional when opening {Descriptor.Title}.");
+                ArtCraftAppLog.Logger.LogDebug(error, "Files VFS resolution is optional when opening {App}.", Descriptor.Title);
             }
         }
 
+        var connected = false;
         if (TryGetOptional<IArtCraftStudio>("artcraft", $"ArtCraftStudioNeuron is optional when running {Descriptor.Title} in unit tests.") is { } studio)
         {
             try
@@ -147,14 +153,18 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
                 var session = await studio.Open(Descriptor.Id);
                 mcpUri = session.McpKey;
                 webUrl = session.WebUrl ?? webUrl;
+                connected = true;
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(error, $"ArtCraftStudioNeuron MCP endpoint is optional when opening {Descriptor.Title} in local/headless mode.");
+                ArtCraftAppLog.Logger.LogDebug(error, "ArtCraftStudioNeuron MCP endpoint is optional when opening {App} in local/headless mode.", Descriptor.Title);
             }
         }
 
-        return (mode, doc, webUrl, mcpUri, $"{Descriptor.Title} tools connected ({FormatModeLabel(mode)}) · {ActiveDocumentLabel}: {doc}");
+        var status = connected
+            ? $"{Descriptor.Title} tools connected ({FormatModeLabel(mode)}) · {ActiveDocumentLabel}: {doc}"
+            : $"{Descriptor.Title} MCP server not connected ({FormatModeLabel(mode)}) · {ActiveDocumentLabel}: {doc}";
+        return (mode, doc, webUrl, mcpUri, status);
     }
 
     protected async Task<ArtCraftEngineResult> ExecuteStudioCommandAsync(
@@ -166,7 +176,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
             try { result = await engine.Execute(Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode); }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(error, $"ArtCraftEngineNeuron is optional when running {Descriptor.Title} standalone.");
+                ArtCraftAppLog.Logger.LogDebug(error, "ArtCraftEngineNeuron is optional when running {App} standalone.", Descriptor.Title);
             }
         }
 
@@ -174,7 +184,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
             Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode,
             TryGetOptional<IArtCraftStudio>("artcraft", $"ArtCraftStudioNeuron is optional when running {Descriptor.Title} in unit tests."),
             mcpKey => TryGetOptional<IMcpServer>(mcpKey, $"McpServerNeuron is optional when running {Descriptor.Title} in unit tests."),
-            (err, reason) => NullLogger.Instance.LogSwallowed(err, reason),
+            (err, reason) => ArtCraftAppLog.Logger.LogDebug(err, "{Reason}", reason),
             FilesVfs);
     }
 
@@ -229,17 +239,16 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
     private Node BuildDefaultNativeCanvas(
         string activeDoc, string outputDoc, string executionMode, string itemsTitle, IReadOnlyList<string> items, string? cliInvocation, string? mcpUri)
     {
-        var cliLine = string.IsNullOrWhiteSpace(cliInvocation)
-            ? $"{Descriptor.CliBinary} run {activeDoc} --cmd {Descriptor.DefaultCommandId} --params '{Descriptor.DefaultParametersJson}' --out {outputDoc}"
-            : cliInvocation;
-
         return VStack(Space.Md)[
             Grid(2, Space.Sm)[
                 Metric("Active Document", activeDoc, Descriptor.Category, BadgeTone.Accent, Icons.FileText),
                 Metric("Output Target", outputDoc, FormatModeLabel(executionMode), BadgeTone.Done, Icons.Sparkles)
             ],
-            ImageView(ArtCraftEngineRunner.CyanPreviewPngDataUrl, $"{Descriptor.Title} · {activeDoc} -> {outputDoc}", height: 240),
-            CodeBlock($"{Descriptor.CliBinary} · {FormatModeLabel(executionMode)}", cliLine, "bash", maxHeight: 160),
+            !string.IsNullOrWhiteSpace(cliInvocation)
+                ? CodeBlock($"Execution Log · {FormatModeLabel(executionMode)}", cliInvocation, "bash", maxHeight: 160)
+                : Surface(SurfaceKind.Elevated, "Studio Canvas", "Connect an ArtCraft MCP server in Settings to render previews and execute commands.")[
+                    MutedText($"{Descriptor.Title} · {activeDoc} -> {outputDoc}")
+                ],
             !string.IsNullOrWhiteSpace(mcpUri)
                 ? MutedText($"MCP Endpoint: {mcpUri} · Supported formats: {string.Join(", ", Descriptor.SupportedExtensions)}").Tabular().ToNode()
                 : null,
@@ -253,7 +262,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
     {
         "mcp" => $"MCP Server ({Descriptor.Id}-mcp)",
         "wasm-ui" => "WASM Web UI",
-        _ => $"Native Linux CLI ({Descriptor.CliBinary})",
+        _ => $"Studio Runtime ({mode})",
     };
 
     protected static string NormalizeModeOrCurrent(string? requestedMode, string currentMode) =>
@@ -265,7 +274,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
     private T? TryGetOptional<T>(string key, string reason) where T : class
     {
         try { return Get<T>(key); }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, reason); return null; }
+        catch (Exception error) when (error is not OperationCanceledException) { ArtCraftAppLog.Logger.LogDebug(error, "{Reason}", reason); return null; }
     }
 }
 
@@ -286,7 +295,7 @@ public abstract class ArtCraftStudioAppBase(string appId) : ArtCraftStudioAppCor
             {
                 ExecutionMode = "mcp",
                 WebUrl = Descriptor.StaticWebPath,
-                Status = $"{Descriptor.Title} tools connected ({FormatModeLabel("mcp")}) · Active: {State.ActiveDocument}",
+                Status = $"{Descriptor.Title} studio ({FormatModeLabel("mcp")}) · Active: {State.ActiveDocument}",
             });
         }
     }

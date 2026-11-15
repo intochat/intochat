@@ -455,16 +455,39 @@ public static class CreatorView
 
     private static Node RenderBuildAndTestSummary(FlowView flow)
     {
-        var buildDone = flow.Done.Contains("build") || flow.Status == FlowStatus.Completed;
-        var testDone = flow.Done.Contains("test") || flow.Status == FlowStatus.Completed;
+        var completedCount = flow.Done.Length;
+        var totalCount = Math.Max(completedCount, flow.Steps.Length);
         var failed = flow.Status == FlowStatus.Failed;
+        var cancelled = flow.Status == FlowStatus.Cancelled;
+        var completed = flow.Status == FlowStatus.Completed;
+        var summaryText = !string.IsNullOrWhiteSpace(flow.Detail)
+            ? flow.Detail
+            : flow.Status switch
+            {
+                FlowStatus.Completed => $"Run {flow.FlowId}: Completed ({completedCount}/{totalCount} steps).",
+                FlowStatus.Waiting => $"Run {flow.FlowId}: Waiting on {flow.WaitingStep ?? "approval"} ({completedCount}/{totalCount} steps).",
+                FlowStatus.Failed => $"Run {flow.FlowId}: Failed.",
+                FlowStatus.Cancelled => $"Run {flow.FlowId}: Cancelled.",
+                _ => $"Run {flow.FlowId}: {flow.Current ?? "Running"} ({completedCount}/{totalCount} steps).",
+            };
+
+        var buildRecorded = flow.Done.Contains("build");
+        var testRecorded = flow.Done.Contains("test");
+        var stagePillKind = failed || cancelled ? StatusKind.Error : (completed ? StatusKind.Done : StatusKind.Idle);
+        var stageLabel = flow.Status.ToString();
 
         return HStack(Space.Sm)[
-            Card("Build Verification", failed ? (flow.Detail ?? "Build failed.") : (buildDone ? $"Run {flow.FlowId}: Roslyn synapse compile passed." : $"Run {flow.FlowId}: Pending build stage."))[
-                StatusPill(failed ? StatusKind.Error : (buildDone ? StatusKind.Done : StatusKind.Idle), failed ? "Failed" : (buildDone ? "Compiled" : "Pending"))
+            Card("Flow Status", summaryText)[
+                StatusPill(stagePillKind, stageLabel)
             ],
-            Card("Test Verification", failed ? "Blocked by build/scenario failure." : (testDone ? $"Run {flow.FlowId}: Scenario verification passed." : $"Run {flow.FlowId}: Pending scenario verification."))[
-                StatusPill(failed ? StatusKind.Error : (testDone ? StatusKind.Done : StatusKind.Idle), failed ? "Failed" : (testDone ? "Verified" : "Pending"))
+            Card(
+                "Recorded Stages",
+                flow.Done.Length > 0
+                    ? $"Completed: {string.Join(", ", flow.Done)}"
+                    : $"Pending first stage ({flow.Current ?? "initializing"}).")[
+                StatusPill(
+                    buildRecorded && testRecorded ? StatusKind.Done : stagePillKind,
+                    $"{completedCount}/{totalCount} done")
             ]
         ];
     }

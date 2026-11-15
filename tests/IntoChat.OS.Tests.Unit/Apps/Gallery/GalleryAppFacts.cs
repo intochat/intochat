@@ -34,4 +34,14 @@ public sealed class GalleryAppFacts
         Assert.Equal("table-card", state.SelectedId);
         Assert.Equal(2, state.Count);
     }
+
+    [Fact]
+    public void GalleryRenderDoesNotEmbedProceduralPngOrFakePostgresSignals()
+    {
+        var view = GalleryRendering.Render(new GalleryAppState());
+        var viewJson = System.Text.Json.JsonSerializer.Serialize(view);
+        Assert.DoesNotContain("data:image/png;base64,", viewJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("neuron://local/postgres/", viewJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("ino.connect-db", viewJson, StringComparison.Ordinal);
+    }
 }

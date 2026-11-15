@@ -52,7 +52,8 @@ public sealed class AspireFacts
         var aspire = os.Get<IAspire>(new NeuronId(new BrainId("local"), "aspire", "aspire"));
 
         var resources = await aspire.GetResourcesAsync();
-        Assert.Contains(resources, r => r.Name == "OperatingSystem");
+        Assert.DoesNotContain(resources, r => r.Name == "OperatingSystem" || r.Name == "intochat-os-mcp");
+        Assert.Empty(resources);
 
         await aspire.RecordLogAsync(new AspireLogEntry(DateTimeOffset.UtcNow, "OperatingSystem", "Error", "NullReferenceException in CalculatorApp", "System.NullReferenceException"));
         await aspire.RecordTraceAsync(new AspireTraceSpan("trace-1", "span-1", "OperatingSystem", "calculator.add", "Error", 1250, "DivideByZeroException"));
@@ -63,6 +64,23 @@ public sealed class AspireFacts
         Assert.Single(consoleLines);
         var errorTraces = await aspire.GetTracesAsync("OperatingSystem", errorsOnly: true);
         Assert.Contains(errorTraces, t => t.TraceId == "trace-1" && t.Name == "calculator.add" && t.Error == "DivideByZeroException");
+    }
+
+    [Fact]
+    public void AspireDiscoverResourcesReportsOnlyConfiguredEndpoints()
+    {
+        var cfg = global::Microsoft.Extensions.Configuration.MemoryConfigurationBuilderExtensions.AddInMemoryCollection(
+            new global::Microsoft.Extensions.Configuration.ConfigurationBuilder(),
+            new Dictionary<string, string?>
+            {
+                ["INTOCHAT_OS_URL"] = "http://127.0.0.1:6100"
+            })
+            .Build();
+
+        var resources = AspireLiveTelemetry.DiscoverResources([], cfg);
+        var osResource = Assert.Single(resources);
+        Assert.Equal("OperatingSystem", osResource.Name);
+        Assert.Equal("http://127.0.0.1:6100", osResource.Endpoint);
     }
 
     [Fact]

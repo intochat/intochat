@@ -272,4 +272,40 @@ public sealed class Creator3PaneFacts
         public Task<IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState> Close(string app, string operationId, long expectedRevision) => Task.FromResult(new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState(1L, ["owner"], []));
         public Task<IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState> Read() => Task.FromResult(new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState(1L, ["owner"], []));
     }
+
+    [Fact]
+    public void CreatorViewDoesNotFabricateRoslynOrScenarioVerificationOnCompletedF2prFlow()
+    {
+        var state = new CreatorState();
+        var topology = new BrainTopology([], []);
+        FlowView[] flows =
+        [
+            new FlowView(
+                "cf-run-100",
+                ChangeFlow.Alias,
+                "Update Unit1",
+                "admin",
+                "trace-100",
+                FlowStatus.Completed,
+                ["prepare-worktree", "edit", "verify-and-commit", "approval-gate", "publish"],
+                ["prepare-worktree", "edit", "verify-and-commit", "approval-gate", "publish"],
+                null,
+                null,
+                null,
+                "plan-cf-100",
+                1.0,
+                [],
+                [],
+                null,
+                T0,
+                T0,
+                "Published draft PR",
+                Subject: "unit1")
+        ];
+
+        var view = CreatorView.Render(state, topology, flows, [], new Inspection("", ""));
+        var viewJson = System.Text.Json.JsonSerializer.Serialize(view);
+        Assert.DoesNotContain("Roslyn synapse compile passed", viewJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Scenario verification passed", viewJson, StringComparison.OrdinalIgnoreCase);
+    }
 }

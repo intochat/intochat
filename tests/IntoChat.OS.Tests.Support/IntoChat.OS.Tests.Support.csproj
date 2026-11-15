@@ -12,5 +12,6 @@
     <ProjectReference Include="../../src/IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../src/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
     <ProjectReference Include="../../src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
+    <ProjectReference Include="../../src/Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
   </ItemGroup>
 </Project>

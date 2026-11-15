@@ -8,6 +8,7 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -53,7 +54,7 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         }
 
         var tasks = $"neuron://{brainId}/apps/tasks#{flowId}";
-        if (services.GetService<IDrafter>() is not null && NeuronId.TryParse(flowId, out var flowNeuronId))
+        if (NeuronId.TryParse(flowId, out var flowNeuronId))
         {
             var deadline = DateTimeOffset.UtcNow + MakePollBudget;
             FlowView? settled = null;
@@ -79,6 +80,7 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
+                    services.GetService<ILogger<InoStudioNeuron>>()?.LogDebug(ex, "Could not deserialize BuildInner head for flow {FlowId}.", flowId);
                     built = null;
                 }
 
@@ -119,6 +121,23 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
                 if (settled.Status is FlowStatus.Failed or FlowStatus.Cancelled)
                 {
                     var detail = settled.Detail ?? settled.Status.ToString();
+                    if (IsMissingModelFailure(detail))
+                    {
+                        var settingsUri = $"neuron://{brainId}/apps/settings";
+                        var setupCard = new InoCard(
+                            "setup-model",
+                            "settings",
+                            "Model setup required",
+                            detail,
+                            settingsUri,
+                            "setup-required",
+                            settingsUri);
+                        return new InoToolResult(
+                            $"Cannot author '{title}' because no model provider is configured: {detail} Configure a model in Settings ({settingsUri}).",
+                            setupCard,
+                            Ok: false);
+                    }
+
                     var failedCard = new InoCard(
                         flowId,
                         "flow",
@@ -135,16 +154,33 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
             }
         }
 
+        if (services.GetService<IDrafter>() is null)
+        {
+            var settingsUri = $"neuron://{brainId}/apps/settings";
+            var setupCard = new InoCard(
+                "setup-model",
+                "settings",
+                "Model setup required",
+                "No drafter/model provider is configured on this OS brain.",
+                settingsUri,
+                "setup-required",
+                settingsUri);
+            return new InoToolResult(
+                $"Cannot author '{title}' because no model provider is configured. Configure a model in Settings ({settingsUri}).",
+                setupCard,
+                Ok: false);
+        }
+
         var card = new InoCard(
             flowId,
             "flow",
             $"Building: {title}",
-            "The unit is authored, verified against its scenarios and deployed; it then waits for your consent to its needs.",
+            "Build flow started; track progress on the Tasks board.",
             tasks,
             "running",
             tasks);
         return new InoToolResult(
-            $"Started building {title} ({flowId}). The verify transcript and the consent to the unit's needs will appear on the Tasks board ({tasks}).", card);
+            $"Started building {title} ({flowId}). Track authoring, verification, and consent progress on the Tasks board ({tasks}).", card);
     }
 
     public Task<InoToolResult> CreateInteractiveApp(string? alias, string? title, string goal, CancellationToken ct = default)
@@ -403,4 +439,15 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
     }
 
     private static string Kept(Dictionary<string, string> sidecars, string file) => sidecars.ContainsKey(file) ? "kept" : "missing";
+
+    private static bool IsMissingModelFailure(string detail) =>
+        detail.Contains("no drafter", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("no model", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("no creator model", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("provider", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("ollama", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("api key", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("settings", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("unavailable", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("configured", StringComparison.OrdinalIgnoreCase);
 }

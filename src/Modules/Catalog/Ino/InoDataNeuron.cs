@@ -13,52 +13,35 @@ public sealed class InoDataNeuron(ICapabilityBroker? broker = null, IServiceProv
 
     public Task<InoDataState> Read() => Task.FromResult(State);
 
-    public async Task<InoToolResult> Connect(string connection)
+    public Task<InoToolResult> Connect(string connection)
     {
-        var raw = string.IsNullOrWhiteSpace(connection)
-            ? "Host=localhost;Port=5432;Database=supabase;Username=postgres"
-            : connection.Trim();
-        var dbName = ParseDatabaseName(raw);
-        var hostName = ParseHostName(raw);
-        var descriptor = $"main:{hostName}/{dbName}";
-        try
-        {
-            await Save(State with { ConnectedDatabase = descriptor }, new InoDataChanged(++_revision));
-        }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            return new InoToolResult($"Could not connect {dbName} on {hostName}: {error.Message}");
-        }
-
-        var cardId = $"db-{State.Charts.Length + 1}";
-        var card = new InoCard(
-            cardId,
-            "db-connection",
-            $"PostgreSQL Connected: {dbName} ({hostName})",
-            "Connection sealed in neuron://local/postgres/main. Ready for read-only SQL, tables, and chart visualizations.",
-            "neuron://local/postgres/main",
-            "connected",
-            $"neuron://local/apps/ino#{cardId}");
-        return new InoToolResult($"Connected to PostgreSQL database '{dbName}' on '{hostName}'.", card);
+        return Task.FromResult(new InoToolResult(
+            "PostgreSQL database connections are not configured in ino.data. Query CSV, TSV, or JSON files from your workspace instead.",
+            Ok: false));
     }
 
     public async Task<InoToolResult> Query(string sql)
     {
         var statement = string.IsNullOrWhiteSpace(sql) ? InoDataCards.DefaultSql : sql.Trim();
-        var database = State.ConnectedDatabase ?? InoDataCards.DefaultDatabase;
+        var database = State.ConnectedDatabase ?? "workspace-files";
         DataQueryResult result;
         InoCard table;
         try
         {
             result = await DataAnalyticsEngine.ExecuteAsync(statement, database, Vfs);
+            if (result.Columns.Length == 0 && result.Rows.Length == 0)
+            {
+                return new InoToolResult(result.Summary, Ok: false);
+            }
+
             var index = State.Charts.Length + 1;
             var cards = InoDataCards.Build(result, database, $"table-{index}", $"chart-{index}");
             table = cards.Table;
-            await Save(State with { ConnectedDatabase = database, Charts = [.. State.Charts, cards.Chart] }, new InoDataChanged(++_revision));
+            await Save(State with { Charts = [.. State.Charts, cards.Chart] }, new InoDataChanged(++_revision));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            return new InoToolResult($"Could not run the query: {error.Message}");
+            return new InoToolResult($"Could not run the query: {error.Message}", Ok: false);
         }
 
         var preview = string.Join("\n", result.Rows.Take(5).Select(row => "- " + string.Join(" | ", row)));
@@ -67,62 +50,25 @@ public sealed class InoDataNeuron(ICapabilityBroker? broker = null, IServiceProv
 
     public async Task<InoToolResult> Chart(string spec)
     {
-        var database = State.ConnectedDatabase ?? InoDataCards.DefaultDatabase;
+        var database = State.ConnectedDatabase ?? "workspace-files";
         DataQueryResult result;
         try
         {
             result = await DataAnalyticsEngine.ExecuteAsync(string.IsNullOrWhiteSpace(spec) ? "chart" : spec.Trim(), database, Vfs);
+            if (result.Columns.Length == 0 && result.ChartPoints.Length == 0)
+            {
+                return new InoToolResult(result.Summary, Ok: false);
+            }
+
             var index = State.Charts.Length + 1;
             var chart = InoDataCards.Build(result, database, $"table-{index}", $"chart-{index}").Chart;
-            await Save(State with { ConnectedDatabase = database, Charts = [.. State.Charts, chart] }, new InoDataChanged(++_revision));
+            await Save(State with { Charts = [.. State.Charts, chart] }, new InoDataChanged(++_revision));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            return new InoToolResult($"Could not build the chart: {error.Message}");
+            return new InoToolResult($"Could not build the chart: {error.Message}", Ok: false);
         }
 
         return new InoToolResult($"Rendered a {result.ChartKind} chart '{result.ChartTitle}' with {result.ChartPoints.Length} point(s).", State.Charts[^1]);
-    }
-
-    private static string ParseDatabaseName(string connectionString)
-    {
-        if (connectionString.StartsWith("postgres", StringComparison.OrdinalIgnoreCase)
-            && Uri.TryCreate(connectionString, UriKind.Absolute, out var uri))
-        {
-            var path = uri.AbsolutePath.Trim('/');
-            return string.IsNullOrWhiteSpace(path) ? "postgres" : path;
-        }
-
-        foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var kv = part.Split('=', 2, StringSplitOptions.TrimEntries);
-            if (kv.Length == 2 && (kv[0].Equals("Database", StringComparison.OrdinalIgnoreCase) || kv[0].Equals("Initial Catalog", StringComparison.OrdinalIgnoreCase)))
-            {
-                return kv[1];
-            }
-        }
-
-        return "postgres";
-    }
-
-    private static string ParseHostName(string connectionString)
-    {
-        if (connectionString.StartsWith("postgres", StringComparison.OrdinalIgnoreCase)
-            && Uri.TryCreate(connectionString, UriKind.Absolute, out var uri)
-            && !string.IsNullOrWhiteSpace(uri.Host))
-        {
-            return uri.Host;
-        }
-
-        foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var kv = part.Split('=', 2, StringSplitOptions.TrimEntries);
-            if (kv.Length == 2 && (kv[0].Equals("Host", StringComparison.OrdinalIgnoreCase) || kv[0].Equals("Server", StringComparison.OrdinalIgnoreCase)))
-            {
-                return kv[1];
-            }
-        }
-
-        return "localhost";
     }
 }

@@ -46,13 +46,13 @@ public sealed record FilmCraftAppState(
     string LastCliInvocation,
     string Status,
     string[] Tracks,
-    string? WebUrl = "http://localhost:18083",
+    string? WebUrl = null,
     string McpEndpointUri = "neuron://local/mcp/filmcraft")
 {
     public FilmCraftAppState() : this(
         "mcp", "/work/launch-trailer.fcproj", "/work/launch-trailer.cut.mp4", "timeline.razor", "Ready · FilmCraft Studio",
-        "filmcraft-cli exec /work/launch-trailer.fcproj --cmd timeline.razor --params '{\"timecode\":\"00:00:03:12\",\"track\":\"V1\"}' --out /work/launch-trailer.cut.mp4",
-        "FilmCraft tools connected.",
+        string.Empty,
+        "FilmCraft MCP server not connected.",
         ["V2 · Title Overlay (00:00:00:00 -> 00:00:05:00)", "V1 · A-Roll Main Camera (00:00:00:00 -> 00:00:14:00)", "A1 · Master Dialogue Bus (-14 LUFS)"])
     { }
 
@@ -123,7 +123,7 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
             {
                 ExecutionMode = "mcp",
                 WebUrl = Descriptor.StaticWebPath,
-                Status = $"FilmCraft tools connected ({FormatModeLabel("mcp")}) · Sequence: {State.ActiveSequence}",
+                Status = $"FilmCraft studio ({FormatModeLabel("mcp")}) · Sequence: {State.ActiveSequence}",
             });
         }
     }
@@ -185,9 +185,13 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
                 Button("Ripple Trim (-24f)").Key("tool-trim").Small().OnClick(() => RippleTrimAsync()),
                 Button("Lumetri Grade").Key("tool-lumetri").Small().OnClick(() => LumetriAutoGradeAsync())
             ),
-            ImageView(ArtCraftEngineRunner.WarmPresetPngDataUrl, $"Program Monitor · {state.ActiveSequence} -> {state.OutputFile}", height: 240),
+            Surface(SurfaceKind.Elevated, "Program Monitor", "Connect FilmCraft MCP in Settings to render preview frames.")[
+                MutedText($"No monitor frame rendered ({state.ActiveSequence} -> {state.OutputFile}).")
+            ],
             Table("Non-Linear Sequence Tracks", ["Track", "Timeline Span & Routing"], [.. tracks.Select((t, idx) => (IReadOnlyList<string>)[$"T{idx + 1}", t])]),
-            CodeBlock($"filmcraft-cli · {FormatModeLabel(state.ExecutionMode)}", state.LastCliInvocation, "bash", maxHeight: 140)
+            !string.IsNullOrWhiteSpace(state.LastCliInvocation)
+                ? CodeBlock($"Execution Log · {FormatModeLabel(state.ExecutionMode)}", state.LastCliInvocation, "bash", maxHeight: 140)
+                : null
         ];
 
         return RenderStudioShell(

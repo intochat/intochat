@@ -1,8 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using DigitalBrain.Log;
 using IntoChat.OS.Modules.AI.Inference;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -12,7 +10,7 @@ namespace IntoChat.OS.Modules.Apps;
 /// Handles interactive trackers/counters (J1), refinements preserving state & scenarios (J2),
 /// and multi-step reactive [Synapse] chains (J3).
 /// </summary>
-internal static partial class OfflineUnitSynthesizer
+public static partial class OfflineUnitSynthesizer
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -128,7 +126,7 @@ internal static partial class OfflineUnitSynthesizer
             }
             catch (JsonException error)
             {
-                NullLogger.Instance.LogSwallowed(error, "Full prompt was not a standalone AuthoredUnit JSON.");
+                System.Diagnostics.Debug.WriteLine($"OfflineUnitSynthesizer: {"Full prompt was not a standalone AuthoredUnit JSON."} ({error.Message})");
             }
         }
 
@@ -310,7 +308,7 @@ internal static partial class OfflineUnitSynthesizer
             }
             catch (JsonException error)
             {
-                NullLogger.Instance.LogSwallowed(error, "Invalid JSON in OfflineUnitSynthesizer prompt; falling back.");
+                System.Diagnostics.Debug.WriteLine($"OfflineUnitSynthesizer: {"Invalid JSON in OfflineUnitSynthesizer prompt; falling back."} ({error.Message})");
             }
         }
 
@@ -351,7 +349,7 @@ internal static partial class OfflineUnitSynthesizer
             }
             catch (JsonException error)
             {
-                NullLogger.Instance.LogSwallowed(error, "Full prompt was not a standalone AuthoredUnit JSON.");
+                System.Diagnostics.Debug.WriteLine($"OfflineUnitSynthesizer: {"Full prompt was not a standalone AuthoredUnit JSON."} ({error.Message})");
             }
         }
 
@@ -366,7 +364,7 @@ internal static partial class OfflineUnitSynthesizer
                 }
                 catch (JsonException error)
                 {
-                    NullLogger.Instance.LogSwallowed(error, "Invalid JSON object candidate in OfflineUnitSynthesizer; trying whole prompt.");
+                    System.Diagnostics.Debug.WriteLine($"OfflineUnitSynthesizer: {"Invalid JSON object candidate in OfflineUnitSynthesizer; trying whole prompt."} ({error.Message})");
                 }
             }
         }

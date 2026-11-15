@@ -12,13 +12,12 @@ Showcases all 7 canonical UI Kit component families across interactive tabs, an 
 */
 using System.Globalization;
 using DigitalBrain;
-using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Gallery;
 
@@ -599,12 +598,14 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     protected override Node Render(GalleryAppState state)
         => GalleryRendering.RenderRoot(state, LastRejection);
 
+    private static readonly ILogger<GalleryApp> Log = LoggerFactory.Create(_ => { }).CreateLogger<GalleryApp>();
+
     private T? TryGetOptional<T>(string key) where T : class
     {
         try { return Get<T>(key); }
         catch (Exception ex)
         {
-            NullLogger.Instance.LogSwallowed(ex, $"{typeof(T).Name} is optional when GalleryApp runs in tests.");
+            Log.LogDebug(ex, "{Service} is optional when GalleryApp runs in tests.", typeof(T).Name);
             return null;
         }
     }
