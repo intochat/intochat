@@ -97,6 +97,20 @@ public sealed class FlowSignalPump : DigitalBrain.Neurons.Neuron<PumpState>, IFl
     private Task Send(Signal signal) => Save(State with { Sent = State.Sent + 1 }, signal);
 }
 
+public interface IFlowCanceller
+{
+    Task Cancel(string flowId, string reason);
+}
+
+// Cancels a flow through the index for whoever called it, as the Tasks app does.
+[DigitalBrain.Neurons.Neuron(Alias), DigitalBrain.Neurons.StatelessNeuron]
+public sealed class FlowCanceller : DigitalBrain.Neurons.Neuron, IFlowCanceller
+{
+    public const string Alias = "test.flow-canceller";
+
+    public Task Cancel(string flowId, string reason) => Context.Get<IFlows>(IFlows.Key(Id.Brain.Value)).Cancel(flowId, reason);
+}
+
 public sealed record TestPlan() : OperationPlan(DryRun: false);
 
 // Three steps; "second" optionally waits External.
