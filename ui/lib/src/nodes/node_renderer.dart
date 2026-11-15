@@ -52,6 +52,7 @@ abstract final class NodeRenderer {
   static bool fills(Node root) => switch (root) {
     ConversationNode() => true,
     SplitPaneNode(:final trailing) => fills(trailing),
+    RowNode(:final children) => children.any(fills),
     _ => false,
   };
 

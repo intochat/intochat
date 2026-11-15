@@ -155,21 +155,24 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
     }
     final shown = _all ? sorted : sorted.take(widget.visibleRows).toList();
 
-    Widget cell(String text, TableColumn col, {bool head = false}) => Expanded(
-      flex: col.flex,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        child: Text(
-          text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: col.numeric ? TextAlign.right : TextAlign.left,
-          style: head
-              ? IcType.text(11.5, weight: FontWeight.w600, color: c.textMuted)
-              : IcType.text(13, color: c.textStrong, tnum: col.numeric),
+    Widget cell(String text, TableColumn col, {bool head = false}) {
+      final hasDigits = col.numeric || col.date || RegExp(r'\d').hasMatch(text);
+      return Expanded(
+        flex: col.flex,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: col.numeric ? TextAlign.right : TextAlign.left,
+            style: head
+                ? IcType.text(11.5, weight: FontWeight.w600, color: c.textMuted)
+                : IcType.text(13, color: c.textStrong, tnum: hasDigits),
+          ),
         ),
-      ),
-    );
+      );
+    }
 
     Widget head(int i, TableColumn col) {
       final on = _sortCol == i;

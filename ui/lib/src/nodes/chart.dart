@@ -1,13 +1,17 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
-import 'node_context.dart';
 import '../design/cards/chart_card.dart';
 import 'node_common.dart';
+import 'node_context.dart';
 
 Widget renderChart(ChartNode node, NodeContext ctx) => ChartCard(
   source: cardSource(node.from),
-  kind: node.chartKind == 'line' ? ChartKind.line : ChartKind.columns,
+  kind: switch (node.chartKind.trim().toLowerCase()) {
+    'line' => ChartKind.line,
+    'pie' => ChartKind.pie,
+    _ => ChartKind.columns,
+  },
   data: ChartData(
     title: node.title,
     points: [
