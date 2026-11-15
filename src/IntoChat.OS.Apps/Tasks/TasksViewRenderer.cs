@@ -73,7 +73,7 @@ public static class TasksViewRenderer
 
         if (approvals.FirstOrDefault(a => a.Subject == flow.FlowId && a.Kind != ApprovalKind.Other) is { } approval)
         {
-            children.Add(new ApprovalCardNode("approval", approval.PlanId, approval.Title, approval.Detail, [], Resolve: new Resolve(approval.PlanId)));
+            children.Add(new ApprovalCardNode("approval", approval.PlanId, approval.Title, approval.Detail, []));
         }
 
         List<Node?> actions =

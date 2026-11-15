@@ -8,7 +8,7 @@ using DigitalBrain.Log;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Modules.Flutter.Views;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Flutter;
 
@@ -19,6 +19,9 @@ namespace IntoChat.OS.Modules.Flutter;
 /// </summary>
 internal static class ScreenAppEmitBridge
 {
+    private static readonly ILoggerFactory LogFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Warning));
+    private static readonly ILogger Log = LogFactory.CreateLogger(typeof(ScreenAppEmitBridge).FullName!);
+
     public static async Task<ViewActivation> ActivateAsync(
         IScreen screen,
         PublishedView published,
@@ -27,7 +30,6 @@ internal static class ScreenAppEmitBridge
         string key,
         string? value,
         string callerPersonId,
-        Func<string, bool, Task>? resolveApproval = null,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(screen);
@@ -50,11 +52,7 @@ internal static class ScreenAppEmitBridge
                 return action;
 
             case ViewActivationKind.Resolve:
-                if (resolveApproval is not null)
-                {
-                    await resolveApproval(action.Resolve!.PlanId, !string.Equals(value, "deny", StringComparison.Ordinal)).ConfigureAwait(false);
-                }
-                return action;
+                throw new ActivationRefusedException(ActivationRefusedException.NoEmit);
 
             case ViewActivationKind.Emit:
                 var emit = action.Emit!;
@@ -100,7 +98,7 @@ internal static class ScreenAppEmitBridge
             }
             catch (ReflectionTypeLoadException ex)
             {
-                NullLogger.Instance.LogSwallowed(ex, "Partial assembly type load during signal discovery.");
+                Log.LogSwallowed(ex, "Partial assembly type load during signal discovery.");
                 types = ex.Types;
             }
 

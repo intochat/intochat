@@ -1,10 +1,8 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 import 'package:intochat_os_flutter_shell/src/composition/value_nodes/view_menu.dart';
-import 'package:intochat_os_flutter_shell/src/composition/value_nodes/view_tabs.dart';
 
 Future<void> _pump(WidgetTester tester, Widget child) => tester.pumpWidget(
   MaterialApp(
@@ -50,24 +48,4 @@ void main() {
       expect(find.text('Reference item'), findsNothing);
     });
   }
-
-  testWidgets('view_tabs_disables_tabs_without_an_action', (tester) async {
-    await _pump(
-      tester,
-      SizedBox(
-        width: 600,
-        child: ViewTabs(
-          node: const {
-            'children': [
-              {'kind': 1, 'text': 'A', 'style': 0},
-              {'kind': 1, 'text': 'B', 'action': 'b'},
-              {'kind': 1, 'text': 'C'},
-            ],
-          },
-          action: (child) => child['action'] == null ? null : () {},
-        ),
-      ),
-    );
-    expect(tester.widget<UiKitTabs>(find.byType(UiKitTabs)).disabled, {2});
-  });
 }

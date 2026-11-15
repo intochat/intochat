@@ -5,6 +5,7 @@ using DigitalBrain.Capabilities.Tools;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.Tools;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Mcp;
 
@@ -21,7 +22,13 @@ public sealed class BrainToolsConnection(
     IEnumerable<IToolSource>? staticSources = null)
     : ConnectionNeuron<BrainToolsConnectionState>, IBrainToolsConnection
 {
+    private static readonly ILoggerFactory FallbackLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Warning));
+    private static readonly ILogger FallbackLogger = FallbackLoggerFactory.CreateLogger<BrainToolsConnection>();
+
     private readonly List<IToolSource> _sources = staticSources?.ToList() ?? [];
+
+    public ILogger<BrainToolsConnection>? Logger { get; set; }
+    private ILogger Log => Logger ?? FallbackLogger;
 
     public void RegisterSource(IToolSource source)
     {
@@ -55,7 +62,7 @@ public sealed class BrainToolsConnection(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // One failing source should not crash tool discovery
+                Log.LogSwallowed(ex, "Skipping failing tool source during discovery.");
             }
         }
 
@@ -117,7 +124,7 @@ public sealed class BrainToolsConnection(
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(error, "Skipping faulty tool source during lookup.");
+                Log.LogSwallowed(error, "Skipping faulty tool source during lookup.");
             }
         }
 
@@ -149,7 +156,7 @@ public sealed class BrainToolsConnection(
         }
         catch (JsonException error)
         {
-            global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(error, "Wrapping non-JSON tool result text.");
+            Log.LogSwallowed(error, "Wrapping non-JSON tool result text.");
             return JsonSerializer.SerializeToElement(new { result = result.Text });
         }
     }
@@ -197,7 +204,7 @@ public sealed class BrainToolsConnection(
                             }
                             catch (Exception innerError) when (innerError is not OperationCanceledException)
                             {
-                                global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(innerError, "Skipping unavailable live tool source.");
+                                Log.LogSwallowed(innerError, "Skipping unavailable live tool source.");
                             }
                         }
                     }
@@ -205,7 +212,7 @@ public sealed class BrainToolsConnection(
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(error, "Falling back to local tool sources.");
+                Log.LogSwallowed(error, "Falling back to local tool sources.");
             }
         }
 

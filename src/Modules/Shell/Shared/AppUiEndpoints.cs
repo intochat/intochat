@@ -22,13 +22,16 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using MicrosoftSdk = Microsoft;
 
 namespace IntoChat.OS.Modules.Flutter;
 
 internal static class AppUiEndpoints
 {
+    private static readonly ILoggerFactory LogFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Warning));
+    private static readonly ILogger Log = LogFactory.CreateLogger(typeof(AppUiEndpoints).FullName!);
+
     // GET /apps/node?kind=view writes the tree with these options; the other kinds use the host's HTTP JSON options.
     internal static readonly JsonSerializerOptions ViewJson = new(JsonSerializerDefaults.Web) { MaxDepth = 128 };
 
@@ -70,7 +73,7 @@ internal static class AppUiEndpoints
                     }
                     catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
                     {
-                        NullLogger.Instance.LogSwallowed(error, "Screen view for unit could not be read.");
+                        Log.LogSwallowed(error, "Screen view for unit could not be read.");
                     }
                 }
                 var failing = unitView is null ? null : await brain.Get<IDebuggerReads>(IDebuggerReads.Key(scope)).Failing(unit).WaitAsync(ct);
@@ -107,7 +110,7 @@ internal static class AppUiEndpoints
                         }
                         catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                         {
-                            NullLogger.Instance.LogSwallowed(error, "Published screen view could not be read.");
+                            Log.LogSwallowed(error, "Published screen view could not be read.");
                         }
                     }
                     var directView = await brain.Get<IView>(directViewName).Read().WaitAsync(ct);
@@ -147,7 +150,7 @@ internal static class AppUiEndpoints
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                 {
-                    NullLogger.Instance.LogSwallowed(error, "Screen view could not be read.");
+                    Log.LogSwallowed(error, "Screen view could not be read.");
                 }
                 try
                 {
@@ -165,7 +168,7 @@ internal static class AppUiEndpoints
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                 {
-                    NullLogger.Instance.LogSwallowed(error, "Unit view could not be read for viewport.");
+                    Log.LogSwallowed(error, "Unit view could not be read for viewport.");
                 }
             }
             var app = await brain.Get<IApp>(target.App).Read().WaitAsync(ct);
@@ -194,7 +197,7 @@ internal static class AppUiEndpoints
                     }
                     catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
                     {
-                        NullLogger.Instance.LogSwallowed(error, "Screen view for unit could not be read.");
+                        Log.LogSwallowed(error, "Screen view for unit could not be read.");
                     }
                 }
                 return Results.Json(unitView, ViewJson);
@@ -212,7 +215,7 @@ internal static class AppUiEndpoints
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                 {
-                    NullLogger.Instance.LogSwallowed(error, "Screen view could not be read.");
+                    Log.LogSwallowed(error, "Screen view could not be read.");
                 }
                 var candidateUnit = screenAlias["app.".Length..];
                 try
@@ -225,7 +228,7 @@ internal static class AppUiEndpoints
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                 {
-                    NullLogger.Instance.LogSwallowed(error, "Unit view fallback could not be read.");
+                    Log.LogSwallowed(error, "Unit view fallback could not be read.");
                 }
             }
             return Results.Json(await brain.Get<IView>(name).Read().WaitAsync(ct), ViewJson);
@@ -241,7 +244,7 @@ internal static class AppUiEndpoints
     // One UI event from the shell, under the caller the edge stamped on brain.
     // hosted answers whether the host loaded an app's code; without it no view answers a confirmation.
     // An app view's own Emit becomes AppRequested at its app; an Intent goes back to the client, which performs it.
-    internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? hosted, CancellationToken ct, bool requirePresenceStamp = false)
+    internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? _, CancellationToken ct, bool requirePresenceStamp = false)
     {
         if (input.Kind == UIVocabulary.ConfirmationType)
         {
@@ -251,7 +254,7 @@ internal static class AppUiEndpoints
             await brain.Get<IConfirmationInbox>(input.Name).Resolve(planId, approve).WaitAsync(ct);
             return Results.Ok(new { delivered = true });
         }
-        if (input.Kind == UIVocabulary.ViewType) { return await DeliverView(input, brain, scope, hosted, ct, requirePresenceStamp); }
+        if (input.Kind == UIVocabulary.ViewType) { return await DeliverView(input, brain, scope, ct); }
         if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
         switch (input.Kind)
         {
@@ -276,7 +279,7 @@ internal static class AppUiEndpoints
     }
 
     // A view event: the view neuron resolves the keyed node of the generation the client saw; the edge routes what it does.
-    private static async Task<IResult> DeliverView(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? hosted, CancellationToken ct, bool requirePresenceStamp = false)
+    private static async Task<IResult> DeliverView(UiEvent input, INeuronProxies brain, string scope, CancellationToken ct)
     {
         var key = input.Key ?? throw new ArgumentException("A view event names the activated node's key.");
         var generation = input.Generation ?? throw new ArgumentException("A view event names the generation it saw.");
@@ -296,7 +299,7 @@ internal static class AppUiEndpoints
             }
             catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
             {
-                NullLogger.Instance.LogSwallowed(error, "Screen view could not be read for action finding.");
+                Log.LogSwallowed(error, "Screen view could not be read for action finding.");
             }
 
             if (published is null)
@@ -312,13 +315,17 @@ internal static class AppUiEndpoints
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                 {
-                    NullLogger.Instance.LogSwallowed(error, "Unit view fallback could not be read for action finding.");
+                    Log.LogSwallowed(error, "Unit view fallback could not be read for action finding.");
                 }
             }
 
             if (published is not null && screen is not null)
             {
                 var node = ViewValidation.Find(published.View, key);
+                if (node is { } found && found.TryGetProperty("resolve", out var res) && res.ValueKind == JsonValueKind.Object)
+                {
+                    throw new UnauthorizedAccessException($"Only the OS confirmation inbox can answer a confirmation; {input.Name} cannot.");
+                }
                 var action = node is { } foundNode ? ViewValidation.ActionOf(foundNode) : ViewActivation.None;
 
                 switch (action.Kind)
@@ -327,18 +334,7 @@ internal static class AppUiEndpoints
                         return IntentResult(action.Intent!);
 
                     case ViewActivationKind.Resolve:
-                        var surfaceAppKey = AppOf(scope, input.Name);
-                        if (hosted is null || surfaceAppKey is null || !hosted.IsHostLoaded(surfaceAppKey))
-                        {
-                            throw new UnauthorizedAccessException($"Only an OS surface can answer a confirmation; {input.Name} cannot.");
-                        }
-                        if (input.Value is not ("approve" or "deny"))
-                        {
-                            throw new ArgumentException("An approval is answered approve or deny.");
-                        }
-                        ShellPresenceGate.RequireDirectPerson(requirePresenceStamp);
-                        await brain.Get<IConfirmationInbox>(IConfirmationInbox.Key(scope)).Resolve(action.Resolve!.PlanId, input.Value == "approve").WaitAsync(ct);
-                        return Results.Ok(new { delivered = true });
+                        throw new UnauthorizedAccessException($"Only the OS confirmation inbox can answer a confirmation; {input.Name} cannot.");
 
                     case ViewActivationKind.Emit:
                         ViewArgs.RequireValueUnreserved(action.Emit!.Args, input.Value);
@@ -385,13 +381,7 @@ internal static class AppUiEndpoints
             case ViewActivationKind.Intent:
                 return IntentResult(activation.Intent!);
             case ViewActivationKind.Resolve:
-                // Confirmations are an OS-surface privilege: the view's app must be host-loaded (kernel provenance, IHostedAppTypes).
-                if (hosted is null || appKey is null || !hosted.IsHostLoaded(appKey))
-                { throw new UnauthorizedAccessException($"Only an OS surface can answer a confirmation; {name} cannot."); }
-                if (input.Value is not ("approve" or "deny")) { throw new ArgumentException("An approval is answered approve or deny."); }
-                ShellPresenceGate.RequireDirectPerson(requirePresenceStamp);
-                await brain.Get<IConfirmationInbox>(IConfirmationInbox.Key(scope)).Resolve(activation.Resolve!.PlanId, input.Value == "approve").WaitAsync(ct);
-                return Results.Ok(new { delivered = true });
+                throw new UnauthorizedAccessException($"Only the OS confirmation inbox can answer a confirmation; {name} cannot.");
             default:
                 throw new ArgumentException("This view node does nothing.");
         }
@@ -424,11 +414,15 @@ internal static class AppUiEndpoints
             }
             catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
             {
-                NullLogger.Instance.LogSwallowed(error, "Screen for unit could not be read.");
+                Log.LogSwallowed(error, "Screen for unit could not be read.");
             }
         }
-        var shownAction = published is { } shown && shown.Generation == generation && ViewValidation.Find(shown.View, key) is { } unitNode
-            ? ViewValidation.ActionOf(unitNode) : ViewActivation.None;
+        var unitNode = published is { } shown && shown.Generation == generation ? ViewValidation.Find(shown.View, key) : null;
+        if (unitNode is { } resolvedNode && resolvedNode.TryGetProperty("resolve", out var unitResolve) && unitResolve.ValueKind == JsonValueKind.Object)
+        {
+            throw new UnauthorizedAccessException($"A unit view cannot answer a confirmation; {alias} cannot.");
+        }
+        var shownAction = unitNode is { } foundUnitNode ? ViewValidation.ActionOf(foundUnitNode) : ViewActivation.None;
         switch (shownAction.Kind)
         {
             case ViewActivationKind.Intent: return IntentResult(shownAction.Intent!);

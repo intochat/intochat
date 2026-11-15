@@ -393,32 +393,15 @@ void main() {
   });
 
   testWidgets(
-    'inline approval card renders active Approve and Reject buttons in an app view',
+    'an approval card inside an app view renders read-only even with resolve metadata',
     (tester) async {
       final events = <Map<String, dynamic>>[];
       await _host(tester, nodeSamples['approvalCard']!, events: events);
       expect(find.text('Approve change'), findsOneWidget);
-      expect(find.text('Approve'), findsOneWidget);
-      expect(find.text('Reject'), findsOneWidget);
-      await tester.tap(find.text('Approve'));
-      await tester.pumpAndSettle();
-      expect(events.single, {
-        'kind': 'view',
-        'name': _view,
-        'generation': 3,
-        'key': 'confirm',
-        'value': 'approve',
-      });
-      events.clear();
-      await tester.tap(find.text('Reject'));
-      await tester.pumpAndSettle();
-      expect(events.single, {
-        'kind': 'view',
-        'name': _view,
-        'generation': 3,
-        'key': 'confirm',
-        'value': 'deny',
-      });
+      expect(find.text('Pending approval'), findsOneWidget);
+      expect(find.text('Approve'), findsNothing);
+      expect(find.text('Reject'), findsNothing);
+      expect(events, isEmpty);
     },
   );
 

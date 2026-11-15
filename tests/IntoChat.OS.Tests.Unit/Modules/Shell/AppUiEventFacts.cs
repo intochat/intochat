@@ -75,23 +75,22 @@ public sealed class AppUiEventFacts
     }
 
     [Fact]
-    public async Task AHostLoadedAppsApprovalReachesTheConfirmationsInbox()
-    {
-        var brain = new RecordingBrain(new(ViewActivationKind.Resolve, Resolve: new Resolve("plan-1")));
-
-        await AppUiEndpoints.Deliver(View("owner/apps/tasks/side", "approval", "approve"), brain, Scope, Hosted, Ct);
-        await AppUiEndpoints.Deliver(View("owner/apps/ino/view", "approval", "deny"), brain, Scope, Hosted, Ct);
-
-        Assert.Equal([("owner/confirmations", "plan-1", true), ("owner/confirmations", "plan-1", false)], brain.Inbox.Resolved);
-    }
-
-    [Fact]
     public async Task ActivateRefusesResolveFromANonHostLoadedOwner()
     {
         var brain = new RecordingBrain(new(ViewActivationKind.Resolve, Resolve: new Resolve("plan-1")));
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/dismisser/view", "approval", "approve"), brain, Scope, Hosted, Ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/spoof/view", "approval", "approve"), brain, Scope, null, Ct));
+        Assert.Empty(brain.Inbox.Resolved);
+    }
+
+    [Fact]
+    public async Task HostLoadedAppViewCannotResolveConfirmationViaViewEvent()
+    {
+        var brain = new RecordingBrain(new(ViewActivationKind.Resolve, Resolve: new Resolve("plan-1")));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/ino/view", "approval", "approve"), brain, Scope, Hosted, Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/tasks/side", "approval", "deny"), brain, Scope, Hosted, Ct));
         Assert.Empty(brain.Inbox.Resolved);
     }
 
@@ -225,10 +224,6 @@ public sealed class AppUiEventFacts
         var merged = ViewArgs.WithValue(JsonSerializer.SerializeToElement(new { Message = (string?)null, Value = (string?)null }), "Hello Ino");
         Assert.Equal("Hello Ino", merged.GetProperty("value").GetString());
         Assert.False(merged.TryGetProperty("Value", out _));
-
-        var brain = new RecordingBrain(new(ViewActivationKind.Resolve, Resolve: new Resolve("plan-bare")));
-        await AppUiEndpoints.Deliver(View("owner/apps/ino", "approval", "approve"), brain, Scope, Hosted, Ct);
-        Assert.Equal(("owner/confirmations", "plan-bare", true), Assert.Single(brain.Inbox.Resolved));
     }
 
     [Fact]

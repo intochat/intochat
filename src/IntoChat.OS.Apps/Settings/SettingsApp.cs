@@ -19,7 +19,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Settings;
 
@@ -272,8 +272,14 @@ public sealed record SettingsAppState(
 [Screen("app.settings", Title = "Settings", Icon = Icons.Sliders)]
 public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
 {
+    private static readonly ILoggerFactory FallbackLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Warning));
+    private static readonly ILogger FallbackLogger = FallbackLoggerFactory.CreateLogger<SettingsApp>();
+
+    public ILogger<SettingsApp>? Logger { get; set; }
     public ISecretVault? SecretVault { get; set; }
     public BrainPreferenceStore? PreferenceStore { get; set; }
+
+    private ILogger Log => Logger ?? FallbackLogger;
 
     public static IReadOnlyList<SettingsSearchEntry> SearchIndex { get; } =
     [
@@ -401,7 +407,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
-                    NullLogger.Instance.LogSwallowed(error, "Failed probing secret vault; falling back to local variable/connection check.");
+                    Log.LogSwallowed(error, "Failed probing secret vault; falling back to local variable/connection check.");
                 }
             }
 
@@ -430,7 +436,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "SynapseStudio is optional when SettingsApp runs in standalone tests.");
+            Log.LogSwallowed(error, "SynapseStudio is optional when SettingsApp runs in standalone tests.");
             return State.DeployedUnits ?? [];
         }
     }
@@ -443,7 +449,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "ProfileNeuron is optional when SettingsApp runs in standalone tests.");
+            Log.LogSwallowed(error, "ProfileNeuron is optional when SettingsApp runs in standalone tests.");
             return State.TeamFriends ?? [];
         }
     }
@@ -456,7 +462,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "ApprovalsNeuron is optional when SettingsApp runs in standalone tests.");
+            Log.LogSwallowed(error, "ApprovalsNeuron is optional when SettingsApp runs in standalone tests.");
             return State.PendingApprovals;
         }
     }
@@ -480,7 +486,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "ComputeNeuron is optional when SettingsApp runs in standalone tests.");
+            Log.LogSwallowed(error, "ComputeNeuron is optional when SettingsApp runs in standalone tests.");
             return baseline;
         }
     }
@@ -565,7 +571,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "ComputeNeuron is optional when SettingsApp runs in standalone tests.");
+            Log.LogSwallowed(error, "ComputeNeuron is optional when SettingsApp runs in standalone tests.");
         }
 
         await UpdateAsync(SettingsDecisions.DecideSetBudget(next, next.ComputeBudgetUsd));
@@ -628,7 +634,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         try { return Get<T>(key); }
         catch (InvalidOperationException error)
         {
-            NullLogger.Instance.LogSwallowed(error, $"{typeof(T).Name} is optional when running in isolated unit tests.");
+            Log.LogSwallowed(error, $"{typeof(T).Name} is optional when running in isolated unit tests.");
             return null;
         }
     }

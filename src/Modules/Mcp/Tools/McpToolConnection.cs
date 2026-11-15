@@ -5,6 +5,7 @@ using DigitalBrain.Capabilities.Tools;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.Tools;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Mcp;
 
@@ -24,6 +25,12 @@ public sealed record McpToolConnectionState : ConnectionState
 public sealed class McpToolConnection(IMcpServer? underlyingServer = null)
     : ConnectionNeuron<McpToolConnectionState>, IMcpToolConnection
 {
+    private static readonly ILoggerFactory FallbackLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Warning));
+    private static readonly ILogger FallbackLogger = FallbackLoggerFactory.CreateLogger<McpToolConnection>();
+
+    public ILogger<McpToolConnection>? Logger { get; set; }
+    private ILogger Log => Logger ?? FallbackLogger;
+
     private IMcpServer Server => underlyingServer
         ?? (Context is not null
             ? Context.Get<IMcpServer>(NeuronId.Parse($"{Id.Brain.Value}/mcp.server/{Id.Key}"))
@@ -110,7 +117,7 @@ public sealed class McpToolConnection(IMcpServer? underlyingServer = null)
         }
         catch (JsonException error)
         {
-            global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(error, "Wrapping non-JSON MCP tool result text.");
+            Log.LogSwallowed(error, "Wrapping non-JSON MCP tool result text.");
             return JsonSerializer.SerializeToElement(new { result = result.Text });
         }
     }
@@ -186,7 +193,7 @@ public sealed class McpToolConnection(IMcpServer? underlyingServer = null)
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(error, "Ignoring MCP server disconnect error.");
+            Log.LogSwallowed(error, "Ignoring MCP server disconnect error.");
         }
     }
 
@@ -205,7 +212,7 @@ public sealed class McpToolConnection(IMcpServer? underlyingServer = null)
             }
             catch (JsonException error)
             {
-                global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(error, "Falling back to raw MCP connection string as URL.");
+                FallbackLogger.LogSwallowed(error, "Falling back to raw MCP connection string as URL.");
             }
         }
         return (trimmed, "");

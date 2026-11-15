@@ -8,7 +8,7 @@ import 'tokens.dart';
 typedef KeyGroup = PromptKeys;
 
 /// Where the selection lands when a group gets focus.
-enum PromptEntry { initial, first, last }
+enum PromptEntry { initial, first, last, none }
 
 class PromptKeys extends StatefulWidget {
   const PromptKeys({
@@ -16,6 +16,7 @@ class PromptKeys extends StatefulWidget {
     required this.child,
     this.focusNode,
     this.autofocus = false,
+    this.defaultSelection = true,
   });
 
   final Widget child;
@@ -23,6 +24,7 @@ class PromptKeys extends StatefulWidget {
   /// The host's node for this group, so it can move focus between groups.
   final FocusNode? focusNode;
   final bool autofocus;
+  final bool defaultSelection;
 
   static PromptKeysState? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<_GroupScope>()?.state;
@@ -126,16 +128,22 @@ class PromptKeysState extends State<PromptKeys> {
   void _enter(PromptEntry at) {
     final all = _ordered;
     _select(switch (at) {
+      PromptEntry.none => null,
       PromptEntry.first => all.isEmpty ? null : all.first,
       PromptEntry.last => all.isEmpty ? null : all.last,
       PromptEntry.initial =>
-        _selected != null && _selected!.mounted ? _selected : _default,
+        _selected != null && _selected!.mounted
+            ? _selected
+            : (widget.defaultSelection ? _default : null),
     });
   }
 
   void _onFocus(bool has) {
     if (has && node.hasPrimaryFocus) {
-      final at = PromptKeys._entry[node] ?? PromptEntry.initial;
+      final fallback = widget.defaultSelection
+          ? PromptEntry.initial
+          : PromptEntry.none;
+      final at = PromptKeys._entry[node] ?? fallback;
       PromptKeys._entry[node] = null;
       if (_stops.isEmpty) {
         WidgetsBinding.instance.addPostFrameCallback(
@@ -179,15 +187,15 @@ class PromptKeysState extends State<PromptKeys> {
     final k = e.logicalKey;
     final enter =
         k == LogicalKeyboardKey.enter || k == LogicalKeyboardKey.numpadEnter;
+    final sel = _selected?.mounted == true ? _selected : null;
     if (kb.isMetaPressed || kb.isControlPressed) {
-      if (enter) {
-        _default?.run();
+      if (enter && (widget.defaultSelection || sel != null)) {
+        (sel ?? _default)?.run();
         return KeyEventResult.handled;
       }
       return KeyEventResult.ignored;
     }
     if (kb.isAltPressed) return KeyEventResult.ignored;
-    final sel = _selected?.mounted == true ? _selected : null;
     final horizontal =
         k == LogicalKeyboardKey.arrowLeft || k == LogicalKeyboardKey.arrowRight;
     if (horizontal && sel?.widget.onArrow != null) {
@@ -205,6 +213,7 @@ class PromptKeysState extends State<PromptKeys> {
     if (e is KeyRepeatEvent) return KeyEventResult.ignored;
     if (enter || k == LogicalKeyboardKey.space) {
       if (sel == null) {
+        if (!widget.defaultSelection) return KeyEventResult.ignored;
         _enter(PromptEntry.initial);
       } else {
         sel.run();
@@ -408,17 +417,21 @@ class PromptScope extends InheritedWidget {
     required super.child,
     this.onChat,
     this.docked = false,
+    this.suppressDefault = false,
   });
 
   final VoidCallback? onChat;
   final bool docked;
+  final bool suppressDefault;
 
   static PromptScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<PromptScope>();
 
   @override
   bool updateShouldNotify(PromptScope old) =>
-      old.onChat != onChat || old.docked != docked;
+      old.onChat != onChat ||
+      old.docked != docked ||
+      old.suppressDefault != suppressDefault;
 }
 
 class PromptOption {
@@ -448,7 +461,9 @@ class PromptOptions extends StatelessWidget {
     final c = IcTheme.of(context);
     final scope = PromptScope.maybeOf(context);
     final group = PromptKeys.maybeOf(context);
-    final firstLive = options.indexWhere((o) => o.onTap != null);
+    final firstLive = (scope?.suppressDefault ?? false)
+        ? -1
+        : options.indexWhere((o) => o.onTap != null);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,

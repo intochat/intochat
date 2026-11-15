@@ -658,8 +658,7 @@ internal static class SettingsViewRenderer
             approval.Detail,
             [new ApprovalRowNode("Subject", "", approval.Subject)],
             SystemName: "Ino",
-            Status: "pending",
-            Resolve: new Resolve(approval.PlanId))).ToArray();
+            Status: "pending")).ToArray();
 
         return Surface(SurfaceKind.Elevated, "Notifications", "Choose which neural events alert you and review pending approvals")[
             VStack(Space.Md, [
@@ -694,7 +693,6 @@ internal static class SettingsViewRenderer
                     ["Desktop", "Open command palette", "Ctrl+K / ⌘K"],
                     ["Desktop", "Switch recent windows", "Alt+` / ⌥`"],
                     ["Settings", "Dismiss modal sheet or clear search", "Esc"],
-                    ["Conversation", "New Ino session", "Ctrl+N / ⌘N"],
                 ],
                 sourceNeuronUri: "neuron://local/apps/settings#keyboard")
         ];

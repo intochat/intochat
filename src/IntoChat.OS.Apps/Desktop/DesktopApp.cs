@@ -19,7 +19,7 @@ using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Modules.Flutter.Workspace.Signals;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Desktop;
@@ -75,6 +75,12 @@ public sealed record DesktopSettings : Signal;
 [Neuron("app.desktop")]
 public sealed class DesktopApp : Screen<DesktopAppState>
 {
+    private static readonly ILoggerFactory FallbackLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Warning));
+    private static readonly ILogger FallbackLogger = FallbackLoggerFactory.CreateLogger<DesktopApp>();
+
+    public ILogger<DesktopApp>? Logger { get; set; }
+    private ILogger Log => Logger ?? FallbackLogger;
+
     public const string AppName = "desktop";
 
     public static readonly HashSet<string> DesktopWindowVerbs = new(StringComparer.Ordinal)
@@ -169,7 +175,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         }
         catch (InvalidOperationException ex)
         {
-            NullLogger.Instance.LogSwallowed(ex, "Id.Brain is unassigned in standalone tests; defaulting to local.");
+            Log.LogSwallowed(ex, "Id.Brain is unassigned in standalone tests; defaulting to local.");
             return "local";
         }
     }
@@ -191,11 +197,11 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     {
         await base.OnActivate(cancellationToken);
         try { await Follow<IWorkspace, WorkspaceChanged>("main"); }
-        catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Workspace follow is optional when running in standalone mode."); }
+        catch (Exception ex) { Log.LogSwallowed(ex, "Workspace follow is optional when running in standalone mode."); }
         try { await Follow<ISynapseStudio, SynapseStudioChanged>("ino/synapses"); }
-        catch (Exception ex) when (ex is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(ex, "SynapseStudio follow is optional when running in standalone mode."); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { Log.LogSwallowed(ex, "SynapseStudio follow is optional when running in standalone mode."); }
         try { await Context.Synapses.EnsureBrainWide([typeof(DigitalBrain.Confirmation.ConfirmationResolved)]); }
-        catch (Exception ex) when (ex is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(ex, "ConfirmationResolved follow is optional when running in standalone mode."); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { Log.LogSwallowed(ex, "ConfirmationResolved follow is optional when running in standalone mode."); }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
 
@@ -228,15 +234,19 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 try
                 {
                     try { await Get<IApp>("apps/ino").Request("open", "greet"); }
-                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException) { await Get<IScreen>("app.ino").Request("open", JsonSerializer.SerializeToElement("greet")); }
+                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException)
+                    {
+                        Log.LogSwallowed(fallbackEx, "Falling back to app.ino screen for desktop greet.");
+                        await Get<IScreen>("app.ino").Request("open", JsonSerializer.SerializeToElement("greet"));
+                    }
                 }
-                catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Ino was not there to greet; the desktop starts without it."); }
+                catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Ino was not there to greet; the desktop starts without it."); }
                 await Records.Write(records with { Greeted = true });
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
         }
         await SyncSmartDesktopAsync(layout, State.IsNarrow);
     }
@@ -255,7 +265,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
         }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
@@ -274,7 +284,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
         }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
@@ -292,7 +302,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
         }
         await SyncSmartDesktopAsync(nextLayout, State.IsNarrow);
     }
@@ -311,9 +321,13 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 try
                 {
                     try { await Get<IApp>($"apps/{app}").Request("open", view.Trim()); }
-                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException) { await Get<IScreen>("app." + app).Request("open", JsonSerializer.SerializeToElement(new DesktopOpenViewArgs(view.Trim(), view.Trim(), view.Trim()))); }
+                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException)
+                    {
+                        Log.LogSwallowed(fallbackEx, $"Falling back to app.{app} screen for open view.");
+                        await Get<IScreen>("app." + app).Request("open", JsonSerializer.SerializeToElement(new DesktopOpenViewArgs(view.Trim(), view.Trim(), view.Trim())));
+                    }
                 }
-                catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The app was not there to receive its open view."); }
+                catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "The app was not there to receive its open view."); }
             }
             var brain = CurrentBrainOrLocal();
             await ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.OpenWorkspaceApp(s, app, brain: brain));
@@ -563,7 +577,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 preset = current.StylePreset;
                 barLayout = current.BarLayout;
             }
-            catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "UserSettings is optional."); }
+            catch (Exception ex) { Log.LogSwallowed(ex, "UserSettings is optional."); }
         }
 
         var activeNeurons = 10;
@@ -572,7 +586,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             var topology = await Get<IntoChat.OS.Modules.Apps.Debugger.IDebuggerReads>("creator/reads").Topology();
             if (topology.Nodes.Count > 0) { activeNeurons = topology.Nodes.Count; }
         }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "DebuggerReads is optional."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "DebuggerReads is optional."); }
 
         string[] deployedUnits = State.DeployedUnits ?? [];
         try
@@ -586,7 +600,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 .ToArray();
             if (units.Length > 0 && activeNeurons == 10) { activeNeurons += units.Length; }
         }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "SynapseStudio is optional."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "SynapseStudio is optional."); }
 
         var windows = State.Windows ?? [];
         var pins = State.Pins ?? [];
@@ -600,7 +614,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             favs = ws.Favourites;
             focusedViewId = ws.FocusedViewId;
         }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Workspace is optional."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Workspace is optional."); }
 
         var widgetsText = "";
         try
@@ -608,7 +622,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             var records = await Records.Read();
             widgetsText = string.Join(" · ", records.Widgets);
         }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Records is optional."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Records is optional."); }
 
         var pinnedApps = pins.Length > 0
             ? pins.Select(p => p.Id).Where(id => id is not ("ino" or "desktop")).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
@@ -652,13 +666,13 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 }
                 catch (RevisionConflictException ex) when (attempt == 0)
                 {
-                    NullLogger.Instance.LogSwallowed(ex, "Workspace revision conflict on initial attempt; retrying.");
+                    Log.LogSwallowed(ex, "Workspace revision conflict on initial attempt; retrying.");
                 }
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "Workspace is optional.");
+            Log.LogSwallowed(error, "Workspace is optional.");
         }
 
         await ClearViewportsAsync(closedWindowIds);
@@ -681,7 +695,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             }
             catch (Exception ex)
             {
-                NullLogger.Instance.LogSwallowed(ex, "Failed to clear viewport for closed window.");
+                Log.LogSwallowed(ex, "Failed to clear viewport for closed window.");
             }
         }
     }
@@ -691,7 +705,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         try { return Get<T>(key); }
         catch (InvalidOperationException error)
         {
-            NullLogger.Instance.LogSwallowed(error, $"{typeof(T).Name} is optional when DesktopApp runs in baseline tests.");
+            Log.LogSwallowed(error, $"{typeof(T).Name} is optional when DesktopApp runs in baseline tests.");
             return null;
         }
     }

@@ -8,7 +8,7 @@ import 'package:intochat_os_flutter_shell/desktop/live_desktop_shell.dart';
 import 'package:intochat_os_flutter_shell/desktop/os_bar.dart';
 import 'package:intochat_os_flutter_shell/desktop/presence_layer.dart';
 import 'package:intochat_os_flutter_shell/desktop/smart_desktop.dart';
-import 'package:intochat_os_flutter_shell/desktop/spatial_app_canvas.dart';
+import 'package:intochat_os_flutter_shell/workspace/spatial_app_canvas.dart';
 import 'package:intochat_os_flutter_shell/desktop/window_frame.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
