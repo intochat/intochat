@@ -22,17 +22,29 @@ bool _isNumericColumn(List<List<String>> rows, int columnIndex) {
   return nonEmpty > 0;
 }
 
-Widget renderDataTable(DataTableNode node, NodeContext ctx) => TablePreviewCard(
-  source: cardSource(node.from),
-  data: TableData(
-    title: node.title,
-    columns: [
-      for (final (i, column) in node.columns.indexed)
-        TableColumn(column, numeric: _isNumericColumn(node.rows, i)),
-    ],
-    rows: node.rows,
-    from: node.from,
-    sourceNeuronUri: node.sourceNeuronUri,
-  ),
-  state: node.rows.isEmpty ? TableState.empty : TableState.ready,
-);
+Widget renderDataTable(DataTableNode node, NodeContext ctx) {
+  final actionKey = ctx.nodeKeys['dataTable:${node.title}'];
+  return TablePreviewCard(
+    source: cardSource(node.from),
+    data: TableData(
+      title: node.title,
+      columns: [
+        for (final (i, column) in node.columns.indexed)
+          TableColumn(column, numeric: _isNumericColumn(node.rows, i)),
+      ],
+      rows: node.rows,
+      from: node.from,
+      sourceNeuronUri: node.sourceNeuronUri,
+    ),
+    state: node.rows.isEmpty ? TableState.empty : TableState.ready,
+    onSelectRow: ctx.interactive && actionKey != null && actionKey.isNotEmpty
+        ? (rowIndex) {
+            if (rowIndex >= 0 && rowIndex < node.rows.length) {
+              final row = node.rows[rowIndex];
+              final firstCell = row.isNotEmpty ? row.first : '$rowIndex';
+              ctx.activate(actionKey, value: firstCell);
+            }
+          }
+        : null,
+  );
+}

@@ -23,11 +23,20 @@ class _NavItemPill extends StatefulWidget {
 
 class _NavItemPillState extends State<_NavItemPill> {
   bool _hover = false;
+  bool _focused = false;
+
+  void _activate() {
+    if (widget.ctx.interactive) {
+      widget.ctx.activate(widget.node.key, context: context);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
     final tokens = UiTokens.of(context);
+    final disableAnimations = MediaQuery.disableAnimationsOf(context);
+    final duration = disableAnimations ? Duration.zero : tokens.fast;
     final node = widget.node;
     final selected = node.selected;
     final interactive = widget.ctx.interactive;
@@ -42,75 +51,111 @@ class _NavItemPillState extends State<_NavItemPill> {
     return Semantics(
       button: true,
       selected: selected,
+      enabled: interactive,
       label: node.label,
-      child: MouseRegion(
-        cursor: interactive ? SystemMouseCursors.click : MouseCursor.defer,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
+      child: FocusableActionDetector(
+        enabled: interactive,
+        mouseCursor: interactive ? SystemMouseCursors.click : MouseCursor.defer,
+        onShowFocusHighlight: (f) => setState(() => _focused = f),
+        onShowHoverHighlight: (h) => setState(() => _hover = h),
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              _activate();
+              return null;
+            },
+          ),
+        },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: interactive ? () => widget.ctx.activate(node.key) : null,
-          child: AnimatedContainer(
-            duration: tokens.fast,
-            curve: tokens.ease,
-            height: tokens.rowHeight,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(tokens.sm),
-            ),
-            child: Row(
-              children: [
-                AnimatedContainer(
-                  duration: tokens.fast,
-                  curve: tokens.ease,
-                  width: 3,
-                  height: selected ? 18 : 0,
-                  decoration: BoxDecoration(
-                    color: selected ? c.accent : Colors.transparent,
-                    borderRadius: BorderRadius.circular(tokens.pill),
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Icon(iconData, size: 16, color: selected ? c.accent : c.muted),
-                SizedBox(width: tokens.p6),
-                Expanded(
-                  child: Text(
-                    node.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: UiType.textStyle(
-                      13,
-                      weight: selected ? FontWeight.w600 : FontWeight.w500,
-                      color: fg,
-                    ),
-                  ),
-                ),
-                if (node.badge case final badge? when badge.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? c.accent.withValues(alpha: 0.14)
-                          : c.recessed,
-                      borderRadius: BorderRadius.circular(tokens.xs),
-                    ),
-                    child: Text(
-                      badge,
-                      style: UiType.tabularStyle(
-                        11,
-                        weight: FontWeight.w600,
-                        color: selected ? c.accent : c.muted,
+          onTap: interactive ? _activate : null,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              if (_focused)
+                Positioned(
+                  left: -2,
+                  top: -2,
+                  right: -2,
+                  bottom: -2,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      key: ValueKey('nav_ring:${node.key}'),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(tokens.sm + 2),
+                        border: Border.all(color: c.focus, width: 3),
                       ),
                     ),
                   ),
-                ],
-                const SizedBox(width: 10),
-              ],
-            ),
+                ),
+              AnimatedContainer(
+                duration: duration,
+                curve: tokens.ease,
+                height: tokens.rowHeight,
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(tokens.sm),
+                  border: _focused ? Border.all(color: c.accent) : null,
+                ),
+                child: Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: duration,
+                      curve: tokens.ease,
+                      width: 3,
+                      height: selected ? 18 : 0,
+                      decoration: BoxDecoration(
+                        color: selected ? c.accent : Colors.transparent,
+                        borderRadius: BorderRadius.circular(tokens.pill),
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Icon(
+                      iconData,
+                      size: 16,
+                      color: selected ? c.accent : c.muted,
+                    ),
+                    SizedBox(width: tokens.p6),
+                    Expanded(
+                      child: Text(
+                        node.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: UiType.textStyle(
+                          13,
+                          weight: selected ? FontWeight.w600 : FontWeight.w500,
+                          color: fg,
+                        ),
+                      ),
+                    ),
+                    if (node.badge case final badge? when badge.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? c.accent.withValues(alpha: 0.14)
+                              : c.recessed,
+                          borderRadius: BorderRadius.circular(tokens.xs),
+                        ),
+                        child: Text(
+                          badge,
+                          style: UiType.tabularStyle(
+                            11,
+                            weight: FontWeight.w600,
+                            color: selected ? c.accent : c.muted,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 10),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

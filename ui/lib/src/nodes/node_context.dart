@@ -67,6 +67,7 @@ class NodeContext {
     this.slotDepth = 0,
     this.slotAncestors = const {},
     this.buttonHints = const {},
+    this.nodeKeys = const {},
   });
 
   /// The view neuron's name, which every activation names.
@@ -109,6 +110,10 @@ class NodeContext {
   /// Optional per-button tooltip / `.Guard(rule)` disabled reasons extracted from view metadata.
   final Map<String, String> buttonHints;
 
+  /// Optional activation `key` strings extracted from raw view JSON for nodes
+  /// such as `chart` or `dataTable` (indexed by `'chart:<title>'` / `'dataTable:<title>'`).
+  final Map<String, String> nodeKeys;
+
   bool get interactive => enabled && send != null;
 
   NodeContext deeper() => NodeContext(
@@ -128,6 +133,7 @@ class NodeContext {
     slotDepth: slotDepth,
     slotAncestors: slotAncestors,
     buttonHints: buttonHints,
+    nodeKeys: nodeKeys,
   );
 
   /// The brain scope the view lives under: `{scope}/apps/{app}/…` or `{scope}/{alias}`.

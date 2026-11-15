@@ -114,13 +114,22 @@ class _FieldNodeViewState extends State<FieldNodeView> {
     final label = node.name.contains('/')
         ? node.name.substring(node.name.lastIndexOf('/') + 1)
         : node.name;
+    final clearable =
+        node.fieldKind == FieldKind.search ||
+        node.fieldKind == FieldKind.text ||
+        node.fieldKind == FieldKind.suggest;
     return UiKitField(
       label: label,
       controller: _controller,
       focusNode: _focus,
       placeholder: node.placeholder,
       secret: _secret,
-      autocorrect: !_secret,
+      clearable: clearable,
+      leadingIcon: node.fieldKind == FieldKind.search ? 'search' : null,
+      keyboardType: node.fieldKind == FieldKind.number
+          ? const TextInputType.numberWithOptions(decimal: true, signed: true)
+          : null,
+      autocorrect: !_secret && node.fieldKind != FieldKind.search,
       multiline: node.fieldKind == FieldKind.multiline,
       enabled: widget.ctx.interactive,
       onChanged: _changed,

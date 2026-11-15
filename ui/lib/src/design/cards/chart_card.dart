@@ -11,8 +11,8 @@ import 'card_shell.dart';
 
 enum ChartState { loading, ready, empty, error }
 
-/// Columns compare amounts; a line shows a trend over time; pie shows share of whole.
-enum ChartKind { columns, line, pie }
+/// Columns compare amounts; line/area show a trend over time; pie shows share of whole.
+enum ChartKind { columns, line, area, pie }
 
 class ChartPoint {
   const ChartPoint(this.label, this.value);
@@ -104,6 +104,7 @@ class ChartCard extends StatefulWidget {
     this.onRetry,
     this.onSwitchChartKind,
     this.onCopyNeuronUri,
+    this.onSelectPoint,
   });
 
   final CardSource source;
@@ -114,6 +115,7 @@ class ChartCard extends StatefulWidget {
   final VoidCallback? onRetry;
   final ValueChanged<ChartKind>? onSwitchChartKind;
   final ValueChanged<String>? onCopyNeuronUri;
+  final ValueChanged<int>? onSelectPoint;
 
   @override
   State<ChartCard> createState() => _ChartCardState();
@@ -209,8 +211,11 @@ class _ChartCardState extends State<ChartCard> {
         _table
             ? _tableView(c, d)
             : Stop(
-                onActivate: () =>
-                    setState(() => _hover ??= d.points.length - 1),
+                onActivate: () {
+                  final idx = _hover ?? (d.points.length - 1);
+                  setState(() => _hover = idx);
+                  widget.onSelectPoint?.call(idx);
+                },
                 onArrow: (by) => setState(
                   () => _hover =
                       ((_hover ?? (by > 0 ? -1 : d.points.length)) + by).clamp(
@@ -256,7 +261,10 @@ class _ChartCardState extends State<ChartCard> {
             const SizedBox(height: 10),
             Row(
               children: [
-                _Swatch(color: c.accent, line: _kind == ChartKind.line),
+                _Swatch(
+                  color: c.accent,
+                  line: _kind == ChartKind.line || _kind == ChartKind.area,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   d.seriesName,
@@ -270,7 +278,7 @@ class _ChartCardState extends State<ChartCard> {
                 const SizedBox(width: 16),
                 _Swatch(
                   color: c.chartContext,
-                  line: _kind == ChartKind.line,
+                  line: _kind == ChartKind.line || _kind == ChartKind.area,
                   dashed: true,
                 ),
                 const SizedBox(width: 6),
@@ -490,201 +498,219 @@ class _ChartCardState extends State<ChartCard> {
         }
 
         final hi = _hover;
+        final isLineLike = _kind == ChartKind.line || _kind == ChartKind.area;
         return SizedBox(
           height: _plotHeight + 22,
           child: MouseRegion(
+            cursor: widget.onSelectPoint != null
+                ? SystemMouseCursors.click
+                : MouseCursor.defer,
             onHover: (e) =>
                 setState(() => _hover = indexAt(e.localPosition.dx)),
             onExit: (_) => setState(() => _hover = null),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _ChartPainter(
-                      kind: _kind,
-                      values: [for (final p in pts) p.value],
-                      compare: cmp,
-                      context: c.chartContext,
-                      top: top,
-                      ticks: ticks,
-                      axisWidth: _axisWidth,
-                      plotHeight: _plotHeight,
-                      accent: c.accent,
-                      accentHover: c.accentHover,
-                      grid: c.borderHairline,
-                      surface: c.surfaceCard,
-                      hover: hi,
-                    ),
-                  ),
-                ),
-                // Y ticks.
-                for (final t in ticks)
-                  Positioned(
-                    left: 0,
-                    width: _axisWidth - 8,
-                    top: yOf(t) - 8,
-                    child: Text(
-                      d.compact(t),
-                      textAlign: TextAlign.right,
-                      maxLines: 1,
-                      softWrap: false,
-                      style: axisStyle,
-                    ),
-                  ),
-                // X labels.
-                for (final (i, p) in pts.indexed)
-                  Positioned(
-                    left: xOf(i) - slot / 2,
-                    width: slot,
-                    top: _plotHeight + 6,
-                    child: Text(
-                      p.label,
-                      textAlign: TextAlign.center,
-                      style: axisStyle,
-                    ),
-                  ),
-                for (final i in {maxI, lastI})
-                  if (hi != i)
-                    if (cmp != null && _kind == ChartKind.line && i == lastI)
-                      Positioned(
-                        left: xOf(i) - 132,
-                        width: 140,
-                        top:
-                            yOf(pts[i].value) +
-                            (pts[i].value >= cmp[i] ? -22 : 8),
-                        child: Text(
-                          '${d.seriesName}  ${d.compact(pts[i].value)}',
-                          textAlign: TextAlign.right,
-                          style: labelStyle,
-                        ),
-                      )
-                    else
-                      Positioned(
-                        left: xOf(i) - 40,
-                        width: 80,
-                        top: yOf(pts[i].value) - 22,
-                        child: Text(
-                          d.compact(pts[i].value),
-                          textAlign: TextAlign.center,
-                          style: labelStyle,
-                        ),
-                      ),
-                if (cmp != null && _kind == ChartKind.line && hi != lastI)
-                  Positioned(
-                    left: xOf(lastI) - 132,
-                    width: 140,
-                    top:
-                        yOf(cmp[lastI]) +
-                        (cmp[lastI] > pts[lastI].value ? -22 : 8),
-                    child: Text(
-                      d.compareName,
-                      textAlign: TextAlign.right,
-                      style: IcType.text(
-                        11.5,
-                        weight: FontWeight.w500,
-                        color: c.textMuted,
-                        tnum: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTapUp: widget.onSelectPoint == null
+                  ? null
+                  : (details) {
+                      final idx = indexAt(details.localPosition.dx);
+                      if (idx != null) {
+                        setState(() => _hover = idx);
+                        widget.onSelectPoint!(idx);
+                      }
+                    },
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _ChartPainter(
+                        kind: _kind,
+                        values: [for (final p in pts) p.value],
+                        compare: cmp,
+                        context: c.chartContext,
+                        top: top,
+                        ticks: ticks,
+                        axisWidth: _axisWidth,
+                        plotHeight: _plotHeight,
+                        accent: c.accent,
+                        accentHover: c.accentHover,
+                        grid: c.borderHairline,
+                        surface: c.surfaceCard,
+                        hover: hi,
                       ),
                     ),
                   ),
-                // Tooltip.
-                if (hi != null)
-                  Positioned(
-                    left: (xOf(hi) - (cmp == null ? 70 : 110)).clamp(
-                      0.0,
-                      box.maxWidth - (cmp == null ? 140 : 220),
+                  // Y ticks.
+                  for (final t in ticks)
+                    Positioned(
+                      left: 0,
+                      width: _axisWidth - 8,
+                      top: yOf(t) - 8,
+                      child: Text(
+                        d.compact(t),
+                        textAlign: TextAlign.right,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: axisStyle,
+                      ),
                     ),
-                    width: cmp == null ? 140 : 220,
-                    top: math.max(
-                      0,
-                      yOf(math.max(pts[hi].value, cmp?[hi] ?? 0)) -
-                          (cmp == null ? 54 : 92),
+                  // X labels.
+                  for (final (i, p) in pts.indexed)
+                    Positioned(
+                      left: xOf(i) - slot / 2,
+                      width: slot,
+                      top: _plotHeight + 6,
+                      child: Text(
+                        p.label,
+                        textAlign: TextAlign.center,
+                        style: axisStyle,
+                      ),
                     ),
-                    child: IgnorePointer(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 7,
+                  for (final i in {maxI, lastI})
+                    if (hi != i)
+                      if (cmp != null && isLineLike && i == lastI)
+                        Positioned(
+                          left: xOf(i) - 132,
+                          width: 140,
+                          top:
+                              yOf(pts[i].value) +
+                              (pts[i].value >= cmp[i] ? -22 : 8),
+                          child: Text(
+                            '${d.seriesName}  ${d.compact(pts[i].value)}',
+                            textAlign: TextAlign.right,
+                            style: labelStyle,
+                          ),
+                        )
+                      else
+                        Positioned(
+                          left: xOf(i) - 40,
+                          width: 80,
+                          top: yOf(pts[i].value) - 22,
+                          child: Text(
+                            d.compact(pts[i].value),
+                            textAlign: TextAlign.center,
+                            style: labelStyle,
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          color: c.surfaceCard,
-                          borderRadius: BorderRadius.circular(IcRadius.sm),
-                          border: Border.all(color: c.borderInput),
-                          boxShadow: IcShadow.sm(c),
+                  if (cmp != null && isLineLike && hi != lastI)
+                    Positioned(
+                      left: xOf(lastI) - 132,
+                      width: 140,
+                      top:
+                          yOf(cmp[lastI]) +
+                          (cmp[lastI] > pts[lastI].value ? -22 : 8),
+                      child: Text(
+                        d.compareName,
+                        textAlign: TextAlign.right,
+                        style: IcType.text(
+                          11.5,
+                          weight: FontWeight.w500,
+                          color: c.textMuted,
+                          tnum: true,
                         ),
-                        child: cmp == null
-                            ? Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    pts[hi].label,
-                                    style: IcType.text(
-                                      11.5,
-                                      color: c.textMuted,
-                                    ),
-                                  ),
-                                  Text(
-                                    d.full(pts[hi].value),
-                                    style: labelStyle,
-                                  ),
-                                ],
-                              )
-                            : Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    pts[hi].label,
-                                    style: IcType.text(
-                                      11.5,
-                                      color: c.textMuted,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  for (final (v, name, color) in [
-                                    (pts[hi].value, d.seriesName, c.accent),
-                                    (cmp[hi], d.compareName, c.chartContext),
-                                  ])
-                                    Row(
-                                      children: [
-                                        _Swatch(color: color),
-                                        const SizedBox(width: 6),
-                                        Expanded(
-                                          child: Text(
-                                            name,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: IcType.text(
-                                              12,
-                                              color: c.textBody,
-                                              tnum: true,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Text(d.full(v), style: labelStyle),
-                                      ],
-                                    ),
-                                  if (d.change(hi) case final ch?) ...[
-                                    const SizedBox(height: 3),
+                      ),
+                    ),
+                  // Tooltip.
+                  if (hi != null)
+                    Positioned(
+                      left: (xOf(hi) - (cmp == null ? 70 : 110)).clamp(
+                        0.0,
+                        math.max(0.0, box.maxWidth - (cmp == null ? 140 : 220)),
+                      ),
+                      width: cmp == null ? 140 : 220,
+                      top: math.max(
+                        0,
+                        yOf(math.max(pts[hi].value, cmp?[hi] ?? 0)) -
+                            (cmp == null ? 54 : 92),
+                      ),
+                      child: IgnorePointer(
+                        child: Container(
+                          key: const ValueKey('chart_tooltip'),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: c.surfaceCard,
+                            borderRadius: BorderRadius.circular(IcRadius.sm),
+                            border: Border.all(color: c.borderInput),
+                            boxShadow: IcShadow.sm(c),
+                          ),
+                          child: cmp == null
+                              ? Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
                                     Text(
-                                      ch == 'same'
-                                          ? 'Same as ${d.compareName}'
-                                          : '$ch on ${d.compareName}',
+                                      pts[hi].label,
                                       style: IcType.text(
                                         11.5,
                                         color: c.textMuted,
-                                        tnum: true,
                                       ),
                                     ),
+                                    Text(
+                                      d.full(pts[hi].value),
+                                      style: labelStyle,
+                                    ),
                                   ],
-                                ],
-                              ),
+                                )
+                              : Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      pts[hi].label,
+                                      style: IcType.text(
+                                        11.5,
+                                        color: c.textMuted,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    for (final (v, name, color) in [
+                                      (pts[hi].value, d.seriesName, c.accent),
+                                      (cmp[hi], d.compareName, c.chartContext),
+                                    ])
+                                      Row(
+                                        children: [
+                                          _Swatch(color: color),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              name,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: IcType.text(
+                                                12,
+                                                color: c.textBody,
+                                                tnum: true,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Text(d.full(v), style: labelStyle),
+                                        ],
+                                      ),
+                                    if (d.change(hi) case final ch?) ...[
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        ch == 'same'
+                                            ? 'Same as ${d.compareName}'
+                                            : '$ch on ${d.compareName}',
+                                        style: IcType.text(
+                                          11.5,
+                                          color: c.textMuted,
+                                          tnum: true,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -704,81 +730,177 @@ class _ChartCardState extends State<ChartCard> {
       c.accent.withValues(alpha: 0.4),
     ];
 
+    int? sliceAt(Offset pos) {
+      if (total <= 0) return null;
+      final center = const Offset(_plotHeight / 2, _plotHeight / 2);
+      final delta = pos - center;
+      final dist = delta.distance;
+      final radius = _plotHeight / 2 - 4;
+      if (dist < radius * 0.45 || dist > radius + 6) return null;
+      var angle = math.atan2(delta.dy, delta.dx) + math.pi / 2;
+      if (angle < 0) angle += math.pi * 2;
+      var acc = 0.0;
+      for (var i = 0; i < pts.length; i++) {
+        acc += (pts[i].value.abs() / total) * math.pi * 2;
+        if (angle <= acc) return i;
+      }
+      return pts.length - 1;
+    }
+
+    final hi = _hover != null && _hover! < pts.length ? _hover : null;
+
     return SizedBox(
       height: _plotHeight + 22,
-      child: Row(
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          SizedBox(
-            width: _plotHeight,
-            height: _plotHeight,
-            child: CustomPaint(
-              painter: _PiePainter(
-                values: [for (final p in pts) p.value.abs()],
-                colors: shades,
-                surface: c.surfaceCard,
-                hover: _hover,
-              ),
-            ),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final (i, p) in pts.indexed) ...[
-                    if (i > 0) const SizedBox(height: 6),
-                    MouseRegion(
-                      onEnter: (_) => setState(() => _hover = i),
-                      onExit: (_) => setState(() => _hover = null),
-                      child: Row(
-                        children: [
-                          _Swatch(color: shades[i % shades.length]),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              p.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: IcType.text(
-                                13,
-                                weight: _hover == i
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
-                                color: c.textBody,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            total <= 0
-                                ? '0%'
-                                : '${((p.value.abs() / total) * 100).round()}%',
-                            style: IcType.text(
-                              12.5,
-                              color: c.textMuted,
-                              tnum: true,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            d.full(p.value),
-                            style: IcType.text(
-                              13,
-                              weight: FontWeight.w600,
-                              color: c.textStrong,
-                              tnum: true,
-                            ),
-                          ),
-                        ],
+          Row(
+            children: [
+              SizedBox(
+                width: _plotHeight,
+                height: _plotHeight,
+                child: MouseRegion(
+                  cursor: widget.onSelectPoint != null
+                      ? SystemMouseCursors.click
+                      : MouseCursor.defer,
+                  onHover: (e) =>
+                      setState(() => _hover = sliceAt(e.localPosition)),
+                  onExit: (_) => setState(() => _hover = null),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapUp: widget.onSelectPoint == null
+                        ? null
+                        : (details) {
+                            final idx = sliceAt(details.localPosition);
+                            if (idx != null) {
+                              setState(() => _hover = idx);
+                              widget.onSelectPoint!(idx);
+                            }
+                          },
+                    child: CustomPaint(
+                      painter: _PiePainter(
+                        values: [for (final p in pts) p.value.abs()],
+                        colors: shades,
+                        surface: c.surfaceCard,
+                        hover: hi,
                       ),
                     ),
-                  ],
-                ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final (i, p) in pts.indexed) ...[
+                        if (i > 0) const SizedBox(height: 6),
+                        MouseRegion(
+                          cursor: widget.onSelectPoint != null
+                              ? SystemMouseCursors.click
+                              : MouseCursor.defer,
+                          onEnter: (_) => setState(() => _hover = i),
+                          onExit: (_) => setState(() => _hover = null),
+                          child: GestureDetector(
+                            key: ValueKey('pie_legend_$i'),
+                            behavior: HitTestBehavior.opaque,
+                            onTap: widget.onSelectPoint == null
+                                ? null
+                                : () {
+                                    setState(() => _hover = i);
+                                    widget.onSelectPoint!(i);
+                                  },
+                            child: Row(
+                              children: [
+                                _Swatch(color: shades[i % shades.length]),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    p.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: IcType.text(
+                                      13,
+                                      weight: hi == i
+                                          ? FontWeight.w600
+                                          : FontWeight.w400,
+                                      color: c.textBody,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  total <= 0
+                                      ? '0%'
+                                      : '${((p.value.abs() / total) * 100).round()}%',
+                                  style: IcType.text(
+                                    12.5,
+                                    color: c.textMuted,
+                                    tnum: true,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  d.full(p.value),
+                                  style: IcType.text(
+                                    13,
+                                    weight: FontWeight.w600,
+                                    color: c.textStrong,
+                                    tnum: true,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (hi != null)
+            Positioned(
+              left: 0,
+              top: 0,
+              child: IgnorePointer(
+                child: Container(
+                  key: const ValueKey('chart_tooltip'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: c.surfaceCard,
+                    borderRadius: BorderRadius.circular(IcRadius.sm),
+                    border: Border.all(color: c.borderInput),
+                    boxShadow: IcShadow.sm(c),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        pts[hi].label,
+                        style: IcType.text(11.5, color: c.textMuted),
+                      ),
+                      Text(
+                        '${d.full(pts[hi].value)} (${total <= 0 ? 0 : ((pts[hi].value.abs() / total) * 100).round()}%)',
+                        style: IcType.text(
+                          12,
+                          weight: FontWeight.w600,
+                          color: c.textStrong,
+                          tnum: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -913,7 +1035,21 @@ class _ChartPainter extends CustomPainter {
     area
       ..lineTo(xOf(values.length - 1), yOf(0))
       ..close();
-    if (cmp == null) {
+    if (kind == ChartKind.area) {
+      final fillRect = Rect.fromLTWH(axisWidth, 0, plotW, plotHeight);
+      canvas.drawPath(
+        area,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              accent.withValues(alpha: 0.22),
+              accent.withValues(alpha: 0.03),
+            ],
+          ).createShader(fillRect),
+      );
+    } else if (cmp == null) {
       canvas.drawPath(area, Paint()..color = accent.withValues(alpha: 0.1));
     }
     canvas.drawPath(
