@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="src/IntoChat.OS/IntoChat.OS.csproj" />
+  <Project Path="src/IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
   <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
   <Project Path="src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
   <Project Path="src/IntoChat.Cloud/IntoChat.Cloud.csproj" />

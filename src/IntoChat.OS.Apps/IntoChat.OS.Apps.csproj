@@ -15,6 +15,7 @@
     <PackageReference Include="DigitalBrain.UI" />
     <PackageReference Include="DigitalBrain.Graph" />
     <ProjectReference Include="../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
     <ProjectReference Include="../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
     <ProjectReference Include="../Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
     <ProjectReference Include="../Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />

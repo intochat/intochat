@@ -2,7 +2,6 @@ using System.Globalization;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
-using UI = DigitalBrain.UI.Ui;
 
 namespace IntoChat.OS.Apps.Settings;
 
@@ -94,9 +93,9 @@ internal static class SettingsViewRenderer
         new Grid(
             3,
             [
-                UI.StatCard("stat-preset", "Active UI Identity", state.StylePreset, state.BarLayout, BadgeTone.Accent, "palette"),
-                UI.StatCard("stat-model", "Default Brain Model", state.DefaultModel, "Local + Cloud", BadgeTone.Done, "cpu"),
-                UI.StatCard("stat-vault", "Zero-Leakage Vault", $"{(state.ConnectionKeys ?? []).Count} Connections", "Active", BadgeTone.Neutral, "key-round"),
+                Ui.StatCard("stat-preset", "Active UI Identity", state.StylePreset, state.BarLayout, BadgeTone.Accent, "palette"),
+                Ui.StatCard("stat-model", "Default Brain Model", state.DefaultModel, "Local + Cloud", BadgeTone.Done, "cpu"),
+                Ui.StatCard("stat-vault", "Zero-Leakage Vault", $"{(state.ConnectionKeys ?? []).Count} Connections", "Active", BadgeTone.Neutral, "key-round"),
             ],
             Gap: 12),
         new Surface(
@@ -389,9 +388,9 @@ internal static class SettingsViewRenderer
             new Grid(
                 3,
                 [
-                    UI.StatCard("bill-credits", "Metered Spend", context.ComputeSpendUsd, context.ComputeRowsSummary, context.ComputeBudgetExceeded ? BadgeTone.Error : BadgeTone.Done, "wallet"),
-                    UI.StatCard("bill-tokens", "Default Model", state.DefaultModel, "Active routing", BadgeTone.Accent, "cpu"),
-                    UI.StatCard("bill-limit", "Monthly Cap", context.ComputeBudgetUsd, context.ComputeBudgetExceeded ? "Cap Exceeded" : "Within Cap", context.ComputeBudgetExceeded ? BadgeTone.Error : BadgeTone.Neutral, "gauge"),
+                    Ui.StatCard("bill-credits", "Metered Spend", context.ComputeSpendUsd, context.ComputeRowsSummary, context.ComputeBudgetExceeded ? BadgeTone.Error : BadgeTone.Done, "wallet"),
+                    Ui.StatCard("bill-tokens", "Default Model", state.DefaultModel, "Active routing", BadgeTone.Accent, "cpu"),
+                    Ui.StatCard("bill-limit", "Monthly Cap", context.ComputeBudgetUsd, context.ComputeBudgetExceeded ? "Cap Exceeded" : "Within Cap", context.ComputeBudgetExceeded ? BadgeTone.Error : BadgeTone.Neutral, "gauge"),
                 ],
                 Gap: 12),
             new Row(

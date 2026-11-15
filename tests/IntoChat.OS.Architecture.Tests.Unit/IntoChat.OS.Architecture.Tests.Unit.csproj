@@ -2,7 +2,7 @@
   <ItemGroup>
     <PackageReference Include="TngTech.ArchUnitNET.xUnitV3" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
-    <ArchitectureProject Include="../../src/IntoChat.OS/*.csproj;../../src/IntoChat.OS.Framework/*.csproj;../../src/IntoChat.OS.Apps/*.csproj;../../src/IntoChat.OS.AppHost/*.csproj;../../src/IntoChat.OS.LocalSetup/**/*.csproj;../../src/IntoChat.OS.Kernel/**/*.csproj;../../src/IntoChat.Cloud/*.csproj;../../src/Modules/*/*.csproj" />
+    <ArchitectureProject Include="../../src/IntoChat.OS/*.csproj;../../src/IntoChat.OS.UI/*.csproj;../../src/IntoChat.OS.Framework/*.csproj;../../src/IntoChat.OS.Apps/*.csproj;../../src/IntoChat.OS.AppHost/*.csproj;../../src/IntoChat.OS.LocalSetup/**/*.csproj;../../src/IntoChat.OS.Kernel/**/*.csproj;../../src/IntoChat.Cloud/*.csproj;../../src/Modules/*/*.csproj" />
     <ProjectReference Include="@(ArchitectureProject)" />
   </ItemGroup>
   <Target Name="WriteArchitectureAssemblies" AfterTargets="Build">

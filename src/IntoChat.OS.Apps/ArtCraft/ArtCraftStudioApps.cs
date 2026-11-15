@@ -19,7 +19,6 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Mcp;
 using Microsoft.Extensions.Logging.Abstractions;
-using UI = DigitalBrain.UI.Ui;
 
 namespace IntoChat.OS.Apps.ArtCraft;
 
@@ -181,7 +180,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : Screen<TStat
         new Column(
         [
             new Text($"{status} · {activeDoc} -> {outputDoc}") { Tone = "muted", Tabular = true },
-            UI.WebBrowser(webUrl ?? Descriptor.DefaultWebUrl, $"{Descriptor.Title} WASM Studio", $"{Descriptor.Id}-wasm", 0, executionMode),
+            Ui.WebBrowser(webUrl ?? Descriptor.DefaultWebUrl, $"{Descriptor.Title} WASM Studio", $"{Descriptor.Id}-wasm", 0, executionMode),
         ])
         {
             Gap = 4,

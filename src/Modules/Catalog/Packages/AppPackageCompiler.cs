@@ -37,6 +37,20 @@ public sealed class AppPackageCompiler
         "System.Runtime.InteropServices.LibraryImportAttribute",
     ];
 
+    private const string GlobalUsingsPath = "AppGlobalUsings.g.cs";
+
+    private const string GlobalUsingsSource = """
+        global using System;
+        global using System.Collections.Generic;
+        global using System.Linq;
+        global using System.Threading;
+        global using System.Threading.Tasks;
+        global using DigitalBrain.Rules;
+        global using DigitalBrain.UI;
+        global using IntoChat.OS.UI;
+        global using IntoChat.Sdk;
+        """;
+
     private static readonly Lazy<MetadataReference[]> DefaultReferences = new(BuildReferences);
 
     public CompiledAppPackage Compile(AppPackage package)
@@ -51,6 +65,7 @@ public sealed class AppPackageCompiler
         var trees = package.SourceFiles
             .OrderBy(file => file.Path, StringComparer.Ordinal)
             .Select(file => CSharpSyntaxTree.ParseText(file.Code, parseOptions, path: file.Path))
+            .Append(CSharpSyntaxTree.ParseText(GlobalUsingsSource, parseOptions, path: GlobalUsingsPath))
             .ToArray();
 
         var syntaxErrors = new List<string>();
@@ -316,9 +331,11 @@ public sealed class AppPackageCompiler
             typeof(object).Assembly,
             typeof(Task).Assembly,
             typeof(Enumerable).Assembly,
+            typeof(System.Linq.Expressions.Expression).Assembly,
             typeof(System.Text.Json.JsonSerializer).Assembly,
             typeof(System.Text.RegularExpressions.Regex).Assembly,
             typeof(IntoChat.Sdk.IBrain).Assembly,
+            typeof(IntoChat.OS.UI.Kit).Assembly,
             typeof(DigitalBrain.Signal).Assembly,
             typeof(DigitalBrain.UI.View).Assembly,
         };
@@ -326,9 +343,9 @@ public sealed class AppPackageCompiler
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
             var name = assembly.GetName().Name;
-            if (name is "System.Runtime" or "System.Collections" or "System.Linq" or "System.Console"
-                or "System.Text.Json" or "System.Text.RegularExpressions" or "System.ComponentModel"
-                or "netstandard")
+            if (name is "System.Runtime" or "System.Collections" or "System.Linq" or "System.Linq.Expressions"
+                or "System.Console" or "System.Text.Json" or "System.Text.RegularExpressions"
+                or "System.ComponentModel" or "netstandard")
             {
                 trustedAssemblies.Add(assembly);
             }

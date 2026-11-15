@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\IntoChat.OS\IntoChat.OS.csproj" />
+    <ProjectReference Include="..\IntoChat.OS.UI\IntoChat.OS.UI.csproj" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
   </ItemGroup>
