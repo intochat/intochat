@@ -12,6 +12,7 @@ using IntoChat.OS.Modules.Flutter.Screens;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Runtime;
+using Microsoft.Extensions.Logging;
 using TestOS = DigitalBrain.Testing.TestOS;
 using Xunit;
 
@@ -262,5 +263,34 @@ public sealed class ScreenDirectoryNeuronFacts
         var second = await neuron.Approve("plan-42", approved: true);
         Assert.False(second.Accepted);
         Assert.Contains("already been resolved", second.Message);
+    }
+
+    [Fact]
+    public async Task ScreenDirectory_List_LogsSwallowedWorkspaceFailureToInjectedLogger()
+    {
+        var proxies = new MockNeuronProxies();
+        var logger = new RecordingLogger<ScreenDirectoryNeuron>();
+        var neuron = new ScreenDirectoryNeuron(proxies, Scope, logger);
+
+        await neuron.List();
+
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Debug
+            && e.Message.Contains("Workspace could not be read for screen directory.", StringComparison.Ordinal));
+    }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<(LogLevel Level, string Message, Exception? Error)> Entries { get; } = [];
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Entries.Add((logLevel, formatter(state, exception), exception));
+
+        private sealed class NullScope : IDisposable
+        {
+            public static readonly NullScope Instance = new();
+            public void Dispose() { }
+        }
     }
 }

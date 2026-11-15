@@ -23,19 +23,18 @@ namespace IntoChat.OS.Modules.Flutter.Screens;
 /// Unified screen gateway neuron for listing, reading, acting on, and approving UI across built-in apps and runtime units.
 /// </summary>
 [Neuron(IScreenDirectory.TypeName, State = "screens")]
-internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = null)
+internal sealed partial class ScreenDirectoryNeuron(
+    INeuronProxies? proxies = null,
+    ILogger<ScreenDirectoryNeuron>? logger = null)
     : UiNeuron<ScreenDirectoryState>, IScreenDirectory
 {
-    private static readonly ILoggerFactory FallbackLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Warning));
-    private static readonly ILogger FallbackLogger = FallbackLoggerFactory.CreateLogger<ScreenDirectoryNeuron>();
-
     private readonly string? _brainOverride;
     private ScreenDirectoryState? _inMemoryState;
 
-    public ILogger<ScreenDirectoryNeuron>? Logger { get; set; }
-    private ILogger Log => Logger ?? FallbackLogger;
+    private ILogger Log => logger ?? ShellConsoleLog.For<ScreenDirectoryNeuron>();
 
-    internal ScreenDirectoryNeuron(INeuronProxies? proxies, string? brainId) : this(proxies)
+    internal ScreenDirectoryNeuron(INeuronProxies? proxies, string? brainId, ILogger<ScreenDirectoryNeuron>? logger = null)
+        : this(proxies, logger)
         => _brainOverride = brainId;
 
     private string Brain => _brainOverride ?? Id.Brain.Value;
@@ -408,7 +407,8 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
                         targetGen,
                         key,
                         value,
-                        callerPersonId);
+                        callerPersonId,
+                        logger: Log);
                     var updated = await Read(appId, instanceId);
                     return new ScreenActionResult(true, "Action accepted.", updated);
                 }

@@ -5,8 +5,9 @@ import 'node_context.dart';
 import '../design/cards/approval_card.dart';
 import 'node_common.dart';
 
-/// An approval card resolves either on the OS confirmation inbox surface or
-/// inline inside a host-owned app view when [node.resolve] is set and [ctx.interactive] is true.
+/// An approval card can only be resolved on the OS confirmation inbox surface
+/// when [node.resolve] is set, [ctx.confirmation] is true, and [ctx.interactive] is true;
+/// elsewhere it renders read-only.
 Widget renderApprovalCard(ApprovalCardNode node, NodeContext ctx) {
   final resolve = node.resolve;
   final canResolve = resolve != null && ctx.confirmation && ctx.interactive;

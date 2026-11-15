@@ -272,14 +272,14 @@ public sealed record SettingsAppState(
 [Screen("app.settings", Title = "Settings", Icon = Icons.Sliders)]
 public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
 {
-    private static readonly ILoggerFactory FallbackLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Warning));
-    private static readonly ILogger FallbackLogger = FallbackLoggerFactory.CreateLogger<SettingsApp>();
+    private static readonly ILoggerFactory ConsoleLogFactory =
+        LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
+    private static readonly ILogger ConsoleLog = ConsoleLogFactory.CreateLogger<SettingsApp>();
 
-    public ILogger<SettingsApp>? Logger { get; set; }
     public ISecretVault? SecretVault { get; set; }
     public BrainPreferenceStore? PreferenceStore { get; set; }
 
-    private ILogger Log => Logger ?? FallbackLogger;
+    private static ILogger Log => ConsoleLog;
 
     public static IReadOnlyList<SettingsSearchEntry> SearchIndex { get; } =
     [

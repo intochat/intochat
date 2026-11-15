@@ -29,29 +29,34 @@ namespace IntoChat.OS.Modules.Flutter;
 
 internal static class AppUiEndpoints
 {
-    private static readonly ILoggerFactory LogFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Warning));
-    private static readonly ILogger Log = LogFactory.CreateLogger(typeof(AppUiEndpoints).FullName!);
+    private static readonly ILogger ConsoleLog = ShellConsoleLog.For(typeof(AppUiEndpoints));
 
     // GET /apps/node?kind=view writes the tree with these options; the other kinds use the host's HTTP JSON options.
     internal static readonly JsonSerializerOptions ViewJson = new(JsonSerializerDefaults.Web) { MaxDepth = 128 };
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        var logger = (endpoints.ServiceProvider.GetService(typeof(ILoggerFactory)) as ILoggerFactory)
+            ?.CreateLogger(typeof(AppUiEndpoints).FullName!)
+            ?? ConsoleLog;
         var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
         apps.MapPost("/connect", async ([FromServices] IEnumerable<IUiRootProvider> providers, CancellationToken ct) =>
         {
             var provider = providers.SingleOrDefault();
             return Results.Ok(new { Root = provider is null ? null : await provider.Connect(ct), provider?.ActivationApp });
         });
-        apps.MapGet("/node", (string kind, string name, INeuronProxies brain, CancellationToken ct) => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct));
+        apps.MapGet("/node", (string kind, string name, INeuronProxies brain, CancellationToken ct)
+            => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger));
         apps.MapPost("/event", (UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
-            => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct, requirePresenceStamp: true));
+            => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct, requirePresenceStamp: true, logger: logger));
 
     }
 
     // GET /apps/node: one app UI node of the caller's brain, by kind.
-    internal static async Task<IResult> ReadNode(string kind, string name, INeuronProxies brain, string scope, CancellationToken ct)
+    internal static async Task<IResult> ReadNode(string kind, string name, INeuronProxies brain, string scope, CancellationToken ct, ILogger? logger = null)
     {
+        var log = logger ?? ConsoleLog;
         if (kind == UIVocabulary.ConfirmationType)
         {
             if (name != IConfirmationInbox.Key(scope)) { throw new UnauthorizedAccessException(); }
@@ -73,7 +78,7 @@ internal static class AppUiEndpoints
                     }
                     catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
                     {
-                        Log.LogSwallowed(error, "Screen view for unit could not be read.");
+                        log.LogSwallowed(error, "Screen view for unit could not be read.");
                     }
                 }
                 var failing = unitView is null ? null : await brain.Get<IDebuggerReads>(IDebuggerReads.Key(scope)).Failing(unit).WaitAsync(ct);
@@ -110,7 +115,7 @@ internal static class AppUiEndpoints
                         }
                         catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                         {
-                            Log.LogSwallowed(error, "Published screen view could not be read.");
+                            log.LogSwallowed(error, "Published screen view could not be read.");
                         }
                     }
                     var directView = await brain.Get<IView>(directViewName).Read().WaitAsync(ct);
@@ -150,7 +155,7 @@ internal static class AppUiEndpoints
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                 {
-                    Log.LogSwallowed(error, "Screen view could not be read.");
+                    log.LogSwallowed(error, "Screen view could not be read.");
                 }
                 try
                 {
@@ -168,7 +173,7 @@ internal static class AppUiEndpoints
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                 {
-                    Log.LogSwallowed(error, "Unit view could not be read for viewport.");
+                    log.LogSwallowed(error, "Unit view could not be read for viewport.");
                 }
             }
             var app = await brain.Get<IApp>(target.App).Read().WaitAsync(ct);
@@ -197,7 +202,7 @@ internal static class AppUiEndpoints
                     }
                     catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException)
                     {
-                        Log.LogSwallowed(error, "Screen view for unit could not be read.");
+                        log.LogSwallowed(error, "Screen view for unit could not be read.");
                     }
                 }
                 return Results.Json(unitView, ViewJson);
@@ -215,7 +220,7 @@ internal static class AppUiEndpoints
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                 {
-                    Log.LogSwallowed(error, "Screen view could not be read.");
+                    log.LogSwallowed(error, "Screen view could not be read.");
                 }
                 var candidateUnit = screenAlias["app.".Length..];
                 try
@@ -228,7 +233,7 @@ internal static class AppUiEndpoints
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                 {
-                    Log.LogSwallowed(error, "Unit view fallback could not be read.");
+                    log.LogSwallowed(error, "Unit view fallback could not be read.");
                 }
             }
             return Results.Json(await brain.Get<IView>(name).Read().WaitAsync(ct), ViewJson);
@@ -244,7 +249,7 @@ internal static class AppUiEndpoints
     // One UI event from the shell, under the caller the edge stamped on brain.
     // hosted answers whether the host loaded an app's code; without it no view answers a confirmation.
     // An app view's own Emit becomes AppRequested at its app; an Intent goes back to the client, which performs it.
-    internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? _, CancellationToken ct, bool requirePresenceStamp = false)
+    internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? _, CancellationToken ct, bool requirePresenceStamp = false, ILogger? logger = null)
     {
         if (input.Kind == UIVocabulary.ConfirmationType)
         {
@@ -254,7 +259,7 @@ internal static class AppUiEndpoints
             await brain.Get<IConfirmationInbox>(input.Name).Resolve(planId, approve).WaitAsync(ct);
             return Results.Ok(new { delivered = true });
         }
-        if (input.Kind == UIVocabulary.ViewType) { return await DeliverView(input, brain, scope, ct); }
+        if (input.Kind == UIVocabulary.ViewType) { return await DeliverView(input, brain, scope, ct, logger); }
         if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
         switch (input.Kind)
         {
@@ -279,13 +284,14 @@ internal static class AppUiEndpoints
     }
 
     // A view event: the view neuron resolves the keyed node of the generation the client saw; the edge routes what it does.
-    private static async Task<IResult> DeliverView(UiEvent input, INeuronProxies brain, string scope, CancellationToken ct)
+    private static async Task<IResult> DeliverView(UiEvent input, INeuronProxies brain, string scope, CancellationToken ct, ILogger? logger = null)
     {
+        var log = logger ?? ConsoleLog;
         var key = input.Key ?? throw new ArgumentException("A view event names the activated node's key.");
         var generation = input.Generation ?? throw new ArgumentException("A view event names the generation it saw.");
         if (UnitAlias(scope, input.Name) is { } alias)
         {
-            return await ActivateUnitViewAsync(brain, scope, alias, generation, key, input.Value, ct);
+            return await ActivateUnitViewAsync(brain, scope, alias, generation, key, input.Value, ct, log);
         }
         if (ScreenAlias(scope, input.Name) is { } screenAlias)
         {
@@ -299,7 +305,7 @@ internal static class AppUiEndpoints
             }
             catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
             {
-                Log.LogSwallowed(error, "Screen view could not be read for action finding.");
+                log.LogSwallowed(error, "Screen view could not be read for action finding.");
             }
 
             if (published is null)
@@ -310,12 +316,12 @@ internal static class AppUiEndpoints
                     var unitPublished = await brain.Get<IViewReader>(UnitState(scope, candidateUnit)).Read(candidateUnit).WaitAsync(ct);
                     if (unitPublished is not null)
                     {
-                        return await ActivateUnitViewAsync(brain, scope, candidateUnit, generation, key, input.Value, ct);
+                        return await ActivateUnitViewAsync(brain, scope, candidateUnit, generation, key, input.Value, ct, log);
                     }
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
                 {
-                    Log.LogSwallowed(error, "Unit view fallback could not be read for action finding.");
+                    log.LogSwallowed(error, "Unit view fallback could not be read for action finding.");
                 }
             }
 
@@ -344,7 +350,7 @@ internal static class AppUiEndpoints
                         }
                         try
                         {
-                            await ScreenAppEmitBridge.ActivateAsync(screen, published, screenAlias, generation, key, input.Value, caller.PersonId, ct: ct).WaitAsync(ct);
+                            await ScreenAppEmitBridge.ActivateAsync(screen, published, screenAlias, generation, key, input.Value, caller.PersonId, ct: ct, logger: log).WaitAsync(ct);
                         }
                         catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
                         {
@@ -394,8 +400,10 @@ internal static class AppUiEndpoints
         long generation,
         string key,
         string? value,
-        CancellationToken ct)
+        CancellationToken ct,
+        ILogger? logger = null)
     {
+        var log = logger ?? ConsoleLog;
         // A unit's view lives at its state neuron. IViewReader.Activate returns no typed result: it resolves the key itself and
         // journals the emit, refusing a stale generation, an unknown key, a node with no emit and an emit to another owner. The
         // edge resolves once, from the one PublishedView whose generation it checks, only to answer an intent (client-local) and
@@ -414,7 +422,7 @@ internal static class AppUiEndpoints
             }
             catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
             {
-                Log.LogSwallowed(error, "Screen for unit could not be read.");
+                log.LogSwallowed(error, "Screen for unit could not be read.");
             }
         }
         var unitNode = published is { } shown && shown.Generation == generation ? ViewValidation.Find(shown.View, key) : null;

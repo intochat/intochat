@@ -60,11 +60,17 @@ public sealed class TasksApp : Screen<TasksState>
     private const string ApprovalsKey = "approvals/index";
     private const string SynapsesKey = "ino/synapses";
 
-    private static readonly ILoggerFactory FallbackLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Warning));
-    private static readonly ILogger FallbackLogger = FallbackLoggerFactory.CreateLogger<TasksApp>();
+    private static readonly ILoggerFactory ConsoleLogFactory =
+        LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
+    private static readonly ILogger ConsoleLog = ConsoleLogFactory.CreateLogger<TasksApp>();
+    private readonly ILogger<TasksApp>? _logger;
 
-    public ILogger<TasksApp>? Logger { get; set; }
-    private ILogger Log => Logger ?? FallbackLogger;
+    public TasksApp() : this(null) { }
+
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+    public TasksApp(ILogger<TasksApp>? logger = null) => _logger = logger;
+
+    private ILogger Log => _logger ?? ConsoleLog;
 
     // Render cannot await: the last flows and approvals read, refreshed on open, after each command and on each change signal.
     private FlowView[] _flows = [];

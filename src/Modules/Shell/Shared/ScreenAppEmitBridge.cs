@@ -19,8 +19,7 @@ namespace IntoChat.OS.Modules.Flutter;
 /// </summary>
 internal static class ScreenAppEmitBridge
 {
-    private static readonly ILoggerFactory LogFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Warning));
-    private static readonly ILogger Log = LogFactory.CreateLogger(typeof(ScreenAppEmitBridge).FullName!);
+    private static readonly ILogger ConsoleLog = ShellConsoleLog.For(typeof(ScreenAppEmitBridge));
 
     public static async Task<ViewActivation> ActivateAsync(
         IScreen screen,
@@ -30,7 +29,8 @@ internal static class ScreenAppEmitBridge
         string key,
         string? value,
         string callerPersonId,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(screen);
         ArgumentNullException.ThrowIfNull(published);
@@ -72,7 +72,7 @@ internal static class ScreenAppEmitBridge
 
                 var appPrefix = screenAlias.StartsWith("app.", StringComparison.Ordinal) ? screenAlias[4..] : screenAlias;
                 var fullSignal = emit.Signal.Contains('.', StringComparison.Ordinal) ? emit.Signal : $"{appPrefix}.{emit.Signal}";
-                if (ResolveSignalType(fullSignal) is not { } signalType)
+                if (ResolveSignalType(fullSignal, logger ?? ConsoleLog) is not { } signalType)
                 {
                     await screen.Activate(screenAlias, targetGen, key, value, callerPersonId).WaitAsync(ct).ConfigureAwait(false);
                     return action;
@@ -87,7 +87,7 @@ internal static class ScreenAppEmitBridge
         }
     }
 
-    private static Type? ResolveSignalType(string alias)
+    private static Type? ResolveSignalType(string alias, ILogger logger)
     {
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
@@ -98,7 +98,7 @@ internal static class ScreenAppEmitBridge
             }
             catch (ReflectionTypeLoadException ex)
             {
-                Log.LogSwallowed(ex, "Partial assembly type load during signal discovery.");
+                logger.LogSwallowed(ex, "Partial assembly type load during signal discovery.");
                 types = ex.Types;
             }
 

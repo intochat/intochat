@@ -19,16 +19,17 @@ public sealed record BrainToolsConnectionState : ConnectionState
 [Neuron(IBrainToolsConnection.TypeName, State = "brain.tools")]
 public sealed class BrainToolsConnection(
     IServiceProvider? services = null,
-    IEnumerable<IToolSource>? staticSources = null)
+    IEnumerable<IToolSource>? staticSources = null,
+    ILogger<BrainToolsConnection>? logger = null)
     : ConnectionNeuron<BrainToolsConnectionState>, IBrainToolsConnection
 {
-    private static readonly ILoggerFactory FallbackLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Warning));
-    private static readonly ILogger FallbackLogger = FallbackLoggerFactory.CreateLogger<BrainToolsConnection>();
-
     private readonly List<IToolSource> _sources = staticSources?.ToList() ?? [];
+    private readonly ILogger _log = logger
+        ?? (services?.GetService(typeof(ILogger<BrainToolsConnection>)) as ILogger)
+        ?? (services?.GetService(typeof(ILoggerFactory)) as ILoggerFactory)?.CreateLogger<BrainToolsConnection>()
+        ?? McpConsoleLog.For<BrainToolsConnection>();
 
-    public ILogger<BrainToolsConnection>? Logger { get; set; }
-    private ILogger Log => Logger ?? FallbackLogger;
+    private ILogger Log => _log;
 
     public void RegisterSource(IToolSource source)
     {

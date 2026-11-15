@@ -75,11 +75,17 @@ public sealed record DesktopSettings : Signal;
 [Neuron("app.desktop")]
 public sealed class DesktopApp : Screen<DesktopAppState>
 {
-    private static readonly ILoggerFactory FallbackLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Warning));
-    private static readonly ILogger FallbackLogger = FallbackLoggerFactory.CreateLogger<DesktopApp>();
+    private static readonly ILoggerFactory ConsoleLogFactory =
+        LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
+    private static readonly ILogger ConsoleLog = ConsoleLogFactory.CreateLogger<DesktopApp>();
+    private readonly ILogger<DesktopApp>? _logger;
 
-    public ILogger<DesktopApp>? Logger { get; set; }
-    private ILogger Log => Logger ?? FallbackLogger;
+    public DesktopApp() : this(null) { }
+
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+    public DesktopApp(ILogger<DesktopApp>? logger = null) => _logger = logger;
+
+    private ILogger Log => _logger ?? ConsoleLog;
 
     public const string AppName = "desktop";
 
