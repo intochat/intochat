@@ -18,14 +18,14 @@ internal sealed class NeuronTools(NeuronSurface surface, McpCaller caller)
     [McpServerTool(Name = NeuronSurfaceTools.ListName), Description(NeuronSurfaceTools.ListDescription)]
     public Task<IReadOnlyList<NeuronInstance>> List([Description("Optional full contract type name to list one type only.")] string? contract = null, CancellationToken cancellationToken = default)
     {
-        caller.Stamp();
+        caller.Stamp(NeuronSurfaceTools.ListName);
         return surface.List(contract, cancellationToken);
     }
 
     [McpServerTool(Name = NeuronSurfaceTools.SearchName), Description(NeuronSurfaceTools.SearchDescription)]
     public Task<IReadOnlyList<NeuronTypeHit>> Search(string query, CancellationToken cancellationToken = default)
     {
-        caller.Stamp();
+        caller.Stamp(NeuronSurfaceTools.SearchName);
         return surface.Search(query, cancellationToken);
     }
 
@@ -34,17 +34,20 @@ internal sealed class NeuronTools(NeuronSurface surface, McpCaller caller)
     [McpServerTool(Name = NeuronSurfaceTools.GetName), Description(NeuronSurfaceTools.GetDescription)]
     public async Task<CallToolResult> Get(string contract, string key, CancellationToken cancellationToken = default)
     {
-        caller.Stamp();
-        try { return Text(await surface.Get(contract, key, cancellationToken)); }
+        try
+        {
+            caller.Stamp(NeuronSurfaceTools.GetName);
+            return Text(await surface.Get(contract, key, cancellationToken));
+        }
         catch (Exception error) when (Mapped(error)) { return Failure(error); }
     }
 
     [McpServerTool(Name = NeuronSurfaceTools.CallName), Description(NeuronSurfaceTools.CallDescription)]
     public async Task<CallToolResult> Call(string contract, string key, string method, string arguments = "[]", CancellationToken cancellationToken = default)
     {
-        caller.Stamp();
         try
         {
+            caller.Stamp(NeuronSurfaceTools.CallName);
             var result = await surface.Call(contract, key, method, arguments, cancellationToken);
             return result is { } element ? Text(element.GetRawText()) : new CallToolResult { Content = [] };
         }

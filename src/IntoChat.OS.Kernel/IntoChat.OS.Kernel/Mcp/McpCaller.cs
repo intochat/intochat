@@ -24,18 +24,24 @@ internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions>
     [McpServerTool(Name = NeuronSurfaceTools.ContextName), Description(NeuronSurfaceTools.ContextDescription)]
     public async Task<JsonObject> Context(CancellationToken cancellationToken)
     {
-        var context = JsonSerializer.SerializeToNode(Stamp(), JsonSerializerOptions.Web)!.AsObject();
+        var context = JsonSerializer.SerializeToNode(Stamp(NeuronSurfaceTools.ContextName), JsonSerializerOptions.Web)!.AsObject();
         context["brains"] = JsonSerializer.SerializeToNode(await kernel.Brains(cancellationToken), JsonSerializerOptions.Web);
         return context;
     }
 
     // MCP dispatch can run in a separate execution context. Stamp from the current HTTP
     // request at the tool boundary, rather than inheriting a previous MCP session's caller.
-    internal CapabilityCaller Stamp()
+    // Every tool names itself: a guest is refused any tool outside GuestSurface.Tools.
+    internal CapabilityCaller Stamp(string tool)
     {
         var context = http.HttpContext ?? throw new UnauthorizedAccessException("MCP requires an HTTP caller.");
         var resolved = AccountSession.ResolveCaller(context, auth.Value)
             ?? throw new UnauthorizedAccessException("MCP requires an authenticated caller.");
+        if (GuestSurface.Is(resolved) && !GuestSurface.MayUseTool(tool))
+        {
+            throw new UnauthorizedAccessException($"A guest session cannot use {tool}.");
+        }
+
         var caller = AsAgent(resolved);
         RuntimeCallerContext.Stamp(caller);
         return caller;

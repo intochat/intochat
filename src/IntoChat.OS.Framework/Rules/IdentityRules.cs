@@ -17,7 +17,9 @@ internal sealed record PrincipalIdIsValid(string PrincipalId) : Rule("identity.p
 
 internal sealed record PrincipalIdIsAvailable(string PrincipalId, bool AlreadyTaken) : Rule("identity.principal-id-available")
 {
-    public override bool Broken => PrincipalId is "owner" or "integrations" || AlreadyTaken;
+    // The try- prefix marks a guest (GuestSurface): no registered principal may carry it.
+    public override bool Broken => PrincipalId is "owner" or "integrations"
+        || PrincipalId.StartsWith(GuestSurface.BrainPrefix, StringComparison.Ordinal) || AlreadyTaken;
     public override string Message => "That username is unavailable.";
 }
 

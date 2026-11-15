@@ -13,6 +13,7 @@ using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Connections.Platform.Identity;
+using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
@@ -243,7 +244,7 @@ public sealed class PresenceProofAndEdgeAuthFacts
         await using var os = DigitalBrain.Testing.TestOS.Local();
         var mcpCaller = new McpCaller(accessor, auth, os);
 
-        var stamped = mcpCaller.Stamp();
+        var stamped = mcpCaller.Stamp(NeuronSurfaceTools.CallName);
         Assert.Equal(CallerKind.Agent, stamped.Kind);
         Assert.Equal(CapabilityCallers.AssistantApp, stamped.AppId);
         Assert.Equal("mcp", stamped.ConversationId);

@@ -19,8 +19,10 @@ internal sealed partial class PrincipalPasswords(IIdentityClient identity, Brain
         { throw new ArgumentException("Use a lowercase username containing letters, numbers and hyphens."); }
         if (password is null || password.Length is < 12 or > 256)
         { throw new ArgumentException("Use a password between 12 and 256 characters."); }
-        // External sign-in names its principals under this prefix (External.ExternalSignIn.PrincipalOf).
-        if (principalId is "owner" or "integrations" || principalId.StartsWith(External.ExternalSignIn.PrincipalPrefix, StringComparison.Ordinal)) { throw new InvalidOperationException("That username is unavailable."); }
+        // External sign-in names its principals under its prefix (External.ExternalSignIn.PrincipalOf); the guest prefix marks a /try guest.
+        if (principalId is "owner" or "integrations" || principalId.StartsWith(External.ExternalSignIn.PrincipalPrefix, StringComparison.Ordinal)
+            || principalId.StartsWith(GuestSurface.BrainPrefix, StringComparison.Ordinal))
+        { throw new InvalidOperationException("That username is unavailable."); }
         var credential = Credential(principalId);
         if (await credential.Hash() is { } existing)
         {

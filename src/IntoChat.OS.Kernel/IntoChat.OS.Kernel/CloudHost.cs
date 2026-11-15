@@ -17,6 +17,7 @@ using IntoChat.Cloud.Mail;
 using IntoChat.Cloud.Mail.Templates;
 using IntoChat.Cloud.Organisations;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -43,6 +44,8 @@ public static class CloudHost
         services.TryAddSingleton<IAuthHostSeam, KernelAuthHost>();
         services.TryAddSingleton<IOrganisationHost, KernelOrganisationHost>();
         services.TryAddSingleton<IMailHost, KernelMailHost>();
+        // Cloud sign-in is the auth module's. The built-in password routes would give any visitor an owner account.
+        services.PostConfigure<IdentityHostOptions>(identity => identity.BuiltInPasswordEndpoints = false);
         services.AddIdentitySessions<AuthIdentityProvider>();
         services.TryAddSingleton<ISessions>(provider => provider.GetRequiredKeyedService<ISessions>(Capability.Identity.V1Id));
         AuthCloudRegistration.Register(services);
@@ -64,7 +67,10 @@ public static class CloudHost
         var provisionedBrains = new ConcurrentDictionary<string, GuestBrainEntry>(StringComparer.Ordinal);
         app.Use(async (context, next) =>
         {
+            // Shut by default: a try token makes a guest (and its brain) only on an endpoint marked for guests. Anywhere
+            // else the request stays anonymous and the account session answers 401.
             if (context.User.Identity?.IsAuthenticated != true
+                && context.GetEndpoint()?.Metadata.GetMetadata<GuestSurface.Door>() is not null
                 && TryMatchGuestBrainPath(context.Request.Path, out var targetBrainId)
                 && GuestTryHttpSurface.ExtractToken(context.Request) is { Length: > 0 } rawToken
                 && context.RequestServices.GetService<GuestTrySessionService>() is { } trySessions
@@ -76,9 +82,14 @@ public static class CloudHost
                     && session is not null
                     && string.Equals(session.BrainId, targetBrainId, StringComparison.Ordinal))
                 {
-                    await EnsureGuestBrainAsync(context.RequestServices, session, now, provisionedBrains, context.RequestAborted).ConfigureAwait(false);
-                    context.User = AccountSession.SessionUser(
-                        CapabilityCallers.Of(session.BrainId, session.BrainId, session.BrainId));
+                    // The lobby names the brain, and the brain id is the guest's principal. A session the walls would not
+                    // know as a guest's is not admitted.
+                    var guest = CapabilityCallers.Of(session.BrainId, session.BrainId, session.BrainId);
+                    if (GuestSurface.Is(guest))
+                    {
+                        await EnsureGuestBrainAsync(context.RequestServices, session, now, provisionedBrains, context.RequestAborted).ConfigureAwait(false);
+                        context.User = AccountSession.SessionUser(guest);
+                    }
                 }
             }
 

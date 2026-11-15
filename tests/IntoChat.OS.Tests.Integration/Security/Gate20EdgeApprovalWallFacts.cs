@@ -75,6 +75,38 @@ public sealed class Gate20EdgeApprovalWallFacts
         Assert.Equal(HttpStatusCode.Forbidden, crossBrainRes.StatusCode);
     }
 
+    // The brain MCP endpoint is also the one door a /try guest has. Anyone who is not a guest keeps every tool and every screen.
+    [Fact]
+    public async Task LocalOwner_OverBrainMcp_KeepsEveryToolAndEveryScreen()
+    {
+        await using var host = await EdgeKernelHarness.StartAsync(Ct);
+        using var mcpHttp = new HttpClient { BaseAddress = host.BaseAddress };
+        mcpHttp.DefaultRequestHeaders.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+        await using var mcpClient = await McpClient.CreateAsync(
+            new HttpClientTransport(new HttpClientTransportOptions
+            {
+                Endpoint = new Uri(host.BaseAddress, $"/brains/{host.Scope}/mcp"),
+                TransportMode = HttpTransportMode.StreamableHttp,
+            }, mcpHttp, ownsHttpClient: false),
+            cancellationToken: Ct);
+
+        var listed = await mcpClient.CallToolAsync("screen_list", new Dictionary<string, object?>(), cancellationToken: Ct);
+        Assert.NotEqual(true, listed.IsError);
+        Assert.Contains("\"creator\"", ExtractText(listed), StringComparison.Ordinal);
+        Assert.Contains("\"settings\"", ExtractText(listed), StringComparison.Ordinal);
+
+        var read = await mcpClient.CallToolAsync("screen_read", new Dictionary<string, object?> { ["appId"] = "creator" }, cancellationToken: Ct);
+        Assert.NotEqual(true, read.IsError);
+        Assert.Contains("\"appId\":\"creator\"", ExtractText(read), StringComparison.Ordinal);
+
+        var context = await mcpClient.CallToolAsync("neurons_context", new Dictionary<string, object?>(), cancellationToken: Ct);
+        Assert.NotEqual(true, context.IsError);
+        Assert.Contains($"\"appId\":\"{CapabilityCallers.AssistantApp}\"", ExtractText(context), StringComparison.Ordinal);
+
+        var neurons = await mcpClient.CallToolAsync("neurons_list", new Dictionary<string, object?>(), cancellationToken: Ct);
+        Assert.NotEqual(true, neurons.IsError);
+    }
+
     [Fact]
     public async Task Gate20_RequiresPersonConfirmationPlan_ResistsMcpLoopbackForgedPresenceAndAgent_ThenApprovesWithPresenceProof()
     {
