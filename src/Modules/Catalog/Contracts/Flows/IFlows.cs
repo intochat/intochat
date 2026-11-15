@@ -26,7 +26,11 @@ public interface IFlows
     [DigitalBrain.Contracts.Interleaves]
     Task Resume(string flowId, string step, WaitOutcome outcome, CancellationToken ct = default);
 
-    // Cancels the running step's leaf operation, then the flow.
+    // Cancels the running step's leaf operation, then the flow. Refused (rule apps.flows-person-cancels-approval-wait, "flow {id}
+    // waits for a person at {step}: only a person cancels it") while the flow waits for a person's approval, unless the caller is
+    // a person or the kernel. The person may call through an app's neuron; an agent, an app and a person stamp that carries a
+    // conversation are refused, and nothing is cancelled. A waiting flow whose wait the index has not folded yet counts as
+    // waiting for a person.
     [DigitalBrain.Contracts.Interleaves]
     Task Cancel(string flowId, string reason, CancellationToken ct = default);
 

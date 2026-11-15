@@ -171,7 +171,8 @@ public sealed class FlowsSecurityFacts
         Assert.Equal(FlowStatus.Waiting, (await Flows(runtime).Read(person, Ct))!.Status);
     }
 
-    // The interrupt is written with the person's trust, so it ends an Ino run that waits for the person too; the plan leaves the inbox.
+    // A trusted interrupt ends an Ino run that waits for a person too, and the plan leaves the inbox. This one is the platform's,
+    // written on a schedule: the reaction that cancels runs for the scheduler, a caller the index's Cancel refuses.
     [Fact]
     public async Task CancelFlowsTagCancelsInoFlowWaitingForApproval()
     {
@@ -185,7 +186,7 @@ public sealed class FlowsSecurityFacts
         for (var i = 0; i < 200 && (await inbox.Read()).Pending.All(plan => plan.PlanId != waiting.ConfirmationPlanId); i++) { await Task.Delay(50, Ct); }
         Assert.Contains((await inbox.Read()).Pending, plan => plan.PlanId == waiting.ConfirmationPlanId);
 
-        using (As(runtime, CallerKind.User)) { await Posture(runtime).Set(new ContextEntry("stop", "Stop and cancel.", [], [ContextTags.Interrupt, "cancel-flows"])); }
+        using (As(runtime, CallerKind.Scheduler)) { await Posture(runtime).Set(new ContextEntry("stop", "Stop and cancel.", [], [ContextTags.Interrupt, "cancel-flows"])); }
 
         var cancelled = await Eventually(runtime, ino, view => view.Status == FlowStatus.Cancelled);
         Assert.Equal("security interrupt", cancelled.Detail);

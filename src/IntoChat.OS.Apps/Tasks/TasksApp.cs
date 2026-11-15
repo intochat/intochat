@@ -157,7 +157,15 @@ public sealed class TasksApp : Screen<TasksState>
     {
         ArgumentNullException.ThrowIfNull(request);
         if (Blank(request.FlowId) is not { } flowId) { return; }
-        await Get<IFlows>(FlowsKey).Cancel(flowId, Blank(request.Reason) ?? "Cancelled from Tasks");
+        try
+        {
+            await Get<IFlows>(FlowsKey).Cancel(flowId, Blank(request.Reason) ?? "Cancelled from Tasks");
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            NullLogger.Instance.LogSwallowed(error, "The cancel was refused; the status line reports why.");
+            await Show(State with { Status = $"Could not cancel: {error.Message}" });
+        }
         await RefreshAsync();
     }
 
