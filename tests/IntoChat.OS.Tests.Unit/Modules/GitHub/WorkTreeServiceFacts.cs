@@ -183,6 +183,49 @@ public sealed class WorkTreeServiceFacts : IDisposable
         var withToken = await service.PrepareAsync("os", "remote02", "Show the remote", null, Ct);
         Assert.Equal("https://example.invalid/intochat/os.git", withToken.OriginUrl);
         await service.CleanupAsync(withToken, Ct);
+
+        // A push goes to every push address, so the lease names every one.
+        RunGit(checkoutPath, ["remote", "set-url", "--add", "--push", "origin", "https://second.example.invalid/intochat/os.git"]);
+        var twoAddresses = await service.PrepareAsync("os", "remote03", "Show the remote", null, Ct);
+        Assert.Equal("https://example.invalid/intochat/os.git\nhttps://second.example.invalid/intochat/os.git", twoAddresses.OriginUrl);
+        await service.CleanupAsync(twoAddresses, Ct);
+    }
+
+    [Fact]
+    public async Task PrepareRefusesARepositoryWithoutAnOrigin()
+    {
+        var (_, checkoutPath, homeDir) = CreateBareOriginAndDirtyCheckout();
+        RunGit(checkoutPath, ["remote", "remove", "origin"]);
+        var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
+        service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.PrepareAsync("os", "noorigin1", "Change with nowhere to push", null, Ct));
+
+        Assert.Contains("no 'origin' remote", refused.Message, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(Path.Combine(homeDir, "worktrees", "os", "noorigin1")));
+    }
+
+    [Fact]
+    public async Task PrepareRefusesABaseWithCommitsTheRemoteDoesNotHave()
+    {
+        var (_, checkoutPath, homeDir) = CreateBareOriginAndDirtyCheckout();
+        var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
+        service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
+
+        // A first run commits and is thrown away, as after a denied approval: its branch stays in the source repository.
+        var denied = await service.PrepareAsync("os", "unseen01", "Add a file nobody approved", null, Ct);
+        await File.WriteAllTextAsync(Path.Combine(denied.TreePath, "denied.md"), "the change the person denied\n", Ct);
+        _ = await service.VerifyAndCommitAsync(denied, "Add a file nobody approved", Ct);
+        await service.CleanupAsync(denied, Ct);
+
+        // A push of a commit on that base would carry the first run's commit with it.
+        var refused = await Assert.ThrowsAsync<SecurityException>(() =>
+            service.PrepareAsync("os", "unseen02", "Fix a typo", denied.BranchName, Ct));
+
+        Assert.Contains(denied.BranchName, refused.Message, StringComparison.Ordinal);
+        Assert.Contains("the remote does not have", refused.Message, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(Path.Combine(homeDir, "worktrees", "os", "unseen02")));
     }
 
     [Theory]
@@ -193,6 +236,9 @@ public sealed class WorkTreeServiceFacts : IDisposable
     [InlineData("git@github.com:intochat/os.git", "git@github.com:intochat/os.git")]
     [InlineData(@"C:\repos\origin.git", @"C:\repos\origin.git")]
     [InlineData("https://a:b@one.example/x.git\nhttps://c:d@two.example/y.git", "https://one.example/x.git\nhttps://two.example/y.git")]
+    // Git ends the host at '?' and '#' too: what stands before them is the host, not a credential.
+    [InlineData("https://other.example?@github.com/intochat/os.git", "https://other.example?@github.com/intochat/os.git")]
+    [InlineData("https://other.example#@github.com/intochat/os.git", "https://other.example#@github.com/intochat/os.git")]
     [InlineData(" ", null)]
     public void ARemoteAddressIsKeptWithoutItsCredentials(string address, string? shown)
         => Assert.Equal(shown, WorkTreeService.WithoutCredentials(address));
@@ -213,6 +259,33 @@ public sealed class WorkTreeServiceFacts : IDisposable
         Directory.CreateDirectory(elsewhere);
         RunGit(elsewhere, ["init", "--bare", "--initial-branch=main"]);
         RunGit(checkoutPath, ["remote", "set-url", "origin", elsewhere]);
+
+        var refused = await Assert.ThrowsAsync<SecurityException>(() =>
+            service.PublishAsync(lease, commit.CommitSha, "Edit the readme", "Automated PR from Ino", Ct));
+
+        Assert.Contains(elsewhere, refused.Message, StringComparison.Ordinal);
+        Assert.Equal("", RunGit(elsewhere, ["branch", "--list", "ino/*"]).Trim());
+        Assert.Equal("", RunGit(bareOrigin, ["branch", "--list", "ino/*"]).Trim());
+        await service.CleanupAsync(lease, Ct);
+    }
+
+    [Fact]
+    public async Task PublishRefusesWhenASecondPushAddressWasAddedAfterTheLease()
+    {
+        var (bareOrigin, checkoutPath, homeDir) = CreateBareOriginAndDirtyCheckout();
+        var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
+        service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
+
+        var lease = await service.PrepareAsync("os", "second01", "Add polite farewell helper", null, Ct);
+        await File.WriteAllTextAsync(Path.Combine(lease.TreePath, "README.md"), "# Edited\n", Ct);
+        var commit = await service.VerifyAndCommitAsync(lease, "Edit the readme", Ct);
+
+        // The first push address stays what the approval showed; a second one is added beside it.
+        var elsewhere = Path.Combine(_root, "elsewhere.git");
+        Directory.CreateDirectory(elsewhere);
+        RunGit(elsewhere, ["init", "--bare", "--initial-branch=main"]);
+        RunGit(checkoutPath, ["remote", "set-url", "--add", "--push", "origin", bareOrigin]);
+        RunGit(checkoutPath, ["remote", "set-url", "--add", "--push", "origin", elsewhere]);
 
         var refused = await Assert.ThrowsAsync<SecurityException>(() =>
             service.PublishAsync(lease, commit.CommitSha, "Edit the readme", "Automated PR from Ino", Ct));

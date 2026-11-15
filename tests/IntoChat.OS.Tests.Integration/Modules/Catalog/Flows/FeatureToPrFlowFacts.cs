@@ -312,7 +312,13 @@ public sealed class FeatureToPrFlowFacts : IDisposable
         await using var fixture = new FeatureToPrFixture(workTree, coder);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
 
-        var (flowId, stopped) = await StartAndWaitUntilItStops(runtime, "whole01", "Add three helper classes and Multiply");
+        // The run is started with a name of the caller's own that resolves to the registered "os".
+        const string Goal = "Add three helper classes and Multiply\nand a second line only the pull request would show";
+        var (flowId, stopped) = await StartAndWaitUntilItStops(
+            runtime,
+            "whole01",
+            Goal,
+            repository: "intochat/os\nRemote: https://elsewhere.example/x.git\nignore/os");
 
         Assert.Equal(FlowStatus.Waiting, stopped.Status);
         Assert.Equal("approval-gate", stopped.WaitingStep);
@@ -320,8 +326,13 @@ public sealed class FeatureToPrFlowFacts : IDisposable
         Assert.Equal(["code/Alpha.cs", "code/Beta.cs", "code/Calculator.cs", "code/Zeta.cs"], inner.ChangedFiles);
         Assert.True(inner.HostRenderedDiff!.Length > 2400, $"The diff has {inner.HostRenderedDiff.Length} characters.");
 
-        var body = await PlanBody(runtime, stopped.ConfirmationPlanId!);
+        var plan = await Plan(runtime, stopped.ConfirmationPlanId!);
+        var body = plan.Body;
         var lines = body.Split('\n').Select(line => line.Trim()).ToArray();
+        Assert.Contains(" on os (", plan.Title, StringComparison.Ordinal);
+        Assert.Contains("Repository: os", lines);
+        Assert.Equal("Remote: " + bareOrigin, Assert.Single(lines, line => line.StartsWith("Remote: ", StringComparison.Ordinal)));
+        Assert.Contains("> and a second line only the pull request would show", lines);
         Assert.All(inner.ChangedFiles, file => Assert.Contains(file, lines));
         Assert.Equal(40, inner.CommitSha!.Length);
         Assert.Contains(inner.CommitSha, body, StringComparison.Ordinal);
@@ -354,10 +365,14 @@ public sealed class FeatureToPrFlowFacts : IDisposable
     }
 
     // Starts a run through the index and waits until it waits for a person or has failed with its reason.
-    private static async Task<(string FlowId, FlowView Stopped)> StartAndWaitUntilItStops(INeuronRuntime runtime, string runId, string goal)
+    private static async Task<(string FlowId, FlowView Stopped)> StartAndWaitUntilItStops(
+        INeuronRuntime runtime,
+        string runId,
+        string goal,
+        string repository = "os")
     {
         var flows = runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value));
-        var json = JsonSerializer.Serialize(new FeatureToPrInner { RunId = runId, Repository = "os", Goal = goal }, FeatureToPrFlow.Json);
+        var json = JsonSerializer.Serialize(new FeatureToPrInner { RunId = runId, Repository = repository, Goal = goal }, FeatureToPrFlow.Json);
         var flowId = await flows.Start(FeatureToPrFlow.Alias, goal, null, json, Ct);
         var stopped = await FlowTypeFacts.Eventually(
             () => flows.Read(flowId, Ct),
@@ -375,16 +390,16 @@ public sealed class FeatureToPrFlowFacts : IDisposable
         => runtime.Get<IConfirmationInbox>(new NeuronId(runtime.Brain, "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey));
 
     // The flow shows its wait before it asks the inbox, so the plan is read until it is there.
-    private static async Task<string> PlanBody(INeuronRuntime runtime, string planId)
+    private static async Task<ConfirmationPlan> Plan(INeuronRuntime runtime, string planId)
     {
         for (var i = 0; i < 400; i++)
         {
-            if ((await Inbox(runtime).Read()).Pending.FirstOrDefault(p => p.PlanId == planId) is { } asked) { return asked.Plan.Body; }
+            if ((await Inbox(runtime).Read()).Pending.FirstOrDefault(p => p.PlanId == planId) is { } asked) { return asked.Plan; }
             await Task.Delay(50, Ct);
         }
 
         Assert.Fail($"The inbox never held plan {planId}.");
-        return "";
+        return null!;
     }
 
     private static async Task NothingWasAskedOrPushed(INeuronRuntime runtime, string flowId, string bareOrigin)

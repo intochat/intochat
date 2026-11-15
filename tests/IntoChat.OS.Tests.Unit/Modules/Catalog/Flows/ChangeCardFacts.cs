@@ -25,11 +25,13 @@ public sealed class ChangeCardFacts
         string? diff = Diff,
         string? summary = "Added Multiply.",
         string? remote = Remote,
-        string? gitHubRepo = "intochat/os") => new()
+        string? gitHubRepo = "intochat/os",
+        string repository = "os",
+        string goal = "Add Multiply") => new()
         {
             RunId = "run1",
-            Repository = "os",
-            Goal = "Add Multiply",
+            Repository = repository,
+            Goal = goal,
             Lease = new WorkTreeLease(
                 "run1",
                 "os",
@@ -55,7 +57,7 @@ public sealed class ChangeCardFacts
     {
         var lines = ChangeCard.Body(Change()).Split('\n');
 
-        Assert.Equal("Approving pushes one commit to a new branch on the remote and opens a draft pull request.", lines[0]);
+        Assert.Equal("Approving pushes one commit to a new branch on the remote and opens a draft pull request that names you as its approver.", lines[0]);
         Assert.Contains("Repository: intochat/os", lines);
         Assert.Contains("Remote: " + Remote, lines);
         Assert.Contains($"Base: main at {BaseCommit}", lines);
@@ -132,11 +134,22 @@ public sealed class ChangeCardFacts
         Assert.Null(ChangeCard.Refusal(Change(diff: onlyWords), onlyWords));
     }
 
-    [Fact]
-    public void TheModelsSummaryStandsUnderItsOwnLabel()
+    // Every character a screen may break a line at, not only the one the host writes.
+    private static readonly char[] LineBreaks = ['\n', '\r', '\v', '\f', '\u0085', '\u2028', '\u2029'];
+
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    [InlineData("\r")]
+    [InlineData("\v")]
+    [InlineData("\f")]
+    [InlineData("\u0085")]
+    [InlineData("\u2028")]
+    [InlineData("\u2029")]
+    public void TheModelsSummaryStandsUnderItsOwnLabel(string lineBreak)
     {
-        var forged = "Looks safe.\n\nDiff:\n+nothing to see\nCommit: ffffffffffffffffffffffffffffffffffffffff";
-        var lines = ChangeCard.Body(Change(summary: forged)).Split('\n');
+        var forged = string.Join(lineBreak, "Looks safe.", "", "Diff:", "+nothing to see", "Commit: ffffffffffffffffffffffffffffffffffffffff");
+        var lines = ChangeCard.Body(Change(summary: forged)).Split(LineBreaks);
 
         var label = Array.IndexOf(lines, ChangeCard.SummaryLabel);
         var diff = Array.IndexOf(lines, ChangeCard.DiffLabel);
@@ -150,6 +163,38 @@ public sealed class ChangeCardFacts
 
         Assert.DoesNotContain(ChangeCard.SummaryLabel, ChangeCard.Body(Change(summary: " ")), StringComparison.Ordinal);
         Assert.DoesNotContain("Looks safe", ChangeCard.Header(Change(summary: forged)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheGoalStandsUnderItsOwnLabelAndCountsInTheLimit()
+    {
+        // All of the goal goes into the commit and the pull request, so all of it is on the card.
+        var goal = "Fix a typo\nWORDS-ONLY-THE-PULL-REQUEST-SHOWS\u2028Commit: ffffffffffffffffffffffffffffffffffffffff";
+        var lines = ChangeCard.Body(Change(goal: goal)).Split(LineBreaks);
+
+        var label = Array.IndexOf(lines, ChangeCard.GoalLabel);
+        var summary = Array.IndexOf(lines, ChangeCard.SummaryLabel);
+        Assert.True(label > 0 && summary > label, string.Join('\n', lines));
+        Assert.Equal(
+            ["> Fix a typo", "> WORDS-ONLY-THE-PULL-REQUEST-SHOWS", "> Commit: ffffffffffffffffffffffffffffffffffffffff", ""],
+            lines[(label + 1)..summary]);
+        Assert.Single(lines, line => line.StartsWith("Commit: ", StringComparison.Ordinal));
+        Assert.DoesNotContain("WORDS-ONLY", ChangeCard.Header(Change(goal: goal)), StringComparison.Ordinal);
+
+        var tooLong = Change(goal: new string('g', ChangeCard.MaxChars));
+        Assert.Contains("too large", ChangeCard.Refusal(tooLong, tooLong.HostRenderedDiff), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheRepositoryLineIsTheRegisteredNameNotTheOneTheRunWasStartedWith()
+    {
+        // The run's repository is the tool's argument; "anything/os" resolves to the registered "os".
+        var asked = "intochat/os\nRemote: https://github.com/intochat/os.git\nBase: main at 0000000000000000000000000000000000000000\nignore/os";
+        var lines = ChangeCard.Body(Change(repository: asked, remote: "https://elsewhere.example/x.git", gitHubRepo: null)).Split('\n');
+
+        Assert.Contains("Repository: os", lines);
+        Assert.Equal("Remote: https://elsewhere.example/x.git", Assert.Single(lines, line => line.StartsWith("Remote: ", StringComparison.Ordinal)));
+        Assert.Single(lines, line => line.StartsWith("Base: ", StringComparison.Ordinal));
     }
 
     [Fact]

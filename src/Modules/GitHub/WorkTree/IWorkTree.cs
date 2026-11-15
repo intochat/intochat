@@ -26,7 +26,7 @@ public sealed record RegisteredRepository(
 /// <param name="BaseCommitSha">Exact 40-char commit SHA from which the worktree started.</param>
 /// <param name="BranchName">Target branch name (always prefixed with <c>ino/</c>, e.g. <c>ino/fix-typo-a1b2c3d4</c>).</param>
 /// <param name="GitHubRepo">Resolved GitHub <c>owner/repo</c> slug if <c>origin</c> is a GitHub remote; <see langword="null"/> for local bare remotes.</param>
-/// <param name="OriginUrl">The address <c>origin</c> pushes to, without credentials; <see langword="null"/> on a lease made before it was recorded.</param>
+/// <param name="OriginUrl">Every address <c>origin</c> pushes to, one per line, without credentials; <see langword="null"/> on a lease made before it was recorded.</param>
 public sealed record WorkTreeLease(
     string RunId,
     string RepositoryId,

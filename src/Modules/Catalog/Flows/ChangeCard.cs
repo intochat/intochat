@@ -12,6 +12,8 @@ internal static class ChangeCard
     // even when every character costs six bytes of JSON.
     public const int MaxChars = 60_000;
 
+    public const string GoalLabel = "The goal as Ino passed it, written by the model. It becomes the commit subject and the pull request's title and text:";
+
     public const string SummaryLabel = "Ino's summary, written by the model:";
 
     public const string DiffLabel = "Diff:";
@@ -23,7 +25,8 @@ internal static class ChangeCard
         var files = inner.ChangedFiles ?? [];
         var remote = WorkTreeService.WithoutCredentials(lease?.OriginUrl)?.Replace("\n", ", ", StringComparison.Ordinal);
         var text = new StringBuilder();
-        text.Append("Repository: ").Append(lease?.GitHubRepo ?? inner.Repository).Append('\n');
+        // The lease's id is the registered one; the run's own repository is whatever the caller typed.
+        text.Append("Repository: ").Append(lease?.GitHubRepo ?? lease?.RepositoryId ?? inner.Repository).Append('\n');
         text.Append("Remote: ").Append(remote ?? "origin (its address was not recorded)").Append('\n');
         text.Append("Base: ").Append(lease?.BaseBranch ?? "unknown").Append(" at ").Append(lease?.BaseCommitSha ?? "unknown").Append('\n');
         text.Append("Branch: ").Append(lease?.BranchName ?? "unknown").Append('\n');
@@ -62,19 +65,11 @@ internal static class ChangeCard
         var text = new StringBuilder();
         // The first line: Ino's dock shows this body under the run's title, not under the plan's.
         text.Append(inner.Lease?.GitHubRepo is { Length: > 0 }
-            ? "Approving pushes one commit to a new branch on the remote and opens a draft pull request."
+            ? "Approving pushes one commit to a new branch on the remote and opens a draft pull request that names you as its approver."
             : "Approving pushes one commit to a new branch on the remote. It opens no pull request: the remote is not on GitHub.");
         text.Append("\n\n").Append(Header(inner));
-
-        if (!string.IsNullOrWhiteSpace(inner.CoderSummary))
-        {
-            // Quoted line by line, so the model's words cannot pass for a line of the host's.
-            text.Append("\n\n").Append(SummaryLabel);
-            foreach (var line in inner.CoderSummary.Trim().Split('\n'))
-            {
-                text.Append("\n> ").Append(line.TrimEnd('\r'));
-            }
-        }
+        Quote(text, GoalLabel, inner.Goal);
+        Quote(text, SummaryLabel, inner.CoderSummary);
 
         if (!string.IsNullOrWhiteSpace(diff))
         {
@@ -82,6 +77,29 @@ internal static class ChangeCard
         }
 
         return text.ToString();
+    }
+
+    // The model's words under a label, every line quoted, so none of them can pass for a line of the host's.
+    // A line ends at every character a screen may break at, not only at '\n'.
+    private static void Quote(StringBuilder text, string label, string? words)
+    {
+        if (string.IsNullOrWhiteSpace(words))
+        {
+            return;
+        }
+
+        text.Append("\n\n").Append(label).Append("\n> ");
+        foreach (var c in words.Trim().Replace("\r\n", "\n", StringComparison.Ordinal))
+        {
+            if ((char.IsControl(c) && c != '\t') || char.GetUnicodeCategory(c) is UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator)
+            {
+                text.Append("\n> ");
+            }
+            else
+            {
+                text.Append(c);
+            }
+        }
     }
 
     // Git writes "Binary files a/x and b/x differ" in place of a file it does not treat as text. Every line inside a hunk

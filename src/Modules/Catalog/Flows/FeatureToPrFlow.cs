@@ -164,7 +164,7 @@ public sealed class FeatureToPrFlow(
         var runId = EffectiveRunId(inner);
         var sha = inner.CommitSha ?? throw new InvalidOperationException("Cannot raise Feature-to-PR confirmation plan without a verified CommitSha.");
         var planId = BuildPlanId(runId, sha);
-        var repoLabel = inner.Lease?.GitHubRepo ?? inner.Repository;
+        var repoLabel = inner.Lease?.GitHubRepo ?? inner.Lease?.RepositoryId ?? inner.Repository;
 
         // The body is drawn, never cut and never refused here: the steps refuse what the card cannot show.
         return new ConfirmationPlan(
