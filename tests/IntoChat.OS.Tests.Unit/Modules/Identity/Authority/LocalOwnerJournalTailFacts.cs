@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
@@ -32,12 +33,13 @@ public sealed class LocalOwnerJournalTailFacts
     {
         var history = new InMemorySignalHistory();
         history.Append(NeuronId.Parse("owner/ctr/default"), new Ticked(1), DateTimeOffset.UtcNow);
-        await using var app = await Start(posture, history);
+        var proof = posture == IdentityPosture.Open ? new PresenceProofValidator(RandomNumberGenerator.GetBytes(32)) : null;
+        await using var app = await Start(posture, history, proof);
         using var client = new HttpClient { BaseAddress = new Uri(app.Urls.First()) };
 
-        using var own = Request("/brains/owner/journal/tail?since=0", posture);
+        using var own = Request("/brains/owner/journal/tail?since=0", posture, proof);
         using var response = await client.SendAsync(own, HttpCompletionOption.ResponseHeadersRead, Ct);
-        using var other = Request("/brains/other/journal/tail?since=0", posture);
+        using var other = Request("/brains/other/journal/tail?since=0", posture, proof);
         using var refused = await client.SendAsync(other, HttpCompletionOption.ResponseHeadersRead, Ct);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -63,27 +65,47 @@ public sealed class LocalOwnerJournalTailFacts
     }
 
     [Fact]
-    public async Task OtherRoutesStillSeeNoAuthenticatedUserForTheLocalOwner()
+    public async Task WithoutPresenceProofOpenTailIs401()
     {
-        await using var app = await Start(IdentityPosture.Open, new InMemorySignalHistory());
+        var proof = new PresenceProofValidator(RandomNumberGenerator.GetBytes(32));
+        await using var app = await Start(IdentityPosture.Open, new InMemorySignalHistory(), proof);
         using var client = new HttpClient { BaseAddress = new Uri(app.Urls.First()) };
 
-        var seen = await client.GetStringAsync("/probe", Ct);
+        using var response = await client.GetAsync("/brains/owner/journal/tail", Ct);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OtherRoutesStillSeeNoAuthenticatedUserForTheLocalOwner()
+    {
+        var proof = new PresenceProofValidator(RandomNumberGenerator.GetBytes(32));
+        await using var app = await Start(IdentityPosture.Open, new InMemorySignalHistory(), proof);
+        using var client = new HttpClient { BaseAddress = new Uri(app.Urls.First()) };
+
+        using var req = Request("/probe", IdentityPosture.Open, proof);
+        using var res = await client.SendAsync(req, Ct);
+        res.EnsureSuccessStatusCode();
+        var seen = await res.Content.ReadAsStringAsync(Ct);
 
         Assert.Equal("False", seen);
     }
 
-    private static HttpRequestMessage Request(string path, IdentityPosture posture)
+    private static HttpRequestMessage Request(string path, IdentityPosture posture, IPresenceProof? proof = null)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, path);
         if (posture == IdentityPosture.Secured)
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes("ops:secret")));
         }
+        else if (proof is not null)
+        {
+            request.Headers.Add(PresenceProofValidator.HeaderName, proof.Token);
+        }
         return request;
     }
 
-    private static async Task<WebApplication> Start(IdentityPosture posture, InMemorySignalHistory history)
+    private static async Task<WebApplication> Start(IdentityPosture posture, InMemorySignalHistory history, IPresenceProof? proof = null)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -94,6 +116,10 @@ public sealed class LocalOwnerJournalTailFacts
         builder.WebHost.UseSetting(WebHostDefaults.PreventHostingStartupKey, "true");
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Services.AddSingleton(Options.Create(new AuthOptions { Posture = posture, Username = "ops", Password = "secret" }));
+        if (proof is not null)
+        {
+            builder.Services.AddSingleton(proof);
+        }
         builder.Services.AddKeyedSingleton<IIdentity>(Capability.Identity.V1Id, new Members(posture == IdentityPosture.Open ? "owner" : "ops"));
         builder.Services.AddSingleton<Func<BrainId, ISignalHistory>>(_ => history);
         var app = builder.Build();

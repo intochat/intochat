@@ -1,5 +1,7 @@
 using System.Buffers.Text;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
+using System.Security.Principal;
 using System.Text;
 using DigitalBrain.Runtime.Orleans;
 using Microsoft.AspNetCore.Http;
@@ -29,18 +31,21 @@ public interface IPresenceProof
 public sealed class PresenceProofValidator : IPresenceProof
 {
     public const string HeaderName = "X-IntoChat-Presence";
+    public const string LegacyHeaderName = "X-Presence-Token";
     public const string CookieName = "IntoChatPresence";
     public const string ExchangePath = "/auth/local-presence";
-    public const string EnvironmentVariable = "INTOCHAT_PRESENCE_TOKEN";
     public const string ConfigurationKey = "IntoChatOS:Authority:PresenceToken";
+    public const string TokenHashConfigurationKey = "IntoChatOS:Security:PresenceTokenHash";
+    public const string TokenHashEnvironmentVariable = "IntoChatOS__Security__PresenceTokenHash";
     public const string TokenFileConfigurationKey = "IntoChatOS:Security:PresenceTokenFile";
     public const int SecretByteCount = 32;
+    private const int MinimumUtf8SecretBytes = 16;
     private const int MaxCandidateChars = 512;
 
     private static readonly byte[] CookieContext = "intochat-local-presence-cookie-v1"u8.ToArray();
 
-    private readonly byte[] _secretBytes;
-    private readonly byte[] _tokenUtf8;
+    private readonly byte[] _secretHash;
+    private readonly string? _canonicalToken;
     private readonly byte[] _cookieHmacUtf8;
 
     public PresenceProofValidator(IConfiguration? configuration = null, RuntimeOptions? runtimeOptions = null)
@@ -55,21 +60,50 @@ public sealed class PresenceProofValidator : IPresenceProof
             throw new ArgumentException($"Presence secret must be at least {SecretByteCount} bytes.", nameof(rawSecretBytes));
         }
 
-        _secretBytes = rawSecretBytes.ToArray();
-        Token = Base64Url.EncodeToString(_secretBytes);
-        _tokenUtf8 = Encoding.UTF8.GetBytes(Token);
-        _cookieHmacUtf8 = Encoding.UTF8.GetBytes(ComputeCookieMac(_secretBytes));
+        _secretHash = SHA256.HashData(rawSecretBytes);
+        _canonicalToken = Base64Url.EncodeToString(rawSecretBytes);
+        _cookieHmacUtf8 = Encoding.UTF8.GetBytes(ComputeCookieMac(_secretHash));
     }
 
-    private PresenceProofValidator((byte[] SecretBytes, string CanonicalToken) material)
+    private PresenceProofValidator((byte[] SecretHash, string? CanonicalToken) material)
     {
-        _secretBytes = material.SecretBytes;
-        Token = material.CanonicalToken;
-        _tokenUtf8 = Encoding.UTF8.GetBytes(Token);
-        _cookieHmacUtf8 = Encoding.UTF8.GetBytes(ComputeCookieMac(_secretBytes));
+        _secretHash = material.SecretHash;
+        _canonicalToken = material.CanonicalToken;
+        _cookieHmacUtf8 = Encoding.UTF8.GetBytes(ComputeCookieMac(_secretHash));
     }
 
-    public string Token { get; }
+    public string Token => _canonicalToken
+        ?? throw new InvalidOperationException("Plaintext presence token is unavailable when configured by hash.");
+
+    public static string ComputeTokenHash(ReadOnlySpan<byte> rawSecretBytes)
+    {
+        if (rawSecretBytes.Length < MinimumUtf8SecretBytes)
+        {
+            throw new ArgumentException($"Presence secret must be at least {MinimumUtf8SecretBytes} bytes.", nameof(rawSecretBytes));
+        }
+
+        Span<byte> digest = stackalloc byte[SHA256.HashSizeInBytes];
+        SHA256.HashData(rawSecretBytes, digest);
+        return Convert.ToHexStringLower(digest);
+    }
+
+    public static string ComputeTokenHash(string token)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        var trimmed = token.AsSpan().Trim();
+        if (trimmed.Length is 0 or > MaxCandidateChars)
+        {
+            throw new ArgumentException("Presence token length is out of bounds.", nameof(token));
+        }
+
+        Span<byte> extracted = stackalloc byte[Encoding.UTF8.GetMaxByteCount(trimmed.Length)];
+        if (!TryExtractSecretBytes(trimmed, extracted, out var len))
+        {
+            throw new ArgumentException("Presence token does not contain valid secret material.", nameof(token));
+        }
+
+        return ComputeTokenHash(extracted[..len]);
+    }
 
     public string IssueCookieValue() => Encoding.UTF8.GetString(_cookieHmacUtf8);
 
@@ -86,18 +120,15 @@ public sealed class PresenceProofValidator : IPresenceProof
             return false;
         }
 
-        // 1. Constant-time UTF-8 comparison against the canonical token string.
-        Span<byte> utf8 = stackalloc byte[Encoding.UTF8.GetMaxByteCount(trimmed.Length)];
-        var utf8Len = Encoding.UTF8.GetBytes(trimmed, utf8);
-        var exactMatch = CryptographicOperations.FixedTimeEquals(utf8[..utf8Len], _tokenUtf8);
+        Span<byte> extracted = stackalloc byte[Encoding.UTF8.GetMaxByteCount(trimmed.Length)];
+        if (!TryExtractSecretBytes(trimmed, extracted, out var extractedLen))
+        {
+            return false;
+        }
 
-        // 2. Constant-time 32-byte payload comparison across Base64Url / Base64 / Hex encodings so a raw 32-byte
-        // ~/.intochat/run/presence file and Base64/Base64Url/Hex headers interoperate without format friction.
-        Span<byte> decoded = stackalloc byte[MaxCandidateChars];
-        var decodedMatch = TryDecodeSecretBytes(trimmed, decoded, out var decodedLen)
-            && CryptographicOperations.FixedTimeEquals(decoded[..decodedLen], _secretBytes);
-
-        return exactMatch | decodedMatch;
+        Span<byte> candidateHash = stackalloc byte[SHA256.HashSizeInBytes];
+        SHA256.HashData(extracted[..extractedLen], candidateHash);
+        return CryptographicOperations.FixedTimeEquals(candidateHash, _secretHash);
     }
 
     public bool MatchesCookie(string? cookieValue)
@@ -183,17 +214,27 @@ public sealed class PresenceProofValidator : IPresenceProof
         return Base64Url.EncodeToString(mac);
     }
 
-    private static (byte[] SecretBytes, string CanonicalToken) LoadMaterial(IConfiguration? configuration, RuntimeOptions? runtimeOptions)
+    private static (byte[] SecretHash, string? CanonicalToken) LoadMaterial(IConfiguration? configuration, RuntimeOptions? runtimeOptions)
     {
-        var configured = configuration?[EnvironmentVariable]
-            ?? configuration?[ConfigurationKey]
-            ?? Environment.GetEnvironmentVariable(EnvironmentVariable);
+        var configuredHash = configuration?[TokenHashConfigurationKey];
+        if (!string.IsNullOrWhiteSpace(configuredHash))
+        {
+            var trimmedHash = configuredHash.AsSpan().Trim();
+            if (trimmedHash.Length != SHA256.HashSizeInBytes * 2 || !IsHex(trimmedHash))
+            {
+                throw new InvalidOperationException("Presence token hash must be a 64-character SHA-256 hexadecimal digest.");
+            }
+
+            return (Convert.FromHexString(trimmedHash), null);
+        }
+
+        var configured = configuration?[ConfigurationKey];
         if (!string.IsNullOrWhiteSpace(configured))
         {
             return ParseTextMaterial(configured);
         }
 
-        var filePath = ResolvePresenceFilePath(configuration, runtimeOptions);
+        var (filePath, hasExplicitLocation) = ResolvePresenceFilePath(configuration, runtimeOptions);
         if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
         {
             var rawBytes = File.ReadAllBytes(filePath);
@@ -204,10 +245,112 @@ public sealed class PresenceProofValidator : IPresenceProof
         }
 
         var generated = RandomNumberGenerator.GetBytes(SecretByteCount);
-        return (generated, Base64Url.EncodeToString(generated));
+        if (hasExplicitLocation && !string.IsNullOrWhiteSpace(filePath))
+        {
+            var writtenBytes = WriteOrLoadOwnerOnlyPresenceFile(filePath, generated);
+            return ParseFileMaterial(writtenBytes);
+        }
+
+        return (SHA256.HashData(generated), Base64Url.EncodeToString(generated));
     }
 
-    private static string? ResolvePresenceFilePath(IConfiguration? configuration, RuntimeOptions? runtimeOptions)
+    private static byte[] WriteOrLoadOwnerOnlyPresenceFile(string filePath, byte[] generated)
+    {
+        var directory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            EnsureOwnerOnlyDirectory(directory);
+        }
+
+        var tempPath = Path.Combine(directory ?? Path.GetTempPath(), $".presence.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                File.WriteAllBytes(tempPath, generated);
+                ApplyOwnerOnlyFileAcl(tempPath);
+            }
+            else
+            {
+                using var stream = new FileStream(tempPath, new FileStreamOptions
+                {
+                    Mode = FileMode.CreateNew,
+                    Access = FileAccess.Write,
+                    Share = FileShare.None,
+                    UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite,
+                });
+                stream.Write(generated);
+                stream.Flush(flushToDisk: true);
+            }
+
+            try
+            {
+                File.Move(tempPath, filePath, overwrite: false);
+                return generated;
+            }
+            catch (IOException) when (File.Exists(filePath))
+            {
+                var existing = File.ReadAllBytes(filePath);
+                return existing.Length > 0 ? existing : generated;
+            }
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+    }
+
+    private static void EnsureOwnerOnlyDirectory(string directoryPath)
+    {
+        System.IO.Directory.CreateDirectory(directoryPath);
+        if (OperatingSystem.IsWindows())
+        {
+            var currentUser = WindowsIdentity.GetCurrent().User;
+            if (currentUser is not null)
+            {
+                var security = new DirectorySecurity();
+                security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+                security.AddAccessRule(new FileSystemAccessRule(
+                    currentUser,
+                    FileSystemRights.FullControl,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+                new DirectoryInfo(directoryPath).SetAccessControl(security);
+            }
+        }
+        else
+        {
+            File.SetUnixFileMode(directoryPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
+    private static void ApplyOwnerOnlyFileAcl(string filePath)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var currentUser = WindowsIdentity.GetCurrent().User;
+        if (currentUser is null)
+        {
+            return;
+        }
+
+        var security = new FileSecurity();
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        security.AddAccessRule(new FileSystemAccessRule(
+            currentUser,
+            FileSystemRights.FullControl,
+            AccessControlType.Allow));
+        new FileInfo(filePath).SetAccessControl(security);
+    }
+
+    private static (string? Path, bool ExplicitLocation) ResolvePresenceFilePath(IConfiguration? configuration, RuntimeOptions? runtimeOptions)
     {
         var invalidChars = Path.GetInvalidPathChars();
         if (configuration is not null)
@@ -215,29 +358,29 @@ public sealed class PresenceProofValidator : IPresenceProof
             var explicitFile = configuration[TokenFileConfigurationKey];
             if (!string.IsNullOrWhiteSpace(explicitFile) && explicitFile.IndexOfAny(invalidChars) < 0)
             {
-                return explicitFile;
+                return (explicitFile, true);
             }
 
             var options = runtimeOptions ?? new RuntimeOptions { HomeKey = "IntoChatOS:Home", DefaultHomeDirectoryName = ".intochat" };
             var homeRoot = configuration[options.HomeKey];
             if (!string.IsNullOrWhiteSpace(homeRoot) && homeRoot.IndexOfAny(invalidChars) < 0)
             {
-                return Path.Combine(homeRoot, "run", "presence");
+                return (Path.Combine(homeRoot, "run", "presence"), true);
             }
         }
 
         var userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         return string.IsNullOrWhiteSpace(userHome) || userHome.IndexOfAny(invalidChars) >= 0
-            ? null
-            : Path.Combine(userHome, ".intochat", "run", "presence");
+            ? (null, false)
+            : (Path.Combine(userHome, ".intochat", "run", "presence"), false);
     }
 
-    private static (byte[] SecretBytes, string CanonicalToken) ParseFileMaterial(byte[] rawBytes)
+    private static (byte[] SecretHash, string? CanonicalToken) ParseFileMaterial(byte[] rawBytes)
     {
         // Exact 32 raw bytes written directly to ~/.intochat/run/presence
         if (rawBytes.Length == SecretByteCount && !IsAllPrintableAscii(rawBytes))
         {
-            return (rawBytes, Base64Url.EncodeToString(rawBytes));
+            return (SHA256.HashData(rawBytes), Base64Url.EncodeToString(rawBytes));
         }
 
         var text = Encoding.UTF8.GetString(rawBytes).Trim();
@@ -248,26 +391,24 @@ public sealed class PresenceProofValidator : IPresenceProof
 
         if (rawBytes.Length >= SecretByteCount)
         {
-            return (rawBytes, Base64Url.EncodeToString(rawBytes));
+            return (SHA256.HashData(rawBytes), Base64Url.EncodeToString(rawBytes));
         }
 
-        // Derive a full 32-byte key if file had fewer than 32 non-empty bytes
         var derived = SHA256.HashData(rawBytes);
-        return (derived, text.Length > 0 ? text : Base64Url.EncodeToString(derived));
+        return (SHA256.HashData(derived), text.Length > 0 ? text : Base64Url.EncodeToString(derived));
     }
 
-    private static (byte[] SecretBytes, string CanonicalToken) ParseTextMaterial(string rawText)
+    private static (byte[] SecretHash, string? CanonicalToken) ParseTextMaterial(string rawText)
     {
         var trimmed = rawText.Trim();
-        Span<byte> decoded = stackalloc byte[MaxCandidateChars];
-        if (TryDecodeSecretBytes(trimmed.AsSpan(), decoded, out var decodedLen) && decodedLen >= SecretByteCount)
+        Span<byte> decoded = stackalloc byte[Encoding.UTF8.GetMaxByteCount(Math.Min(trimmed.Length, MaxCandidateChars))];
+        if (TryExtractSecretBytes(trimmed.AsSpan(), decoded, out var decodedLen))
         {
-            return (decoded[..decodedLen].ToArray(), trimmed);
+            return (SHA256.HashData(decoded[..decodedLen]), trimmed);
         }
 
         var utf8 = Encoding.UTF8.GetBytes(trimmed);
-        var secretBytes = utf8.Length >= SecretByteCount ? utf8 : SHA256.HashData(utf8);
-        return (secretBytes, trimmed);
+        return (SHA256.HashData(utf8), trimmed);
     }
 
     private static bool IsAllPrintableAscii(ReadOnlySpan<byte> bytes)
@@ -286,6 +427,24 @@ public sealed class PresenceProofValidator : IPresenceProof
         }
 
         return true;
+    }
+
+    private static bool TryExtractSecretBytes(ReadOnlySpan<char> text, Span<byte> destination, out int bytesWritten)
+    {
+        if (TryDecodeSecretBytes(text, destination, out bytesWritten))
+        {
+            return true;
+        }
+
+        var utf8ByteCount = Encoding.UTF8.GetByteCount(text);
+        if (utf8ByteCount >= MinimumUtf8SecretBytes && utf8ByteCount <= destination.Length)
+        {
+            bytesWritten = Encoding.UTF8.GetBytes(text, destination);
+            return true;
+        }
+
+        bytesWritten = 0;
+        return false;
     }
 
     private static bool TryDecodeSecretBytes(ReadOnlySpan<char> text, Span<byte> destination, out int bytesWritten)

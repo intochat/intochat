@@ -134,7 +134,6 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host)
             }),
         })
         {
-            personApproveReq.Headers.Add(IntoChat.OS.Authority.Identity.PresenceProofValidator.HeaderName, host.PresenceToken);
             using var personApproveRes = await host.Os.SendAsync(personApproveReq, ct);
             Assert.Equal(HttpStatusCode.OK, personApproveRes.StatusCode);
         }

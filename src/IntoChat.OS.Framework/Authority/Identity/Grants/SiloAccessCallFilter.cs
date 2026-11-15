@@ -2,19 +2,24 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Invocation;
-using DigitalBrain.Runtime.Orleans.Access;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
-using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 
 namespace IntoChat.OS.Authority.Identity.Grants;
 
-public sealed class SiloAccessCallFilter(IServiceProvider services) : IIncomingGrainCallFilter
+public sealed class SiloAccessCallFilter(
+    IEnumerable<ICallFilterStage> stages,
+    ICallerAmbient? callerAmbient = null,
+    AccessOptions? accessOptions = null) : IIncomingGrainCallFilter
 {
     private static readonly Func<bool> IsInProcessCallerScopeActive = ResolveInProcessActiveAccessor();
+
+    private readonly ICallFilterStage[] _stages = [.. (stages ?? throw new ArgumentNullException(nameof(stages))).OrderBy(static s => s.Order)];
+    private readonly ICallerAmbient? _callerAmbient = callerAmbient;
+    private readonly bool _unstampedEdgeIsKernel = accessOptions?.UnstampedEdgeIsKernel ?? false;
 
     private static Func<bool> ResolveInProcessActiveAccessor()
     {
@@ -24,6 +29,7 @@ public sealed class SiloAccessCallFilter(IServiceProvider services) : IIncomingG
             ? getter.CreateDelegate<Func<bool>>()
             : static () => false;
     }
+
     public async Task Invoke(IIncomingGrainCallContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -100,24 +106,23 @@ public sealed class SiloAccessCallFilter(IServiceProvider services) : IIncomingG
             targetBrain = EdgeGrantsCache.ExtractBrain(rawKey);
         }
 
-        // Resolve ambient or stamped caller
-        var callerAmbient = services.GetService<ICallerAmbient>()?.Current;
-        Caller? caller = callerAmbient;
-        if (caller is null && RuntimeCallerContext.Current is { } capCaller)
-        {
-            caller = capCaller.ToCaller();
-        }
+        var caller = ResolveCurrentCaller();
 
         // Handle unstamped caller provenance: trusted in-process silo hops carry ProcessSecretToken via
         // InProcessCallerScope.Enter(); unstamped external/edge calls fail closed when UnstampedEdgeIsKernel is false.
         if (caller is null)
         {
-            if (!IsInProcessCallerScopeActive() && !(services.GetService<AccessOptions>()?.UnstampedEdgeIsKernel ?? true))
+            if (!IsInProcessCallerScopeActive() && !_unstampedEdgeIsKernel)
             {
                 throw new UnauthorizedAccessException($"Unstamped call to '{targetNeuron}' carried no caller provenance.");
             }
 
             return;
+        }
+
+        if (_stages.Length == 0)
+        {
+            throw new UnauthorizedAccessException("Fail-closed access policy: no ICallFilterStage is registered in the silo.");
         }
 
         var operation = string.IsNullOrEmpty(call.Contract) ? call.Method : $"{call.Contract}.{call.Method}";
@@ -131,18 +136,8 @@ public sealed class SiloAccessCallFilter(IServiceProvider services) : IIncomingG
             EnforceTarget = true,
         };
 
-        var stages = services.GetServices<ICallFilterStage>().OrderBy(s => s.Order).ToArray();
-        if (stages.Length == 0)
-        {
-            if (services.GetService<IntoChat.OS.Authority.Hosting.AccessPolicyValidation>() is not null)
-            {
-                throw new InvalidOperationException("Fail-closed access policy: no ICallFilterStage is registered in the silo.");
-            }
-            return;
-        }
-
         CallDecision? decision = null;
-        foreach (var stage in stages)
+        foreach (var stage in _stages)
         {
             decision = await stage.EvaluateAsync(request);
             if (decision is not null)
@@ -150,7 +145,10 @@ public sealed class SiloAccessCallFilter(IServiceProvider services) : IIncomingG
                 break;
             }
         }
-        decision ??= CallDecision.Allow();
+
+        decision ??= CallDecision.Deny(
+            CallDenial.MissingGrant,
+            $"No authorization stage returned a decision for '{targetNeuron}.{operation}'.");
 
         if (!decision.Allowed)
         {
@@ -160,9 +158,7 @@ public sealed class SiloAccessCallFilter(IServiceProvider services) : IIncomingG
 
     private void AuthorizeGrainCall(IIncomingGrainCallContext context)
     {
-        var callerAmbient = services.GetService<ICallerAmbient>()?.Current;
-        var capCaller = RuntimeCallerContext.Current;
-        var caller = callerAmbient ?? capCaller?.ToCaller();
+        var caller = ResolveCurrentCaller();
 
         if (caller is not null)
         {
@@ -187,4 +183,7 @@ public sealed class SiloAccessCallFilter(IServiceProvider services) : IIncomingG
             }
         }
     }
+
+    private Caller? ResolveCurrentCaller()
+        => _callerAmbient?.Current ?? RuntimeCallerContext.Current?.ToCaller();
 }

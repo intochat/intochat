@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Kernel;
-using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority.Identity.Contacts;
@@ -11,6 +11,7 @@ using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Authority.Identity.Grants;
 
@@ -56,6 +57,7 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     private readonly IServiceProvider? _services;
     private readonly IClusterListeners? _listeners;
     private readonly TimeProvider _clock;
+    private readonly ILogger<EdgeGrantsCache>? _logger;
 
     private sealed record CachedGrantsEntry(Grant[] Grants, long Version, DateTimeOffset CachedAt);
 
@@ -64,6 +66,7 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         _services = services;
         _listeners = listeners;
         _clock = clock ?? TimeProvider.System;
+        _logger = services?.GetService<ILoggerFactory>()?.CreateLogger<EdgeGrantsCache>();
         Current = this;
 
         if (listeners is not null)
@@ -114,7 +117,7 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
             }
             catch (Exception error) when (cached is not null)
             {
-                Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(error, "Fallback to cached grants on network or silo timeout");
+                LogFallback(error, "cached grants", brain);
                 return cached.Grants;
             }
         }
@@ -181,12 +184,24 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
             }
             catch (Exception error) when (cached is not null)
             {
-                Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(error, "Fallback to cached expansion on network or silo timeout");
+                LogFallback(error, "cached expansion", ownerBrain);
                 return cached.Principals;
             }
         }
 
         return cached?.Principals ?? set;
+    }
+
+    private void LogFallback(Exception error, string cacheKind, string brain)
+    {
+        if (_logger is not null)
+        {
+            _logger.LogWarning(error, "Falling back to {CacheKind} on network or silo timeout for brain {Brain}.", cacheKind, brain);
+        }
+        else
+        {
+            Trace.TraceWarning("Falling back to {0} for brain '{1}': {2}", cacheKind, brain, error.Message);
+        }
     }
 
     public async Task<bool> IsGrantedAsync(string brain, CapabilityCaller caller, string semanticTypeId, string? targetNeuron = null, CancellationToken ct = default)

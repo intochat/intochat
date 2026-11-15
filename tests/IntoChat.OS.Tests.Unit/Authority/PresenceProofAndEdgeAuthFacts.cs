@@ -70,7 +70,6 @@ public sealed class PresenceProofAndEdgeAuthFacts
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["IntoChatOS:Home"] = tempHome,
-                    [PresenceProofValidator.EnvironmentVariable] = null,
                 })
                 .Build();
 
@@ -88,7 +87,7 @@ public sealed class PresenceProofAndEdgeAuthFacts
     }
 
     [Fact]
-    public async Task OpenPosture_WithoutPresenceProof_StampsLocalNonPersonApp_AndWithValidHeaderStampsPerson()
+    public async Task OpenPosture_WithoutPresenceProof_Returns401Unauthorized_AndWithValidHeaderStampsPerson()
     {
         var raw = RandomNumberGenerator.GetBytes(32);
         var proof = new PresenceProofValidator(raw);
@@ -96,14 +95,11 @@ public sealed class PresenceProofAndEdgeAuthFacts
         await using var app = await StartEdgeTestAppAsync(IdentityPosture.Open, proof);
         using var client = new HttpClient { BaseAddress = new Uri(app.Urls.First()) };
 
-        // 1. Unproved loopback request -> App("local"), NOT Actor.Person!
-        var unproved = await client.GetFromJsonAsync<CallerProbe>("/probe/caller", Ct);
-        Assert.NotNull(unproved);
-        Assert.Equal(CallerKind.App.ToString(), unproved.Kind);
-        Assert.Equal(AccountSession.LocalAppId, unproved.AppId);
-        Assert.False(unproved.IsActorPerson);
+        // 1. Unproved loopback request -> 401 Unauthorized (never silently falls back to local!)
+        using var unprovedRes = await client.GetAsync("/probe/caller", Ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, unprovedRes.StatusCode);
 
-        // 2. Forged X-IntoChat-Presence header -> 401 Unauthorized (never silently falls back to local!)
+        // 2. Forged X-IntoChat-Presence header -> 401 Unauthorized
         using (var forgedReq = new HttpRequestMessage(HttpMethod.Get, "/probe/caller"))
         {
             forgedReq.Headers.Add(PresenceProofValidator.HeaderName, "stale-or-forged-token");
@@ -252,7 +248,7 @@ public sealed class PresenceProofAndEdgeAuthFacts
     }
 
     [Fact]
-    public async Task GrantPolicySource_AllowsLocalAppCallerInOpenPosture_WhileZeroTokenGuardStillDeniesVault()
+    public async Task GrantPolicySource_AllowsProvenPersonInOpenPosture_WhileZeroTokenGuardStillDeniesVault()
     {
         var identity = new StubIdentityClient();
         var mirror = new AuthorityMirror();
@@ -260,24 +256,26 @@ public sealed class PresenceProofAndEdgeAuthFacts
         var source = new GrainGrantPolicySource(identity, mirror, auth);
         var stage = new GrantCallFilterStage(source);
 
-        var localCaller = (CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin)
-            with
-        { AppId = AccountSession.LocalAppId }).ToCaller();
-
+        var personCaller = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin).ToCaller();
         var uiDecision = await stage.EvaluateAsync(new CallRequest
         {
-            Caller = localCaller,
+            Caller = personCaller,
             TargetNeuron = "app.view/owner/main",
             Operation = "IView.Read",
             TargetScope = "owner",
             EnforceTarget = true,
             SemanticTypeIds = ["ui.view"],
         }, Ct);
-        Assert.Null(uiDecision);
+        Assert.NotNull(uiDecision);
+        Assert.True(uiDecision.Allowed);
+
+        var untrustedAppCaller = (CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin)
+            with
+        { AppId = "untrusted-app" }).ToCaller();
 
         var vaultDecision = await stage.EvaluateAsync(new CallRequest
         {
-            Caller = localCaller,
+            Caller = untrustedAppCaller,
             TargetNeuron = "identity.vault/owner/main",
             Operation = "IVault.Resolve",
             TargetScope = "owner",

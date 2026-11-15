@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Authority.Identity.Authority;
@@ -23,12 +24,30 @@ internal sealed class GrainGrantPolicySource(IIdentityClient identity, Authority
     public ValueTask<CallDecision?> AuthorizeAsync(CallRequest request, CancellationToken cancellationToken)
     {
         var caller = request.Caller.ToCapabilityCaller();
-        if (request.PublicOperation) { return ValueTask.FromResult<CallDecision?>(null); }
-        if (caller is null || caller.Kind == CallerKind.Platform) { return ValueTask.FromResult<CallDecision?>(null); }
-        if (auth?.Value.Posture == IdentityPosture.Open && caller.PrincipalId == AccountSession.DefaultLogin
-            && caller.AccountId == AccountSession.DefaultLogin
-            && (caller.Kind is CallerKind.User or CallerKind.Agent or CallerKind.Scheduler || (caller.Kind == CallerKind.App && caller.AppId == AccountSession.LocalAppId)))
-        { return ValueTask.FromResult<CallDecision?>(null); }
+        if (request.PublicOperation)
+        {
+            return ValueTask.FromResult<CallDecision?>(CallDecision.Allow());
+        }
+
+        if (caller is null)
+        {
+            return ValueTask.FromResult<CallDecision?>(CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no caller."));
+        }
+
+        if (caller.Kind == CallerKind.Platform)
+        {
+            return ValueTask.FromResult<CallDecision?>(CallDecision.Allow());
+        }
+
+        if (auth?.Value.Posture == IdentityPosture.Open
+            && request.Caller.Actor is Actor.Person
+            && caller.Kind == CallerKind.User
+            && caller.PrincipalId == AccountSession.DefaultLogin
+            && caller.AccountId == AccountSession.DefaultLogin)
+        {
+            return ValueTask.FromResult<CallDecision?>(CallDecision.Allow());
+        }
+
         return Decide(request, cancellationToken);
     }
 

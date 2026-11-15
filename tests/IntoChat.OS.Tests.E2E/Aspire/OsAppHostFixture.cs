@@ -64,11 +64,6 @@ public sealed class OsAppHostFixture : IAsyncLifetime
     {
         InitializeConfigurationRoot();
         var started = DateTimeOffset.UtcNow;
-        var presenceBytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(PresenceProofValidator.SecretByteCount);
-        PresenceToken = System.Buffers.Text.Base64Url.EncodeToString(presenceBytes);
-        var presenceDir = Path.Combine(Home, "run");
-        Directory.CreateDirectory(presenceDir);
-        await File.WriteAllBytesAsync(Path.Combine(presenceDir, "presence"), presenceBytes);
 
         var args = new List<string>
         {
@@ -89,7 +84,9 @@ public sealed class OsAppHostFixture : IAsyncLifetime
             App = await _builder.BuildAsync();
             using var startTimeout = new CancellationTokenSource(_startTimeout);
             await App.StartAsync(startTimeout.Token);
+            PresenceToken = await ReadKernelPresenceTokenAsync(Path.Combine(Home, "run", "presence"), startTimeout.Token);
             Os = App.CreateHttpClient("OperatingSystem-a", "http");
+            Os.DefaultRequestHeaders.TryAddWithoutValidation(PresenceProofValidator.HeaderName, PresenceToken);
             await Healthy(startTimeout.Token);
             StartupDuration = DateTimeOffset.UtcNow - started;
         }
@@ -97,6 +94,33 @@ public sealed class OsAppHostFixture : IAsyncLifetime
         {
             await DisposeAsync();
             throw;
+        }
+    }
+
+    private static async Task<string> ReadKernelPresenceTokenAsync(string presenceFilePath, CancellationToken ct)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (File.Exists(presenceFilePath))
+            {
+                var bytes = await File.ReadAllBytesAsync(presenceFilePath, ct);
+                if (bytes.Length >= PresenceProofValidator.SecretByteCount)
+                {
+                    var isPrintableAscii = bytes.All(static b => b is (byte)'\r' or (byte)'\n' or (byte)'\t' || b is >= 0x21 and <= 0x7E);
+                    return isPrintableAscii
+                        ? System.Text.Encoding.UTF8.GetString(bytes).Trim()
+                        : System.Buffers.Text.Base64Url.EncodeToString(bytes);
+                }
+            }
+
+            if (DateTimeOffset.UtcNow >= deadline)
+            {
+                throw new TimeoutException($"Kernel did not mint presence proof at '{presenceFilePath}' within 30s.");
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(50), ct);
         }
     }
 

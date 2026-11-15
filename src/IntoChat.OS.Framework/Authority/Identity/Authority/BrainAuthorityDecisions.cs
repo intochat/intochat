@@ -23,7 +23,8 @@ internal static class BrainAuthorityDecisions
             return CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no caller.");
         }
         var circleMember = state.Kind == BrainKind.Circle && Member(state, caller.PersonId)?.AccountId == caller.AccountId;
-        if (state.AccountId != caller.AccountId && !circleMember || state.BrainId != caller.BrainId)
+        var sameBrainScheduler = caller.Kind == CallerKind.Scheduler && state.BrainId == caller.BrainId;
+        if ((!sameBrainScheduler && state.AccountId != caller.AccountId && !circleMember) || state.BrainId != caller.BrainId)
         { return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target scope does not match this brain."); }
         var principals = await EdgeGrantsCache.Current.ExpandAsync(GrantsBrainOf(request), caller);
         var connectionBound = caller.Kind == CallerKind.App && request.SemanticTypeIds.Length == 0 && GrantRules.AppOf(caller) is not null

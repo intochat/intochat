@@ -56,7 +56,7 @@ public sealed class GuestSurfaceFacts
         Assert.Equal(CallerKind.App, stamped.Kind);
         Assert.IsNotType<Actor.Person>(stamped.ToCaller().Actor);
         Assert.DoesNotContain(GuestSurface.AppId,
-            new[] { CapabilityCallers.PlatformApp, CapabilityCallers.SchedulerApp, CapabilityCallers.AssistantApp, AccountSession.LocalAppId });
+            new[] { CapabilityCallers.PlatformApp, CapabilityCallers.SchedulerApp, CapabilityCallers.AssistantApp });
         Assert.DoesNotContain('/', GuestSurface.AppId);
     }
 

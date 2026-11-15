@@ -3,7 +3,7 @@
 // using a sub-millisecond in-memory socket check instead of a 2s closed-port HTTP probe,
 // canonical home ~/.intochat (overridable via IntoChatOS__Home), DPAPI-protected master.key,
 // atomic ~/.intochat/run/kernel.pid lifecycle tracking, and an owner-only per-boot presence token
-// in ~/.intochat/run/presence passed via INTOCHAT_PRESENCE_TOKEN.
+// in ~/.intochat/run/presence validated by SHA-256 hash without leaking plain secrets in env vars.
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -237,7 +237,7 @@ static async Task TerminateOwnedKernelAsync(Process ownedKernel, DesktopLayout l
     }
     catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
     {
-        _ = ex.Message;
+        Trace.TraceWarning("Kernel termination encountered an error: {0}", ex.Message);
     }
     finally
     {
@@ -249,6 +249,7 @@ static async Task TerminateOwnedKernelAsync(Process ownedKernel, DesktopLayout l
         }
 
         _ = DesktopBootstrap.TryDeleteRunFile(layout.PresenceFilePath);
+        _ = DesktopBootstrap.TryDeleteRunFile(DesktopBootstrap.KernelConfigFilePath(layout));
     }
 }
 
@@ -260,7 +261,7 @@ static void OpenBrowser(string url)
     }
     catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
     {
-        _ = ex.Message;
+        Trace.TraceWarning("Failed to open browser URL '{0}': {1}", url, ex.Message);
     }
 }
 
@@ -278,7 +279,7 @@ static async Task<bool> Healthy(HttpClient http, Uri kernel)
     }
     catch (HttpRequestException ex)
     {
-        _ = ex.Message;
+        Trace.TraceWarning("Kernel health probe failed on '{0}': {1}", kernel, ex.Message);
         return false;
     }
     catch (TaskCanceledException)
@@ -310,6 +311,8 @@ internal static class DesktopMasterKey
     // Existing encrypted data keeps its original key: a missing key file next to a non-empty brain store is a stop, not a reset.
     public static string LoadOrCreate(DesktopLayout layout)
     {
+        _ = DesktopBootstrap.MigrateLegacyHome(layout);
+
         if (File.Exists(layout.MasterKeyPath))
         {
             return UnsealKeyFile(layout.MasterKeyPath);

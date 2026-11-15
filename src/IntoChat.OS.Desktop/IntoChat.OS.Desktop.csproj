@@ -10,4 +10,7 @@
     <IsPackable>false</IsPackable>
     <DefaultItemExcludes>$(DefaultItemExcludes);IntoChat.OS.Desktop.Tests.Unit\**</DefaultItemExcludes>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\IntoChat.OS.Framework\Execution\ChildEnvironmentPolicy.cs" Link="Execution\ChildEnvironmentPolicy.cs" />
+  </ItemGroup>
 </Project>

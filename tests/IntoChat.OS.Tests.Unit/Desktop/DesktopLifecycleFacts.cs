@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Kernel;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -217,11 +218,11 @@ public sealed class DesktopLifecycleFacts
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                [RuntimeShutdownEndpoints.PresenceTokenEnvKey] = validToken,
+                [PresenceProofValidator.TokenHashConfigurationKey] = PresenceProofValidator.ComputeTokenHash(validToken),
             })
             .Build();
 
-        Assert.Equal(validToken, RuntimeShutdownEndpoints.ResolveExpectedPresenceToken(config));
+        var proof = new PresenceProofValidator(config);
 
         var loopbackCtx = new DefaultHttpContext();
         loopbackCtx.Connection.RemoteIpAddress = IPAddress.Loopback;
@@ -231,21 +232,27 @@ public sealed class DesktopLifecycleFacts
         remoteCtx.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.44");
         Assert.False(RuntimeShutdownEndpoints.IsLoopbackRequest(remoteCtx));
 
-        // Missing token -> rejected.
-        Assert.False(RuntimeShutdownEndpoints.HasValidPresenceToken(loopbackCtx.Request, validToken));
+        // Null IPresenceProof or missing token -> rejected.
+        Assert.False(RuntimeShutdownEndpoints.HasValidPresenceProof(loopbackCtx.Request, null));
+        Assert.False(RuntimeShutdownEndpoints.HasValidPresenceProof(loopbackCtx.Request, proof));
 
         // Wrong token -> rejected.
-        loopbackCtx.Request.Headers[RuntimeShutdownEndpoints.PresenceHeaderName] = DesktopBootstrap.GeneratePresenceToken();
-        Assert.False(RuntimeShutdownEndpoints.HasValidPresenceToken(loopbackCtx.Request, validToken));
+        loopbackCtx.Request.Headers[PresenceProofValidator.LegacyHeaderName] = DesktopBootstrap.GeneratePresenceToken();
+        Assert.False(RuntimeShutdownEndpoints.HasValidPresenceProof(loopbackCtx.Request, proof));
 
         // Exact X-Presence-Token -> accepted.
-        loopbackCtx.Request.Headers[RuntimeShutdownEndpoints.PresenceHeaderName] = validToken;
-        Assert.True(RuntimeShutdownEndpoints.HasValidPresenceToken(loopbackCtx.Request, validToken));
+        loopbackCtx.Request.Headers[PresenceProofValidator.LegacyHeaderName] = validToken;
+        Assert.True(RuntimeShutdownEndpoints.HasValidPresenceProof(loopbackCtx.Request, proof));
+
+        // Exact X-IntoChat-Presence -> accepted.
+        var canonicalCtx = new DefaultHttpContext();
+        canonicalCtx.Request.Headers[PresenceProofValidator.HeaderName] = validToken;
+        Assert.True(RuntimeShutdownEndpoints.HasValidPresenceProof(canonicalCtx.Request, proof));
 
         // Authorization: Bearer <token> -> accepted.
         var bearerCtx = new DefaultHttpContext();
         bearerCtx.Request.Headers.Authorization = "Bearer " + validToken;
-        Assert.True(RuntimeShutdownEndpoints.HasValidPresenceToken(bearerCtx.Request, validToken));
+        Assert.True(RuntimeShutdownEndpoints.HasValidPresenceProof(bearerCtx.Request, proof));
     }
 
     private sealed class DelegateHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler

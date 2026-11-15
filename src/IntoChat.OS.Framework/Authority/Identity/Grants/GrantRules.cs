@@ -114,7 +114,7 @@ public static class GrantRules
         var caller = request.Caller.ToCapabilityCaller();
         if (caller is null)
         {
-            return null;
+            return CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no caller.");
         }
 
         if (caller.Kind is CallerKind.User or CallerKind.Agent
@@ -125,7 +125,7 @@ public static class GrantRules
 
         if (caller.Kind is not (CallerKind.App or CallerKind.Agent))
         {
-            return null;
+            return CallDecision.Allow();
         }
 
         if (AppOf(caller) is null)
