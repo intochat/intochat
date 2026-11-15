@@ -26,7 +26,9 @@ public sealed class InoAppAdversarialChallengeFacts
         var ino = await os.Install<InoApp>();
 
         await ino.Request("send", new InoSend(null, null));
-        Assert.Equal("hello", ino.App.State.Title);
+        Assert.Equal("New chat", ino.App.State.Title);
+        Assert.Null(ino.App.State.Pending);
+        Assert.Null(ino.App.State.ActiveRunId);
 
         await ino.Request("send", new InoSend("", ""));
         await ino.Request("send", new InoSend("   \r\n\t   ", "   "));

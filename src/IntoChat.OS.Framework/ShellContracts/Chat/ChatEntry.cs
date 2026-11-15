@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace IntoChat.OS.Modules.Flutter.Chat;
 
 public enum ChatRole { User, Assistant }
@@ -6,6 +8,8 @@ public sealed record ChatEntry(string Id, ChatRole Role, string Text)
 {
     public string Status { get; init; } = "completed";
     public string? Error { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Failure { get; init; }
     public ChatActivity[] Activities { get; init; } = [];
     // The label of the model that answered, for the toolbar's "answered by" line.
     public string? Model { get; init; }

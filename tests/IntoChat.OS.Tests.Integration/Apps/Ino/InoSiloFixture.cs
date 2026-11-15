@@ -263,9 +263,6 @@ public sealed class InoSiloFixture : IAsyncLifetime
                     services.Remove(d);
                 }
 
-                services.RemoveAll<IMemoryDiskStore>();
-                services.AddSingleton<IMemoryDiskStore>(new FileMemoryDiskStore(Path.Combine(_tempHome, "brains")));
-
                 services.RemoveAll<IChatClient>();
                 services.AddSingleton<IChatClient>(Model);
 

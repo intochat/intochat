@@ -335,7 +335,7 @@ public static partial class InoView
         return new ApprovalCardNode(
             $"approval-{approval.PlanId}", approval.PlanId, approval.Title, approval.Detail,
             [new ApprovalRowNode("Subject", "", approval.Subject)],
-            SystemName: "Ino", Status: "pending", Resolve: new Resolve(approval.PlanId),
+            SystemName: "Ino", Status: "pending",
             Icon: visual.IconKey, CapabilityLabel: visual.Label);
     }
 
