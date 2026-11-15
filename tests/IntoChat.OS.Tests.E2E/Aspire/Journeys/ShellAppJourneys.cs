@@ -67,6 +67,21 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
             JsonOptions);
         Assert.NotNull(expectedFixture?.Main);
 
+        if (string.Equals(journey.App, "creator", StringComparison.Ordinal))
+        {
+            var inoBaseline = await ReadGenerationAsync("ino", ct);
+            using var inoOpen = await host.Os.PostAsJsonAsync(
+                $"/brains/{host.Scope}/apps/ino/request",
+                new { operation = "open", input = "{}" },
+                ct);
+            Assert.Equal(HttpStatusCode.Accepted, inoOpen.StatusCode);
+
+            var inoFixture = JsonSerializer.Deserialize<ViewFixture>(
+                await File.ReadAllTextAsync(ResolveFixturePath("ino", "open.json"), Encoding.UTF8, ct),
+                JsonOptions);
+            _ = await PollMatchingOrStableViewAsync("ino", inoFixture!.Main!, inoBaseline, updatingFixtures: false, ct);
+        }
+
         var baselineGeneration = await ReadGenerationAsync(journey.App, ct);
 
         using var postResponse = await host.Os.PostAsJsonAsync(
