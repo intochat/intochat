@@ -378,7 +378,7 @@ public sealed class Gate20EdgeApprovalWallFacts
         return state.Pending.Any(p => string.Equals(p.PlanId, planId, StringComparison.Ordinal));
     }
 
-    private sealed class EdgeKernelHarness : IAsyncDisposable
+    internal sealed class EdgeKernelHarness : IAsyncDisposable
     {
         private readonly WebApplication _app;
         private readonly IDisposable _ports;
@@ -400,7 +400,8 @@ public sealed class Gate20EdgeApprovalWallFacts
         public string Scope { get; }
         public string PresenceToken { get; }
 
-        public static async Task<EdgeKernelHarness> StartAsync(CancellationToken ct)
+        // configure runs last on the host builder: a fact replaces a host service there (the model, for one).
+        public static async Task<EdgeKernelHarness> StartAsync(CancellationToken ct, Action<WebApplicationBuilder>? configure = null)
         {
             var homeDir = Path.Combine(Path.GetTempPath(), "intochat-gate20-it-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(homeDir, "run"));
@@ -436,6 +437,7 @@ public sealed class Gate20EdgeApprovalWallFacts
                 LocalRunDefaults.Apply(builder.Configuration);
                 builder.AddIntoChatOSServer(server => server.AddOperatingSystem(OperatingSystemModules.InProcessModules));
                 builder.Services.AddIntoChatOSMcp();
+                configure?.Invoke(builder);
 
                 app = builder.Build();
                 app.MapIntoChatOSServer();
