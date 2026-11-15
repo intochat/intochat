@@ -10,6 +10,7 @@ using DigitalBrain.Runtime.Orleans.Testing;
 using IntoChat.Cloud.Blob;
 using IntoChat.Cloud.Lobby;
 using IntoChat.OS.Aspire.Server;
+using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
@@ -27,7 +28,6 @@ namespace IntoChat.OS.Tests.Integration.Security;
 // A /try guest reaches the shipped demo apps through three MCP tools on its own brain, and nothing else.
 public sealed class CloudTopologyGuestMcpFacts(CloudTopologyGuestMcpFacts.CloudGuestHost host) : IClassFixture<CloudTopologyGuestMcpFacts.CloudGuestHost>
 {
-    private const string DoorMetadata = "IntoChat.OS.Authority.Identity.GuestSurface+Door";
     private static readonly string[] GuestScreens = ["photocraft", "helloworld", "btcalert"];
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -172,6 +172,7 @@ public sealed class CloudTopologyGuestMcpFacts(CloudTopologyGuestMcpFacts.CloudG
 
         var tried = 0;
         var admitted = new List<string>();
+        var answers = new SortedDictionary<int, int>();
         foreach (var route in brainRoutes.Where(route => !IsDoor(route)))
         {
             var path = PathOf(route.RoutePattern, host.BrainId);
@@ -184,6 +185,7 @@ public sealed class CloudTopologyGuestMcpFacts(CloudTopologyGuestMcpFacts.CloudG
                 try
                 {
                     using var response = await host.Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+                    answers[(int)response.StatusCode] = answers.GetValueOrDefault((int)response.StatusCode) + 1;
                     if ((int)response.StatusCode is >= 200 and < 300) { admitted.Add($"{method} {route.RoutePattern.RawText} -> {(int)response.StatusCode}"); }
                 }
                 catch (OperationCanceledException) when (!Ct.IsCancellationRequested)
@@ -193,12 +195,13 @@ public sealed class CloudTopologyGuestMcpFacts(CloudTopologyGuestMcpFacts.CloudG
             }
         }
 
-        TestContext.Current.TestOutputHelper?.WriteLine($"Tried {tried} requests on {brainRoutes.Length - mcp.Length} brain routes as a guest; {mcp.Length} MCP endpoints carry the door.");
+        TestContext.Current.TestOutputHelper?.WriteLine($"Tried {tried} requests on {brainRoutes.Length - mcp.Length} brain routes as a guest; {mcp.Length} MCP endpoints carry the door. "
+            + "Answers: " + string.Join(", ", answers.Select(answer => $"{answer.Value} x {answer.Key}")));
         Assert.True(tried > 0);
         Assert.True(admitted.Count == 0, "A guest was admitted on:\n" + string.Join('\n', admitted));
     }
 
-    private static bool IsDoor(RouteEndpoint route) => route.Metadata.Any(item => item.GetType().FullName == DoorMetadata);
+    private static bool IsDoor(RouteEndpoint route) => route.Metadata.GetMetadata<GuestSurface.Door>() is not null;
 
     private static bool UnderBrain(RouteEndpoint route)
         => route.RoutePattern.PathSegments is { Count: >= 2 } segments

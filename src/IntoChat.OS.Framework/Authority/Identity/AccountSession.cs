@@ -57,6 +57,13 @@ public static class AccountSession
                 return;
             }
 
+            // However a guest identity was made, it passes only the endpoints marked for guests.
+            if (GuestSurface.Is(principal) && context.GetEndpoint()?.Metadata.GetMetadata<GuestSurface.Door>() is null)
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return;
+            }
+
             RuntimeCallerContext.Stamp(principal);
             // The framework's session surfaces (the journal tail among them) ask for an authenticated user with the principal
             // claim, as a cookie session carries. The Basic operator and the Open owner have no cookie, so those routes alone are
@@ -179,7 +186,9 @@ public static class AccountSession
             && routeBrain is string { Length: > 0 } brainValue
                 ? brainValue
                 : DefaultBrain(accountId, claimBrain);
-        return CapabilityCallers.Of(principalId, accountId, brainId);
+        var caller = CapabilityCallers.Of(principalId, accountId, brainId);
+        // A guest never inherits Actor.Person either: stamp a non-person guest app caller.
+        return GuestSurface.Is(caller) ? caller with { AppId = GuestSurface.AppId } : caller;
     }
 
     private static bool IsAnonymous(HttpRequest request)
