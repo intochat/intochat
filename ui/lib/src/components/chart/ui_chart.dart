@@ -16,22 +16,13 @@ final class UiChart extends StatelessWidget {
 
   static const axisLabelLength = 12;
 
-  static const _lightSlices = [
-    Color(0xFF397B63),
-    Color(0xFF96A8C2),
-    Color(0xFF986A37),
-    Color(0xFF8BAFA3),
-    Color(0xFF7B9BE3),
-    Color(0xFFC47AC0),
-  ];
-
-  static List<Color> _darkSlices(UiColors colors) => [
-    colors.working,
+  static List<Color> _slices(UiColors colors) => [
     colors.accent,
-    colors.done,
-    const Color(0xFFC47AC0),
-    const Color(0xFF5EC4D4),
-    const Color(0xFFE0C35C),
+    colors.chartContext,
+    colors.accent.withValues(alpha: 0.65),
+    colors.muted,
+    colors.inputBorder,
+    colors.accent.withValues(alpha: 0.4),
   ];
 
   static String axisLabel(String label) => label.length <= axisLabelLength
@@ -150,7 +141,10 @@ final class UiChart extends StatelessWidget {
               return BarTooltipItem(
                 '${point.label}\n${point.value}',
                 TextStyle(
-                  color: tone.ink,
+                  fontFamily: UiType.bodyFamily,
+                  fontFamilyFallback: UiType.bodyFallback,
+                  fontFeatures: UiType.tabular,
+                  color: tone.tooltipInk,
                   fontWeight: FontWeight.w600,
                   fontSize: 12,
                 ),
@@ -198,7 +192,10 @@ final class UiChart extends StatelessWidget {
                 LineTooltipItem(
                   '${part.points[spot.x.toInt()].label}\n${part.points[spot.x.toInt()].value}',
                   TextStyle(
-                    color: tone.ink,
+                    fontFamily: UiType.bodyFamily,
+                    fontFamilyFallback: UiType.bodyFallback,
+                    fontFeatures: UiType.tabular,
+                    color: tone.tooltipInk,
                     fontWeight: FontWeight.w600,
                     fontSize: 12,
                   ),
@@ -381,7 +378,10 @@ final class UiChart extends StatelessWidget {
           getTitlesWidget: (value, meta) {
             return SideTitleWidget(
               meta: meta,
-              child: Text(meta.formattedValue, style: labelStyle),
+              child: Text(
+                meta.formattedValue,
+                style: labelStyle.copyWith(fontFeatures: UiType.tabular),
+              ),
             );
           },
         ),
@@ -404,7 +404,9 @@ final class _ChartTone {
     required this.ink,
     required this.muted,
     required this.accent,
+    required this.contextSeries,
     required this.tooltip,
+    required this.tooltipInk,
     required this.percentInk,
     required this.percentShadow,
     required this.slices,
@@ -416,27 +418,30 @@ final class _ChartTone {
   final Color ink;
   final Color muted;
   final Color accent;
+  final Color contextSeries;
   final Color tooltip;
+  final Color tooltipInk;
   final Color percentInk;
   final Color percentShadow;
   final List<Color> slices;
 
   factory _ChartTone.of(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final light = theme.brightness == Brightness.light;
-    final colors = UiColors.of(context);
+    final c = UiColors.of(context);
     return _ChartTone(
-      card: light ? UiColors.paper.surface : scheme.surfaceContainerLow,
-      border: light ? UiColors.paper.hairline : scheme.outlineVariant,
-      grid: light ? UiColors.paper.hairline : scheme.outlineVariant,
-      ink: light ? UiColors.paper.ink : scheme.onSurface,
-      muted: light ? UiColors.paper.muted : scheme.onSurfaceVariant,
-      accent: light ? UiColors.paper.accent : colors.working,
-      tooltip: light ? UiColors.paper.recessed : scheme.surfaceContainerHigh,
-      percentInk: light ? UiColors.paper.surface : scheme.onSurface,
-      percentShadow: light ? const Color(0x66000000) : const Color(0x88000000),
-      slices: light ? UiChart._lightSlices : UiChart._darkSlices(colors),
+      card: c.surfaceCard,
+      border: c.borderHairline,
+      grid: c.borderHairline,
+      ink: c.textStrong,
+      muted: c.textMuted,
+      accent: c.accent,
+      contextSeries: c.chartContext,
+      tooltip: c.isDark ? c.surfaceCard : c.surfaceInk,
+      tooltipInk: c.isDark ? c.textStrong : c.onInk,
+      percentInk: c.onAccent,
+      percentShadow: c.isDark
+          ? const Color(0x88000000)
+          : const Color(0x66000000),
+      slices: UiChart._slices(c),
     );
   }
 }

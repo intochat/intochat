@@ -38,6 +38,7 @@ export 'src/nodes/diff_card.dart';
 export 'src/nodes/empty_state.dart';
 export 'src/nodes/error_line.dart';
 export 'src/nodes/metric_tile.dart';
+export 'src/nodes/neuron_ref.dart';
 export 'src/nodes/node_common.dart' show UiNodeTone, nodeToneOf, toneOf;
 export 'src/nodes/node_context.dart';
 export 'src/nodes/node_renderer.dart';

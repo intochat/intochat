@@ -11,8 +11,8 @@ import 'card_shell.dart';
 
 enum ChartState { loading, ready, empty, error }
 
-/// Columns compare amounts; a line shows a trend over time.
-enum ChartKind { columns, line }
+/// Columns compare amounts; a line shows a trend over time; pie shows share of whole.
+enum ChartKind { columns, line, pie }
 
 class ChartPoint {
   const ChartPoint(this.label, this.value);
@@ -458,6 +458,9 @@ class _ChartCardState extends State<ChartCard> {
   );
 
   Widget _plot(IcColors c, ChartData d) {
+    if (_kind == ChartKind.pie) {
+      return _piePlot(c, d);
+    }
     final pts = d.points;
     final cmp = d.compare;
     final maxV = [...pts.map((p) => p.value), ...?cmp].reduce(math.max);
@@ -689,6 +692,98 @@ class _ChartCardState extends State<ChartCard> {
     );
   }
 
+  Widget _piePlot(IcColors c, ChartData d) {
+    final pts = d.points;
+    final total = pts.fold<double>(0, (sum, p) => sum + p.value.abs());
+    final shades = <Color>[
+      c.accent,
+      c.chartContext,
+      c.accent.withValues(alpha: 0.65),
+      c.textMuted,
+      c.borderInput,
+      c.accent.withValues(alpha: 0.4),
+    ];
+
+    return SizedBox(
+      height: _plotHeight + 22,
+      child: Row(
+        children: [
+          SizedBox(
+            width: _plotHeight,
+            height: _plotHeight,
+            child: CustomPaint(
+              painter: _PiePainter(
+                values: [for (final p in pts) p.value.abs()],
+                colors: shades,
+                surface: c.surfaceCard,
+                hover: _hover,
+              ),
+            ),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final (i, p) in pts.indexed) ...[
+                    if (i > 0) const SizedBox(height: 6),
+                    MouseRegion(
+                      onEnter: (_) => setState(() => _hover = i),
+                      onExit: (_) => setState(() => _hover = null),
+                      child: Row(
+                        children: [
+                          _Swatch(color: shades[i % shades.length]),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              p.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: IcType.text(
+                                13,
+                                weight: _hover == i
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: c.textBody,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            total <= 0
+                                ? '0%'
+                                : '${((p.value.abs() / total) * 100).round()}%',
+                            style: IcType.text(
+                              12.5,
+                              color: c.textMuted,
+                              tnum: true,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            d.full(p.value),
+                            style: IcType.text(
+                              13,
+                              weight: FontWeight.w600,
+                              color: c.textStrong,
+                              tnum: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Clean ticks from 0, 3 to 5 of them, the last at or above [maxV].
   static List<double> _ticks(double maxV) {
     if (maxV <= 0) return [0, 1];
@@ -864,6 +959,54 @@ class _ChartPainter extends CustomPainter {
       old.accent != accent ||
       old.context != context ||
       old.kind != kind;
+}
+
+class _PiePainter extends CustomPainter {
+  const _PiePainter({
+    required this.values,
+    required this.colors,
+    required this.surface,
+    required this.hover,
+  });
+
+  final List<double> values;
+  final List<Color> colors;
+  final Color surface;
+  final int? hover;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = values.fold<double>(0, (a, b) => a + b);
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2 - 4;
+    if (total <= 0) return;
+
+    var start = -math.pi / 2;
+    final gapPaint = Paint()
+      ..color = surface
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    for (var i = 0; i < values.length; i++) {
+      final sweep = (values[i] / total) * math.pi * 2;
+      final r = hover == i ? radius + 3 : radius;
+      final rect = Rect.fromCircle(center: center, radius: r);
+      final paint = Paint()
+        ..color = colors[i % colors.length]
+        ..style = PaintingStyle.fill;
+      canvas.drawArc(rect, start, sweep, true, paint);
+      canvas.drawArc(rect, start, sweep, true, gapPaint);
+      start += sweep;
+    }
+    canvas.drawCircle(center, radius * 0.56, Paint()..color = surface);
+  }
+
+  @override
+  bool shouldRepaint(_PiePainter old) =>
+      old.values != values ||
+      old.hover != hover ||
+      old.surface != surface ||
+      old.colors != colors;
 }
 
 /// Legend and tooltip key: a small square, or a short line (dashed for the

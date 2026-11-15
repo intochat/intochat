@@ -109,16 +109,19 @@ enum IcStylePreset {
   String get description => subtitle;
 
   static IcStylePreset fromId(String? id) {
+    if (id == 'intochat') return IcStylePreset.warmPaper;
     for (final p in IcStylePreset.values) {
       if (p.id == id) return p;
     }
-    return IcStylePreset.fluentAcrylic;
+    return IcStylePreset.warmPaper;
   }
 }
 
 /// Unified colour tokens for IntoChat OS (all 7 UI Identities in one place).
 @immutable
 class IcColors extends ThemeExtension<IcColors> {
+  static const Color none = Color(0x00000000);
+
   const IcColors({
     required this.isDark,
     required this.preset,
@@ -222,7 +225,35 @@ class IcColors extends ThemeExtension<IcColors> {
   Color get secondaryGlow => _secondaryGlow ?? glowColor;
   Color get ring => accentRing;
   Color get idle => textSubtle;
+  Color get needsYou => accent;
+  Color get needsYouBg => accentTint;
+  Color get accentOnInk => const Color(0xFF8FB0FF);
+  Color get scrim =>
+      isDark ? const Color(0x80110F0B) : const Color(0x4717140F);
   Color get chartContext => _chartContext ?? textSubtle;
+
+  /// User message bubble & text (`DESIGN.md` §13.3, §20).
+  Color get bubbleMine =>
+      isDark ? const Color(0xFFFBFAF7) : const Color(0xFF17140F);
+  Color get onBubbleMine =>
+      isDark ? const Color(0xFF17140F) : const Color(0xFFFBFAF7);
+
+  /// Overlay hover & selection fills (`DESIGN.md` §2.8).
+  Color get hoverOverlay =>
+      isDark ? const Color(0x14FBFAF7) : const Color(0x0A17140F);
+  Color get hoverFill => hoverOverlay;
+  Color get barHoverOverlay =>
+      isDark ? const Color(0x1AFBFAF7) : const Color(0x0F17140F);
+  Color get selectedOverlay =>
+      isDark ? const Color(0x1FFBFAF7) : const Color(0x1217140F);
+
+  /// Desktop background tones (`DESIGN.md` §2.7).
+  Color get desktopCream =>
+      isDark ? const Color(0xFF1D1914) : const Color(0xFFF2EFE9);
+  Color get desktopSand =>
+      isDark ? const Color(0xFF231E17) : const Color(0xFFE6DFD2);
+  Color get desktopInk =>
+      isDark ? const Color(0xFF0D0B08) : const Color(0xFF2A251E);
 
   factory IcColors.fromUiColors(UiColors c) => IcColors(
     isDark: c.isDark,
@@ -560,7 +591,7 @@ class IcColors extends ThemeExtension<IcColors> {
     textBody: Color(0xFFF0ECE4),
     textMuted: Color(0xFF9C9182),
     textSubtle: Color(0xFF7C7264),
-    onInk: Color(0xFF17140F),
+    onInk: Color(0xFFFBFAF7),
     accent: Color(0xFF4B7DFF),
     accentHover: Color(0xFF1F5EFF),
     accentTint: Color(0x294B7DFF),
@@ -822,7 +853,9 @@ class IcTheme extends InheritedWidget {
     if (ext != null) return ext;
     final ui = theme.extension<UiColors>();
     if (ui != null) return IcColors.fromUiColors(ui);
-    return IcColors.fluentDark;
+    return theme.brightness == Brightness.dark
+        ? IcColors.warmPaperDark
+        : IcColors.warmPaperLight;
   }
 
   @override
@@ -894,22 +927,30 @@ class IcAcrylicBox extends StatelessWidget {
   }
 }
 
-/// Spacing scale: 4 · 8 · 12 · 16 · 20 · 24 · 32 · 40 · 48 · 64.
+/// Spacing scale (`DESIGN.md` §4.1): 2 · 4 · 6 · 8 · 10 · 12 · 14 · 16 · 18 · 20 · 24 · 28 · 32 · 40 · 48 · 56.
 abstract final class IcSpace {
+  static const double s2 = 2;
   static const double s4 = 4;
+  static const double s6 = 6;
   static const double s8 = 8;
+  static const double s10 = 10;
   static const double s12 = 12;
+  static const double s14 = 14;
   static const double s16 = 16;
+  static const double s18 = 18;
   static const double s20 = 20;
   static const double s24 = 24;
+  static const double s28 = 28;
   static const double s32 = 32;
   static const double s40 = 40;
   static const double s48 = 48;
+  static const double s56 = 56;
   static const double s64 = 64;
 }
 
-/// Corner radii.
+/// Corner radii (`DESIGN.md` §5).
 abstract final class IcRadius {
+  static const double bar = 4.0;
   static const double xs = 6.0;
   static const double sm = 8.0;
   static const double button = 10.0;
@@ -1034,21 +1075,27 @@ abstract final class IcShadow {
 
 typedef IcShadows = IcShadow;
 
-/// Motion tokens.
+/// Motion tokens (`DESIGN.md` §7).
 abstract final class IcMotion {
   static const ease = Cubic(0.2, 0.8, 0.2, 1);
   static const spring = Cubic(0.16, 1.0, 0.3, 1.0);
   static const fast = Duration(milliseconds: 120);
   static const base = Duration(milliseconds: 200);
-  static const slow = Duration(milliseconds: 280);
+  static const slow = Duration(milliseconds: 340);
+  static const spinner = Duration(milliseconds: 900);
+  static const pulse = Duration(milliseconds: 1400);
+  static const skeleton = Duration(milliseconds: 1100);
+  static const typing = Duration(milliseconds: 1000);
+  static const hintDelay = Duration(milliseconds: 350);
 }
 
 /// Inter + InterDisplay typography with strict tabular figures (`tnum`).
+/// Product UI never uses monospace (`DESIGN.md` §1.10 & §3.1).
 abstract final class IcType {
   static const family = 'Inter';
   static const sans = 'Inter';
   static const display = 'InterDisplay';
-  static const monoFamily = 'JetBrainsMono';
+  static const monoFamily = 'Inter';
   static const String? _pkg = null;
   static const String? package = null;
   static const tabular = [FontFeature.tabularFigures()];

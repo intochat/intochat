@@ -53,6 +53,11 @@ class UiTokens extends ThemeExtension<UiTokens> {
     this.slow = const Duration(milliseconds: 340),
     this.quick = const Duration(milliseconds: 120),
     this.standard = const Duration(milliseconds: 200),
+    this.spinner = const Duration(milliseconds: 900),
+    this.pulse = const Duration(milliseconds: 1400),
+    this.skeleton = const Duration(milliseconds: 1100),
+    this.typing = const Duration(milliseconds: 1000),
+    this.hintDelay = const Duration(milliseconds: 350),
   });
 
   final double p2,
@@ -87,7 +92,16 @@ class UiTokens extends ThemeExtension<UiTokens> {
       osBarHeight,
       rowHeight,
       tagPillHeight;
-  final Duration fast, base, slow, quick, standard;
+  final Duration fast,
+      base,
+      slow,
+      quick,
+      standard,
+      spinner,
+      pulse,
+      skeleton,
+      typing,
+      hintDelay;
   final Curve ease, spring;
 
   static UiTokens of(BuildContext context) =>

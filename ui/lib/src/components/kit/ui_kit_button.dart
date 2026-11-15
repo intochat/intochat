@@ -6,7 +6,6 @@ import '../../theme/ui_icon.dart';
 import '../../theme/ui_shadows.dart';
 import '../../theme/ui_theme.dart';
 import '../../theme/ui_tokens.dart';
-import 'ui_kit_surface.dart';
 
 /// Button styles. The order mirrors a C# enum by index; do not reorder.
 enum UiKitButtonStyle { primary, secondary, ghost, danger, link }
@@ -14,7 +13,7 @@ enum UiKitButtonStyle { primary, secondary, ghost, danger, link }
 /// Desktop-dense button unified with `Btn` (`controls.dart`):
 /// 36px standard / 30px compact height, 14px/10px horizontal padding,
 /// 10px radius, 13px w600 Inter label, 15px Lucide icon, 1px press translate,
-/// and [SelectionRing] focus.
+/// [SelectionRing] focus, and `DESIGN.md` §10.8 guard/hint [Tooltip] support.
 final class UiKitButton extends StatefulWidget {
   const UiKitButton({
     super.key,
@@ -25,6 +24,7 @@ final class UiKitButton extends StatefulWidget {
     this.compact = false,
     this.fullWidth = false,
     this.focusNode,
+    this.tooltip,
   });
 
   final String label;
@@ -36,6 +36,9 @@ final class UiKitButton extends StatefulWidget {
 
   /// Optional node for the button's own focus, e.g. a menu trigger.
   final FocusNode? focusNode;
+
+  /// Optional tooltip / `.Guard(rule)` disabled reason shown on hover.
+  final String? tooltip;
 
   @override
   State<UiKitButton> createState() => _UiKitButtonState();
@@ -62,18 +65,18 @@ class _UiKitButtonState extends State<UiKitButton> {
         null,
       ),
       UiKitButtonStyle.secondary => (
-        hover ? c.recessed : c.surface,
-        c.strong,
-        Border.all(color: c.inputBorder),
+        hover ? c.surfaceSunk : c.surfaceCard,
+        c.textStrong,
+        Border.all(color: c.borderInput),
       ),
       UiKitButtonStyle.ghost => (
-        hover ? c.recessed : Colors.transparent,
-        c.body,
+        hover ? c.surfaceSunk : Colors.transparent,
+        c.textBody,
         null,
       ),
       UiKitButtonStyle.danger => (
         hover ? c.errorBg : Colors.transparent,
-        c.strong,
+        c.textStrong,
         Border.all(color: c.error),
       ),
       UiKitButtonStyle.link => (
@@ -109,14 +112,12 @@ class _UiKitButtonState extends State<UiKitButton> {
     );
 
     if (widget.style != UiKitButtonStyle.link) {
+      final ringActive = _focused;
       final decorated = DecoratedBox(
         decoration: BoxDecoration(
           color: fill,
           borderRadius: BorderRadius.circular(tokens.button),
-          border: _focused ? Border.all(color: c.accent, width: 1.5) : border,
-          boxShadow: widget.style == UiKitButtonStyle.secondary
-              ? UiShadows.xs(uiKitShadowBase(context))
-              : null,
+          border: ringActive ? Border.all(color: c.accent, width: 1.5) : border,
         ),
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: hPad),
@@ -134,7 +135,8 @@ class _UiKitButtonState extends State<UiKitButton> {
     }
     if (widget.fullWidth) body = SizedBox(width: double.infinity, child: body);
 
-    return Stop(
+    final tip = widget.tooltip?.trim();
+    Widget result = Stop(
       onActivate: widget.onPressed,
       isDefault: widget.style == UiKitButtonStyle.primary,
       builder: (context, stopView) => Opacity(
@@ -142,6 +144,7 @@ class _UiKitButtonState extends State<UiKitButton> {
         child: Semantics(
           button: true,
           enabled: _enabled,
+          tooltip: (tip != null && tip.isNotEmpty) ? tip : null,
           child: FocusableActionDetector(
             focusNode: widget.focusNode,
             enabled: _enabled,
@@ -174,5 +177,27 @@ class _UiKitButtonState extends State<UiKitButton> {
         ),
       ),
     );
+
+    if (tip != null && tip.isNotEmpty) {
+      result = Tooltip(
+        message: tip,
+        waitDuration: tokens.hintDelay,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: c.isDark ? c.surfaceCard : c.surfaceInk,
+          borderRadius: BorderRadius.circular(tokens.xs),
+          border: c.isDark ? Border.all(color: c.borderHairline) : null,
+          boxShadow: UiShadows.sm(c.surfaceInk),
+        ),
+        textStyle: UiType.textStyle(
+          12,
+          weight: FontWeight.w500,
+          color: c.isDark ? c.textStrong : c.onInk,
+        ),
+        child: result,
+      );
+    }
+
+    return result;
   }
 }

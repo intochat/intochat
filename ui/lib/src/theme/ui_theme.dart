@@ -4,6 +4,7 @@ import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart' as material;
 
 import 'ui_colors.dart';
+import 'ui_shadows.dart';
 import 'ui_tokens.dart';
 
 /// Text styles for the ambient palette. Colours come from [UiColors.of];
@@ -169,15 +170,9 @@ abstract final class UiType {
   }
 
   static const monoFamily = sans;
-  static const monoFallback = [
-    'Cascadia Mono',
-    'Consolas',
-    'Menlo',
-    'monospace',
-  ];
-
   static const bodyFamily = sans;
   static const bodyFallback = ['Segoe UI Variable Text', 'Segoe UI', 'Roboto'];
+  static const monoFallback = bodyFallback;
 }
 
 final _title = TextStyle(
@@ -524,14 +519,20 @@ abstract final class UiTheme {
         ),
       ),
       tooltipTheme: TooltipThemeData(
+        waitDuration: const Duration(milliseconds: 350),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: c.strong,
-          borderRadius: BorderRadius.circular(8),
+          color: c.isDark ? c.surface : c.ink,
+          borderRadius: BorderRadius.circular(6),
+          border: c.isDark ? Border.all(color: c.hairline) : null,
+          boxShadow: UiShadows.sm(c.ink),
         ),
         textStyle: TextStyle(
           fontFamily: UiType.sans,
-          color: c.page,
+          fontFamilyFallback: UiType.bodyFallback,
+          color: c.isDark ? c.strong : c.onInk,
           fontSize: 12,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );

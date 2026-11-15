@@ -201,24 +201,30 @@ class _ConversationViewState extends State<ConversationView> {
 
     final hasTimelineEntries = messages.isNotEmpty || error != null;
 
+    final content = ColoredBox(
+      color: c.surfacePage,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: hasTimelineEntries
+                ? _buildTimeline(context, messages, error)
+                : (empty != null
+                      ? renderEmptyState(empty, widget.ctx.deeper())
+                      : const SizedBox.shrink()),
+          ),
+          _buildBottomDock(context, c, waiting),
+        ],
+      ),
+    );
+
     return Focus(
       autofocus: waiting == null,
       onKeyEvent: _handleConversationKey,
-      child: ColoredBox(
-        color: c.surfacePage,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: hasTimelineEntries
-                  ? _buildTimeline(context, messages, error)
-                  : (empty != null
-                        ? renderEmptyState(empty, widget.ctx.deeper())
-                        : const SizedBox.shrink()),
-            ),
-            _buildBottomDock(context, c, waiting),
-          ],
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) => constraints.hasBoundedHeight
+            ? content
+            : SizedBox(height: 520, child: content),
       ),
     );
   }
@@ -262,7 +268,7 @@ class _ConversationViewState extends State<ConversationView> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: _maxColumnWidth),
               child: msg.role == 'user'
-                  ? _UserMessageItem(message: msg)
+                  ? _UserMessageItem(message: msg, ctx: widget.ctx.deeper())
                   : _AssistantMessageItem(
                       message: msg,
                       ctx: widget.ctx.deeper(),
@@ -408,16 +414,18 @@ class _ConversationViewState extends State<ConversationView> {
 }
 
 class _UserMessageItem extends StatelessWidget {
-  const _UserMessageItem({required this.message});
+  const _UserMessageItem({required this.message, required this.ctx});
 
   final MessageNode message;
+  final NodeContext ctx;
 
   @override
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
     final sending = message.status == 'sending';
-    final bubbleBg = c.isDark ? c.textStrong : c.surfaceInk;
-    final bubbleFg = c.isDark ? c.surfaceInk : c.onInk;
+    final bubbleBg = c.bubbleMine;
+    final bubbleFg = c.onBubbleMine;
+    final cards = message.cards ?? const <Node>[];
 
     return Align(
       alignment: Alignment.centerRight,
@@ -428,27 +436,41 @@ class _UserMessageItem extends StatelessWidget {
             constraints: BoxConstraints(
               maxWidth: box.maxWidth.isFinite ? box.maxWidth * 0.78 : 520,
             ),
-            child: UiCopyableMessage(
-              copyText: (_) => message.text,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 11,
-                ),
-                decoration: BoxDecoration(
-                  color: bubbleBg,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(IcRadius.bubble),
-                    topRight: Radius.circular(IcRadius.bubble),
-                    bottomLeft: Radius.circular(IcRadius.bubble),
-                    bottomRight: Radius.circular(6),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (message.text.isNotEmpty)
+                  UiCopyableMessage(
+                    copyText: (_) => message.text,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 11,
+                      ),
+                      decoration: BoxDecoration(
+                        color: bubbleBg,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(IcRadius.bubble),
+                          topRight: Radius.circular(IcRadius.bubble),
+                          bottomLeft: Radius.circular(IcRadius.bubble),
+                          bottomRight: Radius.circular(6),
+                        ),
+                      ),
+                      child: Text(
+                        message.text,
+                        style: IcType.text(14, color: bubbleFg, height: 1.5),
+                      ),
+                    ),
                   ),
-                ),
-                child: Text(
-                  message.text,
-                  style: IcType.text(14, color: bubbleFg, height: 1.5),
-                ),
-              ),
+                if (cards.isNotEmpty) ...[
+                  if (message.text.isNotEmpty) const SizedBox(height: 8),
+                  for (var i = 0; i < cards.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 8),
+                    NodeRenderer.render(cards[i], ctx),
+                  ],
+                ],
+              ],
             ),
           ),
         ),
