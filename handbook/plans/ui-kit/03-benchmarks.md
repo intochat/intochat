@@ -81,9 +81,9 @@ In IntoChat's DDD Aggregate Reactor:
 ## 4. Deep-Dive 3: macOS Sonoma System Settings & Finder (`UK-9`, `UK-11`, `UK-22`, `UK-23`)
 
 1. **System Settings Anatomy (`DESIGN.md` §12, `UK-22`)**:
-   - Fixed `248px` `surfaceSunk` left sidebar with search field at top + `36px` `NavItem` pills (`8px` radius, `accentTint` active fill).
-   - Scrollable right pane (`maxWidth: 680px`, `24px–32px` padding) composed of **`Panel` cards**: `surfaceCard` (`14px` radius, `1px borderHairline`) containing `SettingRow` items (`label` + muted `description` on left, control on right) separated by `1px` inset hairlines (`16px` left inset).
-   - **Instant Save Rule**: Toggling a `ToggleSwitch` or changing a `SelectBox` dispatches the Aggregate command immediately and flashes an inline `Saved ✓` indicator (`InlineSave`, `1.6s` hold)—**never** a bottom-of-page `"Save Changes"` / `"Reset"` button pair (except inside multi-field creation modals like `"Add Connection"`).
+   - Fixed `248px` `surfaceSunk` left sidebar with search `InputBox` at top + `34px` `NavItem` rows (`IcRadius.sm = 8`, solid `accent` + `onAccent` when selected).
+   - Scrollable right pane on `surfacePage` (`maxWidth: 860px` left-aligned; `760px` centred in Profile, `32px–56px` side padding) composed of **`Panel` cards**: `surfaceCard` (`IcRadius.card = 14`, `1px borderHairline`, **no shadow**) containing `SettingRow` items (`15/600` label + `13.5` muted help on left, control on right) separated by `1px` hairlines.
+   - **Instant Save & `InlineSave` Rule (`DESIGN.md` §11.4, §12.9)**: Switches, selects, and segments save at once and show a single past-tense toast (`"Theme set to Dark."`); typed values use `InlineSave` (`86px` right slot: small `Save` -> spinner `"Saving"` -> `done` check `"Saved"` for `2s`, without double-toasting)—**never** a page-level `"Save"` button!
 2. **Finder Anatomy (`DESIGN.md` §13, `UK-23`)**:
    - `216px` `surfaceSunk` Locations/Favourites sidebar + `52px` unified toolbar (`Back`, `Up`, `BreadcrumbBar` with responsive `•••` overflow menu, `SearchField`, `SegmentedControl` List/Grid toggle, Quick View inspector toggle, `"Ask Ino"` handoff button).
    - Main pane switches cleanly between sortable `Table` (List view with folder disclosure chevrons + `tnum` size/date columns) and `AdaptiveGrid(minTileWidth: 96)` (Grid view) + collapsible `280px` right `InspectorDrawer` (`Quick View`) + `28px` bottom status bar.
