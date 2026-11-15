@@ -147,6 +147,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "confirmations-synapses"); }
 
         var agentKey = InoModel.AgentKeyOf(State.ConversationId);
+        await RegisterConversationAsync(agentKey);
         if (await EnsureChatAsync(agentKey))
         {
             await ProjectCurrentChatAsync(agentKey);
@@ -180,6 +181,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
             nextState = nextState with { SelectedModel = effectiveOpenModel.Trim() };
         }
         var agentKey = InoModel.AgentKeyOf(State.ConversationId);
+        await RegisterConversationAsync(agentKey);
         await Show(nextState);
 
         try
@@ -815,10 +817,15 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         }
     }
 
-    private async Task FollowAgentControlSignalsAsync(string agentKey)
+    private async Task RegisterConversationAsync(string agentKey)
     {
         try { await Get<IInoConversations>(IInoConversations.DefaultKey).Use(agentKey); }
         catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, "conversations-registry"); }
+    }
+
+    private async Task FollowAgentControlSignalsAsync(string agentKey)
+    {
+        await RegisterConversationAsync(agentKey);
 
         try
         {
