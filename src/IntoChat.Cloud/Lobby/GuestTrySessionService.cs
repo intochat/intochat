@@ -309,6 +309,21 @@ public sealed class GuestTrySessionService
         }
     }
 
+    public bool IsActiveSession(string sessionId, string brainId, DateTimeOffset now)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(brainId))
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            return _activeSessions.TryGetValue(sessionId, out var found)
+                && found.ExpiresAt > now
+                && string.Equals(found.BrainId, brainId, StringComparison.Ordinal);
+        }
+    }
+
     public bool Expire(string sessionId)
     {
         if (string.IsNullOrWhiteSpace(sessionId))
@@ -473,8 +488,9 @@ internal sealed class GuestTryHttpSurface : IModuleHttpSurface
     private static Task<IResult> EndAsync(HttpContext http, GuestTrySessionService service, ILobbyTokenKey keys, TimeProvider clock)
         => Task.FromResult(End(http, service, keys, clock));
 
-    private static string? ExtractToken(HttpRequest request)
+    public static string? ExtractToken(HttpRequest request)
     {
+        ArgumentNullException.ThrowIfNull(request);
         if (request.Cookies.TryGetValue(GuestTryToken.CookieName, out var cookieVal) && !string.IsNullOrWhiteSpace(cookieVal))
         {
             return cookieVal;

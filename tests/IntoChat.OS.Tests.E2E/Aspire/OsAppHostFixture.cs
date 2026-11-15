@@ -53,6 +53,8 @@ public sealed class OsAppHostFixture : IAsyncLifetime
 
     public string Scope { get; } = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
 
+    public string PresenceToken { get; private set; } = string.Empty;
+
     public TimeSpan StartupDuration { get; private set; }
 
     [System.Runtime.CompilerServices.ModuleInitializer]
@@ -62,6 +64,12 @@ public sealed class OsAppHostFixture : IAsyncLifetime
     {
         InitializeConfigurationRoot();
         var started = DateTimeOffset.UtcNow;
+        var presenceBytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(PresenceProofValidator.SecretByteCount);
+        PresenceToken = System.Buffers.Text.Base64Url.EncodeToString(presenceBytes);
+        var presenceDir = Path.Combine(Home, "run");
+        Directory.CreateDirectory(presenceDir);
+        await File.WriteAllBytesAsync(Path.Combine(presenceDir, "presence"), presenceBytes);
+
         var args = new List<string>
         {
             $"--{IntoChatOSNames.HomeKey}={Home}",

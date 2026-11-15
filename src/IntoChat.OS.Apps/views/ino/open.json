@@ -123,108 +123,28 @@
   "main": {
     "title": "Ino",
     "root": {
-      "kind": "column",
-      "children": [
-        {
-          "kind": "surface",
-          "children": [
-            {
-              "kind": "row",
-              "children": [
-                {
-                  "kind": "tagPill",
-                  "label": "Ino Assistant",
-                  "tone": "accent",
-                  "icon": "bot"
-                },
-                {
-                  "kind": "tagPill",
-                  "label": "Ready",
-                  "tone": "ok",
-                  "icon": null
-                }
-              ],
-              "gap": 8,
-              "padding": 0
-            },
-            {
-              "kind": "text",
-              "value": "Ready (qwen3.5:4b)",
-              "tone": "neutral",
-              "tabular": true,
-              "mono": false
-            },
-            {
-              "kind": "row",
-              "children": [
-                {
-                  "kind": "text",
-                  "value": "Smart mode: off",
-                  "tone": "muted",
-                  "tabular": false,
-                  "mono": false
-                },
-                {
-                  "kind": "button",
-                  "key": "smart",
-                  "label": "Turn smart mode on",
-                  "emit": {
-                    "owner": "app.ino",
-                    "signal": "smart",
-                    "args": "true"
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "ghost",
-                  "small": true
-                },
-                {
-                  "kind": "button",
-                  "key": "ai-settings",
-                  "label": "AI Models & Keys",
-                  "emit": null,
-                  "intent": {
-                    "intentKind": "OpenWindow",
-                    "arg": "os://window/settings?section=models"
-                  },
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "ghost",
-                  "icon": "cpu",
-                  "small": true
-                }
-              ],
-              "gap": 8,
-              "padding": 0
-            }
-          ],
-          "surfaceKind": "acrylic",
-          "title": "New chat",
-          "subtitle": null,
-          "padding": 18
+      "kind": "conversation",
+      "key": "conversation",
+      "messages": [],
+      "composer": {
+        "key": "composer",
+        "onSubmit": {
+          "owner": "app.ino",
+          "signal": "ino.send",
+          "args": {}
         },
-        {
-          "kind": "column",
-          "children": [],
-          "gap": 8,
-          "padding": 0
-        },
-        {
-          "kind": "field",
-          "key": "composer",
-          "name": "apps/ino/composer",
-          "fieldKind": "Text",
-          "placeholder": "Message Ino",
-          "onSubmit": {
-            "owner": "app.ino",
-            "signal": "send",
-            "args": null
-          }
-        }
-      ],
-      "gap": 12,
-      "padding": 0
+        "placeholder": "Ask anything.",
+        "enabled": true
+      },
+      "waiting": null,
+      "status": "ready",
+      "error": null,
+      "stop": null,
+      "empty": {
+        "title": "What do you need?",
+        "body": null,
+        "suggestions": null
+      }
     }
   }
 }

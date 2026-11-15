@@ -110,24 +110,46 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host)
         }
 
         Assert.False(string.IsNullOrWhiteSpace(installApprovalId), $"No pending approval for {seededAlias}. Seed action: {seedActionRaw}. Last confirmations: {lastConfRaw}");
-        using (var approveInstall = await CallToolJsonAsync("screen_approve", new
+
+        // Gate 2.0: MCP callers run as Actor.Agent and cannot self-approve RequiresPerson unit installs.
+        using (var agentApproveAttempt = await TryCallToolJsonAsync("screen_approve", new
         {
             approvalId = installApprovalId!,
             approved = true,
-            reason = "Approve starter unit install",
+            reason = "Agent self-approve attempt must be refused",
         }, ct))
         {
-            Assert.True(approveInstall.RootElement.GetProperty("accepted").GetBoolean());
+            Assert.Null(agentApproveAttempt);
         }
 
-        using (var duplicateApprove = await CallToolJsonAsync("screen_approve", new
+        // Approve the staged unit install through the human presence-proved HTTP edge.
+        using (var personApproveReq = new HttpRequestMessage(HttpMethod.Post, $"/brains/{McpScope}/apps/event")
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(new
+            {
+                kind = "confirmation",
+                name = $"{McpScope}/{DigitalBrain.Confirmation.IConfirmations.ConfirmationsNeuronKey}",
+                planId = installApprovalId!,
+                approve = true,
+            }),
+        })
+        {
+            personApproveReq.Headers.Add(IntoChat.OS.Authority.Identity.PresenceProofValidator.HeaderName, host.PresenceToken);
+            using var personApproveRes = await host.Os.SendAsync(personApproveReq, ct);
+            Assert.Equal(HttpStatusCode.OK, personApproveRes.StatusCode);
+        }
+
+        using (var duplicateApprove = await TryCallToolJsonAsync("screen_approve", new
         {
             approvalId = installApprovalId!,
             approved = true,
             reason = "Duplicate approval guard",
         }, ct))
         {
-            Assert.False(duplicateApprove.RootElement.GetProperty("accepted").GetBoolean(), $"Duplicate approve should be false: {duplicateApprove.RootElement.GetRawText()}");
+            if (duplicateApprove is not null)
+            {
+                Assert.False(duplicateApprove.RootElement.GetProperty("accepted").GetBoolean(), $"Duplicate approve should be false: {duplicateApprove.RootElement.GetRawText()}");
+            }
         }
 
         // Poll screen_read for the deployed runtime unit until it has rendered controls

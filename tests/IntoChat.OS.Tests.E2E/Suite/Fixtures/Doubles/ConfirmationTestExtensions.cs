@@ -21,7 +21,10 @@ public static class ConfirmationTestExtensions
     public static async Task ApprovePlan(this TestOS os, BrainId brain, string planId)
     {
         var inbox = os.Get<IConfirmationInbox>(IConfirmationRequests.Of(brain));
-        await inbox.Resolve(planId, approve: true);
+        using (os.Edge.Enter(os.Edge.Person("person", "person", brain)))
+        {
+            await inbox.Resolve(planId, approve: true);
+        }
         await os.Idle();
     }
 
@@ -29,7 +32,10 @@ public static class ConfirmationTestExtensions
     public static async Task DeclinePlan(this TestOS os, BrainId brain, string planId)
     {
         var inbox = os.Get<IConfirmationInbox>(IConfirmationRequests.Of(brain));
-        await inbox.Resolve(planId, approve: false);
+        using (os.Edge.Enter(os.Edge.Person("person", "person", brain)))
+        {
+            await inbox.Resolve(planId, approve: false);
+        }
         await os.Idle();
     }
 

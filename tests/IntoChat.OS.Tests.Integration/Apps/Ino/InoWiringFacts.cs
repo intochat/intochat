@@ -203,7 +203,19 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
 
             // Now supply an OpenAI key via the inline D1 credential field and verify it writes to durable IBrainEntries AND retries!
             fixture.Model.Reply("Answered after saving key.");
-            await screen.Activate("app.ino", noProviderView.Generation, InoView.ProviderCredentialKey, "sk-proj-testkey1234567890", brain);
+            for (var attempt = 0; ; attempt++)
+            {
+                var current = await screen.Read() ?? noProviderView;
+                try
+                {
+                    await screen.Activate("app.ino", current.Generation, InoView.ProviderCredentialKey, "sk-proj-testkey1234567890", brain);
+                    break;
+                }
+                catch (ActivationRefusedException) when (attempt < 5)
+                {
+                    await Task.Delay(25, Ct);
+                }
+            }
 
             var afterKeyView = await InoSiloFixture.WaitForScreenAsync(
                 screen,

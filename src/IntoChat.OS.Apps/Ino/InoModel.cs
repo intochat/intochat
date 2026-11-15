@@ -174,13 +174,24 @@ public static class InoModel
         var entries = chat.Projection?.Messages ?? [];
         var messages = entries.Select(entry => ToMessage(entry, runFailures)).ToArray();
 
-        var pending = s.Pending is { } p
-            && messages.Any(m => m.Role == "user" && string.Equals(m.Text, p.Text, StringComparison.Ordinal))
+        // Count how many user messages matching Pending.Text were already projected before Pending was created;
+        // a retry of the same prompt only clears Pending once ChatNeuron projects a NEW matching user message.
+        var isRunning = chat.Run?.Status == ChatRunStatus.Running;
+        var priorMatchingUsers = s.Pending is { } priorPending
+            ? (s.Messages ?? []).Count(m => m.Role == "user" && string.Equals(m.Text, priorPending.Text, StringComparison.Ordinal))
+            : 0;
+        var projectedMatchingUsers = s.Pending is { } currentPending
+            ? messages.Count(m => m.Role == "user" && string.Equals(m.Text, currentPending.Text, StringComparison.Ordinal))
+            : 0;
+        var pending = s.Pending is not null && projectedMatchingUsers > priorMatchingUsers
             ? null
             : s.Pending;
 
-        var isRunning = chat.Run?.Status == ChatRunStatus.Running;
-        var activeRunId = isRunning ? chat.Run?.RunId : null;
+        var activeRunId = isRunning ? chat.Run?.RunId : s.ActiveRunId is { } startedRun
+            && (chat.Run?.RunId is null || !string.Equals(chat.Run.RunId, startedRun, StringComparison.Ordinal))
+            ? startedRun
+            : null;
+        var hasUnprojectedActiveRun = activeRunId is not null && !isRunning;
 
         var lastAssistant = messages.LastOrDefault(m => m.Role == "assistant");
         InoError? error = null;
@@ -191,7 +202,7 @@ public static class InoModel
             status = Paused;
             error = new InoError("paused", s.BlockedReason ?? "An interrupt holds the agent.");
         }
-        else if (isRunning || pending is not null)
+        else if (isRunning || pending is not null || hasUnprojectedActiveRun)
         {
             status = Working;
         }

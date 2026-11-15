@@ -17,9 +17,12 @@ using IntoChat.Cloud.Lobby;
 using IntoChat.Cloud.Mail;
 using IntoChat.Cloud.Mail.Templates;
 using IntoChat.Cloud.Organisations;
+using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -46,8 +49,60 @@ public static class CloudHost
         services.TryAddSingleton<ILobbyTokenKey, SecretLobbyTokenKey>();
         services.TryAddSingleton<IOrganisationMail, CloudOrganisationMail>();
         services.TryAddSingleton<IOrganisationIdentity, CloudOrganisationIdentity>();
+        services.TryAddSingleton<IBrainAccess>(provider => new CloudGuestTryBrainAccess(
+            IdentityHosting.LocalBrainAccess(provider),
+            provider.GetRequiredService<GuestTrySessionService>(),
+            provider.GetService<TimeProvider>() ?? TimeProvider.System));
         services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)
             .PostConfigure<IServiceProvider>(ValidateSession);
+    }
+
+    public static WebApplication UseGuestTrySessions(this WebApplication app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+        app.Use(async (context, next) =>
+        {
+            if (context.User.Identity?.IsAuthenticated != true
+                && TryMatchGuestBrainPath(context.Request.Path, out var targetBrainId)
+                && GuestTryHttpSurface.ExtractToken(context.Request) is { Length: > 0 } rawToken
+                && context.RequestServices.GetService<GuestTrySessionService>() is { } trySessions
+                && context.RequestServices.GetService<ILobbyTokenKey>() is { } keys)
+            {
+                var now = (context.RequestServices.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow();
+                var remoteIp = context.Connection.RemoteIpAddress?.ToString();
+                if (trySessions.TryGetActive(remoteIp, rawToken, keys.Key, now, out var session)
+                    && session is not null
+                    && string.Equals(session.BrainId, targetBrainId, StringComparison.Ordinal))
+                {
+                    context.User = AccountSession.SessionUser(
+                        CapabilityCallers.Of(session.BrainId, session.BrainId, session.BrainId));
+                }
+            }
+
+            await next(context).ConfigureAwait(false);
+        });
+        return app;
+    }
+
+    internal static bool TryMatchGuestBrainPath(PathString path, out string brainId)
+    {
+        brainId = string.Empty;
+        if (!path.StartsWithSegments("/brains", out var remaining) || !remaining.HasValue)
+        {
+            return false;
+        }
+
+        var trimmed = remaining.Value!.TrimStart('/');
+        var slash = trimmed.IndexOf('/');
+        var candidate = slash < 0 ? trimmed : trimmed[..slash];
+        if (!candidate.StartsWith(GuestTryToken.BrainIdPrefix, StringComparison.Ordinal)
+            || !DigitalBrain.Brains.BrainScope.IsValidId(candidate))
+        {
+            return false;
+        }
+
+        brainId = candidate;
+        return true;
     }
 
     private static void ValidateSession(CookieAuthenticationOptions cookie, IServiceProvider provider)
@@ -237,4 +292,24 @@ internal sealed class CloudOrganisationIdentity(IServiceProvider services) : IOr
 
     public Task RemovePrincipalMember(string brainId, string principalId, CancellationToken cancellationToken = default)
         => Identity.RemovePrincipalMember(brainId, principalId, cancellationToken);
+}
+
+internal sealed class CloudGuestTryBrainAccess(IBrainAccess inner, GuestTrySessionService trySessions, TimeProvider clock) : IBrainAccess
+{
+    public ValueTask<bool> CanAccessAsync(string principalId, string accountId, string brainId, CancellationToken cancellationToken = default)
+    {
+        if (brainId.StartsWith(GuestTryToken.BrainIdPrefix, StringComparison.Ordinal)
+            && string.Equals(principalId, brainId, StringComparison.Ordinal)
+            && string.Equals(accountId, brainId, StringComparison.Ordinal)
+            && brainId.Length > GuestTryToken.BrainIdPrefix.Length)
+        {
+            var sessionId = brainId[GuestTryToken.BrainIdPrefix.Length..];
+            if (trySessions.IsActiveSession(sessionId, brainId, clock.GetUtcNow()))
+            {
+                return new(true);
+            }
+        }
+
+        return inner.CanAccessAsync(principalId, accountId, brainId, cancellationToken);
+    }
 }

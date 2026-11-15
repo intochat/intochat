@@ -234,6 +234,7 @@ public sealed partial class WorkTreeService : IWorkTree
         var pointerBytes = await File.ReadAllBytesAsync(dotGitFile, ct).ConfigureAwait(false);
         var pointerHashHex = Convert.ToHexStringLower(SHA256.HashData(pointerBytes));
         var realGitDir = ParseRealGitDirPath(treePath, pointerBytes);
+        LockDotGitPointer(dotGitFile, attr);
 
         return new WorkTreeLease(
             RunId: runId,
@@ -685,11 +686,30 @@ public sealed partial class WorkTreeService : IWorkTree
         }
     }
 
+    private static void LockDotGitPointer(string dotGitFile, FileAttributes currentAttributes)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            File.SetAttributes(dotGitFile, currentAttributes | FileAttributes.ReadOnly);
+        }
+        else
+        {
+            File.SetUnixFileMode(dotGitFile, UnixFileMode.UserRead | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+        }
+    }
+
     private void ClearReadOnlyAttributes(string directory)
     {
         foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
         {
-            try { File.SetAttributes(file, FileAttributes.Normal); }
+            try
+            {
+                if (!OperatingSystem.IsWindows())
+                {
+                    File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+                }
+                File.SetAttributes(file, FileAttributes.Normal);
+            }
             catch (IOException ex) { _logger.LogSwallowed(ex, "Best-effort clear ReadOnly attribute (IO)."); }
             catch (UnauthorizedAccessException ex) { _logger.LogSwallowed(ex, "Best-effort clear ReadOnly attribute (ACL)."); }
         }

@@ -77,11 +77,12 @@ public static class IdentityHosting
             ? new OpenOwnerBrainAccess(directory) : directory;
     }
 
-    public static void UsePlatformHttp(this WebApplication app)
+    public static void UsePlatformHttp(this WebApplication app, Action<WebApplication>? beforeAccountSession = null)
     {
         app.UseKernelCors();
         app.UseModuleHttpSurfaces();
         app.UseAuthentication();
+        beforeAccountSession?.Invoke(app);
         app.UseAccountSession();
         // The shell targets web and the front proxies HTTP/1.1: every gRPC route also answers gRPC-Web.
         app.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = true });

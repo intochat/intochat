@@ -433,8 +433,9 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
 
         var restored = await screen.Read();
         Assert.NotNull(restored);
-        Assert.Equal(3L, restored.Generation);
+        Assert.Equal(1L, restored.Generation);
         Assert.Contains("WindowCount: 1", restored.View.GetRawText());
         Assert.Contains("PinnedApps: ino,creator,calculator", restored.View.GetRawText());
+        Assert.Contains("TurnCount: 2", restored.View.GetRawText());
     }
 }

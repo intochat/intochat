@@ -512,10 +512,12 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
         else
         {
             ConfirmationResult? outcome = null;
+            var wasPending = false;
             try
             {
                 var before = await inbox.Read();
-                if (before.Pending.Any(p => string.Equals(p.PlanId, approvalId, StringComparison.Ordinal)))
+                wasPending = before.Pending.Any(p => string.Equals(p.PlanId, approvalId, StringComparison.Ordinal));
+                if (wasPending)
                 {
                     await inbox.Resolve(approvalId, approved);
                 }
@@ -527,6 +529,13 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             {
                 NullLogger.Instance.LogSwallowed(ex, "Approval resolution or outcome verification failed in ScreenDirectoryNeuron.");
                 return new ScreenActionResult(false, $"Approval '{approvalId}' could not be resolved: {ex.Message}");
+            }
+
+            if (!wasPending)
+            {
+                return outcome is not null
+                    ? new ScreenActionResult(false, $"Approval '{approvalId}' has already been resolved.")
+                    : new ScreenActionResult(false, $"Approval '{approvalId}' was not found or could not be resolved.");
             }
 
             if (outcome is null || outcome.Approved != approved)

@@ -200,12 +200,13 @@ public sealed class WindowsFolderMediationFacts : IDisposable
         await watcher.StartAsync(Ct);
         try
         {
+            var subDir = Path.Combine(_grantDir, "sub");
+            Directory.CreateDirectory(subDir);
+
             watcher.SyncBrain(
                 Owner.Value,
                 [new WindowsFolderGrant("app-a", "downloads", _grantDir, FolderAccess.ReadWrite)]);
 
-            var subDir = Path.Combine(_grantDir, "sub");
-            Directory.CreateDirectory(subDir);
             var targetFile = Path.Combine(subDir, "drop.pdf");
 
             await File.WriteAllTextAsync(targetFile, "part1-", Ct);

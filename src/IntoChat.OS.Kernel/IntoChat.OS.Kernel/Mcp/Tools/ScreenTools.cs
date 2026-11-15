@@ -94,10 +94,21 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller, Orlean
             var stamped = caller.Stamp();
             var inbox = brain.Get<IConfirmationInbox>(IConfirmationInbox.Key(stamped.BrainId));
             var current = await inbox.Read().WaitAsync(cancellationToken).ConfigureAwait(false);
-            if (current.Pending.Any(p => string.Equals(p.PlanId, approvalId, StringComparison.Ordinal)))
+            var wasPendingInInbox = current.Pending.Any(p => string.Equals(p.PlanId, approvalId, StringComparison.Ordinal));
+            if (wasPendingInInbox)
             {
                 // Resolve directly from the authenticated edge so RequiresPerson checks observe Direct == true.
                 await inbox.Resolve(approvalId, approved).WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                var requests = brain.Get<IConfirmationRequests>(IConfirmationRequests.Of(new BrainId(stamped.BrainId)));
+                if (await requests.Outcome(approvalId).WaitAsync(cancellationToken).ConfigureAwait(false) is not null)
+                {
+                    return Text(JsonSerializer.Serialize(
+                        new ScreenActionResult(false, $"Approval '{approvalId}' has already been resolved."),
+                        Json));
+                }
             }
 
             string? unitAlias = null;

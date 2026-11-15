@@ -224,6 +224,30 @@ internal sealed class WindowsFolderWatcher : IHostedService, IDisposable
 
         if (!string.Equals(kind, "Deleted", StringComparison.Ordinal) && Directory.Exists(fullPath))
         {
+            if (kind is "Created" or "Renamed")
+            {
+                try
+                {
+                    foreach (var nestedFile in Directory.EnumerateFiles(fullPath, "*", SearchOption.AllDirectories))
+                    {
+                        EnqueueFile(entry, nestedFile, "Created");
+                    }
+                }
+                catch (Exception error) when (error is UnauthorizedAccessException or IOException or ObjectDisposedException)
+                {
+                    _logger?.LogDebug(error, "Ignoring transient directory enumeration on '{FullPath}'.", fullPath);
+                }
+            }
+            return;
+        }
+
+        EnqueueFile(entry, fullPath, kind);
+    }
+
+    private void EnqueueFile(WatchEntry entry, string fullPath, string kind)
+    {
+        if (_disposed || string.IsNullOrWhiteSpace(fullPath))
+        {
             return;
         }
 

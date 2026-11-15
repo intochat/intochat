@@ -120,6 +120,26 @@ public sealed class GuestTrySessionFacts
     }
 
     [Fact]
+    public void IsActiveSessionValidatesExactSessionIdBrainIdAndExpiry()
+    {
+        var clock = new FakeTimeProvider(StartTime);
+        var service = new GuestTrySessionService();
+        var keys = new FixedTokenKey();
+
+        var outcome = service.ProvisionOrResume("198.51.100.10", existingToken: null, keys.Key, clock.GetUtcNow());
+        Assert.Equal(GuestTryProvisionOutcome.Provisioned, outcome.Outcome);
+        var session = outcome.Session!;
+
+        Assert.True(service.IsActiveSession(session.SessionId, session.BrainId, clock.GetUtcNow()));
+        Assert.False(service.IsActiveSession(session.SessionId, "try-otherbrain", clock.GetUtcNow()));
+        Assert.False(service.IsActiveSession(session.SessionId, "owner", clock.GetUtcNow()));
+        Assert.False(service.IsActiveSession("wrong-session", session.BrainId, clock.GetUtcNow()));
+
+        clock.Advance(TimeSpan.FromMinutes(31));
+        Assert.False(service.IsActiveSession(session.SessionId, session.BrainId, clock.GetUtcNow()));
+    }
+
+    [Fact]
     public void TamperedTokenForeignSubnetForeignOriginAndExplicitDeleteAreEnforced()
     {
         var clock = new FakeTimeProvider(StartTime);

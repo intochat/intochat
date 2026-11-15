@@ -171,7 +171,13 @@ public static class ServerHostingExtensions
         ArgumentNullException.ThrowIfNull(app);
         if (!((IApplicationBuilder)app).Properties.TryAdd("IntoChat.OS.Mapped", true)) { throw new InvalidOperationException("MapIntoChatOSServer runs once per application."); }
         UseStaticWebShell(app);
-        app.UsePlatformHttp();
+        app.UsePlatformHttp(beforeAccountSession: web =>
+        {
+            if (web.Services.GetService<IntoChat.Cloud.Lobby.GuestTrySessionService>() is not null)
+            {
+                IntoChat.OS.Kernel.CloudHost.UseGuestTrySessions(web);
+            }
+        });
         if (app.Services.GetRequiredService<IntoChatOSServerBuilder>().Dashboard) { app.MapOrleansDashboard(); }
         // /health, /ready and /alive (ServiceDefaults.HealthProbes): deployments and the YARP front probe them.
         app.MapDefaultEndpoints();

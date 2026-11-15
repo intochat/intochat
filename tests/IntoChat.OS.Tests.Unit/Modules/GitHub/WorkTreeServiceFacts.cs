@@ -183,7 +183,7 @@ public sealed class WorkTreeServiceFacts : IDisposable
             File.WriteAllTextAsync(dotGitFile, "gitdir: " + Path.Combine(_root, "evil-gitdir") + "\n", Encoding.UTF8, Ct));
 
         // Lock 2: even if a prompt-injected coder clears ReadOnly and rewrites <treePath>/.git, SHA-256 verification rejects it before running git
-        File.SetAttributes(dotGitFile, FileAttributes.Normal);
+        UnlockDotGitForTest(dotGitFile);
         await File.WriteAllTextAsync(dotGitFile, "gitdir: " + Path.Combine(_root, "evil-gitdir") + "\n", Encoding.UTF8, Ct);
 
         var ex = await Assert.ThrowsAsync<SecurityException>(() =>
@@ -201,11 +201,21 @@ public sealed class WorkTreeServiceFacts : IDisposable
 
         var lease = await service.PrepareAsync("os", "tamper02", "Directory tamper test", null, Ct);
         var dotGitFile = Path.Combine(lease.TreePath, ".git");
+        UnlockDotGitForTest(dotGitFile);
         File.Delete(dotGitFile);
         Directory.CreateDirectory(dotGitFile);
 
         await Assert.ThrowsAsync<SecurityException>(() =>
             service.VerifyAndCommitAsync(lease, "Attempt commit after .git directory swap", Ct));
+    }
+
+    private static void UnlockDotGitForTest(string dotGitFile)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(dotGitFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+        File.SetAttributes(dotGitFile, FileAttributes.Normal);
     }
 
     [Theory]
