@@ -125,15 +125,12 @@ public sealed class CreatorApp : Screen<CreatorState>
     public async Task Open(CreatorOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var input = request.Input?.Trim() ?? "";
-        if (input.StartsWith("trace/", StringComparison.Ordinal) && input["trace/".Length..].Trim() is { Length: > 0 } traceId)
+        var next = State.OpenInput(request.Input);
+        if (next != State)
         {
-            await Show(State with { Selected = new Selection(Selection.Pulse, traceId), TraceId = traceId, ReplayCursor = null });
+            await Show(next);
         }
-        else if (input.StartsWith("node:", StringComparison.Ordinal) && Selection.Parse(input) is { } node)
-        {
-            await Show(State with { Selected = node });
-        }
+
         await RefreshAsync();
         await InspectAsync();
     }
@@ -142,7 +139,13 @@ public sealed class CreatorApp : Screen<CreatorState>
     public async Task Select(CreatorSelect request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var selection = Selection.Parse(Blank(request.Value) ?? Blank(request.Key));
+        var raw = Blank(request.Value) ?? Blank(request.Key);
+        if (string.Equals(raw, CreatorView.ToggleStateGraphTarget, StringComparison.Ordinal))
+        {
+            await Show(State.ToggleStateGraph());
+            return;
+        }
+        var selection = Selection.Parse(raw);
         if (_topology.Nodes.Count == 0) { await RefreshAsync(); }
         if (selection is not null && !Known(selection))
         {
@@ -150,13 +153,7 @@ public sealed class CreatorApp : Screen<CreatorState>
             await Show(State with { Selected = selection, Transcript = null });
             return;
         }
-        await Show(State with
-        {
-            Selected = selection,
-            TraceId = selection?.Kind == Selection.Pulse ? selection.Id : State.TraceId,
-            ReplayCursor = null,
-            Transcript = null,
-        });
+        await Show(State.SelectSelection(selection));
         await InspectAsync();
     }
 
@@ -172,7 +169,7 @@ public sealed class CreatorApp : Screen<CreatorState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var steps = State.Selected is { Kind: Selection.Pulse } ? _inspection.Hops.Count : 0;
-        await Show(State with { ReplayCursor = ReplayScript.Move(State.ReplayCursor, request.Cursor, steps) });
+        await Show(State.StepReplay(request.Cursor, steps));
     }
 
     [DigitalBrain.Neurons.On]
@@ -339,10 +336,9 @@ public sealed class CreatorApp : Screen<CreatorState>
     public async Task Run(CreatorRun request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var runId = Blank(request.RunId);
-        if (runId is not null)
+        if (Blank(request.RunId) is { } runId)
         {
-            await Show(CreatorDecide.SelectRun(State, runId));
+            await Show(State.SelectRun(runId));
         }
         await RefreshAsync();
     }
@@ -390,7 +386,7 @@ public sealed class CreatorApp : Screen<CreatorState>
     public async Task OnField(string field)
     {
         var value = (await Get<IField>(CreatorView.FieldKey(field)).Read()).Value ?? "";
-        await Show(field == CreatorView.ChangeField ? State with { ChangeDraft = value } : State with { Draft = value });
+        await Show(field == CreatorView.ChangeField ? State.SetChangeDraft(value) : State.SetDraft(value));
     }
 
     public new CreatorState State => base.State;

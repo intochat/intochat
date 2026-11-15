@@ -128,6 +128,24 @@ class IcAppIcon extends StatelessWidget {
       icon: LucideIcons.compass,
       brandGlyph: IcBrandGlyph.workspaceCanvas,
     ),
+    'desktop': IcAppIconSpec(
+      appId: 'desktop',
+      title: 'Desktop',
+      category: 'Workspace',
+      gradientTop: Color(0xFF3B82F6),
+      gradientBottom: Color(0xFF1D4ED8),
+      icon: LucideIcons.layoutGrid,
+      brandGlyph: IcBrandGlyph.workspaceCanvas,
+    ),
+    'usage': IcAppIconSpec(
+      appId: 'usage',
+      title: 'Usage',
+      category: 'Analytics',
+      gradientTop: Color(0xFF0EA5E9),
+      gradientBottom: Color(0xFF0369A1),
+      icon: LucideIcons.gauge,
+      brandGlyph: IcBrandGlyph.dataStudio,
+    ),
     'files': IcAppIconSpec(
       appId: 'files',
       title: 'Files',
@@ -511,6 +529,8 @@ class IcAppIcon extends StatelessWidget {
     if (lower.contains('aspire')) return 'aspire';
     if (lower == 'brain' || lower == 'brain graph') return 'brain';
     if (lower == 'workspace') return 'workspace';
+    if (lower == 'desktop' || lower == 'home') return 'desktop';
+    if (lower == 'usage' || lower == 'token usage') return 'usage';
     if (lower == 'file' || lower == 'files' || lower == 'file vault') {
       return 'files';
     }

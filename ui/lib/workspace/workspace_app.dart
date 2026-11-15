@@ -584,13 +584,14 @@ class WorkspaceAppState extends State<WorkspaceApp>
   }
 
   IcStylePreset _currentStylePreset() => switch (store.settings.theme) {
+    'fluent-acrylic' => IcStylePreset.fluentAcrylic,
     'spatial-glass' => IcStylePreset.spatialGlass,
     'cyber-synaptic' => IcStylePreset.cyberSynaptic,
-    'warm-paper' || 'paper' || 'light' => IcStylePreset.warmPaper,
+    'warm-paper' || 'intochat' || 'paper' || 'light' => IcStylePreset.warmPaper,
     'fluent-warm-mica' => IcStylePreset.fluentWarmMica,
     'linear-carbon' => IcStylePreset.linearCarbon,
     'nordic-tactical' => IcStylePreset.nordicTactical,
-    _ => IcStylePreset.fluentAcrylic,
+    _ => IcStylePreset.warmPaper,
   };
 
   bool get _isDesktopRoot =>
@@ -598,10 +599,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
       _renderKind == 'view' &&
       _rootName == '$_brain/apps/desktop/view';
 
-  String get _effectiveTheme =>
-      _isDesktopRoot && store.settings.theme == 'intochat'
-      ? 'fluent-acrylic'
-      : store.settings.theme;
+  String get _effectiveTheme => store.settings.theme;
 
   Widget _menu() => PopupMenuButton<String>(
     tooltip: 'Profile',

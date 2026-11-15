@@ -112,8 +112,7 @@ public sealed class TasksApp : Screen<TasksState>
     public async Task View(TasksView request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var view = request.View?.Trim().ToLowerInvariant();
-        await Show(State with { View = view is "list" or "timeline" ? view : "board" });
+        await Show(State.SwitchView(request.View));
     }
 
     [DigitalBrain.Neurons.On]
@@ -121,7 +120,7 @@ public sealed class TasksApp : Screen<TasksState>
     {
         ArgumentNullException.ThrowIfNull(request);
         FlowStatus? status = Enum.TryParse<FlowStatus>(request.Status, ignoreCase: true, out var parsed) ? parsed : null;
-        await Show(State with { Query = State.Query with { Owner = Blank(request.Owner), Status = status, Type = Blank(request.Type) } });
+        await Show(State.ApplyFilter(request.Owner, status, request.Type));
         await RefreshAsync();
     }
 
@@ -129,7 +128,7 @@ public sealed class TasksApp : Screen<TasksState>
     public async Task Select(TasksSelect request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await Show(State with { Selected = Blank(request.FlowId), Source = null });
+        await Show(State.SelectFlow(request.FlowId));
     }
 
     [DigitalBrain.Neurons.On]
@@ -142,12 +141,12 @@ public sealed class TasksApp : Screen<TasksState>
         try
         {
             var flowId = await Get<IFlows>(FlowsKey).Start(PlanFlow.Alias, title, null, inner);
-            await Show(State with { Selected = flowId, Source = null, Status = $"Started {title}", Draft = State.Draft with { Title = "", Description = "" } });
+            await Show(State.MarkStarted(flowId, title));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             NullLogger.Instance.LogSwallowed(error, "The flow could not start; the status line reports why.");
-            await Show(State with { Status = $"Could not start: {error.Message}" });
+            await Show(State.WithStatus($"Could not start: {error.Message}"));
         }
         await RefreshAsync();
     }
@@ -165,7 +164,8 @@ public sealed class TasksApp : Screen<TasksState>
     public async Task RelateKind(TasksRelateKind request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (Enum.TryParse<RelationKind>(request.Kind, ignoreCase: true, out var kind)) { await Show(State with { RelateKind = kind.ToString() }); }
+        var next = State.SetRelateKind(request.Kind);
+        if (next != State) { await Show(next); }
     }
 
     [DigitalBrain.Neurons.On]
@@ -194,7 +194,7 @@ public sealed class TasksApp : Screen<TasksState>
         ArgumentNullException.ThrowIfNull(request);
         if (Blank(request.FlowId) is not { } flowId) { return; }
         var unit = await UnitOfAsync(flowId);
-        await Show(State with { Selected = flowId, Source = unit is null ? await StagedSourceAsync(flowId) : await SourceOfAsync(unit) });
+        await Show(State.WithSource(flowId, unit is null ? await StagedSourceAsync(flowId) : await SourceOfAsync(unit)));
     }
 
     [DigitalBrain.Neurons.On]
@@ -206,7 +206,7 @@ public sealed class TasksApp : Screen<TasksState>
         var alias = unit?.Aliases.FirstOrDefault() ?? unit?.SourceKey ?? AliasOrKey(flowId);
         // The focus carries the open-ino action; the shell's presence layer opens Ino from it.
         await Get<IInoFocus>(IInoFocus.DefaultKey).Point("window:ino", FocusTone.Info, $"Change unit {alias}", new FocusAction("open", "ino"));
-        await Show(State with { Status = $"Asked Ino to change {alias}" });
+        await Show(State.WithStatus($"Asked Ino to change {alias}"));
     }
 
     [DigitalBrain.Neurons.On]
@@ -221,15 +221,7 @@ public sealed class TasksApp : Screen<TasksState>
     {
         ArgumentNullException.ThrowIfNull(changed);
         var value = (await Get<IField>(TasksViewRenderer.FieldKey(field)).Read()).Value ?? "";
-        await Show(State with
-        {
-            Draft = field switch
-            {
-                "title" => State.Draft with { Title = value },
-                "description" => State.Draft with { Description = value },
-                _ => State.Draft with { Lag = value },
-            },
-        });
+        await Show(State.UpdateDraftField(field, value));
     }
 
     public new TasksState State => base.State;

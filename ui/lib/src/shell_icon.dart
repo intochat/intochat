@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'theme/ui_icon.dart';
 
 // The dock's icon vocabulary: a toolbar entry names one of these or a file in its bundle.
-IconData? shellIcon(String name) => switch (name) {
+IconData? shellIcon(String name) => switch (name.trim().toLowerCase()) {
   'play' => Icons.play_arrow_rounded,
   'pause' => Icons.pause_rounded,
   'stop' => Icons.stop_rounded,

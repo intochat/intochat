@@ -57,6 +57,10 @@ final class UiColors extends ThemeExtension<UiColors> {
     Color? ambientGlow,
     Color? secondaryGlow,
     Color? chartContext,
+    Color? idle,
+    Color? needsYou,
+    Color? needsYouBg,
+    Color? hoverOverlay,
   }) : _accentCopy = accentCopy,
        _accentCopyHover = accentCopyHover,
        _focus = focus,
@@ -73,7 +77,11 @@ final class UiColors extends ThemeExtension<UiColors> {
        _titleBarBlurred = titleBarBlurred,
        _ambientGlow = ambientGlow,
        _secondaryGlow = secondaryGlow,
-       _chartContext = chartContext;
+       _chartContext = chartContext,
+       _idle = idle,
+       _needsYou = needsYou,
+       _needsYouBg = needsYouBg,
+       _hoverOverlay = hoverOverlay;
 
   /// Creates a [UiColors] extension directly from an [IcColors] token set.
   factory UiColors.fromIc(
@@ -131,6 +139,10 @@ final class UiColors extends ThemeExtension<UiColors> {
     ambientGlow: ic.ambientGlow,
     secondaryGlow: ic.secondaryGlow,
     chartContext: ic.chartContext,
+    idle: ic.idle,
+    needsYou: ic.needsYou,
+    needsYouBg: ic.needsYouBg,
+    hoverOverlay: ic.hoverOverlay,
   );
 
   final IcStylePreset preset;
@@ -199,6 +211,10 @@ final class UiColors extends ThemeExtension<UiColors> {
   final Color? _ambientGlow;
   final Color? _secondaryGlow;
   final Color? _chartContext;
+  final Color? _idle;
+  final Color? _needsYou;
+  final Color? _needsYouBg;
+  final Color? _hoverOverlay;
 
   bool get isGlass => blurSigma > 0 && windowOpacity < 0.99;
   Color get specularBorder => _specularBorder ?? hairline;
@@ -209,6 +225,55 @@ final class UiColors extends ThemeExtension<UiColors> {
   Color get ambientGlow => _ambientGlow ?? accent;
   Color get secondaryGlow => _secondaryGlow ?? done;
   Color get chartContext => _chartContext ?? subtle;
+
+  // --- Authoritative DESIGN.md §2 canonical token aliases & status/overlay pairs ---
+  Color get surfacePage => page;
+  Color get surfaceSunk => recessed;
+  Color get surfaceCard => surface;
+  Color get surfaceInk => ink;
+  Color get surfaceElevated => elevated;
+
+  Color get textStrong => strong;
+  Color get textBody => body;
+  Color get textMuted => muted;
+  Color get textSubtle => subtle;
+
+  Color get borderHairline => hairline;
+  Color get borderInput => inputBorder;
+  Color get ring => focus;
+
+  Color get idle => _idle ?? subtle;
+  Color get needsYou => _needsYou ?? accent;
+  Color get needsYouBg => _needsYouBg ?? accentTint;
+  Color get accentOnInk => const Color(0xFF8FB0FF);
+  Color get bubbleMine => userBubble;
+  Color get onBubbleMine => userText;
+  Color get scrim =>
+      isDark ? const Color(0x80110F0B) : const Color(0x4717140F);
+
+  /// Overlay hover & selection fills (`DESIGN.md` §2.8).
+  Color get hoverOverlay =>
+      _hoverOverlay ??
+      (isDark ? const Color(0x14FBFAF7) : const Color(0x0A17140F));
+  Color get hoverFill => hoverOverlay;
+  Color get barHoverOverlay =>
+      isDark ? const Color(0x1AFBFAF7) : const Color(0x0F17140F);
+  Color get selectedOverlay =>
+      isDark ? const Color(0x1FFBFAF7) : const Color(0x1217140F);
+
+  /// Desktop background tones (`DESIGN.md` §2.7).
+  Color get desktopCream =>
+      isDark ? const Color(0xFF1D1914) : const Color(0xFFF2EFE9);
+  Color get desktopSand =>
+      isDark ? const Color(0xFF231E17) : const Color(0xFFE6DFD2);
+  Color get desktopInk =>
+      isDark ? const Color(0xFF0D0B08) : const Color(0xFF2A251E);
+
+  Color desktopTone(DesktopTone tone) => switch (tone) {
+    DesktopTone.cream => desktopCream,
+    DesktopTone.sand => desktopSand,
+    DesktopTone.ink => desktopInk,
+  };
 
   /// Inferred brightness from [page] luminance.
   Brightness get brightness =>
@@ -279,21 +344,21 @@ final class UiColors extends ThemeExtension<UiColors> {
     body: Color(0xFFF0ECE4),
     muted: Color(0xFF9C9182),
     subtle: Color(0xFF7C7264),
-    onInk: Color(0xFF17140F),
+    onInk: Color(0xFFFBFAF7),
     accent: Color(0xFF4B7DFF),
     accentHover: Color(0xFF1F5EFF),
     accentTint: Color(0x294B7DFF),
     accentBorder: Color(0x734B7DFF),
-    onAccent: Color(0xFF17140F),
+    onAccent: Color(0xFFFFFFFF),
     accentCopy: Color(0xFFFBFAF7),
     accentCopyHover: Color(0xFFF0ECE4),
     focus: Color(0x734B7DFF),
     done: Color(0xFF8FE0AF),
-    doneBg: Color(0x298FE0AF),
+    doneBg: Color(0x2912A150),
     working: Color(0xFFF6D28A),
-    workingBg: Color(0x29F6D28A),
+    workingBg: Color(0x29E8A317),
     error: Color(0xFFF3A99F),
-    errorBg: Color(0x29F3A99F),
+    errorBg: Color(0x29E0402F),
     hairline: Color(0xFF423B31),
     borderStrong: Color(0xFFF0ECE4),
     inputBorder: Color(0xFF5E554A),
@@ -524,6 +589,10 @@ final class UiColors extends ThemeExtension<UiColors> {
     Color? ambientGlow,
     Color? secondaryGlow,
     Color? chartContext,
+    Color? idle,
+    Color? needsYou,
+    Color? needsYouBg,
+    Color? hoverOverlay,
   }) => UiColors(
     preset: preset ?? this.preset,
     page: page ?? this.page,
@@ -569,6 +638,10 @@ final class UiColors extends ThemeExtension<UiColors> {
     ambientGlow: ambientGlow ?? _ambientGlow,
     secondaryGlow: secondaryGlow ?? _secondaryGlow,
     chartContext: chartContext ?? _chartContext,
+    idle: idle ?? _idle,
+    needsYou: needsYou ?? _needsYou,
+    needsYouBg: needsYouBg ?? _needsYouBg,
+    hoverOverlay: hoverOverlay ?? _hoverOverlay,
   );
 
   @override
@@ -620,6 +693,10 @@ final class UiColors extends ThemeExtension<UiColors> {
       ambientGlow: c(ambientGlow, other.ambientGlow),
       secondaryGlow: c(secondaryGlow, other.secondaryGlow),
       chartContext: c(chartContext, other.chartContext),
+      idle: c(idle, other.idle),
+      needsYou: c(needsYou, other.needsYou),
+      needsYouBg: c(needsYouBg, other.needsYouBg),
+      hoverOverlay: c(hoverOverlay, other.hoverOverlay),
     );
   }
 

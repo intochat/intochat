@@ -410,6 +410,7 @@ internal static partial class OfflineUnitSynthesizer
                 public sealed record {{stateRecordName}}(bool Visible = false, int Clicks = 0)
                 {
                     public {{stateRecordName}}() : this(false, 0) { }
+                    public {{stateRecordName}} Toggled() => this with { Visible = !Visible, Clicks = Clicks + 1 };
                 }
 
                 public static class {{unitClassName}}
@@ -417,19 +418,16 @@ internal static partial class OfflineUnitSynthesizer
                     [Synapse("{{toggleSignal}}", "{{alias}}")]
                     public static Reaction<{{stateRecordName}}> Toggle(SignalEnvelope env, {{stateRecordName}} state)
                     {
-                        var nextVisible = !state.Visible;
-                        var nextClicks = state.Clicks + 1;
-                        return Reaction<{{stateRecordName}}>.Of(
-                            state with { Visible = nextVisible, Clicks = nextClicks },
-                            new HelloToggled(nextVisible, nextClicks));
+                        var next = state.Toggled();
+                        return Reaction<{{stateRecordName}}>.Of(next, new HelloToggled(next.Visible, next.Clicks));
                     }
 
                     [Synapse("{{alias}}")]
                     public static View Show({{stateRecordName}} state) => new("Hello World", new Surface(
                     [
-                        new Badge(state.Visible ? "Greeting Visible" : "Ready", state.Visible ? "success" : "neutral"),
+                        new TagPill(state.Visible ? "Greeting Visible" : "Ready", state.Visible ? "done" : "neutral", state.Visible ? "check" : "circle-dashed"),
                         new Text(state.Visible ? "Hello, IntoChat OS!" : "Click the button below"),
-                        new Button("toggle-hello", state.Visible ? "Hide Hello" : "Say Hello", new Emit("{{alias}}", "{{toggleSignal}}"), Tone: ButtonTone.Accent),
+                        new Button("toggle-hello", state.Visible ? "Hide Hello" : "Say Hello", new Emit("{{alias}}", "{{toggleSignal}}"), Tone: ButtonTone.Accent) { Style = "primary" },
                     ], Title: "Hello World", Subtitle: $"Toggled {state.Clicks} time(s)"));
                 }
                 """;
@@ -466,12 +464,12 @@ internal static partial class OfflineUnitSynthesizer
                     }
 
                     [Synapse("{{alias}}")]
-                    public static View Show({{stateRecordName}} state) => new("Calculator", new Column(
+                    public static View Show({{stateRecordName}} state) => new("Calculator", new Surface(
                     [
-                        new Badge($"Total: {state.Total}", "neutral"),
+                        new TagPill($"Total: {state.Total}", "done", "check"),
                         new Text($"Last operation: {state.LastOp}"),
-                        new Button("add", "Add", new Emit("{{alias}}", "calc.add", JsonSerializer.SerializeToElement(new CalcAddArgs(5))))
-                    ]));
+                        new Button("add", "Add", new Emit("{{alias}}", "calc.add", JsonSerializer.SerializeToElement(new CalcAddArgs(5))), Tone: ButtonTone.Accent) { Style = "primary" }
+                    ], Title: "Calculator"));
                 }
                 """;
         }
@@ -504,12 +502,12 @@ internal static partial class OfflineUnitSynthesizer
                     }
 
                     [Synapse("{{alias}}")]
-                    public static View Show({{stateRecordName}} state) => new("Todo Tracker", new Column(
+                    public static View Show({{stateRecordName}} state) => new("Todo Tracker", new Surface(
                     [
-                        new Badge($"{state.ItemsCount} items", "accent"),
+                        new TagPill($"{state.ItemsCount} items", state.ItemsCount > 0 ? "done" : "neutral", state.ItemsCount > 0 ? "check" : "circle-dashed"),
                         new Text(state.LastItem),
-                        new Button("add", "Add Task", new Emit("{{alias}}", "todo.add", JsonSerializer.SerializeToElement(new TodoAdded("New task"))))
-                    ]));
+                        new Button("add", "Add Task", new Emit("{{alias}}", "todo.add", JsonSerializer.SerializeToElement(new TodoAdded("New task"))), Tone: ButtonTone.Accent) { Style = "primary" }
+                    ], Title: "Todo Tracker"));
                 }
                 """;
         }
@@ -542,12 +540,12 @@ internal static partial class OfflineUnitSynthesizer
                     }
 
                     [Synapse("{{alias}}")]
-                    public static View Show({{stateRecordName}} state) => new("Budget Tracker", new Column(
+                    public static View Show({{stateRecordName}} state) => new("Budget Tracker", new Surface(
                     [
-                        new Badge($"Balance: {state.Balance}", state.Balance >= 0 ? "success" : "danger"),
+                        new TagPill($"Balance: {state.Balance}", state.Balance >= 0 ? "done" : "error", state.Balance >= 0 ? "check" : "triangle-alert"),
                         new Text($"{state.Transactions} transactions recorded"),
                         new Button("spend", "Spend", new Emit("{{alias}}", "budget.spend", JsonSerializer.SerializeToElement(new BudgetUpdated(10))))
-                    ]));
+                    ], Title: "Budget Tracker"));
                 }
                 """;
         }
@@ -576,12 +574,12 @@ internal static partial class OfflineUnitSynthesizer
                     => Reaction<{{stateRecordName}}>.Of(state with { Count = state.Count + 1, LastAction = "increment" }, new CounterUpdated(1));
 
                 [Synapse("{{alias}}")]
-                public static View Show({{stateRecordName}} state) => new("Counter", new Column(
+                public static View Show({{stateRecordName}} state) => new("Counter", new Surface(
                 [
-                    new Badge($"Count: {state.Count}", "neutral"),
+                    new TagPill($"Count: {state.Count}", state.Count > 0 ? "done" : "neutral", state.Count > 0 ? "check" : "circle-dashed"),
                     new Text($"Last: {state.LastAction}"),
-                    new Button("increment", "Increment", new Emit("{{alias}}", "counter.increment"))
-                ]));
+                    new Button("increment", "Increment", new Emit("{{alias}}", "counter.increment"), Tone: ButtonTone.Accent) { Style = "primary" }
+                ], Title: "Counter"));
             }
             """;
     }
@@ -625,13 +623,13 @@ internal static partial class OfflineUnitSynthesizer
                 }
 
                 [Synapse("{{alias}}")]
-                public static View Show({{stateRecordName}} state) => new("Counter (Refined)", new Column(
+                public static View Show({{stateRecordName}} state) => new("Counter (Refined)", new Surface(
                 [
-                    new Badge($"Count: {state.Count}", "neutral"),
+                    new TagPill($"Count: {state.Count}", state.Count > 0 ? "done" : "neutral", state.Count > 0 ? "check" : "circle-dashed"),
                     new Text($"Notes: {state.Notes}"),
-                    new Button("increment", "Increment", new Emit("{{alias}}", "counter.increment")),
+                    new Button("increment", "Increment", new Emit("{{alias}}", "counter.increment"), Tone: ButtonTone.Accent) { Style = "primary" },
                     new Button("note", "Add Note", new Emit("{{alias}}", "{{alias}}.note", JsonSerializer.SerializeToElement(new CounterNoted("note"))))
-                ]));
+                ], Title: "Counter (Refined)"));
             }
             """;
     }
@@ -678,11 +676,11 @@ internal static partial class OfflineUnitSynthesizer
                     => Reaction<{{stateRecordName}}>.Of(state with { Step = 3, Completed = true });
 
                 [Synapse("{{alias}}")]
-                public static View Show({{stateRecordName}} state) => new("Workflow Watch", new Column(
+                public static View Show({{stateRecordName}} state) => new("Workflow Watch", new Surface(
                 [
-                    new Badge(state.Completed ? "Completed" : $"Step {state.Step}", state.Completed ? "success" : "neutral"),
+                    new TagPill(state.Completed ? "Completed" : $"Step {state.Step}", state.Completed ? "done" : "working", state.Completed ? "check" : "loader"),
                     new Text($"Current step: {state.Step}")
-                ]));
+                ], Title: "Workflow Watch"));
             }
             """;
     }

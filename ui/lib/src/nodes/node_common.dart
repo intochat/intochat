@@ -21,12 +21,32 @@ UiTone toneOf(String tone) => switch (nodeToneOf(tone)) {
   UiNodeTone.neutral || UiNodeTone.accent => UiTone.neutral,
 };
 
-/// Resolves all C# semantic tone strings (`accent`, `ok`, `info`, `warn`, etc.).
-UiNodeTone nodeToneOf(String tone) => switch (tone.toLowerCase()) {
-  'accent' || 'primary' || 'info' => UiNodeTone.accent,
-  'done' || 'ok' || 'success' || 'positive' => UiNodeTone.done,
-  'working' || 'warn' || 'warning' || 'pending' => UiNodeTone.working,
-  'error' || 'danger' || 'critical' => UiNodeTone.error,
+/// Resolves all C# semantic tone strings (`accent`, `ok`, `info`, `warn`, `needs-you`, `idle`, etc.).
+UiNodeTone nodeToneOf(String tone) => switch (tone.trim().toLowerCase()) {
+  'accent' ||
+  'primary' ||
+  'info' ||
+  'needs-you' ||
+  'needs_you' ||
+  'needsyou' => UiNodeTone.accent,
+  'done' ||
+  'ok' ||
+  'success' ||
+  'positive' ||
+  'connected' ||
+  'saved' => UiNodeTone.done,
+  'working' ||
+  'warn' ||
+  'warning' ||
+  'pending' ||
+  'running' ||
+  'syncing' ||
+  'saving' => UiNodeTone.working,
+  'error' ||
+  'danger' ||
+  'critical' ||
+  'failed' ||
+  'destructive' => UiNodeTone.error,
   _ => UiNodeTone.neutral,
 };
 

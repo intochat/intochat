@@ -1,6 +1,8 @@
 ﻿import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:flutter/material.dart';
 
+import '../../theme/ui_colors.dart';
+import '../../theme/ui_theme.dart';
 import 'ui_table_controller.dart';
 
 /// A server-filtered, server-sorted table; no source rows are modified locally.
@@ -31,10 +33,10 @@ class UiDataTable extends StatelessWidget {
       final canEdit = controller.update != null && !controller.busy;
       final compact = Theme.of(context).visualDensity.vertical < 0;
       void activate() => onActivate?.call();
-      final colors = Theme.of(context).colorScheme;
+      final uiColors = UiColors.of(context);
       return Material(
         key: Key('ui_table_${table.id}'),
-        color: colors.surface,
+        color: uiColors.surfaceCard,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: LayoutBuilder(
@@ -231,6 +233,11 @@ class UiDataTable extends StatelessWidget {
                           table.rows.isEmpty
                               ? '0 rows'
                               : '${table.offset + 1}–${table.offset + table.rows.length} of ${table.filteredRows}',
+                          style: UiType.textStyle(
+                            12.5,
+                            color: uiColors.textMuted,
+                            tnum: true,
+                          ),
                         ),
                       ),
                       IconButton(
@@ -288,23 +295,31 @@ class UiDataTable extends StatelessWidget {
     required bool scrollVertically,
     required VoidCallback activate,
   }) {
-    final colors = Theme.of(context).colorScheme;
+    final uiColors = UiColors.of(context);
     final grid = SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: ConstrainedBox(
         constraints: BoxConstraints(minWidth: minWidth),
         child: DataTable(
-          headingRowColor: WidgetStatePropertyAll(colors.surfaceContainerLow),
-          dividerThickness: .5,
+          headingRowColor: WidgetStatePropertyAll(uiColors.surfaceSunk),
+          dividerThickness: 1,
           border: TableBorder(
+            top: BorderSide(color: uiColors.borderHairline, width: 1),
+            bottom: BorderSide(color: uiColors.borderHairline, width: 1),
             horizontalInside: BorderSide(
-              color: colors.outlineVariant.withValues(alpha: .45),
-              width: .5,
+              color: uiColors.borderHairline,
+              width: 1,
             ),
           ),
-          headingTextStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: colors.onSurfaceVariant,
-            fontWeight: FontWeight.w600,
+          headingTextStyle: UiType.textStyle(
+            11.5,
+            weight: FontWeight.w600,
+            color: uiColors.textMuted,
+          ),
+          dataTextStyle: UiType.textStyle(
+            13,
+            color: uiColors.textStrong,
+            tnum: true,
           ),
           sortColumnIndex: sortIndex < 0 ? null : sortIndex,
           sortAscending: !(table.sort?.descending ?? false),

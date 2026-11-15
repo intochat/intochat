@@ -8,16 +8,16 @@ Interactive data analysis, SQL/CSV/JSON exploration, and chart visualization stu
 Powered by DataAnalyticsEngine and IFilesVfsService (/work/*.csv, /work/*.tsv, /work/*.json, and relational tables),
 and synchronized with Ino chat and Markdraw Studio (apps/markdraw).
 */
-using System.Reflection;
-using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain;
-using DigitalBrain.Kernel;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
+using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Markdraw;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Apps.Data;
@@ -58,30 +58,35 @@ public sealed record DataStudioAppState(
     string? LastExportPath = null,
     string? LastMarkdrawPath = null)
 {
-    public DataStudioAppState() : this(
-        ActiveSource: "",
-        ActiveQuery: "",
-        ChartTitle: "",
-        ChartKind: "bar",
-        Columns: [],
-        Rows: [],
-        ChartPoints: [],
-        Total: 0,
-        Average: 0,
-        Min: 0,
-        Max: 0,
-        Summary: "No dataset loaded.",
-        SourceNeuronUri: "neuron://local/apps/data",
-        WorkspaceDatasets: [])
-    {
-    }
+    public DataStudioAppState() : this("", "", "", "bar", [], [], [], 0, 0, 0, 0, "No dataset loaded.", "neuron://local/apps/data", []) { }
+
+    [Invariant("ChartKind is bar, line, or pie."), JsonIgnore]
+    public bool ValidChartKind => ChartKind is "bar" or "line" or "pie";
+
+    [Invariant("Dataset collections are never null."), JsonIgnore]
+    public bool CollectionsNonNull => Columns is not null && Rows is not null && ChartPoints is not null && WorkspaceDatasets is not null;
+
+    public Rule HasDatasetRows() => Decision.Rule("dataset_empty", Rows.Length == 0, "Load a dataset before exporting.");
+
+    public Rule SupportedChartKind(string? kind) =>
+        Decision.Rule("invalid_chart_kind", string.IsNullOrWhiteSpace(kind) || kind.Trim().ToLowerInvariant() is not ("bar" or "line" or "pie"), "Chart kind must be bar, line, or pie.");
+
+    public Decision<DataStudioAppState> SwitchChart([Sample("bar", "line", "pie", "radar")] string kind) =>
+        Decision.Check("switch-chart", SupportedChartKind(kind)) ?? Decision.Accept(DataStudioDecisions.DecideSwitchChart(this, kind));
+
+    public Decision<DataStudioAppState> RecordCsvExport([Sample("/work/analytics-export.csv")] string targetPath) =>
+        Decision.Check("export-csv", HasDatasetRows(), Decision.Rule("empty_export_path", string.IsNullOrWhiteSpace(targetPath), "Target CSV path is required."))
+        ?? Decision.Accept(DataStudioDecisions.DecideExportCsv(this, targetPath.Trim(), WorkspaceDatasets));
+
+    public Decision<DataStudioAppState> RecordMarkdrawLineage([Sample("/work/data-lineage.markdraw")] string docPath) =>
+        Decision.Check("to-markdraw", HasDatasetRows(), Decision.Rule("empty_markdraw_path", string.IsNullOrWhiteSpace(docPath), "Target Markdraw path is required."))
+        ?? Decision.Accept(DataStudioDecisions.DecideToMarkdraw(this, docPath.Trim()));
 }
 
-[Neuron("app.data")]
-public sealed class DataStudioApp : Screen<DataStudioAppState>, IWithFilesVfs
+[Neuron("app.data"), Screen("app.data", Title = "Data Studio")]
+public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFilesVfs
 {
     public IFilesVfsService? FilesVfs { get; set; }
-
     public const string AppName = "data";
 
     public static AppBundle Bundle { get; } = new(
@@ -115,6 +120,9 @@ public sealed class DataStudioApp : Screen<DataStudioAppState>, IWithFilesVfs
         CompiledType = typeof(DataStudioApp).AssemblyQualifiedName,
     };
 
+    public new DataStudioAppState State => base.State;
+    public View Render() => PreviewView(State);
+
     private string CurrentBrainId
     {
         get
@@ -129,46 +137,42 @@ public sealed class DataStudioApp : Screen<DataStudioAppState>, IWithFilesVfs
     }
 
     [On]
-    public async Task Open(DataStudioOpen request)
+    public Task Open(DataStudioOpen request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var source = string.IsNullOrWhiteSpace(request.Source) ? State.ActiveSource : DataStudioDecisions.NormalizeSource(request.Source);
-        await RunAndSetQueryResultAsync(source, DataStudioDecisions.BuildDefaultQueryForSource(source), State.ChartKind);
+        return RunAndSetQueryResultAsync(source, DataStudioDecisions.BuildDefaultQueryForSource(source), State.ChartKind);
     }
 
     [On]
-    public async Task Query(DataStudioQuery request)
+    public Task Query(DataStudioQuery request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var queryText = string.IsNullOrWhiteSpace(request.Query) ? State.ActiveQuery : request.Query.Trim();
         var explicitFile = DataAnalyticsEngine.TryExtractDatasetFileToken(queryText);
         var source = !string.IsNullOrWhiteSpace(explicitFile)
             ? DataStudioDecisions.NormalizeSource(explicitFile)
-            : queryText.Contains("customers", StringComparison.OrdinalIgnoreCase)
-                ? "postgres:customers"
-                : State.ActiveSource;
-        await RunAndSetQueryResultAsync(source, queryText, State.ChartKind);
+            : queryText.Contains("customers", StringComparison.OrdinalIgnoreCase) ? "postgres:customers" : State.ActiveSource;
+        return RunAndSetQueryResultAsync(source, queryText, State.ChartKind);
     }
 
     [On]
-    public async Task GroupBy(DataStudioGroupBy request)
+    public Task GroupBy(DataStudioGroupBy request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var col = string.IsNullOrWhiteSpace(request.Column)
-            ? (State.Columns.Length > 2 ? State.Columns[2] : State.Columns.FirstOrDefault() ?? "Stage")
-            : request.Column.Trim();
+        var col = string.IsNullOrWhiteSpace(request.Column) ? (State.Columns.Length > 2 ? State.Columns[2] : State.Columns.FirstOrDefault() ?? "Stage") : request.Column.Trim();
         var fn = string.IsNullOrWhiteSpace(request.Function) ? "SUM" : request.Function.Trim().ToUpperInvariant();
-        var targetFrom = State.ActiveSource.StartsWith("postgres:", StringComparison.OrdinalIgnoreCase)
-            ? State.ActiveSource["postgres:".Length..]
-            : State.ActiveSource;
-        await RunAndSetQueryResultAsync(State.ActiveSource, $"SELECT {col}, {fn}(Amount) FROM {targetFrom} GROUP BY {col}", State.ChartKind);
+        var from = State.ActiveSource.StartsWith("postgres:", StringComparison.OrdinalIgnoreCase) ? State.ActiveSource["postgres:".Length..] : State.ActiveSource;
+        return RunAndSetQueryResultAsync(State.ActiveSource, $"SELECT {col}, {fn}(Amount) FROM {from} GROUP BY {col}", State.ChartKind);
     }
 
     [On]
     public Task SwitchChart(DataStudioSwitchChart request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return Show(DataStudioDecisions.DecideSwitchChart(State, request.Kind));
+        return string.IsNullOrWhiteSpace(request.Kind)
+            ? Show(DataStudioDecisions.DecideSwitchChart(State, "bar"))
+            : ApplyDecisionAsync(State.SwitchChart(DataStudioDecisions.NormalizeChartKind(request.Kind)));
     }
 
     [On]
@@ -176,13 +180,9 @@ public sealed class DataStudioApp : Screen<DataStudioAppState>, IWithFilesVfs
     {
         ArgumentNullException.ThrowIfNull(request);
         var stem = Path.GetFileNameWithoutExtension(State.ActiveSource.Replace("postgres:", string.Empty, StringComparison.OrdinalIgnoreCase));
-        if (string.IsNullOrWhiteSpace(stem)) { stem = "analytics-export"; }
-
-        var targetPath = string.IsNullOrWhiteSpace(request.TargetPath) ? $"/work/{stem}-export.csv" : DataStudioDecisions.NormalizeCsvExportPath(request.TargetPath);
-        targetPath = await TryWriteVfsTextAsync(targetPath, DataAnalyticsEngine.SerializeToCsv(State.Columns, State.Rows), "DataStudioApp.ExportCsv");
-
-        var datasets = await ListWorkspaceDatasetsAsync(State.ActiveSource);
-        await Show(DataStudioDecisions.DecideExportCsv(State, targetPath, datasets));
+        var targetPath = string.IsNullOrWhiteSpace(request.TargetPath) ? $"/work/{(string.IsNullOrWhiteSpace(stem) ? "analytics-export" : stem)}-export.csv" : DataStudioDecisions.NormalizeCsvExportPath(request.TargetPath);
+        targetPath = await TryWriteVfsTextAsync(targetPath, DataAnalyticsEngine.SerializeToCsv(State.Columns, State.Rows));
+        await Show(DataStudioDecisions.DecideExportCsv(State, targetPath, await ListWorkspaceDatasetsAsync(State.ActiveSource)));
     }
 
     [On]
@@ -190,29 +190,23 @@ public sealed class DataStudioApp : Screen<DataStudioAppState>, IWithFilesVfs
     {
         ArgumentNullException.ThrowIfNull(request);
         var docPath = string.IsNullOrWhiteSpace(request.Document) ? "/work/data-lineage.markdraw" : MarkdrawApp.NormalizeDocumentPath(request.Document);
-        var rowsSummary = $"{State.Rows.Length} rows · Total €{State.Total:N0} · Avg €{State.Average:N0}";
-        var markdrawContent = MarkdrawSceneEngine.BuildDataLineageMarkdraw(State.ChartTitle, State.Columns, rowsSummary, State.SourceNeuronUri);
-        docPath = await TryWriteVfsTextAsync(docPath, markdrawContent, "DataStudioApp.ToMarkdraw");
-
+        var summary = $"{State.Rows.Length} rows · Total €{State.Total:N0} · Avg €{State.Average:N0}";
+        docPath = await TryWriteVfsTextAsync(docPath, MarkdrawSceneEngine.BuildDataLineageMarkdraw(State.ChartTitle, State.Columns, summary, State.SourceNeuronUri));
         await Show(DataStudioDecisions.DecideToMarkdraw(State, docPath));
     }
 
-    private async Task<string> TryWriteVfsTextAsync(string path, string content, string context)
+    public Task GroupByColumnAsync(string column) => GroupBy(new DataStudioGroupBy(column, "SUM"));
+    public Task ExportCsvDefaultAsync() => State.HasDatasetRows().Broken ? ApplyDecisionAsync(State.RecordCsvExport("/work/analytics-export.csv")) : ExportCsv(new DataStudioExportCsv());
+    public Task DiagramInMarkdrawDefaultAsync() => State.HasDatasetRows().Broken ? ApplyDecisionAsync(State.RecordMarkdrawLineage("/work/data-lineage.markdraw")) : ToMarkdraw(new DataStudioToMarkdraw("/work/data-lineage.markdraw"));
+
+    protected override Node Render(DataStudioAppState state) => DataStudioViewRenderer.RenderNode(state);
+
+    private async Task<string> TryWriteVfsTextAsync(string path, string content)
     {
-        _ = context;
         if (FilesVfs is null) { return path; }
         try { return (await FilesVfs.WriteTextAsync(path, content)).VfsPath; }
-        catch (Exception ex)
-        {
-            NullLogger.Instance.LogSwallowed(ex, "Failed to write text to VFS path.");
-            return path;
-        }
+        catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Failed to write text to VFS path."); return path; }
     }
-
-    public new DataStudioAppState State => base.State;
-    public View Render() => Render(State);
-
-    protected override View Render(DataStudioAppState state) => DataStudioViewRenderer.Render(state);
 
     private async Task RunAndSetQueryResultAsync(string source, string queryText, string preferredChartKind)
     {
@@ -223,33 +217,22 @@ public sealed class DataStudioApp : Screen<DataStudioAppState>, IWithFilesVfs
             : queryText;
 
         var result = await DataAnalyticsEngine.ExecuteAsync(effectiveQuery, database: source, filesVfs: FilesVfs);
-        var datasets = await ListWorkspaceDatasetsAsync(source);
-        await Show(DataStudioDecisions.DecideQueryResult(State, source, queryText, preferredChartKind, result, datasets, CurrentBrainId));
+        await Show(DataStudioDecisions.DecideQueryResult(State, source, queryText, preferredChartKind, result, await ListWorkspaceDatasetsAsync(source), CurrentBrainId));
     }
 
     private async Task<string[]> ListWorkspaceDatasetsAsync(string activeSource)
     {
-        var baseList = new List<string>();
-        if (!string.IsNullOrWhiteSpace(activeSource)) { baseList.Add(activeSource); }
-
+        var list = string.IsNullOrWhiteSpace(activeSource) ? new List<string>() : [activeSource];
         if (FilesVfs is not null)
         {
             try
             {
-                foreach (var file in await FilesVfs.ListFilesAsync())
-                {
-                    if (Path.GetExtension(file.Name).ToLowerInvariant() is ".csv" or ".tsv" or ".json")
-                    {
-                        baseList.Add(file.VfsPath);
-                    }
-                }
+                list.AddRange((await FilesVfs.ListFilesAsync())
+                    .Where(f => Path.GetExtension(f.Name).ToLowerInvariant() is ".csv" or ".tsv" or ".json")
+                    .Select(f => f.VfsPath));
             }
-            catch (Exception ex)
-            {
-                NullLogger.Instance.LogSwallowed(ex, "Failed to list VFS files for data sources.");
-            }
+            catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Failed to list VFS files for data sources."); }
         }
-
-        return baseList.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        return [.. list.Distinct(StringComparer.OrdinalIgnoreCase)];
     }
 }

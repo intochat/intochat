@@ -1,5 +1,5 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../controls.dart';
@@ -41,6 +41,9 @@ const _months = [
   'nov',
   'dec',
 ];
+
+/// Minimum row count before the quick client filter bar is shown automatically.
+const int kQuickFilterRowThreshold = 8;
 
 /// The value a cell sorts by: a number for numeric and date columns, else the
 /// lowercased text.
@@ -84,8 +87,8 @@ typedef TableCard = TablePreviewCard;
 
 /// Table preview: rows Ino looked up, a few at a time. Click a column head to
 /// sort every row in the card (numbers and dates biggest first, text A to Z;
-/// again reverses, a third time goes back to Ino's order). Open in Sheets for
-/// anything more.
+/// again reverses, a third time goes back to Ino's order). Tables with >= 8
+/// rows expose an inline quick filter input (`UK-11`).
 class TablePreviewCard extends StatefulWidget {
   const TablePreviewCard({
     super.key,
@@ -98,6 +101,7 @@ class TablePreviewCard extends StatefulWidget {
     this.onSort,
     this.onFilter,
     this.onCopyNeuronUri,
+    this.onSelectRow,
     this.visibleRows = 6,
   });
 
@@ -110,6 +114,7 @@ class TablePreviewCard extends StatefulWidget {
   final void Function(int? columnIndex, bool descending)? onSort;
   final ValueChanged<String>? onFilter;
   final ValueChanged<String>? onCopyNeuronUri;
+  final ValueChanged<int>? onSelectRow;
   final int visibleRows;
 
   @override
@@ -120,6 +125,27 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
   bool _all = false;
   int? _sortCol;
   bool _desc = false;
+  int? _hoverRow;
+  final TextEditingController _filterController = TextEditingController();
+  final FocusNode _filterFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _filterFocus.addListener(_onFilterFocus);
+  }
+
+  void _onFilterFocus() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _filterFocus.removeListener(_onFilterFocus);
+    _filterFocus.dispose();
+    _filterController.dispose();
+    super.dispose();
+  }
 
   void _sortBy(int i) {
     final col = widget.data.columns[i];
@@ -137,39 +163,67 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
     widget.onSort?.call(_sortCol, _desc);
   }
 
+  void _updateFilter(String value) {
+    setState(() {});
+    widget.onFilter?.call(value);
+  }
+
+  void _clearFilter() {
+    _filterController.clear();
+    _updateFilter('');
+    _filterFocus.requestFocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
     final d = widget.data;
-    final n = d.rows.length;
-    final sorted = List.of(d.rows);
+    final totalCount = d.rows.length;
+    final showQuickFilter =
+        widget.state == TableState.ready &&
+        totalCount >= kQuickFilterRowThreshold;
+    final query = _filterController.text.trim().toLowerCase();
+
+    final indexedRows = <(int, List<String>)>[
+      for (final (origIdx, r) in d.rows.indexed)
+        if (query.isEmpty ||
+            r.any((cell) => cell.toLowerCase().contains(query)))
+          (origIdx, r),
+    ];
+
     final sc = _sortCol;
     if (sc != null && sc < d.columns.length) {
       final col = d.columns[sc];
-      sorted.sort((a, b) {
-        final av = sc < a.length ? a[sc] : '';
-        final bv = sc < b.length ? b[sc] : '';
+      indexedRows.sort((a, b) {
+        final av = sc < a.$2.length ? a.$2[sc] : '';
+        final bv = sc < b.$2.length ? b.$2[sc] : '';
         final x = _sortValue(av, col).compareTo(_sortValue(bv, col));
         return _desc ? -x : x;
       });
     }
-    final shown = _all ? sorted : sorted.take(widget.visibleRows).toList();
+    final filteredCount = indexedRows.length;
+    final shown = _all || query.isNotEmpty
+        ? indexedRows
+        : indexedRows.take(widget.visibleRows).toList();
 
-    Widget cell(String text, TableColumn col, {bool head = false}) => Expanded(
-      flex: col.flex,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        child: Text(
-          text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: col.numeric ? TextAlign.right : TextAlign.left,
-          style: head
-              ? IcType.text(11.5, weight: FontWeight.w600, color: c.textMuted)
-              : IcType.text(13, color: c.textStrong, tnum: col.numeric),
+    Widget cell(String text, TableColumn col, {bool head = false}) {
+      final hasDigits = col.numeric || col.date || RegExp(r'\d').hasMatch(text);
+      return Expanded(
+        flex: col.flex,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: col.numeric ? TextAlign.right : TextAlign.left,
+            style: head
+                ? IcType.text(11.5, weight: FontWeight.w600, color: c.textMuted)
+                : IcType.text(13, color: c.textStrong, tnum: hasDigits),
+          ),
         ),
-      ),
-    );
+      );
+    }
 
     Widget head(int i, TableColumn col) {
       final on = _sortCol == i;
@@ -185,32 +239,38 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
       );
       return Expanded(
         flex: col.flex,
-        child: Stop(
-          onActivate: () => _sortBy(i),
-          builder: (context, v) => GestureDetector(
-            onTap: () => _sortBy(i),
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: SelectionRing(
-                on: v.selected,
-                radius: IcRadius.xs,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: Row(
-                    mainAxisAlignment: col.numeric
-                        ? MainAxisAlignment.end
-                        : MainAxisAlignment.start,
-                    children: [
-                      Flexible(child: label),
-                      if (on) ...[
-                        const SizedBox(width: 3),
-                        Icon(
-                          _desc ? LucideIcons.arrowDown : LucideIcons.arrowUp,
-                          size: 12,
-                          color: c.textStrong,
-                        ),
+        child: Semantics(
+          button: true,
+          label: 'Sort by ${col.label}',
+          child: Stop(
+            onActivate: () => _sortBy(i),
+            builder: (context, v) => GestureDetector(
+              key: ValueKey('table_sort_header_$i'),
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _sortBy(i),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: SelectionRing(
+                  on: v.selected,
+                  radius: IcRadius.xs,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Row(
+                      mainAxisAlignment: col.numeric
+                          ? MainAxisAlignment.end
+                          : MainAxisAlignment.start,
+                      children: [
+                        Flexible(child: label),
+                        if (on) ...[
+                          const SizedBox(width: 3),
+                          Icon(
+                            _desc ? LucideIcons.arrowDown : LucideIcons.arrowUp,
+                            size: 12,
+                            color: c.textStrong,
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -299,20 +359,72 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
               ],
             ),
           ),
-          for (final r in shown)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: c.borderHairline)),
-              ),
+          if (shown.isEmpty)
+            Padding(
+              key: const ValueKey('table_empty_filter_state'),
+              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
               child: Row(
                 children: [
-                  for (final (i, col) in d.columns.indexed)
-                    cell(i < r.length ? r[i] : '', col),
+                  Icon(LucideIcons.searchX, size: 16, color: c.textMuted),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'No rows match "${_filterController.text.trim()}".',
+                      style: IcType.text(13.5, color: c.textBody),
+                    ),
+                  ),
+                  GestureDetector(
+                    key: const ValueKey('table_clear_filter_action'),
+                    onTap: _clearFilter,
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Text(
+                        'Clear filter',
+                        style: IcType.text(
+                          13,
+                          weight: FontWeight.w600,
+                          color: c.accent,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
-            ),
-          if (n > widget.visibleRows)
+            )
+          else
+            for (final (origIdx, r) in shown)
+              MouseRegion(
+                cursor: widget.onSelectRow != null
+                    ? SystemMouseCursors.click
+                    : MouseCursor.defer,
+                onEnter: (_) => setState(() => _hoverRow = origIdx),
+                onExit: (_) => setState(() => _hoverRow = null),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.onSelectRow == null
+                      ? null
+                      : () => widget.onSelectRow!(origIdx),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _hoverRow == origIdx ? c.hoverOverlay : null,
+                      border: Border(
+                        top: BorderSide(color: c.borderHairline),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        for (final (i, col) in d.columns.indexed)
+                          cell(i < r.length ? r[i] : '', col),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          if (query.isEmpty && totalCount > widget.visibleRows)
             Stop(
               onActivate: () => setState(() => _all = !_all),
               builder: (context, v) => GestureDetector(
@@ -330,7 +442,7 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
                       border: Border(top: BorderSide(color: c.borderHairline)),
                     ),
                     child: Text(
-                      _all ? 'Show fewer' : 'Show all $n',
+                      _all ? 'Show fewer' : 'Show all $totalCount',
                       style: IcType.text(
                         13,
                         weight: FontWeight.w600,
@@ -345,6 +457,10 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
         ],
       ),
     };
+
+    final countLabel = query.isNotEmpty
+        ? '$filteredCount of $totalCount rows'
+        : '$totalCount ${totalCount == 1 ? 'row' : 'rows'} from ${d.from}';
 
     return CardShell(
       source: widget.source,
@@ -377,11 +493,15 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
               ),
               if (widget.state == TableState.ready)
                 Text(
-                  '$n ${n == 1 ? 'row' : 'rows'} from ${d.from}',
+                  countLabel,
                   style: IcType.text(12.5, color: c.textMuted, tnum: true),
                 ),
             ],
           ),
+          if (showQuickFilter) ...[
+            const SizedBox(height: 10),
+            _buildFilterBox(c),
+          ],
           const SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(IcRadius.button),
@@ -395,10 +515,12 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
           ),
           if (widget.state == TableState.ready) ...[
             const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                if (d.sourceNeuronUri != null) ...[
+                if (d.sourceNeuronUri != null)
                   Btn(
                     label: 'Copy URI',
                     icon: LucideIcons.copy,
@@ -409,15 +531,12 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
                       widget.onCopyNeuronUri?.call(uri);
                     },
                   ),
-                  const SizedBox(width: 8),
-                ],
                 Btn(
                   label: 'Download CSV',
                   icon: LucideIcons.download,
                   small: true,
                   onTap: widget.onDownload,
                 ),
-                const SizedBox(width: 8),
                 Btn(
                   label: 'Open in Sheets',
                   icon: LucideIcons.grid3x3,
@@ -429,6 +548,81 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildFilterBox(IcColors c) {
+    final focused = _filterFocus.hasFocus;
+    final hasText = _filterController.text.isNotEmpty;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        if (focused)
+          Positioned(
+            left: -3,
+            top: -3,
+            right: -3,
+            bottom: -3,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(IcRadius.button + 3),
+                  border: Border.all(color: c.ring, width: 3),
+                ),
+              ),
+            ),
+          ),
+        Container(
+          key: const ValueKey('table_quick_filter_box'),
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: c.surfaceCard,
+            borderRadius: BorderRadius.circular(IcRadius.button),
+            border: Border.all(color: focused ? c.accent : c.borderInput),
+          ),
+          child: Row(
+            children: [
+              Icon(LucideIcons.search, size: 14, color: c.textMuted),
+              const SizedBox(width: 8),
+              Expanded(
+                child: CallbackShortcuts(
+                  bindings: {
+                    if (hasText)
+                      const SingleActivator(LogicalKeyboardKey.escape):
+                          _clearFilter,
+                  },
+                  child: TextField(
+                    key: const ValueKey('table_quick_filter_input'),
+                    controller: _filterController,
+                    focusNode: _filterFocus,
+                    style: IcType.text(13, color: c.textStrong),
+                    cursorColor: c.accent,
+                    decoration: InputDecoration.collapsed(
+                      hintText: 'Filter rows…',
+                      hintStyle: IcType.text(13, color: c.textSubtle),
+                    ),
+                    onChanged: _updateFilter,
+                  ),
+                ),
+              ),
+              if (hasText)
+                GestureDetector(
+                  key: const ValueKey('table_quick_filter_clear'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _clearFilter,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(LucideIcons.x, size: 14, color: c.textMuted),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

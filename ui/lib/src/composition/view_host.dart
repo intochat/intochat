@@ -9,13 +9,16 @@ import '../components/workspace/ui_workspace_components.dart';
 import '../focus_registry.dart';
 import '../models/window_state.dart';
 import '../nodes/brain_scene.dart';
+import '../nodes/error_line.dart';
+import '../nodes/neuron_ref.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
 
 /// Hosts one node of the brain: a published view (`view`, `confirmation`), a
-/// window onto another app's view (`viewport`), or the hosted web browser
-/// (`webbrowser`). A chat transcript and its composer are view nodes. It reads the node once on mount and once per
-/// change signal (`ViewChanged` for a view) and hands a view to [NodeRenderer].
+/// window onto another app's view (`viewport`), a live nested `Slot` (`neuronRef`),
+/// or the hosted web browser (`webbrowser`). A chat transcript and its composer
+/// are view nodes. It reads the node once on mount and once per change signal
+/// (`ViewChanged` for a view) and hands a view to [NodeRenderer].
 class ViewHost extends StatefulWidget {
   const ViewHost({
     super.key,
@@ -26,6 +29,9 @@ class ViewHost extends StatefulWidget {
     this.onAction,
     required this.knowsApp,
     this.ancestors = const {},
+    this.slotDepth = 0,
+    this.slotAncestors = const {},
+    this.inlineSlot = false,
     this.revision = 0,
     this.enabled = true,
     this.events,
@@ -39,6 +45,16 @@ class ViewHost extends StatefulWidget {
   /// True for a host reached through another (a viewport's root, a view's `neuronRef`): it never answers a confirmation,
   /// whatever its kind, so an approval card inside an app or unit view stays display-only.
   final bool embedded;
+
+  /// True when mounted inline via a `NeuronRef` (`Slot`) inside a parent view or chat turn.
+  final bool inlineSlot;
+
+  /// Current `NeuronRef` (`Slot`) recursion depth (capped at [maxSlotDepth] = 4).
+  final int slotDepth;
+
+  /// Visited `neuronUri` / resolved view names along the active `Slot` chain.
+  final Set<String> slotAncestors;
+
   final NeuronLoader load;
   final ValueChanged<Map<String, dynamic>>? onActivate;
   final NeuronAction? onAction;
@@ -208,14 +224,85 @@ class _ViewHostState extends State<ViewHost> {
     refreshEvery: widget.refreshEvery,
     watch: widget.watch,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
+    slotDepth: widget.slotDepth,
+    slotAncestors: widget.slotAncestors,
     revision: widget.revision,
     enabled: widget.enabled,
     embedded: true,
   );
 
-  /// The surfaces a view may host in place through a `neuronRef`: another view's window and the web browser. Never the
-  /// confirmation inbox, nor a bare view.
+  /// Dedicated surface kinds hosted via `ViewHost` (`viewport`, `webbrowser`).
+  /// Live `Slot` (`NeuronRef`) view kinds are handled via [isSlotRefKind];
+  /// `confirmation` is never referable.
   static const _referable = {'viewport', 'webbrowser'};
+
+  Widget? _buildReference(
+    String rawKind,
+    String rawName,
+    String identity,
+    Set<String> activeSlotAncestors,
+  ) {
+    final kind = rawKind.trim().toLowerCase();
+    if (kind == 'confirmation') return null;
+
+    if (_referable.contains(kind)) {
+      if (NodeContracts.tryResolve(kind) == null) return null;
+      return SizedBox(
+        height: 480,
+        child: _child({'kind': kind, 'name': rawName}),
+      );
+    }
+
+    if (!isSlotRefKind(kind)) return null;
+
+    final trimmedUri = rawName.trim();
+    if (trimmedUri.isEmpty) return null;
+
+    final resolvedName = resolveSlotTargetName(
+      parentView: widget.name,
+      refKind: kind,
+      neuronUri: trimmedUri,
+    );
+    if (resolvedName.isEmpty || NodeContracts.tryResolve('view') == null) {
+      return null;
+    }
+
+    final targetIdentity = 'view:$resolvedName';
+    if (activeSlotAncestors.contains(trimmedUri) ||
+        activeSlotAncestors.contains(resolvedName) ||
+        widget.ancestors.contains(targetIdentity)) {
+      return SlotGuardNotice(
+        neuronUri: rawName,
+        message: 'This component cannot be displayed.',
+      );
+    }
+    if (widget.slotDepth >= maxSlotDepth) {
+      return SlotGuardNotice(
+        neuronUri: rawName,
+        message: 'Nested slot limit reached.',
+      );
+    }
+
+    return ViewHost(
+      key: ValueKey('slot:$resolvedName'),
+      kind: 'view',
+      name: resolvedName,
+      load: widget.load,
+      onActivate: widget.onActivate,
+      onAction: widget.onAction,
+      knowsApp: widget.knowsApp,
+      events: _events,
+      refreshEvery: widget.refreshEvery,
+      watch: widget.watch,
+      ancestors: {...widget.ancestors, identity},
+      slotDepth: widget.slotDepth + 1,
+      slotAncestors: {...activeSlotAncestors, trimmedUri, resolvedName},
+      revision: widget.revision,
+      enabled: widget.enabled,
+      embedded: true,
+      inlineSlot: true,
+    );
+  }
 
   @override
   Widget build(BuildContext context) =>
@@ -224,11 +311,26 @@ class _ViewHostState extends State<ViewHost> {
   Widget _content(BuildContext context) {
     final identity = '${widget.kind}:${widget.name}';
     if (widget.ancestors.contains(identity) || widget.ancestors.length >= 16) {
-      return const Center(child: Text('This component cannot be displayed.'));
+      return widget.inlineSlot
+          ? SlotGuardNotice(
+              neuronUri: widget.name,
+              message: 'This component cannot be displayed.',
+            )
+          : const Center(child: Text('This component cannot be displayed.'));
     }
+    if (widget.inlineSlot && widget.slotDepth > maxSlotDepth) {
+      return SlotGuardNotice(
+        neuronUri: widget.name,
+        message: 'Nested slot limit reached.',
+      );
+    }
+
     final data = _data;
     if (data == null) {
       return _ReadState(
+        viewName: widget.name,
+        inlineSlot: widget.inlineSlot,
+        error: _error,
         state: WindowState(
           _error == null ? WindowStatus.loading : WindowStatus.failed,
         ),
@@ -243,8 +345,8 @@ class _ViewHostState extends State<ViewHost> {
       case 'view':
       case 'confirmation':
         // An app view reads as {generation, view}; the confirmation inbox as the view itself.
-        final view = data['view'] is Map ? data['view'] as Map : data;
-        if (view['root'] is! Map) {
+        final rawView = data['view'] is Map ? data['view'] as Map : data;
+        if (rawView['root'] is! Map) {
           return Center(
             child: Semantics(
               liveRegion: true,
@@ -252,6 +354,10 @@ class _ViewHostState extends State<ViewHost> {
             ),
           );
         }
+        final normalizedView = _normalizeViewJson(rawView);
+        final buttonHints = _extractButtonHints(normalizedView);
+        final nodeKeys = _extractNodeKeys(normalizedView);
+        final activeSlotAncestors = {...widget.slotAncestors, widget.name};
         final ctx = NodeContext(
           view: widget.name,
           generation: data['generation'] is num
@@ -264,25 +370,31 @@ class _ViewHostState extends State<ViewHost> {
           onActivate: widget.onActivate,
           knowsApp: widget.knowsApp,
           reference: (kind, name) =>
-              !_referable.contains(kind) ||
-                  NodeContracts.tryResolve(kind) == null
-              ? null
-              : SizedBox(
-                  height: 480,
-                  child: _child({'kind': kind, 'name': name}),
-                ),
+              _buildReference(kind, name, identity, activeSlotAncestors),
           confirmation: widget.kind == 'confirmation' && !widget.embedded,
           enabled: enabled,
+          slotDepth: widget.slotDepth,
+          slotAncestors: activeSlotAncestors,
+          buttonHints: buttonHints,
+          nodeKeys: nodeKeys,
         );
-        final appView = AppView.fromJson(Map<String, dynamic>.from(view));
+        final appView = AppView.fromJson(normalizedView);
         final fills = NodeRenderer.fills(appView.root);
-        final renderedView = NodeRenderer.view(appView, ctx);
+        final renderedView = FocusTraversalGroup(
+          policy: OrderedTraversalPolicy(),
+          child: NodeRenderer.view(appView, ctx),
+        );
         final rendered = fills
             ? LayoutBuilder(
                 builder: (context, constraints) => constraints.hasBoundedHeight
                     ? SizedBox.expand(child: renderedView)
-                    : SizedBox(height: 560, child: renderedView),
+                    : SizedBox(
+                        height: widget.inlineSlot ? 420 : 560,
+                        child: renderedView,
+                      ),
               )
+            : widget.inlineSlot
+            ? renderedView
             : SingleChildScrollView(primary: false, child: renderedView);
         final signals = _brainSignals;
         return signals == null
@@ -379,22 +491,171 @@ class _ViewHostState extends State<ViewHost> {
   }
 }
 
+/// Normalizes optional inline child/slot fields on conversation messages so
+/// `MessageNode.fromJson` populates `cards` seamlessly for inline UI kit nodes
+/// and `Slot` (`NeuronRef`) composition (`UK-18` readiness).
+Map<String, dynamic> _normalizeViewJson(Map raw) {
+  Object? walk(Object? value, {bool inMessages = false}) {
+    if (value is List) {
+      return [for (final item in value) walk(item, inMessages: inMessages)];
+    }
+    if (value is! Map) return value;
+    final map = <String, dynamic>{
+      for (final entry in value.entries)
+        '${entry.key}': walk(
+          entry.value,
+          inMessages: '${entry.key}' == 'messages',
+        ),
+    };
+    if (inMessages) {
+      final merged = <Object?>[
+        if (map['cards'] is List) ...(map['cards'] as List),
+        if (map['children'] is List) ...(map['children'] as List),
+        if (map['nodes'] is List) ...(map['nodes'] as List),
+        if (map['slot'] is Map) map['slot'],
+      ];
+      if (merged.isNotEmpty && map['cards'] == null) {
+        map['cards'] = merged;
+      } else if (merged.length >
+          (map['cards'] is List ? (map['cards'] as List).length : 0)) {
+        map['cards'] = merged;
+      }
+    }
+    return map;
+  }
+
+  return walk(raw) as Map<String, dynamic>;
+}
+
+/// Extracts optional `.Guard(rule)` / tooltip / hint strings keyed by button `key`
+/// from raw view JSON without requiring manual edits to `generated/node_models.dart`.
+Map<String, String> _extractButtonHints(Map<String, dynamic> viewJson) {
+  final hints = <String, String>{};
+  const hintKeys = [
+    'tooltip',
+    'disabledReason',
+    'guardReason',
+    'reason',
+    'hint',
+    'subtitle',
+  ];
+
+  void walk(Object? node) {
+    if (node is List) {
+      for (final item in node) {
+        walk(item);
+      }
+      return;
+    }
+    if (node is! Map) return;
+    final key = node['key'];
+    final looksLikeButton =
+        node['kind'] == 'button' ||
+        (key is String && key.isNotEmpty && node.containsKey('label'));
+    if (looksLikeButton && key is String && key.isNotEmpty) {
+      for (final hk in hintKeys) {
+        final raw = node[hk];
+        if (raw is String && raw.trim().isNotEmpty) {
+          hints[key] = raw.trim();
+          break;
+        }
+      }
+    }
+    for (final value in node.values) {
+      walk(value);
+    }
+  }
+
+  walk(viewJson['root']);
+  return hints;
+}
+
+/// Extracts optional activation `key` strings for `chart` and `dataTable` nodes
+/// from raw view JSON without altering `generated/node_models.dart`.
+Map<String, String> _extractNodeKeys(Map<String, dynamic> viewJson) {
+  final keys = <String, String>{};
+  void walk(Object? node) {
+    if (node is List) {
+      for (final item in node) {
+        walk(item);
+      }
+      return;
+    }
+    if (node is! Map) return;
+    final kind = node['kind'];
+    final key = node['key'];
+    final title = node['title'];
+    if ((kind == 'chart' || kind == 'dataTable') &&
+        key is String &&
+        key.trim().isNotEmpty &&
+        title is String) {
+      keys['$kind:$title'] = key.trim();
+    }
+    for (final value in node.values) {
+      walk(value);
+    }
+  }
+
+  walk(viewJson['root']);
+  return keys;
+}
+
 class _ReadState extends StatelessWidget {
-  const _ReadState({required this.state, this.onRetry});
+  const _ReadState({
+    required this.viewName,
+    required this.state,
+    this.inlineSlot = false,
+    this.error,
+    this.onRetry,
+  });
+
+  final String viewName;
   final WindowState state;
+  final bool inlineSlot;
+  final Object? error;
   final VoidCallback? onRetry;
+
   @override
-  Widget build(BuildContext context) => state.status == WindowStatus.loading
-      ? const Center(child: CircularProgressIndicator())
-      : Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Could not load'),
-              const Text('This component could not be loaded.'),
-              if (onRetry != null)
-                TextButton(onPressed: onRetry, child: const Text('Retry')),
-            ],
-          ),
-        );
+  Widget build(BuildContext context) {
+    if (state.status == WindowStatus.loading) {
+      final skeleton = SlotSkeleton(compact: inlineSlot);
+      return inlineSlot
+          ? skeleton
+          : Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: skeleton,
+              ),
+            );
+    }
+
+    final errorNode = ErrorLineNode(
+      what: 'Could not load',
+      detail: 'This component could not be loaded.',
+      action: onRetry == null
+          ? null
+          : const ButtonNode(
+              key: 'retry',
+              label: 'Retry',
+              emit: null,
+              intent: null,
+              enabled: true,
+              tone: 'neutral',
+              style: 'secondary',
+              icon: null,
+              small: true,
+            ),
+    );
+    final retryCtx = NodeContext(
+      view: viewName,
+      send: onRetry == null
+          ? null
+          : (_) async {
+              onRetry!();
+              return null;
+            },
+    );
+    final line = ErrorLineView(node: errorNode, ctx: retryCtx);
+    return inlineSlot ? line : Center(child: line);
+  }
 }

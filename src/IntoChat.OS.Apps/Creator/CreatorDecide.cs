@@ -1,75 +1,55 @@
 namespace IntoChat.OS.Apps.Creator;
 
 /// <summary>
-/// Pure decision functions for CreatorApp following the State + Decide + Render pattern.
+/// Pure decision facade delegating directly to the rich DDD methods on <see cref="CreatorState"/>.
 /// </summary>
 public static class CreatorDecide
 {
     public static CreatorState SelectNode(CreatorState state, string nodeId)
     {
         ArgumentNullException.ThrowIfNull(state);
-        ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
-
-        var selection = Selection.Parse(nodeId);
-        return state with
-        {
-            Selected = selection,
-            Transcript = null,
-            ReplayCursor = null
-        };
+        return state.SelectNode(nodeId);
     }
 
     public static CreatorState SelectRun(CreatorState state, string runId)
     {
         ArgumentNullException.ThrowIfNull(state);
-        ArgumentException.ThrowIfNullOrWhiteSpace(runId);
-
-        return state with
-        {
-            ActiveRunId = runId,
-            Status = $"Inspecting change run {runId}"
-        };
+        return state.SelectRun(runId);
     }
 
     public static CreatorState SetDraft(CreatorState state, string draft)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return state with { Draft = draft ?? string.Empty };
+        return state.SetDraft(draft);
     }
 
     public static CreatorState SetChangeDraft(CreatorState state, string changeDraft)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return state with { ChangeDraft = changeDraft ?? string.Empty };
+        return state.SetChangeDraft(changeDraft);
     }
 
     public static CreatorState SetStatus(CreatorState state, string status)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return state with { Status = status ?? string.Empty };
+        return state.SetStatus(status);
     }
 
     public static CreatorState SetTranscript(CreatorState state, string? transcript)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return state with { Transcript = transcript };
+        return state.SetTranscript(transcript);
     }
 
     public static CreatorState SetStage(CreatorState state, string? stage)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return state with { SelectedStage = stage };
+        return state.SetStage(stage);
     }
 
     public static CreatorState ClearSelection(CreatorState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return state with
-        {
-            Selected = null,
-            ActiveRunId = null,
-            Transcript = null,
-            ReplayCursor = null
-        };
+        return state.ClearSelection();
     }
 }

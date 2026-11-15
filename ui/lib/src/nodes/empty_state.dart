@@ -19,11 +19,33 @@ class EmptyStateView extends StatelessWidget {
   final EmptyStateNode node;
   final NodeContext ctx;
 
+  static String _inferAppId(String view) {
+    final trimmed = view.trim().toLowerCase();
+    final appsIdx = trimmed.indexOf('/apps/');
+    if (appsIdx >= 0) {
+      final rest = trimmed.substring(appsIdx + 6);
+      final seg = rest.split('/').first.trim();
+      if (seg.isNotEmpty) {
+        final norm = IcAppIcon.normalizeAppId(seg);
+        if (IcAppIcon.builtInSpecs.containsKey(norm)) return norm;
+      }
+    }
+    if (trimmed.startsWith('apps/')) {
+      final seg = trimmed.substring(5).split('/').first.trim();
+      if (seg.isNotEmpty) {
+        final norm = IcAppIcon.normalizeAppId(seg);
+        if (IcAppIcon.builtInSpecs.containsKey(norm)) return norm;
+      }
+    }
+    return 'ino';
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
     final body = node.body;
     final suggestions = node.suggestions ?? const <ButtonNode>[];
+    final appId = _inferAppId(ctx.view);
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
@@ -32,7 +54,7 @@ class EmptyStateView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const IcAppIcon(appId: 'ino', size: 48),
+              IcAppIcon(appId: appId, size: 48),
               const SizedBox(height: 18),
               Text(
                 node.title,

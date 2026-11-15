@@ -38,6 +38,7 @@ internal sealed class AppLoadContext(string name) : AssemblyLoadContext(name, is
         }
 
         if (string.Equals(assemblyName, "IntoChat.OS", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(assemblyName, "IntoChat.OS.UI", StringComparison.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "Microsoft.Extensions.Logging.Abstractions", StringComparison.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "netstandard", StringComparison.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "mscorlib", StringComparison.OrdinalIgnoreCase)

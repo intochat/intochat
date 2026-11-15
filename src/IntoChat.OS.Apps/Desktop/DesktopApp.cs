@@ -6,11 +6,11 @@ Operations: start, layout, open, narrow, auto-arrange, pin, close, close-app, fo
 
 The embedded folder scripts publish the Flutter desktop. These operations present Smart Desktop state, Whiteboard sticky-note app pinning, auto-arrange, and 3D BrainScene telemetry.
 */
-using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Kernel;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
@@ -18,8 +18,9 @@ using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Modules.Flutter.Workspace.Signals;
-using DigitalBrain.Log;
+using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging.Abstractions;
+using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Desktop;
 
@@ -70,37 +71,6 @@ public sealed record DesktopWidgetClose(string? Widget = null) : Signal;
 
 [Signal("desktop.settings")]
 public sealed record DesktopSettings : Signal;
-
-public sealed record DesktopAppState(
-    string LayoutMode,
-    bool IsNarrow,
-    string StylePreset,
-    string BarLayout,
-    int ActiveNeurons,
-    string Status,
-    string[] PinnedApps,
-    WorkspaceWindow[] Windows,
-    string? FocusedViewId,
-    WorkspaceViewRef[] Pins,
-    WorkspaceViewRef[] Favourites,
-    string WidgetsText,
-    string[]? DeployedUnits = null)
-{
-    public DesktopAppState() : this(
-        "smart-desktop",
-        false,
-        "fluent-acrylic",
-        "floating-glass",
-        10,
-        "Smart Desktop Ready",
-        ["ino", "creator"],
-        [],
-        null,
-        [],
-        [],
-        "")
-    { }
-}
 
 [Neuron("app.desktop")]
 public sealed class DesktopApp : Screen<DesktopAppState>
@@ -204,7 +174,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         }
     }
 
-    private static string FormatAppTitle(string appId)
+    internal static string FormatAppTitle(string appId)
     {
         if (string.IsNullOrWhiteSpace(appId)) { return "App"; }
         var known = Catalog.FirstOrDefault(c => string.Equals(c.Id, appId, StringComparison.OrdinalIgnoreCase));
@@ -220,58 +190,29 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await base.OnActivate(cancellationToken);
-        try
-        {
-            await Follow<IWorkspace, WorkspaceChanged>("main");
-        }
-        catch (Exception ex)
-        {
-            NullLogger.Instance.LogSwallowed(ex, "Workspace follow is optional when running in standalone mode.");
-        }
-        try
-        {
-            await Follow<ISynapseStudio, SynapseStudioChanged>("ino/synapses");
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            NullLogger.Instance.LogSwallowed(ex, "SynapseStudio follow is optional when running in standalone mode.");
-        }
-        try
-        {
-            await Context.Synapses.EnsureBrainWide([typeof(DigitalBrain.Confirmation.ConfirmationResolved)]);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            NullLogger.Instance.LogSwallowed(ex, "ConfirmationResolved follow is optional when running in standalone mode.");
-        }
+        try { await Follow<IWorkspace, WorkspaceChanged>("main"); }
+        catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Workspace follow is optional when running in standalone mode."); }
+        try { await Follow<ISynapseStudio, SynapseStudioChanged>("ino/synapses"); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(ex, "SynapseStudio follow is optional when running in standalone mode."); }
+        try { await Context.Synapses.EnsureBrainWide([typeof(DigitalBrain.Confirmation.ConfirmationResolved)]); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(ex, "ConfirmationResolved follow is optional when running in standalone mode."); }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
 
     [On]
-    public async Task HandleWorkspaceChanged(WorkspaceChanged _)
-    {
-        await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
-    }
+    public Task HandleWorkspaceChanged(WorkspaceChanged _) => SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
 
     [On]
-    public async Task HandleSynapseStudioChanged(SynapseStudioChanged? changed)
-    {
-        if (changed is null || string.IsNullOrEmpty(changed.Alias))
-        {
-            return;
-        }
-        await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
-    }
+    public Task HandleSynapseStudioChanged(SynapseStudioChanged? changed)
+        => changed is null || string.IsNullOrEmpty(changed.Alias)
+            ? Task.CompletedTask
+            : SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
 
     [On]
-    public async Task HandleConfirmationResolved(DigitalBrain.Confirmation.ConfirmationResolved? resolved)
-    {
-        if (resolved is null || string.IsNullOrEmpty(resolved.PlanId))
-        {
-            return;
-        }
-        await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
-    }
+    public Task HandleConfirmationResolved(DigitalBrain.Confirmation.ConfirmationResolved? resolved)
+        => resolved is null || string.IsNullOrEmpty(resolved.PlanId)
+            ? Task.CompletedTask
+            : SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
 
     [On]
     public async Task Start(DesktopStart request)
@@ -286,8 +227,8 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             {
                 try
                 {
-                    try { await Get<IntoChat.OS.Modules.Apps.IApp>("apps/ino").Request("open", "greet"); }
-                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException) { await Get<IScreen>("app.ino").Request("open", System.Text.Json.JsonSerializer.SerializeToElement("greet")); }
+                    try { await Get<IApp>("apps/ino").Request("open", "greet"); }
+                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException) { await Get<IScreen>("app.ino").Request("open", JsonSerializer.SerializeToElement("greet")); }
                 }
                 catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Ino was not there to greet; the desktop starts without it."); }
                 await Records.Write(records with { Greeted = true });
@@ -344,7 +285,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     public async Task Layout(DesktopLayoutChoice request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var nextLayout = State.LayoutMode == "smart-desktop" ? "spatial-grid" : "smart-desktop";
+        var nextLayout = State.ToggleLayoutMode().LayoutMode;
         try
         {
             await Records.Write(await Records.Read() with { Layout = nextLayout });
@@ -369,13 +310,13 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             {
                 try
                 {
-                    try { await Get<IntoChat.OS.Modules.Apps.IApp>($"apps/{app}").Request("open", view.Trim()); }
-                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException) { await Get<IScreen>("app." + app).Request("open", System.Text.Json.JsonSerializer.SerializeToElement(new DesktopOpenViewArgs(view.Trim(), view.Trim(), view.Trim()))); }
+                    try { await Get<IApp>($"apps/{app}").Request("open", view.Trim()); }
+                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException) { await Get<IScreen>("app." + app).Request("open", JsonSerializer.SerializeToElement(new DesktopOpenViewArgs(view.Trim(), view.Trim(), view.Trim()))); }
                 }
                 catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The app was not there to receive its open view."); }
             }
             var brain = CurrentBrainOrLocal();
-            await ApplyDesktopWorkspaceChangeAsync(s => OpenDesktopAppInState(s, app, brain: brain));
+            await ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.OpenWorkspaceApp(s, app, brain: brain));
         }
         else
         {
@@ -391,16 +332,10 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     }
 
     [On]
-    public async Task AutoArrange(DesktopAutoArrange request)
+    public Task AutoArrange(DesktopAutoArrange request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var pinnedList = State.PinnedApps is { Length: > 0 } ? State.PinnedApps : ["ino", "creator"];
-        await Show(State with
-        {
-            LayoutMode = "whiteboard-auto-arranged",
-            PinnedApps = pinnedList,
-            Status = $"Whiteboard Auto-Arranged · {pinnedList.Length} pinned sticky-note app(s) locked on top ({string.Join(", ", pinnedList)})",
-        });
+        return Show(State.AutoArrange());
     }
 
     [On]
@@ -408,124 +343,93 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         var appId = string.IsNullOrWhiteSpace(request.AppId) ? "photocraft" : request.AppId.Trim().ToLowerInvariant();
-        if (appId is "ino" or "desktop") { return; }
+        var decision = State.PinOrUnpin(appId, request.Pinned);
+        if (!decision.IsAccepted) { return; }
+
+        await Show(decision.Next);
         var isPin = request.Pinned;
-        var existingPins = State.PinnedApps is { Length: > 0 } ? State.PinnedApps : ["ino", "creator"];
-        var nextPinnedApps = isPin
-            ? (existingPins.Contains(appId, StringComparer.OrdinalIgnoreCase) ? existingPins : [.. existingPins, appId])
-            : existingPins.Where(p => !string.Equals(p, appId, StringComparison.OrdinalIgnoreCase)).ToArray();
-        await Show(State with { PinnedApps = nextPinnedApps });
         var brain = CurrentBrainOrLocal();
         await ApplyDesktopWorkspaceChangeAsync(s =>
         {
             if (s.Pins.Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase)) == isPin) { return (null, []); }
-            var appKey = IntoChat.OS.Modules.Apps.IApp.Key(brain, appId);
+            var appKey = IApp.Key(brain, appId);
             WorkspaceViewRef[] nextPins = isPin
                 ? [.. s.Pins, new WorkspaceViewRef(appId, appKey, "full", string.Empty)]
                 : [.. s.Pins.Where(p => !string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase))];
-            return (BuildWorkspaceUpdate(s, s.Windows, pins: nextPins), []);
+            return (DesktopAppState.BuildUpdate(s, s.Windows, pins: nextPins), []);
         });
     }
 
     [On]
-    public async Task Unpin(DesktopUnpinApp request)
+    public Task Unpin(DesktopUnpinApp request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (!string.IsNullOrWhiteSpace(request.AppId))
-        {
-            await Pin(new DesktopPinApp(request.AppId, Pinned: false));
-        }
+        return string.IsNullOrWhiteSpace(request.AppId)
+            ? Task.CompletedTask
+            : Pin(new DesktopPinApp(request.AppId, Pinned: false));
     }
 
     [On]
-    public async Task Close(DesktopClose request)
+    public Task Close(DesktopClose request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.Target)) { return; }
-        await ApplyDesktopWorkspaceChangeAsync(s => CloseDesktopTargetInState(s, request.Target));
+        return string.IsNullOrWhiteSpace(request.Target)
+            ? Task.CompletedTask
+            : ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.CloseWorkspaceTarget(s, request.Target));
     }
 
     [On]
-    public async Task CloseApp(DesktopCloseApp request)
+    public Task CloseApp(DesktopCloseApp request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.App)) { return; }
+        if (string.IsNullOrWhiteSpace(request.App)) { return Task.CompletedTask; }
         var brain = CurrentBrainOrLocal();
-        await ApplyDesktopWorkspaceChangeAsync(s => CloseDesktopAppInState(s, request.App, brain));
+        return ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.CloseWorkspaceApp(s, request.App, brain));
     }
 
     [On]
-    public async Task Focus(DesktopFocus request)
+    public Task Focus(DesktopFocus request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.WindowId)) { return; }
-        await ApplyDesktopWorkspaceChangeAsync(s =>
-            s.Windows.FirstOrDefault(win => win.Id == request.WindowId) is { } w && s.FocusedViewId != w.ActiveTabId
-                ? (BuildWorkspaceUpdate(s, s.Windows, w.ActiveTabId), [])
-                : (null, []));
+        return string.IsNullOrWhiteSpace(request.WindowId)
+            ? Task.CompletedTask
+            : ApplyDesktopWorkspaceChangeAsync(s =>
+                s.Windows.FirstOrDefault(win => win.Id == request.WindowId) is { } w && s.FocusedViewId != w.ActiveTabId
+                    ? (DesktopAppState.BuildUpdate(s, s.Windows, w.ActiveTabId), [])
+                    : (null, []));
     }
 
     [On]
-    public async Task Tab(DesktopTab request)
+    public Task Tab(DesktopTab request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.Target)) { return; }
-        var target = request.Target.Trim();
-        var sep = target.LastIndexOf('/');
-        if (sep < 0) { sep = target.LastIndexOf(':'); }
-        if (sep > 0)
-        {
-            var winId = target[..sep];
-            var tabPart = target[(sep + 1)..];
-            await ApplyDesktopWorkspaceChangeAsync(s =>
-            {
-                var w = s.Windows.FirstOrDefault(win => win.Id == winId);
-                if (w is null) { return (null, []); }
-                var chosen = int.TryParse(tabPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx) && idx >= 0 && idx < w.Tabs.Length
-                    ? w.Tabs[idx]
-                    : w.Tabs.FirstOrDefault(t => t.Id == tabPart);
-                if (chosen is null || (w.ActiveTabId == chosen.Id && s.FocusedViewId == chosen.Id)) { return (null, []); }
-                var updatedWins = s.Windows.Select(win => win.Id == winId ? win with { ActiveTabId = chosen.Id } : win).ToArray();
-                return (BuildWorkspaceUpdate(s, updatedWins, chosen.Id), []);
-            });
-        }
+        return string.IsNullOrWhiteSpace(request.Target)
+            ? Task.CompletedTask
+            : ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.SelectWorkspaceTab(s, request.Target));
     }
 
     [On]
-    public async Task NewTab(DesktopNewTab request)
+    public Task NewTab(DesktopNewTab request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var brain = CurrentBrainOrLocal();
-        await ApplyDesktopWorkspaceChangeAsync(s => OpenDesktopAppInState(s, "ino", request.WindowId, asNewTab: true, brain: brain));
+        return ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.OpenWorkspaceApp(s, "ino", request.WindowId, asNewTab: true, brain: brain));
     }
 
     [On]
-    public async Task Favourite(DesktopFavourite request)
+    public Task Favourite(DesktopFavourite request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.WindowId)) { return; }
+        if (string.IsNullOrWhiteSpace(request.WindowId)) { return Task.CompletedTask; }
         var brain = CurrentBrainOrLocal();
-        await ApplyDesktopWorkspaceChangeAsync(s =>
-        {
-            var w = s.Windows.FirstOrDefault(win => win.Id == request.WindowId);
-            var activeTab = w?.Tabs.FirstOrDefault(t => t.Id == w.ActiveTabId) ?? w?.Tabs.LastOrDefault();
-            if (activeTab is null) { return (null, []); }
-            var appId = IntoChat.OS.Modules.Apps.IApp.NameOf(brain, activeTab.App)
-                ?? IntoChat.OS.Modules.Apps.IApp.NameOf("local", activeTab.App)
-                ?? activeTab.Id;
-            var exists = s.Favourites.Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));
-            WorkspaceViewRef[] nextFavs = exists
-                ? [.. s.Favourites.Where(f => !string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase))]
-                : [.. s.Favourites.Take(4), new WorkspaceViewRef(appId, activeTab.App, string.Empty, string.Empty)];
-            return (BuildWorkspaceUpdate(s, s.Windows, favourites: nextFavs), []);
-        });
+        return ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.ToggleWorkspaceFavourite(s, request.WindowId, brain));
     }
 
     [On]
-    public async Task Settings(DesktopSettings request)
+    public Task Settings(DesktopSettings request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await Open(new DesktopOpen("settings"));
+        return Open(new DesktopOpen("settings"));
     }
 
     public new DesktopAppState State => base.State;
@@ -538,11 +442,10 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         var alias = typeof(TSignal).GetCustomAttribute<SignalAttribute>(false)?.Alias ?? typeof(TSignal).Name;
         return new Emit("app.desktop", alias, JsonSerializer.SerializeToElement(signal));
     }
+
     protected override View Render(DesktopAppState state)
     {
-        string brain;
-        try { brain = Id.Brain.Value; } catch (InvalidOperationException ex) when (ex is not null) { NullLogger.Instance.LogSwallowed(ex, "Id.Brain is unassigned in standalone tests; defaulting to local."); brain = "local"; }
-        if (string.IsNullOrEmpty(brain)) { brain = "local"; }
+        var brain = CurrentBrainOrLocal();
         var activeWindows = (state.Windows ?? []).Where(w => w.Tabs is { Length: > 0 }).ToArray();
 
         Node BuildWindowFrame(WorkspaceWindow window)
@@ -550,41 +453,41 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             var winId = window.Id;
             var activeIndex = Math.Max(0, Array.FindIndex(window.Tabs, t => t.Id == window.ActiveTabId));
             var activeTab = window.Tabs[activeIndex];
-            var appId = IntoChat.OS.Modules.Apps.IApp.NameOf(brain, activeTab.App) ?? activeTab.Id;
-            var title = Char.ToUpperInvariant(appId[0]) + appId[1..];
+            var appId = IApp.NameOf(brain, activeTab.App) ?? activeTab.Id;
+            var title = char.ToUpperInvariant(appId[0]) + appId[1..];
             var isPinned = (state.Pins ?? []).Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase));
             var isFav = (state.Favourites ?? []).Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));
 
             Node[] chromeButtons =
             [
-                new Button($"focus-{winId}", title, Emit: Emits(new DesktopFocus(winId))),
-                new Button($"newtab-{winId}", "New tab", Emit: Emits(new DesktopNewTab(winId))) { Icon = "plus", Small = true },
-                new Button($"star-{winId}", isFav ? "Remove from favourites" : "Add to favourites", Emit: Emits(new DesktopFavourite(winId))) { Icon = "star", Small = true },
+                Button(title).Key($"focus-{winId}").Emits(Emits(new DesktopFocus(winId))),
+                Button("New tab", Icons.Plus).Key($"newtab-{winId}").Small().Emits(Emits(new DesktopNewTab(winId))),
+                Button(isFav ? "Remove from favourites" : "Add to favourites", "star").Key($"star-{winId}").Small().Emits(Emits(new DesktopFavourite(winId))),
                 .. appId == "ino"
                     ? Array.Empty<Node>()
                     : [isPinned
-                        ? new Button($"unpin-{winId}", "Unpin", Emit: Emits(new DesktopUnpinApp(appId))) { Icon = "pin-off", Small = true }
-                        : new Button($"pin-{winId}", "Pin", Emit: Emits(new DesktopPinApp(appId, true))) { Icon = "pin", Small = true }],
-                new Button($"close-{winId}", "Close tab", Emit: Emits(new DesktopClose($"{winId}/{activeIndex}"))) { Icon = "x", Small = true },
+                        ? Button("Unpin", "pin-off").Key($"unpin-{winId}").Small().Emits(Emits(new DesktopUnpinApp(appId))).ToNode()
+                        : Button("Pin", "pin").Key($"pin-{winId}").Small().Emits(Emits(new DesktopPinApp(appId, true))).ToNode()],
+                Button("Close tab", "x").Key($"close-{winId}").Small().Emits(Emits(new DesktopClose($"{winId}/{activeIndex}"))),
             ];
-            var tabs = window.Tabs.Select((tab, idx) => new TabItem(
-                $"tab-{winId}-{idx}", $"{winId}/{idx}", Char.ToUpperInvariant(tab.Id[0]) + tab.Id[1..], Emits(new DesktopTab($"{winId}/{idx}")))).ToArray();
 
-            return new Column(
-            [
+            var tabItems = window.Tabs.Select((tab, idx) => Kit.Tab(
+                $"{winId}/{idx}",
+                char.ToUpperInvariant(tab.Id[0]) + tab.Id[1..])
+                .Key($"tab-{winId}-{idx}")
+                .Emits(Emits(new DesktopTab($"{winId}/{idx}")))).ToArray();
+
+            return VStack(0, [
                 new Row(chromeButtons) { Gap = 4, Extents = [0, .. chromeButtons.Skip(1).Select(_ => 32.0)] },
-                new Tabs(tabs, $"{winId}/{activeIndex}"),
-                new NeuronRef("viewport", $"{brain}/apps/desktop/window/{winId}"),
-            ])
-            { Gap = 0, Extents = [40, 38, 0] };
+                Tabs($"{winId}/{activeIndex}", tabItems),
+                Slot($"{brain}/apps/desktop/window/{winId}", "viewport"),
+            ]).Extents(40, 38, 0);
         }
 
         Node windows = activeWindows.Length == 0
-            ? new Column([])
-            : new Column([.. activeWindows.Chunk(3).Select(row => (Node)new Row([.. row.Select(BuildWindowFrame)]))])
-            {
-                Extents = [.. activeWindows.Chunk(3).Select(_ => 0.0)],
-            };
+            ? VStack([])
+            : VStack([.. activeWindows.Chunk(3).Select(row => (Node)HStack([.. row.Select(BuildWindowFrame)]))])
+                .Extents([.. activeWindows.Chunk(3).Select(_ => 0.0)]);
 
         var deployedUnits = state.DeployedUnits ?? [];
         var pinnedIds = (state.Pins ?? []).Select(p => p.Id).Where(id => !string.IsNullOrWhiteSpace(id)).ToArray();
@@ -595,23 +498,23 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         {
             dockLeftButtons =
             [
-                new Button("dock-ino", "Ino", Emit: Emits(new DesktopOpen("ino")), Tone: ButtonTone.Accent) { Icon = "ino" },
-                new Button("dock-files", "Files", Emit: Emits(new DesktopOpen("files"))),
-                new Button("dock-settings", "Settings", Emit: Emits(new DesktopSettings())),
-                new Button("newtab", "New tab", Emit: Emits(new DesktopNewTab())) { Icon = "plus", Small = true },
+                PrimaryButton("Ino", "ino").Key("dock-ino").Emits(Emits(new DesktopOpen("ino"))),
+                Button("Files").Key("dock-files").Emits(Emits(new DesktopOpen("files"))),
+                Button("Settings").Key("dock-settings").Emits(Emits(new DesktopSettings())),
+                Button("New tab", Icons.Plus).Key("newtab").Small().Emits(Emits(new DesktopNewTab())),
             ];
         }
         else
         {
             var buttons = new List<Node>
             {
-                new Button("dock-ino", "Ino", Emit: Emits(new DesktopOpen("ino")), Tone: ButtonTone.Accent) { Icon = "ino" },
-                new Button("dock-photocraft", "PhotoCraft", Emit: Emits(new DesktopOpen("photocraft"))) { Icon = "artcraft:photocraft" },
-                new Button("dock-filmcraft", "FilmCraft", Emit: Emits(new DesktopOpen("filmcraft"))) { Icon = "artcraft:filmcraft" },
-                new Button("dock-markdraw", "Markdraw", Emit: Emits(new DesktopOpen("markdraw"))) { Icon = "pen-tool" },
-                new Button("dock-creator", "Creator", Emit: Emits(new DesktopOpen("creator"))) { Icon = "cpu" },
-                new Button("dock-files", "Files", Emit: Emits(new DesktopOpen("files"))),
-                new Button("dock-settings", "Settings", Emit: Emits(new DesktopSettings())),
+                PrimaryButton("Ino", "ino").Key("dock-ino").Emits(Emits(new DesktopOpen("ino"))),
+                Button("PhotoCraft", "artcraft:photocraft").Key("dock-photocraft").Emits(Emits(new DesktopOpen("photocraft"))),
+                Button("FilmCraft", "artcraft:filmcraft").Key("dock-filmcraft").Emits(Emits(new DesktopOpen("filmcraft"))),
+                Button("Markdraw", "pen-tool").Key("dock-markdraw").Emits(Emits(new DesktopOpen("markdraw"))),
+                Button("Creator", "cpu").Key("dock-creator").Emits(Emits(new DesktopOpen("creator"))),
+                Button("Files").Key("dock-files").Emits(Emits(new DesktopOpen("files"))),
+                Button("Settings").Key("dock-settings").Emits(Emits(new DesktopSettings())),
             };
 
             var builtInSet = new HashSet<string>(DefaultDockApps, StringComparer.OrdinalIgnoreCase);
@@ -619,7 +522,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             {
                 if (builtInSet.Add(pinId))
                 {
-                    buttons.Add(new Button($"dock-pin-{pinId}", FormatAppTitle(pinId), Emit: Emits(new DesktopOpen(pinId))));
+                    buttons.Add(Button(FormatAppTitle(pinId)).Key($"dock-pin-{pinId}").Emits(Emits(new DesktopOpen(pinId))));
                 }
             }
 
@@ -627,28 +530,25 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             {
                 if (builtInSet.Add(unitAlias))
                 {
-                    buttons.Add(new Button($"dock-unit-{unitAlias}", FormatAppTitle(unitAlias), Emit: Emits(new DesktopOpen(unitAlias))) { Icon = "zap" });
+                    buttons.Add(Button(FormatAppTitle(unitAlias), "zap").Key($"dock-unit-{unitAlias}").Emits(Emits(new DesktopOpen(unitAlias))));
                 }
             }
 
-            buttons.Add(new Button("newtab", "New tab", Emit: Emits(new DesktopNewTab())) { Icon = "plus", Small = true });
+            buttons.Add(Button("New tab", Icons.Plus).Key("newtab").Small().Emits(Emits(new DesktopNewTab())));
             dockLeftButtons = [.. buttons];
         }
 
-        var dock = new Row(
-        [
-            new Row(dockLeftButtons) { Gap = 4 },
-            new Row(
-            [
-                new Text("Usage"),
-                new Text(state.WidgetsText),
-                new Button("avatar", "You", Emit: Emits(new DesktopOpen("friends"))),
-                new Button("more-settings", "Settings", Emit: Emits(new DesktopSettings())),
-            ]) { Gap = 4 },
-        ])
-        { Extents = [0, 360] };
+        var dock = HStack([
+            HStack(4, dockLeftButtons),
+            HStack(4)[
+                StatusPill(StatusKind.Done, "Usage"),
+                Text(state.WidgetsText),
+                Button("You").Key("avatar").Emits(Emits(new DesktopOpen("friends"))),
+                Button("Settings").Key("more-settings").Emits(Emits(new DesktopSettings()))
+            ]
+        ]).Extents(0, 360);
 
-        return new View("Desktop", new Column([windows, dock]) { Extents = [0, 68] });
+        return new View("Desktop", VStack([windows, dock]).Extents(0, 68));
     }
 
     private async Task SyncSmartDesktopAsync(string layoutMode, bool narrow)
@@ -665,7 +565,6 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             }
             catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "UserSettings is optional."); }
         }
-
 
         var activeNeurons = 10;
         try
@@ -768,7 +667,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
 
     private async Task ClearViewportsAsync(IReadOnlyList<string> closedWindowIds)
     {
-        var brain = Id.Brain.Value is { Length: > 0 } b ? b : "local";
+        var brain = CurrentBrainOrLocal();
         foreach (var winId in closedWindowIds)
         {
             try
@@ -785,121 +684,6 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 NullLogger.Instance.LogSwallowed(ex, "Failed to clear viewport for closed window.");
             }
         }
-    }
-
-    private static WorkspaceUpdate BuildWorkspaceUpdate(
-        WorkspaceState s,
-        WorkspaceWindow[] windows,
-        string? focusedViewId = null,
-        WorkspaceViewRef[]? pins = null,
-        WorkspaceViewRef[]? favourites = null) =>
-        new([.. windows.SelectMany(w => w.Tabs)], focusedViewId ?? s.FocusedViewId, pins ?? s.Pins)
-        {
-            Windows = windows,
-            Favourites = favourites ?? s.Favourites,
-        };
-
-    private static (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) OpenDesktopAppInState(
-        WorkspaceState s,
-        string rawAppName,
-        string? targetWindowId = null,
-        bool asNewTab = false,
-        string brain = "local")
-    {
-        var appName = rawAppName.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(appName) || appName == "desktop") { return (null, []); }
-        var appKey = IntoChat.OS.Modules.Apps.IApp.Key(brain, appName);
-        var windows = s.Windows.Where(w => w.Tabs is { Length: > 0 }).ToList();
-
-        if (!asNewTab)
-        {
-            foreach (var w in windows)
-            {
-                if (w.Tabs.FirstOrDefault(t => string.Equals(t.App, appKey, StringComparison.OrdinalIgnoreCase)) is { } existingTab)
-                {
-                    if (w.ActiveTabId == existingTab.Id && s.FocusedViewId == existingTab.Id) { return (null, []); }
-                    var focusedWindows = windows.Select(win => win.Id == w.Id ? win with { ActiveTabId = existingTab.Id } : win).ToArray();
-                    return (BuildWorkspaceUpdate(s, focusedWindows, existingTab.Id), []);
-                }
-            }
-        }
-
-        var takenTabIds = windows.SelectMany(w => w.Tabs).Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
-        var tabId = appName;
-        for (var n = 2; !takenTabIds.Add(tabId); n++) { tabId = $"{appName}-{n}"; }
-        var newTab = new WorkspaceViewRef(tabId, appKey, "full", string.Empty);
-
-        if (asNewTab)
-        {
-            var targetWin = targetWindowId is { Length: > 0 }
-                ? windows.FirstOrDefault(w => w.Id == targetWindowId)
-                : windows.FirstOrDefault(w => w.Tabs.Any(t => t.Id == s.FocusedViewId)) ?? windows.LastOrDefault();
-            if (targetWin is not null && targetWin.Tabs.Length < 8)
-            {
-                var updatedWins = windows.Select(w => w.Id == targetWin.Id ? new WorkspaceWindow(targetWin.Id, [.. targetWin.Tabs, newTab], newTab.Id) : w).ToArray();
-                return (BuildWorkspaceUpdate(s, updatedWins, newTab.Id), []);
-            }
-        }
-
-        if (windows.Count >= 8) { return (null, []); }
-
-        var takenWinIds = windows.Select(w => w.Id).ToHashSet(StringComparer.Ordinal);
-        var nextWinId = Enumerable.Range(1, 99).Select(n => $"w-{n}").First(id => !takenWinIds.Contains(id));
-        return (BuildWorkspaceUpdate(s, [.. windows, new WorkspaceWindow(nextWinId, [newTab], newTab.Id)], newTab.Id), []);
-    }
-
-    private static (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) CloseDesktopTargetInState(WorkspaceState s, string target)
-    {
-        var slash = target.LastIndexOf('/');
-        var winId = slash >= 0 ? target[..slash] : target;
-        var indexStr = slash >= 0 ? target[(slash + 1)..] : string.Empty;
-        var windows = s.Windows.Where(w => w.Tabs is { Length: > 0 }).ToList();
-        var window = windows.FirstOrDefault(w => w.Id == winId);
-        if (window is null) { return (null, []); }
-
-        if (slash < 0 || !int.TryParse(indexStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tabIndex))
-        {
-            tabIndex = Math.Max(0, Array.FindIndex(window.Tabs, t => t.Id == window.ActiveTabId));
-        }
-        if (tabIndex < 0 || tabIndex >= window.Tabs.Length) { return (null, []); }
-
-        if (window.Tabs.Length <= 1 || slash < 0)
-        {
-            var remaining = windows.Where(w => w.Id != winId).ToArray();
-            var nextFocus = remaining.Any(w => w.Tabs.Any(t => t.Id == s.FocusedViewId)) ? s.FocusedViewId : remaining.LastOrDefault()?.ActiveTabId;
-            return (BuildWorkspaceUpdate(s, remaining, nextFocus), [winId]);
-        }
-
-        var closedTabId = window.Tabs[tabIndex].Id;
-        var nextTabs = window.Tabs.Where((_, i) => i != tabIndex).ToArray();
-        var nextActive = window.ActiveTabId == closedTabId ? nextTabs[Math.Max(0, tabIndex - 1)].Id : window.ActiveTabId;
-        var updatedWindows = windows.Select(w => w.Id == winId ? new WorkspaceWindow(winId, nextTabs, nextActive) : w).ToArray();
-        return (BuildWorkspaceUpdate(s, updatedWindows, s.FocusedViewId == closedTabId ? nextActive : s.FocusedViewId), []);
-    }
-
-    private static (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) CloseDesktopAppInState(WorkspaceState s, string rawAppName, string brain = "local")
-    {
-        var normalized = rawAppName.Trim().ToLowerInvariant();
-        var appKey = IntoChat.OS.Modules.Apps.IApp.Key(brain, normalized);
-        var fallbackKey = IntoChat.OS.Modules.Apps.IApp.Key("local", normalized);
-        var closedIds = new List<string>();
-        var nextWindows = new List<WorkspaceWindow>();
-        var changed = false;
-
-        foreach (var w in s.Windows.Where(w => w.Tabs is { Length: > 0 }))
-        {
-            var keptTabs = w.Tabs.Where(t =>
-                !string.Equals(t.App, appKey, StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(t.App, fallbackKey, StringComparison.OrdinalIgnoreCase)).ToArray();
-            if (keptTabs.Length != w.Tabs.Length) { changed = true; }
-            if (keptTabs.Length == 0) { closedIds.Add(w.Id); }
-            else { nextWindows.Add(new WorkspaceWindow(w.Id, keptTabs, keptTabs.Any(t => t.Id == w.ActiveTabId) ? w.ActiveTabId : keptTabs[^1].Id)); }
-        }
-
-        if (!changed) { return (null, []); }
-        var remaining = nextWindows.ToArray();
-        var nextFocus = remaining.Any(w => w.Tabs.Any(t => t.Id == s.FocusedViewId)) ? s.FocusedViewId : remaining.LastOrDefault()?.ActiveTabId;
-        return (BuildWorkspaceUpdate(s, remaining, nextFocus), closedIds);
     }
 
     private T? TryGetOptional<T>(string key) where T : class

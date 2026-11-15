@@ -1,5 +1,7 @@
+using DigitalBrain.Rules;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Trace;
+using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps.Creator;
 
@@ -23,6 +25,121 @@ public sealed record CreatorState(Selection? Selected, string? TraceId, long? Re
     public string? ActiveRunId { get; init; }
 
     public string? SelectedStage { get; init; }
+
+    // Whether the Accordant Aggregate State-Space Graph inspector overlay/card is expanded.
+    public bool ShowStateGraph { get; init; }
+
+    // ── Domain Rules & Invariants ────────────────────────────────────────────
+
+    [Invariant]
+    public bool NonNegativeReplayCursor => ReplayCursor is null or >= 0;
+
+    public Rule EmptyDraft => Decision.Rule("empty_draft", string.IsNullOrWhiteSpace(Draft), "Describe what unit you want to make first.");
+
+    public Rule EmptyChangeDraft => Decision.Rule("empty_change_draft", string.IsNullOrWhiteSpace(ChangeDraft), "Describe how this unit should change first.");
+
+    public Rule RequiresSelectedNode => Decision.Rule("requires_selected_node", Selected is not { Kind: Selection.Node }, "Select a unit node in the graph first.");
+
+    // ── Rich DDD Aggregate Transitions ───────────────────────────────────────
+
+    public CreatorState SelectNode([Sample("local/ctr/default")] string nodeId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
+        return this with
+        {
+            Selected = Selection.Parse(nodeId),
+            Transcript = null,
+            ReplayCursor = null,
+        };
+    }
+
+    [IgnoreExplore]
+    public CreatorState SelectSelection(Selection? selection) => this with
+    {
+        Selected = selection,
+        TraceId = selection?.Kind == Selection.Pulse ? selection.Id : TraceId,
+        ReplayCursor = null,
+        Transcript = null,
+    };
+
+    public CreatorState OpenInput([Sample("node:local/ctr/default", "trace/t-1")] string? rawInput)
+    {
+        var input = rawInput?.Trim() ?? string.Empty;
+        if (input.StartsWith("trace/", StringComparison.Ordinal) && input["trace/".Length..].Trim() is { Length: > 0 } traceId)
+        {
+            return this with { Selected = new Selection(Selection.Pulse, traceId), TraceId = traceId, ReplayCursor = null };
+        }
+
+        if (input.StartsWith("node:", StringComparison.Ordinal) && Selection.Parse(input) is { } node)
+        {
+            return this with { Selected = node };
+        }
+
+        return this;
+    }
+
+    public CreatorState SelectRun([Sample("run-1")] string runId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(runId);
+        return this with
+        {
+            ActiveRunId = runId,
+            Status = $"Inspecting change run {runId}",
+        };
+    }
+
+    public CreatorState SetDraft([Sample("watch elonmusk on X")] string draft)
+        => this with { Draft = draft ?? string.Empty };
+
+    public CreatorState SetChangeDraft([Sample("count by two")] string changeDraft)
+        => this with { ChangeDraft = changeDraft ?? string.Empty };
+
+    [IgnoreExplore]
+    public CreatorState SetStatus(string status)
+        => this with { Status = status ?? string.Empty };
+
+    [IgnoreExplore]
+    public CreatorState SetTranscript(string? transcript)
+        => this with { Transcript = transcript };
+
+    public CreatorState SetStage([Sample("clone", "diff-review")] string? stage)
+        => this with { SelectedStage = stage };
+
+    public CreatorState ToggleStateGraph()
+        => this with { ShowStateGraph = !ShowStateGraph };
+
+    public CreatorState StepReplay([Sample("next", "stop")] string? cursorArg, [Sample(4)] int hopCount)
+        => this with
+        {
+            ReplayCursor = Selected is { Kind: Selection.Pulse }
+                ? ReplayScript.Move(ReplayCursor, cursorArg, hopCount)
+                : null,
+        };
+
+    public CreatorState ClearSelection() => this with
+    {
+        Selected = null,
+        ActiveRunId = null,
+        Transcript = null,
+        ReplayCursor = null,
+    };
+
+    public Decision<CreatorState> ValidateMake([Sample("", "watch elonmusk on X")] string? explicitGoal = null)
+    {
+        var goal = string.IsNullOrWhiteSpace(explicitGoal) ? Draft.Trim() : explicitGoal.Trim();
+        return Decision.Check("creator.make", Decision.Rule("empty_draft", goal.Length == 0, "Describe what to make."))
+            ?? Decision.Accept(this with { Draft = string.Empty, Status = $"Building {goal}" });
+    }
+
+    public Decision<CreatorState> ValidateChange([Sample("", "count by two")] string? explicitRequest = null)
+    {
+        var wanted = string.IsNullOrWhiteSpace(explicitRequest) ? ChangeDraft.Trim() : explicitRequest.Trim();
+        return Decision.Check(
+                "creator.change",
+                RequiresSelectedNode,
+                Decision.Rule("empty_change_draft", wanted.Length == 0, "Describe how the selected unit should change."))
+            ?? Decision.Accept(this with { ChangeDraft = string.Empty });
+    }
 }
 
 // A selection of the graph: a node (its id; a ghost is draft:<alias>), an edge (its full key) or a pulse (its trace id).

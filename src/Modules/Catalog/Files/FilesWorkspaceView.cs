@@ -1,13 +1,12 @@
 using System.Globalization;
-using DigitalBrain;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
+using DigitalBrain.UI;
 using IntoChat.Files;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Modules.Flutter;
-using IntoChat.OS.Modules.Flutter.Views;
-using Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging;
+using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -16,29 +15,61 @@ internal sealed partial class FilesWorkspaceNeuron
     private async Task Render()
     {
         var files = State.Files;
-        var screen = FilesScreen.Compose(files, State.Width, State.PreviewOpen, files.Revision, AppKey, State.PageOffset);
+        var screen = FilesScreen.Compose(
+            files,
+            State.Width,
+            State.PreviewOpen,
+            files.Revision,
+            AppKey,
+            State.PageOffset,
+            State.ViewMode);
         var rev = files.Revision.ToString(CultureInfo.InvariantCulture);
-        DigitalBrain.UI.Node Button(string key, string text, string verb, bool enabled = true, int? index = null, string style = FilesUi.Secondary)
+
+        Node Button(string key, string text, string verb, bool enabled = true, int? index = null, string style = FilesUi.Secondary)
             => FilesUi.Button(key, text, FilesUi.Act(rev, verb, index), enabled, style);
-        var views = await ReadOperations(operationsQuery, State.Started,
+
+        var views = await ReadOperations(
+            operationsQuery,
+            State.Started,
             error => logger.LogDebug(error, "A files operation could not be read."));
         var operations = OperationCards(State.Started, views, index => Button("cancel-" + index, "Cancel", "cancel", index: index));
         var notice = State.Notice ?? files.Message;
-        var extras = FilesUi.Column(
-        [
-            .. notice is null ? Array.Empty<DigitalBrain.UI.Node>() : [FilesUi.Text(notice)],
-            .. files.InoHandoffPrompt is { } handoffPrompt
-                ? [FilesUi.Card("Ino Handoff", handoffPrompt, [FilesUi.Text(files.SelectedNeuronUri ?? ""), FilesUi.CopyButton("copy-ino-prompt", FilesCopy.CopyNeuronUri, files.SelectedNeuronUri ?? handoffPrompt)])]
-                : Array.Empty<DigitalBrain.UI.Node>(),
-            FilesUi.Field("input-name", AppKey + "/name"),
-            FilesUi.Field("input-content", AppKey + "/content"),
-            Button("write", "Save text file", "write", files.Breadcrumbs.LastOrDefault()?.Item.Flags.HasFlag(ItemFlags.Write) == true),
-            Button("paste", files.Clipboard?.Move == true ? "Move here" : "Copy here", "paste", files.Clipboard is not null),
-            FilesUi.Reference("confirmation", Id.Brain.Value + "/confirmations"),
-            .. operations,
-        ]);
-        var main = FilesUi.Column([screen.Main, extras]);
-        var full = FilesUi.Row([screen.Side, main], gap: 12, extents: [240, 0]);
+        var folderWritable = files.Breadcrumbs.LastOrDefault()?.Item.Flags.HasFlag(ItemFlags.Write) == true;
+
+        var extras = VStack(
+            Space.Md,
+            [
+                notice is not null
+                    ? (Node)Banner("Files notice", notice, tone: "info")
+                    : null,
+                notice is not null
+                    ? Text(notice).ToNode()
+                    : null,
+                files.InoHandoffPrompt is { } handoffPrompt
+                    ? Card("Ino Handoff", handoffPrompt)[
+                        VStack(Space.Xs)[
+                            MutedText(files.SelectedNeuronUri ?? "").Tabular(),
+                            FilesUi.CopyButton("copy-ino-prompt", FilesCopy.CopyNeuronUri, files.SelectedNeuronUri ?? handoffPrompt)
+                        ]
+                    ].ToNode()
+                    : null,
+                Surface(SurfaceKind.Elevated, "Quick Write & Clipboard", "Create a text file or paste clipboard selection into the active folder")[
+                    VStack(Space.Sm)[
+                        FilesUi.Field("input-name", AppKey + "/name", FieldKind.Text, "Single-segment file or folder name…"),
+                        FilesUi.Field("input-content", AppKey + "/content", FieldKind.Multiline, "File contents (max 256 KiB)…"),
+                        HStack(Space.Sm)[
+                            Button("write", "Save text file", "write", folderWritable, style: FilesUi.Primary),
+                            Button("paste", files.Clipboard?.Move == true ? "Move here" : "Copy here", "paste", files.Clipboard is not null)
+                        ]
+                    ]
+                ].ToNode(),
+                Slot(Id.Brain.Value + "/confirmations", "confirmation"),
+                .. operations,
+            ]).ToNode();
+
+        var main = VStack(Space.Md, screen.Main, extras).ToNode();
+        var full = ResponsiveSplit(leading: screen.Side, trailing: main, leadingExtent: 216, gap: Space.Md);
+
         // The workspace is host code: it publishes its views as the platform of its brain, whoever's call led here.
         using (InProcessCallerScope.Enter())
         {
@@ -50,7 +81,10 @@ internal sealed partial class FilesWorkspaceNeuron
     }
 
     // The operations query's view of each started operation (cross-silo); one that cannot be read is null.
-    internal static async Task<OperationView?[]> ReadOperations(DigitalBrain.Operations.IOperationsQuery query, IReadOnlyList<FilesStartedOperation> started, Action<Exception> failed)
+    internal static async Task<OperationView?[]> ReadOperations(
+        IOperationsQuery query,
+        IReadOnlyList<FilesStartedOperation> started,
+        Action<Exception> failed)
     {
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(started);
@@ -61,17 +95,20 @@ internal sealed partial class FilesWorkspaceNeuron
             try { views[i] = await query.Read(new OperationId(started[i].Id), CancellationToken.None); }
             catch (Exception error) when (error is not OperationCanceledException) { failed(error); }
         }
+
         return views;
     }
 
-    // One card per started operation, from the operations query: the fraction while it runs, its result once done. An operation the
-    // query does not know (not yet visible, or trimmed) shows as waiting while not done.
-    internal static DigitalBrain.UI.Node[] OperationCards(IReadOnlyList<FilesStartedOperation> started, IReadOnlyList<OperationView?> views, Func<int, DigitalBrain.UI.Node> cancel)
+    // One card per started operation, from the operations query: the fraction while it runs, its result once done.
+    internal static Node[] OperationCards(
+        IReadOnlyList<FilesStartedOperation> started,
+        IReadOnlyList<OperationView?> views,
+        Func<int, Node> cancel)
     {
         ArgumentNullException.ThrowIfNull(started);
         ArgumentNullException.ThrowIfNull(views);
         ArgumentNullException.ThrowIfNull(cancel);
-        var cards = new DigitalBrain.UI.Node[started.Count];
+        var cards = new Node[started.Count];
         for (var index = 0; index < cards.Length; index++)
         {
             var operation = started[index];
@@ -87,12 +124,26 @@ internal sealed partial class FilesWorkspaceNeuron
             };
             var running = view is null ? !operation.Done : view.Result is null;
             var fraction = Math.Clamp(view?.Fraction ?? 0, 0, 1);
-            DigitalBrain.UI.Node[] children = running
-                ? [FilesUi.Text(fraction.ToString("P0", CultureInfo.InvariantCulture)), cancel(index)]
-                : [FilesUi.Text(status)];
-            cards[index] = FilesUi.Card(operation.Label, status, children);
+            var statusKind = running
+                ? StatusKind.Working
+                : view?.Result is OperationResult.Failed
+                    ? StatusKind.Error
+                    : StatusKind.Done;
+            Node[] children = running
+                ?
+                [
+                    StatusPill(statusKind, status),
+                    Text(fraction.ToString("P0", CultureInfo.InvariantCulture)).Tabular(),
+                    cancel(index),
+                ]
+                :
+                [
+                    StatusPill(statusKind, status),
+                    Text(status),
+                ];
+            cards[index] = Card(operation.Label, status, children);
         }
+
         return cards;
     }
-
 }
