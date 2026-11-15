@@ -331,26 +331,26 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         {
             var shortSha = inner.CommitSha[..Math.Min(8, inner.CommitSha.Length)];
             var branch = inner.Lease?.BranchName ?? "ino/change";
+            // The model gets the facts of the change, not the diff: the whole change is on the approval the person answers.
             var summary = new StringBuilder();
-            summary.AppendLine($"Feature-to-PR ready for human approval ({flowId}):");
-            summary.AppendLine($"- Repository: {inner.Repository} (branch `{branch}` from `{inner.Lease?.BaseBranch ?? "main"}`)");
-            summary.AppendLine($"- Commit SHA: `{inner.CommitSha}`");
-            summary.AppendLine($"- Changed files ({inner.ChangedFiles.Length}): {string.Join(", ", inner.ChangedFiles)} (+{inner.Additions} / -{inner.Deletions})");
-            summary.AppendLine($"- Approval Plan ID: `{inner.ConfirmationPlanId}` (RequiresPerson = true; only the human Person can approve)");
+            summary.Append($"Feature-to-PR waits for the person's approval ({flowId}).\n");
+            summary.Append(ChangeCard.Header(inner)).Append('\n');
+            summary.Append($"Approval plan: `{inner.ConfirmationPlanId}`. Only the person can approve it, below the conversation, where the whole change is shown.");
             if (!string.IsNullOrWhiteSpace(inner.CoderSummary))
             {
-                summary.AppendLine($"- Summary: {inner.CoderSummary}");
+                summary.Append($"\nSummary: {inner.CoderSummary.Trim()}");
             }
 
+            // A status, not a place to approve: the one Approve for this plan is the inbox approval Ino shows below the conversation.
             var card = new InoCard(
                 Id: inner.ConfirmationPlanId,
                 Kind: "approval",
-                Title: $"Approve PR: {head.Title} ({shortSha})",
-                Summary: $"{inner.ChangedFiles.Length} file(s) on {branch} (+{inner.Additions} / -{inner.Deletions})",
+                Title: $"Waiting for your approval: {head.Title} ({shortSha})",
+                Summary: $"{inner.ChangedFiles.Length} file(s) on {branch} (+{inner.Additions} / -{inner.Deletions}). The whole change and Approve are below the conversation.",
                 SourceNeuronUri: $"neuron://{brainId}/runtime.confirmations/confirmations",
                 Status: "pending",
                 SurfaceScopeUri: tasksUri);
-            return new InoToolResult(summary.ToString().Trim(), card, Ok: true);
+            return new InoToolResult(summary.ToString(), card, Ok: true);
         }
 
         if (status == FlowStatus.Completed)

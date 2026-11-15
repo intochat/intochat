@@ -168,6 +168,36 @@ public sealed class WorkTreeServiceFacts : IDisposable
     }
 
     [Fact]
+    public async Task TheLeaseCarriesTheRemoteItPushesToWithoutCredentials()
+    {
+        var (bareOrigin, checkoutPath, homeDir) = CreateBareOriginAndDirtyCheckout();
+        var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
+        service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
+
+        var plain = await service.PrepareAsync("os", "remote01", "Show the remote", null, Ct);
+        Assert.Equal(bareOrigin, plain.OriginUrl);
+        await service.CleanupAsync(plain, Ct);
+
+        // Fetching stays local; pushes go to an address that carries a user name and a token.
+        RunGit(checkoutPath, ["remote", "set-url", "--push", "origin", "https://ino:not-a-real-token@example.invalid/intochat/os.git"]);
+        var withToken = await service.PrepareAsync("os", "remote02", "Show the remote", null, Ct);
+        Assert.Equal("https://example.invalid/intochat/os.git", withToken.OriginUrl);
+        await service.CleanupAsync(withToken, Ct);
+    }
+
+    [Theory]
+    [InlineData("https://ino:not-a-real-token@github.com/intochat/os.git", "https://github.com/intochat/os.git")]
+    [InlineData("https://not-a-real-token@github.com/intochat/os.git", "https://github.com/intochat/os.git")]
+    [InlineData("https://github.com/intochat/os.git", "https://github.com/intochat/os.git")]
+    [InlineData("https://github.com/intochat/os@2.git", "https://github.com/intochat/os@2.git")]
+    [InlineData("git@github.com:intochat/os.git", "git@github.com:intochat/os.git")]
+    [InlineData(@"C:\repos\origin.git", @"C:\repos\origin.git")]
+    [InlineData("https://a:b@one.example/x.git\nhttps://c:d@two.example/y.git", "https://one.example/x.git\nhttps://two.example/y.git")]
+    [InlineData(" ", null)]
+    public void ARemoteAddressIsKeptWithoutItsCredentials(string address, string? shown)
+        => Assert.Equal(shown, WorkTreeService.WithoutCredentials(address));
+
+    [Fact]
     public async Task PublishRefusesWhenTheOriginChangedAfterTheLease()
     {
         var (bareOrigin, checkoutPath, homeDir) = CreateBareOriginAndDirtyCheckout();

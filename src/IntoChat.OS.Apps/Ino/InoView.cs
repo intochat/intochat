@@ -518,6 +518,7 @@ public static partial class InoView
         switch (card.Kind)
         {
             case "approval":
+                // A tool result's card reports an approval; it never answers one. The plan is answered on the inbox approval (RenderApproval).
                 var cardApprovalVisual = ResolveApprovalVisual(StripNeuronUri(card.SourceNeuronUri));
                 yield return new ApprovalCardNode(
                     $"card-{card.Id}",
@@ -532,7 +533,6 @@ public static partial class InoView
                     SystemName: "Ino",
                     Status: card.Status,
                     SourceNeuronUri: StripNeuronUri(card.SourceNeuronUri),
-                    Resolve: string.Equals(card.Status, "pending", StringComparison.OrdinalIgnoreCase) ? new Resolve(card.Id) : null,
                     Icon: cardApprovalVisual.IconKey,
                     CapabilityLabel: cardApprovalVisual.Label);
                 break;

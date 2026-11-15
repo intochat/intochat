@@ -177,6 +177,7 @@ public sealed partial class WorkTreeService : IWorkTree
 
         // Determine origin URL (if any) without modifying the source checkout
         var originUrl = await TryGetOriginUrlAsync(sourcePath, ct).ConfigureAwait(false);
+        var pushUrl = await TryGetOriginUrlAsync(sourcePath, ct, push: true).ConfigureAwait(false);
         var githubRepo = repo.GitHubRepo ?? ParseGitHubOwnerRepo(originUrl);
         var allowLocalFileTransport = IsLocalFilesystemRemote(originUrl);
 
@@ -246,7 +247,8 @@ public sealed partial class WorkTreeService : IWorkTree
             BaseBranch: resolvedBaseBranch,
             BaseCommitSha: baseSha,
             BranchName: branchName,
-            GitHubRepo: githubRepo);
+            GitHubRepo: githubRepo,
+            OriginUrl: WithoutCredentials(pushUrl));
     }
 
     public async Task<WorkTreeCommit> VerifyAndCommitAsync(
@@ -389,6 +391,13 @@ public sealed partial class WorkTreeService : IWorkTree
         if (string.IsNullOrWhiteSpace(originUrl))
         {
             throw new InvalidOperationException($"Repository '{lease.RepositoryId}' has no 'origin' remote configured.");
+        }
+
+        // The person approved a push to the remote the lease recorded. A lease made before the remote was recorded is not checked.
+        var pushUrl = WithoutCredentials(await TryGetOriginUrlAsync(lease.SourceRepoPath, ct, push: true).ConfigureAwait(false));
+        if (lease.OriginUrl is { } approvedUrl && !string.Equals(approvedUrl, pushUrl, StringComparison.Ordinal))
+        {
+            throw new SecurityException($"Refusing to push: origin now pushes to '{pushUrl}', but the approval showed '{approvedUrl}'.");
         }
 
         var allowLocalFileTransport = IsLocalFilesystemRemote(originUrl);
@@ -590,7 +599,7 @@ public sealed partial class WorkTreeService : IWorkTree
             lease,
             allowLocalFileTransport: false,
             ct,
-            "diff", "--no-color", "--no-ext-diff", "--no-renames", "--unified=3", $"{lease.BaseCommitSha}..{commitSha}").ConfigureAwait(false);
+            "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "--unified=3", $"{lease.BaseCommitSha}..{commitSha}").ConfigureAwait(false);
         EnsureSuccess(diffResult, "render host unified diff");
         return diffResult.StdOut;
     }
@@ -715,14 +724,44 @@ public sealed partial class WorkTreeService : IWorkTree
         }
     }
 
-    private async Task<string?> TryGetOriginUrlAsync(string sourcePath, CancellationToken ct)
+    // push: the address a push goes to, which a pushurl or a pushInsteadOf rule can make differ from the one fetched from.
+    private async Task<string?> TryGetOriginUrlAsync(string sourcePath, CancellationToken ct, bool push = false)
     {
+        string[] getUrl = push ? ["remote", "get-url", "--push", "origin"] : ["remote", "get-url", "origin"];
         var res = await RunProcessAsync(
             "git",
-            BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, "remote", "get-url", "origin"),
+            BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, getUrl),
             workingDirectory: sourcePath,
             ct: ct).ConfigureAwait(false);
         return res.ExitCode == 0 && !string.IsNullOrWhiteSpace(res.StdOut) ? res.StdOut.Trim() : null;
+    }
+
+    /// <summary>
+    /// The remote address without the user name, password or token a URL can carry before its host.
+    /// A remote with several push addresses gives one per line.
+    /// </summary>
+    public static string? WithoutCredentials(string? remoteUrl)
+    {
+        if (string.IsNullOrWhiteSpace(remoteUrl))
+        {
+            return null;
+        }
+
+        return string.Join('\n', remoteUrl
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(static url =>
+            {
+                var scheme = url.IndexOf("://", StringComparison.Ordinal);
+                if (scheme < 0)
+                {
+                    return url;
+                }
+
+                var hostStart = scheme + 3;
+                var pathStart = url.IndexOf('/', hostStart);
+                var at = (pathStart < 0 ? url[hostStart..] : url[hostStart..pathStart]).LastIndexOf('@');
+                return at < 0 ? url : url[..hostStart] + url[(hostStart + at + 1)..];
+            }));
     }
 
     private async Task<(string BaseBranch, string StartRef)> ResolveBaseBranchAndStartRefAsync(
