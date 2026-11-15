@@ -197,11 +197,11 @@ public sealed class InoViewFacts
     }
 
     [Fact]
-    public void PendingApprovalCardsCarryAResolveActionWhileResolvedCardsDoNot()
+    public void AToolResultApprovalCardCarriesNoResolve()
     {
         var pending = Assert.IsType<ApprovalCardNode>(Assert.Single(InoView.RenderCardNodes(
             new InoCard("plan-42", "approval", "Open Draft PR", "Create draft PR on intochat/os", "f2pr", "pending", "owner"))));
-        Assert.Equal(new Resolve("plan-42"), pending.Resolve);
+        Assert.Null(pending.Resolve);
         Assert.Equal("brand:github", pending.Icon);
         Assert.Equal("GitHub", pending.CapabilityLabel);
 
@@ -221,8 +221,56 @@ public sealed class InoViewFacts
                 At,
                 At.AddDays(7),
                 "trace-99")));
+        Assert.Equal(new Resolve("plan-99"), inboxApproval.Resolve);
         Assert.Equal("brand:github", inboxApproval.Icon);
         Assert.Equal("GitHub", inboxApproval.CapabilityLabel);
+    }
+
+    [Fact]
+    public void OnePlanHasOneApproveControlInTheInoConversation()
+    {
+        var state = new InoAppState() with
+        {
+            Approvals =
+            [
+                new IntoChat.OS.Modules.Apps.Approvals.Approval(
+                    "plan-42",
+                    IntoChat.OS.Modules.Apps.Approvals.ApprovalKind.FlowStep,
+                    "change-flow-42",
+                    "Add Multiply",
+                    "approval-gate: Approving pushes one commit.",
+                    At,
+                    At.AddDays(2),
+                    "trace-42"),
+            ],
+            Messages =
+            [
+                new InoMessage("r1/user", "user", "Add Multiply"),
+                new InoMessage("r1/assistant", "assistant", "The change waits for your approval.")
+                {
+                    Cards =
+                    [
+                        new InoCard(
+                            "plan-42",
+                            "approval",
+                            "Waiting for your approval: Add Multiply (0123abcd)",
+                            "1 file(s) on ino/add-multiply (+1 / -0)",
+                            "neuron://local/runtime.confirmations/confirmations",
+                            "pending",
+                            "neuron://local/apps/tasks#change-flow-42"),
+                    ],
+                },
+            ],
+        };
+
+        var screen = InoView.Screen(state);
+        var conversation = Assert.IsType<Conversation>(screen.Root);
+        var resolving = new PresentedView("main", screen).Nodes
+            .OfType<ApprovalCardNode>()
+            .Where(card => card.Resolve?.PlanId == "plan-42")
+            .ToArray();
+
+        Assert.Same(conversation.Waiting, Assert.Single(resolving));
     }
 
     [Fact]

@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Confirmation;
@@ -140,6 +142,8 @@ public sealed class FeatureToPrFlowFacts : IDisposable
         Assert.True(proposedResult.Ok, proposedResult.Text);
         Assert.NotNull(proposedResult.Card);
         Assert.Equal("approval", proposedResult.Card!.Kind);
+        // Ino's own card reports the wait; it is not where the person approves.
+        Assert.False(proposedResult.Card.Title.StartsWith("Approve", StringComparison.Ordinal), proposedResult.Card.Title);
         Assert.NotNull(proposedResult.Card.SurfaceScopeUri);
         var hashIdx = proposedResult.Card.SurfaceScopeUri!.IndexOf('#', StringComparison.Ordinal);
         Assert.True(hashIdx >= 0);
@@ -163,6 +167,10 @@ public sealed class FeatureToPrFlowFacts : IDisposable
         Assert.Equal(["code/Calculator.cs"], innerBeforeApproval.ChangedFiles);
         Assert.Contains("+    public static int Multiply", innerBeforeApproval.HostRenderedDiff, StringComparison.Ordinal);
         Assert.Null(innerBeforeApproval.PushedRef);
+
+        // What the model gets back names the change; the diff stays on the approval.
+        Assert.DoesNotContain(innerBeforeApproval.HostRenderedDiff!.TrimEnd(), proposedResult.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("+    public static int Multiply", proposedResult.Text, StringComparison.Ordinal);
 
         // Verify Wave 0 B05 hardening: a neuron/agent caller attempting to Resolve a RequiresPerson=true plan
         // is rejected with UnauthorizedAccessException and leaves the human's plan pending & untouched!
@@ -242,6 +250,153 @@ public sealed class FeatureToPrFlowFacts : IDisposable
         Assert.Equal("", RunGit(bareOrigin, ["branch", "--list", "ino/*"]).Trim());
 
         await flows.Cancel(flowId, "done testing sanitization", Ct);
+    }
+
+    [Fact]
+    public async Task ADiffOverTheCardLimitEndsTheRunWithAReasonAndRaisesNoPlan()
+    {
+        var (bareOrigin, _, workTree) = CreateBareOriginAndWorkTreeService();
+        var coder = new DeterministicCoder(lease =>
+        {
+            var lines = Enumerable.Range(0, 2000).Select(i => $"    public static int F{i:D4}() => {i};");
+            File.WriteAllText(
+                Path.Combine(lease.TreePath, "code", "Big.cs"),
+                "namespace Demo;\npublic static class Big\n{\n" + string.Join("\n", lines) + "\n}\n");
+        });
+
+        await using var fixture = new FeatureToPrFixture(workTree, coder);
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+
+        var (flowId, stopped) = await StartAndWaitUntilItStops(runtime, "toobig01", "Add a very large helper class");
+
+        Assert.Equal(FlowStatus.Failed, stopped.Status);
+        Assert.Contains("too large", stopped.Detail, StringComparison.Ordinal);
+        Assert.Contains("the limit is 60000", stopped.Detail, StringComparison.Ordinal);
+        var size = Regex.Match(stopped.Detail!, @"(\d+) characters");
+        Assert.True(size.Success, stopped.Detail);
+        Assert.True(int.Parse(size.Groups[1].Value, CultureInfo.InvariantCulture) > 60_000, stopped.Detail);
+
+        await NothingWasAskedOrPushed(runtime, flowId, bareOrigin);
+    }
+
+    [Fact]
+    public async Task UnderTheLimitThePlanBodyHoldsEveryFileNameAndTheFullDiff()
+    {
+        const string Marker = "    public static string LastLine() => \"the-last-added-line\";";
+        var (bareOrigin, _, workTree) = CreateBareOriginAndWorkTreeService();
+        var coder = new DeterministicCoder(lease =>
+        {
+            var code = Path.Combine(lease.TreePath, "code");
+            File.WriteAllText(Path.Combine(code, "Calculator.cs"), """
+                namespace Demo;
+
+                public static class Calculator
+                {
+                    public static int Add(int a, int b) => a + b;
+                    public static int Multiply(int a, int b) => a * b;
+                }
+                """);
+            foreach (var name in new[] { "Alpha", "Beta" })
+            {
+                var members = Enumerable.Range(0, 30).Select(i => $"    public static int {name}{i:D2}() => {i};");
+                File.WriteAllText(
+                    Path.Combine(code, name + ".cs"),
+                    $"namespace Demo;\npublic static class {name}\n{{\n" + string.Join("\n", members) + "\n}\n");
+            }
+
+            File.WriteAllText(
+                Path.Combine(code, "Zeta.cs"),
+                "namespace Demo;\npublic static class Zeta\n{\n" + Marker + "\n}\n");
+        });
+
+        await using var fixture = new FeatureToPrFixture(workTree, coder);
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+
+        var (flowId, stopped) = await StartAndWaitUntilItStops(runtime, "whole01", "Add three helper classes and Multiply");
+
+        Assert.Equal(FlowStatus.Waiting, stopped.Status);
+        Assert.Equal("approval-gate", stopped.WaitingStep);
+        var inner = await Inner(runtime, flowId);
+        Assert.Equal(["code/Alpha.cs", "code/Beta.cs", "code/Calculator.cs", "code/Zeta.cs"], inner.ChangedFiles);
+        Assert.True(inner.HostRenderedDiff!.Length > 2400, $"The diff has {inner.HostRenderedDiff.Length} characters.");
+
+        var body = await PlanBody(runtime, stopped.ConfirmationPlanId!);
+        var lines = body.Split('\n').Select(line => line.Trim()).ToArray();
+        Assert.All(inner.ChangedFiles, file => Assert.Contains(file, lines));
+        Assert.Equal(40, inner.CommitSha!.Length);
+        Assert.Contains(inner.CommitSha, body, StringComparison.Ordinal);
+        Assert.Contains(inner.Lease!.BaseBranch, body, StringComparison.Ordinal);
+        Assert.Contains(inner.Lease.BaseCommitSha, body, StringComparison.Ordinal);
+        Assert.Contains(inner.Lease.BranchName, body, StringComparison.Ordinal);
+        Assert.Contains(bareOrigin, body, StringComparison.Ordinal);
+        Assert.Contains(inner.HostRenderedDiff.TrimEnd(), body, StringComparison.Ordinal);
+        Assert.Contains(Marker, body, StringComparison.Ordinal);
+        Assert.DoesNotContain("truncated", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AFileThatCannotBeShownAsTextEndsTheRunBeforeAnyPlan()
+    {
+        var (bareOrigin, _, workTree) = CreateBareOriginAndWorkTreeService();
+        var coder = new DeterministicCoder(lease =>
+            File.WriteAllBytes(Path.Combine(lease.TreePath, "code", "blob.txt"), [0x50, 0x4B, 0x00, 0x00, 0x01, 0x02, 0x00, 0xFF]));
+
+        await using var fixture = new FeatureToPrFixture(workTree, coder);
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+
+        var (flowId, stopped) = await StartAndWaitUntilItStops(runtime, "binary01", "Add a data file");
+
+        Assert.Equal(FlowStatus.Failed, stopped.Status);
+        Assert.Contains("cannot be shown as text", stopped.Detail, StringComparison.Ordinal);
+        Assert.Contains("code/blob.txt", stopped.Detail, StringComparison.Ordinal);
+
+        await NothingWasAskedOrPushed(runtime, flowId, bareOrigin);
+    }
+
+    // Starts a run through the index and waits until it waits for a person or has failed with its reason.
+    private static async Task<(string FlowId, FlowView Stopped)> StartAndWaitUntilItStops(INeuronRuntime runtime, string runId, string goal)
+    {
+        var flows = runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value));
+        var json = JsonSerializer.Serialize(new FeatureToPrInner { RunId = runId, Repository = "os", Goal = goal }, FeatureToPrFlow.Json);
+        var flowId = await flows.Start(FeatureToPrFlow.Alias, goal, null, json, Ct);
+        var stopped = await FlowTypeFacts.Eventually(
+            () => flows.Read(flowId, Ct),
+            v => v.Status == FlowStatus.Waiting || v is { Status: FlowStatus.Failed, Detail.Length: > 0 });
+        return (flowId, stopped);
+    }
+
+    private static async Task<FeatureToPrInner> Inner(INeuronRuntime runtime, string flowId)
+    {
+        var head = await runtime.Get<IFlowStarter>(FlowTypeFacts.Id(flowId)).Head();
+        return JsonSerializer.Deserialize<FeatureToPrInner>(head.InnerJson, FeatureToPrFlow.Json)!;
+    }
+
+    private static IConfirmationInbox Inbox(INeuronRuntime runtime)
+        => runtime.Get<IConfirmationInbox>(new NeuronId(runtime.Brain, "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey));
+
+    // The flow shows its wait before it asks the inbox, so the plan is read until it is there.
+    private static async Task<string> PlanBody(INeuronRuntime runtime, string planId)
+    {
+        for (var i = 0; i < 400; i++)
+        {
+            if ((await Inbox(runtime).Read()).Pending.FirstOrDefault(p => p.PlanId == planId) is { } asked) { return asked.Plan.Body; }
+            await Task.Delay(50, Ct);
+        }
+
+        Assert.Fail($"The inbox never held plan {planId}.");
+        return "";
+    }
+
+    private static async Task NothingWasAskedOrPushed(INeuronRuntime runtime, string flowId, string bareOrigin)
+    {
+        var inner = await Inner(runtime, flowId);
+        Assert.Null(inner.ConfirmationPlanId);
+        Assert.Null(inner.HostRenderedDiff);
+        Assert.Null(inner.PushedRef);
+        Assert.DoesNotContain((await Inbox(runtime).Read()).Pending, p => p.PlanId.StartsWith("app:change:", StringComparison.Ordinal));
+        Assert.Equal("", RunGit(bareOrigin, ["branch", "--list", "ino/*"]).Trim());
+        Assert.NotNull(inner.Lease);
+        Assert.False(Directory.Exists(inner.Lease!.TreePath));
     }
 
     private static string RunGit(string workingDirectory, IReadOnlyList<string> args)

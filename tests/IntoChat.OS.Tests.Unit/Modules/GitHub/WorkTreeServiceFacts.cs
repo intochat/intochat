@@ -168,6 +168,32 @@ public sealed class WorkTreeServiceFacts : IDisposable
     }
 
     [Fact]
+    public async Task PublishRefusesWhenTheOriginChangedAfterTheLease()
+    {
+        var (bareOrigin, checkoutPath, homeDir) = CreateBareOriginAndDirtyCheckout();
+        var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
+        service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
+
+        var lease = await service.PrepareAsync("os", "moved001", "Add polite farewell helper", null, Ct);
+        await File.WriteAllTextAsync(Path.Combine(lease.TreePath, "README.md"), "# Edited\n", Ct);
+        var commit = await service.VerifyAndCommitAsync(lease, "Edit the readme", Ct);
+
+        // After the person saw the remote on the approval, origin is pointed somewhere else.
+        var elsewhere = Path.Combine(_root, "elsewhere.git");
+        Directory.CreateDirectory(elsewhere);
+        RunGit(elsewhere, ["init", "--bare", "--initial-branch=main"]);
+        RunGit(checkoutPath, ["remote", "set-url", "origin", elsewhere]);
+
+        var refused = await Assert.ThrowsAsync<SecurityException>(() =>
+            service.PublishAsync(lease, commit.CommitSha, "Edit the readme", "Automated PR from Ino", Ct));
+
+        Assert.Contains(elsewhere, refused.Message, StringComparison.Ordinal);
+        Assert.Equal("", RunGit(elsewhere, ["branch", "--list", "ino/*"]).Trim());
+        Assert.Equal("", RunGit(bareOrigin, ["branch", "--list", "ino/*"]).Trim());
+        await service.CleanupAsync(lease, Ct);
+    }
+
+    [Fact]
     public async Task TripleGitLockRejectsTamperedDotGitPointerBeforeRunningGit()
     {
         var (_, checkoutPath, homeDir) = CreateBareOriginAndDirtyCheckout();
