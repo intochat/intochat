@@ -8,16 +8,17 @@ Shows this brain's recorded compute spending over the last 30 days in USD, conve
 Reads through the scope-checked compute neuron when available and falls back to default telemetry in standalone mode.
 */
 using System.Globalization;
-using System.Reflection;
-using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
+using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Compute;
-using DigitalBrain.Log;
+using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging.Abstractions;
+using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Usage;
 
@@ -38,19 +39,44 @@ public sealed record UsageAppState(
     long MonthlyBudgetMicros = ComputeState.DefaultMonthlyBudgetMicros,
     bool BudgetExceeded = false)
 {
-    public UsageAppState() : this(
-        SpentMicros: 0,
-        FormattedUsd: "$0.00",
-        Status: "No compute recorded.",
-        Rows: [],
-        MonthlyBudgetMicros: ComputeState.DefaultMonthlyBudgetMicros,
-        BudgetExceeded: false)
+    public UsageAppState() : this(0, "$0.00", "No compute recorded.", [], ComputeState.DefaultMonthlyBudgetMicros, false) { }
+
+    [Invariant("Recorded spend in micro-credits is non-negative."), JsonIgnore]
+    public bool NonNegativeSpend => SpentMicros >= 0;
+
+    [Invariant("Monthly compute budget cap is positive."), JsonIgnore]
+    public bool PositiveMonthlyCap => MonthlyBudgetMicros > 0;
+
+    [Invariant("BudgetExceeded flag is consistent with SpentMicros and MonthlyBudgetMicros."), JsonIgnore]
+    public bool ConsistentBudgetFlag => BudgetExceeded == (SpentMicros > MonthlyBudgetMicros);
+
+    public Rule ValidBudgetCap(long budgetMicros) =>
+        Decision.Rule("non_positive_budget", budgetMicros <= 0, "Monthly compute cap must be greater than $0.00.");
+
+    public Decision<UsageAppState> ApplyBudgetCap([Sample(10_000_000L, 50_000_000L, 200_000_000L, 0L)] long monthlyBudgetMicros)
     {
+        if (Decision.Check("set-budget", ValidBudgetCap(monthlyBudgetMicros)) is { } refusal) { return refusal; }
+        var usd = UsageApp.FormatUsd(SpentMicros);
+        return Decision.Accept(this with
+        {
+            FormattedUsd = usd,
+            MonthlyBudgetMicros = monthlyBudgetMicros,
+            BudgetExceeded = SpentMicros > monthlyBudgetMicros,
+            Status = $"Updated monthly cap to {UsageApp.FormatUsd(monthlyBudgetMicros)}. Total: {usd}.",
+        });
+    }
+
+    [IgnoreExplore]
+    public UsageAppState ApplySnapshot(ComputeState compute, string status)
+    {
+        var spent = Math.Max(0L, compute.SpentMicros);
+        var cap = compute.MonthlyBudgetMicros > 0 ? compute.MonthlyBudgetMicros : ComputeState.DefaultMonthlyBudgetMicros;
+        return new(spent, UsageApp.FormatUsd(spent), status, compute.Rows ?? [], cap, spent > cap);
     }
 }
 
-[Neuron("app.usage")]
-public sealed class UsageApp : Screen<UsageAppState>
+[Neuron("app.usage"), Screen("app.usage", Title = "Usage")]
+public sealed class UsageApp : AggregateScreen<UsageAppState>
 {
     public static AppBundle Bundle { get; } = new(
         "usage",
@@ -73,17 +99,14 @@ public sealed class UsageApp : Screen<UsageAppState>
         CompiledType = typeof(UsageApp).AssemblyQualifiedName,
     };
 
+    public new UsageAppState State => base.State;
+    public View Render() => PreviewView(State);
+
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         await base.OnActivate(cancellationToken).ConfigureAwait(true);
-        try
-        {
-            await Follow<ICompute, ComputeChanged>("compute").ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            NullLogger.Instance.LogSwallowed(ex, "Compute follow is optional when running in standalone mode.");
-        }
+        try { await Follow<ICompute, ComputeChanged>("compute").ConfigureAwait(true); }
+        catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Compute follow is optional when running in standalone mode."); }
     }
 
     [On]
@@ -104,25 +127,26 @@ public sealed class UsageApp : Screen<UsageAppState>
     }
 
     [On]
-    public async Task SetBudget(UsageSetBudget request)
+    public Task SetBudget(UsageSetBudget request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var cap = request.MonthlyBudgetMicros > 0 ? request.MonthlyBudgetMicros : ComputeState.DefaultMonthlyBudgetMicros;
+        return UpdateBudgetCapAsync(request.MonthlyBudgetMicros > 0 ? request.MonthlyBudgetMicros : ComputeState.DefaultMonthlyBudgetMicros);
+    }
+
+    public Task RefreshUsageAsync() => ReadComputeAsync("Refreshed compute spending.");
+
+    public async Task UpdateBudgetCapAsync(long cap)
+    {
+        if (State.ValidBudgetCap(cap).Broken) { await ApplyDecisionAsync(State.ApplyBudgetCap(cap)); return; }
         try
         {
             var compute = await Get<ICompute>("compute").SetBudget(cap);
-            await ApplyComputeStateAsync(compute, $"Updated monthly cap to {FormatUsd(compute.MonthlyBudgetMicros)}. Total: {FormatUsd(compute.SpentMicros)} / {FormatUsd(compute.MonthlyBudgetMicros)}.");
+            await Show(State.ApplySnapshot(compute, $"Updated monthly cap to {FormatUsd(compute.MonthlyBudgetMicros)}. Total: {FormatUsd(compute.SpentMicros)} / {FormatUsd(compute.MonthlyBudgetMicros)}."));
         }
         catch (Exception ex)
         {
             NullLogger.Instance.LogSwallowed(ex, "Failed to set compute budget; falling back to local state.");
-            var usd = FormatUsd(State.SpentMicros);
-            await Show(State with
-            {
-                MonthlyBudgetMicros = cap,
-                BudgetExceeded = State.SpentMicros > cap,
-                Status = $"Updated monthly cap to {FormatUsd(cap)}. Total: {usd}.",
-            });
+            await ApplyDecisionAsync(State.ApplyBudgetCap(cap));
         }
     }
 
@@ -132,7 +156,7 @@ public sealed class UsageApp : Screen<UsageAppState>
         {
             var compute = await Get<ICompute>("compute").Read();
             var rows = compute.Rows ?? [];
-            await ApplyComputeStateAsync(compute, $"{statusPrefix} Total: {FormatUsd(compute.SpentMicros)} / {FormatUsd(compute.MonthlyBudgetMicros)} across {rows.Length} surface(s).");
+            await Show(State.ApplySnapshot(compute, $"{statusPrefix} Total: {FormatUsd(compute.SpentMicros)} / {FormatUsd(compute.MonthlyBudgetMicros)} across {rows.Length} surface(s)."));
         }
         catch (Exception ex)
         {
@@ -142,71 +166,39 @@ public sealed class UsageApp : Screen<UsageAppState>
         }
     }
 
-    private Task ApplyComputeStateAsync(ComputeState compute, string status) =>
-        Show(new UsageAppState(
-            SpentMicros: compute.SpentMicros,
-            FormattedUsd: FormatUsd(compute.SpentMicros),
-            Status: status,
-            Rows: compute.Rows ?? [],
-            MonthlyBudgetMicros: compute.MonthlyBudgetMicros,
-            BudgetExceeded: compute.BudgetExceeded));
+    public static string FormatUsd(long micros) => string.Create(CultureInfo.InvariantCulture, $"${micros / 1_000_000m:0.00}");
 
-    public static string FormatUsd(long micros) =>
-        string.Create(CultureInfo.InvariantCulture, $"${micros / 1_000_000m:0.00}");
-
-    public new UsageAppState State => base.State;
-    public View Render() => Render(State);
-
-    private static new Emit Emits<TSignal>(TSignal signal) where TSignal : Signal
-    {
-        ArgumentNullException.ThrowIfNull(signal);
-        var alias = typeof(TSignal).GetCustomAttribute<SignalAttribute>(false)?.Alias ?? typeof(TSignal).Name;
-        return new Emit("app.usage", alias, JsonSerializer.SerializeToElement(signal));
-    }
-    protected override View Render(UsageAppState state)
+    protected override Node Render(UsageAppState state)
     {
         var rows = state.Rows ?? [];
-        var totalCalls = rows.Sum(static r => r.Count);
         var budgetUsd = FormatUsd(state.MonthlyBudgetMicros);
         var spendTone = state.BudgetExceeded ? BadgeTone.Error : BadgeTone.Accent;
 
-        return new(
-            "Usage",
-            new Column(
-            [
-                new Grid(
-                    3,
-                    [
-                        Ui.StatCard("kpi-usage-usd", "30-Day Spend", state.FormattedUsd, $"{state.SpentMicros:N0} µ-credits (Cap {budgetUsd})", spendTone, "dollar-sign"),
-                        Ui.StatCard("kpi-usage-surfaces", "Active Surfaces", $"{rows.Length}", "Metered Neurons", BadgeTone.Done, "cpu"),
-                        Ui.StatCard("kpi-usage-calls", "Recorded Calls", $"{totalCalls}", "Last 30 Days", BadgeTone.Neutral, "activity"),
-                    ],
-                    Gap: 10),
-                new Surface(
-                    [
-                        new Text(state.Status),
-                        new Row(
-                        [
-                            new Button("refresh-usage", "Refresh usage", Emit: Emits(new UsageRefresh()), Tone: ButtonTone.Accent) { Icon = "refresh-cw", Small = true },
-                            new Button("cap-10", "Cap $10", Emit: Emits(new UsageSetBudget(10_000_000L))) { Icon = "gauge", Small = true },
-                            new Button("cap-50", "Cap $50", Emit: Emits(new UsageSetBudget(50_000_000L))) { Icon = "gauge", Small = true },
-                            new Button("cap-200", "Cap $200", Emit: Emits(new UsageSetBudget(200_000_000L))) { Icon = "gauge", Small = true },
-                        ]) { Gap = 8 },
-                    ],
-                    Kind: SurfaceKind.Elevated,
-                    Title: "Usage",
-                    Subtitle: $"Amounts in USD · 1,000,000 micro-credits = $1 · Monthly Cap: {budgetUsd}."),
-                new DataTable(
-                    Title: "Metered Compute by Surface",
-                    Columns: ["Surface", "Calls", "Micro-Credits", "USD"],
-                    Rows: rows.Select(r => (IReadOnlyList<string>)
-                    [
-                        r.Key,
-                        r.Count.ToString(CultureInfo.InvariantCulture),
-                        r.Micros.ToString("N0", CultureInfo.InvariantCulture),
-                        FormatUsd(r.Micros),
-                    ]).ToArray()),
-            ])
-            { Gap = 12 });
+        return VStack(Space.Md)[
+            HeaderBar(
+                "Usage",
+                $"Amounts in USD · 1,000,000 micro-credits = $1.00 · Monthly Cap: {budgetUsd}",
+                StatusPill(state.BudgetExceeded ? StatusKind.Error : StatusKind.Done, state.BudgetExceeded ? "Over Cap" : "Within Cap"),
+                PrimaryButton("Refresh usage", Icons.RefreshCw).Key("refresh-usage").Small().OnClick(() => RefreshUsageAsync())),
+            Grid(3, Space.Sm)[
+                StatCard("kpi-usage-usd", "30-Day Spend", state.FormattedUsd, $"{state.SpentMicros:N0} µ-credits (Cap {budgetUsd})", spendTone, "dollar-sign"),
+                StatCard("kpi-usage-surfaces", "Active Surfaces", $"{rows.Length}", "Metered Neurons", BadgeTone.Done, "cpu"),
+                StatCard("kpi-usage-calls", "Recorded Calls", $"{rows.Sum(static r => r.Count)}", "Last 30 Days", BadgeTone.Neutral, "activity")
+            ],
+            Card("Monthly Spend Cap", state.Status)[
+                HStack(Space.Sm)[
+                    Button("Cap $10", "gauge").Key("cap-10").Small().OnClick(() => UpdateBudgetCapAsync(10_000_000L)),
+                    Button("Cap $50", "gauge").Key("cap-50").Small().OnClick(() => UpdateBudgetCapAsync(50_000_000L)),
+                    Button("Cap $200", "gauge").Key("cap-200").Small().OnClick(() => UpdateBudgetCapAsync(200_000_000L))
+                ]
+            ],
+            rows.Length > 0
+                ? BarChart("Spend by Surface (USD)", rows.Select(r => (r.Key, Math.Round(r.Micros / 1_000_000d, 2))).ToArray(), seriesName: "Spend", prefix: "$")
+                : null,
+            Table(
+                "Metered Compute by Surface",
+                ["Surface", "Calls", "Micro-Credits", "USD"],
+                rows.Select(r => (IReadOnlyList<string>)[r.Key, r.Count.ToString(CultureInfo.InvariantCulture), r.Micros.ToString("N0", CultureInfo.InvariantCulture), FormatUsd(r.Micros)]).ToArray())
+        ];
     }
 }

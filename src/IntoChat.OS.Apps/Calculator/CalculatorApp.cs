@@ -7,15 +7,16 @@ Operations: open, clear, add, press
 A keypad that evaluates arithmetic expressions, sums, and inline button presses in a single declarative View.
 */
 using System.Globalization;
-using System.Reflection;
-using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain;
-using DigitalBrain.Kernel;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
+using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging.Abstractions;
+using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Calculator;
 
@@ -31,18 +32,53 @@ public sealed record CalculatorAdd(string? Expression = "2+3") : Signal;
 [Signal("calculator.press")]
 public sealed record CalculatorPress(string? Key = "7") : Signal;
 
-public sealed record CalculatorAppState(
-    string Expression = "",
-    string LastSum = "0",
-    string[]? History = null)
+public sealed record CalculatorAppState(string Expression = "", string LastSum = "0", string[]? History = null)
 {
-    public CalculatorAppState() : this("", "0", [])
+    public CalculatorAppState() : this("", "0", []) { }
+
+    [Invariant("Calculator history is capped at 8 entries."), JsonIgnore]
+    public bool HistoryBounded => (History?.Length ?? 0) <= 8;
+
+    [Invariant("LastSum is never empty."), JsonIgnore]
+    public bool LastSumNonEmpty => !string.IsNullOrWhiteSpace(LastSum);
+
+    public Rule HasClearableDisplay() => Decision.Rule("display_already_empty", Expression.Length == 0, "Display is already clear.");
+    public Rule NonEmptyKey(string? key) => Decision.Rule("empty_key", string.IsNullOrWhiteSpace(key), "Keypad key is required.");
+
+    public Decision<CalculatorAppState> PressKey([Sample("7", "+", "3", "=", "C", "0")] string key)
     {
+        if (Decision.Check("press-key", NonEmptyKey(key)) is { } refusal) { return refusal; }
+        var trimmed = key.Trim();
+        var next = CalculatorApp.Step(Expression, trimmed);
+        var history = trimmed == "=" && Expression.Length > 0
+            ? [.. (History ?? []).Append($"{Expression} = {next}").TakeLast(8)]
+            : History ?? [];
+        return Decision.Accept(this with { Expression = next, History = history });
+    }
+
+    public Decision<CalculatorAppState> ClearDisplay() =>
+        Decision.Check("clear-display", HasClearableDisplay()) ?? Decision.Accept(this with { Expression = "" });
+
+    public Decision<CalculatorAppState> AddSum([Sample("2+3", "42")] string expression)
+    {
+        if (Decision.Check("add-sum", Decision.Rule("empty_sum", string.IsNullOrWhiteSpace(expression), "Sum expression is required.")) is { } refusal)
+        {
+            return refusal;
+        }
+
+        var trimmed = expression.Trim();
+        var result = CalculatorApp.EvaluateSum(trimmed);
+        return Decision.Accept(this with
+        {
+            Expression = result,
+            LastSum = result,
+            History = [.. (History ?? []).Append($"{trimmed} = {result}").TakeLast(8)],
+        });
     }
 }
 
-[Neuron("app.calculator")]
-public sealed class CalculatorApp : Screen<CalculatorAppState>
+[Neuron("app.calculator"), Screen("app.calculator", Title = "Calculator")]
+public sealed class CalculatorApp : AggregateScreen<CalculatorAppState>
 {
     public static readonly string[] Keys = ["7", "8", "9", "/", "4", "5", "6", "*", "1", "2", "3", "-", "C", "0", "=", "+"];
     public static readonly string[] Labels = ["7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "−", "C", "0", "=", "+"];
@@ -63,15 +99,15 @@ public sealed class CalculatorApp : Screen<CalculatorAppState>
             Settings: [],
             Slots: [],
             Icon: "icon.svg",
-            Toolbar:
-            [
-                new("clear", Icon: "backspace", Label: "Clear"),
-            ]),
+            Toolbar: [new("clear", Icon: "backspace", Label: "Clear")]),
         "",
         new Dictionary<string, string>(StringComparer.Ordinal))
     {
         CompiledType = typeof(CalculatorApp).AssemblyQualifiedName,
     };
+
+    public new CalculatorAppState State => base.State;
+    public View Render() => PreviewView(State);
 
     [On]
     public Task Open(CalculatorOpen request)
@@ -84,29 +120,21 @@ public sealed class CalculatorApp : Screen<CalculatorAppState>
     public Task Clear(CalculatorClear request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return Show(State with { Expression = "" });
+        return State.Expression.Length == 0 ? Show(State) : ApplyDecisionAsync(State.ClearDisplay());
     }
 
     [On]
     public Task Add(CalculatorAdd request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var input = string.IsNullOrWhiteSpace(request.Expression) ? "2+3" : request.Expression.Trim();
-        var result = EvaluateSum(input);
-        var history = (State.History ?? []).Append($"{input} = {result}").TakeLast(8).ToArray();
-        return Show(State with { Expression = result, LastSum = result, History = history });
+        return ApplyDecisionAsync(State.AddSum(string.IsNullOrWhiteSpace(request.Expression) ? "2+3" : request.Expression.Trim()));
     }
 
     [On]
     public Task Press(CalculatorPress request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var key = string.IsNullOrWhiteSpace(request.Key) ? "7" : request.Key.Trim();
-        var next = Step(State.Expression, key);
-        var history = key == "=" && State.Expression.Length > 0
-            ? (State.History ?? []).Append($"{State.Expression} = {next}").TakeLast(8).ToArray()
-            : State.History ?? [];
-        return Show(State with { Expression = next, History = history });
+        return ApplyDecisionAsync(State.PressKey(string.IsNullOrWhiteSpace(request.Key) ? "7" : request.Key.Trim()));
     }
 
     public static string Step(string expression, string action) => action switch
@@ -119,17 +147,10 @@ public sealed class CalculatorApp : Screen<CalculatorAppState>
     public static string EvaluateSum(string input)
     {
         const NumberStyles number = NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite | NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint;
-        var terms = input.Split('+');
-        var values = terms.Select(term => decimal.TryParse(term, number, CultureInfo.InvariantCulture, out var value) ? value : (decimal?)null).ToArray();
-        if (values.Length < 2 || values.Any(value => value is null))
-        {
-            return "Error";
-        }
+        var values = input.Split('+').Select(t => decimal.TryParse(t, number, CultureInfo.InvariantCulture, out var v) ? v : (decimal?)null).ToArray();
+        if (values.Length < 2 || values.Any(v => v is null)) { return "Error"; }
 
-        try
-        {
-            return values.Sum(value => value!.Value).ToString(CultureInfo.InvariantCulture);
-        }
+        try { return values.Sum(v => v!.Value).ToString(CultureInfo.InvariantCulture); }
         catch (OverflowException error)
         {
             NullLogger.Instance.LogSwallowed(error, "Overflow in EvaluateSum returns Error.");
@@ -139,18 +160,12 @@ public sealed class CalculatorApp : Screen<CalculatorAppState>
 
     private static string Evaluate(string expression)
     {
-        if (expression.Length == 0)
-        {
-            return "";
-        }
-
+        if (expression.Length == 0) { return ""; }
         try
         {
             using var table = new System.Data.DataTable();
             var value = table.Compute(expression, null);
-            return value is double number && !double.IsFinite(number)
-                ? "Error"
-                : Convert.ToString(value, CultureInfo.InvariantCulture) ?? "Error";
+            return value is double n && !double.IsFinite(n) ? "Error" : Convert.ToString(value, CultureInfo.InvariantCulture) ?? "Error";
         }
         catch (Exception error)
         {
@@ -159,57 +174,26 @@ public sealed class CalculatorApp : Screen<CalculatorAppState>
         }
     }
 
-    public new CalculatorAppState State => base.State;
-    public View Render() => Render(State);
-
-    private static new Emit Emits<TSignal>(TSignal signal) where TSignal : Signal
-    {
-        ArgumentNullException.ThrowIfNull(signal);
-        var alias = typeof(TSignal).GetCustomAttribute<SignalAttribute>(false)?.Alias ?? typeof(TSignal).Name;
-        return new Emit("app.calculator", alias, JsonSerializer.SerializeToElement(signal));
-    }
-    protected override View Render(CalculatorAppState state)
+    protected override Node Render(CalculatorAppState state)
     {
         var display = state.Expression.Length == 0 ? "0" : state.Expression;
+        var isError = display == "Error";
         var history = state.History ?? [];
 
-        return new(
-            "Calculator",
-            new Column(
-            [
-                new Surface(
-                    [
-                        new Heading(display, Level: 1, Subtitle: $"Last sum: {state.LastSum}"),
-                        new Row(
-                        [
-                            new TagPill($"Display: {display}", "accent", "calculator"),
-                            new TagPill($"Sum: {state.LastSum}", "ok", "plus"),
-                        ]) { Gap = 6 },
-                    ],
-                    Kind: SurfaceKind.Elevated,
-                    Title: "Calculator",
-                    Subtitle: "A keypad that evaluates arithmetic expressions."),
-                new Grid(
-                    Columns: 4,
-                    Children:
-                    [
-                        .. Keys.Select((key, index) => (Node)new Button(
-                            $"key-{index}",
-                            Labels[index],
-                            Emit: Emits(new CalculatorPress(key)),
-                            Tone: key is "=" or "+" or "-" or "*" or "/" ? ButtonTone.Accent : ButtonTone.Neutral)),
-                    ],
-                    Gap: 8),
-                .. history.Length > 0
-                    ? new Node[]
-                    {
-                        new Surface(
-                            history.Select(entry => (Node)new Text(entry)).ToArray(),
-                            Kind: SurfaceKind.Acrylic,
-                            Title: "History"),
-                    }
-                    : [],
-            ])
-            { Gap = 12 });
+        return VStack(Space.Md)[
+            HeaderBar(
+                "Calculator",
+                "Arithmetic & sum evaluator",
+                StatusPill(isError ? StatusKind.Error : StatusKind.Done, isError ? "Error" : "Ready"),
+                GhostButton("Clear", Icons.Trash2).Key("clear-display").Small().OnClick<CalculatorAppState>(x => x.ClearDisplay()).Guard(state.HasClearableDisplay())),
+            Grid(2, Space.Sm)[
+                StatCard("kpi-calc-display", "Display", display, state.Expression.Length == 0 ? "Idle" : "Active expression", isError ? BadgeTone.Error : BadgeTone.Accent, "calculator"),
+                StatCard("kpi-calc-sum", "Last Sum", state.LastSum, $"{history.Length}/8 history", BadgeTone.Done, Icons.Plus)
+            ],
+            Grid(4, Space.Sm, [.. Keys.Select((key, i) => (key == "=" ? PrimaryButton(Labels[i]) : Button(Labels[i])).Key($"key-{i}").OnClick<CalculatorAppState>(x => x.PressKey(key)).ToNode())]),
+            history.Length > 0
+                ? Table("Recent Calculations", ["#", "Expression"], history.Select((entry, i) => (IReadOnlyList<string>)[$"{i + 1}", entry]).ToArray())
+                : null
+        ];
     }
 }

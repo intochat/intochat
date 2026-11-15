@@ -7,16 +7,17 @@ Operations: open, publish, update-bio, add-friend, remove-friend, fork-post, fil
 Personal social profile, direct Friends graph, and interactive App-Post feed.
 Each Post is an App<TState> template that renders inline in the profile/feed, can embed child apps via NeuronRef slots, and can be forked/remixed into the viewer's brain.
 */
-using System.Reflection;
-using System.Text.Json;
+using System.Text.Json.Serialization;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
+using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps;
-using DigitalBrain.Log;
+using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging.Abstractions;
+using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Friends
 {
@@ -24,13 +25,7 @@ namespace IntoChat.OS.Apps.Friends
     public sealed record FriendsOpen(string? Scope = null) : Signal;
 
     [Signal("friends.publish")]
-    public sealed record FriendsPublish(
-        string? Content = null,
-        string Scope = "public",
-        string? Id = null,
-        string? Title = null,
-        string? TemplateAppId = null,
-        string? EmbeddedAppIds = null) : Signal;
+    public sealed record FriendsPublish(string? Content = null, string Scope = "public", string? Id = null, string? Title = null, string? TemplateAppId = null, string? EmbeddedAppIds = null) : Signal;
 
     [Signal("friends.update-bio")]
     public sealed record FriendsUpdateBio(string Handle = "user", string Bio = "", string[]? PinnedApps = null, string DisplayName = "") : Signal;
@@ -61,10 +56,45 @@ namespace IntoChat.OS.Apps.Friends
         string Status)
     {
         public FriendsAppState() : this("user", "User", "", [], [], [], "all", "Ready") { }
+
+        [Invariant("SelectedScope is all, public, or friends."), JsonIgnore]
+        public bool ValidScope => SelectedScope is "all" or "public" or "friends";
+
+        [Invariant("Profile handle is never empty."), JsonIgnore]
+        public bool HandlePresent => !string.IsNullOrWhiteSpace(Handle);
+
+        public Rule SupportedScope(string? scope) =>
+            Decision.Rule("invalid_scope", string.IsNullOrWhiteSpace(scope) || scope.Trim().ToLowerInvariant() is not ("all" or "public" or "friends"), "Feed scope must be all, public, or friends.");
+
+        public Decision<FriendsAppState> SelectScope([Sample("all", "public", "friends", "secret")] string scope)
+        {
+            if (Decision.Check("filter-scope", SupportedScope(scope)) is { } refusal) { return refusal; }
+            var normalized = scope.Trim().ToLowerInvariant();
+            return Decision.Accept(this with { SelectedScope = normalized, Status = $"Filtered feed to {normalized} posts." });
+        }
+
+        public static string NormalizeScope(string? scope, string fallback = "all") => scope?.Trim().ToLowerInvariant() switch
+        {
+            "public" => "public",
+            "friends" => "friends",
+            "all" => "all",
+            _ => fallback is "public" or "friends" ? fallback : "all",
+        };
+
+        [IgnoreExplore]
+        public FriendsAppState ApplyProfile(ProfileState profile, string status, string? selectedScope = null) => new(
+            string.IsNullOrWhiteSpace(profile.Handle) ? "user" : profile.Handle,
+            string.IsNullOrWhiteSpace(profile.DisplayName) ? profile.Handle : profile.DisplayName,
+            profile.Bio ?? "",
+            profile.PinnedApps ?? [],
+            profile.Friends ?? [],
+            profile.Posts ?? [],
+            NormalizeScope(selectedScope, SelectedScope),
+            status);
     }
 
-    [Neuron("app.friends")]
-    public sealed class FriendsApp : Screen<FriendsAppState>
+    [Neuron("app.friends"), Screen("app.friends", Title = "Friends")]
+    public sealed class FriendsApp : AggregateScreen<FriendsAppState>
     {
         public static AppBundle Bundle { get; } = new(
             "friends",
@@ -93,13 +123,16 @@ namespace IntoChat.OS.Apps.Friends
             CompiledType = typeof(FriendsApp).AssemblyQualifiedName,
         };
 
+        public new FriendsAppState State => base.State;
+        public View Render() => PreviewView(State);
+
         [On]
         public async Task Open(FriendsOpen request)
         {
             ArgumentNullException.ThrowIfNull(request);
             var profile = await Get<IProfile>("profile").Read();
-            var scope = string.IsNullOrWhiteSpace(request.Scope) ? State.SelectedScope : request.Scope.Trim().ToLowerInvariant();
-            await ApplyProfileAsync(profile, $"@{profile.Handle} · {(profile.Friends ?? []).Length} friends · {profile.Posts.Length} app-posts", scope);
+            var scope = FriendsAppState.NormalizeScope(request.Scope, State.SelectedScope);
+            await Show(State.ApplyProfile(profile, $"@{profile.Handle} · {(profile.Friends ?? []).Length} friends · {profile.Posts.Length} app-posts", scope));
         }
 
         [On]
@@ -111,11 +144,9 @@ namespace IntoChat.OS.Apps.Friends
             var id = string.IsNullOrWhiteSpace(request.Id) ? $"post-{Guid.NewGuid():N}" : request.Id.Trim();
             var templateAppId = string.IsNullOrWhiteSpace(request.TemplateAppId) ? $"post.app.{id}" : request.TemplateAppId.Trim().ToLowerInvariant();
             var embedded = ParseEmbeddedApps(request.EmbeddedAppIds);
-
             var (unitSource, unitFiles) = await TryReadUnitTemplateAsync(templateAppId);
 
-            var profile = Get<IProfile>("profile");
-            var updated = await profile.PublishAppPost(new ProfilePostItem(
+            var updated = await Get<IProfile>("profile").PublishAppPost(new ProfilePostItem(
                 Id: id,
                 Content: content,
                 CreatedAt: DateTimeOffset.UtcNow,
@@ -126,7 +157,7 @@ namespace IntoChat.OS.Apps.Friends
                 UnitFiles: unitFiles,
                 EmbeddedApps: embedded));
 
-            await ApplyProfileAsync(updated, $"Published app-post {id} ({scope}) with {embedded.Length} embedded app(s).");
+            await Show(State.ApplyProfile(updated, $"Published app-post {id} ({scope}) with {embedded.Length} embedded app(s)."));
         }
 
         [On]
@@ -135,12 +166,8 @@ namespace IntoChat.OS.Apps.Friends
             ArgumentNullException.ThrowIfNull(request);
             var handle = string.IsNullOrWhiteSpace(request.Handle) ? State.Handle : request.Handle.Trim();
             var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? State.DisplayName : request.DisplayName.Trim();
-            var bio = request.Bio?.Trim() ?? string.Empty;
-            var pinned = request.PinnedApps ?? State.PinnedApps ?? [];
-
-            var profile = Get<IProfile>("profile");
-            var updated = await profile.UpdateProfile(handle, displayName, bio, pinned);
-            await ApplyProfileAsync(updated, $"Updated personal bio for @{handle}.");
+            var updated = await Get<IProfile>("profile").UpdateProfile(handle, displayName, request.Bio?.Trim() ?? string.Empty, request.PinnedApps ?? State.PinnedApps ?? []);
+            await Show(State.ApplyProfile(updated, $"Updated personal bio for @{handle}."));
         }
 
         [On]
@@ -151,10 +178,8 @@ namespace IntoChat.OS.Apps.Friends
             var handle = string.IsNullOrWhiteSpace(request.Handle) ? brainId : request.Handle.Trim();
             var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? handle : request.DisplayName.Trim();
             var scope = string.IsNullOrWhiteSpace(request.Scope) ? "friends" : request.Scope.Trim().ToLowerInvariant();
-
-            var profile = Get<IProfile>("profile");
-            var updated = await profile.AddFriend(brainId, handle, displayName, scope);
-            await ApplyProfileAsync(updated, $"Added friend @{handle} to direct network ({scope}).");
+            var updated = await Get<IProfile>("profile").AddFriend(brainId, handle, displayName, scope);
+            await Show(State.ApplyProfile(updated, $"Added friend @{handle} to direct network ({scope})."));
         }
 
         [On]
@@ -162,10 +187,8 @@ namespace IntoChat.OS.Apps.Friends
         {
             ArgumentNullException.ThrowIfNull(request);
             var brainId = string.IsNullOrWhiteSpace(request.FriendBrainId) ? "ada" : request.FriendBrainId.Trim();
-
-            var profile = Get<IProfile>("profile");
-            var updated = await profile.RemoveFriend(brainId);
-            await ApplyProfileAsync(updated, $"Removed direct friend {brainId}.");
+            var updated = await Get<IProfile>("profile").RemoveFriend(brainId);
+            await Show(State.ApplyProfile(updated, $"Removed direct friend {brainId}."));
         }
 
         [On]
@@ -173,30 +196,21 @@ namespace IntoChat.OS.Apps.Friends
         {
             ArgumentNullException.ThrowIfNull(request);
             var postId = string.IsNullOrWhiteSpace(request.PostId) ? "post-1" : request.PostId.Trim();
-            var profile = await Get<IProfile>("profile").Read();
-            var post = profile.Posts.FirstOrDefault(p => string.Equals(p.Id, postId, StringComparison.OrdinalIgnoreCase));
-            if (post is null)
-            {
-                await Show(State with { Status = $"Post {postId} not found to fork." });
-                return;
-            }
+            var post = (await Get<IProfile>("profile").Read()).Posts.FirstOrDefault(p => string.Equals(p.Id, postId, StringComparison.OrdinalIgnoreCase));
+            if (post is null) { await Show(State with { Status = $"Post {postId} not found to fork." }); return; }
 
             var alias = post.TemplateAppId;
             var files = post.UnitFiles ?? ShippedUnits.Files(alias);
-            if (files.Count == 0)
-            {
-                await Show(State with { Status = $"Post {postId} has no unit files to install into Creator." });
-                return;
-            }
+            if (files.Count == 0) { await Show(State with { Status = $"Post {postId} has no unit files to install into Creator." }); return; }
 
             try
             {
-                var studio = Get<ISynapseStudio>("ino/synapses");
-                await studio.DeployFiles(alias, files, new Dictionary<string, string>(StringComparer.Ordinal));
+                await Get<ISynapseStudio>("ino/synapses").DeployFiles(alias, files, new Dictionary<string, string>(StringComparer.Ordinal));
                 await Show(State with { Status = $"Forked app-post template {alias} into Creator; ready for consent." });
             }
             catch (Exception error)
             {
+                NullLogger.Instance.LogSwallowed(error, "Failed to deploy forked app-post files into Synapse Studio.");
                 await Show(State with { Status = $"Could not fork app {alias}: {error.Message}" });
             }
         }
@@ -207,21 +221,23 @@ namespace IntoChat.OS.Apps.Friends
             ArgumentNullException.ThrowIfNull(request);
             var postId = string.IsNullOrWhiteSpace(request.PostId) ? "post-1" : request.PostId.Trim();
             var newId = string.IsNullOrWhiteSpace(request.NewPostId) ? $"post-fork-{Guid.NewGuid():N}" : request.NewPostId.Trim();
-
-            var profile = Get<IProfile>("profile");
-            var updated = await profile.ForkPost(postId, newId, request.RemixTitle);
-            await ApplyProfileAsync(updated, $"Forked and remixed app-post {postId} as {newId}.");
+            var updated = await Get<IProfile>("profile").ForkPost(postId, newId, request.RemixTitle);
+            await Show(State.ApplyProfile(updated, $"Forked and remixed app-post {postId} as {newId}."));
         }
 
         [On]
         public Task FilterScope(FriendsFilterScope request)
         {
             ArgumentNullException.ThrowIfNull(request);
-            var scope = string.IsNullOrWhiteSpace(request.Scope) ? "all" : request.Scope.Trim().ToLowerInvariant();
-            return Show(State with { SelectedScope = scope, Status = $"Filtered feed to {scope} posts." });
+            return ApplyDecisionAsync(State.SelectScope(FriendsAppState.NormalizeScope(request.Scope, "all")));
         }
 
-        private string BrainId => "local";
+        public Task PublishQuickPostAsync() => Publish(new FriendsPublish("Interactive revenue & sketch board", "friends"));
+        public Task AddDefaultFriendAsync() => AddFriend(new FriendsAddFriend("ada", "ada", "Ada Lovelace", "friends"));
+        public Task ForkAndInstallPostAsync(string postId) => ForkApp(new FriendsForkApp(postId));
+        public Task ForkPostTemplateAsync(string postId) => ForkPost(new FriendsForkPost(postId));
+
+        private static string BrainId => "local";
 
         private async Task<(string Source, IReadOnlyDictionary<string, string>? Files)> TryReadUnitTemplateAsync(string alias)
         {
@@ -234,8 +250,7 @@ namespace IntoChat.OS.Apps.Friends
                 {
                     var shipped = ShippedUnits.Files(alias);
                     if (shipped.Count == 0) { return ("", null); }
-                    var shippedSource = string.Join("\n\n", shipped.Where(kv => kv.Key.EndsWith(".cs", StringComparison.Ordinal)).OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => kv.Value));
-                    return (shippedSource, shipped);
+                    return (string.Join("\n\n", shipped.Where(kv => kv.Key.EndsWith(".cs", StringComparison.Ordinal)).OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => kv.Value)), shipped);
                 }
                 var files = new Dictionary<string, string>(csFiles, StringComparer.Ordinal);
                 foreach (var (path, text) in await studio.Sidecars(alias)) { files[path] = text; }
@@ -248,51 +263,19 @@ namespace IntoChat.OS.Apps.Friends
             }
         }
 
-        private Task ApplyProfileAsync(ProfileState profile, string status, string? selectedScope = null)
-            => Show(new FriendsAppState(
-                profile.Handle,
-                string.IsNullOrWhiteSpace(profile.DisplayName) ? profile.Handle : profile.DisplayName,
-                profile.Bio,
-                profile.PinnedApps,
-                profile.Friends ?? [],
-                profile.Posts,
-                selectedScope ?? State.SelectedScope,
-                status));
+        private static PostEmbeddedApp[] ParseEmbeddedApps(string? rawEmbeddedApps) =>
+            string.IsNullOrWhiteSpace(rawEmbeddedApps)
+                ? [new("canvas", "markdraw", "Markdraw Canvas", $"{BrainId}/apps/markdraw"), new("analytics", "data", "Data Studio", $"{BrainId}/apps/data")]
+                : [.. rawEmbeddedApps
+                    .Split([',', ';', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Select((appId, idx) =>
+                    {
+                        var clean = appId.ToLowerInvariant();
+                        return new PostEmbeddedApp($"slot-{idx + 1}", clean, $"{char.ToUpperInvariant(clean[0]) + clean[1..]} App", $"{BrainId}/apps/{clean}");
+                    })];
 
-        private PostEmbeddedApp[] ParseEmbeddedApps(string? rawEmbeddedApps)
-        {
-            if (string.IsNullOrWhiteSpace(rawEmbeddedApps))
-            {
-                return
-                [
-                    new("canvas", "markdraw", "Markdraw Canvas", $"{BrainId}/apps/markdraw"),
-                    new("analytics", "data", "Data Studio", $"{BrainId}/apps/data"),
-                ];
-            }
-
-            return rawEmbeddedApps
-                .Split([',', ';', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select((appId, idx) =>
-                {
-                    var clean = appId.ToLowerInvariant();
-                    var title = char.ToUpperInvariant(clean[0]) + clean[1..];
-                    return new PostEmbeddedApp($"slot-{idx + 1}", clean, $"{title} App", $"{BrainId}/apps/{clean}");
-                })
-                .ToArray();
-        }
-
-        public new FriendsAppState State => base.State;
-        public View Render() => Render(State);
-
-        private static new Emit Emits<TSignal>(TSignal signal) where TSignal : Signal
-        {
-            ArgumentNullException.ThrowIfNull(signal);
-            var alias = typeof(TSignal).GetCustomAttribute<SignalAttribute>(false)?.Alias ?? typeof(TSignal).Name;
-            return new Emit("app.friends", alias, JsonSerializer.SerializeToElement(signal));
-        }
-
-        protected override View Render(FriendsAppState state)
+        protected override Node Render(FriendsAppState state)
         {
             var friends = state.Friends ?? [];
             var allPosts = state.Posts ?? [];
@@ -300,58 +283,35 @@ namespace IntoChat.OS.Apps.Friends
                 ? allPosts
                 : allPosts.Where(p => string.Equals(p.Scope, state.SelectedScope, StringComparison.OrdinalIgnoreCase)).ToArray();
 
-            var items = new List<Node>
-            {
-                new Grid(
-                    3,
-                    [
-                        Ui.StatCard("kpi-friends-posts", "App-Posts", $"{allPosts.Length}", $"@{state.Handle}", BadgeTone.Accent, "layout-grid"),
-                        Ui.StatCard("kpi-friends-count", "Direct Friends", $"{friends.Length}", "Personal Graph", BadgeTone.Done, "users"),
-                        Ui.StatCard("kpi-friends-embedded", "Embedded Apps", $"{allPosts.Sum(p => (p.EmbeddedApps ?? []).Length)}", $"{state.PinnedApps.Length} Pinned", BadgeTone.Accent, "cpu"),
-                    ],
-                    Gap: 10),
-                new Surface(
-                    [
-                        new Heading($"{state.DisplayName} (@{state.Handle})", Level: 2, Subtitle: state.Bio),
-                        new Row(
-                        [
-                            new TagPill($"@{state.Handle}", "accent", "user"),
-                            new TagPill($"{friends.Length} friend(s)", "ok", "users"),
-                            new TagPill($"{allPosts.Length} app-post(s)", "neutral", "layout-grid"),
-                            .. state.PinnedApps.Select(app => (Node)new TagPill(app, "ok", "pin")),
-                        ]) { Gap = 6 },
-                        new Text($"@{state.Handle} — {state.Bio}"),
-                        new Text(state.Status) { Tone = "muted" },
-                        new Row(
-                        [
-                            new Button("publish-app-post", "Publish App-Post", Emit: Emits(new FriendsPublish("Interactive revenue & sketch board", "friends")), Tone: ButtonTone.Accent) { Icon = "plus", Small = true },
-                            new Button("add-friend", "Add Friend", Emit: Emits(new FriendsAddFriend("ada", "ada", "Ada Lovelace", "friends")), Tone: ButtonTone.Neutral) { Icon = "user-plus", Small = true },
-                        ]) { Gap = 8 },
-                    ],
-                    Kind: SurfaceKind.Acrylic,
-                    Title: "Personal Profile & Friends Network"),
-            };
-
-            if (friends.Length > 0)
-            {
-                items.Add(new Surface(
-                    [
-                        new Heading("Direct Friends", Level: 3, Subtitle: "Personal brains connected directly without intermediate Circle brains."),
-                        new Row(friends.Select(f => (Node)new TagPill($"@{f.Handle} · {f.DisplayName} ({f.Scope})", "accent", "users")).ToArray()) { Gap = 6 },
-                    ],
-                    Kind: SurfaceKind.Elevated,
-                    Title: "Friends Graph"));
-            }
-
-            foreach (var post in visiblePosts)
-            {
-                items.Add(RenderPostSurface(state, post));
-            }
-
-            return new View("Friends", new Column([.. items]) { Gap = 12 });
+            return VStack(Space.Md)[
+                HeaderBar(
+                    $"{state.DisplayName} (@{state.Handle})",
+                    string.IsNullOrWhiteSpace(state.Bio) ? state.Status : $"{state.Bio} · {state.Status}",
+                    StatusPill(StatusKind.Done, $"{friends.Length} friends"),
+                    Button("Add Friend", "user-plus").Key("add-friend").Small().OnClick(() => AddDefaultFriendAsync()),
+                    PrimaryButton("Publish App-Post", Icons.Plus).Key("publish-app-post").Small().OnClick(() => PublishQuickPostAsync())),
+                Tabs(
+                    state.SelectedScope,
+                    Tab("all", "All Posts", "layout-grid").OnSelect<FriendsAppState>(x => x.SelectScope("all")),
+                    Tab("public", "Public", "globe").OnSelect<FriendsAppState>(x => x.SelectScope("public")),
+                    Tab("friends", "Friends", "users").OnSelect<FriendsAppState>(x => x.SelectScope("friends"))),
+                Grid(3, Space.Sm)[
+                    StatCard("kpi-friends-posts", "App-Posts", $"{allPosts.Length}", $"@{state.Handle}", BadgeTone.Accent, "layout-grid"),
+                    StatCard("kpi-friends-count", "Direct Friends", $"{friends.Length}", "Personal Graph", BadgeTone.Done, "users"),
+                    StatCard("kpi-friends-embedded", "Embedded Apps", $"{allPosts.Sum(p => (p.EmbeddedApps ?? []).Length)}", $"{(state.PinnedApps ?? []).Length} Pinned", BadgeTone.Accent, "cpu")
+                ],
+                friends.Length > 0
+                    ? Card("Direct Friends", "Personal brains connected directly without intermediate Circle brains.")[
+                        HStack(Space.Xs, [.. friends.Select(f => (Node)new TagPill($"@{f.Handle} · {f.DisplayName} ({f.Scope})", "accent", "users"))])
+                    ].ToNode()
+                    : null,
+                visiblePosts.Length == 0
+                    ? Empty("No App-Posts in this scope", "Publish an interactive App-Post or switch feed scope.")
+                    : VStack(Space.Md, [.. visiblePosts.Select(post => RenderPostCard(state, post))]).ToNode()
+            ];
         }
 
-        private Node RenderPostSurface(FriendsAppState state, ProfilePostItem post)
+        private Node RenderPostCard(FriendsAppState state, ProfilePostItem post)
         {
             var embedded = post.EmbeddedApps ?? [];
             RecordFieldNode[] fields =
@@ -364,34 +324,25 @@ namespace IntoChat.OS.Apps.Friends
                 .. embedded.Select(child => new RecordFieldNode($"Embedded [{child.Slot}]", $"{child.Title} ({child.TargetNeuronUri})")),
             ];
 
-            Node[] postChildren =
-            [
-                new Heading(string.IsNullOrWhiteSpace(post.Title) ? post.Id : post.Title, Level: 3, Subtitle: $"App Template `{post.TemplateAppId}` · [{post.Scope}]"),
-                new Row(
+            return Card(string.IsNullOrWhiteSpace(post.Title) ? $"App-Post · {post.Id}" : post.Title, $"@{state.Handle} · [{post.Scope}] · {post.TemplateAppId}")[
+                VStack(Space.Sm,
                 [
-                    new TagPill($"@{state.Handle}", "accent", "user"),
-                    new TagPill(post.Scope, "neutral", "users"),
-                    new TagPill(post.TemplateAppId, "ok", "cpu"),
-                    .. !string.IsNullOrWhiteSpace(post.ForkedFrom) ? new Node[] { new TagPill($"Forked from {post.ForkedFrom}", "accent", "git-branch") } : [],
-                ]) { Gap = 6 },
-                new Text($"[{post.Scope}] {post.Id}: {post.Content}"),
-                new RecordCardNode(
-                    $"App-Post · {post.Scope}",
-                    post.Id,
-                    fields,
-                    Subtitle: post.Content,
-                    LinkLabel: "Fork App-Post",
-                    Open: new Button($"fork-{post.Id}", "Fork App-Post", Emit: Emits(new FriendsForkPost(post.Id)))),
-                .. embedded.Select(child => (Node)new NeuronRef("viewport", child.TargetNeuronUri)),
-                new Row(
-                [
-                    new Button($"fork-and-install:{post.Id}", "Fork & Install", Emit: Emits(new FriendsForkApp(post.Id)), Tone: ButtonTone.Accent) { Icon = "download", Small = true },
-                    new Button($"fork-app-template:{post.Id}", "Fork App Template", Emit: Emits(new FriendsForkPost(post.Id)), Tone: ButtonTone.Neutral) { Icon = "git-branch", Small = true },
-                    new Button($"open-in-creator:{post.Id}", "Open in Creator", Intent: AppSignals.OpenApp("creator")) { Icon = "wand-sparkles", Small = true },
-                ]) { Gap = 8 },
+                    Text(post.Content),
+                    new RecordCardNode(
+                        $"App-Post · {post.Scope}",
+                        post.Id,
+                        fields,
+                        Subtitle: post.Content,
+                        LinkLabel: "Fork App-Post",
+                        Open: Button("Fork App-Post").Key($"fork-{post.Id}").OnClick(() => ForkPostTemplateAsync(post.Id))),
+                    .. embedded.Select(child => (Node)Slot(child.TargetNeuronUri)),
+                    HStack(Space.Sm)[
+                        Button("Fork & Install", "download").Key($"fork-and-install:{post.Id}").Small().OnClick(() => ForkAndInstallPostAsync(post.Id)),
+                        Button("Fork App Template", "git-branch").Key($"fork-app-template:{post.Id}").Small().OnClick(() => ForkPostTemplateAsync(post.Id)),
+                        GhostButton("Open in Creator", "wand-sparkles").Key($"open-in-creator:{post.Id}").Small().WithIntent(IntentKind.OpenWindow, "creator")
+                    ],
+                ])
             ];
-
-            return new Surface(postChildren, Kind: SurfaceKind.Elevated, Title: $"App-Post · {post.Id}", Subtitle: post.TemplateAppId);
         }
     }
 }

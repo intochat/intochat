@@ -25,7 +25,7 @@ internal static class DataStudioDecisions
             ActiveSource = source,
             ActiveQuery = queryText,
             ChartTitle = result.ChartTitle,
-            ChartKind = string.IsNullOrWhiteSpace(preferredChartKind) ? result.ChartKind : preferredChartKind,
+            ChartKind = NormalizeChartKind(string.IsNullOrWhiteSpace(preferredChartKind) ? result.ChartKind : preferredChartKind),
             Columns = result.Columns,
             Rows = result.Rows,
             ChartPoints = result.ChartPoints,
@@ -41,13 +41,7 @@ internal static class DataStudioDecisions
 
     public static DataStudioAppState DecideSwitchChart(DataStudioAppState current, string? kind)
     {
-        var normalizedKind = (kind ?? "bar").Trim().ToLowerInvariant() switch
-        {
-            "pie" => "pie",
-            "line" => "line",
-            _ => "bar",
-        };
-
+        var normalizedKind = NormalizeChartKind(kind);
         return current with
         {
             ChartKind = normalizedKind,
@@ -55,24 +49,27 @@ internal static class DataStudioDecisions
         };
     }
 
-    public static DataStudioAppState DecideExportCsv(DataStudioAppState current, string targetPath, string[] datasets)
-    {
-        return current with
+    public static DataStudioAppState DecideExportCsv(DataStudioAppState current, string targetPath, string[] datasets) =>
+        current with
         {
             LastExportPath = targetPath,
             WorkspaceDatasets = datasets,
             Summary = $"Exported {current.Rows.Length} row(s) from '{current.ChartTitle}' to {targetPath}.",
         };
-    }
 
-    public static DataStudioAppState DecideToMarkdraw(DataStudioAppState current, string docPath)
-    {
-        return current with
+    public static DataStudioAppState DecideToMarkdraw(DataStudioAppState current, string docPath) =>
+        current with
         {
             LastMarkdrawPath = docPath,
             Summary = $"Generated Markdraw data-lineage diagram for '{current.ChartTitle}' at {docPath}.",
         };
-    }
+
+    public static string NormalizeChartKind(string? kind) => (kind ?? "bar").Trim().ToLowerInvariant() switch
+    {
+        "pie" => "pie",
+        "line" => "line",
+        _ => "bar",
+    };
 
     public static string NormalizeSource(string raw)
     {

@@ -21,14 +21,23 @@ internal static class SettingsDecisions
         {
             return SettingsApp.SearchIndex;
         }
+
         var q = query.Trim();
-        return [.. SettingsApp.SearchIndex.Where(entry =>
-            entry.SectionId.Contains(q, StringComparison.OrdinalIgnoreCase)
-            || entry.Title.Contains(q, StringComparison.OrdinalIgnoreCase)
-            || entry.Keywords.Contains(q, StringComparison.OrdinalIgnoreCase))];
+        return
+        [
+            .. SettingsApp.SearchIndex.Where(entry =>
+                entry.SectionId.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || entry.Title.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || entry.Keywords.Contains(q, StringComparison.OrdinalIgnoreCase)),
+        ];
     }
 
-    public static SettingsAppState DecideNavigate(SettingsAppState current, string? rawSection, string? rawSubPage, string? rawSheet, string? searchQuery)
+    public static SettingsAppState DecideNavigate(
+        SettingsAppState current,
+        string? rawSection,
+        string? rawSubPage,
+        string? rawSheet,
+        string? searchQuery)
     {
         if (!string.IsNullOrWhiteSpace(rawSection)
             && rawSection.Contains(':', StringComparison.Ordinal)
@@ -66,7 +75,6 @@ internal static class SettingsDecisions
             Sheet = targetSheet,
             SearchQuery = searchQuery ?? current.SearchQuery,
             History = history,
-            OverrideBody = null,
         };
     }
 
@@ -77,6 +85,7 @@ internal static class SettingsDecisions
         {
             return current with { Sheet = null, SubPage = null };
         }
+
         var last = history[^1];
         history.RemoveAt(history.Count - 1);
         var parts = last.Split('/', 2);
@@ -89,7 +98,6 @@ internal static class SettingsDecisions
             SubPage = subPage,
             Sheet = null,
             History = history,
-            OverrideBody = null,
         };
     }
 
@@ -100,6 +108,7 @@ internal static class SettingsDecisions
         {
             keys.Add(connectionKey);
         }
+
         var grants = (current.FriendGrants ?? SettingsAppState.DefaultFriendGrants).ToList();
         if (!string.IsNullOrWhiteSpace(friendApp))
         {
@@ -109,13 +118,13 @@ internal static class SettingsDecisions
                 grants.Add(grantEntry);
             }
         }
+
         return current with
         {
             Title = "Settings",
             Status = "Connections",
-            OverrideBody = null,
             ConnectionKeys = keys,
-            FriendGrants = grants
+            FriendGrants = grants,
         };
     }
 
@@ -136,7 +145,6 @@ internal static class SettingsDecisions
             Theme = user.Theme,
             DefaultModel = user.DefaultModel,
             Section = section ?? current.Section,
-            OverrideBody = null,
             StylePreset = user.StylePreset,
             BarLayout = user.BarLayout,
             ThemeMode = user.ThemeMode,
@@ -158,7 +166,6 @@ internal static class SettingsDecisions
             Section = "variables",
             Status = $"Saved variable {key}.",
             Variables = updatedVariables,
-            OverrideBody = null
         };
     }
 
@@ -167,8 +174,8 @@ internal static class SettingsDecisions
         return current with
         {
             Section = "billing",
+            ComputeBudgetUsd = computeBudgetUsd,
             Status = $"Updated monthly compute cap to {computeBudgetUsd}.",
-            OverrideBody = null
         };
     }
 
@@ -180,7 +187,6 @@ internal static class SettingsDecisions
             Sheet = "export-archive",
             Status = $"Exported portable brain archive ({unitCount} unit(s)).",
             ExportedArchiveJson = archiveJson,
-            OverrideBody = null
         };
     }
 
@@ -196,10 +202,12 @@ internal static class SettingsDecisions
         {
             return "Not set";
         }
+
         if (IsSecretKey(key))
         {
             return "Configured";
         }
+
         return value;
     }
 }
