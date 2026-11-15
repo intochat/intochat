@@ -1,12 +1,13 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.singleton.1.9.0.schema.json
+# Template manifest: version, channel, and SHA-256 digests are populated during release packaging (eng/release/package-release.ps1).
 PackageIdentifier: IntoChat.OS
-PackageVersion: 0.17.0
+PackageVersion: PENDING_RELEASE_VERSION
 PackageLocale: en-US
 Publisher: IntoChat
-PublisherUrl: https://intochat.io
+PublisherUrl: https://intochat.ai
 PublisherSupportUrl: https://github.com/intochat/os/issues
 PackageName: IntoChat OS
-PackageUrl: https://intochat.io
+PackageUrl: https://intochat.ai
 License: MIT
 LicenseUrl: https://github.com/intochat/os/blob/master/LICENSE
 ShortDescription: Local-first AI operating system with Ino, live C# micro-apps, ArtCraft studios, and hardware-confined sandboxes.
@@ -28,15 +29,15 @@ Installers:
     NestedInstallerFiles:
       - RelativeFilePath: IntoChat.OS.Desktop.exe
         PortableCommandAlias: intochat
-    InstallerUrl: https://releases.intochat.io/stable/0.17.0/intochat-0.17.0-win-x64.zip
-    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
+    InstallerUrl: https://releases.intochat.ai/PENDING_RELEASE_CHANNEL/PENDING_RELEASE_VERSION/intochat-PENDING_RELEASE_VERSION-win-x64.zip
+    InstallerSha256: PENDING_RELEASE_SHA256_WIN_X64
   - Architecture: arm64
     InstallerType: zip
     NestedInstallerType: portable
     NestedInstallerFiles:
       - RelativeFilePath: IntoChat.OS.Desktop.exe
         PortableCommandAlias: intochat
-    InstallerUrl: https://releases.intochat.io/stable/0.17.0/intochat-0.17.0-win-arm64.zip
-    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
+    InstallerUrl: https://releases.intochat.ai/PENDING_RELEASE_CHANNEL/PENDING_RELEASE_VERSION/intochat-PENDING_RELEASE_VERSION-win-arm64.zip
+    InstallerSha256: PENDING_RELEASE_SHA256_WIN_ARM64
 ManifestType: singleton
 ManifestVersion: 1.9.0

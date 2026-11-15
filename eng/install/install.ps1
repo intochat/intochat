@@ -10,17 +10,24 @@
 param(
     [string]$Channel = $(if ($env:INTOCHAT_CHANNEL) { $env:INTOCHAT_CHANNEL } else { 'stable' }),
     [string]$Version = $env:INTOCHAT_VERSION,
-    [string]$PublicDomain = $(if ($env:INTOCHAT_PUBLIC_DOMAIN) { $env:INTOCHAT_PUBLIC_DOMAIN } else { 'intochat.ai' }),
+    [string]$PublicDomain = $env:INTOCHAT_PUBLIC_DOMAIN,
     [string]$HomeDir = $(if ($env:IntoChatOS__Home) { $env:IntoChatOS__Home } else { Join-Path $env:USERPROFILE '.intochat' }),
     [string]$LocalArchive = $env:INTOCHAT_ARCHIVE_PATH,
     [string]$ExpectedSha256 = $env:INTOCHAT_ARCHIVE_SHA256,
     [switch]$NoLaunch,
+    [switch]$NoPath,
     [switch]$DryRun
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+
+$DefaultPublicDomain = 'intochat.ai'
+if ([string]::IsNullOrWhiteSpace($PublicDomain)) {
+    $PublicDomain = $DefaultPublicDomain
+}
+$skipPathUpdate = $NoPath -or ($env:INTOCHAT_NO_PATH -eq '1')
 
 function Write-Step {
     param([string]$Message)
@@ -37,6 +44,41 @@ function Resolve-TargetRid {
         '^(AMD64|x86_64)$' { return 'win-x64' }
         default { throw "Unsupported Windows processor architecture '$arch'. IntoChat OS supports win-x64 and win-arm64." }
     }
+}
+
+function Resolve-ValidatedSha256 {
+    param(
+        [string]$Value,
+        [Parameter(Mandatory = $true)][string]$SourceDescription
+    )
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        throw "Missing required SHA-256 digest ($SourceDescription). Installation aborted."
+    }
+    $normalized = $Value.Trim().ToLowerInvariant()
+    if ($normalized -notmatch '^[0-9a-f]{64}$') {
+        throw "Invalid SHA-256 digest '$normalized' ($SourceDescription). Expected 64 hexadecimal characters."
+    }
+    if ($normalized -eq ('0' * 64)) {
+        throw "Refusing placeholder all-zero SHA-256 digest ($SourceDescription). Installation aborted."
+    }
+    return $normalized
+}
+
+function Read-Sha256FromSumsText {
+    param(
+        [string]$SumsText,
+        [Parameter(Mandatory = $true)][string]$ArchiveFileName
+    )
+    if ([string]::IsNullOrWhiteSpace($SumsText)) {
+        return $null
+    }
+    $escaped = [Regex]::Escape($ArchiveFileName)
+    foreach ($line in ($SumsText -split "`r?`n")) {
+        if ($line -match "^\s*([0-9a-fA-F]{64})\s+\*?$escaped\s*$") {
+            return $Matches[1]
+        }
+    }
+    return $null
 }
 
 function Set-OwnerOnlyDirectoryAcl {
@@ -110,68 +152,99 @@ if ($DryRun) {
     exit 0
 }
 
-foreach ($dir in @($resolvedHome, $binDir, $secretsDir, $runDir, $logsDir, $stateDir)) {
-    if (-not (Test-Path -LiteralPath $dir)) {
-        New-Item -ItemType Directory -Path $dir -Force | Out-Null
-    }
-}
-
-Set-OwnerOnlyDirectoryAcl -Path $secretsDir
-Set-OwnerOnlyDirectoryAcl -Path $runDir
-
 $stagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("intochat-stage-" + [Guid]::NewGuid().ToString('N').Substring(0, 12))
 New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
 
 try {
     $archivePath = $null
-    $sha256ToVerify = $ExpectedSha256
+    $sha256ToVerify = $null
 
     if (-not [string]::IsNullOrWhiteSpace($LocalArchive)) {
-        if (-not (Test-Path -LiteralPath $LocalArchive)) {
+        if (-not (Test-Path -LiteralPath $LocalArchive -PathType Leaf)) {
             throw "Local archive '$LocalArchive' does not exist."
         }
+        $sha256ToVerify = Resolve-ValidatedSha256 -Value $ExpectedSha256 -SourceDescription 'ExpectedSha256 / INTOCHAT_ARCHIVE_SHA256'
         $archivePath = (Resolve-Path -LiteralPath $LocalArchive).Path
         Write-Step "Using local release archive: $archivePath"
     } else {
         $baseUrl = "https://releases.$PublicDomain/$Channel"
+        $callerSha = $null
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedSha256)) {
+            $callerSha = Resolve-ValidatedSha256 -Value $ExpectedSha256 -SourceDescription 'ExpectedSha256 / INTOCHAT_ARCHIVE_SHA256'
+        }
+
         if ([string]::IsNullOrWhiteSpace($Version)) {
             $manifestUrl = "$baseUrl/latest.json"
             Write-Step "Fetching release manifest from $manifestUrl"
             $manifest = Invoke-RestMethod -Uri $manifestUrl -Method Get -UseBasicParsing
-            $Version = $manifest.version
-            if ($manifest.assets -and $manifest.assets.$rid) {
-                $assetUrl = $manifest.assets.$rid.url
-                $sha256ToVerify = $manifest.assets.$rid.sha256
-            } else {
-                $assetUrl = "$baseUrl/$Version/intochat-$Version-$rid.zip"
+            $Version = ([string]$manifest.version).Trim()
+            if ([string]::IsNullOrWhiteSpace($Version)) {
+                throw "Release manifest '$manifestUrl' did not specify a version."
             }
-        } else {
-            $assetUrl = "$baseUrl/$Version/intochat-$Version-$rid.zip"
-            if ([string]::IsNullOrWhiteSpace($sha256ToVerify)) {
-                $sumsUrl = "$baseUrl/$Version/SHA256SUMS"
-                $sumsText = Invoke-RestMethod -Uri $sumsUrl -Method Get -UseBasicParsing
-                $expectedFile = "intochat-$Version-$rid.zip"
-                foreach ($line in ($sumsText -split "`r?`n")) {
-                    if ($line -match "^([0-9a-fA-F]{64})\s+\*?$([Regex]::Escape($expectedFile))$") {
-                        $sha256ToVerify = $Matches[1]
-                        break
+
+            $expectedFile = "intochat-$Version-$rid.zip"
+            $manifestSha = $null
+            if ($manifest.assets -and $manifest.assets.$rid) {
+                $assetUrl = [string]$manifest.assets.$rid.url
+                $manifestSha = [string]$manifest.assets.$rid.sha256
+            }
+            if ([string]::IsNullOrWhiteSpace($assetUrl)) {
+                $assetUrl = "$baseUrl/$Version/$expectedFile"
+            }
+
+            if ($null -ne $callerSha) {
+                if (-not [string]::IsNullOrWhiteSpace($manifestSha)) {
+                    $normalizedManifestSha = Resolve-ValidatedSha256 -Value $manifestSha -SourceDescription 'release manifest'
+                    if ($normalizedManifestSha -ne $callerSha) {
+                        throw "SHA-256 mismatch between caller digest '$callerSha' and release manifest '$normalizedManifestSha'."
                     }
                 }
+                $sha256ToVerify = $callerSha
+            } else {
+                $sha256ToVerify = $manifestSha
+                if ([string]::IsNullOrWhiteSpace($sha256ToVerify)) {
+                    $sumsUrl = "$baseUrl/$Version/SHA256SUMS"
+                    $sumsText = Invoke-RestMethod -Uri $sumsUrl -Method Get -UseBasicParsing
+                    $sha256ToVerify = Read-Sha256FromSumsText -SumsText ([string]$sumsText) -ArchiveFileName $expectedFile
+                }
+            }
+        } else {
+            $expectedFile = "intochat-$Version-$rid.zip"
+            $assetUrl = "$baseUrl/$Version/$expectedFile"
+            if ($null -ne $callerSha) {
+                $sha256ToVerify = $callerSha
+            } else {
+                $sumsUrl = "$baseUrl/$Version/SHA256SUMS"
+                $sumsText = Invoke-RestMethod -Uri $sumsUrl -Method Get -UseBasicParsing
+                $sha256ToVerify = Read-Sha256FromSumsText -SumsText ([string]$sumsText) -ArchiveFileName $expectedFile
             }
         }
+
+        if (-not $assetUrl.StartsWith('https://', [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing insecure release asset URL '$assetUrl'. HTTPS is required."
+        }
+        $sha256ToVerify = Resolve-ValidatedSha256 -Value $sha256ToVerify -SourceDescription 'release manifest / SHA256SUMS'
 
         $archivePath = Join-Path $stagingRoot "intochat-$rid.zip"
         Write-Step "Downloading $assetUrl"
         Invoke-WebRequest -Uri $assetUrl -OutFile $archivePath -UseBasicParsing
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($sha256ToVerify)) {
-        Write-Step "Verifying SHA-256 digest"
-        $computedHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
-        if ($computedHash -ne $sha256ToVerify.Trim().ToLowerInvariant()) {
-            throw "SHA-256 mismatch for '$archivePath'. Expected '$sha256ToVerify', computed '$computedHash'."
+    $expectedNormalized = Resolve-ValidatedSha256 -Value $sha256ToVerify -SourceDescription 'archive verification'
+    Write-Step "Verifying SHA-256 digest"
+    $computedHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($computedHash -ne $expectedNormalized) {
+        throw "SHA-256 mismatch for '$archivePath'. Expected '$expectedNormalized', computed '$computedHash'."
+    }
+
+    foreach ($dir in @($resolvedHome, $binDir, $secretsDir, $runDir, $logsDir, $stateDir)) {
+        if (-not (Test-Path -LiteralPath $dir)) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
         }
     }
+
+    Set-OwnerOnlyDirectoryAcl -Path $secretsDir
+    Set-OwnerOnlyDirectoryAcl -Path $runDir
 
     $extractDir = Join-Path $stagingRoot 'extracted'
     Expand-Archive -LiteralPath $archivePath -DestinationPath $extractDir -Force
@@ -202,8 +275,12 @@ try {
         [System.IO.File]::WriteAllText($cliCmdPath, $shimContent, [System.Text.Encoding]::ASCII)
     }
 
-    Register-UserPathEntry -BinDirectory $binDir
-    Write-Step "Installed IntoChat OS into $binDir and added to User PATH."
+    if (-not $skipPathUpdate) {
+        Register-UserPathEntry -BinDirectory $binDir
+        Write-Step "Installed IntoChat OS into $binDir and added to User PATH."
+    } else {
+        Write-Step "Installed IntoChat OS into $binDir (PATH registration skipped)."
+    }
 
     $desktopExe = Join-Path $binDir 'IntoChat.OS.Desktop.exe'
     if ((-not $NoLaunch) -and ($env:SPIKE_WINDOWS -ne '0') -and (Test-Path -LiteralPath $desktopExe)) {

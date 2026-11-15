@@ -3,31 +3,40 @@
 # Installs a self-contained IntoChat OS release under ~/.intochat without root, Docker, or a pre-installed .NET SDK.
 set -eu
 
+DEFAULT_PUBLIC_DOMAIN="intochat.ai"
 CHANNEL="${INTOCHAT_CHANNEL:-stable}"
 VERSION="${INTOCHAT_VERSION:-}"
-PUBLIC_DOMAIN="${INTOCHAT_PUBLIC_DOMAIN:-intochat.ai}"
+PUBLIC_DOMAIN="${INTOCHAT_PUBLIC_DOMAIN:-$DEFAULT_PUBLIC_DOMAIN}"
 HOME_DIR="${IntoChatOS__Home:-$HOME/.intochat}"
 LOCAL_ARCHIVE="${INTOCHAT_ARCHIVE_PATH:-}"
 EXPECTED_SHA256="${INTOCHAT_ARCHIVE_SHA256:-}"
 NO_LAUNCH=0
+NO_PATH="${INTOCHAT_NO_PATH:-0}"
 DRY_RUN=0
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --channel)
+            [ "$#" -ge 2 ] || { echo "Missing value for --channel" >&2; exit 2; }
             CHANNEL="$2"
             shift 2
             ;;
         --version)
+            [ "$#" -ge 2 ] || { echo "Missing value for --version" >&2; exit 2; }
             VERSION="$2"
             shift 2
             ;;
         --home)
+            [ "$#" -ge 2 ] || { echo "Missing value for --home" >&2; exit 2; }
             HOME_DIR="$2"
             shift 2
             ;;
         --no-launch)
             NO_LAUNCH=1
+            shift
+            ;;
+        --no-path)
+            NO_PATH=1
             shift
             ;;
         --dry-run)
@@ -76,6 +85,28 @@ resolve_rid() {
     esac
 
     printf '%s-%s' "$os_part" "$arch_part"
+}
+
+normalize_sha256() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d ' \t\r\n'
+}
+
+require_valid_sha256() {
+    candidate="$1"
+    source_desc="$2"
+
+    if [ -z "$candidate" ]; then
+        echo "Missing required SHA-256 digest ($source_desc). Installation aborted." >&2
+        exit 1
+    fi
+    if ! printf '%s\n' "$candidate" | grep -Eq '^[0-9a-f]{64}$'; then
+        echo "Invalid SHA-256 digest '$candidate' ($source_desc). Expected 64 hexadecimal characters." >&2
+        exit 1
+    fi
+    if [ -z "$(printf '%s' "$candidate" | tr -d '0')" ]; then
+        echo "Refusing placeholder all-zero SHA-256 digest ($source_desc). Installation aborted." >&2
+        exit 1
+    fi
 }
 
 compute_sha256() {
@@ -142,9 +173,6 @@ if [ "$DRY_RUN" -eq 1 ]; then
     exit 0
 fi
 
-mkdir -p "$HOME_DIR" "$BIN_DIR" "$SECRETS_DIR" "$RUN_DIR" "$LOGS_DIR" "$STATE_DIR"
-chmod 700 "$SECRETS_DIR" "$RUN_DIR"
-
 STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/intochat-stage.XXXXXXXXXX")"
 cleanup() {
     rm -rf "$STAGING_DIR"
@@ -152,13 +180,14 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 ARCHIVE_PATH=""
-SHA_TO_VERIFY="$EXPECTED_SHA256"
+SHA_TO_VERIFY="$(normalize_sha256 "$EXPECTED_SHA256")"
 
 if [ -n "$LOCAL_ARCHIVE" ]; then
     if [ ! -f "$LOCAL_ARCHIVE" ]; then
         echo "Local archive '$LOCAL_ARCHIVE' does not exist." >&2
         exit 1
     fi
+    require_valid_sha256 "$SHA_TO_VERIFY" "INTOCHAT_ARCHIVE_SHA256"
     ARCHIVE_PATH="$LOCAL_ARCHIVE"
     step "Using local release archive: $ARCHIVE_PATH"
 else
@@ -167,6 +196,10 @@ else
         VERSION_FILE="$STAGING_DIR/VERSION"
         download_file "$BASE_URL/VERSION" "$VERSION_FILE"
         VERSION="$(tr -d ' \t\r\n' < "$VERSION_FILE")"
+        if [ -z "$VERSION" ]; then
+            echo "Release VERSION file at '$BASE_URL/VERSION' was empty." >&2
+            exit 1
+        fi
     fi
 
     ASSET_NAME="intochat-$VERSION-$RID.tar.gz"
@@ -176,22 +209,30 @@ else
     if [ -z "$SHA_TO_VERIFY" ]; then
         SUMS_FILE="$STAGING_DIR/SHA256SUMS"
         download_file "$BASE_URL/$VERSION/SHA256SUMS" "$SUMS_FILE"
-        SHA_TO_VERIFY="$(awk -v target="$ASSET_NAME" '$2 == target || $2 == ("*" target) { print tolower($1); exit }' "$SUMS_FILE")"
+        SHA_TO_VERIFY="$(awk -v target="$ASSET_NAME" '{ sub(/\r$/, ""); if ($2 == target || $2 == ("*" target)) { print tolower($1); exit } }' "$SUMS_FILE")"
+        SHA_TO_VERIFY="$(normalize_sha256 "$SHA_TO_VERIFY")"
+        require_valid_sha256 "$SHA_TO_VERIFY" "SHA256SUMS"
+    else
+        require_valid_sha256 "$SHA_TO_VERIFY" "INTOCHAT_ARCHIVE_SHA256"
     fi
 
     step "Downloading $ASSET_URL"
     download_file "$ASSET_URL" "$ARCHIVE_PATH"
 fi
 
-if [ -n "$SHA_TO_VERIFY" ]; then
-    step "Verifying SHA-256 digest"
-    ACTUAL_SHA="$(compute_sha256 "$ARCHIVE_PATH")"
-    EXPECTED_LOWER="$(printf '%s' "$SHA_TO_VERIFY" | tr '[:upper:]' '[:lower:]' | tr -d ' \t\r\n')"
-    if [ "$ACTUAL_SHA" != "$EXPECTED_LOWER" ]; then
-        echo "SHA-256 mismatch for '$ARCHIVE_PATH': expected '$EXPECTED_LOWER', computed '$ACTUAL_SHA'." >&2
-        exit 1
-    fi
+SHA_TO_VERIFY="$(normalize_sha256 "$SHA_TO_VERIFY")"
+require_valid_sha256 "$SHA_TO_VERIFY" "archive verification"
+
+step "Verifying SHA-256 digest"
+ACTUAL_SHA="$(normalize_sha256 "$(compute_sha256 "$ARCHIVE_PATH")")"
+require_valid_sha256 "$ACTUAL_SHA" "computed archive digest"
+if [ "$ACTUAL_SHA" != "$SHA_TO_VERIFY" ]; then
+    echo "SHA-256 mismatch for '$ARCHIVE_PATH': expected '$SHA_TO_VERIFY', computed '$ACTUAL_SHA'." >&2
+    exit 1
 fi
+
+mkdir -p "$HOME_DIR" "$BIN_DIR" "$SECRETS_DIR" "$RUN_DIR" "$LOGS_DIR" "$STATE_DIR"
+chmod 700 "$SECRETS_DIR" "$RUN_DIR"
 
 EXTRACT_DIR="$STAGING_DIR/extracted"
 mkdir -p "$EXTRACT_DIR"
@@ -222,9 +263,13 @@ if [ "$(uname -s)" = "Darwin" ] && command -v xattr >/dev/null 2>&1; then
     xattr -dr com.apple.quarantine "$BIN_DIR" >/dev/null 2>&1 || true
 fi
 
-ensure_path_profile "$BIN_DIR"
-export PATH="$BIN_DIR:$PATH"
-step "Installed IntoChat OS into $BIN_DIR."
+if [ "$NO_PATH" -eq 0 ]; then
+    ensure_path_profile "$BIN_DIR"
+    export PATH="$BIN_DIR:$PATH"
+    step "Installed IntoChat OS into $BIN_DIR."
+else
+    step "Installed IntoChat OS into $BIN_DIR (PATH registration skipped)."
+fi
 
 if [ "$NO_LAUNCH" -eq 0 ] && [ "${SPIKE_WINDOWS:-1}" != "0" ] && [ -x "$BIN_DIR/intochat" ]; then
     if [ "$(uname -s)" = "Darwin" ] || [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then

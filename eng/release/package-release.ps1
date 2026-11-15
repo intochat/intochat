@@ -7,21 +7,27 @@
       - os/:      IntoChat.OS.Kernel.exe (self-contained ReadyToRun)
       - unithost/: IntoChat.OS.Sandbox.exe + IntoChat.OS.UnitHost.cmd (--unit-host worker)
       - shell/:   Flutter Windows desktop bundle (ui/build/windows/x64/runner/Release)
-    Produces intochat-<version>-<rid>.zip, VERSION, SHA256SUMS, and latest.json.
+    Produces intochat-<version>-<rid>.zip, VERSION, SHA256SUMS, latest.json, and winget/IntoChat.OS.yaml.
 #>
 [CmdletBinding()]
 param(
     [string]$Rid = '',
     [string]$Configuration = 'Release',
     [string]$Channel = 'stable',
-    [string]$PublicDomain = 'intochat.io',
+    [string]$PublicDomain = $env:INTOCHAT_PUBLIC_DOMAIN,
     [string]$OutputDir = '',
     [switch]$SkipFlutter,
+    [switch]$UpdateManifests,
     [switch]$DryRun
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+
+$DefaultPublicDomain = 'intochat.ai'
+if ([string]::IsNullOrWhiteSpace($PublicDomain)) {
+    $PublicDomain = $DefaultPublicDomain
+}
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $versionFile = Join-Path $repoRoot 'VERSION'
@@ -54,11 +60,106 @@ function Write-ReleaseStep {
     Write-Host "  [release] $Message" -ForegroundColor Cyan
 }
 
+function Get-ValidatedArchiveSha256 {
+    param([Parameter(Mandatory = $true)][string]$FilePath)
+    $hash = (Get-FileHash -LiteralPath $FilePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($hash -notmatch '^[0-9a-f]{64}$' -or $hash -eq ('0' * 64)) {
+        throw "Computed invalid SHA-256 digest '$hash' for '$FilePath'."
+    }
+    return $hash
+}
+
+function Publish-ReleaseManifests {
+    param(
+        [Parameter(Mandatory = $true)][hashtable]$AssetsByRid
+    )
+    if ($AssetsByRid.Count -eq 0) {
+        throw "Cannot emit release manifests: no packaged archives were supplied."
+    }
+
+    [System.IO.File]::WriteAllText($outVersionPath, "$version`n", [System.Text.UTF8Encoding]::new($false))
+
+    $existingSums = @()
+    $managedNames = @($AssetsByRid.Keys | ForEach-Object { "intochat-$version-$_.zip" })
+    if (Test-Path -LiteralPath $sumsPath) {
+        $existingSums = Get-Content -LiteralPath $sumsPath | Where-Object {
+            $line = $_
+            $line -and -not ($managedNames | Where-Object { $line -match "\s+\*?$([Regex]::Escape($_))$" })
+        }
+    }
+    $newLines = @($AssetsByRid.Keys | Sort-Object | ForEach-Object { "$($AssetsByRid[$_])  intochat-$version-$_.zip" })
+    $updatedSums = (@($existingSums) + $newLines) -join "`n"
+    [System.IO.File]::WriteAllText($sumsPath, "$updatedSums`n", [System.Text.UTF8Encoding]::new($false))
+
+    $manifestObj = [ordered]@{
+        version = $version
+        channel = $Channel
+        assets  = [ordered]@{}
+    }
+    if (Test-Path -LiteralPath $latestJsonPath) {
+        $prior = Get-Content -LiteralPath $latestJsonPath -Raw | ConvertFrom-Json
+        if ($prior -and $prior.assets) {
+            foreach ($prop in $prior.assets.PSObject.Properties) {
+                $manifestObj.assets[$prop.Name] = $prop.Value
+            }
+        }
+    }
+    foreach ($assetRid in ($AssetsByRid.Keys | Sort-Object)) {
+        $fileName = "intochat-$version-$assetRid.zip"
+        $manifestObj.assets[$assetRid] = [ordered]@{
+            url    = "https://releases.$PublicDomain/$Channel/$version/$fileName"
+            sha256 = $AssetsByRid[$assetRid]
+        }
+    }
+
+    $manifestJson = ($manifestObj | ConvertTo-Json -Depth 6) -replace "`r`n", "`n"
+    [System.IO.File]::WriteAllText($latestJsonPath, "$manifestJson`n", [System.Text.UTF8Encoding]::new($false))
+
+    $wingetTemplate = Join-Path $PSScriptRoot 'winget\IntoChat.OS.yaml'
+    if (Test-Path -LiteralPath $wingetTemplate) {
+        $rendered = Get-Content -LiteralPath $wingetTemplate -Raw
+        $rendered = $rendered.Replace('PENDING_RELEASE_VERSION', $version)
+        $rendered = $rendered.Replace('PENDING_RELEASE_CHANNEL', $Channel)
+        if ($PublicDomain -ne $DefaultPublicDomain) {
+            $rendered = $rendered.Replace($DefaultPublicDomain, $PublicDomain)
+        }
+        if ($manifestObj.assets.Contains('win-x64')) {
+            $rendered = $rendered.Replace('PENDING_RELEASE_SHA256_WIN_X64', [string]$manifestObj.assets['win-x64'].sha256)
+        }
+        if ($manifestObj.assets.Contains('win-arm64')) {
+            $rendered = $rendered.Replace('PENDING_RELEASE_SHA256_WIN_ARM64', [string]$manifestObj.assets['win-arm64'].sha256)
+        }
+        $rendered = $rendered -replace "`r`n", "`n"
+        $wingetOutDir = Join-Path $OutputDir 'winget'
+        New-Item -ItemType Directory -Path $wingetOutDir -Force | Out-Null
+        [System.IO.File]::WriteAllText((Join-Path $wingetOutDir 'IntoChat.OS.yaml'), $rendered, [System.Text.UTF8Encoding]::new($false))
+    }
+}
+
 Write-Host "IntoChat OS Release Bundler v$version ($Rid)" -ForegroundColor Green
 
 if ($DryRun) {
     Write-ReleaseStep "[DryRun] Would publish IntoChat.OS.Desktop (Native AOT), IntoChat.OS.Kernel (R2R), IntoChat.OS.Sandbox (UnitHost), and Flutter shell into $archivePath"
-    Write-ReleaseStep "[DryRun] Would emit SHA256SUMS, VERSION, and latest.json in $OutputDir"
+    Write-ReleaseStep "[DryRun] Would emit SHA256SUMS, VERSION, latest.json, and winget/IntoChat.OS.yaml in $OutputDir (domain: $PublicDomain)"
+    exit 0
+}
+
+if ($UpdateManifests) {
+    if (-not (Test-Path -LiteralPath $OutputDir)) {
+        throw "Output directory '$OutputDir' does not exist."
+    }
+    $discovered = @{}
+    foreach ($candidateRid in @('win-x64', 'win-arm64')) {
+        $candidateZip = Join-Path $OutputDir "intochat-$version-$candidateRid.zip"
+        if (Test-Path -LiteralPath $candidateZip -PathType Leaf) {
+            $discovered[$candidateRid] = Get-ValidatedArchiveSha256 -FilePath $candidateZip
+        }
+    }
+    if ($discovered.Count -eq 0) {
+        throw "No packaged archives matching 'intochat-$version-win-*.zip' found in '$OutputDir'."
+    }
+    Publish-ReleaseManifests -AssetsByRid $discovered
+    Write-ReleaseStep "Updated SHA256SUMS, latest.json, and winget/IntoChat.OS.yaml in $OutputDir."
     exit 0
 }
 
@@ -123,43 +224,12 @@ try {
     Write-ReleaseStep "Compressing $archiveName..."
     Compress-Archive -Path (Join-Path $bundleDir '*') -DestinationPath $archivePath -CompressionLevel Optimal -Force
 
-    $sha256 = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $sha256 = Get-ValidatedArchiveSha256 -FilePath $archivePath
     Write-ReleaseStep "SHA-256: $sha256"
 
-    [System.IO.File]::WriteAllText($outVersionPath, "$version`n", [System.Text.UTF8Encoding]::new($false))
+    Publish-ReleaseManifests -AssetsByRid @{ $Rid = $sha256 }
 
-    $existingSums = @()
-    if (Test-Path -LiteralPath $sumsPath) {
-        $existingSums = Get-Content -LiteralPath $sumsPath | Where-Object {
-            $_ -and ($_ -notmatch "\s+\*?$([Regex]::Escape($archiveName))$")
-        }
-    }
-    $updatedSums = (@($existingSums) + "$sha256  $archiveName") -join "`n"
-    [System.IO.File]::WriteAllText($sumsPath, "$updatedSums`n", [System.Text.UTF8Encoding]::new($false))
-
-    $assetUrl = "https://releases.$PublicDomain/$Channel/$version/$archiveName"
-    $manifestObj = [ordered]@{
-        version = $version
-        channel = $Channel
-        assets  = [ordered]@{}
-    }
-    if (Test-Path -LiteralPath $latestJsonPath) {
-        $prior = Get-Content -LiteralPath $latestJsonPath -Raw | ConvertFrom-Json
-        if ($prior -and $prior.assets) {
-            foreach ($prop in $prior.assets.PSObject.Properties) {
-                $manifestObj.assets[$prop.Name] = $prop.Value
-            }
-        }
-    }
-    $manifestObj.assets[$Rid] = [ordered]@{
-        url    = $assetUrl
-        sha256 = $sha256
-    }
-
-    $manifestJson = ($manifestObj | ConvertTo-Json -Depth 6) -replace "`r`n", "`n"
-    [System.IO.File]::WriteAllText($latestJsonPath, "$manifestJson`n", [System.Text.UTF8Encoding]::new($false))
-
-    Write-ReleaseStep "Packaged $archivePath alongside SHA256SUMS and latest.json."
+    Write-ReleaseStep "Packaged $archivePath alongside SHA256SUMS, latest.json, and winget/IntoChat.OS.yaml."
 }
 finally {
     if (Test-Path -LiteralPath $stageRoot) {

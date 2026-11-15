@@ -1,14 +1,15 @@
+# Template cask: version, channel, and SHA-256 digests are populated during release packaging (eng/release/package-release.sh).
 cask "intochat" do
   arch arm: "arm64", intel: "x64"
 
-  version "0.17.0"
-  sha256 arm:   "0000000000000000000000000000000000000000000000000000000000000000",
-         intel: "0000000000000000000000000000000000000000000000000000000000000000"
+  version "PENDING_RELEASE_VERSION"
+  sha256 arm:   "PENDING_RELEASE_SHA256_OSX_ARM64",
+         intel: "PENDING_RELEASE_SHA256_OSX_X64"
 
-  url "https://releases.intochat.io/stable/#{version}/intochat-#{version}-osx-#{arch}.tar.gz"
+  url "https://releases.intochat.ai/PENDING_RELEASE_CHANNEL/#{version}/intochat-#{version}-osx-#{arch}.tar.gz"
   name "IntoChat OS"
   desc "Local-first AI operating system with Ino, live C# micro-apps, and ArtCraft studios"
-  homepage "https://intochat.io"
+  homepage "https://intochat.ai"
 
   depends_on macos: ">= :sonoma"
 
