@@ -18,6 +18,8 @@ using DigitalBrain.UI;
 using IntoChat.OS.Apps.ArtCraft;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.PhotoCraft;
@@ -154,8 +156,13 @@ public sealed record PhotoCraftAppState(
 }
 
 [Neuron("app.photocraft")]
-public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>("photocraft")
+public sealed class PhotoCraftApp : ArtCraftStudioAppCore<PhotoCraftAppState>
 {
+    public PhotoCraftApp() : this(null) { }
+
+    [ActivatorUtilitiesConstructor]
+    public PhotoCraftApp(ILogger<PhotoCraftApp>? logger = null) : base("photocraft", logger) { }
+
     public const string AppName = ShippedApps.PhotoCraft;
 
     public static AppBundle Bundle { get; } = new(

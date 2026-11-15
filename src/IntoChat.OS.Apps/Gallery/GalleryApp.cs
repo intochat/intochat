@@ -17,6 +17,7 @@ using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Gallery;
@@ -369,6 +370,19 @@ public sealed record GalleryAppState(
 [Screen("app.gallery", Title = "UI Gallery", Icon = Icons.Sparkles)]
 public sealed class GalleryApp : AggregateScreen<GalleryAppState>
 {
+    private static readonly ILoggerFactory ConsoleLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
+    private static readonly ILogger ConsoleLogger = ConsoleLoggerFactory.CreateLogger<GalleryApp>();
+
+    private readonly ILogger _logger;
+
+    public GalleryApp() : this(null) { }
+
+    [ActivatorUtilitiesConstructor]
+    public GalleryApp(ILogger<GalleryApp>? logger = null)
+    {
+        _logger = (ILogger?)logger ?? ConsoleLogger;
+    }
+
     public const string AppName = "gallery";
 
     public static AppBundle Bundle { get; } = new(
@@ -598,7 +612,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     protected override Node Render(GalleryAppState state)
         => GalleryRendering.RenderRoot(state, LastRejection);
 
-    private static readonly ILogger<GalleryApp> Log = LoggerFactory.Create(_ => { }).CreateLogger<GalleryApp>();
+    private ILogger Log => _logger;
 
     private T? TryGetOptional<T>(string key) where T : class
     {

@@ -283,12 +283,6 @@ public static class ArtCraftEngineRunner
         IFilesVfsService? vfs)
     {
         var previewUrl = string.Empty;
-        var modeBadge = mode switch
-        {
-            "mcp" => $"MCP Server ({descriptor.Id}-mcp)",
-            "wasm-ui" => descriptor.Id == ShippedApps.FilmCraft ? "WASM Web UI + Page Bridge" : "WASM Web UI + Engine",
-            _ => $"Native Linux CLI ({descriptor.CliBinary})",
-        };
 
         var mcpExecuted = false;
         if (mode == "mcp" && studio is not null && mcpResolver is not null)
@@ -375,6 +369,7 @@ public static class ArtCraftEngineRunner
             }
         }
 
+        var modeBadge = $"MCP Server ({descriptor.Id}-mcp)";
         var summary = $"Executed `{cmdId}` ({title}) via **{modeBadge}** · {inputLabel}: `{inputDoc}` -> Output: `{outputDoc}`";
         return new ArtCraftEngineResult(
             descriptor.Id, mode, cmdId, title, paramsJson, inputDoc, outputDoc,

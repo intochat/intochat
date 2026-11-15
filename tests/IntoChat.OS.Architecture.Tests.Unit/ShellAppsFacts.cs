@@ -30,8 +30,11 @@ public sealed class ShellAppsFacts
         foreach (var appType in appTypes)
         {
             var ctors = appType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
-            var ctor = Assert.Single(ctors);
-            Assert.Empty(ctor.GetParameters());
+            Assert.NotEmpty(ctors);
+            Assert.Contains(ctors, ctor => ctor.GetParameters().All(parameter => parameter.HasDefaultValue));
+            Assert.All(
+                ctors,
+                ctor => Assert.All(ctor.GetParameters(), parameter => Assert.True(parameter.HasDefaultValue)));
         }
     }
 }

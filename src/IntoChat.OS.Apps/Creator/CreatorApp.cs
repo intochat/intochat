@@ -23,6 +23,7 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Flutter.Fields;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Creator;
@@ -70,7 +71,21 @@ public sealed record CreatorReject(string? ApprovalId = null) : DigitalBrain.Sig
 [Neuron("app.creator")]
 public sealed class CreatorApp : Screen<CreatorState>
 {
-    private static readonly ILogger<CreatorApp> Log = LoggerFactory.Create(_ => { }).CreateLogger<CreatorApp>();
+    private static readonly ILoggerFactory ConsoleLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
+    private static readonly ILogger ConsoleLogger = ConsoleLoggerFactory.CreateLogger<CreatorApp>();
+
+    private readonly ILogger _logger;
+
+    public CreatorApp() : this(null) { }
+
+    [ActivatorUtilitiesConstructor]
+    public CreatorApp(ILogger<CreatorApp>? logger = null)
+    {
+        _logger = (ILogger?)logger ?? ConsoleLogger;
+    }
+
+    private ILogger Log => _logger;
+
     private const string FlowsKey = "flows/index";
     private const string ApprovalsKey = "approvals/index";
     private const string SynapsesKey = "ino/synapses";

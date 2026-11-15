@@ -18,6 +18,8 @@ using DigitalBrain.UI;
 using IntoChat.OS.Apps.ArtCraft;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.FilmCraft;
@@ -89,8 +91,13 @@ public sealed record FilmCraftAppState(
 }
 
 [Neuron("app.filmcraft")]
-public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("filmcraft")
+public sealed class FilmCraftApp : ArtCraftStudioAppCore<FilmCraftAppState>
 {
+    public FilmCraftApp() : this(null) { }
+
+    [ActivatorUtilitiesConstructor]
+    public FilmCraftApp(ILogger<FilmCraftApp>? logger = null) : base("filmcraft", logger) { }
+
     protected override string ActiveDocumentLabel => "Sequence";
     public const string AppName = ShippedApps.FilmCraft;
 

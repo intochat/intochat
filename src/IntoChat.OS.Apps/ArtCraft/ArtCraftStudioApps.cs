@@ -20,6 +20,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Mcp;
 using IntoChat.OS.UI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
 
@@ -98,14 +99,19 @@ public sealed record ArtCraftStudioAppState(
     }
 }
 
-internal static class ArtCraftAppLog
+internal static class ArtCraftConsoleLog
 {
-    internal static readonly ILogger Logger = LoggerFactory.Create(_ => { }).CreateLogger("IntoChat.OS.Apps.ArtCraft");
+    private static readonly ILoggerFactory Factory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
+    internal static readonly ILogger Instance = Factory.CreateLogger("IntoChat.OS.Apps.ArtCraft");
 }
 
-public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScreen<TState>, IWithFilesVfs
+public abstract class ArtCraftStudioAppCore<TState>(string appId, ILogger? logger = null) : AggregateScreen<TState>, IWithFilesVfs
     where TState : class, new()
 {
+    private readonly ILogger _appLogger = logger ?? ArtCraftConsoleLog.Instance;
+
+    private ILogger AppLogger => _appLogger;
+
     public new TState State => base.State;
     public View Render() => PreviewView(State);
     public ArtCraftAppDescriptor Descriptor { get; } = ArtCraftCatalog.Get(appId);
@@ -141,7 +147,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                ArtCraftAppLog.Logger.LogDebug(error, "Files VFS resolution is optional when opening {App}.", Descriptor.Title);
+                AppLogger.LogDebug(error, "Files VFS resolution is optional when opening {App}.", Descriptor.Title);
             }
         }
 
@@ -157,7 +163,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                ArtCraftAppLog.Logger.LogDebug(error, "ArtCraftStudioNeuron MCP endpoint is optional when opening {App} in local/headless mode.", Descriptor.Title);
+                AppLogger.LogDebug(error, "ArtCraftStudioNeuron MCP endpoint is optional when opening {App} in local/headless mode.", Descriptor.Title);
             }
         }
 
@@ -176,7 +182,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
             try { result = await engine.Execute(Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode); }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                ArtCraftAppLog.Logger.LogDebug(error, "ArtCraftEngineNeuron is optional when running {App} standalone.", Descriptor.Title);
+                AppLogger.LogDebug(error, "ArtCraftEngineNeuron is optional when running {App} standalone.", Descriptor.Title);
             }
         }
 
@@ -184,7 +190,7 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
             Descriptor.Id, instructionOrCommand, explicitParamsJson, targetDoc, mode,
             TryGetOptional<IArtCraftStudio>("artcraft", $"ArtCraftStudioNeuron is optional when running {Descriptor.Title} in unit tests."),
             mcpKey => TryGetOptional<IMcpServer>(mcpKey, $"McpServerNeuron is optional when running {Descriptor.Title} in unit tests."),
-            (err, reason) => ArtCraftAppLog.Logger.LogDebug(err, "{Reason}", reason),
+            (err, reason) => AppLogger.LogDebug(err, "{Reason}", reason),
             FilesVfs);
     }
 
@@ -274,11 +280,11 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
     private T? TryGetOptional<T>(string key, string reason) where T : class
     {
         try { return Get<T>(key); }
-        catch (Exception error) when (error is not OperationCanceledException) { ArtCraftAppLog.Logger.LogDebug(error, "{Reason}", reason); return null; }
+        catch (Exception error) when (error is not OperationCanceledException) { AppLogger.LogDebug(error, "{Reason}", reason); return null; }
     }
 }
 
-public abstract class ArtCraftStudioAppBase(string appId) : ArtCraftStudioAppCore<ArtCraftStudioAppState>(appId)
+public abstract class ArtCraftStudioAppBase(string appId, ILogger? logger = null) : ArtCraftStudioAppCore<ArtCraftStudioAppState>(appId, logger)
 {
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
@@ -379,46 +385,136 @@ public abstract class ArtCraftStudioAppBase(string appId) : ArtCraftStudioAppCor
 }
 
 [Neuron("app.artcraft")]
-public sealed class ArtCraftApp() : ArtCraftStudioAppBase("artcraft") { public static AppBundle Bundle { get; } = CreateBundle("artcraft", typeof(ArtCraftApp)); }
+public sealed class ArtCraftApp : ArtCraftStudioAppBase
+{
+    public ArtCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public ArtCraftApp(ILogger<ArtCraftApp>? logger = null) : base("artcraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("artcraft", typeof(ArtCraftApp));
+}
 
 [Neuron("app.vectorcraft")]
-public sealed class VectorCraftApp() : ArtCraftStudioAppBase("vectorcraft") { public static AppBundle Bundle { get; } = CreateBundle("vectorcraft", typeof(VectorCraftApp)); }
+public sealed class VectorCraftApp : ArtCraftStudioAppBase
+{
+    public VectorCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public VectorCraftApp(ILogger<VectorCraftApp>? logger = null) : base("vectorcraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("vectorcraft", typeof(VectorCraftApp));
+}
 
 [Neuron("app.lightcraft")]
-public sealed class LightCraftApp() : ArtCraftStudioAppBase("lightcraft") { public static AppBundle Bundle { get; } = CreateBundle("lightcraft", typeof(LightCraftApp)); }
+public sealed class LightCraftApp : ArtCraftStudioAppBase
+{
+    public LightCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public LightCraftApp(ILogger<LightCraftApp>? logger = null) : base("lightcraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("lightcraft", typeof(LightCraftApp));
+}
 
 [Neuron("app.effectcraft")]
-public sealed class EffectCraftApp() : ArtCraftStudioAppBase("effectcraft") { public static AppBundle Bundle { get; } = CreateBundle("effectcraft", typeof(EffectCraftApp)); }
+public sealed class EffectCraftApp : ArtCraftStudioAppBase
+{
+    public EffectCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public EffectCraftApp(ILogger<EffectCraftApp>? logger = null) : base("effectcraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("effectcraft", typeof(EffectCraftApp));
+}
 
 [Neuron("app.designcraft")]
-public sealed class DesignCraftApp() : ArtCraftStudioAppBase("designcraft") { public static AppBundle Bundle { get; } = CreateBundle("designcraft", typeof(DesignCraftApp)); }
+public sealed class DesignCraftApp : ArtCraftStudioAppBase
+{
+    public DesignCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public DesignCraftApp(ILogger<DesignCraftApp>? logger = null) : base("designcraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("designcraft", typeof(DesignCraftApp));
+}
 
 [Neuron("app.pdfcraft")]
-public sealed class PdfCraftApp() : ArtCraftStudioAppBase("pdfcraft") { public static AppBundle Bundle { get; } = CreateBundle("pdfcraft", typeof(PdfCraftApp)); }
+public sealed class PdfCraftApp : ArtCraftStudioAppBase
+{
+    public PdfCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public PdfCraftApp(ILogger<PdfCraftApp>? logger = null) : base("pdfcraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("pdfcraft", typeof(PdfCraftApp));
+}
 
 [Neuron("app.wordcraft")]
-public sealed class WordCraftApp() : ArtCraftStudioAppBase("wordcraft") { public static AppBundle Bundle { get; } = CreateBundle("wordcraft", typeof(WordCraftApp)); }
+public sealed class WordCraftApp : ArtCraftStudioAppBase
+{
+    public WordCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public WordCraftApp(ILogger<WordCraftApp>? logger = null) : base("wordcraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("wordcraft", typeof(WordCraftApp));
+}
 
 [Neuron("app.soundcraft")]
-public sealed class SoundCraftApp() : ArtCraftStudioAppBase("soundcraft") { public static AppBundle Bundle { get; } = CreateBundle("soundcraft", typeof(SoundCraftApp)); }
+public sealed class SoundCraftApp : ArtCraftStudioAppBase
+{
+    public SoundCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public SoundCraftApp(ILogger<SoundCraftApp>? logger = null) : base("soundcraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("soundcraft", typeof(SoundCraftApp));
+}
 
 [Neuron("app.deckcraft")]
-public sealed class DeckCraftApp() : ArtCraftStudioAppBase("deckcraft") { public static AppBundle Bundle { get; } = CreateBundle("deckcraft", typeof(DeckCraftApp)); }
+public sealed class DeckCraftApp : ArtCraftStudioAppBase
+{
+    public DeckCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public DeckCraftApp(ILogger<DeckCraftApp>? logger = null) : base("deckcraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("deckcraft", typeof(DeckCraftApp));
+}
 
 [Neuron("app.cadcraft")]
-public sealed class CadCraftApp() : ArtCraftStudioAppBase("cadcraft") { public static AppBundle Bundle { get; } = CreateBundle("cadcraft", typeof(CadCraftApp)); }
+public sealed class CadCraftApp : ArtCraftStudioAppBase
+{
+    public CadCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public CadCraftApp(ILogger<CadCraftApp>? logger = null) : base("cadcraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("cadcraft", typeof(CadCraftApp));
+}
 
 [Neuron("app.gridcraft")]
-public sealed class GridCraftApp() : ArtCraftStudioAppBase("gridcraft") { public static AppBundle Bundle { get; } = CreateBundle("gridcraft", typeof(GridCraftApp)); }
+public sealed class GridCraftApp : ArtCraftStudioAppBase
+{
+    public GridCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public GridCraftApp(ILogger<GridCraftApp>? logger = null) : base("gridcraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("gridcraft", typeof(GridCraftApp));
+}
 
 [Neuron("app.figcraft")]
-public sealed class FigCraftApp() : ArtCraftStudioAppBase("figcraft") { public static AppBundle Bundle { get; } = CreateBundle("figcraft", typeof(FigCraftApp)); }
+public sealed class FigCraftApp : ArtCraftStudioAppBase
+{
+    public FigCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public FigCraftApp(ILogger<FigCraftApp>? logger = null) : base("figcraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("figcraft", typeof(FigCraftApp));
+}
 
 [Neuron("app.texturecraft")]
-public sealed class TextureCraftApp() : ArtCraftStudioAppBase("texturecraft") { public static AppBundle Bundle { get; } = CreateBundle("texturecraft", typeof(TextureCraftApp)); }
+public sealed class TextureCraftApp : ArtCraftStudioAppBase
+{
+    public TextureCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public TextureCraftApp(ILogger<TextureCraftApp>? logger = null) : base("texturecraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("texturecraft", typeof(TextureCraftApp));
+}
 
 [Neuron("app.materialcraft")]
-public sealed class MaterialCraftApp() : ArtCraftStudioAppBase("materialcraft") { public static AppBundle Bundle { get; } = CreateBundle("materialcraft", typeof(MaterialCraftApp)); }
+public sealed class MaterialCraftApp : ArtCraftStudioAppBase
+{
+    public MaterialCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public MaterialCraftApp(ILogger<MaterialCraftApp>? logger = null) : base("materialcraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("materialcraft", typeof(MaterialCraftApp));
+}
 
 [Neuron("app.solidcraft")]
-public sealed class SolidCraftApp() : ArtCraftStudioAppBase("solidcraft") { public static AppBundle Bundle { get; } = CreateBundle("solidcraft", typeof(SolidCraftApp)); }
+public sealed class SolidCraftApp : ArtCraftStudioAppBase
+{
+    public SolidCraftApp() : this(null) { }
+    [ActivatorUtilitiesConstructor]
+    public SolidCraftApp(ILogger<SolidCraftApp>? logger = null) : base("solidcraft", logger) { }
+    public static AppBundle Bundle { get; } = CreateBundle("solidcraft", typeof(SolidCraftApp));
+}
