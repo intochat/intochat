@@ -1,8 +1,10 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Operations;
+using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
@@ -396,6 +398,197 @@ public sealed class FlowsNeuronFacts
 
         Assert.False(operation.Cancellation.IsCancellationRequested);
         await Eventually(flows, id, v => v.Status == FlowStatus.Cancelled);
+    }
+
+    private const string PersonCancels = "apps.flows-person-cancels-approval-wait";
+
+    private static IDisposable AsPerson(INeuronRuntime runtime) => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value));
+
+    // An agent's tool call as ContractActions.Marked stamps it; an MCP client is the same with the conversation "mcp".
+    private static IDisposable AsAgent(INeuronRuntime runtime, string conversation = "ino/conversations/main")
+        => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value, CallerKind.Agent, conversationId: conversation));
+
+    // Unproved local traffic as AccountSession stamps it.
+    private static IDisposable AsLocalApp(INeuronRuntime runtime)
+        => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value, CallerKind.App, "local"));
+
+    private static IFlowCanceller Canceller(INeuronRuntime runtime) => runtime.Get<IFlowCanceller>(runtime.Id(FlowCanceller.Alias, "tasks"));
+
+    private static async Task<ConfirmationRequested[]> Pending(INeuronRuntime runtime)
+        => (await runtime.Get<IConfirmationInbox>(new NeuronId(runtime.Brain, "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey)).Read()).Pending;
+
+    private static async Task PendingEventually(INeuronRuntime runtime, Func<ConfirmationRequested[], bool> done)
+    {
+        ConfirmationRequested[] pending = [];
+        for (var i = 0; i < 200; i++)
+        {
+            pending = await Pending(runtime);
+            if (done(pending)) { return; }
+            await Task.Delay(50, Ct);
+        }
+        Assert.Fail($"The inbox did not reach the expected plans; last: {string.Join(", ", pending.Select(plan => plan.PlanId))}");
+    }
+
+    private static async Task HeadEventually(INeuronRuntime runtime, string flowId, FlowStatus status)
+    {
+        var flow = runtime.Get<IFlowStarter>(NeuronId.Parse(flowId));
+        var last = FlowStatus.Pending;
+        for (var i = 0; i < 200; i++)
+        {
+            last = (await flow.Head()).Status;
+            if (last == status) { return; }
+            await Task.Delay(50, Ct);
+        }
+        Assert.Fail($"The flow {flowId} did not reach {status}; last: {last}");
+    }
+
+    // A flow that waits at "second" for a person, with its plan pending in the inbox: the flow saves the wait before it asks.
+    private static async Task<(string FlowId, string PlanId)> WaitingForApproval(INeuronRuntime runtime)
+    {
+        var flows = Flows(runtime);
+        var id = await flows.Start(TestFlow.Alias, "Mine", null, Inner(new TestInner { WaitApproval = true }), Ct);
+        var view = await Eventually(flows, id, v => v.Status == FlowStatus.Waiting && v.WaitingFor == WaitReason.Approval && v.ConfirmationPlanId is not null);
+        await PendingEventually(runtime, pending => pending.Any(plan => plan.PlanId == view.ConfirmationPlanId));
+        return (id, view.ConfirmationPlanId!);
+    }
+
+    // The flow's own word, its journal and the inbox: the index shows a cancel that got through only a turn later.
+    private static async Task StillWaiting(INeuronRuntime runtime, string flowId, string planId)
+    {
+        Assert.Equal(FlowStatus.Waiting, (await runtime.Get<IFlowStarter>(NeuronId.Parse(flowId)).Head()).Status);
+        Assert.Empty(await runtime.Signals<FlowDone>(NeuronId.Parse(flowId), Ct));
+        Assert.Contains(await Pending(runtime), plan => plan.PlanId == planId);
+    }
+
+    private static void IsRefusal(RuleViolationException refused, string flowId)
+    {
+        Assert.Equal("Cancel", refused.Rejected.Operation);
+        Assert.Equal([PersonCancels], refused.Rejected.Rules);
+        Assert.Equal($"flow {flowId} waits for a person at second: only a person cancels it", refused.Message);
+    }
+
+    [Fact]
+    public async Task AgentCannotCancelFlowWaitingForApproval()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+        var (id, planId) = await WaitingForApproval(runtime);
+
+        RuleViolationException refused;
+        using (AsAgent(runtime)) { refused = await Assert.ThrowsAsync<RuleViolationException>(() => flows.Cancel(id, "agent says stop", Ct)); }
+
+        IsRefusal(refused, id);
+        await StillWaiting(runtime, id, planId);
+
+        // A cancelled run cannot complete: the person's approval still runs this one to its end.
+        await runtime.ApproveAsPerson(planId, Ct);
+        await Eventually(flows, id, v => v.Status == FlowStatus.Completed);
+    }
+
+    [Theory]
+    [InlineData("mcp")]
+    [InlineData("local")]
+    public async Task McpAgentAndLocalAppCannotCancelFlowWaitingForApproval(string caller)
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+        var (id, planId) = await WaitingForApproval(runtime);
+
+        RuleViolationException refused;
+        using (caller == "mcp" ? AsAgent(runtime, "mcp") : AsLocalApp(runtime))
+        {
+            refused = await Assert.ThrowsAsync<RuleViolationException>(() => flows.Cancel(id, "stop", Ct));
+        }
+
+        IsRefusal(refused, id);
+        await StillWaiting(runtime, id, planId);
+    }
+
+    [Fact]
+    public async Task AgentCannotCancelThroughAnAppNeuron()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var (id, planId) = await WaitingForApproval(runtime);
+
+        RuleViolationException refused;
+        using (AsAgent(runtime)) { refused = await Assert.ThrowsAsync<RuleViolationException>(() => Canceller(runtime).Cancel(id, "agent says stop")); }
+
+        IsRefusal(refused, id);
+        await StillWaiting(runtime, id, planId);
+    }
+
+    // The owner's Cancel button reaches the index through the Tasks app neuron, so the person is not the direct caller there.
+    [Fact]
+    public async Task PersonCancelsFlowWaitingForApprovalThroughAnAppNeuron()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var (id, planId) = await WaitingForApproval(runtime);
+
+        using (AsPerson(runtime)) { await Canceller(runtime).Cancel(id, "I changed my mind"); }
+
+        var view = await Eventually(Flows(runtime), id, v => v.Status == FlowStatus.Cancelled);
+        Assert.Equal("I changed my mind", view.Detail);
+        await PendingEventually(runtime, pending => pending.All(plan => plan.PlanId != planId));
+    }
+
+    [Fact]
+    public async Task PersonCancelsFlowWaitingForApproval()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+        var (id, planId) = await WaitingForApproval(runtime);
+
+        using (AsPerson(runtime)) { await flows.Cancel(id, "I changed my mind", Ct); }
+
+        var view = await Eventually(flows, id, v => v.Status == FlowStatus.Cancelled);
+        Assert.Equal("I changed my mind", view.Detail);
+        await PendingEventually(runtime, pending => pending.All(plan => plan.PlanId != planId));
+    }
+
+    [Fact]
+    public async Task AgentCancelsFlowThatDoesNotWaitForAPerson()
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var flows = Flows(runtime);
+        var id = await flows.Start(TestFlow.Alias, "External", null, Inner(new TestInner { Wait = true }), Ct);
+        await Eventually(flows, id, v => v.Status == FlowStatus.Waiting && v.WaitingFor == WaitReason.External);
+
+        using (AsAgent(runtime)) { await flows.Cancel(id, "agent says stop", Ct); }
+
+        var view = await Eventually(flows, id, v => v.Status == FlowStatus.Cancelled);
+        Assert.Equal("agent says stop", view.Detail);
+    }
+
+    // The flow started before the index existed, so the index holds no entry and cannot tell what the flow waits for: an agent
+    // is refused whatever the wait is, and a person is not.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AgentCannotCancelWaitingFlowTheIndexHasNotSeen(bool approval)
+    {
+        await using var fixture = new FlowsFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        var id = runtime.Id(TestFlow.Alias, Guid.NewGuid().ToString("N")).ToString();
+        await runtime.Get<IFlowStarter>(NeuronId.Parse(id)).StartFromJson("Unseen", "owner-1", null, Inner(new TestInner { WaitApproval = approval, Wait = !approval }));
+        await HeadEventually(runtime, id, FlowStatus.Waiting);
+        if (approval) { await PendingEventually(runtime, pending => pending.Length == 1); }
+        var flows = Flows(runtime);
+
+        RuleViolationException refused;
+        using (AsAgent(runtime)) { refused = await Assert.ThrowsAsync<RuleViolationException>(() => flows.Cancel(id, "agent says stop", Ct)); }
+
+        IsRefusal(refused, id);
+        Assert.Equal(FlowStatus.Waiting, (await runtime.Get<IFlowStarter>(NeuronId.Parse(id)).Head()).Status);
+        Assert.Empty(await runtime.Signals<FlowDone>(NeuronId.Parse(id), Ct));
+
+        using (AsPerson(runtime)) { await flows.Cancel(id, "I changed my mind", Ct); }
+        await HeadEventually(runtime, id, FlowStatus.Cancelled);
     }
 
     // A flow waiting at "second" is related BlockedBy a target that waits too, then resumed into "third", which holds on the gate,

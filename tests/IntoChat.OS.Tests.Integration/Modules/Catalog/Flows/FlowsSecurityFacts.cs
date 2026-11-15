@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -168,6 +169,29 @@ public sealed class FlowsSecurityFacts
         var cancelled = await Eventually(runtime, ino, view => view.Status == FlowStatus.Cancelled);
         Assert.Equal("security interrupt", cancelled.Detail);
         Assert.Equal(FlowStatus.Waiting, (await Flows(runtime).Read(person, Ct))!.Status);
+    }
+
+    // A trusted interrupt ends an Ino run that waits for a person too, and the plan leaves the inbox. This one is the platform's,
+    // written on a schedule: the reaction that cancels runs for the scheduler, a caller the index's Cancel refuses.
+    [Fact]
+    public async Task CancelFlowsTagCancelsInoFlowWaitingForApproval()
+    {
+        await using var fixture = new SecurityFixture();
+        await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        await Flows(runtime).List(new FlowQuery(), Ct);
+        var inbox = runtime.Get<IConfirmationInbox>(new NeuronId(runtime.Brain, "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey));
+        string ino;
+        using (AsInoTool(runtime)) { ino = await Flows(runtime).Start(TestFlow.Alias, "Ino flow", null, JsonSerializer.Serialize(new TestInner { WaitApproval = true }, TestFlow.Json), Ct); }
+        var waiting = await Eventually(runtime, ino, view => view.Status == FlowStatus.Waiting && view.WaitingFor == WaitReason.Approval && view.ConfirmationPlanId is not null);
+        for (var i = 0; i < 200 && (await inbox.Read()).Pending.All(plan => plan.PlanId != waiting.ConfirmationPlanId); i++) { await Task.Delay(50, Ct); }
+        Assert.Contains((await inbox.Read()).Pending, plan => plan.PlanId == waiting.ConfirmationPlanId);
+
+        using (As(runtime, CallerKind.Scheduler)) { await Posture(runtime).Set(new ContextEntry("stop", "Stop and cancel.", [], [ContextTags.Interrupt, "cancel-flows"])); }
+
+        var cancelled = await Eventually(runtime, ino, view => view.Status == FlowStatus.Cancelled);
+        Assert.Equal("security interrupt", cancelled.Detail);
+        for (var i = 0; i < 200 && (await inbox.Read()).Pending.Length > 0; i++) { await Task.Delay(50, Ct); }
+        Assert.Empty((await inbox.Read()).Pending);
     }
 
     [Fact]

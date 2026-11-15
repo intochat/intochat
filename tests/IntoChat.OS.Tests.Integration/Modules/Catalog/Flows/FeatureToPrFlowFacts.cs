@@ -182,6 +182,17 @@ public sealed class FeatureToPrFlowFacts : IDisposable
                 resolver.Resolve(waitingView.ConfirmationPlanId!, approve: true));
         }
 
+        // An agent's cancel of the waiting run is refused: the run still waits and its tree stays.
+        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value, CallerKind.Agent, conversationId: "ino/conversations/main")))
+        {
+            var refused = await Assert.ThrowsAsync<DigitalBrain.Rules.RuleViolationException>(() => flows.Cancel(flowId, "agent says stop", Ct));
+            Assert.Equal(["apps.flows-person-cancels-approval-wait"], refused.Rejected.Rules);
+            Assert.Equal($"flow {flowId} waits for a person at approval-gate: only a person cancels it", refused.Message);
+        }
+        Assert.Equal(FlowStatus.Waiting, (await starter.Head()).Status);
+        Assert.Empty(await runtime.Signals<FlowDone>(FlowTypeFacts.Id(flowId), Ct));
+        Assert.True(Directory.Exists(innerBeforeApproval.Lease!.TreePath));
+
         // Before Person approval, remote bare repo MUST NOT have the branch and flow MUST still be Waiting!
         var branchesBefore = RunGit(bareOrigin, ["branch", "--list", "ino/*"]).Trim();
         Assert.Equal("", branchesBefore);

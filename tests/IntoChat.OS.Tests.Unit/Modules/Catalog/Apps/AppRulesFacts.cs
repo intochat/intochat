@@ -32,7 +32,7 @@ public sealed class AppRulesFacts
         var names = rules.Select(t => CreateDefault(t).Name).ToArray();
         Assert.All(names, n => Assert.StartsWith("apps.", n, StringComparison.Ordinal));
         Assert.Equal(names.Length, names.Distinct(StringComparer.Ordinal).Count());
-        Assert.Equal(26, rules.Length);
+        Assert.Equal(27, rules.Length);
     }
 
     [Fact]

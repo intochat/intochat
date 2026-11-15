@@ -151,6 +151,22 @@ public sealed class TasksAppFacts
     }
 
     [Fact]
+    public async Task RefusedCancelShowsWhy()
+    {
+        await using var os = FakeOs();
+        FakeFlows.Views = [Flow("c", FlowStatus.Waiting, waiting: WaitReason.Approval)];
+        var flowId = FakeFlows.Views[0].FlowId;
+        FakeFlows.CancelRefusal = $"flow {flowId} waits for a person at approve: only a person cancels it";
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("open", new TasksOpen());
+
+        await tasks.Request("cancel", new TasksCancel(flowId));
+
+        Assert.Empty(FakeFlows.Cancels);
+        Assert.Contains($"Could not cancel: {FakeFlows.CancelRefusal}", Strings(tasks.App.Render()));
+    }
+
+    [Fact]
     public async Task RelateAddsRelation()
     {
         await using var os = FakeOs();
@@ -378,7 +394,10 @@ public sealed class TasksAppFacts
         public static List<string> Cancels { get; } = [];
         public static List<(string FlowId, FlowRelation Relation)> Relations { get; } = [];
 
-        public static void Reset() { Started.Clear(); Cancels.Clear(); Relations.Clear(); Views = []; }
+        // The message of the rule the index refuses a cancel with, when set.
+        public static string? CancelRefusal { get; set; }
+
+        public static void Reset() { Started.Clear(); Cancels.Clear(); Relations.Clear(); Views = []; CancelRefusal = null; }
 
         public Task<FlowView[]> List(FlowQuery query, CancellationToken ct = default) => Task.FromResult(Views);
         public Task<FlowView?> Read(string flowId, CancellationToken ct = default) => Task.FromResult(Views.FirstOrDefault(v => v.FlowId == flowId));
@@ -389,7 +408,12 @@ public sealed class TasksAppFacts
             return Task.FromResult(id);
         }
         public Task Resume(string flowId, string step, WaitOutcome outcome, CancellationToken ct = default) => Task.CompletedTask;
-        public Task Cancel(string flowId, string reason, CancellationToken ct = default) { Cancels.Add(flowId); return Task.CompletedTask; }
+        public Task Cancel(string flowId, string reason, CancellationToken ct = default)
+        {
+            if (CancelRefusal is { } message) { throw new DigitalBrain.Rules.RuleViolationException(new DigitalBrain.Rules.Rejected("Cancel", ["apps.flows-person-cancels-approval-wait"], [message])); }
+            Cancels.Add(flowId);
+            return Task.CompletedTask;
+        }
         public Task Relate(string flowId, FlowRelation relation, CancellationToken ct = default) { Relations.Add((flowId, relation)); return Task.CompletedTask; }
     }
 

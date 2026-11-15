@@ -68,12 +68,17 @@ public sealed class FlowsNeuron(
         if (cancel) { await CancelInoFlows(); }
     }
 
-    // Cancels every running or waiting Ino flow; one that cannot be cancelled is logged and the rest still are.
+    // Cancels every running or waiting Ino flow; one that cannot be cancelled is logged and the rest still are. The interrupt
+    // is a person's or the platform's, so a flow that waits for a person is cancelled too: this does not pass Cancel's rule.
     private async Task CancelInoFlows()
     {
         foreach (var flow in State.Flows.Values.Where(entry => entry.App == AssistantApp && entry.Status is FlowStatus.Running or FlowStatus.Waiting).ToArray())
         {
-            try { await Cancel(flow.FlowId, "security interrupt"); }
+            try
+            {
+                var starter = Flow(flow.FlowId);
+                await Stop(starter, await starter.Head(), "security interrupt");
+            }
             catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { FlowsLog.InterruptCancelFailed(Logger(), error, flow.FlowId); }
         }
     }
@@ -173,13 +178,30 @@ public sealed class FlowsNeuron(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         var flow = Flow(flowId);
-        if ((await flow.Head()).OperationId is { Length: > 0 } id)
+        var head = await flow.Head();
+        await Check("Cancel", new PersonCancelsApprovalWait(flowId, PersonWaitStep(flowId, head), Context.Caller));
+        await Stop(flow, head, reason, ct);
+    }
+
+    // The cancel itself, past the rule: the running step's leaf operation, then the flow.
+    private async Task Stop(IFlowStarter flow, FlowHead head, string reason, CancellationToken ct = default)
+    {
+        if (head.OperationId is { Length: > 0 } id)
         {
             // An operation that already ended (or is unknown to the brain) has nothing to cancel.
             var operation = new OperationId(id);
             if (await operationsQuery.Read(operation, ct) is { Result: null }) { await operations.Cancel(operation, ct); }
         }
         await flow.Cancel(reason);
+    }
+
+    // The step at which the flow waits for a person, or null. A flow waits at its first step not done. The index learns the wait
+    // from a signal, after the flow saved it: until it holds that step's wait, a waiting flow counts as waiting for a person.
+    private string? PersonWaitStep(string flowId, FlowHead head)
+    {
+        if (head.Status != FlowStatus.Waiting) { return null; }
+        var step = head.Steps.FirstOrDefault(name => !head.Done.Contains(name)) ?? "its current step";
+        return State.Flows.GetValueOrDefault(flowId)?.Waiting is { Reason: not WaitReason.Approval } wait && wait.Step == step ? null : step;
     }
 
     public Task Relate(string flowId, FlowRelation relation, CancellationToken ct = default)
