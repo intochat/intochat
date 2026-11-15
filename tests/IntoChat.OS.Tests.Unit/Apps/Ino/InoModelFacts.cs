@@ -83,6 +83,21 @@ public sealed class InoModelFacts
     }
 
     [Fact]
+    public void ProjectedReadsFailureFromTypedChatEntryFailureEvenWithoutMatchingErrorText()
+    {
+        var entry = new ChatEntry("r1/assistant", ChatRole.Assistant, "")
+        {
+            Status = "failed",
+            Error = "completely opaque vendor payload 9999",
+            Failure = "provider-rejected-key",
+        };
+        var next = InoModel.Projected(new InoAppState(), Chat(1, ChatRunStatus.Failed, User("hello"), entry), Agent);
+        Assert.Equal(InoModel.Failed, next.Status);
+        Assert.Equal("provider-rejected-key", next.Error?.Code);
+        Assert.Equal("provider-rejected-key", next.Messages![^1].Failure);
+    }
+
+    [Fact]
     public void AnInterruptedReplyCanBeTriedAgain()
     {
         var next = InoModel.Projected(new InoAppState(), Chat(1, ChatRunStatus.Interrupted, User("hello"), Answer("Hi", "interrupted")), Agent);
@@ -145,6 +160,6 @@ public sealed class InoModelFacts
         => new("r1/assistant", ChatRole.Assistant, text)
         {
             Status = status,
-            Error = failure,
+            Failure = failure,
         };
 }

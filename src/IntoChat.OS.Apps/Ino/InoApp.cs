@@ -2,7 +2,7 @@
 # Ino
 Role: Shell
 Shipped: true
-Operations: open, send, retry, stop, smart, use-local, save-provider, connect-db, query-db, new, new-conversation, voice, make, link
+Operations: open, send, retry, stop, smart, use-local, save-provider, connect-db, query-db, new, new-conversation, make, link
 
 The brain's personal assistant. Every message starts a background run on one agent (IAgent) per conversation while Ino projects
 the conversation through ChatNeuron (IChat) into pure InoModel state and renders a Conversation node via InoView.
@@ -33,7 +33,6 @@ namespace IntoChat.OS.Apps.Ino;
 [Signal("ino.link")] public sealed record InoPasteLink(Guid Request = default, string? App = null, string? Input = null, string? Text = null) : Signal;
 [Signal("ino.new")] public sealed record InoNew : Signal;
 [Signal("ino.new-conversation")] public sealed record InoNewConversation : Signal;
-[Signal("ino.voice")] public sealed record InoVoice : Signal;
 [Signal("ino.make")] public sealed record InoMake(string? Sentence = null, string[]? Focus = null) : Signal;
 [Signal("ino.stop")] public sealed record InoStop : Signal;
 [Signal("ino.smart")] public sealed record InoSmart(bool On = true) : Signal;
@@ -57,16 +56,15 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     private const string DataKey = "ino/data";
     private const string ModelsKey = "main";
 
-    private static readonly ILoggerFactory FallbackLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Warning));
-    private static readonly ILogger FallbackLogger = FallbackLoggerFactory.CreateLogger<InoApp>();
+    private readonly ILogger<InoApp>? _logger;
 
-    private bool _chatBound;
+    public InoApp() : this(null) { }
 
-    public ILogger<InoApp>? Logger { get; set; }
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+    public InoApp(ILogger<InoApp>? logger = null) => _logger = logger;
+
     public IFilesVfsService? FilesVfs { get; set; }
     public const string AppName = "ino";
-
-    private ILogger Log => Logger ?? FallbackLogger;
 
     public static AppBundle Bundle { get; } = new(
         "ino",
@@ -87,21 +85,13 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
                 new("query-db", "Execute a read-only SQL query against the connected database."),
                 new("new", "Start a new conversation."),
                 new("new-conversation", "Alias for new."),
-                new("voice", "Begin voice input."),
                 new("make", "Apply a sentence to the focused app, or Scratch."),
                 new("link", "Post a pasted workspace link: its app, opaque input and text."),
             ],
             Settings: [],
             Slots: [],
             Icon: "icon.svg",
-            Dock: 1,
-            Toolbar:
-            [
-                new("send", Kind: "text", Label: "Message your brain"),
-                new("new-conversation", Icon: "chat", Label: "New conversation"),
-                new("smart", Icon: "sparkles", Label: "Smart mode"),
-                new("voice", Icon: "mic", Label: "Voice"),
-            ]),
+            Dock: 1),
         "",
         new Dictionary<string, string>(StringComparer.Ordinal))
     {
@@ -166,7 +156,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     [On]
     public async Task OnGrantsChanged(GrantsChanged? changed)
     {
-        _ = changed;
+        if (changed is null) { return; }
         await Show(State with { GrantSummaries = await ReadGrantSummariesAsync() });
     }
 
@@ -240,8 +230,8 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            InoLog.LogTurnStartFailed(Log, error, agentKey);
-            await Show(InoModel.StartFailed(State, new InoError(InoModel.ClassifyErrorText(error.Message))));
+            if (_logger is { } log) { InoLog.LogTurnStartFailed(log, error, agentKey); }
+            await Show(InoModel.StartFailed(State, new InoError(AgentFailures.CodeOf(AgentFailures.Classify(error)))));
         }
     }
 
@@ -287,7 +277,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            InoLog.LogProviderSaveFailed(Log, error, provider);
+            if (_logger is { } log) { InoLog.LogProviderSaveFailed(log, error, provider); }
             await Show(State with { Error = new InoError("unknown"), Status = InoModel.Failed });
             return;
         }
@@ -340,20 +330,6 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     }
 
     [On]
-    public async Task OnTurnCompleted(TurnCompleted? completed)
-    {
-        if (_chatBound || completed is null || string.IsNullOrEmpty(completed.AgentId) || !IsCurrentAgent(completed.AgentId)) { return; }
-        await RecordComputeAsync(completed.Reply);
-        await Show(InoModel.DirectTurnCompleted(State, completed.RunId, completed.Reply, await ReadApprovalsAsync()));
-    }
-
-    [On]
-    public Task OnTurnFailed(TurnFailed? failed)
-        => _chatBound || failed is null || string.IsNullOrEmpty(failed.AgentId) || !IsCurrentAgent(failed.AgentId)
-            ? Task.CompletedTask
-            : Show(InoModel.DirectTurnFailed(State, failed.RunId, failed.Error, failed.Failure, failed.Cancelled));
-
-    [On]
     public async Task Stop(InoStop request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -384,7 +360,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            InoLog.LogDatabaseFailed(Log, error, "connect-db");
+            if (_logger is { } log) { InoLog.LogDatabaseFailed(log, error, "connect-db"); }
             await Show(State with { Status = $"Could not connect: {error.Message}" });
         }
     }
@@ -399,7 +375,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         try { result = await DataAnalyticsEngine.ExecuteAsync(sql, database, FilesVfs); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            InoLog.LogDatabaseFailed(Log, error, "query-db");
+            if (_logger is { } log) { InoLog.LogDatabaseFailed(log, error, "query-db"); }
             await Show(State with { Status = $"Could not run the query: {error.Message}" });
             return;
         }
@@ -416,9 +392,6 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
 
     [On]
     public Task NewConversation(InoNewConversation request) { ArgumentNullException.ThrowIfNull(request); return StartConversationAsync(); }
-
-    [On]
-    public Task Voice(InoVoice request) { ArgumentNullException.ThrowIfNull(request); return Show(InoModel.DecideVoice(State)); }
 
     [On]
     public async Task Make(InoMake request)
@@ -480,13 +453,11 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
             }
             await Follow<IChat, ChatChanged>(chatKey);
             await Follow<IChat, ChatRunChanged>(chatKey);
-            _chatBound = true;
             return true;
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _chatBound = false;
-            InoLog.LogOptionalUnavailable(Log, error, "chat");
+            LogOptional(error, "chat");
             return false;
         }
     }
@@ -494,25 +465,9 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     private Task ProjectCurrentChatAsync(string agentKey) => TryOptionalAsync("chat-read", async () =>
     {
         var chatState = await Get<IChat>(InoModel.ChatKeyOf(State.ConversationId)).Read();
-        var runFailures = await ReadAgentRunFailuresAsync(agentKey, chatState);
-        var next = InoModel.Projected(State, chatState, $"{CurrentBrainId}/{agentKey}", runFailures);
+        var next = InoModel.Projected(State, chatState, $"{CurrentBrainId}/{agentKey}");
         if (!ReferenceEquals(next, State)) { await Show(next); }
     });
-
-    private Task<IReadOnlyDictionary<string, AgentFailure>?> ReadAgentRunFailuresAsync(string agentKey, ChatState chat)
-    {
-        var hasFailed = chat.Run?.Status == ChatRunStatus.Failed
-            || (chat.Projection?.Messages.Any(m => string.Equals(m.Status, "failed", StringComparison.Ordinal)) ?? false);
-        if (!hasFailed) { return Task.FromResult<IReadOnlyDictionary<string, AgentFailure>?>(null); }
-
-        return ReadOptionalAsync<IReadOnlyDictionary<string, AgentFailure>?>("agent-failures", null, async () =>
-        {
-            var state = await Get<IAgent>(agentKey).Read();
-            var map = state.Runs.Where(static r => r.Failure != AgentFailure.Unknown).ToDictionary(static r => r.RunId, static r => r.Failure, StringComparer.Ordinal);
-            if (state.ActiveRun is { Failure: not AgentFailure.Unknown } active) { map[active.RunId] = active.Failure; }
-            return map;
-        });
-    }
 
     private Task RegisterConversationAsync(string agentKey)
         => TryOptionalAsync("conversations-registry", () => Get<IInoConversations>(IInoConversations.DefaultKey).Use(agentKey));
@@ -520,15 +475,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     private async Task FollowAgentControlSignalsAsync(string agentKey)
     {
         await RegisterConversationAsync(agentKey);
-        await TryOptionalAsync("agent-synapses", async () =>
-        {
-            await Follow<IAgent, AgentBlocked>(agentKey);
-            if (!_chatBound)
-            {
-                await Follow<IAgent, TurnCompleted>(agentKey);
-                await Follow<IAgent, TurnFailed>(agentKey);
-            }
-        });
+        await TryOptionalAsync("agent-synapses", () => Follow<IAgent, AgentBlocked>(agentKey));
     }
 
     private Task EnsureProfileContextAsync()
@@ -619,14 +566,10 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         }
     }
 
-    private static string? ExtractSendText(InoSend r) => r.Message is null && r.Text is null && r.Value is null
-        ? "hello"
-        : (r.Message ?? r.Text ?? r.Value ?? string.Empty) switch
-        {
-            var c when string.IsNullOrWhiteSpace(c) => null,
-            var c when c.Length > InoModel.MaxMessageChars => c,
-            var c => c.Trim(),
-        };
+    private static string? ExtractSendText(InoSend r)
+        => string.IsNullOrWhiteSpace(r.EffectiveMessage) ? null
+            : r.EffectiveMessage.Length > InoModel.MaxMessageChars ? r.EffectiveMessage
+            : r.EffectiveMessage.Trim();
 
     private static bool IsSmart(UserSettingsState s) => s.Variables.Any(v => v.Key == SmartVariable && string.Equals(v.Value, "on", StringComparison.OrdinalIgnoreCase));
     private static bool HasExplicitModelChoice(UserSettingsState s) => s.Variables.Any(v => v.Key == ModelChosenVariable && string.Equals(v.Value, "on", StringComparison.OrdinalIgnoreCase));
@@ -638,7 +581,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         try { return Context.Time.GetUtcNow(); }
         catch (InvalidOperationException error)
         {
-            InoLog.LogOptionalUnavailable(Log, error, "clock");
+            LogOptional(error, "clock");
             return DateTimeOffset.UtcNow;
         }
     }
@@ -663,7 +606,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
             try { return Id.Brain.Value is { Length: > 0 } b ? b : "local"; }
             catch (InvalidOperationException error)
             {
-                InoLog.LogOptionalUnavailable(Log, error, "brain-id");
+                LogOptional(error, "brain-id");
                 return "local";
             }
         }
@@ -674,7 +617,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         try { return Get<T>(key); }
         catch (InvalidOperationException error)
         {
-            InoLog.LogOptionalUnavailable(Log, error, typeof(T).Name);
+            LogOptional(error, typeof(T).Name);
             return null;
         }
     }
@@ -682,7 +625,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     private async Task TryOptionalAsync(string target, Func<Task> action)
     {
         try { await action(); }
-        catch (Exception error) when (error is not OperationCanceledException) { InoLog.LogOptionalUnavailable(Log, error, target); }
+        catch (Exception error) when (error is not OperationCanceledException) { LogOptional(error, target); }
     }
 
     private async Task<T> ReadOptionalAsync<T>(string target, T fallback, Func<Task<T>> action)
@@ -690,9 +633,14 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         try { return await action(); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            InoLog.LogOptionalUnavailable(Log, error, target);
+            LogOptional(error, target);
             return fallback;
         }
+    }
+
+    private void LogOptional(Exception error, string target)
+    {
+        if (_logger is { } log) { InoLog.LogOptionalUnavailable(log, error, target); }
     }
 }
 

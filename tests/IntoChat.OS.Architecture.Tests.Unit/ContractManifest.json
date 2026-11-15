@@ -217,7 +217,6 @@
     "IntoChat.OS.Apps.Ino.InoOpen": "InoOpen",
     "IntoChat.OS.Apps.Ino.InoQueryDb": "InoQueryDb",
     "IntoChat.OS.Apps.Ino.InoSend": "InoSend",
-    "IntoChat.OS.Apps.Ino.InoVoice": "InoVoice",
     "IntoChat.OS.Apps.PhotoCraft.PhotoCraftRemoveBackground": "PhotoCraftRemoveBackground",
     "IntoChat.OS.Apps.PhotoCraft.PhotoCraftRunCommand": "PhotoCraftRunCommand",
     "IntoChat.OS.Apps.PhotoCraft.PhotoCraftStudioEdit": "PhotoCraftStudioEdit",

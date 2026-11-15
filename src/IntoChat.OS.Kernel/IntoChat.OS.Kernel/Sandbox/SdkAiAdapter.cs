@@ -17,16 +17,6 @@ internal sealed class SdkAiAdapter(IServiceProvider services)
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
         using (InProcessCallerScope.EnterKernel(brainId))
         {
-            var catalog = SiloNeurons.Get<IModelCatalog>(services, IModelCatalog.Key(brainId));
-            var choices = await catalog.List().WaitAsync(cancellationToken).ConfigureAwait(false);
-            var chosen = choices.Automatic is { Available: true } ? choices.Automatic
-                : choices.Models.FirstOrDefault(model => model.Available);
-
-            if (chosen is null || string.IsNullOrWhiteSpace(chosen.Id))
-            {
-                throw new InvalidOperationException("No AI model is currently configured for this brain.");
-            }
-
             var messages = new List<AiMessage>();
             if (!string.IsNullOrWhiteSpace(systemPrompt))
             {
@@ -35,7 +25,7 @@ internal sealed class SdkAiAdapter(IServiceProvider services)
 
             messages.Add(new AiMessage("user", [new AiText(prompt)]));
 
-            var llm = SiloNeurons.Get<ILLM>(services, $"{brainId}/default");
+            var llm = SiloNeurons.Get<ILLM>(services, ModelAddress.Key(brainId));
             var result = await llm.Generate(new InferenceRequest(messages), cancellationToken).ConfigureAwait(false);
             return string.Join(
                 Environment.NewLine,

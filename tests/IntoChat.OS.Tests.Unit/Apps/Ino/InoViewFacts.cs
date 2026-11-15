@@ -221,7 +221,7 @@ public sealed class InoViewFacts
                 At,
                 At.AddDays(7),
                 "trace-99")));
-        Assert.Equal(new Resolve("plan-99"), inboxApproval.Resolve);
+        Assert.Null(inboxApproval.Resolve);
         Assert.Equal("brand:github", inboxApproval.Icon);
         Assert.Equal("GitHub", inboxApproval.CapabilityLabel);
     }
@@ -270,7 +270,17 @@ public sealed class InoViewFacts
             .Where(card => card.Resolve?.PlanId == "plan-42")
             .ToArray();
 
-        Assert.Same(conversation.Waiting, Assert.Single(resolving));
+        Assert.Empty(resolving);
+        var waiting = Assert.IsType<ApprovalCardNode>(conversation.Waiting);
+        Assert.Equal("plan-42", waiting.Id);
+        Assert.Null(waiting.Resolve);
+    }
+
+    [Fact]
+    public void ManifestHasNoVoiceOperationAndNoToolbar()
+    {
+        Assert.DoesNotContain(InoApp.Bundle.Manifest.Operations, static op => op.Name == "voice");
+        Assert.Null(InoApp.Bundle.Manifest.Toolbar);
     }
 
     [Fact]

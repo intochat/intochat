@@ -276,8 +276,7 @@ public static class InoModel
         };
     }
 
-    public static InoAppState Projected(
-        InoAppState s, ChatState chat, string fullAgentKey, IReadOnlyDictionary<string, AgentFailure>? runFailures = null)
+    public static InoAppState Projected(InoAppState s, ChatState chat, string fullAgentKey)
     {
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(chat);
@@ -287,14 +286,14 @@ public static class InoModel
         }
 
         var entries = chat.Projection?.Messages ?? [];
-        var messages = entries.Select(entry => ToMessage(entry, runFailures)).ToArray();
+        var messages = entries.Select(ToMessage).ToArray();
         var isRunning = chat.Run?.Status == ChatRunStatus.Running;
         var priorMatches = s.Pending is { } prior ? CountUserMatches(s.Messages, prior.Text) : 0;
         var currentMatches = s.Pending is { } curr ? CountUserMatches(messages, curr.Text) : 0;
         var pending = s.Pending is not null && currentMatches > priorMatches ? null : s.Pending;
         var activeRunId = isRunning ? chat.Run?.RunId
             : s.ActiveRunId is { } started && !string.Equals(chat.Run?.RunId, started, StringComparison.Ordinal) ? started : null;
-        var (status, error) = ResolveProjectedStatus(s, chat.Run, messages, isRunning || pending is not null || activeRunId is not null, runFailures);
+        var (status, error) = ResolveProjectedStatus(s, chat.Run, messages, isRunning || pending is not null || activeRunId is not null);
 
         var projectedCards = InoCards.FromToolCalls(entries.SelectMany(e => e.Activities.Select(a => new AgentToolCall(a.Id, a.Title, a.Input, a.Result, a.Error))));
         var manualCards = s.ActiveCards.Where(existing => projectedCards.All(p => !string.Equals(p.Id, existing.Id, StringComparison.Ordinal))).ToArray();
@@ -315,19 +314,14 @@ public static class InoModel
         => (messages ?? []).Count(m => m.Role == "user" && string.Equals(m.Text, text, StringComparison.Ordinal));
 
     private static (string Status, InoError? Error) ResolveProjectedStatus(
-        InoAppState s, ChatRunSnapshot? run, InoMessage[] messages, bool busy, IReadOnlyDictionary<string, AgentFailure>? runFailures)
+        InoAppState s, ChatRunSnapshot? run, InoMessage[] messages, bool busy)
     {
         if (s.Blocked) { return (Paused, new InoError("paused", s.BlockedReason ?? "An interrupt holds the agent.")); }
         if (busy) { return (Working, null); }
         var lastAssistant = messages.LastOrDefault(m => m.Role == "assistant");
         if (lastAssistant is { Status: "failed" }) { return (Failed, new InoError(lastAssistant.Failure ?? "unknown")); }
         if (lastAssistant is { Status: "interrupted" } || run?.Status == ChatRunStatus.Interrupted) { return (Failed, new InoError("interrupted")); }
-        if (run?.Status == ChatRunStatus.Failed)
-        {
-            var code = run.RunId is { } rid && runFailures is not null && runFailures.TryGetValue(rid, out var f)
-                ? AgentFailures.CodeOf(f) ?? "unknown" : "unknown";
-            return (Failed, new InoError(code));
-        }
+        if (run?.Status == ChatRunStatus.Failed) { return (Failed, new InoError("unknown")); }
 
         return (Ready, null);
     }
@@ -384,42 +378,6 @@ public static class InoModel
         };
     }
 
-    public static InoAppState DirectTurnCompleted(InoAppState s, string runId, string? reply, Approval[] approvals)
-    {
-        ArgumentNullException.ThrowIfNull(s);
-        return s with
-        {
-            Pending = null,
-            ActiveRunId = null,
-            Status = Ready,
-            Error = null,
-            Messages = AppendDirectTurn(s, runId, new InoMessage($"{runId}/assistant", "assistant", reply ?? string.Empty)),
-            Approvals = approvals,
-        };
-    }
-
-    public static InoAppState DirectTurnFailed(InoAppState s, string runId, string? errorMsg, AgentFailure failure, bool cancelled)
-    {
-        ArgumentNullException.ThrowIfNull(s);
-        var text = errorMsg ?? string.Empty;
-        if (text.StartsWith(BlockedPrefix, StringComparison.Ordinal)) { return Pause(s, text); }
-        if (cancelled) { return s with { Pending = null, ActiveRunId = null, Status = Ready, Error = null }; }
-        var code = AgentFailures.CodeOf(failure) ?? ClassifyErrorText(text);
-        return s with
-        {
-            Pending = null,
-            ActiveRunId = null,
-            Status = Failed,
-            Error = new InoError(code),
-            Messages = AppendDirectTurn(s, runId, new InoMessage($"{runId}/assistant", "assistant", string.Empty, "failed") { Failure = code }),
-        };
-    }
-
-    private static InoMessage[] AppendDirectTurn(InoAppState s, string runId, InoMessage assistant) =>
-        !string.IsNullOrEmpty(s.Pending?.Text)
-            ? [.. s.Messages ?? [], new InoMessage($"{runId}/user", "user", s.Pending.Text), assistant]
-            : [.. s.Messages ?? [], assistant];
-
     public static InoAppState SyncedSettings(InoAppState s, bool smart, string? defaultModel, string? displayName, string? changedModel)
     {
         ArgumentNullException.ThrowIfNull(s);
@@ -473,12 +431,6 @@ public static class InoModel
             ]);
     }
 
-    public static InoAppState DecideVoice(InoAppState s)
-    {
-        ArgumentNullException.ThrowIfNull(s);
-        return s with { VoiceStatus = "recording", Status = "Listening..." };
-    }
-
     public static InoAppState DecideMake(InoAppState s, string target, string sentence, string brainId)
     {
         ArgumentNullException.ThrowIfNull(s);
@@ -508,17 +460,13 @@ public static class InoModel
         };
     }
 
-    private static InoMessage ToMessage(ChatEntry entry, IReadOnlyDictionary<string, AgentFailure>? runFailures)
+    private static InoMessage ToMessage(ChatEntry entry)
     {
         var role = entry.Role == ChatRole.User ? "user" : "assistant";
         var entryCards = InoCards.FromToolCalls(entry.Activities.Select(a => new AgentToolCall(a.Id, a.Title, a.Input, a.Result, a.Error)));
-        string? failure = null;
-        if (role == "assistant" && string.Equals(entry.Status, "failed", StringComparison.Ordinal))
-        {
-            var runId = entry.Id.EndsWith("/assistant", StringComparison.Ordinal) ? entry.Id[..^"/assistant".Length] : entry.Id;
-            failure = runFailures is not null && runFailures.TryGetValue(runId, out var rf) && rf != AgentFailure.Unknown
-                ? AgentFailures.CodeOf(rf) : ClassifyErrorText(entry.Error);
-        }
+        var failure = role == "assistant" && string.Equals(entry.Status, "failed", StringComparison.Ordinal)
+            ? entry.Failure ?? "unknown"
+            : null;
 
         return new InoMessage(entry.Id, role, entry.Text, entry.Status)
         {
@@ -557,27 +505,5 @@ public static class InoModel
             return InoView.ResolveActivityVisual(new InoActivity(string.Empty, combined)).Label;
         }
         catch (JsonException) { return trimmed; }
-    }
-
-    internal static string ClassifyErrorText(string? errorText)
-    {
-        if (string.IsNullOrWhiteSpace(errorText)) { return "unknown"; }
-        var trimmed = errorText.Trim();
-        if (AgentFailures.ParseCode(trimmed) != AgentFailure.Unknown) { return trimmed; }
-        if (trimmed.Contains("model", StringComparison.OrdinalIgnoreCase) && ContainsAny(trimmed, "not found", "try pulling", "pull it first")) { return "no-provider"; }
-        return ContainsAny(trimmed, "No model provider", "No AI chat client", "not configured", "Unconfigured", "Ollama endpoint is not configured", "missing ApiKey") ? "no-provider"
-            : ContainsAny(trimmed, "401", "403", "Unauthorized", "Forbidden", "invalid api key", "authentication") ? "provider-rejected-key"
-            : ContainsAny(trimmed, "timed out", "timeout") ? "timed-out"
-            : ContainsAny(trimmed, "502", "503", "504", "ServiceUnavailable", "actively refused", "Connection refused", "unreachable") ? "provider-unavailable"
-            : "unknown";
-    }
-
-    private static bool ContainsAny(string text, params ReadOnlySpan<string> needles)
-    {
-        foreach (var needle in needles)
-        {
-            if (text.Contains(needle, StringComparison.OrdinalIgnoreCase)) { return true; }
-        }
-        return false;
     }
 }

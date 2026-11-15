@@ -71,6 +71,30 @@ public sealed class ChatProjectionFacts(InoSiloFixture fixture) : IClassFixture<
     }
 
     [Fact]
+    public async Task AFailedRunCarriesItsCodeThroughTheChatProjection()
+    {
+        var brain = fixture.NewBrain("chatfailcode");
+        using var _ = fixture.AsPerson(brain);
+        fixture.Model.Fail(new HttpRequestException("upstream 503", null, HttpStatusCode.ServiceUnavailable));
+
+        var agentKey = $"{brain}/ino/conversations/c2code";
+        var chatKey = $"{brain}/ino/chats/c2code";
+        var agent = SiloNeurons.Get<IAgent>(fixture.Services, agentKey);
+        var chat = SiloNeurons.Get<IChat>(fixture.Services, chatKey);
+
+        await chat.SelectAgent(agentKey, 0, Guid.NewGuid());
+        await agent.Start(AgentTurn.Text("hello"));
+
+        var projected = await WaitUntilChatAsync(
+            chat,
+            s => s.Run?.Status == ChatRunStatus.Failed
+                && (s.Projection?.Messages.Any(m => m.Role == ShellChatRole.Assistant && m.Status == "failed") ?? false));
+
+        var assistant = projected.Projection!.Messages.Last(m => m.Role == ShellChatRole.Assistant);
+        Assert.Equal("provider-unavailable", assistant.Failure);
+    }
+
+    [Fact]
     public async Task B06_UntrustedContextEntryContractsNeverWidenCallableToolsAndRuleViolationReturnsStructuredToolError()
     {
         var brain = fixture.NewBrain("b06sec");

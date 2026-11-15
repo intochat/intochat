@@ -28,6 +28,7 @@ using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 
@@ -85,6 +86,8 @@ public sealed class InoAppFacts
         Assert.Contains("ProposeChange", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("RememberPreference", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("GetTracesAsync", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph", def.Instructions, StringComparison.Ordinal);
+        Assert.DoesNotContain("IntoChat.OS.Modules.Roslyn.ICodeGraph", def.Instructions, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -200,7 +203,8 @@ public sealed class InoAppFacts
         await ino.Request("send", new InoSend("turn 1"));
         Assert.Equal("qwen3.5:4b", BackgroundAgent.LastConfiguredModel);
         Assert.Equal("qwen3.5:4b", BackgroundAgent.LastTurnModel);
-        await Deliver(ino, new TurnCompleted("ino/conversations/main", "run-1", "reply 1"));
+        BackgroundChat.Complete("local/ino/conversations/main", "run-1", "turn 1", "reply 1");
+        await Deliver(ino, new ChatRunChanged("local/ino/chats/main", BackgroundChat.Revision, ChatRunStatus.Completed));
         BackgroundAgent.Starts = 0;
 
         await ino.Request("send", new InoSend("/model claude-sonnet-4-5"));
@@ -212,7 +216,8 @@ public sealed class InoAppFacts
 
         await ino.Request("send", new InoSend("turn 2"));
         Assert.Equal("claude-sonnet-4-5", BackgroundAgent.LastTurnModel);
-        await Deliver(ino, new TurnCompleted("ino/conversations/main", "run-1", "reply 2"));
+        BackgroundChat.Complete("local/ino/conversations/main", "run-1", "turn 2", "reply 2");
+        await Deliver(ino, new ChatRunChanged("local/ino/chats/main", BackgroundChat.Revision, ChatRunStatus.Completed));
         BackgroundAgent.Starts = 0;
 
         await settingsApp.Request("save-preferences", new SettingsSavePreferences(
@@ -274,8 +279,9 @@ public sealed class InoAppFacts
         var ino = await os.Install<InoApp>();
         await ino.Request("send", new InoSend("hello"));
         BackgroundAgent.Reply = "Hi from the background";
+        BackgroundChat.Complete("local/ino/conversations/main", "run-1", "hello", "Hi from the background");
 
-        await Deliver(ino, new TurnCompleted("ino/conversations/main", "run-1", "Hi from the background"));
+        await Deliver(ino, new ChatRunChanged("local/ino/chats/main", BackgroundChat.Revision, ChatRunStatus.Completed));
 
         Assert.Equal(InoModel.Ready, ino.App.State.Status);
         Assert.Null(ino.App.State.ActiveRunId);
@@ -326,10 +332,12 @@ public sealed class InoAppFacts
     private static TestOS BackgroundOs()
     {
         BackgroundAgent.Reset();
+        BackgroundChat.Reset();
         FakeCompute.Reset();
         var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
         os.Register<BackgroundAgent>();
+        os.Register<BackgroundChat>();
         os.Register<FakeCompute>();
         return os;
     }
@@ -337,8 +345,7 @@ public sealed class InoAppFacts
     private static Task Deliver<TSignal>(InstalledApp<InoApp> ino, TSignal signal) where TSignal : Signal
         => signal switch
         {
-            TurnCompleted c => ino.App.OnTurnCompleted(c),
-            TurnFailed f => ino.App.OnTurnFailed(f),
+            ChatRunChanged c => ino.App.OnChatRunChanged(c),
             AgentBlocked b => ino.App.OnAgentBlocked(b),
             _ => throw new NotSupportedException($"Unknown signal {typeof(TSignal).Name}"),
         };
@@ -590,6 +597,65 @@ public sealed class InoAppFacts
         Assert.Empty(ino.App.State.ActiveCards);
     }
 
+    [Fact]
+    public async Task EmptySendIsIgnoredWithoutSendingHello()
+    {
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+
+        await ino.Request("send", new InoSend(null, null, null));
+        await ino.Request("send", new InoSend("   "));
+
+        Assert.Equal(0, BackgroundAgent.Starts);
+        Assert.Equal("New chat", ino.App.State.Title);
+        Assert.Null(ino.App.State.Pending);
+        Assert.Null(ino.App.State.ActiveRunId);
+        Assert.Equal(InoModel.Ready, ino.App.State.Status);
+    }
+
+    [Fact]
+    public async Task InoLogsItsFailuresFacts()
+    {
+        Assert.IsType<InoApp>(Activator.CreateInstance(typeof(InoApp)));
+
+        var logs = new RecordingLoggerProvider();
+        var services = new ServiceCollection();
+        services.AddLogging(b => b.AddProvider(logs).SetMinimumLevel(LogLevel.Debug));
+        var provider = services.BuildServiceProvider();
+        var diConstructed = ActivatorUtilities.CreateInstance<InoApp>(provider);
+        Assert.NotNull(diConstructed);
+
+        await using var os = TestOS.Local(o => o.Services = provider);
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register<RecordingAgent>();
+        var ino = await os.Install<InoApp>();
+        ino.App.FilesVfs = new BrokenVfs();
+
+        await ino.Request("query-db", new InoQueryDb("SELECT a FROM /work/missing.csv"));
+        await ino.Request("send", new InoSend("trigger start error"));
+
+        var inoEntries = logs.Entries.Where(e => string.Equals(e.Category, typeof(InoApp).FullName, StringComparison.Ordinal)).ToArray();
+        Assert.Contains(inoEntries, e => e.Level == LogLevel.Warning && e.Exception is IOException);
+        Assert.Contains(inoEntries, e => e.Level == LogLevel.Error && e.Exception is NotSupportedException);
+    }
+
+    private sealed class RecordingLoggerProvider : ILoggerProvider
+    {
+        public List<(string Category, LogLevel Level, Exception? Exception, string Message)> Entries { get; } = [];
+        public ILogger CreateLogger(string categoryName) => new RecordingLogger(categoryName, Entries);
+        public void Dispose() { }
+
+        private sealed class RecordingLogger(
+            string category,
+            List<(string Category, LogLevel Level, Exception? Exception, string Message)> entries) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+            public bool IsEnabled(LogLevel logLevel) => true;
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+                => entries.Add((category, logLevel, exception, formatter(state, exception)));
+        }
+    }
+
     private sealed class BrokenVfs : IFilesVfsService
     {
         public string BrainId => "local";
@@ -685,6 +751,61 @@ public sealed class InoAppFacts
                 Reply is null ? [] : [new("assistant", [new IntoChat.OS.Modules.AI.Inference.AiText(Reply)])]);
         public Task Clear() => Task.CompletedTask;
         public Task Post(string text, string id) => Task.CompletedTask;
+    }
+
+    [Neuron(IChat.Type)]
+    private sealed class BackgroundChat : Neuron, IChat
+    {
+        private static long _revision;
+        private static ChatState _state = new();
+        public static long Revision => _revision;
+
+        public static void Reset()
+        {
+            _revision = 0;
+            _state = new();
+        }
+
+        public static void Complete(string agentKey, string runId, string userText, string reply)
+        {
+            _revision++;
+            _state = new ChatState
+            {
+                Name = "local/ino/chats/main",
+                Revision = _revision,
+                Selection = new ChatSelection(agentKey, 1),
+                Projection = new ChatProjection(agentKey, 1, _revision,
+                [
+                    new ChatEntry($"{runId}/user", ChatRole.User, userText),
+                    new ChatEntry($"{runId}/assistant", ChatRole.Assistant, reply),
+                ]),
+                Run = new ChatRunSnapshot(agentKey, 1, _revision, runId, ChatRunStatus.Completed),
+            };
+        }
+
+        public Task<ChatSelection> SelectAgent(string agent, long expectedSelectionRevision, Guid operationId)
+        {
+            _revision++;
+            var selection = new ChatSelection(agent, expectedSelectionRevision + 1);
+            _state = _state with
+            {
+                Name = $"{Id.Brain.Value}/{Id.Key}",
+                Revision = _revision,
+                Selection = selection,
+            };
+            return Task.FromResult(selection);
+        }
+
+        public Task Project(ChatProjection projection)
+        {
+            _revision++;
+            _state = _state with { Revision = _revision, Projection = projection };
+            return Task.CompletedTask;
+        }
+
+        public Task Activate(string source, long generation, string actionId) => Task.CompletedTask;
+        public Task MarkRead(string source, long generation, long version, string[] messageIds) => Task.CompletedTask;
+        public Task<ChatState> Read() => Task.FromResult(_state);
     }
 
     [Neuron("ui.compute")]

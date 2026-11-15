@@ -210,7 +210,7 @@ public sealed class InoReactorViewFacts
         };
         var approvalConv = InoView.Conversation(approvalState);
         var dockedApproval = Assert.IsType<ApprovalCardNode>(approvalConv.Waiting);
-        Assert.Equal(new Resolve("plan-7"), dockedApproval.Resolve);
+        Assert.Null(dockedApproval.Resolve);
         var approvalSidePill = FindFirst<TagPill>(InoView.Side(approvalState).Root);
         Assert.NotNull(approvalSidePill);
         Assert.Equal(("accent", "hand", "Needs you"), (approvalSidePill!.Tone, approvalSidePill.Icon, approvalSidePill.Label));

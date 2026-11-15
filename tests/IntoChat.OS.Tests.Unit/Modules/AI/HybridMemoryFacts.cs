@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Rules;
@@ -51,10 +52,8 @@ public sealed class HybridMemoryFacts : IDisposable
             })
             .Build();
 
-        var diskStore = FileMemoryDiskStore.TryCreateFromConfiguration(config)!;
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(config);
-        services.AddSingleton<IMemoryDiskStore>(diskStore);
         services.AddSingleton<IMemoryEmbedder>(new DeterministicOnlyEmbedder());
         var provider = services.BuildServiceProvider();
 
@@ -64,16 +63,16 @@ public sealed class HybridMemoryFacts : IDisposable
     }
 
     [Fact]
-    public async Task MemoriesAndGraphLinksPersistOnDiskAcrossFreshTestOsReload()
+    public async Task MemoriesAndGraphLinksPersistOnSealedStoreAcrossRestart()
     {
         var brain = new BrainId("mem-durable");
         var memoryId = new NeuronId(brain, "ai.memory", "memory");
+        await using var os = CreateOs();
 
         string prefId;
-        await using (var firstOs = CreateOs())
+        using (AsPerson(brain.Value))
         {
-            using var person = AsPerson(brain.Value);
-            var memory = firstOs.Get<IMemory>(memoryId);
+            var memory = os.Get<IMemory>(memoryId);
             var pref = await memory.RememberPreference("owner", "testing-style", "Always run single csproj builds and never run solution-wide builds on Windows.", importance: 9);
             prefId = pref.Id;
             Assert.Equal(MemoryTrust.Owner, pref.Trust);
@@ -82,13 +81,14 @@ public sealed class HybridMemoryFacts : IDisposable
             await memory.LinkEntities("service:checkout", "reads_from", "db:orders-postgres");
         }
 
-        var expectedFile = Path.Combine(_tempHome, "state", "brains", "mem-durable", "memory.json");
-        Assert.True(File.Exists(expectedFile), $"Expected durable memory file at {expectedFile}");
+        var sidecarFile = Path.Combine(_tempHome, "state", "brains", "mem-durable", "memory.json");
+        Assert.False(File.Exists(sidecarFile), $"Unexpected unsealed plain-JSON sidecar file at {sidecarFile}");
 
-        await using (var secondOs = CreateOs())
+        await os.Restart();
+
+        using (AsPerson(brain.Value))
         {
-            using var person = AsPerson(brain.Value);
-            var memory = secondOs.Get<IMemory>(memoryId);
+            var memory = os.Get<IMemory>(memoryId);
             var state = await memory.Read();
 
             Assert.Contains(state.Notes, n => n.Id == prefId && n.Trust == MemoryTrust.Owner && n.Scope == "owner");
@@ -149,6 +149,52 @@ public sealed class HybridMemoryFacts : IDisposable
 
         var pack = await memory.RecallPack("Why did invoice-worker fail?", activeScope: "repo:billing", limit: 5);
         Assert.Contains(pack.RecalledItems, hit => hit.Text.Contains("ledger-db", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AFileWithAHigherRevisionDoesNotChangeTheNeuronsState()
+    {
+        var brain = new BrainId("mem-higher-rev");
+        var memoryId = new NeuronId(brain, "ai.memory", "memory");
+        await using var os = CreateOs();
+
+        MemoryNote original;
+        using (AsPerson(brain.Value))
+        {
+            var memory = os.Get<IMemory>(memoryId);
+            original = await memory.RememberPreference("owner", "seal-check", "Use sealed neuron store.", importance: 9);
+        }
+
+        var sidecarPath = Path.Combine(_tempHome, "state", "brains", brain.Value, "memory.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(sidecarPath)!);
+        var poisonedState = new MemoryState(999, [], [])
+        {
+            Notes =
+            [
+                new MemoryNote(
+                    "poisoned-1",
+                    "preference",
+                    "owner",
+                    MemoryTrust.Owner,
+                    "poisoned",
+                    "Loaded from unsealed sidecar.",
+                    10,
+                    DateTimeOffset.UtcNow),
+            ],
+        };
+        await File.WriteAllTextAsync(
+            sidecarPath,
+            JsonSerializer.Serialize(poisonedState, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+            TestContext.Current.CancellationToken);
+
+        await os.Restart();
+
+        using (AsPerson(brain.Value))
+        {
+            var state = await os.Get<IMemory>(memoryId).Read();
+            Assert.DoesNotContain(state.Notes, n => n.Id == "poisoned-1");
+            Assert.Contains(state.Notes, n => n.Id == original.Id && n.Body == "Use sealed neuron store.");
+        }
     }
 
     private sealed class DeterministicOnlyEmbedder : IMemoryEmbedder
