@@ -4,6 +4,8 @@ using DigitalBrain.Flows;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.UI;
+using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Tasks;
 
@@ -25,18 +27,22 @@ public static class TasksViewRenderer
             "timeline" => RenderTimeline(shown, now),
             _ => RenderBoard(shown),
         };
-        return new View("Tasks", new Column(
-        [
-            new Tabs(
-            [
-                new TabItem("board", "board", "Board", AppSignals.Emit(App, "view", "board"), "kanban"),
-                new TabItem("list", "list", "List", AppSignals.Emit(App, "view", "list"), "list"),
-                new TabItem("timeline", "timeline", "Timeline", AppSignals.Emit(App, "view", "timeline"), "gantt-chart"),
-            ], state.View),
+
+        var statusPill = approvals.Length > 0
+            ? StatusPill(StatusKind.NeedsYou, $"{approvals.Length} Approval(s)")
+            : StatusPill(StatusKind.Idle, $"{shown.Length} Flow(s)");
+
+        return new View("Tasks", VStack(Space.Md)[
+            HeaderBar("Tasks", "Plan and follow the brain's flows across board, list, and timeline", statusPill),
+            Tabs(
+                state.View,
+                Tab("board", "Board", "kanban").Key("board").Emits(AppSignals.Emit(App, "view", "board")),
+                Tab("list", "List", "list").Key("list").Emits(AppSignals.Emit(App, "view", "list")),
+                Tab("timeline", "Timeline", "gantt-chart").Key("timeline").Emits(AppSignals.Emit(App, "view", "timeline"))),
             RenderNewTask(state.Draft),
-            new Text(approvals.Length == 0 ? state.Status : $"{state.Status} · {approvals.Length} pending approval(s)"),
-            body,
-        ]));
+            MutedText(approvals.Length == 0 ? state.Status : $"{state.Status} · {approvals.Length} pending approval(s)"),
+            body
+        ]);
     }
 
     public static View RenderSide(TasksState state, FlowView[] flows, Approval[] approvals, string? source)
@@ -44,74 +50,113 @@ public static class TasksViewRenderer
         ArgumentNullException.ThrowIfNull(state);
         if (state.Selected is not { } selected || flows.FirstOrDefault(f => f.FlowId == selected) is not { } flow)
         {
-            return new View("Task", new Text(state.Selected is null ? "Select a task to see its steps." : "The task is not in the current list."));
+            return new View("Task", Empty(
+                state.Selected is null ? "Select a task to see its steps." : "The task is not in the current list.",
+                "Pick any card on the board or row in the list to inspect its steps, relations, and approvals."));
         }
+
         List<Node> children =
         [
+            StatusPill(FlowStatusKind(flow.Status), flow.Status.ToString()),
             new JobCardNode(flow.Title, [.. flow.Steps.Select(step => StepNode(flow, step))], flow.Fraction, flow.Status.ToString().ToLowerInvariant()),
         ];
-        if (flow.WaitingFor is { } waiting) { children.Add(new InfoBar("Waiting", $"{waiting} on {flow.WaitingStep}", "warning")); }
-        if (flow.Type == BuildFlow.Alias) { children.AddRange(BuildNodes(flow, approvals)); }
+
+        if (flow.WaitingFor is { } waiting)
+        {
+            children.Add(Banner("Waiting", $"{waiting} on {flow.WaitingStep}", "warning"));
+        }
+
+        if (flow.Type == BuildFlow.Alias)
+        {
+            children.AddRange(BuildNodes(flow, approvals));
+        }
+
         if (approvals.FirstOrDefault(a => a.Subject == flow.FlowId && a.Kind != ApprovalKind.Other) is { } approval)
         {
             children.Add(new ApprovalCardNode("approval", approval.PlanId, approval.Title, approval.Detail, [], Resolve: new Resolve(approval.PlanId)));
         }
-        List<Node> actions = [new Button("open-trace", "Open trace", Intent: OpenTrace(flow.TraceId)) { Small = true, Icon = "activity" }];
+
+        List<Node?> actions =
+        [
+            new Button("open-trace", "Open trace", Intent: OpenTrace(flow.TraceId)) { Small = true, Icon = "activity" },
+        ];
         if (flow.Status is not (FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled))
         {
-            actions.Add(new Button("cancel", "Cancel", Emit: AppSignals.Emit(App, "cancel", flow.FlowId)) { Small = true, Style = "danger" });
+            actions.Add(DangerButton("Cancel").Key("cancel").Small().Emits(AppSignals.Emit(App, "cancel", flow.FlowId)));
         }
+
         if (flow.Type == "flow.build")
         {
-            actions.Add(new Button("show-source", "Show source", Emit: AppSignals.Emit(App, "show-source", flow.FlowId)) { Small = true, Icon = "code" });
-            actions.Add(new Button("ask-ino-to-change", "Ask Ino to change", Emit: AppSignals.Emit(App, "ask-ino", flow.FlowId)) { Small = true, Icon = "sparkles" });
+            actions.Add(Button("Show source", "code").Key("show-source").Small().Emits(AppSignals.Emit(App, "show-source", flow.FlowId)));
+            actions.Add(Button("Ask Ino to change", Icons.Sparkles).Key("ask-ino-to-change").Small().Emits(AppSignals.Emit(App, "ask-ino", flow.FlowId)));
         }
-        children.Add(new Row(actions));
-        children.Add(new Select("Relation", state.RelateKind,
-            [.. Enum.GetNames<RelationKind>().Select(kind => new SelectOption(kind, kind, kind, AppSignals.Emit(App, "relate-kind", kind)))]));
-        children.Add(new Field("lag", FieldKey("lag"), FieldKind.Text, "Lag in days (Follows)"));
-        children.Add(new Select("Relate to", "",
-            [.. flows.Where(f => f.FlowId != flow.FlowId).Select(f => new SelectOption(f.FlowId, f.FlowId, f.Title, AppSignals.Emit(App, "relate", flow.FlowId, state.RelateKind, f.FlowId, state.Draft.Lag)))]));
-        if (source is not null) { children.Add(new Card("Source", source, [])); }
-        return new View(flow.Title, new Column(children));
+
+        children.Add(HStack(Space.Sm, [.. actions]));
+        children.Add(SelectBox(
+            "Relation",
+            state.RelateKind,
+            [.. Enum.GetNames<RelationKind>().Select(kind =>
+                Option(kind, kind).Key(kind).Emits(AppSignals.Emit(App, "relate-kind", kind)))]));
+        children.Add(TextField(FieldKey("lag"), "Lag in days (Follows)").Key("lag"));
+        children.Add(SelectBox(
+            "Relate to",
+            "",
+            [.. flows.Where(f => f.FlowId != flow.FlowId).Select(f =>
+                Option(f.FlowId, f.Title).Key(f.FlowId).Emits(AppSignals.Emit(App, "relate", flow.FlowId, state.RelateKind, f.FlowId, state.Draft.Lag)))]));
+
+        if (source is not null)
+        {
+            children.Add(Card("Source", source));
+        }
+
+        return new View(flow.Title, VStack([.. children]));
     }
 
-    // A unit flow's own cards: the consent its install waits on (the needs sentence; answered in the OS inbox, so no resolve here), the
-    // connection its deploy waits for, and the verify failures of a flow that failed there.
+    private static StatusKind FlowStatusKind(FlowStatus status) => status switch
+    {
+        FlowStatus.Completed => StatusKind.Done,
+        FlowStatus.Running => StatusKind.Working,
+        FlowStatus.Waiting => StatusKind.NeedsYou,
+        FlowStatus.Failed or FlowStatus.Cancelled => StatusKind.Error,
+        _ => StatusKind.Idle,
+    };
+
     private static IEnumerable<Node> BuildNodes(FlowView flow, Approval[] approvals)
     {
         if (flow is { Status: FlowStatus.Waiting, WaitingStep: "install" }
             && approvals.FirstOrDefault(a => a.Kind == ApprovalKind.SynapseStaged && a.PlanId == flow.ConfirmationPlanId) is { } consent)
         {
             yield return new ApprovalCardNode("consent", consent.PlanId, consent.Title, consent.Detail, []);
-            yield return new Text("Approve or deny in the inbox.") { Tone = "muted" };
+            yield return MutedText("Approve or deny in the inbox.");
         }
+
         if (flow is { Status: FlowStatus.Waiting, WaitingStep: "deploy" })
         {
             var missing = approvals.FirstOrDefault(a => a.Kind == ApprovalKind.Other && a.Subject == flow.FlowId)?.Detail ?? flow.Detail;
             if (!string.IsNullOrWhiteSpace(missing))
             {
-                yield return new InfoBar("Needs a connection", missing, "warning",
-                    new Button("open-connections", "Open connections", Intent: new Intent(IntentKind.OpenSettings, "connections")) { Small = true, Icon = "plug" });
+                yield return Banner(
+                    "Needs a connection",
+                    missing,
+                    "warning",
+                    Button("Open connections", "plug").Key("open-connections").Small().WithIntent(IntentKind.OpenSettings, "connections"));
             }
         }
+
         if (flow is { Status: FlowStatus.Failed, Detail: { Length: > 0 } detail } && FailedAt(flow) == "verify")
         {
-            yield return new InfoBar("Verify failed", FirstLines(detail, 3), "danger");
+            yield return Banner("Verify failed", FirstLines(detail, 3), "danger");
         }
     }
 
-    // The step a failed flow stopped at: the current one, else the first not done.
     private static string? FailedAt(FlowView flow) => flow.Current ?? flow.Steps.FirstOrDefault(step => !flow.Done.Contains(step, StringComparer.Ordinal));
 
-    // The first lines of a transcript and how many follow.
     public static string FirstLines(string text, int count)
     {
         var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return lines.Length <= count ? string.Join('\n', lines) : string.Join('\n', lines.Take(count)) + $"\n(+{lines.Length - count} more)";
     }
 
-    // What a unit flow's step does, shown beside a step that has not finished.
     private static string? Hint(string type, string step) => type != BuildFlow.Alias ? null : step switch
     {
         "author" => "Writes the spec, needs and scenarios",
@@ -122,10 +167,8 @@ public static class TasksViewRenderer
         _ => null,
     };
 
-    // Opens the Creator at the trace: its inspector shows trace/{traceId}.
     public static Intent OpenTrace(string traceId) => AppSignals.OpenApp("creator", $"trace/{traceId}");
 
-    // A field is the textfield neuron apps/tasks/{field}; the app watches it.
     public static string FieldKey(string field) => $"apps/{App}/{field}";
 
     public static BoardColumn[] Columns(FlowView[] flows) =>
@@ -138,8 +181,6 @@ public static class TasksViewRenderer
         new("Failed/Cancelled", [.. flows.Where(f => f.Status is FlowStatus.Failed or FlowStatus.Cancelled)]),
     ];
 
-    // One bar per flow from Started to Ended, or to a projected end while it runs: twice the elapsed time over the done fraction
-    // (at least 5%), at most 30 days. A Follows relation starts the bar its lag after the target's end, keeping the bar's length.
     public static TimelineBar[] Bars(FlowView[] flows, DateTimeOffset now)
     {
         var byId = flows.ToDictionary(f => f.FlowId, StringComparer.Ordinal);
@@ -154,11 +195,11 @@ public static class TasksViewRenderer
             var end = flow.Ended ?? Projected(flow, now);
             foreach (var follows in flow.Relations.Where(r => r.Kind == RelationKind.Follows))
             {
-                // A cycle of Follows lays the repeated flow at its own times.
                 if (!byId.TryGetValue(follows.TargetFlowId, out var target) || laying.Contains(target.FlowId)) { continue; }
                 var after = Lay(target).End + (follows.Lag ?? TimeSpan.Zero);
                 if (after > start) { end += after - start; start = after; }
             }
+
             laying.Remove(flow.FlowId);
             return laid[flow.FlowId] = new TimelineBar(flow.FlowId, flow.Title, start, end);
         }
@@ -183,15 +224,13 @@ public static class TasksViewRenderer
     private static Node RenderNewTask(TasksDraft draft)
     {
         var start = AppSignals.Emit(App, "new", draft.Title, draft.Description);
-        return new Card("New task", "A plan flow drafts the subtasks from the description.",
-        [
-            new Field("title", FieldKey("title"), FieldKind.Text, "Title"),
-            new Field("description", FieldKey("description"), FieldKind.Text, "Description", start),
-            new Button("start", "Start", Emit: start, Tone: ButtonTone.Accent) { Small = true, Icon = "plus" },
-        ]);
+        return Card("New task", "A plan flow drafts the subtasks from the description.")[
+            TextField(FieldKey("title"), "Title").Key("title"),
+            TextField(FieldKey("description"), "Description").Key("description").Emits(start),
+            PrimaryButton("Start", Icons.Plus).Key("start").Small().Emits(start)
+        ];
     }
 
-    // A lag typed as days ("1", "1.5d"); null when it is not.
     public static TimeSpan? ParseLag(string? text)
     {
         var value = text?.Trim().TrimEnd('d', 'D');
@@ -201,11 +240,11 @@ public static class TasksViewRenderer
     private static Node RenderBoard(FlowView[] flows)
     {
         var titles = flows.ToDictionary(f => f.FlowId, f => f.Title, StringComparer.Ordinal);
-        return new Grid(6,
+        return Grid(6, Space.Md,
         [
-            .. Columns(flows).Select(column => (Node)new Column(
+            .. Columns(flows).Select(column => (Node)VStack(Space.Sm,
             [
-                new Heading(column.Name, 3, $"{column.Flows.Length}"),
+                Heading(column.Name, 3, $"{column.Flows.Length}"),
                 .. column.Flows.Select(flow => RenderBoardCard(flow, titles)),
             ])),
         ]);
@@ -213,23 +252,32 @@ public static class TasksViewRenderer
 
     private static Node RenderBoardCard(FlowView flow, Dictionary<string, string> titles)
     {
-        List<Node> children = [new Progress("Progress", flow.Fraction, $"{flow.Done.Length}/{flow.Steps.Length}")];
-        if (flow.WaitingFor is { } waiting) { children.Add(new Badge($"Waiting: {waiting}", "warning", "hourglass")); }
+        List<Node?> children = [new Progress("Progress", flow.Fraction, $"{flow.Done.Length}/{flow.Steps.Length}")];
+        if (flow.WaitingFor is { } waiting)
+        {
+            children.Add(StatusPill(StatusKind.NeedsYou, $"Waiting: {waiting}"));
+        }
+
         foreach (var relation in flow.Relations)
         {
             var target = titles.TryGetValue(relation.TargetFlowId, out var title) ? title : relation.TargetFlowId;
             switch (relation.Kind)
             {
-                case RelationKind.BlockedBy: children.Add(new Badge($"blocked by {target}", "danger", "lock")); break;
-                case RelationKind.Follows: children.Add(new Badge($"after {target}{(relation.Lag is { } lag ? $" +{Lag(lag)}" : "")}", "neutral", "arrow-right")); break;
+                case RelationKind.BlockedBy:
+                    children.Add(StatusPill(StatusKind.Error, $"blocked by {target}"));
+                    break;
+                case RelationKind.Follows:
+                    children.Add(StatusPill(StatusKind.Idle, $"after {target}{(relation.Lag is { } lag ? $" +{Lag(lag)}" : "")}"));
+                    break;
             }
         }
-        children.Add(new Button("open", "Open", Emit: AppSignals.Emit(App, "select", flow.FlowId)) { Small = true });
+
+        children.Add(Button("Open").Key($"open:{flow.FlowId}").Small().Emits(AppSignals.Emit(App, "select", flow.FlowId)));
         var icon = flow.Type[(flow.Type.LastIndexOf('.') + 1)..];
-        return new Card(flow.Title, $"{icon} · {flow.Owner}{(flow.App is { } app ? $" / {app}" : "")}", children);
+        return Card(flow.Title, $"{icon} · {flow.Owner}{(flow.App is { } app ? $" / {app}" : "")}", [.. children]);
     }
 
-    private static Node RenderList(FlowView[] flows) => new DataTable(
+    private static Node RenderList(FlowView[] flows) => Table(
         "Tasks",
         ["Title", "Type", "Status", "Owner", "Started", "Ended", "Progress"],
         [
@@ -243,28 +291,39 @@ public static class TasksViewRenderer
         ],
         "neuron://local/flows/flows/index");
 
-    // Chart is single-series: each flow is a columns chart with its start and end, in days from the earliest start; a BlockedBy
-    // dependency is a line chart of two points, the target's end and the dependant's start.
     private static Node RenderTimeline(FlowView[] flows, DateTimeOffset now)
     {
         var bars = Bars(flows, now);
-        if (bars.Length == 0) { return new Text("No tasks to lay out."); }
+        if (bars.Length == 0)
+        {
+            return Empty("No tasks to lay out.", "Start a plan or build flow to inspect its timeline projection.");
+        }
+
         var origin = bars.Min(b => b.Start);
         var byId = bars.ToDictionary(b => b.FlowId, StringComparer.Ordinal);
         double Day(DateTimeOffset at) => Math.Round((at - origin).TotalDays, 2);
-        List<Node> charts = [.. bars.Select(bar => (Node)new Chart("columns", bar.Title,
-            [new ChartPointNode("start", Day(bar.Start)), new ChartPointNode("end", Day(bar.End))], SeriesName: bar.FlowId))];
+
+        List<Node?> charts =
+        [
+            .. bars.Select(bar => (Node)BarChart(
+                bar.Title,
+                [("start", Day(bar.Start)), ("end", Day(bar.End))],
+                seriesName: bar.FlowId)),
+        ];
+
         foreach (var flow in flows)
         {
             foreach (var blocked in flow.Relations.Where(r => r.Kind == RelationKind.BlockedBy && byId.ContainsKey(r.TargetFlowId)))
             {
                 var target = byId[blocked.TargetFlowId];
-                charts.Add(new Chart("line", $"{flow.Title} blocked by {target.Title}",
-                    [new ChartPointNode("target end", Day(target.End)), new ChartPointNode("start", Day(byId[flow.FlowId].Start))],
-                    SeriesName: "dependency"));
+                charts.Add(LineChart(
+                    $"{flow.Title} blocked by {target.Title}",
+                    [("target end", Day(target.End)), ("start", Day(byId[flow.FlowId].Start))],
+                    seriesName: "dependency"));
             }
         }
-        return new Column(charts);
+
+        return VStack([.. charts]);
     }
 
     private static JobStepNode StepNode(FlowView flow, string step)
