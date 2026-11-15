@@ -17,6 +17,7 @@ using IntoChat.Cloud.Mail;
 using IntoChat.Cloud.Mail.Templates;
 using IntoChat.Cloud.Organisations;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -43,6 +44,8 @@ public static class CloudHost
         services.TryAddSingleton<IAuthHostSeam, KernelAuthHost>();
         services.TryAddSingleton<IOrganisationHost, KernelOrganisationHost>();
         services.TryAddSingleton<IMailHost, KernelMailHost>();
+        // Cloud sign-in is the auth module's. The built-in password routes would give any visitor an owner account.
+        services.PostConfigure<IdentityHostOptions>(identity => identity.BuiltInPasswordEndpoints = false);
         services.AddIdentitySessions<AuthIdentityProvider>();
         services.TryAddSingleton<ISessions>(provider => provider.GetRequiredKeyedService<ISessions>(Capability.Identity.V1Id));
         AuthCloudRegistration.Register(services);

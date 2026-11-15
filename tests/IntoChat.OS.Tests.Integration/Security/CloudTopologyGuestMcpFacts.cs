@@ -170,8 +170,9 @@ public sealed class CloudTopologyGuestMcpFacts(CloudTopologyGuestMcpFacts.CloudG
         Assert.NotEmpty(mcp);
         Assert.Equal(mcp.Order(StringComparer.Ordinal), doors.Order(StringComparer.Ordinal));
 
+        // Refused means 401 or 403. Any other answer, a 4xx or 5xx from the route's own code included, came from behind the wall.
         var tried = 0;
-        var admitted = new List<string>();
+        var notRefused = new List<string>();
         var answers = new SortedDictionary<int, int>();
         foreach (var route in brainRoutes.Where(route => !IsDoor(route)))
         {
@@ -186,11 +187,14 @@ public sealed class CloudTopologyGuestMcpFacts(CloudTopologyGuestMcpFacts.CloudG
                 {
                     using var response = await host.Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
                     answers[(int)response.StatusCode] = answers.GetValueOrDefault((int)response.StatusCode) + 1;
-                    if ((int)response.StatusCode is >= 200 and < 300) { admitted.Add($"{method} {route.RoutePattern.RawText} -> {(int)response.StatusCode}"); }
+                    if (response.StatusCode is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
+                    {
+                        notRefused.Add($"{method} {route.RoutePattern.RawText} -> {(int)response.StatusCode}");
+                    }
                 }
                 catch (OperationCanceledException) when (!Ct.IsCancellationRequested)
                 {
-                    admitted.Add($"{method} {route.RoutePattern.RawText} -> no answer in 15s");
+                    notRefused.Add($"{method} {route.RoutePattern.RawText} -> no answer in 15s");
                 }
             }
         }
@@ -198,7 +202,28 @@ public sealed class CloudTopologyGuestMcpFacts(CloudTopologyGuestMcpFacts.CloudG
         TestContext.Current.TestOutputHelper?.WriteLine($"Tried {tried} requests on {brainRoutes.Length - mcp.Length} brain routes as a guest; {mcp.Length} MCP endpoints carry the door. "
             + "Answers: " + string.Join(", ", answers.Select(answer => $"{answer.Value} x {answer.Key}")));
         Assert.True(tried > 0);
-        Assert.True(admitted.Count == 0, "A guest was admitted on:\n" + string.Join('\n', admitted));
+        Assert.True(notRefused.Count == 0, "A guest was not refused on:\n" + string.Join('\n', notRefused));
+    }
+
+    // Cloud sign-in is the auth module's. The built-in password routes would hand any visitor an owner account beside the guest wall.
+    [Fact]
+    public async Task Visitor_CannotRegisterAnAccountByPassword()
+    {
+        var mapped = host.App.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
+            .Select(route => route.RoutePattern.RawText)
+            .Where(route => route is "/identity/register" or "/identity/login")
+            .ToArray();
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/identity/register")
+        {
+            Content = new StringContent("""{"principalId":"visitor-probe","password":"visitor-probe-password"}""", Encoding.UTF8, "application/json"),
+        };
+        using var response = await host.Client.SendAsync(request, Ct);
+
+        TestContext.Current.TestOutputHelper?.WriteLine($"POST /identity/register, no token, no cookie: {(int)response.StatusCode}. Mapped password routes: {mapped.Length}.");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.False(response.Headers.Contains("Set-Cookie"), "An anonymous visitor was handed a session.");
+        Assert.Empty(mapped);
     }
 
     private static bool IsDoor(RouteEndpoint route) => route.Metadata.GetMetadata<GuestSurface.Door>() is not null;
