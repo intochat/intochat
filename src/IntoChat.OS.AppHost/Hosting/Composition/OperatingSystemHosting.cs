@@ -1,5 +1,6 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using Aspire.Hosting.Dotnet;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Contracts.Configuration;
@@ -27,8 +28,9 @@ public static class OperatingSystemHosting
         return profile.ShellEnabled ? os.WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp()) : os;
     }
 
-    public static IResourceBuilder<IResourceWithEndpoints>[] AddKernel<TProject>(this IntoChatOSBuilder os, DeploymentProfile profile) where TProject : IProjectMetadata, new()
+    public static IResourceBuilder<IResourceWithEndpoints>[] AddKernel(this IntoChatOSBuilder os, string projectPath, DeploymentProfile profile)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
         var builder = os.ApplicationBuilder;
         // Cookie keys persist in the Azurite blob container on cloud; a local run keeps them in the default key ring.
         var cookieProtection = profile.Cloud ? os.AddBlobContainer(os.Identity!.ProtectionContainerName) : null;
@@ -36,7 +38,7 @@ public static class OperatingSystemHosting
         var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Select(name =>
             AspireModuleHosting.AddLiveBuild(builder, workdir, name, "os", "IntoChat.OS.Kernel.dll") is { } live
                 ? Primary(AllowLiveBuildOnNetwork(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS")))
-                : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddProject<TProject>(name)))).ToArray();
+                : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddDotnetProject(name, projectPath)))).ToArray();
         if (profile.FrontEnabled)
         {
             var front = AspireModuleHosting.AddFront(builder, "OperatingSystem", profile.UiPort, silos.Select(silo => silo.GetEndpoint("https")));
@@ -49,7 +51,7 @@ public static class OperatingSystemHosting
         {
             // TLS negotiates HTTP/2 for the native shell through YARP, while HTTP remains for health and sandbox callbacks.
             // Projects compose ASPNETCORE_URLS from endpoints; an explicit port variable would be overridden by it.
-            silo.WithHttpsEndpoint(name: "https", env: silo.Resource is ProjectResource ? null : "ASPNETCORE_HTTPS_PORTS", isProxied: true);
+            silo.WithHttpsEndpoint(name: "https", env: silo.Resource is ProjectResource or DotnetProjectResource ? null : "ASPNETCORE_HTTPS_PORTS", isProxied: true);
 #pragma warning disable ASPIRECERTIFICATES001
             silo.WithHttpsDeveloperCertificate();
 #pragma warning restore ASPIRECERTIFICATES001
@@ -71,14 +73,15 @@ public static class OperatingSystemHosting
     }
 
     // The MCP server is an Orleans client: it starts once every silo instance is up.
-    public static IResourceBuilder<IResourceWithEndpoints>[] AddMcp<TProject>(this IntoChatOSBuilder os, DeploymentProfile profile, IReadOnlyList<IResourceBuilder<IResourceWithEndpoints>> silos) where TProject : IProjectMetadata, new()
+    public static IResourceBuilder<IResourceWithEndpoints>[] AddMcp(this IntoChatOSBuilder os, string projectPath, DeploymentProfile profile, IReadOnlyList<IResourceBuilder<IResourceWithEndpoints>> silos)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
         var builder = os.ApplicationBuilder;
         var workdir = AspireModuleHosting.WorkdirOf(builder);
         var mcps = AspireModuleHosting.InstanceNames("intochat-os-mcp").Select(name =>
             AspireModuleHosting.AddLiveBuild(builder, workdir, name, "mcp", "IntoChat.OS.Mcp.dll") is { } live
                 ? Mcp(AllowLiveBuildOnNetwork(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS")))
-                : Mcp(AspireModuleHosting.OnDynamicPorts(builder.AddProject<TProject>(name)))).ToArray();
+                : Mcp(AspireModuleHosting.OnDynamicPorts(builder.AddDotnetProject(name, projectPath)))).ToArray();
         if (profile.FrontEnabled) { AspireModuleHosting.AddFront(builder, "intochat-os-mcp", profile.McpPort, mcps.Select(mcp => mcp.GetEndpoint("http"))); }
         return mcps;
 

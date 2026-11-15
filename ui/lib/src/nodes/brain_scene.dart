@@ -27,6 +27,8 @@ class BrainSignals extends InheritedWidget {
 const _tints = {
   'unit': '#4FC3F7',
   'app': '#81C784',
+  'initial': '#34D399',
+  'state': '#60A5FA',
   'kernel': '#9E9E9E',
   'draft': '#CE93D8',
 };

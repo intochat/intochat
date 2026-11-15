@@ -1,6 +1,7 @@
 using System.Globalization;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
 using static IntoChat.OS.UI.Kit;
 
@@ -136,6 +137,25 @@ internal static class GalleryRendering
                 leadingExtent: 460),
             Surface(SurfaceKind.Recessed, "UI Identity & Bar Layout Presets", "Family 2 · Instant theme materiality switching")[
                 RenderIdentityPresetRow(state)
+            ],
+            Surface(SurfaceKind.Elevated, "WinUI-Grade Desktop Chrome & Media Surfaces (Kit v2)", "Toolbar, Breadcrumb, Segmented, SectionHeader, Expander, ImageView & CodeBlock")[
+                VStack(Space.Md)[
+                    Toolbar(
+                        SectionHeader("Studio Chrome"),
+                        Segmented(
+                            state.SelectedOption,
+                            Option("claude-sonnet-4-5", "Sonnet 4.5").Key("seg:claude").OnSelect<GalleryAppState>(s => s.SelectModelOption("claude-sonnet-4-5")),
+                            Option("gpt-5-thinking", "GPT-5").Key("seg:gpt5").OnSelect<GalleryAppState>(s => s.SelectModelOption("gpt-5-thinking")),
+                            Option("qwen3.5:4b", "Qwen Local").Key("seg:qwen").OnSelect<GalleryAppState>(s => s.SelectModelOption("qwen3.5:4b"))),
+                        FlexSpacer(),
+                        Breadcrumb(Text("Workspace"), Text("UI Kit v2"), StatusPill(StatusKind.Done, "Live"))),
+                    Grid(2, Space.Md)[
+                        ImageView(ArtCraftEngineRunner.GradientPreviewPngDataUrl, "Inline PNG Raster Canvas (ImageView)", height: 180),
+                        CodeBlock("Declarative C# Kit v2", "HeaderBar(\"Studio\", \"Ready\",\n    PrimaryButton(\"Deploy\").Guard(state.CanDeploy));", "csharp", maxHeight: 180)
+                    ],
+                    Expander("Disclosure Panel (Expander)", "Click to inspect bounded progressive disclosure", expanded: false,
+                        Text("Expanders keep secondary configuration tucked cleanly away without cluttering primary workflows."))
+                ]
             ]
         ];
     }

@@ -37,7 +37,7 @@ public static class CreatorView
         var center = CenterPane(state, topology, flows, inspection);
         var right = CreatorInspector.Render(state, inspection, flows, approvals);
 
-        return new View("Creator", ResponsiveSplit(left, ResponsiveSplit(center, right, 640), 320));
+        return new View("Creator", ResponsiveSplit(left, ResponsiveSplit(center, right, 680), 300));
     }
 
     public static Node LeftPane(
@@ -51,8 +51,8 @@ public static class CreatorView
 
         var children = new List<Node>();
 
-        // 1. Catalog Units List
-        children.Add(Divider("CATALOG UNITS"));
+        // 1. Catalog Units & Apps List
+        children.Add(SectionHeader("Catalog Units"));
         var unitNodes = topology.Nodes
             .Where(n => n.Role == BrainGraph.Unit || (!n.Id.StartsWith("draft:", StringComparison.Ordinal) && !n.Id.Contains("/apps/", StringComparison.Ordinal)))
             .Take(10)
@@ -63,16 +63,42 @@ public static class CreatorView
             var unitButtons = unitNodes.Select(node =>
             {
                 var alias = BrainGraph.AliasOf(node.Id) ?? node.Id;
-                return (Node)Button(alias)
+                var isSelected = state.Selected is { Kind: Selection.Node } sel && sel.Id == node.Id;
+                return (Node)(isSelected ? PrimaryButton(alias) : Button(alias))
                     .Key($"unit:{node.Id}")
                     .Small()
                     .Emits(AppSignals.Emit(App, "select", BrainGraph.NodeKey(node.Id)));
             });
             children.Add(HStack(Space.Xs, [.. unitButtons]));
         }
+        else
+        {
+            children.Add(MutedText("No runtime units installed yet."));
+        }
+
+        var appNodes = topology.Nodes
+            .Where(n => n.Role == BrainGraph.App || n.Id.Contains("/apps/", StringComparison.Ordinal))
+            .Where(n => !n.Id.EndsWith("/apps/creator", StringComparison.Ordinal))
+            .Take(12)
+            .ToArray();
+
+        if (appNodes.Length > 0)
+        {
+            children.Add(SectionHeader("Installed Apps"));
+            var appButtons = appNodes.Select(node =>
+            {
+                var label = node.Label.Length > 0 ? node.Label : node.Id.Split("/apps/").Last();
+                var isSelected = state.Selected is { Kind: Selection.Node } sel && sel.Id == node.Id;
+                return (Node)(isSelected ? PrimaryButton(label) : GhostButton(label))
+                    .Key($"app:{node.Id}")
+                    .Small()
+                    .Emits(AppSignals.Emit(App, "select", BrainGraph.NodeKey(node.Id)));
+            });
+            children.Add(HStack(Space.Xs, [.. appButtons]));
+        }
 
         // 2. Active Change Runs List
-        children.Add(Divider("ACTIVE CHANGE RUNS"));
+        children.Add(SectionHeader("Active Change Runs"));
         var activeFlows = flows
             .Where(f => f.Type is ChangeFlow.Alias or BuildFlow.Alias)
             .OrderByDescending(f => f.Started)
@@ -90,42 +116,48 @@ public static class CreatorView
         }
 
         // 3. Make / Describe Dialogue (with StatusPill & Rule hint)
-        children.Add(Divider("MAKE NEW UNIT"));
+        children.Add(SectionHeader("Make New Unit"));
         children.Add(HStack(Space.Sm)[
             StatusPill(
                 approvals.Length > 0 ? StatusKind.NeedsYou : StatusKind.Idle,
                 approvals.Length > 0 ? $"{approvals.Length} Approval(s)" : "Studio Ready"),
-            MutedText(state.ConversationId.Length > 0 ? $"Conversation {state.ConversationId}" : "Describe what to make.")
+            MutedText(state.ConversationId.Length > 0 ? $"Ino · {state.ConversationId}" : "Describe what to make.")
         ]);
-        children.Add(TextField(FieldKey(DescribeField), "Describe a unit…")
+        children.Add(TextField(FieldKey(DescribeField), "e.g. Build a Pomodoro sprint timer…")
             .Key(DescribeField)
+            .Label("Unit or App Goal")
+            .Value(state.Draft)
             .Emits(AppSignals.Emit(App, "make", state.Draft)));
-        children.Add(PrimaryButton("Make", Icons.Sparkles)
-            .Key("make")
-            .Small()
-            .Emits(AppSignals.Emit(App, "make", state.Draft)));
+        children.Add(HStack(Space.Xs)[
+            PrimaryButton("Make Unit", Icons.Sparkles)
+                .Key("make")
+                .Small()
+                .Emits(AppSignals.Emit(App, "make", state.Draft)),
+            new Button("open-ino-chat", "Co-Author in Ino", Intent: AppSignals.OpenApp("ino")) { Small = true, Icon = Icons.MessageSquare },
+            new Button("open-gallery", "UI Kit Gallery", Intent: AppSignals.OpenApp("gallery")) { Small = true, Icon = Icons.LayoutGrid }
+        ]);
         if (state.EmptyDraft.Broken)
         {
             children.Add(MutedText(state.EmptyDraft.Message));
         }
-        children.Add(Text(state.Status));
+        children.Add(MutedText(state.Status));
 
         // 4. Starter and Shipped Templates
-        children.Add(Divider("STARTER TEMPLATES"));
+        children.Add(SectionHeader("Starter Templates"));
         children.Add(HStack(6, [.. ShippedUnits.All.Select(alias =>
             (Node)Button(ShippedUnits.Title(alias))
                 .Key($"seed:{alias}")
                 .Small()
                 .Emits(AppSignals.Emit(App, "seed", alias)))]));
 
-        children.Add(Divider("SHIPPED UNIT TEMPLATES"));
+        children.Add(SectionHeader("Shipped Unit Templates"));
         children.Add(HStack(6, [.. ShippedUnits.Legacy.Select(alias =>
             (Node)Button(ShippedUnits.Title(alias))
                 .Key($"seed:{alias}")
                 .Small()
                 .Emits(AppSignals.Emit(App, "seed", alias)))]));
 
-        return VStack([.. children]);
+        return VStack(Space.Sm, [.. children]);
     }
 
     public static Node CenterPane(
@@ -137,23 +169,46 @@ public static class CreatorView
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(topology);
 
+        var mode = state.ShowStateGraph && state.CanvasMode == "brain" ? "state" : state.CanvasMode;
+        var modeSwitcher = Segmented(
+            mode,
+            Option("brain", "Brain Topology").Key("mode-brain").Emits(AppSignals.Emit(App, "select", "mode:brain")),
+            Option("live", "Live Studio").Key("mode-live").Emits(AppSignals.Emit(App, "select", "mode:live")),
+            Option("state", "State Graph").Key("mode-state").Emits(AppSignals.Emit(App, "select", "mode:state")),
+            Option("source", "Source & Kit").Key("mode-source").Emits(AppSignals.Emit(App, "select", "mode:source")));
+
         var children = new List<Node>
         {
-            // 0. Graph Canvas Mode Header (3D Live Brain Graph vs Accordant 2D State-Space Graph)
-            HStack(Space.Sm)[
-                StatusPill(state.ShowStateGraph ? StatusKind.Working : StatusKind.Done,
-                    state.ShowStateGraph ? "Accordant State Space" : "Live Brain Topology"),
+            Toolbar(
+                modeSwitcher,
+                FlexSpacer(),
+                StatusPill(
+                    mode == "state" ? StatusKind.Working : StatusKind.Done,
+                    mode switch
+                    {
+                        "live" => "Interactive App Studio",
+                        "state" => "Accordant State Space",
+                        "source" => "C# Source & Kit v2",
+                        _ => "Live Brain Topology",
+                    }),
                 Button(
                     state.ShowStateGraph ? "Show Live Brain Graph" : "Show Accordant State Graph",
                     state.ShowStateGraph ? "activity" : "git-branch")
                     .Key("toggle-state-graph")
                     .Small()
-                    .Emits(AppSignals.Emit(App, "select", ToggleStateGraphTarget))
-            ]
+                    .Emits(AppSignals.Emit(App, "select", ToggleStateGraphTarget)))
         };
 
-        // 1. Brain Scene Node (or Accordant StateGraphView when State.ShowStateGraph is toggled on)
-        if (state.ShowStateGraph)
+        // 1. Primary Studio Canvas
+        if (mode == "live")
+        {
+            children.Add(RenderLiveStudioPreview(state, inspection));
+        }
+        else if (mode == "source")
+        {
+            children.Add(RenderSourceAndKitStudio(inspection));
+        }
+        else if (mode == "state" || state.ShowStateGraph)
         {
             children.Add(state.Selected is { Kind: Selection.Node } && inspection.Alias is { } unitAlias && inspection.Files.Count > 0
                 ? CreatorStateSpaceInspector.RenderUnitStateScene(unitAlias, inspection.Files)
@@ -168,6 +223,12 @@ public static class CreatorView
             }
 
             children.Add(graph);
+
+            // When a compiled app or live unit is selected in Brain mode, also offer an instant one-click Live Preview card!
+            if (TryResolveLivePreviewTarget(state, inspection, out var quickSlotUri, out var quickSlotKind, out var quickAppName, out var quickTitle))
+            {
+                children.Add(RenderEmbeddedStudioCard(state, quickTitle, quickSlotUri, quickSlotKind, quickAppName));
+            }
         }
 
         // 2. Active Unit Source & Accordant State-Space Summary
@@ -194,20 +255,149 @@ public static class CreatorView
             }
         }
 
-        // 3. 7-Stage ChangeFlow Pipeline Visualizer
-        children.Add(Divider("CHANGE PIPELINE (7 STAGES)"));
+        // 3. Active ChangeFlow / BuildFlow Pipeline (ONLY rendered when an actual run exists — zero fake placeholder diffs!)
         var activeRun = flows.FirstOrDefault(f => f.FlowId == state.ActiveRunId || f.Type == ChangeFlow.Alias);
-        children.Add(RenderPipeline(activeRun));
+        if (activeRun is not null)
+        {
+            children.Add(SectionHeader("Change Pipeline (7 Stages)"));
+            children.Add(RenderPipeline(activeRun));
 
-        // 4. Unified Diff Viewer
-        children.Add(Divider("UNIFIED DIFF REVIEW"));
-        children.Add(RenderDiffViewer(activeRun));
+            children.Add(SectionHeader("Unified Diff Review"));
+            children.Add(RenderDiffViewer(activeRun));
 
-        // 5. Build & Test Summary
-        children.Add(Divider("BUILD & TEST SUMMARY"));
-        children.Add(RenderBuildAndTestSummary(activeRun));
+            children.Add(SectionHeader("Build & Test Summary"));
+            children.Add(RenderBuildAndTestSummary(activeRun));
+        }
 
-        return VStack([.. children]);
+        return VStack(Space.Md, [.. children]);
+    }
+
+    private static bool TryResolveLivePreviewTarget(
+        CreatorState state,
+        Inspection inspection,
+        out string slotUri,
+        out string slotKind,
+        out string? openAppId,
+        out string displayTitle)
+    {
+        slotUri = string.Empty;
+        slotKind = "view";
+        openAppId = null;
+        displayTitle = string.Empty;
+
+        if (state.Selected is not { Kind: Selection.Node, Id: { Length: > 0 } nodeId })
+        {
+            return false;
+        }
+
+        if (nodeId.Split("/apps/") is [var brain, var appName] && appName.Length > 0 && appName != App)
+        {
+            slotUri = $"{brain}/apps/{appName}/view";
+            slotKind = "app";
+            openAppId = appName;
+            displayTitle = appName;
+            return true;
+        }
+
+        if (!nodeId.StartsWith("draft:", StringComparison.Ordinal) && inspection.Alias is { Length: > 0 } unitAlias)
+        {
+            var slash = nodeId.IndexOf('/', StringComparison.Ordinal);
+            var unitBrain = slash > 0 ? nodeId[..slash] : "local";
+            slotUri = $"{unitBrain}/units/{unitAlias}/view";
+            slotKind = "unit";
+            openAppId = unitAlias;
+            displayTitle = unitAlias;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static Node RenderLiveStudioPreview(CreatorState state, Inspection inspection)
+    {
+        if (!TryResolveLivePreviewTarget(state, inspection, out var slotUri, out var slotKind, out var openAppId, out var title))
+        {
+            return Empty(
+                "Select an App or Unit to Preview Live",
+                "Pick any installed app or runtime unit in the left sidebar or Brain Topology to mount its live interactive View inside this Studio viewport — or describe a new unit to synthesize one with Ino.");
+        }
+
+        return RenderEmbeddedStudioCard(state, title, slotUri, slotKind, openAppId);
+    }
+
+    private static Node RenderEmbeddedStudioCard(CreatorState state, string title, string slotUri, string slotKind, string? openAppId)
+    {
+        double? viewportWidth = state.PreviewViewport switch
+        {
+            "390" => 390,
+            "720" => 720,
+            _ => null,
+        };
+
+        var viewportBar = Toolbar(
+            Segmented(
+                "Viewport",
+                state.PreviewViewport,
+                Option("fill", "Desktop Fill").Key("vp-fill").Emits(AppSignals.Emit(App, "select", "viewport:fill")),
+                Option("720", "Tablet 720px").Key("vp-720").Emits(AppSignals.Emit(App, "select", "viewport:720")),
+                Option("390", "Compact 390px").Key("vp-390").Emits(AppSignals.Emit(App, "select", "viewport:390"))),
+            FlexSpacer(),
+            openAppId is { Length: > 0 }
+                ? new Button("studio-open-window", $"Open {openAppId} Window", Intent: AppSignals.OpenApp(openAppId)) { Small = true, Icon = "external-link" }
+                : null);
+
+        return VStack(Space.Sm)[
+            viewportBar,
+            StudioFrame($"Live Studio · {title}", $"Mounted via Slot(\"{slotUri}\")", viewportWidth, Slot(slotUri, slotKind))
+        ];
+    }
+
+    private static Node RenderSourceAndKitStudio(Inspection inspection)
+    {
+        const string kitQuickRef = """
+            using DigitalBrain.Rules;
+            using DigitalBrain.UI;
+            using IntoChat.OS.UI;
+            using static IntoChat.OS.UI.Kit;
+
+            // 1. Immutable State + Domain Rules (Accordant DDD)
+            public sealed record PomodoroState(int Minutes = 25, bool Running = false)
+            {
+                public Rule ValidDuration(int mins) =>
+                    Decision.Rule("duration_bounds", mins is < 1 or > 120, "Choose 1–120 minutes.");
+
+                public Decision<PomodoroState> SetDuration(int mins) =>
+                    Decision.Check("set-duration", ValidDuration(mins))
+                    ?? Decision.Accept(this with { Minutes = mins });
+            }
+
+            // 2. Pure C# View with Kit v2 Controls
+            VStack(Space.Md)[
+                HeaderBar("Pomodoro Studio", $"{state.Minutes} min sprint",
+                    StatusPill(state.Running ? StatusKind.Working : StatusKind.Idle, state.Running ? "Focusing" : "Ready"),
+                    PrimaryButton(state.Running ? "Pause" : "Start", Icons.Play).Key("toggle")),
+                Toolbar(
+                    SectionHeader("Preset Sprints"),
+                    Segmented($"{state.Minutes}", Option("25", "25m"), Option("50", "50m"))),
+                Expander("Session Notes", "Optional markdown scratchpad", expanded: false,
+                    MultilineField("Notes", "What are you shipping this sprint?").Label("Goal"))
+            ]
+            """;
+
+        var blocks = new List<Node>();
+        if (inspection.Files.Count > 0)
+        {
+            foreach (var (name, source) in inspection.Files.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+            {
+                var lang = name.EndsWith(".cs", StringComparison.Ordinal) ? "csharp"
+                    : name.EndsWith(".json", StringComparison.Ordinal) ? "json"
+                    : "markdown";
+                blocks.Add(CodeBlock(name, source, lang, maxHeight: 340));
+            }
+        }
+
+        blocks.Add(CodeBlock("IntoChat.OS.UI.Kit v2 Quick Reference", kitQuickRef, "csharp", maxHeight: 320));
+        return VStack(Space.Md, [.. blocks]);
     }
 
     private static Node RenderPipeline(FlowView? flow)
@@ -250,29 +440,31 @@ public static class CreatorView
         ];
     }
 
-    private static Node RenderDiffViewer(FlowView? flow)
+    private static Node RenderDiffViewer(FlowView flow)
     {
-        const string diffText = "--- a/spec.md\n+++ b/spec.md\n@@ -1,3 +1,4 @@\n# Initial spec\n+## Change\n+Implemented requested modification.\n";
-
-        return Card("Unified Diff", flow is not null ? $"{flow.Title} Diff" : "Pending synthesis")[
+        var subject = flow.Subject ?? "unit";
+        var summary = flow.Detail ?? $"Change flow '{flow.Title}' at stage '{flow.Current ?? "completed"}'.";
+        return Card("Unified Diff", $"{flow.Title} ({flow.FlowId})")[
             HStack(Space.Sm)[
-                StatusPill(StatusKind.Done, "+5 additions"),
-                StatusPill(StatusKind.Error, "-1 deletions"),
-                StatusPill(StatusKind.Idle, "1 file modified")
+                StatusPill(flow.Status == FlowStatus.Failed ? StatusKind.Error : StatusKind.Done, $"{flow.Done.Length}/{flow.Steps.Length} steps done"),
+                StatusPill(StatusKind.Idle, $"Target: {subject}")
             ],
-            Card("spec.md", diffText)
+            MutedText(summary)
         ];
     }
 
-    private static Node RenderBuildAndTestSummary(FlowView? flow)
+    private static Node RenderBuildAndTestSummary(FlowView flow)
     {
-        var prefix = flow is not null ? $"Run {flow.FlowId} ({flow.Status}): " : "";
+        var buildDone = flow.Done.Contains("build") || flow.Status == FlowStatus.Completed;
+        var testDone = flow.Done.Contains("test") || flow.Status == FlowStatus.Completed;
+        var failed = flow.Status == FlowStatus.Failed;
+
         return HStack(Space.Sm)[
-            Card("Build Verification", $"{prefix}Build succeeded: 0 errors, 0 warnings.")[
-                StatusPill(StatusKind.Done, "Passing")
+            Card("Build Verification", failed ? (flow.Detail ?? "Build failed.") : (buildDone ? $"Run {flow.FlowId}: Roslyn synapse compile passed." : $"Run {flow.FlowId}: Pending build stage."))[
+                StatusPill(failed ? StatusKind.Error : (buildDone ? StatusKind.Done : StatusKind.Idle), failed ? "Failed" : (buildDone ? "Compiled" : "Pending"))
             ],
-            Card("Test Verification", $"{prefix}Tests passed: 1 passed, 0 failed, 1 total.")[
-                StatusPill(StatusKind.Done, "100% Pass")
+            Card("Test Verification", failed ? "Blocked by build/scenario failure." : (testDone ? $"Run {flow.FlowId}: Scenario verification passed." : $"Run {flow.FlowId}: Pending scenario verification."))[
+                StatusPill(failed ? StatusKind.Error : (testDone ? StatusKind.Done : StatusKind.Idle), failed ? "Failed" : (testDone ? "Verified" : "Pending"))
             ]
         ];
     }

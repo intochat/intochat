@@ -53,17 +53,16 @@ internal sealed partial class FilesWorkspaceNeuron
                         ]
                     ].ToNode()
                     : null,
-                Surface(SurfaceKind.Elevated, "Quick Write & Clipboard", "Create a text file or paste clipboard selection into the active folder")[
-                    VStack(Space.Sm)[
-                        FilesUi.Field("input-name", AppKey + "/name", FieldKind.Text, "Single-segment file or folder name…"),
-                        FilesUi.Field("input-content", AppKey + "/content", FieldKind.Multiline, "File contents (max 256 KiB)…"),
-                        HStack(Space.Sm)[
-                            Button("write", "Save text file", "write", folderWritable, style: FilesUi.Primary),
-                            Button("paste", files.Clipboard?.Move == true ? "Move here" : "Copy here", "paste", files.Clipboard is not null)
-                        ]
-                    ]
-                ].ToNode(),
-                Slot(Id.Brain.Value + "/confirmations", "confirmation"),
+                Expander(
+                    "Quick Write & Clipboard",
+                    "Create a text file or paste clipboard selection into the active folder",
+                    expanded: files.Clipboard is not null,
+                    FilesUi.Field("input-name", AppKey + "/name", FieldKind.Text, "Single-segment file or folder name…", label: "File or folder name"),
+                    FilesUi.Field("input-content", AppKey + "/content", FieldKind.Multiline, "File contents (max 256 KiB)…", label: "Contents"),
+                    HStack(Space.Sm)[
+                        Button("write", "Save text file", "write", folderWritable, style: FilesUi.Primary),
+                        Button("paste", files.Clipboard?.Move == true ? "Move here" : "Copy here", "paste", files.Clipboard is not null)
+                    ]),
                 .. operations,
             ]).ToNode();
 

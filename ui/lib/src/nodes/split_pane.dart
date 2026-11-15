@@ -61,14 +61,29 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
       builder: (context, constraints) {
         final leading = NodeRenderer.render(node.leading, ctx.deeper());
         final trailing = NodeRenderer.render(node.trailing, ctx.deeper());
-        final stretch =
-            constraints.hasBoundedHeight && NodeRenderer.fills(node.trailing);
+        final stretch = constraints.hasBoundedHeight;
         final leadingScrolls = !NodeRenderer.fills(node.leading);
+        final trailingScrolls = !NodeRenderer.fills(node.trailing);
         final gap = node.gap.clamp(0.0, 128.0);
         final requested = (_draggedExtent ?? node.leadingExtent).clamp(
           0.0,
           1200.0,
         );
+
+        final leadingPane = stretch && leadingScrolls
+            ? SingleChildScrollView(
+                primary: false,
+                padding: const EdgeInsets.only(right: 4, bottom: 16),
+                child: leading,
+              )
+            : leading;
+        final trailingPane = stretch && trailingScrolls
+            ? SingleChildScrollView(
+                primary: false,
+                padding: const EdgeInsets.only(bottom: 16),
+                child: trailing,
+              )
+            : trailing;
 
         if (!constraints.hasBoundedWidth) {
           return Row(
@@ -77,13 +92,8 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
                 : CrossAxisAlignment.start,
             spacing: gap,
             children: [
-              SizedBox(
-                width: requested,
-                child: stretch && leadingScrolls
-                    ? SingleChildScrollView(primary: false, child: leading)
-                    : leading,
-              ),
-              trailing,
+              SizedBox(width: requested, child: leadingPane),
+              trailingPane,
             ],
           );
         }
@@ -97,7 +107,7 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
             context,
             c: c,
             leading: leading,
-            trailing: trailing,
+            trailing: trailingPane,
             stretch: stretch,
             interactive: ctx.interactive,
           );
@@ -130,9 +140,7 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
           children: [
             SizedBox(
               width: effectiveLeading,
-              child: stretch && leadingScrolls
-                  ? SingleChildScrollView(primary: false, child: leading)
-                  : leading,
+              child: leadingPane,
             ),
             Semantics(
               key: const ValueKey('split_pane_sash'),
@@ -212,7 +220,7 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
                 ),
               ),
             ),
-            Expanded(child: trailing),
+            Expanded(child: trailingPane),
           ],
         );
       },

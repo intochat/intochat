@@ -93,7 +93,7 @@ public sealed class StudioAndCraftReactorFacts
     }
 
     [Fact]
-    public void All15ArtCraftSuiteAppsRenderCleanResponsiveSplitShellWithoutAcrylicWindowInteriors()
+    public void All15ArtCraftSuiteAppsRenderCleanStudioAppShellDefaultingToNativeMcpAndSupportingExplicitWasmMode()
     {
         ArtCraftStudioAppBase[] suite =
         [
@@ -104,12 +104,20 @@ public sealed class StudioAndCraftReactorFacts
 
         foreach (var app in suite)
         {
-            var view = app.PreviewView(ArtCraftStudioAppState.For(app.Descriptor.Id));
+            var initialState = ArtCraftStudioAppState.For(app.Descriptor.Id);
+            Assert.Equal("mcp", initialState.ExecutionMode);
+
+            var view = app.PreviewView(initialState);
             Assert.Equal(app.Descriptor.Title, view.Title);
             var json = JsonSerializer.Serialize(view, RuntimeProtocol.OptionsFor(typeof(View)));
-            Assert.Contains("\"kind\":\"splitPane\"", json, StringComparison.Ordinal);
-            Assert.Contains("\"kind\":\"webBrowser\"", json, StringComparison.Ordinal);
+            Assert.Contains("\"kind\":\"appShell\"", json, StringComparison.Ordinal);
+            Assert.Contains("\"surfaceKind\":\"image:contain\"", json, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"kind\":\"webBrowser\"", json, StringComparison.Ordinal);
             Assert.DoesNotContain("\"surfaceKind\":\"acrylic\"", json, StringComparison.Ordinal);
+
+            var wasmView = app.PreviewView(initialState with { ExecutionMode = "wasm-ui" });
+            var wasmJson = JsonSerializer.Serialize(wasmView, RuntimeProtocol.OptionsFor(typeof(View)));
+            Assert.Contains("\"kind\":\"webBrowser\"", wasmJson, StringComparison.Ordinal);
         }
     }
 

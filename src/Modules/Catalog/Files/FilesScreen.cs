@@ -110,7 +110,7 @@ internal static class FilesScreen
             Button("search-all", "Search All Storages", "search-all", true, icon: Icons.Search),
             Button("apply-filter", "Filter", "filter", true, FilesUi.Ghost, icon: "filter"));
 
-        var toolbar = HStack(Space.Xs)[
+        var toolbar = Toolbar(
             Button("upload", FilesCopy.Upload, "upload", writable, FilesUi.Primary, icon: "upload", guard: FilesPathRules.CanWriteFolder(writable)),
             Button("mkdir", FilesCopy.NewFolder, "mkdir", create, icon: "folder-plus", guard: FilesPathRules.CanCreateSubfolder(create)),
             Button("rename", FilesCopy.Rename, "rename", one && selected!.Item.Flags.HasFlag(ItemFlags.Rename), icon: "pencil"),
@@ -120,8 +120,7 @@ internal static class FilesScreen
             CopyOrDisabled("copy-display-path", FilesCopy.CopyDisplayPath, selected is not null ? DisplayPath(state, selected) : null, "copy-display-path"),
             Button("ask-ino-toolbar", FilesCopy.AskInoAboutFile, "ask-ino", one || state.Connection is not null || state.Items.Length > 0, FilesUi.Primary, icon: Icons.Sparkles),
             Button("download", FilesCopy.Download, "download", file && selected!.Item.Flags.HasFlag(ItemFlags.Read), FilesUi.Link, icon: "download"),
-            Button("delete", FilesCopy.Delete, "delete", one && selected!.Item.Flags.HasFlag(ItemFlags.Trash), FilesUi.Danger, icon: Icons.Trash2)
-        ].ToNode();
+            Button("delete", FilesCopy.Delete, "delete", one && selected!.Item.Flags.HasFlag(ItemFlags.Trash), FilesUi.Danger, icon: Icons.Trash2));
 
         var files = state.Searching ? SearchCollection(state) : FolderCollection(state);
         var headers = HStack(Space.Sm)[
@@ -211,8 +210,8 @@ internal static class FilesScreen
         ].ToNode();
 
         var searchBarRow = Grid(2, Space.Sm)[
-            FilesUi.Field("filter", appKey + "/filter", FieldKind.Search, FilesCopy.FilterLabel),
-            FilesUi.Field("search", appKey + "/search", FieldKind.Search, FilesCopy.SearchLabel)
+            FilesUi.Field("filter", appKey + "/filter", FieldKind.Search, FilesCopy.FilterLabel, label: "", value: state.Filter),
+            FilesUi.Field("search", appKey + "/search", FieldKind.Search, FilesCopy.SearchLabel, label: "", value: state.Search)
         ].ToNode();
 
         var chrome = new Node[]
@@ -252,7 +251,7 @@ internal static class FilesScreen
             var itemIdx = 0;
             foreach (var group in state.Groups)
             {
-                rows.Add(Divider(group.Label));
+                rows.Add(SectionHeader(group.Label));
                 foreach (var entry in group.Items.Take(40))
                 {
                     if (itemIdx >= 40) { break; }
@@ -267,7 +266,8 @@ internal static class FilesScreen
                             FilesUi.Act(rev, isFolder ? "browse" : "select", rawIndex),
                             style: isSelected ? FilesUi.Primary : FilesUi.Ghost,
                             icon: isFolder ? Icons.Folder : "file"),
-                        FilesUi.Badge(FormatItemMeta(state, entry), isFolder ? FilesUi.Neutral : FilesUi.Working)
+                        FlexSpacer(),
+                        MutedText(FormatItemMeta(state, entry)).Tabular()
                     ]);
                     itemIdx++;
                 }
@@ -349,13 +349,14 @@ internal static class FilesScreen
                         FilesUi.Act(rev, isFolder ? "browse" : "select", rawIndex),
                         style: isSelected ? FilesUi.Primary : FilesUi.Ghost,
                         icon: isFolder ? Icons.Folder : "file"),
-                    FilesUi.Badge(FormatItemMeta(state, entry), isFolder ? FilesUi.Neutral : FilesUi.Working),
+                    FlexSpacer(),
+                    MutedText(FormatItemMeta(state, entry)).Tabular().ToNode(),
                     FilesUi.Button(
                         "item-select-" + i,
                         isFolder ? "Select" : (isSelected ? "Selected" : "Inspect"),
                         FilesUi.Act(rev, "select", rawIndex),
                         style: isSelected ? FilesUi.Primary : FilesUi.Secondary),
-                ], gap: Space.Sm, extents: [0, 180, 96]));
+                ], gap: Space.Sm));
             }
         }
 
@@ -494,7 +495,7 @@ internal static class FilesScreen
     private static Node Crumbs(FilesState state, long revision)
     {
         var rev = (revision != 0 ? revision : state.Revision).ToString(CultureInfo.InvariantCulture);
-        var nodes = new List<Node>
+        var pathSegments = new List<Node>
         {
             FilesUi.Button(
                 "crumb-root",
@@ -509,8 +510,7 @@ internal static class FilesScreen
             var storageIdx = Array.FindIndex(state.Storages, s => string.Equals(s.Connection, activeConn, StringComparison.Ordinal));
             var storageLabel = storageIdx >= 0 ? state.Storages[storageIdx].Label : activeConn;
             var storageAction = storageIdx >= 0 ? FilesUi.Act(rev, "storage", storageIdx) : FilesUi.Act(rev, "open");
-            nodes.Add(MutedText("/"));
-            nodes.Add(FilesUi.Button(
+            pathSegments.Add(FilesUi.Button(
                 "crumb-storage",
                 storageLabel,
                 storageAction,
@@ -521,8 +521,7 @@ internal static class FilesScreen
         for (var index = 0; index < state.Breadcrumbs.Length; index++)
         {
             var item = state.Breadcrumbs[index];
-            nodes.Add(MutedText("/"));
-            nodes.Add(FilesUi.Button(
+            pathSegments.Add(FilesUi.Button(
                 "crumb-" + index,
                 item.Item.Name,
                 FilesUi.Act(rev, "breadcrumb", index),
@@ -530,27 +529,26 @@ internal static class FilesScreen
                 icon: Icons.Folder));
         }
 
-        nodes.Add(Spacer(Space.Xs));
-
+        var trailing = new List<Node>();
         var activeUri = ActiveFolderNeuronUri(state);
         var activeDisplayPath = state.Selected is { } sel ? DisplayPath(state, sel) : ActiveFolderDisplayPath(state);
 
         if (activeUri is { Length: > 0 })
         {
-            nodes.Add(StatusPill(StatusKind.Idle, activeUri));
-            nodes.Add(FilesUi.CopyButton("crumb-copy-neuron-uri", FilesCopy.CopyNeuronUri + " (" + FilesCopy.CopyNeuronUriShortcut + ")", activeUri));
+            trailing.Add(StatusPill(StatusKind.Idle, activeUri));
+            trailing.Add(FilesUi.CopyButton("crumb-copy-neuron-uri", FilesCopy.CopyNeuronUri + " (" + FilesCopy.CopyNeuronUriShortcut + ")", activeUri));
         }
         else
         {
-            nodes.Add(FilesUi.Button("crumb-copy-neuron-uri", FilesCopy.CopyNeuronUri + " (" + FilesCopy.CopyNeuronUriShortcut + ")", FilesUi.Act(rev, "copy-neuron-uri"), enabled: false, style: FilesUi.Ghost));
+            trailing.Add(FilesUi.Button("crumb-copy-neuron-uri", FilesCopy.CopyNeuronUri + " (" + FilesCopy.CopyNeuronUriShortcut + ")", FilesUi.Act(rev, "copy-neuron-uri"), enabled: false, style: FilesUi.Ghost));
         }
 
-        nodes.Add(activeDisplayPath is { Length: > 0 }
+        trailing.Add(activeDisplayPath is { Length: > 0 }
             ? FilesUi.CopyButton("crumb-copy-display-path", FilesCopy.CopyDisplayPath, activeDisplayPath)
             : FilesUi.Button("crumb-copy-display-path", FilesCopy.CopyDisplayPath, FilesUi.Act(rev, "copy-display-path"), enabled: false, style: FilesUi.Ghost));
 
         return Surface(SurfaceKind.Recessed, padding: Space.Sm)[
-            HStack(Space.Xs, nodes.ToArray())
+            HStack(Space.Xs, [Breadcrumb([.. pathSegments]), FlexSpacer(), .. trailing])
         ];
     }
 

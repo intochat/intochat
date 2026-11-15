@@ -23,20 +23,25 @@ public static class CreatorInspector
 
         List<Node> children =
         [
-            Button("Clear selection", "x")
-                .Key(BrainGraph.SelectKey)
-                .Small()
-                .Emits(AppSignals.Emit(App, "select"))
-                .ToNode(),
+            HStack(Space.Xs)[
+                SectionHeader("Inspector"),
+                FlexSpacer(),
+                GhostButton("Clear selection", "x")
+                    .Key(BrainGraph.SelectKey)
+                    .Small()
+                    .Emits(AppSignals.Emit(App, "select"))
+            ],
         ];
 
         if (state.Selected is null || inspection.Kind.Length == 0)
         {
-            children.Add(Text("Select a node, an edge or a pulse of the graph."));
+            children.Add(Empty(
+                "No Node Selected",
+                "Click any unit, compiled app, edge, or live signal pulse in the Brain Topology (or left catalog) to inspect its state, source, and live Studio preview."));
 
             if (approvals.Length > 0)
             {
-                children.Add(Divider("PENDING APPROVALS"));
+                children.Add(SectionHeader("Pending Approvals"));
                 foreach (var approval in approvals)
                 {
                     children.Add(StatusPill(StatusKind.NeedsYou, "Needs Approval"));
@@ -54,7 +59,7 @@ public static class CreatorInspector
                 }
             }
 
-            return VStack([.. children]);
+            return VStack(Space.Sm, [.. children]);
         }
 
         if (inspection.Notice is { } notice)
@@ -76,10 +81,16 @@ public static class CreatorInspector
     {
         if (inspection.Alias is not { } alias)
         {
-            yield return Card(inspection.Id);
+            yield return Card(inspection.Id, inspection.Id.Contains("/apps/", StringComparison.Ordinal) ? "Compiled OS Application" : "Kernel System Neuron");
             if (inspection.Id.Split("/apps/") is [_, var app] && app.Length > 0)
             {
-                yield return new Button("open-app", $"Open {app}", Intent: AppSignals.OpenApp(app)) { Small = true, Icon = "external-link" };
+                yield return HStack(Space.Xs)[
+                    PrimaryButton($"Preview {app} in Studio", "eye")
+                        .Key("preview-compiled-app")
+                        .Small()
+                        .Emits(AppSignals.Emit(App, "select", "mode:live")),
+                    new Button("open-app", $"Open {app}", Intent: AppSignals.OpenApp(app)) { Small = true, Icon = "external-link" }
+                ];
             }
 
             yield break;
@@ -91,6 +102,13 @@ public static class CreatorInspector
         ];
         if (!ghost)
         {
+            yield return HStack(Space.Xs)[
+                Button("Preview Live", "eye")
+                    .Key("preview-unit-live")
+                    .Small()
+                    .Emits(AppSignals.Emit(App, "select", "mode:live")),
+                new Button("open-unit-window", $"Open {alias}", Intent: AppSignals.OpenApp(alias)) { Small = true, Icon = "external-link" }
+            ];
             yield return Card("State", inspection.State ?? "No state saved yet.");
             yield return Card("View", inspection.View ?? "No view published yet.");
         }
@@ -99,7 +117,8 @@ public static class CreatorInspector
         {
             if (inspection.Files.TryGetValue(name, out var text))
             {
-                yield return Card(name, text);
+                var lang = name.EndsWith(".cs", StringComparison.Ordinal) ? "csharp" : (name.EndsWith(".json", StringComparison.Ordinal) ? "json" : "markdown");
+                yield return CodeBlock(name, text, lang, maxHeight: 220);
             }
         }
 
@@ -126,8 +145,11 @@ public static class CreatorInspector
         }
 
         // Prompt / refine change input
+        yield return SectionHeader("Evolve Unit");
         yield return TextField(CreatorView.FieldKey(CreatorView.ChangeField), $"How should {alias} change?")
-            .Key(CreatorView.ChangeField);
+            .Key(CreatorView.ChangeField)
+            .Label($"Refine {alias}")
+            .Value(state.ChangeDraft);
         yield return HStack(Space.Sm)[
             PrimaryButton("Change it", Icons.Sparkles)
                 .Key("change-it")
@@ -152,7 +174,7 @@ public static class CreatorInspector
 
         if (relevantApprovals.Length > 0)
         {
-            yield return Divider("PENDING APPROVAL GATE");
+            yield return SectionHeader("Pending Approval Gate");
             foreach (var apprv in relevantApprovals)
             {
                 yield return StatusPill(StatusKind.NeedsYou, "Needs Your Approval");
@@ -172,7 +194,7 @@ public static class CreatorInspector
 
         if (state.Transcript is { } transcript)
         {
-            yield return Card("Scenario transcript", transcript);
+            yield return CodeBlock("Scenario transcript", transcript, "text", maxHeight: 220);
         }
     }
 

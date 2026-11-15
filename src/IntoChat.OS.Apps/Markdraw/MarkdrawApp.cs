@@ -232,7 +232,12 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
         var nextRev = State.Revision + 1;
         await Show(State with
         {
-            ActiveDocument = savedDoc, Format = format, Content = rawContent, Revision = nextRev, Elements = elements, WorkspaceDrawings = drawings,
+            ActiveDocument = savedDoc,
+            Format = format,
+            Content = rawContent,
+            Revision = nextRev,
+            Elements = elements,
+            WorkspaceDrawings = drawings,
             LastMutationSummary = $"Synced live canvas to {savedDoc} ({elements.Length} element(s), rev {nextRev})",
             Status = $"Synced {savedDoc} · {elements.Length} element(s) · rev {nextRev}",
         });
@@ -249,8 +254,13 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
         var nextRev = State.Revision + 1;
         await Show(State with
         {
-            ActiveDocument = savedDoc, Format = InferFormat(savedDoc, mergedContent), Content = mergedContent, Revision = nextRev,
-            Elements = elements, WorkspaceDrawings = drawings, LastMutationSummary = mutationSummary,
+            ActiveDocument = savedDoc,
+            Format = InferFormat(savedDoc, mergedContent),
+            Content = mergedContent,
+            Revision = nextRev,
+            Elements = elements,
+            WorkspaceDrawings = drawings,
+            LastMutationSummary = mutationSummary,
             Status = $"{mutationSummary} · Saved to {savedDoc} (rev {nextRev})",
         });
     }
@@ -360,7 +370,8 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
                                 : e.Label,
                             e.Kind is "arrow" or "line" ? "connector" : $"{e.X},{e.Y} ({e.Width}x{e.Height})",
                         ]).ToArray(),
-                        sourceNeuronUri: "neuron://local/apps/markdraw#elements") with { From = "Markdraw" }
+                        sourceNeuronUri: "neuron://local/apps/markdraw#elements") with
+                    { From = "Markdraw" }
                 ],
                 leadingExtent: 260)
         ];

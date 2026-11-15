@@ -128,7 +128,7 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
 
             default:
                 throw new InvalidOperationException(
-                    $"Aggregate command '{ typeof(TState).Name }.{stateMethod.Name}' returned unsupported type '{rawOutcome?.GetType().Name ?? "null"}'.");
+                    $"Aggregate command '{typeof(TState).Name}.{stateMethod.Name}' returned unsupported type '{rawOutcome?.GetType().Name ?? "null"}'.");
         }
     }
 

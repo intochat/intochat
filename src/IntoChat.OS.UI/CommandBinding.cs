@@ -117,6 +117,65 @@ public sealed record BoundCommand(
 
         return emit with { Args = JsonSerializer.SerializeToElement(map) };
     }
+
+    internal static Emit? AttachFieldMetadata(
+        Emit? emit,
+        string owner,
+        bool hasExplicitLabel,
+        string? explicitLabel,
+        string? controlledValue,
+        string? helper,
+        string? error,
+        bool liveChange)
+    {
+        var hasAnyMeta =
+            hasExplicitLabel ||
+            controlledValue is not null ||
+            !string.IsNullOrWhiteSpace(helper) ||
+            !string.IsNullOrWhiteSpace(error) ||
+            liveChange;
+        if (!hasAnyMeta)
+        {
+            return emit;
+        }
+
+        var baseEmit = emit ?? new Emit(owner, UiCommand.SignalAlias);
+        var map = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        if (baseEmit.Args is { ValueKind: JsonValueKind.Object } existing)
+        {
+            foreach (var prop in existing.EnumerateObject())
+            {
+                map[prop.Name] = prop.Value.Clone();
+            }
+        }
+
+        if (hasExplicitLabel)
+        {
+            map["uiLabel"] = JsonSerializer.SerializeToElement(explicitLabel ?? string.Empty);
+        }
+
+        if (controlledValue is not null)
+        {
+            map["uiValue"] = JsonSerializer.SerializeToElement(controlledValue);
+        }
+
+        if (!string.IsNullOrWhiteSpace(helper))
+        {
+            map["uiHelper"] = JsonSerializer.SerializeToElement(helper);
+        }
+
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            map["uiError"] = JsonSerializer.SerializeToElement(error);
+        }
+
+        if (liveChange)
+        {
+            map["uiLive"] = JsonSerializer.SerializeToElement(true);
+        }
+
+        return baseEmit with { Args = JsonSerializer.SerializeToElement(map) };
+    }
 }
 
 /// <summary>
@@ -286,69 +345,69 @@ public static class CommandBinding
                 return constant.Value;
 
             case MemberExpression member:
-            {
-                var instance = member.Expression is null ? null : EvaluateExpression(member.Expression);
-                return member.Member switch
                 {
-                    FieldInfo field => field.GetValue(instance),
-                    PropertyInfo prop => prop.GetValue(instance),
-                    _ => FallbackCompile(expr),
-                };
-            }
+                    var instance = member.Expression is null ? null : EvaluateExpression(member.Expression);
+                    return member.Member switch
+                    {
+                        FieldInfo field => field.GetValue(instance),
+                        PropertyInfo prop => prop.GetValue(instance),
+                        _ => FallbackCompile(expr),
+                    };
+                }
 
             case UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked } convert:
-            {
-                var inner = EvaluateExpression(convert.Operand);
-                if (inner is null)
                 {
-                    return null;
-                }
+                    var inner = EvaluateExpression(convert.Operand);
+                    if (inner is null)
+                    {
+                        return null;
+                    }
 
-                var targetType = Nullable.GetUnderlyingType(convert.Type) ?? convert.Type;
-                if (targetType.IsInstanceOfType(inner))
-                {
-                    return inner;
-                }
+                    var targetType = Nullable.GetUnderlyingType(convert.Type) ?? convert.Type;
+                    if (targetType.IsInstanceOfType(inner))
+                    {
+                        return inner;
+                    }
 
-                if (targetType.IsEnum)
-                {
-                    return Enum.ToObject(targetType, inner);
-                }
+                    if (targetType.IsEnum)
+                    {
+                        return Enum.ToObject(targetType, inner);
+                    }
 
-                return Convert.ChangeType(inner, targetType, CultureInfo.InvariantCulture);
-            }
+                    return Convert.ChangeType(inner, targetType, CultureInfo.InvariantCulture);
+                }
 
             case UnaryExpression { NodeType: ExpressionType.Negate or ExpressionType.NegateChecked } negate:
-            {
-                var inner = EvaluateExpression(negate.Operand);
-                return inner switch
                 {
-                    int v => -v,
-                    long v => -v,
-                    double v => -v,
-                    float v => -v,
-                    decimal v => -v,
-                    _ => FallbackCompile(expr),
-                };
-            }
-
-            case UnaryExpression { NodeType: ExpressionType.Not } notExpr:
-            {
-                var inner = EvaluateExpression(notExpr.Operand);
-                return inner is bool b ? !b : FallbackCompile(expr);
-            }
-
-            case NewArrayExpression newArray when newArray.NodeType == ExpressionType.NewArrayInit:
-            {
-                var elemType = newArray.Type.GetElementType() ?? typeof(object);
-                var array = Array.CreateInstance(elemType, newArray.Expressions.Count);
-                for (var i = 0; i < newArray.Expressions.Count; i++)
-                {
-                    array.SetValue(EvaluateExpression(newArray.Expressions[i]), i);
+                    var inner = EvaluateExpression(negate.Operand);
+                    return inner switch
+                    {
+                        int v => -v,
+                        long v => -v,
+                        double v => -v,
+                        float v => -v,
+                        decimal v => -v,
+                        _ => FallbackCompile(expr),
+                    };
                 }
 
-                return array;
-            }
+            case UnaryExpression { NodeType: ExpressionType.Not } notExpr:
+                {
+                    var inner = EvaluateExpression(notExpr.Operand);
+                    return inner is bool b ? !b : FallbackCompile(expr);
+                }
+
+            case NewArrayExpression newArray when newArray.NodeType == ExpressionType.NewArrayInit:
+                {
+                    var elemType = newArray.Type.GetElementType() ?? typeof(object);
+                    var array = Array.CreateInstance(elemType, newArray.Expressions.Count);
+                    for (var i = 0; i < newArray.Expressions.Count; i++)
+                    {
+                        array.SetValue(EvaluateExpression(newArray.Expressions[i]), i);
+                    }
+
+                    return array;
+                }
 
             case DefaultExpression def:
                 return def.Type.IsValueType ? Activator.CreateInstance(def.Type) : null;

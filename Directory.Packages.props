@@ -2,12 +2,12 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
-    <AspireVersion>13.6.0</AspireVersion>
+    <AspireVersion>17.1.0-preview.1.26563.10</AspireVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- Pin patched transitive dependencies; keep NuGet auditing enabled.
-         MessagePack 2.5.302 is NU1902 (GHSA-qhrr-8q5h-9q3h); 2.5.303 is the patched 2.x release. -->
-    <PackageVersion Include="MessagePack" Version="2.5.303" />
+         MessagePack 2.5.302 is NU1902 (GHSA-qhrr-8q5h-9q3h); 2.5.307+ is the patched 2.x release. -->
+    <PackageVersion Include="MessagePack" Version="2.5.307" />
     <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.13" />
     <PackageVersion Include="Octokit" Version="14.0.0" />
@@ -15,9 +15,9 @@
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
     <PackageVersion Include="ModelContextProtocol.Core" Version="2.2.0" />
     <PackageVersion Include="BouncyCastle.Cryptography" Version="2.7.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.Google" Version="11.0.0-rc.2.26504.105" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="11.0.0-rc.2.26504.105" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.Google" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="11.0.0" />
     <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
     <PackageVersion Include="Grpc.AspNetCore" Version="2.84.0" />
     <PackageVersion Include="Grpc.AspNetCore.Web" Version="2.84.0" />
@@ -31,29 +31,31 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.9.0" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting" Version="13.6.1" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.6.1" />
-    <PackageVersion Include="Aspire.Hosting.Testing" Version="13.6.1" />
-    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.6.1" />
-    <PackageVersion Include="Aspire.Hosting.Orleans" Version="13.6.1" />
-    <PackageVersion Include="Aspire.Hosting.Qdrant" Version="13.6.1" />
-    <PackageVersion Include="Aspire.Hosting.Yarp" Version="13.6.1" />
+    <PackageVersion Include="Aspire.Hosting" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Dotnet" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Testing" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Orleans" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Qdrant" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Yarp" Version="$(AspireVersion)" />
     <PackageVersion Include="Aspire.Hosting.ClickHouse" Version="13.5.3" />
-    <PackageVersion Include="Aspire.Azure.Data.Tables" Version="13.6.1" />
-    <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="13.6.1" />
+    <PackageVersion Include="Aspire.Azure.Data.Tables" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="$(AspireVersion)" />
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.30.1" />
     <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.4" />
     <PackageVersion Include="Qdrant.Client" Version="1.19.0" />
     <PackageVersion Include="ClickHouse.Driver" Version="1.5.0" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
-    <PackageVersion Include="CommunityToolkit.Aspire.Hosting.Ollama" Version="13.6.0" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="11.0.0-rc.2.26504.105" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="11.0.0-rc.2.26504.105" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.CommandLine" Version="11.0.0-rc.2.26504.105" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0-rc.2.26504.105" />
+    <PackageVersion Include="CommunityToolkit.Aspire.Hosting.Ollama" Version="17.0.0-beta.1051" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.CommandLine" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0" />
     <PackageVersion Include="Azure.Communication.Email" Version="1.1.0" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
-    <PackageVersion Include="QRCoder" Version="1.7.0" />
+    <PackageVersion Include="QRCoder" Version="1.8.0" />
     <PackageVersion Include="Azure.Security.KeyVault.Secrets" Version="4.11.2" />
     <PackageVersion Include="Azure.ResourceManager" Version="1.14.0" />
     <PackageVersion Include="Azure.ResourceManager.AppContainers" Version="1.6.0" />
@@ -66,8 +68,8 @@
     <PackageVersion Include="Azure.ResourceManager.PostgreSql" Version="1.4.2" />
     <PackageVersion Include="Azure.ResourceManager.Resources" Version="1.12.0" />
     <PackageVersion Include="Azure.ResourceManager.Storage" Version="1.8.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0-rc.2.26504.105" />
-    <PackageVersion Include="Microsoft.Extensions.Http" Version="11.0.0-rc.2.26504.105" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.0" />

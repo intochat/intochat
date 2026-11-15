@@ -239,33 +239,48 @@ public sealed class StateGraph<TState>(
     /// </summary>
     public BrainSceneNode ToScene(string? selectedStateId = null, bool includeRejectedSelfLoops = true)
     {
+        const int maxRowsPerSubColumn = 4;
+        const double xStep = 230.0;
+        const double yStep = 124.0;
+
         var nodes = new List<BrainGraphNode>(States.Count);
-        var byDepth = States.GroupBy(s => s.Depth).OrderBy(g => g.Key).ToDictionary(g => g.Key, g => g.ToList());
+        var byDepth = States.GroupBy(s => s.Depth).OrderBy(g => g.Key).ToList();
 
-        foreach (var state in States)
+        var currentBaseX = 0.0;
+        foreach (var depthGroup in byDepth)
         {
-            var siblings = byDepth[state.Depth];
-            var rowIndex = siblings.IndexOf(state);
-            var centeredY = (rowIndex - ((siblings.Count - 1) / 2.0)) * 96.0;
-            var x = state.Depth * 160.0;
-            var hasViolation = Violations.Any(v => v.StateId == state.Id);
-            var status = hasViolation ? "error" : (state.Index == 0 ? "done" : "idle");
+            var siblings = depthGroup.ToList();
+            var subColumnCount = Math.Max(1, (int)Math.Ceiling(siblings.Count / (double)maxRowsPerSubColumn));
 
-            var rejectedCount = Transitions.Count(t => !t.Accepted && t.FromId == state.Id);
-            var subtitle = rejectedCount > 0
-                ? $"depth {state.Depth} · {rejectedCount} guarded"
-                : $"depth {state.Depth}";
+            for (var idx = 0; idx < siblings.Count; idx++)
+            {
+                var state = siblings[idx];
+                var subCol = idx / maxRowsPerSubColumn;
+                var subRow = idx % maxRowsPerSubColumn;
+                var rowsInThisSubCol = Math.Min(maxRowsPerSubColumn, siblings.Count - (subCol * maxRowsPerSubColumn));
+                var centeredY = (subRow - ((rowsInThisSubCol - 1) / 2.0)) * yStep;
+                var x = currentBaseX + (subCol * xStep);
+                var hasViolation = Violations.Any(v => v.StateId == state.Id);
+                var status = hasViolation ? "error" : (state.Index == 0 ? "done" : "idle");
 
-            nodes.Add(new BrainGraphNode(
-                Id: state.Id,
-                Label: state.Label,
-                Uri: $"state://{typeof(TState).Name.ToLowerInvariant()}/{state.Id}",
-                Kind: state.Index == 0 ? "initial" : "state",
-                X: x,
-                Y: centeredY,
-                Z: 0,
-                Status: status,
-                Subtitle: subtitle));
+                var rejectedCount = Transitions.Count(t => !t.Accepted && t.FromId == state.Id);
+                var subtitle = rejectedCount > 0
+                    ? $"depth {state.Depth} · {rejectedCount} guarded"
+                    : $"depth {state.Depth}";
+
+                nodes.Add(new BrainGraphNode(
+                    Id: state.Id,
+                    Label: state.Label,
+                    Uri: $"state://{typeof(TState).Name.ToLowerInvariant()}/{state.Id}",
+                    Kind: state.Index == 0 ? "initial" : "state",
+                    X: x,
+                    Y: centeredY,
+                    Z: 0,
+                    Status: status,
+                    Subtitle: subtitle));
+            }
+
+            currentBaseX += subColumnCount * xStep;
         }
 
         var synapses = new List<BrainGraphSynapse>(Transitions.Count);

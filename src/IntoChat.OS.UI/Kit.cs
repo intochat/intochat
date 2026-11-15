@@ -50,6 +50,10 @@ public static class Icons
     public const string Trash2 = "trash-2";
     public const string KeyRound = "key-round";
     public const string Folder = "folder";
+    public const string Play = "play";
+    public const string FileText = "file-text";
+    public const string MessageSquare = "message-square";
+    public const string LayoutGrid = "layout-grid";
 }
 
 /// <summary>
@@ -496,14 +500,20 @@ public sealed class FieldBuilder : KitNode
 {
     private string? _explicitKey;
     private string? _derivedKey;
-    private readonly string _label;
+    private readonly string _name;
+    private bool _hasExplicitLabel;
+    private string? _explicitLabel;
+    private string? _controlledValue;
+    private string? _helper;
+    private string? _error;
+    private bool _liveChange;
     private readonly FieldKind _kind;
     private string? _placeholder;
     private Emit? _onSubmit;
 
-    internal FieldBuilder(string label, FieldKind kind, string? placeholder = null)
+    internal FieldBuilder(string name, FieldKind kind, string? placeholder = null)
     {
-        _label = label ?? string.Empty;
+        _name = name ?? string.Empty;
         _kind = kind;
         _placeholder = placeholder;
     }
@@ -515,6 +525,50 @@ public sealed class FieldBuilder : KitNode
         return this;
     }
 
+    /// <summary>Sets the visible human label above the field (pass <c>""</c> to hide the label row on compact/toolbar inputs).</summary>
+    public FieldBuilder Label(string label)
+    {
+        _hasExplicitLabel = true;
+        _explicitLabel = label ?? string.Empty;
+        return this;
+    }
+
+    /// <summary>Hides the top label row for compact toolbar / inline inputs.</summary>
+    public FieldBuilder NoLabel() => Label(string.Empty);
+
+    /// <summary>Binds the current value from <c>TState</c> so the field initializes and stays synchronized without boilerplate <c>IField</c> wiring.</summary>
+    public FieldBuilder Value(string? value)
+    {
+        _controlledValue = value ?? string.Empty;
+        return this;
+    }
+
+    /// <summary>Sets optional helper description text beneath the field.</summary>
+    public FieldBuilder Description(string? description)
+    {
+        _helper = description;
+        return this;
+    }
+
+    /// <summary>Sets an inline validation error message beneath the field.</summary>
+    public FieldBuilder Error(string? error)
+    {
+        _error = error;
+        return this;
+    }
+
+    /// <summary>Displays <see cref="Rule.Message"/> as an inline field validation error whenever <see cref="Rule.Broken"/> is true.</summary>
+    public FieldBuilder Guard(Rule rule)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        if (rule.Broken)
+        {
+            _error = rule.Message;
+        }
+
+        return this;
+    }
+
     public FieldBuilder Placeholder(string? placeholder)
     {
         _placeholder = placeholder;
@@ -523,23 +577,23 @@ public sealed class FieldBuilder : KitNode
 
     /// <summary>Binds field submission (<c>fieldValue</c>) to a pure <c>TState -&gt; TState</c> command (e.g. <c>.OnSubmit(x =&gt; x.SetQuery(Arg.Text))</c>).</summary>
     public FieldBuilder OnSubmit<TState>(Expression<Func<TState, TState>> command) where TState : class
-        => Bind(CommandBinding.FromState(command));
+        => Bind(CommandBinding.FromState(command), live: false);
 
     /// <summary>Binds field submission (<c>fieldValue</c>) to a rule-checked <c>TState -&gt; Decision&lt;TState&gt;</c> command.</summary>
     public FieldBuilder OnSubmit<TState>(Expression<Func<TState, Decision<TState>>> command) where TState : class
-        => Bind(CommandBinding.FromDecision(command));
+        => Bind(CommandBinding.FromDecision(command), live: false);
 
     /// <summary>Binds field submission (<c>fieldValue</c>) to an async screen orchestration method.</summary>
     public FieldBuilder OnSubmit(Expression<Func<Task>> command)
-        => Bind(CommandBinding.FromScreen(command));
+        => Bind(CommandBinding.FromScreen(command), live: false);
 
-    /// <summary>Binds field changes (<c>fieldValue</c>) to a pure <c>TState -&gt; TState</c> command (e.g. <c>.OnChange(x =&gt; x.SetQuery(Arg.Text))</c>).</summary>
+    /// <summary>Binds debounced live typing changes (<c>fieldValue</c>) to a pure <c>TState -&gt; TState</c> command.</summary>
     public FieldBuilder OnChange<TState>(Expression<Func<TState, TState>> command) where TState : class
-        => Bind(CommandBinding.FromState(command));
+        => Bind(CommandBinding.FromState(command), live: true);
 
-    /// <summary>Binds field changes (<c>fieldValue</c>) to a rule-checked <c>TState -&gt; Decision&lt;TState&gt;</c> command.</summary>
+    /// <summary>Binds debounced live typing changes (<c>fieldValue</c>) to a rule-checked <c>TState -&gt; Decision&lt;TState&gt;</c> command.</summary>
     public FieldBuilder OnChange<TState>(Expression<Func<TState, Decision<TState>>> command) where TState : class
-        => Bind(CommandBinding.FromDecision(command));
+        => Bind(CommandBinding.FromDecision(command), live: true);
 
     /// <summary>Binds an explicit <see cref="DigitalBrain.UI.Emit"/>.</summary>
     public FieldBuilder Emits(Emit emit)
@@ -549,17 +603,27 @@ public sealed class FieldBuilder : KitNode
         return this;
     }
 
-    private FieldBuilder Bind(BoundCommand bound)
+    private FieldBuilder Bind(BoundCommand bound, bool live)
     {
         _derivedKey = bound.CanonicalKey;
+        _liveChange = _liveChange || live;
         _onSubmit = bound.ToEmit(CommandBinding.ActiveOwner);
         return this;
     }
 
     public override Node ToNode()
     {
-        var key = _explicitKey ?? _derivedKey ?? ButtonBuilder.SlugifyKey("field", _label);
-        return new Field(key, _label, _kind, _placeholder, _onSubmit);
+        var key = _explicitKey ?? _derivedKey ?? ButtonBuilder.SlugifyKey("field", _name);
+        var emit = BoundCommand.AttachFieldMetadata(
+            _onSubmit,
+            CommandBinding.ActiveOwner,
+            _hasExplicitLabel,
+            _explicitLabel,
+            _controlledValue,
+            _helper,
+            _error,
+            _liveChange);
+        return new Field(key, _name, _kind, _placeholder, emit);
     }
 }
 
@@ -812,7 +876,66 @@ public static class Kit
             return new Row([new Heading(title, 2, subtitle)]) { Gap = Space.Md };
         }
 
-        return new Row([new Heading(title, 2, subtitle), new Spacer(Space.Sm), .. trailing]) { Gap = Space.Sm };
+        return new Row([new Heading(title, 2, subtitle), new Spacer(0), .. trailing]) { Gap = Space.Sm };
+    }
+
+    /// <summary>Flexible horizontal/vertical spacer (<c>size: 0</c>) that expands to push trailing items to the far edge.</summary>
+    public static Spacer FlexSpacer()
+        => new(0);
+
+    /// <summary>Left-aligned uppercase eyebrow section header (<c>level: 6</c>) that never clips inside narrow sidebars.</summary>
+    public static Heading SectionHeader(string title, string? subtitle = null)
+        => new(title, 6, subtitle);
+
+    /// <summary>Compact WinUI-style command toolbar strip (<c>Surface("toolbar")</c>).</summary>
+    public static Surface Toolbar(params Node?[] items)
+        => new(StackBuilder.FilterNulls(items), "toolbar", Padding: 8);
+
+    /// <summary>WinUI-style navigation breadcrumb bar separating items with chevron dividers (<c>Surface("breadcrumb")</c>).</summary>
+    public static Surface Breadcrumb(params Node?[] segments)
+        => new(StackBuilder.FilterNulls(segments), "breadcrumb", Padding: 0);
+
+    /// <summary>Crisp desktop segmented pill switcher (<see cref="Select"/> with <c>segmented:</c> wire convention).</summary>
+    public static Select Segmented(string selectedId, params OptionBuilder[] options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return new Select("segmented:", selectedId, [.. options.Select(o => o.ToSelectOption())]);
+    }
+
+    /// <summary>Crisp desktop segmented pill switcher with an inline caption label.</summary>
+    public static Select Segmented(string label, string selectedId, params OptionBuilder[] options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var wireLabel = string.IsNullOrWhiteSpace(label) ? "segmented:" : $"segmented:{label}";
+        return new Select(wireLabel, selectedId, [.. options.Select(o => o.ToSelectOption())]);
+    }
+
+    /// <summary>Raster/URL image canvas supporting both <c>data:image/*;base64,...</c> inline previews and remote URLs.</summary>
+    public static Surface ImageView(string src, string caption = "", double height = 320, string fit = "contain")
+        => new([], $"image:{fit}", caption, src, height);
+
+    /// <summary>Recessed monospace code viewer with line numbers and one-click copy (<c>Surface("code:...")</c>).</summary>
+    public static Surface CodeBlock(string title, string code, string language = "csharp", double maxHeight = 360)
+        => new([], $"code:{language}", title, code, maxHeight);
+
+    /// <summary>Collapsible WinUI-style disclosure panel (<c>Surface("expander:...")</c>).</summary>
+    public static Surface Expander(string title, string? subtitle = null, bool expanded = false, params Node?[] children)
+        => new(StackBuilder.FilterNulls(children), expanded ? "expander:open" : "expander:closed", title, subtitle, 12);
+
+    /// <summary>Bounded scrollable container (<c>Surface("scroll")</c>).</summary>
+    public static Surface ScrollBox(Node child, double maxHeight = 360)
+    {
+        ArgumentNullException.ThrowIfNull(child);
+        return new Surface([child], "scroll", Padding: maxHeight);
+    }
+
+    /// <summary>Live App Studio device/viewport frame (<c>Surface("studio-frame:...")</c>) for previewing mounted apps or units.</summary>
+    public static Surface StudioFrame(string title, string? subtitle, double? viewportWidth, params Node?[] children)
+    {
+        var kind = viewportWidth is > 0
+            ? $"studio-frame:{viewportWidth.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
+            : "studio-frame";
+        return new Surface(StackBuilder.FilterNulls(children), kind, title, subtitle, 16);
     }
 
     /// <summary>Horizontal tab bar (<see cref="DigitalBrain.UI.Tabs"/>).</summary>
@@ -952,6 +1075,14 @@ public static class Kit
     /// <summary>Single-line editable text field (<see cref="FieldKind.Text"/>).</summary>
     public static FieldBuilder TextField(string label, string? placeholder = null)
         => new(label, FieldKind.Text, placeholder);
+
+    /// <summary>Multiline text editor field (<see cref="FieldKind.Multiline"/>).</summary>
+    public static FieldBuilder MultilineField(string label, string? placeholder = null)
+        => new(label, FieldKind.Multiline, placeholder);
+
+    /// <summary>Numeric input field (<see cref="FieldKind.Number"/>).</summary>
+    public static FieldBuilder NumberField(string label, string? placeholder = null)
+        => new(label, FieldKind.Number, placeholder);
 
     /// <summary>Search input box (<see cref="FieldKind.Search"/>).</summary>
     public static FieldBuilder SearchField(string placeholder = "Search…", string label = "Search")

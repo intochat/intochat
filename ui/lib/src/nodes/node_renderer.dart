@@ -51,9 +51,10 @@ abstract final class NodeRenderer {
   /// True for a root node that manages its own vertical scrolling and fills its host box.
   static bool fills(Node root) => switch (root) {
     ConversationNode() => true,
+    SplitPaneNode() => true,
+    AppShellNode() => true,
     CollectionNode(:final entries) =>
       entries.length >= kVirtualizedCollectionThreshold,
-    SplitPaneNode(:final trailing) => fills(trailing),
     RowNode(:final children) => children.any(fills),
     _ => false,
   };

@@ -6,16 +6,40 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import '../components/kit/ui_kit_field.dart';
 import 'node_context.dart';
 
+String _humanizeFieldPath(String rawName) {
+  final tail = rawName.contains('/')
+      ? rawName.substring(rawName.lastIndexOf('/') + 1)
+      : rawName;
+  if (tail.isEmpty) return '';
+  // Preserve already-capitalized human labels ("Search settings", "API Key").
+  if (tail.contains(' ') || tail[0].toUpperCase() == tail[0] && tail[0].toLowerCase() != tail[0]) {
+    return tail;
+  }
+  final spaced = tail
+      .replaceAllMapped(RegExp(r'([a-z0-9])([A-Z])'), (m) => '${m[1]} ${m[2]}')
+      .replaceAll(RegExp(r'[-_]+'), ' ')
+      .trim();
+  if (spaced.isEmpty) return tail;
+  return '${spaced[0].toUpperCase()}${spaced.substring(1)}';
+}
+
+Map<String, dynamic> _fieldMeta(FieldNode node) {
+  final args = node.onSubmit?.args;
+  return args is Map ? Map<String, dynamic>.from(args) : const {};
+}
+
 Widget renderField(FieldNode node, NodeContext ctx) => FieldNodeView(
-  key: ValueKey('field:${ctx.fieldName(node.name)}'),
+  key: ValueKey('field:${ctx.fieldName(node.name)}:${node.key}'),
   node: node,
   ctx: ctx,
 );
 
-/// A view field bound to its field neuron: the value is read by `kind=field`,
-/// re-read on `FieldChanged`, and each edit is posted to the neuron. A secret
-/// never shows what is stored. With `onSubmit` a submit activates the field's
-/// key on the view with the typed text.
+/// A view field bound to its field neuron (and/or `AggregateScreen` `UiCommand`):
+/// - Supports explicit `uiLabel` (including `""` to omit label), `uiValue`
+///   (controlled state sync), `uiHelper`, `uiError`, and `uiLive` (`.OnChange`
+///   live debounced activation) via `onSubmit.args`.
+/// - Humanizes slash neuron keys (`owner/apps/files/name` -> `Name`) so internal
+///   storage keys never leak as raw lowercase slugs.
 class FieldNodeView extends StatefulWidget {
   const FieldNodeView({super.key, required this.node, required this.ctx});
   final FieldNode node;
@@ -31,7 +55,6 @@ class _FieldNodeViewState extends State<FieldNodeView> {
   StreamSubscription<void>? _watch;
   Timer? _debounce;
   bool _dirty = false;
-  // Each posted edit's number: only the latest response clears [_dirty].
   int _sent = 0;
 
   static const debounce = Duration(milliseconds: 250);
@@ -42,13 +65,34 @@ class _FieldNodeViewState extends State<FieldNodeView> {
 
   String get _name => widget.ctx.fieldName(widget.node.name);
 
+  Map<String, dynamic> get _meta => _fieldMeta(widget.node);
+
+  bool get _liveChange => _meta['uiLive'] == true;
+
+  String? get _controlledValue =>
+      _meta['uiValue'] is String ? _meta['uiValue'] as String : null;
+
   @override
   void initState() {
     super.initState();
+    if (!_secret && _controlledValue != null) {
+      _controller.text = _controlledValue!;
+    }
     _read();
     _watch = widget.ctx.watch
         ?.call('field', _name)
         .listen((_) => _read(), onError: (Object _) {});
+  }
+
+  @override
+  void didUpdateWidget(covariant FieldNodeView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_secret && !_dirty && !_focus.hasFocus) {
+      final nextControlled = _controlledValue;
+      if (nextControlled != null && nextControlled != _controller.text) {
+        _controller.text = nextControlled;
+      }
+    }
   }
 
   Future<void> _read() async {
@@ -62,7 +106,7 @@ class _FieldNodeViewState extends State<FieldNodeView> {
         _controller.text = value;
       }
     } catch (_) {
-      // The field stays as typed; the next change signal reads again.
+      // Field neuron is optional for pure AggregateScreen commands.
     }
   }
 
@@ -72,19 +116,26 @@ class _FieldNodeViewState extends State<FieldNodeView> {
     _debounce = Timer(debounce, _post);
   }
 
-  // Posts the text as typed now; the event queue keeps it before any later activation.
   void _post() {
     _debounce?.cancel();
     _debounce = null;
     final number = ++_sent;
+    final text = _controller.text;
     unawaited(
       widget.ctx
-          .input(widget.node.name, _controller.text)
+          .input(widget.node.name, text)
           .whenComplete(() {
             if (number == _sent) _dirty = false;
           })
           .catchError((Object _) {}),
     );
+    if (_liveChange && widget.node.onSubmit != null) {
+      unawaited(
+        widget.ctx
+            .activate(widget.node.key, value: text)
+            .catchError((Object _) {}),
+      );
+    }
   }
 
   void _submitted(String value) {
@@ -100,7 +151,6 @@ class _FieldNodeViewState extends State<FieldNodeView> {
 
   @override
   void dispose() {
-    // An edit still waiting out its debounce is sent, not lost.
     if (_debounce != null) _post();
     _watch?.cancel();
     _controller.dispose();
@@ -111,9 +161,12 @@ class _FieldNodeViewState extends State<FieldNodeView> {
   @override
   Widget build(BuildContext context) {
     final node = widget.node;
-    final label = node.name.contains('/')
-        ? node.name.substring(node.name.lastIndexOf('/') + 1)
-        : node.name;
+    final meta = _meta;
+    final label = meta.containsKey('uiLabel')
+        ? '${meta['uiLabel'] ?? ''}'
+        : _humanizeFieldPath(node.name);
+    final helper = meta['uiHelper'] is String ? meta['uiHelper'] as String : null;
+    final error = meta['uiError'] is String ? meta['uiError'] as String : null;
     final clearable =
         node.fieldKind == FieldKind.search ||
         node.fieldKind == FieldKind.text ||
@@ -123,6 +176,8 @@ class _FieldNodeViewState extends State<FieldNodeView> {
       controller: _controller,
       focusNode: _focus,
       placeholder: node.placeholder,
+      helper: helper,
+      error: error,
       secret: _secret,
       clearable: clearable,
       leadingIcon: node.fieldKind == FieldKind.search ? 'search' : null,

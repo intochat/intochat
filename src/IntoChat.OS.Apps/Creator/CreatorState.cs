@@ -29,10 +29,22 @@ public sealed record CreatorState(Selection? Selected, string? TraceId, long? Re
     // Whether the Accordant Aggregate State-Space Graph inspector overlay/card is expanded.
     public bool ShowStateGraph { get; init; }
 
+    // Studio canvas mode: "brain" | "live" | "state" | "source".
+    public string CanvasMode { get; init; } = "brain";
+
+    // Studio live preview viewport width: "fill" | "720" | "390".
+    public string PreviewViewport { get; init; } = "fill";
+
     // ── Domain Rules & Invariants ────────────────────────────────────────────
 
     [Invariant]
     public bool NonNegativeReplayCursor => ReplayCursor is null or >= 0;
+
+    [Invariant]
+    public bool ValidCanvasMode => CanvasMode is "brain" or "live" or "state" or "source";
+
+    [Invariant]
+    public bool ValidPreviewViewport => PreviewViewport is "fill" or "720" or "390";
 
     public Rule EmptyDraft => Decision.Rule("empty_draft", string.IsNullOrWhiteSpace(Draft), "Describe what unit you want to make first.");
 
@@ -106,7 +118,40 @@ public sealed record CreatorState(Selection? Selected, string? TraceId, long? Re
         => this with { SelectedStage = stage };
 
     public CreatorState ToggleStateGraph()
-        => this with { ShowStateGraph = !ShowStateGraph };
+        => this with
+        {
+            ShowStateGraph = !ShowStateGraph,
+            CanvasMode = !ShowStateGraph ? "state" : "brain",
+        };
+
+    [IgnoreExplore]
+    public CreatorState SetCanvasMode(string? mode)
+    {
+        var normalized = mode?.Trim().ToLowerInvariant() switch
+        {
+            "live" => "live",
+            "state" => "state",
+            "source" => "source",
+            _ => "brain",
+        };
+        return this with
+        {
+            CanvasMode = normalized,
+            ShowStateGraph = normalized == "state",
+        };
+    }
+
+    [IgnoreExplore]
+    public CreatorState SetPreviewViewport(string? viewport)
+    {
+        var normalized = viewport?.Trim().ToLowerInvariant() switch
+        {
+            "720" => "720",
+            "390" => "390",
+            _ => "fill",
+        };
+        return this with { PreviewViewport = normalized };
+    }
 
     public CreatorState StepReplay([Sample("next", "stop")] string? cursorArg, [Sample(4)] int hopCount)
         => this with

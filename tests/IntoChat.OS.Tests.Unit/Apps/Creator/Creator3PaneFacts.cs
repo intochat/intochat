@@ -93,16 +93,16 @@ public sealed class Creator3PaneFacts
 
         // Left Pane assertions
         var leftCol = Assert.IsType<Column>(rootSplit.Leading);
-        Assert.Contains(leftCol.Children.OfType<Divider>(), d => d.Label == "CATALOG UNITS");
-        Assert.Contains(leftCol.Children.OfType<Divider>(), d => d.Label == "ACTIVE CHANGE RUNS");
-        Assert.Contains(leftCol.Children.OfType<Divider>(), d => d.Label == "MAKE NEW UNIT");
+        Assert.Contains(leftCol.Children.OfType<Heading>(), h => h.Value == "Catalog Units");
+        Assert.Contains(leftCol.Children.OfType<Heading>(), h => h.Value == "Active Change Runs");
+        Assert.Contains(leftCol.Children.OfType<Heading>(), h => h.Value == "Make New Unit");
 
         // Center Pane assertions
         var centerCol = Assert.IsType<Column>(subSplit.Leading);
         Assert.Contains(centerCol.Children.OfType<BrainSceneNode>(), _ => true);
-        Assert.Contains(centerCol.Children.OfType<Divider>(), d => d.Label == "CHANGE PIPELINE (7 STAGES)");
-        Assert.Contains(centerCol.Children.OfType<Divider>(), d => d.Label == "UNIFIED DIFF REVIEW");
-        Assert.Contains(centerCol.Children.OfType<Divider>(), d => d.Label == "BUILD & TEST SUMMARY");
+        Assert.Contains(centerCol.Children.OfType<Heading>(), h => h.Value == "Change Pipeline (7 Stages)");
+        Assert.Contains(centerCol.Children.OfType<Heading>(), h => h.Value == "Unified Diff Review");
+        Assert.Contains(centerCol.Children.OfType<Heading>(), h => h.Value == "Build & Test Summary");
 
         // Center pane contains active unit state, view, and source
         var centerCards = centerCol.Children.OfType<Card>().ToArray();
@@ -122,6 +122,50 @@ public sealed class Creator3PaneFacts
         Assert.Contains(rightButtons, b => b.Key == "change-it");
         Assert.Contains(rightButtons, b => b.Key == "approve:plan-cf-99");
         Assert.Contains(rightButtons, b => b.Key == "reject:plan-cf-99");
+    }
+
+    [Fact]
+    public void CreatorIdleHasZeroFakeDiffsAndLiveModeMountsStudioFrameSlot()
+    {
+        var idleState = new CreatorState();
+        var topology = new BrainTopology(
+            [new BrainTopologyNode("owner/apps/files", "Files", BrainGraph.App)],
+            []);
+
+        var idleView = CreatorView.Render(idleState, topology, [], [], new Inspection("", ""));
+        var idleSplit = Assert.IsType<SplitPane>(idleView.Root);
+        var idleSubSplit = Assert.IsType<SplitPane>(idleSplit.Trailing);
+        var idleCenter = Assert.IsType<Column>(idleSubSplit.Leading);
+
+        // When no ChangeFlow is running, Creator must NOT render fake spec.md diffs or fake 100% pass cards!
+        Assert.DoesNotContain(idleCenter.Children.OfType<Heading>(), h => h.Value == "Unified Diff Review");
+        Assert.DoesNotContain(idleCenter.Children.OfType<Heading>(), h => h.Value == "Build & Test Summary");
+        Assert.DoesNotContain(idleCenter.Children.OfType<Card>(), c => c.Title == "spec.md");
+
+        // Selecting an installed app and switching to Live Studio mode mounts its View via NeuronRef inside StudioFrame!
+        var liveState = idleState
+            .SelectSelection(new Selection(Selection.Node, "owner/apps/files"))
+            .SetCanvasMode("live")
+            .SetPreviewViewport("720");
+
+        var liveView = CreatorView.Render(
+            liveState,
+            topology,
+            [],
+            [],
+            new Inspection(Selection.Node, "owner/apps/files") { Notice = "Compiled app." });
+        var liveSplit = Assert.IsType<SplitPane>(liveView.Root);
+        var liveSubSplit = Assert.IsType<SplitPane>(liveSplit.Trailing);
+        var liveCenter = Assert.IsType<Column>(liveSubSplit.Leading);
+
+        var studioColumn = liveCenter.Children.OfType<Column>().FirstOrDefault(c =>
+            c.Children.OfType<Surface>().Any(s => s.Children.OfType<NeuronRef>().Any()));
+        Assert.NotNull(studioColumn);
+
+        var studioFrame = Assert.Single(studioColumn.Children.OfType<Surface>(), s => s.Children.OfType<NeuronRef>().Any());
+        Assert.Equal("Live Studio · files", studioFrame.Title);
+        var slot = Assert.Single(studioFrame.Children.OfType<NeuronRef>());
+        Assert.Equal("owner/apps/files/view", slot.NeuronUri);
     }
 
     [Fact]

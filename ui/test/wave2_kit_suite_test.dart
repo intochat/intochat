@@ -771,4 +771,188 @@ void main() {
       },
     );
   });
+
+  group('Kit v2 Layout Physics & WinUI-Grade Controls', () {
+    testWidgets(
+      'HeaderBar Row keeps buttons at natural width and Column never stretches standalone buttons',
+      (tester) async {
+        const ctx = NodeContext(view: 'local/apps/studio/view');
+        final headerAndColumn = Node.fromJson({
+          'kind': 'column',
+          'gap': 12,
+          'children': [
+            {
+              'kind': 'row',
+              'gap': 8,
+              'children': [
+                {
+                  'kind': 'heading',
+                  'value': 'PhotoCraft',
+                  'level': 2,
+                  'subtitle': 'Ready',
+                },
+                {'kind': 'spacer', 'size': 0}, // FlexSpacer()
+                {
+                  'kind': 'button',
+                  'key': 'mode-mcp',
+                  'label': 'MCP',
+                  'small': true,
+                },
+                {
+                  'kind': 'button',
+                  'key': 'preset-cutout',
+                  'label': 'Remove Background',
+                  'tone': 'accent',
+                  'small': true,
+                },
+              ],
+            },
+            {
+              'kind': 'button',
+              'key': 'clear-sel',
+              'label': 'Clear selection',
+              'small': true,
+            },
+            {
+              'kind': 'card',
+              'title': 'Inspector Summary',
+              'body': 'Stretches full width',
+              'children': <Map<String, dynamic>>[],
+            },
+          ],
+        });
+
+        await pumpSurface(
+          tester,
+          NodeRenderer.render(headerAndColumn, ctx),
+          brightness: Brightness.dark,
+          width: 1100,
+        );
+        expect(tester.takeException(), isNull);
+
+        // Standalone button in Column must stay natural width (< 260px), never 1100px!
+        final clearSize = tester.getSize(find.text('Clear selection'));
+        expect(clearSize.width, lessThan(220));
+
+        // Trailing button in HeaderBar Row is pushed to the right half by SpacerNode(0)!
+        final headingLeft = tester.getTopLeft(find.text('PhotoCraft')).dx;
+        final mcpLeft = tester.getTopLeft(find.text('MCP')).dx;
+        expect(mcpLeft, greaterThan(headingLeft + 400));
+      },
+    );
+
+    testWidgets(
+      'Field humanizes neuron paths and honours __label, __value, __helper, __error & Segmented/Surface kinds',
+      (tester) async {
+        String? activatedKey;
+        final ctx = NodeContext(
+          view: 'local/apps/creator/view',
+          send: (e) async {
+            activatedKey = e['key'] as String?;
+            return null;
+          },
+        );
+
+        final node = Node.fromJson({
+          'kind': 'column',
+          'gap': 12,
+          'children': [
+            {
+              'kind': 'field',
+              'key': 'raw-path-field',
+              'name': 'owner/apps/files/folder_name',
+              'fieldKind': 'text',
+              'placeholder': 'Type name…',
+            },
+            {
+              'kind': 'field',
+              'key': 'meta-field',
+              'name': 'apps/creator/describe',
+              'fieldKind': 'text',
+              'placeholder': 'Describe unit…',
+              'onSubmit': {
+                'target': 'creator',
+                'signal': 'make',
+                'args': {
+                  'uiLabel': 'Unit Goal',
+                  'uiValue': 'Pomodoro Sprint',
+                  'uiHelper': 'Compiled via Roslyn',
+                },
+              },
+            },
+            {
+              'kind': 'select',
+              'label': 'segmented:',
+              'selected': 'live',
+              'options': [
+                {
+                  'key': 'seg-brain',
+                  'id': 'brain',
+                  'label': 'Brain Topology',
+                  'emit': {'target': 'creator', 'signal': 'select'},
+                },
+                {
+                  'key': 'seg-live',
+                  'id': 'live',
+                  'label': 'Live Studio',
+                  'emit': {'target': 'creator', 'signal': 'select'},
+                },
+              ],
+            },
+            {
+              'kind': 'surface',
+              'surfaceKind': 'code:csharp',
+              'title': 'UnitApp.cs',
+              'subtitle': 'public sealed record CounterState(int Value = 0);',
+              'padding': 180,
+              'children': <Map<String, dynamic>>[],
+            },
+            {
+              'kind': 'surface',
+              'surfaceKind': 'expander:closed',
+              'title': 'Quick Write & Clipboard',
+              'subtitle': 'Create a text file',
+              'padding': 12,
+              'children': [
+                {'kind': 'text', 'value': 'Hidden until expanded'},
+              ],
+            },
+          ],
+        });
+
+        await pumpSurface(
+          tester,
+          NodeRenderer.render(node, ctx),
+          brightness: Brightness.dark,
+          width: 960,
+        );
+        expect(tester.takeException(), isNull);
+
+        // 1. Slash path `owner/apps/files/folder_name` humanized to `Folder name`
+        expect(find.text('Folder name'), findsOneWidget);
+        expect(find.text('owner/apps/files/folder_name'), findsNothing);
+
+        // 2. Explicit `__label`, `__value`, and `__helper` rendered cleanly
+        expect(find.text('Unit Goal'), findsOneWidget);
+        expect(find.text('Pomodoro Sprint'), findsOneWidget);
+        expect(find.text('Compiled via Roslyn'), findsOneWidget);
+
+        // 3. Segmented pill switcher renders options and dispatches on click
+        expect(find.text('Brain Topology'), findsOneWidget);
+        expect(find.text('Live Studio'), findsOneWidget);
+        await tester.tap(find.text('Brain Topology'));
+        await tester.pump();
+        expect(activatedKey, 'seg-brain');
+
+        // 4. Code viewer renders title + line 1 + source
+        expect(find.text('UnitApp.cs'), findsOneWidget);
+
+        // 5. Closed expander hides body until tapped, then reveals it
+        expect(find.text('Hidden until expanded'), findsNothing);
+        await tester.tap(find.text('Quick Write & Clipboard'));
+        await tester.pump();
+        expect(find.text('Hidden until expanded'), findsOneWidget);
+      },
+    );
+  });
 }

@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using IntoChat.OS.Modules.ArtCraft;
@@ -7,12 +8,12 @@ namespace IntoChat.OS.Modules.Apps;
 
 public static class ArtCraftEngineRunner
 {
-    public const string CyanPreviewPngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAG0lEQVR42mNg23blP9/Sl/8ZOCZu+q90+d1/AFXbCldN0M4zAAAAAElFTkSuQmCC";
-    public const string GradientPreviewPngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAG0lEQVR42mNQTX79Pznt43+GNx4z//8sFvsPAFrfCnnWE457AAAAAElFTkSuQmCC";
-    public const string CutoutPreviewPngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mNg23blPwMMWOz98R8ALDwFfMvokZ0AAAAASUVORK5CYII=";
-    public const string MonochromePreviewPngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAG0lEQVR42mO4cuXG/4ULV/1nKCys+m9v7/YfAGi3Con1rNr9AAAAAElFTkSuQmCC";
-    public const string WarmPresetPngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAG0lEQVR42mP4vV/l/9d53P8Zbpaz/X8VwfMfAF/yCh1YDS1vAAAAAElFTkSuQmCC";
-    public const string VividPresetPngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAG0lEQVR42mMQ2Nn4n23blf8M3THf/n+xj/sPAFX+CkUl2JwpAAAAAElFTkSuQmCC";
+    public static readonly string CyanPreviewPngDataUrl = BuildStudioPreviewPng("cyan");
+    public static readonly string GradientPreviewPngDataUrl = BuildStudioPreviewPng("gradient");
+    public static readonly string CutoutPreviewPngDataUrl = BuildStudioPreviewPng("cutout");
+    public static readonly string MonochromePreviewPngDataUrl = BuildStudioPreviewPng("mono");
+    public static readonly string WarmPresetPngDataUrl = BuildStudioPreviewPng("warm");
+    public static readonly string VividPresetPngDataUrl = BuildStudioPreviewPng("vivid");
 
     private static readonly (string[] Terms, string CmdId, string Title, string DefaultJson, string Suffix, string[] Layers)[] PhotoCommands =
     [
@@ -512,4 +513,125 @@ public static class ArtCraftEngineRunner
 
     private static bool ContainsAny(string text, params string[] terms)
         => terms.Any(term => text.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+    private static string BuildStudioPreviewPng(string palette)
+    {
+        const int width = 240;
+        const int height = 144;
+        var raw = new byte[height * (1 + width * 4)];
+        var offset = 0;
+
+        for (var y = 0; y < height; y++)
+        {
+            raw[offset++] = 0; // filter: None
+            var v = y / (float)(height - 1);
+            for (var x = 0; x < width; x++)
+            {
+                var u = x / (float)(width - 1);
+                var dx = (x - width * 0.5f) / (width * 0.24f);
+                var dy = (y - height * 0.46f) / (height * 0.30f);
+                var dist = MathF.Sqrt(dx * dx + dy * dy);
+                var inSubject = dist <= 1.0f;
+
+                (byte r, byte g, byte b, byte a) = palette switch
+                {
+                    "cutout" => inSubject
+                        ? ((byte)(36 + (int)(170 * (1f - dist))), (byte)(172 + (int)(65 * u)), (byte)(226 - (int)(45 * v)), (byte)255)
+                        : ((byte)0, (byte)0, (byte)0, (byte)0),
+                    "gradient" => (
+                        (byte)(37 + (int)(212 * u)),
+                        (byte)(99 + (int)(45 * (1f - v))),
+                        (byte)(235 - (int)(210 * u)),
+                        (byte)255),
+                    "mono" => inSubject
+                        ? ((byte)(212 - (int)(84 * dist)), (byte)(212 - (int)(84 * dist)), (byte)(216 - (int)(84 * dist)), (byte)255)
+                        : ((byte)(36 + (int)(40 * (1f - v))), (byte)(36 + (int)(40 * (1f - v))), (byte)(40 + (int)(40 * (1f - v))), (byte)255),
+                    "warm" => inSubject
+                        ? ((byte)(242 - (int)(50 * dist)), (byte)(164 - (int)(48 * dist)), (byte)(92 - (int)(30 * dist)), (byte)255)
+                        : ((byte)(58 + (int)(80 * (1f - v))), (byte)(38 + (int)(44 * u)), (byte)(28 + (int)(24 * (1f - u))), (byte)255),
+                    "vivid" => inSubject
+                        ? ((byte)(132 + (int)(110 * u)), (byte)(64 + (int)(168 * (1f - dist))), (byte)(246 - (int)(60 * v)), (byte)255)
+                        : ((byte)(18 + (int)(54 * u)), (byte)(30 + (int)(80 * (1f - v))), (byte)(78 + (int)(92 * u)), (byte)255),
+                    _ => inSubject
+                        ? ((byte)(34 + (int)(120 * (1f - dist))), (byte)(186 + (int)(52 * u)), (byte)(228 - (int)(36 * v)), (byte)255)
+                        : ((byte)(18 + (int)(28 * u)), (byte)(32 + (int)(48 * (1f - v))), (byte)(56 + (int)(64 * u)), (byte)255),
+                };
+
+                raw[offset++] = r;
+                raw[offset++] = g;
+                raw[offset++] = b;
+                raw[offset++] = a;
+            }
+        }
+
+        using var ms = new MemoryStream();
+        ms.Write([137, 80, 78, 71, 13, 10, 26, 10]); // PNG magic
+
+        Span<byte> ihdr = stackalloc byte[13];
+        WriteBigEndian(ihdr[..4], width);
+        WriteBigEndian(ihdr.Slice(4, 4), height);
+        ihdr[8] = 8;  // 8-bit depth
+        ihdr[9] = 6;  // RGBA
+        ihdr[10] = 0; // deflate
+        ihdr[11] = 0; // adaptive filter
+        ihdr[12] = 0; // non-interlaced
+        WritePngChunk(ms, "IHDR"u8, ihdr);
+
+        using (var idatPayload = new MemoryStream())
+        {
+            using (var zlib = new ZLibStream(idatPayload, CompressionLevel.Fastest, leaveOpen: true))
+            {
+                zlib.Write(raw);
+            }
+            WritePngChunk(ms, "IDAT"u8, idatPayload.GetBuffer().AsSpan(0, (int)idatPayload.Length));
+        }
+
+        WritePngChunk(ms, "IEND"u8, ReadOnlySpan<byte>.Empty);
+        return "data:image/png;base64," + Convert.ToBase64String(ms.GetBuffer(), 0, (int)ms.Length);
+    }
+
+    private static void WritePngChunk(Stream output, ReadOnlySpan<byte> type, ReadOnlySpan<byte> data)
+    {
+        Span<byte> header = stackalloc byte[4];
+        WriteBigEndian(header, data.Length);
+        output.Write(header);
+        output.Write(type);
+        if (!data.IsEmpty)
+        {
+            output.Write(data);
+        }
+
+        var crc = ComputeCrc32(type, data);
+        WriteBigEndian(header, (int)crc);
+        output.Write(header);
+    }
+
+    private static void WriteBigEndian(Span<byte> dest, int value)
+    {
+        dest[0] = (byte)((value >> 24) & 0xFF);
+        dest[1] = (byte)((value >> 16) & 0xFF);
+        dest[2] = (byte)((value >> 8) & 0xFF);
+        dest[3] = (byte)(value & 0xFF);
+    }
+
+    private static uint ComputeCrc32(ReadOnlySpan<byte> type, ReadOnlySpan<byte> data)
+    {
+        var crc = 0xFFFFFFFFu;
+        crc = UpdateCrc32(crc, type);
+        crc = UpdateCrc32(crc, data);
+        return crc ^ 0xFFFFFFFFu;
+    }
+
+    private static uint UpdateCrc32(uint crc, ReadOnlySpan<byte> bytes)
+    {
+        foreach (var b in bytes)
+        {
+            crc ^= b;
+            for (var k = 0; k < 8; k++)
+            {
+                crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xEDB88320u : crc >> 1;
+            }
+        }
+        return crc;
+    }
 }

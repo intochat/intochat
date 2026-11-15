@@ -50,7 +50,7 @@ public sealed record FilmCraftAppState(
     string McpEndpointUri = "neuron://local/mcp/filmcraft")
 {
     public FilmCraftAppState() : this(
-        "wasm-ui", "/work/launch-trailer.fcproj", "/work/launch-trailer.cut.mp4", "timeline.razor", "Ready · FilmCraft Studio",
+        "mcp", "/work/launch-trailer.fcproj", "/work/launch-trailer.cut.mp4", "timeline.razor", "Ready · FilmCraft Studio",
         "filmcraft-cli exec /work/launch-trailer.fcproj --cmd timeline.razor --params '{\"timecode\":\"00:00:03:12\",\"track\":\"V1\"}' --out /work/launch-trailer.cut.mp4",
         "FilmCraft tools connected.",
         ["V2 · Title Overlay (00:00:00:00 -> 00:00:05:00)", "V1 · A-Roll Main Camera (00:00:00:00 -> 00:00:14:00)", "A1 · Master Dialogue Bus (-14 LUFS)"])
@@ -157,20 +157,41 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
     }
 
     public Task RazorSplitDefaultAsync() => RunCommand(new FilmCraftRunCommand("timeline.razor", Sequence: State.ActiveSequence, Mode: State.ExecutionMode));
+    public Task LumetriAutoGradeAsync() => RunCommand(new FilmCraftRunCommand("color.lumetri.auto", Sequence: State.ActiveSequence, Mode: State.ExecutionMode));
+    public Task RippleTrimAsync() => RunCommand(new FilmCraftRunCommand("timeline.rippleTrim", Sequence: State.ActiveSequence, Mode: State.ExecutionMode));
     public Task ExportMp4DefaultAsync() => Export(new FilmCraftExport(Sequence: State.ActiveSequence, Mode: State.ExecutionMode));
 
-    protected override Node Render(FilmCraftAppState state) => RenderStudioShell(
-        state.Status, state.ActiveSequence, state.OutputFile, state.WebUrl ?? "http://localhost:18083", state.ExecutionMode,
-        "Timeline Tracks", state.Tracks ?? [],
-        headerActions:
-        [
-            GhostButton("WASM").Key("mode-wasm-ui").Small().OnClick<FilmCraftAppState>(x => x.SwitchExecutionMode("wasm-ui")),
-            GhostButton("MCP").Key("mode-mcp").Small().OnClick<FilmCraftAppState>(x => x.SwitchExecutionMode("mcp")),
-            GhostButton("CLI").Key("mode-native-linux").Small().OnClick<FilmCraftAppState>(x => x.SwitchExecutionMode("native-linux")),
-            Button("Razor Split", "scissors").Key("razor-split").Small().OnClick(() => RazorSplitDefaultAsync()),
-            PrimaryButton("Export MP4", "film").Key("export-mp4").Small().OnClick(() => ExportMp4DefaultAsync()),
-        ],
-        inspectorExtras: [Text(state.LastCommandTitle).Muted()]);
+    protected override Node Render(FilmCraftAppState state)
+    {
+        var tracks = state.Tracks ?? [];
+        var timelineCanvas = VStack(Space.Md)[
+            Toolbar(
+                SectionHeader("Timeline Tools"),
+                Button("Razor Split", "scissors").Key("tool-razor").Small().OnClick(() => RazorSplitDefaultAsync()),
+                Button("Ripple Trim (-24f)").Key("tool-trim").Small().OnClick(() => RippleTrimAsync()),
+                Button("Lumetri Grade").Key("tool-lumetri").Small().OnClick(() => LumetriAutoGradeAsync())
+            ),
+            ImageView(ArtCraftEngineRunner.WarmPresetPngDataUrl, $"Program Monitor · {state.ActiveSequence} -> {state.OutputFile}", height: 240),
+            Table("Non-Linear Sequence Tracks", ["Track", "Timeline Span & Routing"], [.. tracks.Select((t, idx) => (IReadOnlyList<string>)[$"T{idx + 1}", t])]),
+            CodeBlock($"filmcraft-cli · {FormatModeLabel(state.ExecutionMode)}", state.LastCliInvocation, "bash", maxHeight: 140)
+        ];
+
+        return RenderStudioShell(
+            state.Status, state.ActiveSequence, state.OutputFile, state.WebUrl ?? "http://localhost:18083", state.ExecutionMode,
+            "Timeline Tracks", tracks,
+            headerActions:
+            [
+                (state.ExecutionMode == "mcp" ? Button("MCP") : GhostButton("MCP")).Key("mode-mcp").Small().OnClick<FilmCraftAppState>(x => x.SwitchExecutionMode("mcp")),
+                (state.ExecutionMode == "native-linux" ? Button("CLI") : GhostButton("CLI")).Key("mode-native-linux").Small().OnClick<FilmCraftAppState>(x => x.SwitchExecutionMode("native-linux")),
+                (state.ExecutionMode == "wasm-ui" ? Button("WASM") : GhostButton("WASM")).Key("mode-wasm-ui").Small().OnClick<FilmCraftAppState>(x => x.SwitchExecutionMode("wasm-ui")),
+                Button("Razor Split", "scissors").Key("razor-split").Small().OnClick(() => RazorSplitDefaultAsync()),
+                PrimaryButton("Export MP4", "film").Key("export-mp4").Small().OnClick(() => ExportMp4DefaultAsync()),
+            ],
+            inspectorExtras: [Text(state.LastCommandTitle).Muted()],
+            nativeCanvas: timelineCanvas,
+            cliInvocation: state.LastCliInvocation,
+            mcpUri: state.McpEndpointUri);
+    }
 
     private async Task ApplyTimelineExecutionAsync(string instructionOrCommand, string? explicitParamsJson, string sequence, string mode) =>
         await Show(State.ApplyTimelineOutcome(await ExecuteStudioCommandAsync(instructionOrCommand, explicitParamsJson, sequence, mode)));

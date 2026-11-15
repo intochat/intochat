@@ -53,9 +53,9 @@ internal static class FilesUi
 {
     public const string Primary = ButtonTone.Accent;
     public const string Secondary = ButtonTone.Neutral;
-    public const string Ghost = ButtonTone.Neutral;
+    public const string Ghost = "ghost";
     public const string Danger = "danger";
-    public const string Link = ButtonTone.Neutral;
+    public const string Link = "ghost";
     public const string Neutral = "neutral";
     public const string Working = "working";
 
@@ -85,6 +85,7 @@ internal static class FilesUi
         {
             Primary => PrimaryButton(text, icon),
             Danger => DangerButton(text, icon),
+            Ghost => GhostButton(text, icon),
             _ => Kit.Button(text, icon),
         };
         builder.Key(key).Small(small).Emits(action);
@@ -142,13 +143,33 @@ internal static class FilesUi
 
     public static Node Divider(string? label = null) => Kit.Divider(label);
 
-    public static Node Field(string key, string name, FieldKind kind = FieldKind.Text, string? placeholder = null) => kind switch
+    public static Node Field(
+        string key,
+        string name,
+        FieldKind kind = FieldKind.Text,
+        string? placeholder = null,
+        string? label = null,
+        string? value = null)
     {
-        FieldKind.Search => SearchField(placeholder ?? "Search…", name).Key(key).ToNode(),
-        FieldKind.Secret => SecretField(name, placeholder).Key(key).ToNode(),
-        FieldKind.Multiline => new Field(key, name, FieldKind.Multiline, placeholder),
-        _ => TextField(name, placeholder).Key(key).ToNode(),
-    };
+        FieldBuilder builder = kind switch
+        {
+            FieldKind.Search => SearchField(placeholder ?? "Search…", name),
+            FieldKind.Secret => SecretField(name, placeholder),
+            FieldKind.Multiline => MultilineField(name, placeholder),
+            _ => TextField(name, placeholder),
+        };
+        builder.Key(key);
+        if (label is not null)
+        {
+            if (label.Length == 0) { builder.NoLabel(); }
+            else { builder.Label(label); }
+        }
+        if (value is not null)
+        {
+            builder.Value(value);
+        }
+        return builder.ToNode();
+    }
 
     public static Node Reference(string kind, string name) => Slot(name, kind);
 }

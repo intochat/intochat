@@ -145,6 +145,16 @@ public sealed class CreatorApp : Screen<CreatorState>
             await Show(State.ToggleStateGraph());
             return;
         }
+        if (raw is not null && raw.StartsWith("mode:", StringComparison.Ordinal))
+        {
+            await Show(State.SetCanvasMode(raw["mode:".Length..]));
+            return;
+        }
+        if (raw is not null && raw.StartsWith("viewport:", StringComparison.Ordinal))
+        {
+            await Show(State.SetPreviewViewport(raw["viewport:".Length..]));
+            return;
+        }
         var selection = Selection.Parse(raw);
         if (_topology.Nodes.Count == 0) { await RefreshAsync(); }
         if (selection is not null && !Known(selection))

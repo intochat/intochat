@@ -62,7 +62,7 @@ public sealed record PhotoCraftAppState(
     string? ActivePreset = null)
 {
     public PhotoCraftAppState() : this(
-        "wasm-ui", "/work/portrait.png", "/work/portrait.nobg.png", "layer.removeBackground", "Ready · PhotoCraft Studio",
+        "mcp", "/work/portrait.png", "/work/portrait.nobg.png", "layer.removeBackground", "Ready · PhotoCraft Studio",
         "photocraft-cli run /work/portrait.png --cmd layer.removeBackground --params '{\"featherPx\":1,\"output\":\"layer-mask\"}' --out /work/portrait.nobg.png --format png",
         ArtCraftEngineRunner.CyanPreviewPngDataUrl, "PhotoCraft tools connected.",
         ["Subject Layer (100% · Normal)", "Background Layer (Locked · 100%)"], [])
@@ -263,30 +263,59 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
     {
         var hidden = (state.HiddenLayerIndices ?? []).ToHashSet();
         var layers = state.Layers ?? [];
+        var history = state.History ?? [];
+
+        var presetBar = Toolbar(
+            SectionHeader("Quick Presets"),
+            (state.ActivePreset == "warm" ? PrimaryButton("Warm Cinema") : Button("Warm Cinema")).Key("preset-warm").Small().OnClick(() => ApplyQuickPresetAsync("warm")),
+            (state.ActivePreset == "vivid" ? PrimaryButton("Vivid Pop") : Button("Vivid Pop")).Key("preset-vivid").Small().OnClick(() => ApplyQuickPresetAsync("vivid")),
+            (state.ActivePreset == "monochrome" ? PrimaryButton("Monochrome") : Button("Monochrome")).Key("preset-mono").Small().OnClick(() => ApplyQuickPresetAsync("monochrome")),
+            (state.ActivePreset == "gradient" ? PrimaryButton("Gradient Canvas") : Button("Gradient Canvas")).Key("preset-gradient").Small().OnClick(() => ApplyQuickPresetAsync("gradient"))
+        );
+
+        var studioCanvas = VStack(Space.Md)[
+            presetBar,
+            ImageView(
+                state.PreviewDataUrl,
+                $"Canvas Preview · {state.LastCommandTitle} ({state.ActiveDocument} -> {state.OutputDocument})",
+                height: 300),
+            CodeBlock($"photocraft-cli · {FormatModeLabel(state.ExecutionMode)}", state.LastCliInvocation, "bash", maxHeight: 140),
+            history.Length > 0
+                ? Table(
+                    $"Edit History ({history.Length}/10)",
+                    ["Step", "Operation", "Backend", "Output"],
+                    [.. history.Select(h => (IReadOnlyList<string>)[h.Id, h.Title, h.ExecutionMode, h.OutputDocument])])
+                : null
+        ];
 
         return RenderStudioShell(
             state.Status, state.ActiveDocument, state.OutputDocument, state.WebUrl ?? "http://localhost:18082", state.ExecutionMode,
             "Layer Stack", layers,
             headerActions:
             [
-                GhostButton("WASM").Key("mode-wasm-ui").Small().OnClick<PhotoCraftAppState>(x => x.SwitchExecutionMode("wasm-ui")),
-                GhostButton("MCP").Key("mode-mcp").Small().OnClick<PhotoCraftAppState>(x => x.SwitchExecutionMode("mcp")),
-                GhostButton("CLI").Key("mode-native-linux").Small().OnClick<PhotoCraftAppState>(x => x.SwitchExecutionMode("native-linux")),
+                (state.ExecutionMode == "mcp" ? Button("MCP") : GhostButton("MCP")).Key("mode-mcp").Small().OnClick<PhotoCraftAppState>(x => x.SwitchExecutionMode("mcp")),
+                (state.ExecutionMode == "native-linux" ? Button("CLI") : GhostButton("CLI")).Key("mode-native-linux").Small().OnClick<PhotoCraftAppState>(x => x.SwitchExecutionMode("native-linux")),
+                (state.ExecutionMode == "wasm-ui" ? Button("WASM") : GhostButton("WASM")).Key("mode-wasm-ui").Small().OnClick<PhotoCraftAppState>(x => x.SwitchExecutionMode("wasm-ui")),
                 PrimaryButton("Remove Background", "wand-sparkles").Key("preset-cutout").Small().OnClick(() => RemoveBackgroundDefaultAsync()),
             ],
             inspectorExtras:
             [
-                MutedText($"Preview ({(string.IsNullOrEmpty(state.PreviewDataUrl) ? "pending" : "PNG inline")}) · History: {(state.History ?? []).Length}/10").Tabular(),
-                HStack(Space.Xs)[
-                    Button("Warm Cinema").Key("preset-warm").Small().OnClick(() => ApplyQuickPresetAsync("warm")),
-                    Button("Vivid Pop").Key("preset-vivid").Small().OnClick(() => ApplyQuickPresetAsync("vivid"))
-                ],
-                HStack(Space.Xs)[
-                    Button("Monochrome").Key("preset-mono").Small().OnClick(() => ApplyQuickPresetAsync("monochrome")),
-                    Button("Gradient Canvas").Key("preset-gradient").Small().OnClick(() => ApplyQuickPresetAsync("gradient"))
-                ],
-                VStack(Space.Xs, [.. layers.Select((layer, idx) => GhostButton(hidden.Contains(idx) ? $"Show: {layer}" : $"Hide: {layer}").Key($"toggle-layer-{idx}").Small().OnClick<PhotoCraftAppState>(x => x.ToggleLayerByIndex(idx)).ToNode())]),
-            ]);
+                MutedText($"Preview ({(string.IsNullOrEmpty(state.PreviewDataUrl) ? "pending" : "PNG inline")}) · History: {history.Length}/10").Tabular(),
+                state.ExecutionMode == "wasm-ui" ? presetBar : null,
+                SectionHeader("Visibility"),
+                VStack(Space.Xs, [.. layers.Select((layer, idx) =>
+                {
+                    var shortLabel = layer.Length > 28 ? layer[..25] + "…" : layer;
+                    return GhostButton(hidden.Contains(idx) ? $"Show · {shortLabel}" : $"Hide · {shortLabel}")
+                        .Key($"toggle-layer-{idx}")
+                        .Small()
+                        .OnClick<PhotoCraftAppState>(x => x.ToggleLayerByIndex(idx))
+                        .ToNode();
+                })]),
+            ],
+            nativeCanvas: studioCanvas,
+            cliInvocation: state.LastCliInvocation,
+            mcpUri: state.McpEndpointUri);
     }
 
     private async Task ApplyEngineExecutionAsync(string instructionOrCommand, string? explicitParamsJson, string targetDoc, string mode, string? activePreset = null) =>

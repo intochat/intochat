@@ -52,7 +52,7 @@ public sealed record ArtCraftStudioAppState(
     string McpEndpointUri)
 {
     public ArtCraftStudioAppState() : this(
-        "artcraft", "wasm-ui", "/work/project.craft", "/work/project.export.png", "suite.inspect",
+        "artcraft", "mcp", "/work/project.craft", "/work/project.export.png", "suite.inspect",
         "Inspect ArtCraft Workspace", "craft-cli run /work/project.craft --cmd suite.inspect",
         "ArtCraft tools connected.", ["ArtCraft Suite Hub · Connected"], "http://localhost:18080/", "neuron://local/mcp/artcraft")
     { }
@@ -92,7 +92,7 @@ public sealed record ArtCraftStudioAppState(
     {
         var d = ArtCraftCatalog.Get(appId);
         return new(
-            d.Id, "wasm-ui", d.DefaultDocument, d.DefaultOutputDocument, d.DefaultCommandId, $"Ready · {d.Title}",
+            d.Id, "mcp", d.DefaultDocument, d.DefaultOutputDocument, d.DefaultCommandId, $"Ready · {d.Title}",
             $"{d.CliBinary} run {d.DefaultDocument} --cmd {d.DefaultCommandId} --params '{d.DefaultParametersJson}' --out {d.DefaultOutputDocument}",
             $"{d.Title} tools connected.", d.DefaultLayersOrTracks, d.DefaultWebUrl, $"neuron://local/mcp/{d.Id}");
     }
@@ -180,24 +180,53 @@ public abstract class ArtCraftStudioAppCore<TState>(string appId) : AggregateScr
 
     protected Node RenderStudioShell(
         string status, string activeDoc, string outputDoc, string? webUrl, string executionMode,
-        string itemsTitle, IReadOnlyList<string> items, Node[]? headerActions = null, Node[]? inspectorExtras = null)
+        string itemsTitle, IReadOnlyList<string> items, Node?[]? headerActions = null, Node?[]? inspectorExtras = null,
+        Node? nativeCanvas = null, string? cliInvocation = null, string? mcpUri = null)
     {
-        var pillKind = executionMode == "wasm-ui" ? StatusKind.Done : StatusKind.Working;
-        Node?[] actions = [StatusPill(pillKind, FormatModeLabel(executionMode)), .. headerActions ?? []];
+        var pillKind = executionMode == "wasm-ui" ? StatusKind.Working : StatusKind.Done;
+        var toolbar = HeaderBar(Descriptor.Title, status, [StatusPill(pillKind, FormatModeLabel(executionMode)), .. headerActions ?? []]);
+
+        var sidebar = VStack(Space.Md)[
+            SectionHeader("Document"),
+            Card(activeDoc, $"{ActiveDocumentLabel} -> {outputDoc}")[
+                VStack(Space.Xs, [.. inspectorExtras ?? []])
+            ],
+            items.Count > 0 ? SectionHeader(itemsTitle, $"{items.Count} item(s)") : null,
+            items.Count > 0
+                ? Surface(SurfaceKind.Recessed, padding: Space.Sm)[VStack(Space.Xs, [.. items.Select(item => Text(item).Tabular().ToNode())])].ToNode()
+                : null
+        ];
+
+        Node body = executionMode == "wasm-ui"
+            ? VStack(Space.Md)[
+                Banner("Embedded WASM Studio", $"Connecting WebView2 canvas to {webUrl ?? Descriptor.DefaultWebUrl}. Switch to MCP or CLI for instant local engine execution."),
+                WebBrowser(webUrl ?? Descriptor.DefaultWebUrl, $"{Descriptor.Title} WASM Studio", $"{Descriptor.Id}-wasm", height: 480, executionMode: executionMode)
+            ]
+            : nativeCanvas ?? BuildDefaultNativeCanvas(activeDoc, outputDoc, executionMode, itemsTitle, items, cliInvocation, mcpUri);
+
+        return AppShell($"{Descriptor.Id}-shell", sidebar: sidebar, body: body, toolbar: toolbar);
+    }
+
+    private Node BuildDefaultNativeCanvas(
+        string activeDoc, string outputDoc, string executionMode, string itemsTitle, IReadOnlyList<string> items, string? cliInvocation, string? mcpUri)
+    {
+        var cliLine = string.IsNullOrWhiteSpace(cliInvocation)
+            ? $"{Descriptor.CliBinary} run {activeDoc} --cmd {Descriptor.DefaultCommandId} --params '{Descriptor.DefaultParametersJson}' --out {outputDoc}"
+            : cliInvocation;
 
         return VStack(Space.Md)[
-            HeaderBar(Descriptor.Title, $"{status} · {activeDoc} -> {outputDoc}", actions),
-            ResponsiveSplit(
-                leading: VStack(Space.Sm)[
-                    Card("Document", $"{ActiveDocumentLabel}: {activeDoc}")[
-                        VStack(Space.Xs, [MutedText($"Output: {outputDoc}").Tabular(), .. inspectorExtras ?? []])
-                    ],
-                    items.Count > 0
-                        ? Card(itemsTitle, $"{items.Count} item(s)")[VStack(Space.Xs, [.. items.Select(item => Text(item).Tabular().ToNode())])].ToNode()
-                        : null
-                ],
-                trailing: WebBrowser(webUrl ?? Descriptor.DefaultWebUrl, $"{Descriptor.Title} WASM Studio", $"{Descriptor.Id}-wasm", height: 520, executionMode: executionMode),
-                leadingExtent: 260)
+            Grid(2, Space.Sm)[
+                Metric("Active Document", activeDoc, Descriptor.Category, BadgeTone.Accent, Icons.FileText),
+                Metric("Output Target", outputDoc, FormatModeLabel(executionMode), BadgeTone.Done, Icons.Sparkles)
+            ],
+            ImageView(ArtCraftEngineRunner.CyanPreviewPngDataUrl, $"{Descriptor.Title} · {activeDoc} -> {outputDoc}", height: 240),
+            CodeBlock($"{Descriptor.CliBinary} · {FormatModeLabel(executionMode)}", cliLine, "bash", maxHeight: 160),
+            !string.IsNullOrWhiteSpace(mcpUri)
+                ? MutedText($"MCP Endpoint: {mcpUri} · Supported formats: {string.Join(", ", Descriptor.SupportedExtensions)}").Tabular().ToNode()
+                : null,
+            items.Count > 0
+                ? Table(itemsTitle, ["#", "Item / Track"], [.. items.Select((item, idx) => (IReadOnlyList<string>)[$"{idx + 1}", item])])
+                : null
         ];
     }
 
@@ -287,16 +316,21 @@ public abstract class ArtCraftStudioAppBase(string appId) : ArtCraftStudioAppCor
         return Show(State with { ExecutionMode = nextMode, Status = $"Switched {Descriptor.Title} execution backend to {FormatModeLabel(nextMode)}" });
     }
 
+    public Task RunDefaultCommandAsync() => RunCommand(new ArtCraftStudioAppRunCommand(Descriptor.DefaultCommandId, Descriptor.DefaultParametersJson, State.ActiveDocument, State.ExecutionMode));
+
     protected override Node Render(ArtCraftStudioAppState state) => RenderStudioShell(
         state.Status, state.ActiveDocument, state.OutputDocument, state.WebUrl, state.ExecutionMode,
         "Layers & Channels", state.LayersOrTracks ?? [],
         headerActions:
         [
-            GhostButton("WASM").Key("mode-wasm-ui").Small().OnClick<ArtCraftStudioAppState>(x => x.SwitchExecutionMode("wasm-ui")),
-            GhostButton("MCP").Key("mode-mcp").Small().OnClick<ArtCraftStudioAppState>(x => x.SwitchExecutionMode("mcp")),
-            GhostButton("CLI").Key("mode-native-linux").Small().OnClick<ArtCraftStudioAppState>(x => x.SwitchExecutionMode("native-linux")),
+            (state.ExecutionMode == "mcp" ? Button("MCP") : GhostButton("MCP")).Key("mode-mcp").Small().OnClick<ArtCraftStudioAppState>(x => x.SwitchExecutionMode("mcp")),
+            (state.ExecutionMode == "native-linux" ? Button("CLI") : GhostButton("CLI")).Key("mode-native-linux").Small().OnClick<ArtCraftStudioAppState>(x => x.SwitchExecutionMode("native-linux")),
+            (state.ExecutionMode == "wasm-ui" ? Button("WASM") : GhostButton("WASM")).Key("mode-wasm-ui").Small().OnClick<ArtCraftStudioAppState>(x => x.SwitchExecutionMode("wasm-ui")),
+            PrimaryButton(Descriptor.DefaultCommandTitle, Icons.Play).Key("run-default").Small().OnClick(() => RunDefaultCommandAsync()),
         ],
-        inspectorExtras: [Text(state.LastCommandTitle).Muted()]);
+        inspectorExtras: [Text(state.LastCommandTitle).Muted()],
+        cliInvocation: state.LastCliInvocation,
+        mcpUri: state.McpEndpointUri);
 
     protected async Task ApplyExecutionAsync(string instructionOrCommand, string? explicitParamsJson, string targetDoc, string mode) =>
         await Show(State.ApplyEngineOutcome(await ExecuteStudioCommandAsync(instructionOrCommand, explicitParamsJson, targetDoc, mode)));
