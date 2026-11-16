@@ -7,8 +7,10 @@ using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Kernel.Composition;
+using IntoChat.OS.Kernel.Composition.Kernel.Testing;
 
-namespace IntoChat.OS.Kernel.Composition;
+namespace IntoChat.OS.Kernel.Composition.Kernel;
 
 // Reads the directory of the stamped caller's brain; works on a silo and on a cluster client alike.
 public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = null, IServiceProvider? services = null) : IKernel

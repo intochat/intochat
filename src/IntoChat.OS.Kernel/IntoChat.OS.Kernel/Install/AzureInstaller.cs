@@ -5,8 +5,9 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Log;
 using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Microsoft.Azure;
 
-namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
+namespace IntoChat.OS.Kernel.Install;
 
 // dotnet run --project IntoChat.OS.Kernel -- install --env test --config deployment/test.json [--manifest release-manifest.json] [--promote-from <id>] [--dry-run] [--print-env] [--secrets-from file]
 // Runs before any cluster exists: the specs are ensured straight against ARM, in dependency order, and the

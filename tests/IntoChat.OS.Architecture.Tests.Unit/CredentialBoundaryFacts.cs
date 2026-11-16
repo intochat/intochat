@@ -30,7 +30,7 @@ public sealed class CredentialBoundaryFacts
             "IntoChat.OS.Modules.Flutter.Space.SpaceWatcher",
         ];
         var offenders = ModuleMethods()
-            .Where(m => m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Framework" && m.DeclaringType!.Namespace != "IntoChat.OS.Modules.Microsoft.Azure.Install")
+            .Where(m => m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Framework" && m.DeclaringType!.Namespace != "IntoChat.OS.Kernel.Install")
             .Where(m => !allowed.Contains(Outermost(m.DeclaringType!).FullName))
             .Where(m => Calls(m).Any(ConstructsACaller) || SetsAPlatformStamp(m))
             .Select(m => m.DeclaringType!.FullName + "." + m.Name).Order().ToArray();
@@ -116,7 +116,7 @@ public sealed class CredentialBoundaryFacts
     public void RuntimeModulesCannotBypassIntegrationHandles()
     {
         var offenders = ModuleMethods().Where(m =>
-            m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Framework" && m.DeclaringType!.Namespace != "IntoChat.OS.Modules.Microsoft.Azure.Install"
+            m.DeclaringType!.Assembly.GetName().Name != "IntoChat.OS.Framework" && m.DeclaringType!.Namespace != "IntoChat.OS.Kernel.Install"
             && !m.Module.Assembly.GetName().Name!.EndsWith(".Aspire.Hosting", StringComparison.Ordinal)
             && !m.Module.Assembly.GetName().Name!.EndsWith(".Deployment", StringComparison.Ordinal))
             .Where(m => Calls(m).Any(c => c.DeclaringType == typeof(IIntegration)

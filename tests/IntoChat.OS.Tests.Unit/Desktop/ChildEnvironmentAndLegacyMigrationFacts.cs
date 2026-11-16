@@ -12,7 +12,7 @@ using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
-using IntoChat.OS.Modules.Microsoft.Azure.Install;
+using IntoChat.OS.Kernel.Install;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using System.Net;

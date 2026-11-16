@@ -109,7 +109,8 @@ public sealed class HouseRules22Facts
         Assert.True(checks >= 5, $"Expected SwallowFacts to guard all catch blocks; found {checks} test methods.");
     }
 
-    // Rule #2: LoggerFactory.Create restricted to OsConsoleLog & SandboxConsoleLog; zero *Fallback classes.
+    // Rule #2: LoggerFactory.Create restricted to OsConsoleLog & SandboxConsoleLog; zero *Fallback classes;
+    // zero `?? new <DI-registered-service>` fallbacks.
     [Fact]
     public void HouseRule02_NoAdHocLoggerFactoriesOrFallbackClasses()
     {
@@ -118,8 +119,10 @@ public sealed class HouseRules22Facts
             ("IntoChat.OS.Framework", "OsConsoleLog.cs"),
             ("IntoChat.OS.Sandbox", "SandboxConsoleLog.cs"),
         };
+        var registeredServices = DiscoverRegisteredServiceTypes(ProductionSources.Value.Select(s => s.Root));
         var badLoggers = new List<string>();
         var fallbacks = new List<string>();
+        var coalesceFallbacks = new List<string>();
 
         foreach (var src in ProductionSources.Value)
         {
@@ -136,10 +139,16 @@ public sealed class HouseRules22Facts
             {
                 fallbacks.Add($"{DisplayPath(src)}: {fallback}");
             }
+
+            foreach (var (line, typeName) in FindServiceCoalesceFallbacks(src.Root, registeredServices))
+            {
+                coalesceFallbacks.Add($"{DisplayPath(src)}:{line}: ?? new {typeName}");
+            }
         }
 
         Assert.True(badLoggers.Count == 0, "Ad-hoc LoggerFactory.Create outside OsConsoleLog/SandboxConsoleLog:\n" + string.Join('\n', badLoggers));
         Assert.True(fallbacks.Count == 0, "Forbidden *Fallback* classes in production source:\n" + string.Join('\n', fallbacks));
+        Assert.True(coalesceFallbacks.Count == 0, "Forbidden `?? new` fallback instantiating a DI/module-registered service:\n" + string.Join('\n', coalesceFallbacks));
     }
 
     [Fact]
@@ -151,6 +160,37 @@ public sealed class HouseRules22Facts
             """, TestContext.Current.CancellationToken);
         Assert.Single(FindAdHocLoggerFactoryLines(sample));
         Assert.Equal(["BadFallback"], FindFallbackClasses(sample));
+    }
+
+    [Fact]
+    public void HouseRule02_ChallengerCatchesCoalescingModuleService()
+    {
+        var sample = ParseSample("""
+            class SampleModule
+            {
+                void Configure(IServiceCollection services)
+                {
+                    services.AddSingleton<IMyModule, MemoryMyModule>();
+                    services.TryAddScoped<LocalStore>();
+                    services.AddSingleton<MyOptions>();
+                }
+                void Call(IMyModule? maybe, LocalStore? store, Dictionary<string, int>? map, MyOptions? opts)
+                {
+                    var a = maybe ?? new MemoryMyModule();
+                    IMyModule b = maybe ?? new();
+                    var c = store ?? new LocalStore();
+                    var okMap = map ?? new Dictionary<string, int>();
+                    var okOpts = opts ?? new MyOptions();
+                }
+            }
+            """, TestContext.Current.CancellationToken);
+        var registered = DiscoverRegisteredServiceTypes([sample]);
+        Assert.Contains("IMyModule", registered);
+        Assert.Contains("MemoryMyModule", registered);
+        Assert.Contains("LocalStore", registered);
+        Assert.DoesNotContain("MyOptions", registered);
+        var hits = FindServiceCoalesceFallbacks(sample, registered);
+        Assert.Equal(3, hits.Count);
     }
 
     private static List<int> FindAdHocLoggerFactoryLines(CompilationUnitSyntax root) =>
@@ -166,6 +206,127 @@ public sealed class HouseRules22Facts
             .OfType<TypeDeclarationSyntax>()
             .Where(t => t.Identifier.Text.Contains("Fallback", StringComparison.Ordinal))
             .Select(t => t.Identifier.Text)];
+
+    private static HashSet<string> DiscoverRegisteredServiceTypes(IEnumerable<CompilationUnitSyntax> roots)
+    {
+        var registered = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var root in roots)
+        {
+            foreach (var inv in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                var methodName = inv.Expression switch
+                {
+                    MemberAccessExpressionSyntax ma => ma.Name,
+                    SimpleNameSyntax sn => sn,
+                    _ => null,
+                };
+                if (methodName is null || methodName.Identifier.Text is not (
+                    "AddSingleton" or "TryAddSingleton" or
+                    "AddScoped" or "TryAddScoped" or
+                    "AddTransient" or "TryAddTransient" or
+                    "AddHostedService"))
+                {
+                    continue;
+                }
+
+                if (methodName is GenericNameSyntax gen)
+                {
+                    foreach (var arg in gen.TypeArgumentList.Arguments)
+                    {
+                        AddRegisteredTypeName(registered, ExtractSimpleTypeName(arg));
+                    }
+                }
+
+                foreach (var arg in inv.ArgumentList.Arguments)
+                {
+                    if (arg.Expression is TypeOfExpressionSyntax typeOf)
+                    {
+                        AddRegisteredTypeName(registered, ExtractSimpleTypeName(typeOf.Type));
+                    }
+                }
+            }
+        }
+        return registered;
+
+        static void AddRegisteredTypeName(HashSet<string> set, string? name)
+        {
+            if (string.IsNullOrEmpty(name)
+                || name.EndsWith("Options", StringComparison.Ordinal)
+                || name is "IHostedService" or "IOptions" or "IPostConfigureOptions" or "IConfigureOptions" or "TimeProvider" or "Object" or "String" or "Dictionary")
+            {
+                return;
+            }
+            set.Add(name);
+        }
+    }
+
+    private static List<(int Line, string TypeName)> FindServiceCoalesceFallbacks(
+        CompilationUnitSyntax root,
+        IReadOnlySet<string> registeredServiceTypes)
+    {
+        var hits = new List<(int Line, string TypeName)>();
+        foreach (var bin in root.DescendantNodes().OfType<BinaryExpressionSyntax>()
+            .Where(b => b.IsKind(SyntaxKind.CoalesceExpression)))
+        {
+            var right = UnwrapParens(bin.Right);
+            string? targetType = right switch
+            {
+                ObjectCreationExpressionSyntax oc => ExtractSimpleTypeName(oc.Type),
+                ImplicitObjectCreationExpressionSyntax => InferCoalesceTargetTypeName(bin),
+                _ => null,
+            };
+            if (targetType is not null && registeredServiceTypes.Contains(targetType))
+            {
+                var line = bin.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                hits.Add((line, targetType));
+            }
+        }
+        return hits;
+
+        static ExpressionSyntax UnwrapParens(ExpressionSyntax expr)
+        {
+            while (expr is ParenthesizedExpressionSyntax paren)
+            {
+                expr = paren.Expression;
+            }
+            return expr;
+        }
+
+        static string? InferCoalesceTargetTypeName(BinaryExpressionSyntax bin)
+        {
+            if (bin.Parent is EqualsValueClauseSyntax eq)
+            {
+                if (eq.Parent is VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax varDecl } && !varDecl.Type.IsVar)
+                {
+                    return ExtractSimpleTypeName(varDecl.Type);
+                }
+                if (eq.Parent is PropertyDeclarationSyntax propDecl)
+                {
+                    return ExtractSimpleTypeName(propDecl.Type);
+                }
+            }
+            if (bin.Parent is ArrowExpressionClauseSyntax arrow)
+            {
+                if (arrow.Parent is PropertyDeclarationSyntax propDecl)
+                {
+                    return ExtractSimpleTypeName(propDecl.Type);
+                }
+                if (arrow.Parent is MethodDeclarationSyntax methodDecl)
+                {
+                    return ExtractSimpleTypeName(methodDecl.ReturnType);
+                }
+            }
+            if (bin.Parent is ReturnStatementSyntax)
+            {
+                var enclosingMethod = bin.Ancestors().OfType<MethodDeclarationSyntax>().FirstOrDefault();
+                if (enclosingMethod is not null)
+                {
+                    return ExtractSimpleTypeName(enclosingMethod.ReturnType);
+                }
+            }
+            return null;
+        }
+    }
 
     // Rule #3: Zero InProcessCallerScope, .ToCaller(, CallerExtensions, or BindingFlags.NonPublic targeting DigitalBrain.
     [Fact]
@@ -301,11 +462,16 @@ public sealed class HouseRules22Facts
         Assert.True(count <= RatchetCap, $"Raw `string brainId` parameters regressed to {count} (ratchet cap {RatchetCap}); use BrainId.");
     }
 
-    // Rule #6: No /apps/ neuron-key string concatenation or splitting outside AppRef.cs.
+    // Rule #6: No /apps/, /settings, or /{alias}/default neuron-key string concatenation or splitting;
+    // tightly ratchet ad-hoc $"{brain}/..." key interpolations outside typed Contract/primitive helpers.
     [Fact]
     public void HouseRule06_NoAppsNeuronKeyStringSplittingOutsideAppRef()
     {
         var offenders = new List<string>();
+        var settingsOffenders = new List<string>();
+        var unitDefaultOffenders = new List<string>();
+        var brainKeyOffenders = new List<string>();
+
         foreach (var src in ProductionSources.Value)
         {
             if (src.ProjectName == "IntoChat.OS.Framework" && src.FileName == "AppRef.cs")
@@ -316,9 +482,134 @@ public sealed class HouseRules22Facts
             {
                 offenders.Add($"{DisplayPath(src)}:{line}");
             }
+            if (!(src.ProjectName == "IntoChat.OS.Modules.Catalog" && src.FileName == "IUserSettings.cs"))
+            {
+                foreach (var line in FindSettingsKeyInterpolations(src.Root))
+                {
+                    settingsOffenders.Add($"{DisplayPath(src)}:{line}");
+                }
+            }
+            if (!(src.ProjectName == "IntoChat.OS.Framework" && src.FileName == "UnitAlias.cs"))
+            {
+                foreach (var line in FindUnitDefaultKeyInterpolations(src.Root))
+                {
+                    unitDefaultOffenders.Add($"{DisplayPath(src)}:{line}");
+                }
+            }
+            if (!IsTypedKeyBuilderFile(src))
+            {
+                foreach (var (line, expr) in FindAdHocBrainKeyInterpolations(src.Root))
+                {
+                    brainKeyOffenders.Add($"{DisplayPath(src)}:{line}: {expr}");
+                }
+            }
         }
 
         Assert.True(offenders.Count == 0, "Manual apps-key string operations outside AppRef.cs:\n" + string.Join('\n', offenders));
+        Assert.True(settingsOffenders.Count == 0, "Manual `$\"{...}/settings\"` key strings outside IUserSettings.Key:\n" + string.Join('\n', settingsOffenders));
+        Assert.True(unitDefaultOffenders.Count == 0, "Manual `$\"{...}/{...}/default\"` unit state key strings outside UnitAlias:\n" + string.Join('\n', unitDefaultOffenders));
+
+        const int RatchetCap = 41;
+        Assert.True(
+            brainKeyOffenders.Count <= RatchetCap,
+            $"Ad-hoc brain-key string interpolations regressed to {brainKeyOffenders.Count} (ratchet cap {RatchetCap}):\n" + string.Join('\n', brainKeyOffenders));
+    }
+
+    [Fact]
+    public void HouseRule06_ChallengerCatchesBrainKeyInterpolation()
+    {
+        var sample = ParseSample("""
+            class BadCalls
+            {
+                string Apps(string brainId, string name) => $"{brainId}/apps/{name}";
+                string Settings(string brainId) => $"{brainId}/settings";
+                string UnitDefault(string brainId, string alias) => $"{brainId}/{alias}/default";
+                string AdHoc(string brainId) => $"{brainId}/circles";
+                string FullKey => $"{Id.Brain.Value}/{Id.Key}";
+                static string Key(string brainId) => $"{brainId}/my";
+                string OkRoute(string brainId) => $"/brains/{brainId}/circles";
+                string OkUri(string host, string path) => $"https://{host}/{path}";
+            }
+            """, TestContext.Current.CancellationToken);
+        Assert.Single(FindAppsNeuronKeyStringOps(sample));
+        Assert.Single(FindSettingsKeyInterpolations(sample));
+        Assert.Single(FindUnitDefaultKeyInterpolations(sample));
+        Assert.Equal(4, FindAdHocBrainKeyInterpolations(sample).Count);
+    }
+
+    private static bool IsTypedKeyBuilderFile(ParsedSource src)
+        => src.PathSegments.Contains("Contracts", StringComparer.OrdinalIgnoreCase)
+            || src.PathSegments.Contains("ShellContracts", StringComparer.OrdinalIgnoreCase)
+            || (src.ProjectName == "IntoChat.OS.Framework" && src.FileName is "AppRef.cs" or "UnitAlias.cs")
+            || (src.ProjectName == "IntoChat.OS" && src.FileName == "NeuronKeys.cs");
+
+    private static List<int> FindSettingsKeyInterpolations(CompilationUnitSyntax root) =>
+        [.. root.DescendantNodes()
+            .OfType<InterpolatedStringExpressionSyntax>()
+            .Where(interp => interp.Contents.Count == 2
+                && interp.Contents[0] is InterpolationSyntax
+                && interp.Contents[1] is InterpolatedStringTextSyntax { TextToken.ValueText: "/settings" })
+            .Select(interp => interp.GetLocation().GetLineSpan().StartLinePosition.Line + 1)];
+
+    private static List<int> FindUnitDefaultKeyInterpolations(CompilationUnitSyntax root) =>
+        [.. root.DescendantNodes()
+            .OfType<InterpolatedStringExpressionSyntax>()
+            .Where(interp => interp.Contents.Count == 4
+                && interp.Contents[0] is InterpolationSyntax
+                && interp.Contents[1] is InterpolatedStringTextSyntax { TextToken.ValueText: "/" }
+                && interp.Contents[2] is InterpolationSyntax
+                && interp.Contents[3] is InterpolatedStringTextSyntax { TextToken.ValueText: "/default" })
+            .Select(interp => interp.GetLocation().GetLineSpan().StartLinePosition.Line + 1)];
+
+    private static List<(int Line, string Expr)> FindAdHocBrainKeyInterpolations(CompilationUnitSyntax root)
+    {
+        var hits = new List<(int Line, string Expr)>();
+        foreach (var interp in root.DescendantNodes().OfType<InterpolatedStringExpressionSyntax>())
+        {
+            if (interp.Contents.Count < 2
+                || interp.Contents[0] is not InterpolationSyntax first
+                || interp.Contents[1] is not InterpolatedStringTextSyntax textAfter
+                || !textAfter.TextToken.ValueText.StartsWith("/", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var firstExpr = first.Expression.ToString();
+            if (!Regex.IsMatch(firstExpr, @"(?<![A-Za-z0-9_])(brain|brainId|BrainId|ownerBrain|circleBrain|orgBrain|SystemBrain|CurrentBrain|Scope|scope|Brain\.Value)(?![A-Za-z0-9_])", RegexOptions.CultureInvariant))
+            {
+                continue;
+            }
+
+            var raw = interp.ToString();
+            if (raw.Contains("://", StringComparison.Ordinal)
+                || raw.Contains(' ', StringComparison.Ordinal)
+                || raw.Contains('?', StringComparison.Ordinal)
+                || raw.Contains('&', StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (interp.Ancestors().OfType<TupleExpressionSyntax>().Any()
+                || interp.Ancestors().OfType<ThrowStatementSyntax>().Any()
+                || interp.Ancestors().OfType<ThrowExpressionSyntax>().Any())
+            {
+                continue;
+            }
+
+            if (interp.Ancestors().OfType<ObjectCreationExpressionSyntax>().Any(oc => ExtractSimpleTypeName(oc.Type) is "Uri" or "InvalidOperationException" or "ArgumentException" or "KeyNotFoundException" or "UnauthorizedAccessException"))
+            {
+                continue;
+            }
+
+            if (interp.Ancestors().OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.Text is "FullKey" or "OwnerKey")
+                || interp.Ancestors().OfType<MethodDeclarationSyntax>().Any(m => m.Identifier.Text is "Key" or "Of" or "FullKey"))
+            {
+                continue;
+            }
+
+            hits.Add((interp.GetLocation().GetLineSpan().StartLinePosition.Line + 1, raw));
+        }
+        return hits;
     }
 
     private static List<int> FindAppsNeuronKeyStringOps(CompilationUnitSyntax root)
@@ -487,24 +778,85 @@ public sealed class HouseRules22Facts
         Assert.True(badDecision.Count == 0, "Decision.Rule/Require bool overloads still present:\n" + string.Join('\n', badDecision));
     }
 
-    // Rule #10: Primitives (AppRef, UnitAlias, SafeRelativePath, ConversationId) expose private constructors only.
+    // Rule #10: All domain primitives under Framework/Primitives/ expose private constructors only.
     [Fact]
     public void HouseRule10_DomainPrimitivesExposePrivateConstructorsOnly()
     {
-        Type[] primitives = [typeof(AppRef), typeof(UnitAlias), typeof(SafeRelativePath), typeof(ConversationId)];
+        var primitivesDir = Path.Combine(ProjectDirs.Value["IntoChat.OS.Framework"], "Primitives");
+        var frameworkAssembly = typeof(AppRef).Assembly;
+        var discoveredTypes = new List<Type>();
         var bad = new List<string>();
-        foreach (var primitive in primitives)
+
+        foreach (var file in Repository.SourceFiles(primitivesDir, "*.cs"))
         {
-            foreach (var ctor in primitive.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+            var root = ParseSample(File.ReadAllText(file), TestContext.Current.CancellationToken);
+            foreach (var decl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
             {
-                if (!ctor.IsPrivate)
+                if (decl.Modifiers.Any(SyntaxKind.StaticKeyword))
                 {
-                    bad.Add($"{primitive.Name}({string.Join(", ", ctor.GetParameters().Select(p => p.ParameterType.Name))}) visibility={(ctor.IsPublic ? "public" : ctor.IsAssembly ? "internal" : "non-private")}");
+                    continue;
+                }
+                var ns = decl.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().FirstOrDefault()?.Name.ToString();
+                if (ns is null)
+                {
+                    continue;
+                }
+                var fullName = $"{ns}.{decl.Identifier.Text}";
+                var runtimeType = frameworkAssembly.GetType(fullName);
+                Assert.True(runtimeType is not null, $"Could not load primitive type '{fullName}' from {frameworkAssembly.GetName().Name}.");
+                discoveredTypes.Add(runtimeType!);
+
+                foreach (var badDeclLine in FindNonPrivateCtorDeclarations(decl))
+                {
+                    bad.Add($"{Repository.Relative(file)}:{badDeclLine}: {decl.Identifier.Text} declares non-private constructor syntax");
+                }
+                foreach (var ctor in runtimeType!.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                {
+                    if (!ctor.IsPrivate)
+                    {
+                        bad.Add($"{runtimeType.Name}({string.Join(", ", ctor.GetParameters().Select(p => p.ParameterType.Name))}) visibility={(ctor.IsPublic ? "public" : ctor.IsAssembly ? "internal" : "non-private")}");
+                    }
                 }
             }
         }
 
+        Assert.True(discoveredTypes.Count >= 4, $"Expected at least 4 domain primitives in {Repository.Relative(primitivesDir)}; found {discoveredTypes.Count}.");
         Assert.True(bad.Count == 0, "Domain primitive constructors must be strictly private:\n" + string.Join('\n', bad));
+    }
+
+    [Fact]
+    public void HouseRule10_ChallengerCatchesPublicPrimitiveConstructor()
+    {
+        var sample = ParseSample("""
+            public readonly record struct BadRecord(string Value);
+            public readonly struct BadStruct { public BadStruct(string value) {} }
+            public readonly record struct GoodPrimitive { private GoodPrimitive(string value) {} }
+            """, TestContext.Current.CancellationToken);
+        var decls = sample.DescendantNodes().OfType<TypeDeclarationSyntax>().ToArray();
+        Assert.Single(FindNonPrivateCtorDeclarations(decls[0]));
+        Assert.Single(FindNonPrivateCtorDeclarations(decls[1]));
+        Assert.Empty(FindNonPrivateCtorDeclarations(decls[2]));
+    }
+
+    private static List<int> FindNonPrivateCtorDeclarations(TypeDeclarationSyntax typeDecl)
+    {
+        var lines = new List<int>();
+        if (typeDecl.ParameterList is not null && !typeDecl.Modifiers.Any(SyntaxKind.PrivateKeyword))
+        {
+            lines.Add(typeDecl.ParameterList.GetLocation().GetLineSpan().StartLinePosition.Line + 1);
+        }
+        foreach (var ctor in typeDecl.Members.OfType<ConstructorDeclarationSyntax>())
+        {
+            if (ctor.Modifiers.Any(SyntaxKind.StaticKeyword))
+            {
+                continue;
+            }
+            if (!ctor.Modifiers.Any(SyntaxKind.PrivateKeyword))
+            {
+                lines.Add(ctor.GetLocation().GetLineSpan().StartLinePosition.Line + 1);
+            }
+        }
+        return lines;
     }
 
     // Rule #11: Zero in-place state field/property mutations in [Neuron] / Screen classes.
@@ -898,7 +1250,7 @@ public sealed class HouseRules22Facts
         Assert.True(unexpected.Count == 0, "Unexpected public type in Modules outside Contracts/ (make internal or move to Contracts/):\n" + string.Join('\n', unexpected));
     }
 
-    // Rule #17: Folder = namespace across non-Module core assemblies (complementing NamespaceSchemeFacts).
+    // Rule #17: Folder = namespace strictly across non-Module core assemblies (complementing NamespaceSchemeFacts).
     [Fact]
     public void HouseRule17_FolderMatchesNamespaceInNonModuleAssemblies()
     {
@@ -909,7 +1261,12 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Sandbox",
             "IntoChat.OS.Desktop",
             "IntoChat.OS.Apps",
+            "IntoChat.OS.Kernel",
         ];
+
+        // KernelGrains.cs holds persisted/grain wire types whose namespace is pinned in ContractManifest.json.
+        var manifest = ContractManifest.Load(ContractManifest.BaselinePath);
+        Assert.Contains(manifest.Grains.Keys, k => k.StartsWith("IntoChat.OS.Kernel.Composition.", StringComparison.Ordinal));
 
         var mismatches = new List<string>();
         foreach (var projectName in targetProjects)
@@ -922,6 +1279,12 @@ public sealed class HouseRules22Facts
                 {
                     continue;
                 }
+                if (projectName == "IntoChat.OS.Kernel"
+                    && segments.SequenceEqual(["Composition", "Kernel"])
+                    && string.Equals(Path.GetFileName(file), "KernelGrains.cs", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
                 var expectedPrefix = segments.Length == 1 && segments[0] == "."
                     ? projectName
                     : $"{projectName}.{string.Join('.', segments)}";
@@ -931,7 +1294,7 @@ public sealed class HouseRules22Facts
                 foreach (var ns in root.DescendantNodes().OfType<BaseNamespaceDeclarationSyntax>())
                 {
                     var actual = ns.Name.ToString();
-                    if (actual != expectedPrefix && actual != projectName && !actual.StartsWith(expectedPrefix + ".", StringComparison.Ordinal))
+                    if (actual != expectedPrefix && !actual.StartsWith(expectedPrefix + ".", StringComparison.Ordinal))
                     {
                         mismatches.Add($"{Repository.Relative(file)}: declared '{actual}', expected '{expectedPrefix}'");
                     }
@@ -1213,7 +1576,7 @@ public sealed class HouseRules22Facts
         Assert.True(unexpected.Count == 0, "Unjustified interface outside Contracts/:\n" + string.Join('\n', unexpected));
     }
 
-    // Rule #21: Zero RegExp, .split(, or .toLowerCase( in Dart nodes/ & chat/.
+    // Rule #21: Zero RegExp, .split(, .toLowerCase(, string ==/!= literal, or string switch arms in Dart nodes/ & chat/.
     [Fact]
     public void HouseRule21_DartNodesAndChatHaveZeroStringSplittingOrRegex()
     {
@@ -1228,21 +1591,46 @@ public sealed class HouseRules22Facts
             foreach (var file in Directory.GetFiles(dir, "*.dart", SearchOption.AllDirectories))
             {
                 var rel = Repository.Relative(file).Replace('\\', '/');
-                var lines = File.ReadAllLines(file);
-                for (var i = 0; i < lines.Length; i++)
-                {
-                    var line = lines[i];
-                    if (line.Contains("RegExp(", StringComparison.Ordinal)
-                        || line.Contains(".split(", StringComparison.Ordinal)
-                        || line.Contains(".toLowerCase(", StringComparison.Ordinal))
-                    {
-                        offending.Add($"{rel}:{i + 1}: {line.Trim()}");
-                    }
-                }
+                offending.AddRange(FindDartPolicyStringViolations(rel, File.ReadAllLines(file)));
             }
         }
 
-        Assert.True(offending.Count == 0, "Dart nodes/chat must render structured models cleanly (no RegExp/split/toLowerCase):\n" + string.Join('\n', offending));
+        Assert.True(offending.Count == 0, "Dart nodes/chat must render structured models cleanly (no RegExp/split/toLowerCase/string-switch/string-eq):\n" + string.Join('\n', offending));
+    }
+
+    [Fact]
+    public void HouseRule21_ChallengerCatchesAllFiveDartViolations()
+    {
+        var hits = FindDartPolicyStringViolations("sample.dart", [
+            "final re = RegExp(r'^foo');",
+            "final parts = label.split('/');",
+            "final lower = role.toLowerCase();",
+            "if (kind == 'error') return true;",
+            "  'done' => Colors.green,",
+            "  case 'pending': break;",
+        ]);
+        Assert.Equal(6, hits.Count);
+    }
+
+    private static readonly Regex DartStringLiteralEq = new(@"(?:==|!=)\s*['""][^'""]*['""]|['""][^'""]*['""]\s*(?:==|!=)", RegexOptions.CultureInvariant);
+    private static readonly Regex DartStringSwitchArm = new(@"(?:^\s*['""][^'""]*['""]\s*=>|\bcase\s*['""][^'""]*['""]\s*:)", RegexOptions.CultureInvariant);
+
+    private static List<string> FindDartPolicyStringViolations(string rel, string[] lines)
+    {
+        var offending = new List<string>();
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            if (line.Contains("RegExp(", StringComparison.Ordinal)
+                || line.Contains(".split(", StringComparison.Ordinal)
+                || line.Contains(".toLowerCase(", StringComparison.Ordinal)
+                || DartStringLiteralEq.IsMatch(line)
+                || DartStringSwitchArm.IsMatch(line))
+            {
+                offending.Add($"{rel}:{i + 1}: {line.Trim()}");
+            }
+        }
+        return offending;
     }
 
     // Rule #22: Zero test retries or silent OS-guard skips.

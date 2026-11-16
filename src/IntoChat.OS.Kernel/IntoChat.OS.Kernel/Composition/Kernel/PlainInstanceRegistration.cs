@@ -9,11 +9,12 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Kernel.Composition;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
 using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
 
-namespace IntoChat.OS.Kernel.Composition;
+namespace IntoChat.OS.Kernel.Composition.Kernel;
 
 // Transitional (06-06d, until 06-08 gives the runtime its own neuron registry): the kernel's instance directory for plain neurons.
 // The legacy storage decorator (InstanceRegistration) registers a grain on its first write; a plain neuron's state goes through the

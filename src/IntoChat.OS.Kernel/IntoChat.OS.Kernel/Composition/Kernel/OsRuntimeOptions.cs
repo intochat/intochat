@@ -1,6 +1,6 @@
 using DigitalBrain.Runtime.Orleans;
 
-namespace IntoChat.OS.Kernel.Composition;
+namespace IntoChat.OS.Kernel.Composition.Kernel;
 
 public static class OsRuntimeOptions
 {

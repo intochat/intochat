@@ -1,7 +1,8 @@
 using DigitalBrain.Neurons;
 using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Modules.Microsoft.Orleans;
 
-namespace IntoChat.OS.Modules.Microsoft.Orleans.Cluster;
+namespace IntoChat.OS.Kernel.Composition.Cluster;
 
 [Neuron("orleans.cluster")]
 internal sealed class ClusterNeuron(IClusterMembershipFeed membership) : Neuron, ICluster, IClusterMembershipReceiver

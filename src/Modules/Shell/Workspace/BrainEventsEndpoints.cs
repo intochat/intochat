@@ -117,7 +117,9 @@ internal static class BrainEventsEndpoints
         foreach (var alias in installedAliases.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
         {
             var descriptors = catalog is not null && catalog.States.ContainsKey(alias) ? catalog.For(alias).Where(d => d.Kind != SynapseKind.View).ToArray() : [];
-            var id = $"{brainId}/{alias}/default";
+            var id = (IntoChat.OS.Primitives.UnitAlias.TryParse(alias, out var unitAlias)
+                ? unitAlias.StateNeuron(new BrainId(brainId))
+                : new NeuronId(new BrainId(brainId), alias, "default")).ToString();
             var handled = descriptors.Select(SignalOf).Distinct(StringComparer.Ordinal).ToArray();
             if (known.Add(id))
             {

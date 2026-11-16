@@ -8,6 +8,7 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Machine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -15,7 +16,7 @@ using Orleans.Configuration;
 using Orleans.Versions.Compatibility;
 using Orleans.Versions.Selector;
 
-namespace IntoChat.OS.Kernel.Composition;
+namespace IntoChat.OS.Kernel.Composition.Kernel;
 
 public static class BrainHosting
 {

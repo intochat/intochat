@@ -9,9 +9,11 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.State;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Kernel.Composition.Kernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
+using KernelHost = IntoChat.OS.Kernel.Composition.Kernel.Kernel;
 
 namespace IntoChat.OS.Kernel.Composition;
 
@@ -96,7 +98,7 @@ internal sealed class InstanceTypesGrain(
 [GrainType("kernel.compiledtypes")]
 internal sealed class CompiledTypeTableGrain(CompiledTypes compiled) : Grain, ICompiledTypeTable, DigitalBrain.Runtime.Orleans.Hosting.INeuronHostCatalog
 {
-    public Task<BrainType[]> List() => Task.FromResult(compiled.Addressed(contract => Kernel.StillGrainType(GrainFactory, contract)));
+    public Task<BrainType[]> List() => Task.FromResult(compiled.Addressed(contract => KernelHost.StillGrainType(GrainFactory, contract)));
 
     // A contracts-only client asks the composed kernel for the host policy, then calls that host directly. Resolving metadata
     // never forwards an invocation or turns an external caller into a trusted call from a kernel grain.
@@ -131,7 +133,7 @@ internal sealed class TypeTableGrain(
     }
 
     // Two features may bring the same type; it is listed once, and stays while any of them is loaded.
-    public Task<BrainType[]> List() => Task.FromResult<BrainType[]>([.. compiled.Addressed(contract => Kernel.StillGrainType(GrainFactory, contract)), .. store.State.Features.DistinctBy(entry => entry.Name)]);
+    public Task<BrainType[]> List() => Task.FromResult<BrainType[]>([.. compiled.Addressed(contract => KernelHost.StillGrainType(GrainFactory, contract)), .. store.State.Features.DistinctBy(entry => entry.Name)]);
 
     public Task<Feature[]> Features() => Task.FromResult(store.State.Loaded);
 

@@ -8,9 +8,10 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Kernel.Composition;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Kernel.Composition;
+namespace IntoChat.OS.Kernel.Composition.Kernel;
 
 
 // The os side's calls into DigitalBrain plain neurons (06-08): every call goes to the runtime host grain of the [Neuron] class of

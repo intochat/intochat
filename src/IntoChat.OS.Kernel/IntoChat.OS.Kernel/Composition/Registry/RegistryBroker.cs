@@ -96,7 +96,7 @@ public sealed class RegistryBroker : IRegistryBroker
         {
             case RegistryTier.Settings:
                 {
-                    var state = await SiloNeurons.Get<IUserSettings>(_services, $"{brainId}/settings").Read().ConfigureAwait(false);
+                    var state = await SiloNeurons.Get<IUserSettings>(_services, IUserSettings.Key(new BrainId(brainId))).Read().ConfigureAwait(false);
                     var val = ResolveSettingProperty(state, key);
                     return val is null ? null : new RegistryEntryDescriptor(uri, key, RegistryTier.Settings, val, null, true, null);
                 }
@@ -140,7 +140,7 @@ public sealed class RegistryBroker : IRegistryBroker
         {
             case RegistryTier.Settings:
                 {
-                    var settings = SiloNeurons.Get<IUserSettings>(_services, $"{brainId}/settings");
+                    var settings = SiloNeurons.Get<IUserSettings>(_services, IUserSettings.Key(new BrainId(brainId)));
                     if (IsKnownProfileSetting(key)) { await UpdateProfileSettingAsync(settings, key, value).ConfigureAwait(false); }
                     else { await settings.SetVariable(key, value).ConfigureAwait(false); }
                     break;
@@ -166,7 +166,7 @@ public sealed class RegistryBroker : IRegistryBroker
         switch (tier)
         {
             case RegistryTier.Settings:
-                await SiloNeurons.Get<IUserSettings>(_services, $"{brainId}/settings").SetVariable(key, string.Empty).ConfigureAwait(false);
+                await SiloNeurons.Get<IUserSettings>(_services, IUserSettings.Key(new BrainId(brainId))).SetVariable(key, string.Empty).ConfigureAwait(false);
                 break;
             case RegistryTier.Environment:
             case RegistryTier.Vault:
@@ -217,7 +217,7 @@ public sealed class RegistryBroker : IRegistryBroker
         {
             try
             {
-                var state = await SiloNeurons.Get<IUserSettings>(_services, $"{brainId}/settings").Read().ConfigureAwait(false);
+                var state = await SiloNeurons.Get<IUserSettings>(_services, IUserSettings.Key(new BrainId(brainId))).Read().ConfigureAwait(false);
                 if (state is not null)
                 {
                     foreach (var (k, v) in new (string, string)[]

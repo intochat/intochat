@@ -14,6 +14,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
+using IntoChat.OS.Kernel.Composition.Kernel;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;

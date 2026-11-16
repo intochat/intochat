@@ -8,7 +8,7 @@ using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Aspire.Server;
+namespace IntoChat.OS.Kernel.AspireServer;
 
 public sealed class IntoChatOSServerBuilder
 {

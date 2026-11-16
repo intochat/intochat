@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
+namespace IntoChat.OS.Kernel.Install;
 
 public sealed record ReleaseManifest(
     string Version,

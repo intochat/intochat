@@ -1,5 +1,5 @@
 using System.Net;
-using IntoChat.OS.Aspire.Server;
+using IntoChat.OS.Kernel.AspireServer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;

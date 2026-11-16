@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -36,6 +37,8 @@ public sealed record UserSettingsChanged(
 [NeuronAlias("os.settings"), DefaultNeuronType("os.settings")]
 public interface IUserSettings
 {
+    static string Key(BrainId brainId) => $"{brainId.Value}/settings";
+
     [DigitalBrain.Contracts.ReadOnlyCall]
     Task<UserSettingsState> Read();
 

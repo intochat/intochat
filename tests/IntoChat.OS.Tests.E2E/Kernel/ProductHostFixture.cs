@@ -21,6 +21,7 @@ using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
+using IntoChat.OS.Kernel.Composition.Kernel;
 using IntoChat.OS.Kernel.Tests.E2E.Policies;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Primitives;

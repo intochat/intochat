@@ -14,6 +14,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
+using IntoChat.OS.Kernel.Composition.Kernel;
 using IntoChat.OS.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -31,7 +32,7 @@ using Orleans.Hosting;
 using Orleans.Serialization;
 using TopologyHosting = DigitalBrain.Runtime.Orleans.TopologyHosting;
 
-namespace IntoChat.OS.Aspire.Server;
+namespace IntoChat.OS.Kernel.AspireServer;
 
 public static class ServerHostingExtensions
 {

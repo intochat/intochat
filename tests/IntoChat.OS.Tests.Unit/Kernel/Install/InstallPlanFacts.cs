@@ -1,5 +1,5 @@
 using IntoChat.OS.Modules.Microsoft.Azure;
-using IntoChat.OS.Modules.Microsoft.Azure.Install;
+using IntoChat.OS.Kernel.Install;
 
 namespace IntoChat.OS.Kernel.Tests.Unit.Install;
 

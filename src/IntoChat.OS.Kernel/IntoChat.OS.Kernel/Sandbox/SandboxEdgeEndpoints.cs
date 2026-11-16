@@ -7,6 +7,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel.Composition;
+using IntoChat.OS.Kernel.Composition.Kernel;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Microsoft.Windows;
 using IntoChat.OS.Modules.Notifications;

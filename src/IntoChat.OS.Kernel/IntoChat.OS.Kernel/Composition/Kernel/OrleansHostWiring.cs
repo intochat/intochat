@@ -1,12 +1,13 @@
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Kernel.Composition;
+using IntoChat.OS.Kernel.Composition.Cluster;
 using IntoChat.OS.Modules.Microsoft.Orleans;
-using IntoChat.OS.Modules.Microsoft.Orleans.Cluster;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace IntoChat.OS.Kernel.Composition;
+namespace IntoChat.OS.Kernel.Composition.Kernel;
 
 // The Orleans host wiring the former Microsoft/Orleans module carried (06-02, R4-12): the cloud topology implementation,
 // the deployment's grain-state container on cloud, and the legacy cluster neuron's membership feed until 06-03 moves it.

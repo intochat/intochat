@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Aspire.Server;
+namespace IntoChat.OS.Kernel.AspireServer;
 
 // Co-hosted in the silo, so it ships in every image: Aspire, standalone or container. Grain state
 // and method profiles are operator data, so only a request the host stamped a caller on gets in:
