@@ -423,7 +423,10 @@ void main() {
                                 'pick': {
                                   'key': 'pick-approve',
                                   'label': 'Approve deploy',
-                                  'emit': {'owner': 'app.ino', 'signal': 'pick'},
+                                  'emit': {
+                                    'owner': 'app.ino',
+                                    'signal': 'pick',
+                                  },
                                 },
                               },
                               {
@@ -431,7 +434,10 @@ void main() {
                                 'pick': {
                                   'key': 'pick-cancel',
                                   'label': 'Cancel',
-                                  'emit': {'owner': 'app.ino', 'signal': 'pick'},
+                                  'emit': {
+                                    'owner': 'app.ino',
+                                    'signal': 'pick',
+                                  },
                                 },
                               },
                             ],

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'node_context.dart';
@@ -45,7 +45,6 @@ Widget renderApprovalCard(ApprovalCardNode node, NodeContext ctx) {
         : null,
   );
 }
-
 
 ApprovalState _state(String status) => switch (status.toLowerCase()) {
   'approved' => ApprovalState.approved,

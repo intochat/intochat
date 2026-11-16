@@ -145,9 +145,34 @@ public sealed class HelloWorldInteractiveAppFacts
         var makeResult = await inoStudio.Make("Create a Hello World app where clicking a button makes 'Hello, IntoChat OS!' appear");
         Assert.True(makeResult.Ok, makeResult.Text);
         var card = Assert.IsType<InoCard>(makeResult.Card);
-        Assert.Contains("hello.world", makeResult.Text, StringComparison.Ordinal);
-        Assert.Contains($"/brains/{runtime.Brain.Value}/apps/hello.world/view", makeResult.Text, StringComparison.Ordinal);
+        Assert.Contains(card.Id, makeResult.Text, StringComparison.Ordinal);
         Assert.Contains("Tasks board", makeResult.Text, StringComparison.Ordinal);
+        if (string.Equals(card.Status, "running", StringComparison.Ordinal))
+        {
+            // Under parallel Silo CPU contention, BuildFlow can exceed InoStudioNeuron.MakePollBudget (25s) and return running.
+            FlowView? settled = null;
+            var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(60);
+            while (DateTimeOffset.UtcNow < deadline)
+            {
+                settled = await flows.Read(card.Id, Ct);
+                if (settled is not null
+                    && (settled.Status is FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled
+                        || (settled.Status == FlowStatus.Waiting && settled.WaitingStep == "install" && settled.Subject is not null)))
+                {
+                    break;
+                }
+                await Task.Delay(100, Ct);
+            }
+            Assert.NotNull(settled);
+            Assert.True(settled!.Status is FlowStatus.Waiting or FlowStatus.Completed,
+                $"Expected hello.world flow to reach waiting/completed, got {settled.Status}: {settled.Detail}");
+            Assert.Equal("hello.world", settled.Subject);
+        }
+        else
+        {
+            Assert.Contains("hello.world", makeResult.Text, StringComparison.Ordinal);
+            Assert.Contains($"/brains/{runtime.Brain.Value}/apps/hello.world/view", makeResult.Text, StringComparison.Ordinal);
+        }
 
         // 2. Unit has zero external connector needs; approve its UI view/reaction install consent as Person
         var pending = Assert.Single(await installs.Pending(Ct), p => p.Alias == "hello.world");
