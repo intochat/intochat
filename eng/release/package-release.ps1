@@ -138,7 +138,30 @@ function Publish-ReleaseManifests {
 
 Write-Host "IntoChat OS Release Bundler v$version ($Rid)" -ForegroundColor Green
 
+$desktopProj = Join-Path $repoRoot 'src\IntoChat.OS.Desktop\IntoChat.OS.Desktop.csproj'
+$kernelProj = Join-Path $repoRoot 'src\IntoChat.OS.Kernel\IntoChat.OS.Kernel\IntoChat.OS.Kernel.csproj'
+$sandboxProj = Join-Path $repoRoot 'src\IntoChat.OS.Sandbox\IntoChat.OS.Sandbox.csproj'
+$uiDir = Join-Path $repoRoot 'ui'
+
+# Everything a packaging run reads from the repository. The dry run checks the same list, so a moved project
+# fails the dry run in CI instead of the next release.
+function Assert-ReleaseInputs {
+    $inputs = @($desktopProj, $kernelProj, $sandboxProj, (Join-Path $PSScriptRoot 'winget\IntoChat.OS.yaml'))
+    if (-not $SkipFlutter) {
+        $inputs += Join-Path $uiDir 'pubspec.yaml'
+        $inputs += Join-Path $uiDir 'windows\CMakeLists.txt'
+    }
+    $missing = @($inputs | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) })
+    if ($missing.Count -gt 0) {
+        throw "Release inputs not found: $($missing -join ', ')"
+    }
+    return $inputs
+}
+
 if ($DryRun) {
+    foreach ($found in Assert-ReleaseInputs) {
+        Write-ReleaseStep "[DryRun] Found $found"
+    }
     Write-ReleaseStep "[DryRun] Would publish IntoChat.OS.Desktop (Native AOT), IntoChat.OS.Kernel (R2R), IntoChat.OS.Sandbox (UnitHost), and Flutter shell into $archivePath"
     Write-ReleaseStep "[DryRun] Would emit SHA256SUMS, VERSION, latest.json, and winget/IntoChat.OS.yaml in $OutputDir (domain: $PublicDomain)"
     exit 0
@@ -163,6 +186,7 @@ if ($UpdateManifests) {
     exit 0
 }
 
+Assert-ReleaseInputs | Out-Null
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
 $stageRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("intochat-pkg-" + [Guid]::NewGuid().ToString('N').Substring(0, 12))
 $bundleDir = Join-Path $stageRoot 'bundle'
@@ -173,7 +197,6 @@ $shellDir = Join-Path $bundleDir 'shell'
 New-Item -ItemType Directory -Path $bundleDir, $osDir, $unitHostDir, $shellDir -Force | Out-Null
 
 try {
-    $desktopProj = Join-Path $repoRoot 'src\IntoChat.OS.Desktop\IntoChat.OS.Desktop.csproj'
     Write-ReleaseStep "Publishing IntoChat.OS.Desktop (Native AOT, $Rid)..."
     & dotnet publish $desktopProj -c $Configuration -r $Rid -o $bundleDir -p:PublishAot=true -p:DebugType=none --nologo
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for IntoChat.OS.Desktop ($LASTEXITCODE)." }
@@ -181,12 +204,10 @@ try {
     $cliShim = "@echo off`r`n`"%~dp0IntoChat.OS.Desktop.exe`" %*`r`n"
     [System.IO.File]::WriteAllText((Join-Path $bundleDir 'intochat.cmd'), $cliShim, [System.Text.Encoding]::ASCII)
 
-    $kernelProj = Join-Path $repoRoot 'src\IntoChat.OS.Kernel\IntoChat.OS.Kernel\IntoChat.OS.Kernel.csproj'
     Write-ReleaseStep "Publishing IntoChat.OS.Kernel (Self-Contained ReadyToRun, $Rid)..."
     & dotnet publish $kernelProj -c $Configuration -r $Rid --self-contained -o $osDir -p:PublishReadyToRun=true -p:CodeGraphRefresh=false -p:DebugType=none --nologo
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for IntoChat.OS.Kernel ($LASTEXITCODE)." }
 
-    $sandboxProj = Join-Path $repoRoot 'src\IntoChat.OS.Sandbox\IntoChat.OS.Sandbox.csproj'
     Write-ReleaseStep "Publishing IntoChat.OS.Sandbox / UnitHost ($Rid)..."
     & dotnet publish $sandboxProj -c $Configuration -r $Rid --self-contained -o $unitHostDir -p:PublishReadyToRun=true -p:DebugType=none --nologo
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for IntoChat.OS.Sandbox ($LASTEXITCODE)." }
@@ -194,8 +215,7 @@ try {
     $unitHostShim = "@echo off`r`n`"%~dp0IntoChat.OS.Sandbox.exe`" --unit-host %*`r`n"
     [System.IO.File]::WriteAllText((Join-Path $unitHostDir 'IntoChat.OS.UnitHost.cmd'), $unitHostShim, [System.Text.Encoding]::ASCII)
 
-    $uiDir = Join-Path $repoRoot 'ui'
-    if ((-not $SkipFlutter) -and (Test-Path -LiteralPath (Join-Path $uiDir 'pubspec.yaml'))) {
+    if (-not $SkipFlutter) {
         $flutterCmd = Get-Command 'flutter' -ErrorAction SilentlyContinue
         if ($null -eq $flutterCmd) {
             throw "Flutter SDK not found on PATH; pass -SkipFlutter for headless kernel-only packaging."
@@ -212,9 +232,11 @@ try {
 
         $winArchSegment = if ($Rid -eq 'win-arm64') { 'arm64' } else { 'x64' }
         $flutterRunnerOut = Join-Path $uiDir "build\windows\$winArchSegment\runner\Release"
-        if (Test-Path -LiteralPath $flutterRunnerOut) {
-            Copy-Item -Path (Join-Path $flutterRunnerOut '*') -Destination $shellDir -Recurse -Force
+        # flutter build windows targets the architecture of the machine it runs on; a bundle without its shell is not a release.
+        if (-not (Test-Path -LiteralPath $flutterRunnerOut)) {
+            throw "Flutter shell for $Rid not found at '$flutterRunnerOut'; build $Rid on a machine of that architecture."
         }
+        Copy-Item -Path (Join-Path $flutterRunnerOut '*') -Destination $shellDir -Recurse -Force
     }
 
     if (Test-Path -LiteralPath $archivePath) {

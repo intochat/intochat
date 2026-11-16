@@ -166,6 +166,92 @@ jobs:
           NUGET_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: dotnet nuget push "artifacts/packages/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key "${NUGET_KEY}"
 
+  # The Windows desktop bundle. It runs beside the Linux image and the deploys and none of them wait for it:
+  # a packaging failure leaves the release without its Windows assets and leaves the deploys alone.
+  package-windows:
+    name: package-windows
+    if: inputs.rollback_tag == '' || inputs.rollback_tag == null
+    runs-on: windows-2025
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      checks: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify CI check-run status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ok="$(gh api repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs --jq '[.check_runs[]|select(.name=="ci" or .name=="ci / ci")|.conclusion]|index("success")')"
+          [ "${ok}" != "null" ] && [ -n "${ok}" ] || { echo "::error::ci has not succeeded for commit ${{ github.sha }}"; exit 1; }
+
+      - name: Guard tag matches VERSION
+        shell: bash
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            [ "v${version}" = "${GITHUB_REF_NAME}" ] || { echo "::error::tag ${GITHUB_REF_NAME} does not match VERSION ${version}"; exit 1; }
+          fi
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        working-directory: ui
+        run: flutter pub get --enforce-lockfile
+
+      # win-x64 only: flutter build windows builds for the runner's own architecture, so an x64 runner cannot
+      # produce the win-arm64 shell.
+      - name: Package the Windows bundle
+        shell: pwsh
+        run: ./eng/release/package-release.ps1 -Rid win-x64 -OutputDir artifacts/release
+
+      - name: Check the bundle layout
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = Get-Item artifacts/release/intochat-*-win-x64.zip
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($zip.FullName)
+          try { $names = $archive.Entries | ForEach-Object { $_.FullName.Replace('\', '/') } } finally { $archive.Dispose() }
+          $missing = @('IntoChat.OS.Desktop.exe', 'intochat.cmd', 'os/IntoChat.OS.Kernel.exe', 'unithost/IntoChat.OS.Sandbox.exe', 'shell/intochat_os_flutter.exe') | Where-Object { $names -notcontains $_ }
+          if ($missing) { Write-Host "::error::$($zip.Name) lacks: $($missing -join ', ')"; exit 1 }
+          $hash = (Get-FileHash -LiteralPath $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if (-not (Select-String -LiteralPath artifacts/release/SHA256SUMS -SimpleMatch "$hash  $($zip.Name)" -Quiet)) { Write-Host "::error::SHA256SUMS does not list $($zip.Name) with its digest"; exit 1 }
+          foreach ($file in 'latest.json', 'winget/IntoChat.OS.yaml') {
+            if (-not (Select-String -LiteralPath "artifacts/release/$file" -SimpleMatch $hash -Quiet)) { Write-Host "::error::$file does not carry the digest of $($zip.Name)"; exit 1 }
+          }
+
+      - name: Upload the Windows bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-bundle
+          path: |
+            artifacts/release/intochat-*-win-x64.zip
+            artifacts/release/SHA256SUMS
+            artifacts/release/latest.json
+            artifacts/release/winget/IntoChat.OS.yaml
+          compression-level: 0
+          retention-days: 30
+
+      - name: Attach the Windows bundle to GitHub Release
+        if: github.event_name == 'release'
+        shell: bash
+        working-directory: artifacts/release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" intochat-*-win-x64.zip SHA256SUMS latest.json winget/IntoChat.OS.yaml --clobber
+
   deploy-test:
     name: deploy-test
     needs: [package]

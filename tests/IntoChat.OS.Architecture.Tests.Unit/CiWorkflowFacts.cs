@@ -7,6 +7,8 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // ci.yml runs unit, integration, e2e, and flutter jobs against a single build.
 // release.yml builds images once and deploys test then prod via Kernel install with zero scripts.
 // No workflow references scripts/ directory or PACKAGE_TOKEN or DEPLOYMENT_VALUES_TOKEN.
+// release.yml packages the Windows bundle with eng/release/package-release.ps1 on a Windows runner and attaches it to
+// the release; ci.yml dry-runs the same script on Windows so it cannot rot between releases.
 public sealed partial class CiWorkflowFacts
 {
     private static string Workflow(string name) => File.ReadAllText(Path.Combine(Repository.Root, ".github", "workflows", name));
@@ -120,6 +122,85 @@ public sealed partial class CiWorkflowFacts
 
         // rollback_tag support
         Assert.Contains("rollback_tag", release, StringComparison.Ordinal);
+    }
+
+    private static string[] Needs(string job)
+    {
+        var match = Regex.Match(job, @"(?m)^\s*needs:\s*\[(?<list>[^\]]*)\]");
+        return match.Success ? match.Groups["list"].Value.Split(',').Select(n => n.Trim()).ToArray() : [];
+    }
+
+    private static string[] Uses(string text) =>
+        Regex.Matches(text, @"(?m)^\s*(?:-\s*)?uses:\s*(?<action>\S+)").Select(m => m.Groups["action"].Value).Distinct().ToArray();
+
+    private const string PackagingScript = "eng/release/package-release.ps1";
+
+    // The deploy facts above say "zero scripts": deploys go through Kernel install. Packaging the desktop bundle is the
+    // one script a workflow runs, and it lives under eng/release, not the retired scripts/ directory.
+    [Fact]
+    public void ReleasePackagesTheWindowsBundleOnAWindowsRunnerAndAttachesItToTheRelease()
+    {
+        Assert.True(File.Exists(Path.Combine(Repository.Root, PackagingScript)), PackagingScript + " must exist");
+        var release = Workflow("release.yml");
+        var job = Job(release, "package-windows");
+
+        Assert.Matches(@"(?m)^\s*runs-on:\s*windows-2025\s*$", job);
+        Assert.Matches(@"(?m)^\s*timeout-minutes:\s*\d+\s*$", job);
+        Assert.Contains("./" + PackagingScript + " -Rid win-x64", job, StringComparison.Ordinal);
+        Assert.DoesNotContain("-SkipFlutter", job, StringComparison.Ordinal);
+        Assert.DoesNotContain("-DryRun", job, StringComparison.Ordinal);
+
+        // The same guards as the Linux package job: ci passed for this commit and the tag is the VERSION.
+        Assert.Contains("check-runs", job, StringComparison.Ordinal);
+        Assert.Contains("does not match VERSION", job, StringComparison.Ordinal);
+
+        // .NET from global.json; Flutter pinned to the version ci tests the shell with.
+        Assert.Contains("global-json-file: global.json", job, StringComparison.Ordinal);
+        var flutterVersion = Regex.Match(Job(Workflow("ci.yml"), "flutter"), @"flutter-version:\s*'(?<v>[^']+)'");
+        Assert.True(flutterVersion.Success, "ci flutter job must pin flutter-version");
+        Assert.Contains($"flutter-version: '{flutterVersion.Groups["v"].Value}'", job, StringComparison.Ordinal);
+        Assert.Contains("flutter pub get --enforce-lockfile", job, StringComparison.Ordinal);
+
+        // The four kinds of asset go to the release the tag belongs to.
+        var upload = Regex.Match(job, @"gh release upload [^
+]*");
+        Assert.True(upload.Success, "package-windows must attach its output with gh release upload");
+        Assert.Contains("\"${GITHUB_REF_NAME}\"", upload.Value, StringComparison.Ordinal);
+        Assert.Contains("intochat-*-win-x64.zip", upload.Value, StringComparison.Ordinal);
+        Assert.Contains("SHA256SUMS", upload.Value, StringComparison.Ordinal);
+        Assert.Contains("latest.json", upload.Value, StringComparison.Ordinal);
+        Assert.Contains("winget/IntoChat.OS.yaml", upload.Value, StringComparison.Ordinal);
+
+        // Only the repository token, and only action versions another job already uses.
+        Assert.DoesNotContain("secrets.", job, StringComparison.Ordinal);
+        var known = Uses(Workflow("ci.yml")).Concat(Uses(release.Replace(job, "", StringComparison.Ordinal))).ToHashSet(StringComparer.Ordinal);
+        Assert.All(Uses(job), action => Assert.Contains(action, known));
+    }
+
+    // A Windows packaging failure must not hold back the image or a deploy, and the reverse.
+    [Fact]
+    public void TheWindowsPackagingJobAndTheDeployJobsDoNotWaitForEachOther()
+    {
+        var release = Workflow("release.yml");
+        Assert.Empty(Needs(Job(release, "package-windows")));
+        foreach (var name in new[] { "package", "deploy-test", "deploy-prod" })
+        {
+            var job = Job(release, name);
+            Assert.DoesNotContain("package-windows", Needs(job));
+            Assert.DoesNotContain("package-windows", job, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void CiDryRunsThePackagingScriptOnWindowsAndGatesOnIt()
+    {
+        var ci = Workflow("ci.yml");
+        var job = Job(ci, "package-dry-run");
+
+        Assert.Matches(@"(?m)^\s*runs-on:\s*windows-2025\s*$", job);
+        Assert.Contains("./" + PackagingScript + " -Rid win-x64 -DryRun", job, StringComparison.Ordinal);
+        Assert.Contains("package-dry-run", Needs(Job(ci, "ci")));
+        Assert.Contains("needs.package-dry-run.result", Job(ci, "ci"), StringComparison.Ordinal);
     }
 
     [Fact]
