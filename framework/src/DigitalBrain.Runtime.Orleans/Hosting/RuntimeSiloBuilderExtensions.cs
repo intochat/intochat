@@ -1,0 +1,152 @@
+using DigitalBrain.Capabilities;
+using DigitalBrain.Kernel;
+using DigitalBrain.Limits;
+using DigitalBrain.Neurons;
+using DigitalBrain.Units;
+using System.Reflection;
+using DigitalBrain.Access;
+using DigitalBrain.Runtime.Orleans.Access;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Compute;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Runtime.Orleans.Signalling;
+using DigitalBrain.Runtime.Orleans.Synapses;
+using DigitalBrain.Runtime.Synapses;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Orleans;
+using Orleans.Hosting;
+using Orleans.Runtime;
+
+namespace DigitalBrain.Runtime.Orleans;
+
+/// <summary>
+/// The single composition entry of the DigitalBrain runtime on a silo. <see cref="TopologyHosting.ConfigureTopologySilo"/> calls it
+/// once with the module assemblies given to <c>UseTopology</c>; topology classes never call it.
+/// </summary>
+public static class RuntimeSiloBuilderExtensions
+{
+    /// <summary>
+    /// Hosts the plain <c>[Neuron]</c> classes of <paramref name="modules"/> on the host grains, with their JSON journal payloads,
+    /// signal publishing and synapse retention.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The runtime was already added to this silo.</exception>
+    public static ISiloBuilder AddDigitalBrainRuntime(this ISiloBuilder silo, params Assembly[] modules)
+        => silo.AddDigitalBrainRuntime(null, modules);
+
+    /// <summary>
+    /// <see cref="AddDigitalBrainRuntime(ISiloBuilder, Assembly[])"/> with the key and store names the host chose. A null
+    /// <paramref name="options"/> keeps the options the host registered with <see cref="TopologyHosting.UseRuntimeOptions"/>, or
+    /// <see cref="RuntimeOptions.Default"/> when it registered none.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The runtime was already added to this silo.</exception>
+    public static ISiloBuilder AddDigitalBrainRuntime(this ISiloBuilder silo, RuntimeOptions? options, params Assembly[] modules)
+    {
+        ArgumentNullException.ThrowIfNull(silo);
+        ArgumentNullException.ThrowIfNull(modules);
+        if (silo.Services.Any(descriptor => descriptor.ServiceType == typeof(RuntimeAdded)))
+        {
+            throw new InvalidOperationException("AddDigitalBrainRuntime was already called on this silo; ConfigureTopologySilo calls it once.");
+        }
+        silo.Services.AddSingleton(new RuntimeAdded());
+        if (options is not null)
+        {
+            silo.Services.RemoveAll<RuntimeOptions>();
+            silo.Services.AddSingleton(options);
+        }
+        else { silo.Services.TryAddSingleton(RuntimeOptions.Default); }
+        silo.AddNeuronHosting(modules);
+        silo.Services.TryAddSingleton<IReadOnlyList<ActionDescriptor>>(sp =>
+        {
+            var fromTopology = sp.GetService<TopologyContext>()?.Modules.SelectMany(m => m.Actions) ?? [];
+            var fromRegistry = sp.GetRequiredService<NeuronTypeRegistry>().Actions;
+            return [.. fromTopology.Concat(fromRegistry).DistinctBy(a => a.Name, StringComparer.Ordinal)];
+        });
+        // The live catalog, seeded from the startup scan; state neurons, the installs neuron and the gate index read it per call.
+        silo.Services.TryAddSingleton<IUnitLoader>(sp =>
+        {
+            var loader = new UnitLoader();
+            loader.Loaded += (_, signals) =>
+            {
+                if (sp.GetService<SignalTypeMap>() is { } map)
+                {
+                    foreach (var signal in signals) { map.Replace(signal); }
+                }
+            };
+            loader.Unloading += (_, signals) =>
+            {
+                if (sp.GetService<SignalTypeMap>() is { } map)
+                {
+                    foreach (var signal in signals)
+                    {
+                        if (map.TryAliasOf(signal, out var alias))
+                        {
+                            map.Unregister(alias);
+                        }
+                    }
+                }
+            };
+            return loader;
+        });
+        silo.Services.TryAddSingleton(sp => (UnitLoader)sp.GetRequiredService<IUnitLoader>());
+        silo.Services.TryAddSingleton<LiveBindings>();
+        silo.Services.TryAddSingleton(sp => new SynapseCatalogSource(sp.GetRequiredService<NeuronTypeRegistry>().Catalog, sp.GetRequiredService<IUnitLoader>()));
+        silo.Services.TryAddSingleton<ISynapseCatalogSource>(sp => sp.GetRequiredService<SynapseCatalogSource>());
+        silo.Services.TryAddSingleton<DigitalBrain.Units.IInstallHooks, OrleansInstallHooks>();
+
+        silo.Services.TryAddSingleton(_ => new SynapseCompiler(ReferenceSet.FromDefaultContext()));
+        silo.Services.TryAddSingleton(sp => new UnitResolver(
+            sp.GetRequiredService<IUnitLoader>(),
+            sp.GetRequiredService<ISynapseCatalogSource>(),
+            sp.GetRequiredService<LiveBindings>(),
+            id => NeuronHosting.Get<ISources>(sp, id),
+            id => NeuronHosting.Get<IUnitDeployment>(sp, id),
+            brain => RuntimeCallerContext.StampScope(CapabilityCallers.Platform(brain.Value, brain.Value, brain.Value))));
+        silo.Services.TryAddSingleton<IUnitResolver>(sp => sp.GetRequiredService<UnitResolver>());
+        silo.Services.TryAddSingleton(sp => new UnitDeployer(
+            sp.GetRequiredService<SynapseCompiler>(),
+            sp.GetRequiredService<IUnitLoader>(),
+            id => NeuronHosting.Get<ISources>(sp, id),
+            id => NeuronHosting.Get<IUnitDeployment>(sp, id)));
+        silo.Services.TryAddSingleton<DigitalBrain.Units.ISynapseHost>(sp => sp.GetRequiredService<UnitDeployer>());
+        silo.Services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, LiveBindingsClusterListener>();
+        silo.Services.AddJournalPayloads(modules);
+        silo.Services.TryAddSingleton<DigitalBrain.Kernel.INudge, GrainNudge>();
+        silo.Services.TryAddSingleton<DigitalBrain.Kernel.IAdmission, GrainAdmission>();
+        silo.Services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>, SubscriptionSweep>();
+        silo.Services.TryAddSingleton<DigitalBrain.Units.ISlotResolver, BrokerSlotResolver>();
+        silo.Services.TryAddSingleton<PublishFaults>();
+        silo.Services.AddSingleton<SynapseCounters>();
+        silo.Services.AddSingleton<DigitalBrain.Kernel.DeliveryCounters>(sp => sp.GetRequiredService<SynapseCounters>());
+        silo.AddSynapseRetention();
+        silo.AddRuntimeServices();
+        silo.Services.AddCapabilityBroker();
+        silo.Services.TryAddSingleton<ICallerAmbient>(OrleansCallerAmbient.Instance);
+        silo.Services.TryAddSingleton<ICallerCarrier>(OrleansCallerAmbient.Instance);
+        silo.Services.TryAddSingleton(new EdgeAuthority(OrleansCallerAmbient.Instance));
+        silo.Services.TryAddSingleton(new AccessOptions());
+        silo.Services.TryAddSingleton(new AccessCounters());
+        silo.Services.TryAddSingleton(sp => new AccessGate(sp.GetRequiredService<ICallerAmbient>(), sp.GetRequiredService<AccessOptions>(), sp.GetRequiredService<AccessCounters>()));
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, CallerEdgeFilter>());
+        DigitalBrain.Brains.CallerAdmission.Reader = () => LegacyCallers.Project(OrleansCallerAmbient.Instance.Current);
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, DigitalBrainCallFilter>());
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, DigitalBrainCallFilter>());
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());
+        return silo;
+    }
+
+    /// <summary>Registers the DigitalBrainCallFilter incoming and outgoing filters.</summary>
+    public static ISiloBuilder AddDigitalBrainCallFilter(this ISiloBuilder silo)
+    {
+        ArgumentNullException.ThrowIfNull(silo);
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, DigitalBrainCallFilter>());
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, DigitalBrainCallFilter>());
+        return silo;
+    }
+
+    // The alias of the sources neuron NeuronTypeRegistry hosts on every silo.
+    private const string SourcesType = "synapse.sources";
+
+    private sealed class RuntimeAdded;
+}

@@ -1,0 +1,8 @@
+bin/
+obj/
+artifacts/
+.digitalbrain-local/
+.vs/
+*.user
+TestResults/
+Directory.Build.local.props

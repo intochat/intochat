@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Capabilities.Secrets/DigitalBrain.Capabilities.Secrets.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Capabilities.Identity/DigitalBrain.Capabilities.Identity.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Capabilities.Compute/DigitalBrain.Capabilities.Compute.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Capabilities.Http/DigitalBrain.Capabilities.Http.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Capabilities.Tools/DigitalBrain.Capabilities.Tools.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
+    <ProjectReference Include="../../src/DigitalBrain.Runtime.Synapses/DigitalBrain.Runtime.Synapses.csproj" />
+  </ItemGroup>
+</Project>
