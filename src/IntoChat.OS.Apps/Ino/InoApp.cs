@@ -15,8 +15,13 @@ using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Observers;
 using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.AI.Media;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.Anthropic;
+using IntoChat.OS.Modules.AI.Models.Google;
+using IntoChat.OS.Modules.AI.Models.OpenAI;
+using IntoChat.OS.Modules.AI.Models.OpenRouter;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
@@ -50,18 +55,19 @@ public sealed record InoSend(string? Message = null, string? Text = null, string
 public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
 {
     private const string SmartVariable = "ino.smart";
-    private const string ModelChosenVariable = "ino.model.chosen";
-    private const string StockDefaultModel = "qwen3.5:4b";
     private const string ApprovalsKey = "approvals/index";
     private const string DataKey = "ino/data";
     private const string ModelsKey = "main";
 
     private readonly ILogger<InoApp>? _logger;
+    private bool _canDictate;
 
     public InoApp() : this(null) { }
 
     [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
     public InoApp(ILogger<InoApp>? logger = null) => _logger = logger;
+
+    public bool CanDictate => _canDictate;
 
     public IFilesVfsService? FilesVfs { get; set; }
     public const string AppName = "ino";
@@ -108,6 +114,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         await base.OnActivate(cancellationToken);
         await TryOptionalAsync("settings", () => Follow<IUserSettings, UserSettingsChanged>("settings"));
         await TryOptionalAsync("confirmations-synapses", () => Context.Synapses.EnsureBrainWide([typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged)]));
+        await InitializeActivationViewAsync();
         var agentKey = InoModel.AgentKeyOf(State.ConversationId);
         await RegisterConversationAsync(agentKey);
         if (await EnsureChatAsync(agentKey)) { await ProjectCurrentChatAsync(agentKey); }
@@ -119,15 +126,12 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         ArgumentNullException.ThrowIfNull(request);
         var settings = await Get<IUserSettings>("settings").Read();
         var local = await DetectLocalModelsAsync();
-        var effectiveModel = ResolveEffectiveModel(settings, local);
+        _canDictate = await ReadCanDictateAsync();
+        var resolvedChoice = await ResolveEffectiveModelAsync(settings, local);
         var (nextState, migrate) = InoModel.DecideOpen(
-            State, request.Mode, settings.DisplayName, effectiveModel ?? settings.DefaultModel,
+            State, request.Mode, settings.DisplayName, resolvedChoice.DisplayModel,
             IsSmart(settings), await ReadApprovalsAsync(), await ReadGrantSummariesAsync(),
             local?.PreferredModel, local?.InstalledModels);
-        if (HasExplicitModelChoice(settings) && !string.IsNullOrWhiteSpace(effectiveModel))
-        {
-            nextState = nextState with { SelectedModel = effectiveModel.Trim() };
-        }
 
         var agentKey = InoModel.AgentKeyOf(State.ConversationId);
         await RegisterConversationAsync(agentKey);
@@ -143,7 +147,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
                 await Show(State with { AgentKey = agentKey });
             }
 
-            await EnsureConfiguredAsync(agent, settings, local);
+            await EnsureConfiguredAsync(agent, settings, resolvedChoice.EffectiveModel);
             await FollowAgentControlSignalsAsync(agentKey);
             var read = await agent.Read();
             if (read.Blocked) { await Show(InoModel.Pause(State, State.BlockedReason)); }
@@ -218,11 +222,11 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         {
             await EnsureProfileContextAsync();
             var agent = Get<IAgent>(agentKey);
-            await EnsureConfiguredAsync(agent, settings, local);
+            var resolvedChoice = await ResolveEffectiveModelAsync(settings, local);
+            await EnsureConfiguredAsync(agent, settings, resolvedChoice.EffectiveModel);
             await FollowAgentControlSignalsAsync(agentKey);
-            var effectiveModel = ResolveEffectiveModel(settings, local);
-            var runId = await agent.Start(AgentTurn.Text(pending.Text, model: effectiveModel));
-            await Show(InoModel.Started(State, runId, effectiveModel));
+            var runId = await agent.Start(AgentTurn.Text(pending.Text, model: resolvedChoice.EffectiveModel));
+            await Show(InoModel.Started(State, runId, resolvedChoice.DisplayModel));
         }
         catch (InvalidOperationException error) when (error.Message.StartsWith(InoModel.BlockedPrefix, StringComparison.Ordinal))
         {
@@ -231,7 +235,12 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         catch (Exception error) when (error is not OperationCanceledException)
         {
             if (_logger is { } log) { InoLog.LogTurnStartFailed(log, error, agentKey); }
-            await Show(InoModel.StartFailed(State, new InoError(AgentFailures.CodeOf(AgentFailures.Classify(error)))));
+            var code = AgentFailures.CodeOf(AgentFailures.Classify(error));
+            if (code == "provider-unavailable" && await IsMissingLocalOllamaAsync(local))
+            {
+                code = "no-provider";
+            }
+            await Show(InoModel.StartFailed(State, new InoError(code)));
         }
     }
 
@@ -252,9 +261,9 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         var local = await DetectLocalModelsAsync();
         var model = !string.IsNullOrWhiteSpace(request.Model) ? request.Model.Trim()
             : !string.IsNullOrWhiteSpace(request.Value) ? request.Value.Trim()
-            : local?.PreferredModel ?? State.DetectedLocalModel ?? StockDefaultModel;
+            : local?.PreferredModel ?? State.DetectedLocalModel ?? ModelCatalog.DefaultChatModelId;
 
-        await PersistDefaultModelAsync(model, local);
+        await PersistDefaultModelAsync(model);
         var hadProviderFailure = State.Error?.Code is "no-provider" or "provider-rejected-key";
         await Show(InoModel.ModelSelected(State, model, $"Switched model to {model}", local));
         if (hadProviderFailure) { await Retry(new InoRetry()); }
@@ -272,8 +281,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
 
         try
         {
-            await Get<IModelCatalog>(new NeuronId(new BrainId(CurrentBrainId), "ai.models", ModelsKey))
-                .SaveProviderCredential(provider, credential);
+            await Catalog.SaveProviderCredential(provider, credential);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -283,7 +291,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         }
 
         var defaultModel = DefaultModelForProvider(provider);
-        await PersistDefaultModelAsync(defaultModel, local: null);
+        await PersistDefaultModelAsync(defaultModel);
         var hadProviderFailure = State.Error?.Code is "no-provider" or "provider-rejected-key";
         await Show(InoModel.ModelSelected(State, defaultModel, $"Saved {provider} credential · Ready on {defaultModel}"));
         if (hadProviderFailure) { await Retry(new InoRetry()); }
@@ -415,9 +423,11 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     {
         if (changed is null || (string.IsNullOrEmpty(changed.DisplayName) && string.IsNullOrEmpty(changed.DefaultModel))) { return; }
         var settings = await Get<IUserSettings>("settings").Read();
+        var local = await DetectLocalModelsAsync();
+        var resolved = await ResolveEffectiveModelAsync(settings, local);
         await EnsureProfileContextAsync();
-        await TryOptionalAsync("agent", () => EnsureConfiguredAsync(Get<IAgent>(InoModel.AgentKeyOf(State.ConversationId)), settings, null));
-        await Show(InoModel.SyncedSettings(State, IsSmart(settings), settings.DefaultModel, changed.DisplayName, changed.DefaultModel));
+        await TryOptionalAsync("agent", () => EnsureConfiguredAsync(Get<IAgent>(InoModel.AgentKeyOf(State.ConversationId)), settings, resolved.EffectiveModel));
+        await Show(InoModel.SyncedSettings(State, IsSmart(settings), resolved.DisplayModel, changed.DisplayName, resolved.DisplayModel));
     }
 
     private async Task StartConversationAsync()
@@ -429,14 +439,13 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         await EnsureChatAsync(agentKey);
     }
 
-    private async Task PersistDefaultModelAsync(string model, LocalModelSummary? local)
+    private async Task PersistDefaultModelAsync(string model)
     {
         var settingsNeuron = Get<IUserSettings>("settings");
         var current = await settingsNeuron.Read();
-        await settingsNeuron.SetVariable(ModelChosenVariable, "on");
         var updated = await settingsNeuron.SetProfile(current.DisplayName, current.Theme, model);
         await EnsureProfileContextAsync();
-        await TryOptionalAsync("agent", () => EnsureConfiguredAsync(Get<IAgent>(InoModel.AgentKeyOf(State.ConversationId)), updated, local));
+        await TryOptionalAsync("agent", () => EnsureConfiguredAsync(Get<IAgent>(InoModel.AgentKeyOf(State.ConversationId)), updated, model));
     }
 
     private async Task<bool> EnsureChatAsync(string agentKey)
@@ -462,12 +471,21 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         }
     }
 
-    private Task ProjectCurrentChatAsync(string agentKey) => TryOptionalAsync("chat-read", async () =>
+    private async Task ProjectCurrentChatAsync(string agentKey)
     {
-        var chatState = await Get<IChat>(InoModel.ChatKeyOf(State.ConversationId)).Read();
+        var chatState = await ReadOptionalAsync<ChatState?>("chat-read", null, () => Get<IChat>(InoModel.ChatKeyOf(State.ConversationId)).Read()!);
+        if (chatState is null) { return; }
+
         var next = InoModel.Projected(State, chatState, $"{CurrentBrainId}/{agentKey}");
-        if (!ReferenceEquals(next, State)) { await Show(next); }
-    });
+        if (next.Error?.Code == "provider-unavailable" && await IsMissingLocalOllamaAsync(local: null))
+        {
+            next = next with { Error = new InoError("no-provider") };
+        }
+        if (!ReferenceEquals(next, State))
+        {
+            await Show(next);
+        }
+    }
 
     private Task RegisterConversationAsync(string agentKey)
         => TryOptionalAsync("conversations-registry", () => Get<IInoConversations>(IInoConversations.DefaultKey).Use(agentKey));
@@ -499,24 +517,99 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
             return InoModel.SummarizeGrants(grants, assistant);
         });
 
+    private IModelCatalog Catalog
+        => Get<IModelCatalog>(new NeuronId(new BrainId(CurrentBrainId), "ai.models", ModelsKey));
+
+    private async Task InitializeActivationViewAsync()
+    {
+        _canDictate = await ReadCanDictateAsync();
+        if (!string.IsNullOrWhiteSpace(State.SelectedModel)) { return; }
+
+        var settings = await ReadOptionalAsync<UserSettingsState?>("settings-read", null, async () => await Get<IUserSettings>("settings").Read());
+        if (settings is null) { return; }
+
+        var local = await DetectLocalModelsAsync();
+        var resolved = await ResolveEffectiveModelAsync(settings, local);
+        var approvals = await ReadApprovalsAsync();
+        var grantSummaries = await ReadGrantSummariesAsync();
+        await Show(State with
+        {
+            SelectedModel = resolved.DisplayModel,
+            Smart = IsSmart(settings),
+            Approvals = approvals,
+            GrantSummaries = grantSummaries,
+            DetectedLocalModel = local?.PreferredModel ?? State.DetectedLocalModel,
+            DetectedLocalModels = local?.InstalledModels ?? State.DetectedLocalModels,
+        });
+    }
+
+    private Task<bool> ReadCanDictateAsync()
+        => ReadOptionalAsync("speech-recognizer", false, async () =>
+            (await Get<ISpeechRecognizer>("default").Describe()).Available);
+
     private Task<LocalModelSummary?> DetectLocalModelsAsync()
         => ReadOptionalAsync<LocalModelSummary?>("local-models", null, async () =>
         {
-            var summary = await Get<IModelCatalog>(new NeuronId(new BrainId(CurrentBrainId), "ai.models", ModelsKey)).DetectLocal();
+            var summary = await Catalog.DetectLocal();
             return summary.Available ? summary : null;
         });
 
-    private static string? ResolveEffectiveModel(UserSettingsState settings, LocalModelSummary? local)
-        => !HasExplicitModelChoice(settings)
-            && string.Equals(settings.DefaultModel?.Trim(), StockDefaultModel, StringComparison.OrdinalIgnoreCase)
-            && local is { Available: true, PreferredModel.Length: > 0 }
-            ? local.PreferredModel
-            : string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : settings.DefaultModel.Trim();
+    private Task<ModelChoices?> ReadModelChoicesAsync()
+        => ReadOptionalAsync<ModelChoices?>("model-catalog", null, async () => await Catalog.List(null));
 
-    private async Task EnsureConfiguredAsync(IAgent agent, UserSettingsState settings, LocalModelSummary? local)
+    private async Task<(string? EffectiveModel, string DisplayModel)> ResolveEffectiveModelAsync(UserSettingsState settings, LocalModelSummary? local)
     {
-        var effectiveSettings = ResolveEffectiveModel(settings, local) is { } preferred && !string.Equals(preferred, settings.DefaultModel, StringComparison.Ordinal)
-            ? settings with { DefaultModel = preferred } : settings;
+        var personModel = string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : settings.DefaultModel.Trim();
+        if (personModel is not null)
+        {
+            return (personModel, personModel);
+        }
+
+        var choices = await ReadModelChoicesAsync();
+        if (choices is not null)
+        {
+            var auto = choices.Automatic;
+            if (!string.IsNullOrWhiteSpace(auto.Model) && !string.IsNullOrWhiteSpace(auto.Provider))
+            {
+                return (auto.Model, auto.Model);
+            }
+
+            // When catalog reports Host (no provider/endpoint configured yet), preserve null for AgentTurn fallback.
+            var fallbackDisplay = local?.PreferredModel is { Length: > 0 } p ? p : ModelCatalog.DefaultChatModelId;
+            return (null, fallbackDisplay);
+        }
+
+        var fallback = local?.PreferredModel is { Length: > 0 } detected ? detected : ModelCatalog.DefaultChatModelId;
+        return (fallback, fallback);
+    }
+
+    private async Task<bool> IsMissingLocalOllamaAsync(LocalModelSummary? local)
+    {
+        var choices = await ReadModelChoicesAsync();
+        if (choices is null)
+        {
+            return false;
+        }
+
+        if (!string.Equals(choices.Automatic.Provider, AiProvider.Ollama.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (choices.Models.Any(m => m.Available && !string.Equals(m.Provider, AiProvider.Ollama.ToString(), StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        var detected = local ?? await DetectLocalModelsAsync();
+        return detected is not { Available: true };
+    }
+
+    private async Task EnsureConfiguredAsync(IAgent agent, UserSettingsState settings, string? effectiveModel)
+    {
+        var effectiveSettings = string.IsNullOrWhiteSpace(effectiveModel)
+            ? settings
+            : settings with { DefaultModel = effectiveModel.Trim() };
 
         var current = await agent.Read();
         var definition = InoAgentDefinition.For(effectiveSettings);
@@ -553,8 +646,8 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
                 await Show(InoModel.DecideSlashRename(State, arg));
                 return;
             case "model":
-                var nextModel = string.IsNullOrWhiteSpace(arg) ? "claude-sonnet-4-5" : arg.Trim();
-                await PersistDefaultModelAsync(nextModel, local: null);
+                var nextModel = string.IsNullOrWhiteSpace(arg) ? ModelCatalog.DefaultChatModelId : arg.Trim();
+                await PersistDefaultModelAsync(nextModel);
                 await Show(InoModel.ModelSelected(State, nextModel, $"Switched model to {nextModel}"));
                 return;
             case "scenario" or "session":
@@ -572,7 +665,6 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
             : r.EffectiveMessage.Trim();
 
     private static bool IsSmart(UserSettingsState s) => s.Variables.Any(v => v.Key == SmartVariable && string.Equals(v.Value, "on", StringComparison.OrdinalIgnoreCase));
-    private static bool HasExplicitModelChoice(UserSettingsState s) => s.Variables.Any(v => v.Key == ModelChosenVariable && string.Equals(v.Value, "on", StringComparison.OrdinalIgnoreCase));
     private bool IsCurrentAgent(string agentId) => string.Equals(agentId, InoModel.AgentKeyOf(State.ConversationId), StringComparison.Ordinal);
     private bool IsCurrentChat(string? chatName) => !string.IsNullOrEmpty(chatName) && string.Equals(chatName, $"{CurrentBrainId}/{InoModel.ChatKeyOf(State.ConversationId)}", StringComparison.Ordinal);
 
@@ -593,11 +685,14 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
 
     private static string DefaultModelForProvider(string provider) => provider switch
     {
-        "anthropic" => "claude-sonnet-4-5",
-        "google" => "gemini-2.5-pro",
-        "openrouter" => "openrouter/openai/gpt-4o-mini",
-        _ => "gpt-5",
+        "anthropic" => CatalogId(typeof(ISonnet46)),
+        "google" => CatalogId(typeof(IGemini36Pro)),
+        "openrouter" => CatalogId(typeof(IDeepSeekV41Flash)),
+        _ => CatalogId(typeof(IGpt54)),
     };
+
+    private static string CatalogId(Type marker)
+        => LLMModel.FindByMarker(marker)?.Id ?? ModelCatalog.DefaultChatModelId;
 
     private string CurrentBrainId
     {

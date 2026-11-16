@@ -20,6 +20,7 @@ using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Flows;
@@ -210,15 +211,15 @@ public sealed class InoAppFacts
         await Deliver(ino, new ChatRunChanged("local/ino/chats/main", BackgroundChat.Revision, ChatRunStatus.Completed));
         BackgroundAgent.Starts = 0;
 
-        await ino.Request("send", new InoSend("/model claude-sonnet-4-5"));
-        Assert.Equal("Switched model to claude-sonnet-4-5", ino.App.State.Status);
+        await ino.Request("send", new InoSend("/model claude-sonnet-4-6"));
+        Assert.Equal("Switched model to claude-sonnet-4-6", ino.App.State.Status);
         await os.Idle();
-        Assert.Contains("claude-sonnet-4-5", ino.App.State.Status, StringComparison.Ordinal);
-        Assert.Equal("claude-sonnet-4-5", (await userSettings.Read()).DefaultModel);
-        Assert.Equal("claude-sonnet-4-5", BackgroundAgent.LastConfiguredModel);
+        Assert.Contains("claude-sonnet-4-6", ino.App.State.Status, StringComparison.Ordinal);
+        Assert.Equal("claude-sonnet-4-6", (await userSettings.Read()).DefaultModel);
+        Assert.Equal("claude-sonnet-4-6", BackgroundAgent.LastConfiguredModel);
 
         await ino.Request("send", new InoSend("turn 2"));
-        Assert.Equal("claude-sonnet-4-5", BackgroundAgent.LastTurnModel);
+        Assert.Equal("claude-sonnet-4-6", BackgroundAgent.LastTurnModel);
         BackgroundChat.Complete("local/ino/conversations/main", "run-1", "turn 2", "reply 2");
         await Deliver(ino, new ChatRunChanged("local/ino/chats/main", BackgroundChat.Revision, ChatRunStatus.Completed));
         BackgroundAgent.Starts = 0;
@@ -226,24 +227,107 @@ public sealed class InoAppFacts
         await settingsApp.Request("save-preferences", new SettingsSavePreferences(
             DisplayName: "Ada Lovelace",
             Theme: "dark",
-            DefaultModel: "gpt-5",
+            DefaultModel: "gpt-5.4",
             StylePreset: "fluent-acrylic",
             BarLayout: "floating-glass"));
         await os.Idle();
-        Assert.Equal("gpt-5", (await userSettings.Read()).DefaultModel);
-        Assert.Equal("gpt-5", BackgroundAgent.LastConfiguredModel);
+        Assert.Equal("gpt-5.4", (await userSettings.Read()).DefaultModel);
+        Assert.Equal("gpt-5.4", BackgroundAgent.LastConfiguredModel);
 
         await ino.Request("send", new InoSend("turn 3"));
-        Assert.Equal("gpt-5", BackgroundAgent.LastTurnModel);
+        Assert.Equal("gpt-5.4", BackgroundAgent.LastTurnModel);
 
         await using var agentOs = AgentOs();
         var liveIno = await agentOs.Install<InoApp>();
         var liveProfile = agentOs.Get<IAgentContext>(new NeuronId(Brain, "agent-context", "context/user.profile"));
         var liveAgent = agentOs.Get<IAgent>(AgentOf("main"));
-        await liveIno.Request("send", new InoSend("/model claude-sonnet-4-5"));
+        await liveIno.Request("send", new InoSend("/model claude-sonnet-4-6"));
         await agentOs.Idle();
-        Assert.Equal("claude-sonnet-4-5", (await liveAgent.Read()).Definition.Model?.Model);
-        Assert.Equal("""{"model":"claude-sonnet-4-5"}""", Assert.Single((await liveProfile.Read()).Entries, e => e.Name == "inference").Text);
+        Assert.Equal("claude-sonnet-4-6", (await liveAgent.Read()).Definition.Model?.Model);
+        Assert.Equal("claude-sonnet-4-6", liveIno.App.State.SelectedModel);
+        // ProfileContextWriter never writes an "inference" model entry into user.profile.
+        Assert.DoesNotContain((await liveProfile.Read()).Entries, e => e.Name == "inference");
+    }
+
+    [Fact]
+    public async Task OpenComputesCanDictateWithoutPersistingIt()
+    {
+        FakeSpeechRecognizer.AvailableResult = true;
+        try
+        {
+            await using var os = BackgroundOs();
+            os.Register<FakeSpeechRecognizer>();
+            var ino = await os.Install<InoApp>();
+            await ino.Request("open", new InoOpen());
+
+            Assert.True(ino.App.CanDictate);
+            Assert.Null(typeof(InoAppState).GetProperty("CanDictate"));
+
+            FakeSpeechRecognizer.AvailableResult = false;
+            await ino.Request("open", new InoOpen());
+            Assert.False(ino.App.CanDictate);
+        }
+        finally
+        {
+            FakeSpeechRecognizer.AvailableResult = false;
+        }
+    }
+
+    [Fact]
+    public async Task ChoosingStockChatModelInSettingsIsPreservedWhenCoderIsDetectedLocally()
+    {
+        await using var os = BackgroundOs();
+        os.Register<FakeModelCatalog>();
+        FakeModelCatalog.LocalSummary = new LocalModelSummary(
+            Available: true,
+            PreferredModel: "qwen2.5-coder:14b",
+            InstalledModels: ["qwen2.5-coder:14b", "qwen3.5:4b"]);
+
+        try
+        {
+            var ino = await os.Install<InoApp>();
+            var settingsApp = await os.Install<SettingsApp>();
+
+            await settingsApp.Request("save-preferences", new SettingsSavePreferences(
+                DisplayName: "User",
+                Theme: "dark",
+                DefaultModel: "qwen3.5:4b",
+                StylePreset: "fluent-acrylic",
+                BarLayout: "floating-glass"));
+            await os.Idle();
+
+            await ino.Request("send", new InoSend("chat with default"));
+            Assert.Equal("qwen3.5:4b", BackgroundAgent.LastTurnModel);
+            Assert.Equal("qwen3.5:4b", ino.App.State.SelectedModel);
+        }
+        finally
+        {
+            FakeModelCatalog.Reset();
+        }
+    }
+
+    [Fact]
+    public async Task MissingOllamaUnderLocalTopologySurfacesNoProviderSetupCard()
+    {
+        await using var os = BackgroundOs();
+        os.Register<FakeModelCatalog>();
+        FakeModelCatalog.AutomaticModel = new ModelChoice("automatic", "Automatic", "Ollama", "qwen3.5:4b", true, ["Tools"]);
+        FakeModelCatalog.LocalSummary = new LocalModelSummary(Available: false, PreferredModel: null, InstalledModels: []);
+
+        try
+        {
+            var ino = await os.Install<InoApp>();
+            await ino.Request("send", new InoSend("hello without ollama"));
+            BackgroundChat.Fail("local/ino/conversations/main", "run-1", "hello without ollama", "provider-unavailable");
+            await Deliver(ino, new ChatRunChanged("local/ino/chats/main", BackgroundChat.Revision, ChatRunStatus.Failed));
+
+            Assert.Equal("no-provider", ino.App.State.Error?.Code);
+            Assert.True(InoView.ShouldShowModelSetup(ino.App.State));
+        }
+        finally
+        {
+            FakeModelCatalog.Reset();
+        }
     }
 
     [Fact]
@@ -786,6 +870,27 @@ public sealed class InoAppFacts
             };
         }
 
+        public static void Fail(string agentKey, string runId, string userText, string failureCode)
+        {
+            _revision++;
+            _state = new ChatState
+            {
+                Name = "local/ino/chats/main",
+                Revision = _revision,
+                Selection = new ChatSelection(agentKey, 1),
+                Projection = new ChatProjection(agentKey, 1, _revision,
+                [
+                    new ChatEntry($"{runId}/user", ChatRole.User, userText),
+                    new ChatEntry($"{runId}/assistant", ChatRole.Assistant, "")
+                    {
+                        Status = "failed",
+                        Failure = failureCode,
+                    },
+                ]),
+                Run = new ChatRunSnapshot(agentKey, 1, _revision, runId, ChatRunStatus.Failed),
+            };
+        }
+
         public Task<ChatSelection> SelectAgent(string agent, long expectedSelectionRevision, Guid operationId)
         {
             _revision++;
@@ -823,5 +928,50 @@ public sealed class InoAppFacts
             Records.Add((key, micros));
             return Read();
         }
+    }
+
+    [Neuron("speechrecognizerneuron")]
+    private sealed class FakeSpeechRecognizer : Neuron, IntoChat.OS.Modules.AI.Media.ISpeechRecognizer
+    {
+        public static bool AvailableResult { get; set; }
+
+        public Task<IntoChat.OS.Modules.AI.Media.MediaCapabilities> Describe()
+            => Task.FromResult(new IntoChat.OS.Modules.AI.Media.MediaCapabilities(
+                IntoChat.OS.Modules.AI.Media.MediaOperation.SpeechRecognition,
+                AvailableResult,
+                1024));
+
+        public Task<IntoChat.OS.Modules.AI.Media.SpeechRecognitionResult> Recognize(
+            IntoChat.OS.Modules.AI.Media.SpeechRecognitionRequest request,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+    }
+
+    [Neuron("ai.models")]
+    private sealed class FakeModelCatalog : Neuron, IModelCatalog
+    {
+        public static LocalModelSummary LocalSummary { get; set; } = new(false, null, []);
+        public static ModelChoice AutomaticModel { get; set; } = new("automatic", "Automatic", null, null, false, []);
+
+        public static void Reset()
+        {
+            LocalSummary = new(false, null, []);
+            AutomaticModel = new("automatic", "Automatic", null, null, false, []);
+        }
+
+        public Task<ModelChoices> List(string? defaultModel = null)
+        {
+            var effective = !string.IsNullOrWhiteSpace(defaultModel)
+                ? AutomaticModel with { Model = defaultModel.Trim(), Available = true }
+                : AutomaticModel;
+            return Task.FromResult(new ModelChoices(effective, []));
+        }
+
+        public Task<ModelSelection?> Select(string? id, string? defaultModel = null)
+            => Task.FromResult<ModelSelection?>(string.IsNullOrWhiteSpace(id) ? null : new ModelSelection(id));
+
+        public Task<LocalModelSummary> DetectLocal() => Task.FromResult(LocalSummary);
+
+        public Task SaveProviderCredential(string provider, string credentialValue) => Task.CompletedTask;
     }
 }

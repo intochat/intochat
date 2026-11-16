@@ -157,6 +157,80 @@ public sealed class LocalLlmCoderFacts : IDisposable
         Assert.Equal(["code/Note.txt"], edit.TouchedFiles);
     }
 
+    [Fact]
+    public async Task LocalLlmCoderThrowsTimeoutExceptionOnInferenceTimeoutInsteadOfOperationCanceled()
+    {
+        var inference = new SlowTimeoutInference();
+        var services = new ServiceCollection()
+            .AddSingleton<IModelInference>(inference)
+            .BuildServiceProvider();
+
+        var coder = new LocalLlmCoder(
+            services,
+            options: new LocalLlmCoderOptions { Timeout = TimeSpan.FromMilliseconds(50) });
+        var lease = new WorkTreeLease(
+            RunId: "run-timeout",
+            RepositoryId: "os",
+            SourceRepoPath: _treePath,
+            TreePath: _treePath,
+            RealGitDirPath: _treePath,
+            GitPointerSha256Hex: new string('b', 64),
+            BaseBranch: "main",
+            BaseCommitSha: new string('a', 40),
+            BranchName: "ino/timeout-run",
+            GitHubRepo: "intochat/os");
+
+        await Assert.ThrowsAsync<TimeoutException>(() => coder.EditAsync(lease, "Do work", Ct));
+    }
+
+    [Fact]
+    public async Task ExternalCliCoderKillsProcessAndThrowsTimeoutExceptionOnTimeout()
+    {
+        var shell = OperatingSystem.IsWindows() ? "powershell" : "sh";
+        string[] args = OperatingSystem.IsWindows()
+            ? ["-NoProfile", "-Command", "Start-Sleep -Seconds 30"]
+            : ["-c", "sleep 30"];
+
+        var coder = new ExternalCliCoder(shell, args, TimeSpan.FromMilliseconds(150));
+        var lease = new WorkTreeLease(
+            RunId: "cli-timeout",
+            RepositoryId: "os",
+            SourceRepoPath: _treePath,
+            TreePath: _treePath,
+            RealGitDirPath: _treePath,
+            GitPointerSha256Hex: new string('b', 64),
+            BaseBranch: "main",
+            BaseCommitSha: new string('a', 40),
+            BranchName: "ino/cli-timeout",
+            GitHubRepo: "intochat/os");
+
+        await Assert.ThrowsAsync<TimeoutException>(() => coder.EditAsync(lease, "Sleep", Ct));
+    }
+
+    private sealed class SlowTimeoutInference : IModelInference
+    {
+        public bool HasProfile(string name) => true;
+
+        public Task<ModelDescriptor> Describe(ModelSelection? selection, Type? marker, CancellationToken cancellationToken, string? brainId) =>
+            Task.FromResult(new ModelDescriptor(
+                "Ollama",
+                "qwen2.5-coder:14b",
+                "default",
+                "local",
+                CapabilitySupport.Supported,
+                CapabilitySupport.Unsupported,
+                CapabilitySupport.Supported));
+
+        public async Task<InferenceResult> Generate(InferenceRequest request, Type? marker, CancellationToken cancellationToken, string? brainId)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+            return new InferenceResult([], "stop", null, null, "qwen2.5-coder:14b");
+        }
+
+        public IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, Type? marker, CancellationToken cancellationToken, string? brainId) =>
+            throw new NotSupportedException();
+    }
+
     private sealed class ScriptedModelInference(params Func<InferenceRequest, AiMessage>[] turns) : IModelInference
     {
         private readonly Queue<Func<InferenceRequest, AiMessage>> _turns = new(turns);

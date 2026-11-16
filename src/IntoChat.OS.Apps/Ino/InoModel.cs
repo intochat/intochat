@@ -211,17 +211,19 @@ public static class InoModel
             : reason;
 
     public static (InoAppState State, bool NeedsMigration) DecideOpen(
-        InoAppState current, string? mode, string displayName, string defaultModel, bool smart,
+        InoAppState current, string? mode, string displayName, string? defaultModel, bool smart,
         Approval[] approvals, string[] grantSummaries, string? detectedLocalModel = null, string[]? detectedLocalModels = null)
     {
         ArgumentNullException.ThrowIfNull(current);
-        var status = mode == "greet" ? $"Hello, {displayName}! Ready on {defaultModel}."
+        var modelLabel = string.IsNullOrWhiteSpace(defaultModel) ? ModelCatalog.DefaultChatModelId : defaultModel.Trim();
+        var status = mode == "greet" ? $"Hello, {displayName}! Ready on {modelLabel}."
             : current.Blocked ? Paused : current.ActiveRunId is not null ? Working : Ready;
         var migrate = current.Turns.Length > 0 && string.IsNullOrEmpty(current.AgentKey);
         var next = Opened(current, smart, approvals, grantSummaries, detectedLocalModel, detectedLocalModels) with
         {
             Status = status,
             AgentKey = migrate ? current.AgentKey : AgentKeyOf(current.ConversationId),
+            SelectedModel = modelLabel,
         };
         return (next, migrate);
     }
@@ -295,6 +297,12 @@ public static class InoModel
             : s.ActiveRunId is { } started && !string.Equals(chat.Run?.RunId, started, StringComparison.Ordinal) ? started : null;
         var (status, error) = ResolveProjectedStatus(s, chat.Run, messages, isRunning || pending is not null || activeRunId is not null);
 
+        var activeTurnModel = entries.LastOrDefault(m => m.Role == ChatRole.Assistant && !string.IsNullOrWhiteSpace(m.Model))?.Model;
+        var selectedModel = !string.IsNullOrWhiteSpace(activeTurnModel)
+            && !string.Equals(activeTurnModel, "default", StringComparison.OrdinalIgnoreCase)
+            ? activeTurnModel
+            : s.SelectedModel;
+
         var projectedCards = InoCards.FromToolCalls(entries.SelectMany(e => e.Activities.Select(a => new AgentToolCall(a.Id, a.Title, a.Input, a.Result, a.Error))));
         var manualCards = s.ActiveCards.Where(existing => projectedCards.All(p => !string.Equals(p.Id, existing.Id, StringComparison.Ordinal))).ToArray();
 
@@ -306,6 +314,7 @@ public static class InoModel
             ActiveRunId = activeRunId,
             Status = status,
             Error = error,
+            SelectedModel = selectedModel,
             Cards = manualCards.Length == 0 ? projectedCards : [.. manualCards, .. projectedCards],
         };
     }
@@ -401,10 +410,11 @@ public static class InoModel
 
     public static InoAppState DecideScenario(string? scenarioId, UserSettingsState settings)
     {
+        var model = string.IsNullOrWhiteSpace(settings.DefaultModel) ? ModelCatalog.DefaultChatModelId : settings.DefaultModel.Trim();
         var id = string.IsNullOrWhiteSpace(scenarioId) ? "q4-renewal" : scenarioId.Trim().ToLowerInvariant();
         if (id == "morning-brief")
         {
-            return new(id, "Morning Brief", $"Scenario: Morning Brief ({settings.DefaultModel})", "idle",
+            return new(id, "Morning Brief", $"Scenario: Morning Brief ({model})", "idle",
                 [new InoTurn("Prepare my Morning Brief", "Good morning! You have **3 meetings**, **2 Q4 renewals**, and **1 pending review**.", "scenario:morning-brief", 2)],
                 [new InoCard("choice-brief", "choice", "Which workspace should receive the Q4 renewal brief?", "Select a target Circle (1..2) or press Enter.", "neuron://local/circles/primary", "pending", "neuron://local/apps/ino#choice-brief")]);
         }
@@ -419,12 +429,12 @@ public static class InoModel
         if (id == "first-run")
         {
             return new(id, "Ino Setup · First Run", "Guided onboarding · 3 steps", "idle",
-                [new InoTurn("/scenario first-run", $"Welcome to **IntoChat OS**! Let's verify your default AI model (`{settings.DefaultModel}`), connect your **Files** vault, and seal API keys in **Secure**.", "onboarding:setup", 0)],
+                [new InoTurn("/scenario first-run", $"Welcome to **IntoChat OS**! Let's verify your default AI model (`{model}`), connect your **Files** vault, and seal API keys in **Secure**.", "onboarding:setup", 0)],
                 [new InoCard("setup-record", "record", "IntoChat OS First-Run Checklist", "All 3 local brain capabilities online", "neuron://local/os.settings/settings", "ready", "neuron://local/apps/ino#setup-record")]);
         }
 
         return new("q4-renewal", "Quarterly Enterprise Renewal", "Waiting for approval · CloseDate -> 15 Nov 2026", "idle",
-            [new InoTurn("Update quarterly enterprise renewal close date to 15 Nov 2026", "Confirmed moving the **Quarterly Enterprise** renewal to **15 Nov 2026**. Please approve the CRM update below.", $"agent:{settings.DefaultModel}", 1)],
+            [new InoTurn("Update quarterly enterprise renewal close date to 15 Nov 2026", "Confirmed moving the **Quarterly Enterprise** renewal to **15 Nov 2026**. Please approve the CRM update below.", $"agent:{model}", 1)],
             [
                 new InoCard("card-1", "approval", "Update close date on quarterly renewal to 15 Nov 2026?", "Ino matched the incoming email to your open CRM opportunity.", "neuron://local/os.confirmations/inbox", "pending", "neuron://local/apps/ino#card-1"),
                 new InoCard("draft-1", "draft", "Quarterly Enterprise Renewal — 15 Nov confirmation", "Confirmed: we updated the Q4 renewal close date to 15 Nov 2026.", "neuron://local/apps/ino#draft-1", "pending", "neuron://local/apps/ino#draft-1"),

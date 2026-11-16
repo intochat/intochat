@@ -143,7 +143,7 @@ internal static class SettingsDecisions
             Status = status,
             DisplayName = user.DisplayName,
             Theme = user.Theme,
-            DefaultModel = user.DefaultModel,
+            DefaultModel = string.IsNullOrWhiteSpace(user.DefaultModel) ? current.DefaultModel : user.DefaultModel,
             Section = section ?? current.Section,
             StylePreset = user.StylePreset,
             BarLayout = user.BarLayout,

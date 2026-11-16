@@ -54,14 +54,14 @@ public sealed class AgentFailuresFacts
     }
 
     [Fact]
-    public void LocalOllamaParseTagsPrefersQwenCoder14bThenQwen35AndDetectsNomicEmbedText()
+    public void LocalOllamaParseTagsPrefersChatModelThenCoderFallbackAndDetectsNomicEmbedText()
     {
         const string rtx5080Json = """
         {
           "models": [
             { "name": "nomic-embed-text:latest" },
-            { "name": "qwen3.5:4b" },
-            { "name": "qwen2.5-coder:14b" }
+            { "name": "qwen2.5-coder:14b" },
+            { "name": "qwen3.5:4b" }
           ]
         }
         """;
@@ -70,22 +70,23 @@ public sealed class AgentFailuresFacts
         var parsed = HttpLocalOllamaProbe.ParseTags(HttpLocalOllamaProbe.DefaultEndpoint, doc1.RootElement);
         Assert.NotNull(parsed);
         Assert.True(parsed.HasNomicEmbed);
-        Assert.Equal("qwen2.5-coder:14b", parsed.PreferredModel);
+        Assert.Equal("qwen3.5:4b", parsed.PreferredModel);
+        Assert.Equal("qwen2.5-coder:14b", HttpLocalOllamaProbe.SelectPreferredCoderModel(parsed.InstalledModels));
         Assert.Contains("qwen2.5-coder:14b", parsed.InstalledModels);
         Assert.Contains("qwen3.5:4b", parsed.InstalledModels);
 
-        const string qwen35OnlyJson = """
+        const string coderOnlyJson = """
         {
           "models": [
             { "name": "nomic-embed-text:latest" },
-            { "name": "qwen3.5:4b" }
+            { "name": "qwen2.5-coder:14b" }
           ]
         }
         """;
 
-        using var doc2 = JsonDocument.Parse(qwen35OnlyJson);
+        using var doc2 = JsonDocument.Parse(coderOnlyJson);
         var fallback = HttpLocalOllamaProbe.ParseTags(HttpLocalOllamaProbe.DefaultEndpoint, doc2.RootElement);
         Assert.NotNull(fallback);
-        Assert.Equal("qwen3.5:4b", fallback.PreferredModel);
+        Assert.Equal("qwen2.5-coder:14b", fallback.PreferredModel);
     }
 }
