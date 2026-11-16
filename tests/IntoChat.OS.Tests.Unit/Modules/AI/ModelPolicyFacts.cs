@@ -247,10 +247,13 @@ public sealed partial class ModelPolicyFacts
         var appsDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.Apps", StringComparison.OrdinalIgnoreCase));
         var catalogDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\Catalog", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/Catalog", StringComparison.OrdinalIgnoreCase));
         var appHostDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.AppHost", StringComparison.OrdinalIgnoreCase));
+        var localSetupDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.LocalSetup", StringComparison.OrdinalIgnoreCase));
+        var frameworkDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.Framework", StringComparison.OrdinalIgnoreCase));
 
         string[] ownedDirectories =
         [
             Path.Combine(aiDir, "Models"),
+            Path.Combine(aiDir, "Contracts", "Models"),
             Path.Combine(aiDir, "Clients"),
             Path.Combine(appsDir, "Ino"),
             Path.Combine(appsDir, "Settings"),
@@ -261,23 +264,27 @@ public sealed partial class ModelPolicyFacts
             Path.Combine(catalogDir, "Flows", "LocalLlmCoder.cs"),
             Path.Combine(appHostDir, "Hosting", "Composition", "DeploymentProfile.cs"),
             Path.Combine(appHostDir, "Hosting", "Modules", "AI"),
+            localSetupDir,
+            Path.Combine(frameworkDir, "Configuration"),
+            Path.Combine(frameworkDir, "Visuals"),
         ];
 
+        var expectedSingleSource = Path.GetFullPath(Path.Combine(frameworkDir, "Configuration", "IntoChatOSNames.cs"));
         var literalHits = new List<string>();
         foreach (var path in ownedDirectories)
         {
             var files = File.Exists(path) ? [path] : Directory.GetFiles(path, "*.cs", SearchOption.AllDirectories);
             foreach (var file in files)
             {
-                var content = File.ReadAllText(file);
-                if (content.Contains("\"qwen3.5:4b\"", StringComparison.Ordinal))
+                if (File.ReadLines(file).Any(line => !line.TrimStart().StartsWith("//", StringComparison.Ordinal)
+                    && line.Contains("\"qwen3.5:4b\"", StringComparison.Ordinal)))
                 {
-                    literalHits.Add(Path.GetRelativePath(slnRoot, file));
+                    literalHits.Add(Path.GetFullPath(file));
                 }
             }
         }
 
-        Assert.Empty(literalHits);
+        Assert.Equal([expectedSingleSource], literalHits);
     }
 
     private static string FindSolutionFile()
