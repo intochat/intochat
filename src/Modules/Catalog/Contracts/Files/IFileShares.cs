@@ -10,7 +10,7 @@ public enum ShareRole
 }
 
 // One folder or file of the workspace, shared with one person. Path is canonical ("/work/..."); a shared file has nothing beneath it.
-public sealed record WorkspaceShare(string Id, string Account, string Path, bool IsFolder, ShareRole Role, DateTimeOffset SharedAt);
+public sealed record WorkspaceShare(string Id, string Account, string Path, bool IsFolder, ShareRole Role, DateTimeOffset SharedAt, bool Broken = false);
 
 // An entry under a share. Path is relative to the share; ModifiedBy is the account whose save through the share was last, or empty.
 public sealed record SharedEntry(string Path, string Name, bool IsFolder, long? Size, DateTimeOffset? Modified, string ModifiedBy);

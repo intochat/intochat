@@ -202,7 +202,25 @@ internal sealed class TestNeuronHost : IDisposable
 
     private (BoundCall Bound, bool Interleave, bool OneWay) Bind(RuntimeInvocation call)
     {
-        var bound = CallPolicy.Bind(_os.Binder, Class, call);
+        var caller = TestCallerAmbient.Instance.Current;
+        var foreign = caller is not null && caller.Actor is not Actor.Kernel && caller.Brain != Id.Brain && !Id.Brain.IsSystem;
+        BoundCall bound;
+        try { bound = CallPolicy.Bind(_os.Binder, Class, call); }
+        catch (BindingException) when (foreign)
+        {
+            throw new UnauthorizedAccessException($"Cross-brain security violation: Caller in brain '{caller!.Brain.Value}' cannot invoke grain in brain '{Id.Brain.Value}'.");
+        }
+        if (foreign)
+        {
+            var shareable = typeof(ShareableAttribute);
+            var crosses = bound.Access is OperationAccess.Public or OperationAccess.Shared
+                && bound.Contract.IsDefined(shareable, inherit: false)
+                && (bound.Method.DeclaringType == bound.Contract || bound.Method.DeclaringType?.IsDefined(shareable, inherit: false) == true);
+            if (!crosses)
+            {
+                throw new UnauthorizedAccessException($"Cross-brain security violation: Caller in brain '{caller!.Brain.Value}' cannot invoke grain in brain '{Id.Brain.Value}'.");
+            }
+        }
         var interleave = CallPolicy.MayInterleave(Class, bound, call);
         var oneWay = bound.Method.IsDefined(typeof(OneWayCallAttribute), false);
         return (bound, interleave, oneWay);

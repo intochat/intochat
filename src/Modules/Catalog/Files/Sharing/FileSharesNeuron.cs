@@ -77,12 +77,23 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
     public async Task<WorkspaceShare[]> Shares()
     {
         await Owner();
-        return State.Shares;
+        return await Files(async vfs =>
+        {
+            var shares = new WorkspaceShare[State.Shares.Length];
+            for (var i = 0; i < State.Shares.Length; i++)
+            {
+                var share = State.Shares[i];
+                var item = await vfs.Stat(share.Path);
+                var isFolder = item?.Kind == ItemKind.Folder;
+                shares[i] = share with { Broken = item is null || isFolder != share.IsFolder };
+            }
+            return shares;
+        });
     }
 
     public async Task<WorkspaceShare[]> SharedWithCaller()
     {
-        var (account, _) = await PersonActs.Require(Context.Caller, Owners);
+        var (account, _) = await PersonActs.RequireRelay(Context.Caller, SharedWithMeDefaults.TypeName, Owners);
         return [.. State.Shares.Where(share => share.Account == account)];
     }
 
@@ -143,10 +154,10 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
         return brain == Id.Brain ? account : throw PersonActs.Refused();
     }
 
-    // The person the share names, as a person, from the brain they own.
+    // The person the share names, as a person, from the brain they own, through the friend-side relay neuron.
     private async Task<(WorkspaceShare Share, string Account)> Admit(string shareId)
     {
-        var (account, _) = await PersonActs.Require(Context.Caller, Owners);
+        var (account, _) = await PersonActs.RequireRelay(Context.Caller, SharedWithMeDefaults.TypeName, Owners);
         var share = State.Shares.FirstOrDefault(candidate => candidate.Id == shareId && candidate.Account == account);
         return share is null ? throw PersonActs.Refused() : (share, account);
     }
@@ -164,7 +175,7 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
     private SharedEntry Entry(WorkspaceShare share, VfsItem item)
     {
         var relative = item.Path.Length > share.Path.Length ? item.Path[(share.Path.Length + 1)..] : string.Empty;
-        var by = State.Saves.LastOrDefault(save => save.Path == item.Path)?.Account ?? string.Empty;
-        return new SharedEntry(relative, item.Name, item.Kind == ItemKind.Folder, item.Size, item.Modified, by);
+        var last = State.Saves.LastOrDefault(save => save.Path == item.Path);
+        return new SharedEntry(relative, item.Name, item.Kind == ItemKind.Folder, item.Size, last?.At ?? item.Modified, last?.Account ?? string.Empty);
     }
 }

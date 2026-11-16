@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace IntoChat.OS.Connections;
 
 // What the Connections assembly adds to a host the Framework composed (D-18): the identity-backed brain membership,
-// the connector type entries, secret redaction, connection bindings for the call filter and the neuron type search.
+// the connector type entries, secret redaction and the neuron type search.
 // AddIntoChatOSServer and the MCP host call it; a bare Framework silo has none of them (membership fails closed).
 public static class ConnectionsHosting
 {
@@ -19,7 +19,6 @@ public static class ConnectionsHosting
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IModuleTypeSource, ConnectionTypeSource>());
         services.TryAddSingleton<ISecretRedactor, SecretRedactor>();
         services.TryAddSingleton<IConnectionBindings, NoConnectionBindings>();
-        services.TryAddSingleton<ICallBindings, ConnectionCallBindings>();
         services.TryAddSingleton(NeuronTypeSearch.Create);
         return services;
     }

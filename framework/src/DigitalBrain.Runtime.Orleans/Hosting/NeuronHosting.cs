@@ -18,6 +18,7 @@ internal static class NeuronHosting
         ArgumentNullException.ThrowIfNull(assemblies);
         RuntimeProtocol.Register(Signalling.RuntimeOrleansJsonContext.Default);
         foreach (var assembly in assemblies) { silo.Services.AddSingleton(new HostedAssembly(assembly)); }
+        silo.Services.AddSingleton(new NeuronBinding(typeof(HostedCaller), static (_, id) => new HostedCaller(id)));
         silo.Services.TryAddSingleton(sp => new NeuronTypeRegistry(
             sp.GetServices<HostedAssembly>()
                 .Select(hosted => hosted.Assembly)
@@ -26,9 +27,10 @@ internal static class NeuronHosting
         return silo;
     }
 
-    /// <summary>A typed proxy, from outside any neuron, to the neuron <paramref name="id"/> hosted in the silo of <paramref name="services"/>.</summary>
+    /// <summary>A typed proxy, from outside any neuron (or from the neuron bound into <paramref name="services"/>), to the neuron <paramref name="id"/> hosted in the silo of <paramref name="services"/>.</summary>
     internal static T Get<T>(IServiceProvider services, NeuronId id) where T : class
-        => NeuronProxy.Create<T>(id, new OrleansInvocationSink(services.GetRequiredService<IGrainFactory>(), services.GetService<NeuronTypeRegistry>(), null,
+        => NeuronProxy.Create<T>(id, new OrleansInvocationSink(services.GetRequiredService<IGrainFactory>(), services.GetService<NeuronTypeRegistry>(),
+            services.GetService<HostedCaller>()?.Id,
             Access.OrleansCallerAmbient.Instance, asKernel: false,
             services.GetService<NeuronStreamAuthorizer>() is { } gate ? (target, call) => gate.Authorize(services, target, call) : null));
 
@@ -38,4 +40,6 @@ internal static class NeuronHosting
             caller: null, Access.OrleansCallerAmbient.Instance, asKernel: true));
 
     internal sealed record HostedAssembly(Assembly Assembly);
+
+    internal sealed record HostedCaller(NeuronId Id);
 }

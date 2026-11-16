@@ -278,15 +278,6 @@ public sealed class IntegrationsAndZeroTokenFacts
             var strangerDecision = GrantRules.Evaluate(strangerRequest, null, [creatorGrant], PrincipalSet.For(strangerCaller));
             Assert.NotNull(strangerDecision);
             Assert.False(strangerDecision!.Allowed);
-
-            var callBindings = new ConnectionCallBindings(new NoConnectionBindings());
-            var boundCall = new CallRequest
-            {
-                Caller = IntoChat.OS.Tests.TestEdge.From(friendCaller),
-                TargetNeuron = "github/" + connectionKey,
-                Operation = "Read",
-            };
-            Assert.True(await callBindings.IsBound(boundCall, "local", TestContext.Current.CancellationToken));
         }
         finally
         {

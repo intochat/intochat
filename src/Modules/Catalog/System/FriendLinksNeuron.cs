@@ -59,7 +59,7 @@ internal sealed class FriendLinksNeuron(IServiceProvider services) : Neuron<Frie
 
     public async Task<FriendIntroduction> Accepted(string codeHash, string handle, string displayName)
     {
-        var (account, brain) = await PersonActs.Require(Context.Caller, Owners);
+        var (account, brain) = await PersonActs.RequireRelay(Context.Caller, FriendLinksDefaults.TypeName, Owners);
         if (brain == Id.Brain) { throw PersonActs.Refused(); }
 
         var now = Context.Time.GetUtcNow();
@@ -98,7 +98,7 @@ internal sealed class FriendLinksNeuron(IServiceProvider services) : Neuron<Frie
 
     public async Task Unfriended()
     {
-        var (account, brain) = await PersonActs.Require(Context.Caller, Owners);
+        var (account, brain) = await PersonActs.RequireRelay(Context.Caller, FriendLinksDefaults.TypeName, Owners);
         if (brain == Id.Brain) { throw PersonActs.Refused(); }
 
         using var module = PersonActs.AsFilesModule(services, Id.Brain);

@@ -63,7 +63,8 @@ public sealed record FriendsOpenedShare(
     bool CanEdit,
     SharedEntry[] Entries,
     string? Text = null,
-    string SavedBy = "");
+    string SavedBy = "",
+    DateTimeOffset? SavedAt = null);
 
 [Signal("friends.fork_app")]
 public sealed record FriendsForkApp(string PostId = "post-1") : Signal;
@@ -315,7 +316,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
             // One entry at the path itself is a file: show its text. Anything else is a folder listing.
             var file = entries is [{ IsFolder: false } only] && (request.Path.Length == 0 ? !pointer.IsFolder : only.Path == request.Path) ? only : null;
             var text = file is null ? null : System.Text.Encoding.UTF8.GetString(await Mine.Read(request.OwnerBrain, request.ShareId, request.Path) ?? []);
-            var opened = new FriendsOpenedShare(request.OwnerBrain, request.ShareId, request.Path, pointer.Role == ShareRole.Editor, file is null ? entries : [], text, file?.ModifiedBy ?? "");
+            var opened = new FriendsOpenedShare(request.OwnerBrain, request.ShareId, request.Path, pointer.Role == ShareRole.Editor, file is null ? entries : [], text, file?.ModifiedBy ?? "", file?.Modified);
             return State with { Opened = opened, Status = file is null ? $"Opened {pointer.Path}/{request.Path}".TrimEnd('/') : $"Opened {file.Name}." };
         });
     }
@@ -328,8 +329,11 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         {
             var text = await Typed(request.Text, TextField);
             var saved = await Mine.Write(request.OwnerBrain, request.ShareId, request.Path, System.Text.Encoding.UTF8.GetBytes(text));
-            var opened = State.Opened is { } open && open.ShareId == request.ShareId && open.Path == request.Path ? open with { Text = text, SavedBy = saved.ModifiedBy } : State.Opened;
-            return State with { Opened = opened, Status = $"Saved {saved.Name}. Last saved by {saved.ModifiedBy}." };
+            var opened = State.Opened is { } open && open.ShareId == request.ShareId && open.Path == request.Path
+                ? open with { Text = text, SavedBy = saved.ModifiedBy, SavedAt = saved.Modified }
+                : State.Opened;
+            var when = saved.Modified is { } at && at != default ? $" at {at:u}" : "";
+            return State with { Opened = opened, Status = $"Saved {saved.Name}. Last saved by {saved.ModifiedBy}{when}." };
         });
     }
 
@@ -532,7 +536,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         if (shares.Length == 0) { return null; }
         return Card("Shared by me", "People with access to your files. Removing takes effect at once.")[
             VStack(Space.Xs, [.. shares.Select(share => (Node)HStack(Space.Sm)[
-                Text($"{share.Path} · {share.Account} · {share.Role}"),
+                Text(share.Broken ? $"{share.Path} · {share.Account} · {share.Role} · Broken" : $"{share.Path} · {share.Account} · {share.Role}"),
                 GhostButton("Remove", "x").Key($"unshare:{share.Id}").Small().OnClick(() => UnshareAsync(share.Id))
             ])])
         ];
@@ -568,9 +572,15 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
             ])]);
         }
 
+        var byAndWhen = string.IsNullOrEmpty(opened.SavedBy)
+            ? opened.Path
+            : opened.SavedAt is { } at && at != default
+                ? $"{opened.Path} · last saved by {opened.SavedBy} at {at:u}"
+                : $"{opened.Path} · last saved by {opened.SavedBy}";
+
         return VStack(Space.Xs,
         [
-            MutedText(string.IsNullOrEmpty(opened.SavedBy) ? opened.Path : $"{opened.Path} · last saved by {opened.SavedBy}"),
+            MutedText(byAndWhen),
             opened.CanEdit
                 ? TextField(FieldKey(TextField), "").Key(TextField).Label("Text").Value(opened.Text)
                 : Text(opened.Text),

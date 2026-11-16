@@ -13,6 +13,7 @@ public sealed class NeuronServices(IServiceProvider host, NeuronId neuron, IEnum
     public object? GetService(Type serviceType)
     {
         ArgumentNullException.ThrowIfNull(serviceType);
+        if (serviceType == typeof(IServiceProvider)) { return this; }
         lock (_bound)
         {
             if (_bound.TryGetValue(serviceType, out var bound)) { return bound; }

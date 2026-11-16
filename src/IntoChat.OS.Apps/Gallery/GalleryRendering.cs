@@ -457,9 +457,9 @@ internal static class GalleryRendering
                                             .Key("gallery:pick-0")
                                             .OnClick<GalleryAppState>(s => s.PickChoice(0))),
                                     new ChoiceOptionNode(
-                                        "Engineering circle",
+                                        "Engineering group",
                                         "neuron://local/circles/eng",
-                                        Button("Engineering circle")
+                                        Button("Engineering group")
                                             .Key("gallery:pick-1")
                                             .OnClick<GalleryAppState>(s => s.PickChoice(1))),
                                 ],

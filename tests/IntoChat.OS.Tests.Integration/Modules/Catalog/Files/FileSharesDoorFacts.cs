@@ -43,12 +43,12 @@ public sealed class FileSharesDoorFacts
     }
 
     [Fact]
-    public async Task The_door_serves_the_named_person_and_refuses_anyone_else()
+    public async Task The_door_refuses_a_call_that_did_not_come_through_the_relay()
     {
         await using var world = await World.Start();
         var id = await world.ShareTrip(ShareRole.Viewer);
 
-        using (As(Ben)) { Assert.NotNull(await world.Door(Ada).Read(id, "day1/a.txt")); }
+        using (As(Ben)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Read(id, "day1/a.txt")); }
         using (As(Eve)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Read(id, "day1/a.txt")); }
         // Ben's account acting in a brain it does not own.
         using (As(Ben, brain: Eve)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Read(id, "day1/a.txt")); }
@@ -69,12 +69,13 @@ public sealed class FileSharesDoorFacts
     }
 
     [Fact]
-    public async Task The_door_refuses_a_person_acting_through_a_neuron_that_is_not_a_listed_screen()
+    public async Task The_door_refuses_another_neuron_of_the_friends_brain()
     {
         await using var world = await World.Start();
         var id = await world.ShareTrip(ShareRole.Viewer);
 
         using var ben = As(Ben);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Prober(Ben).ReadDoor(Ada, id, "day1/a.txt"));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Prober(Ben).ReadDoorThroughInner(Ada, id, "day1/a.txt"));
     }
 
@@ -206,6 +207,71 @@ public sealed class FileSharesDoorFacts
         Assert.Equal(new FileShareServed(id, Ben, "/work/trip/day1/a.txt", Write: false), served);
     }
 
+    [Fact]
+    public async Task A_share_whose_folder_was_renamed_is_marked_broken_for_the_owner()
+    {
+        await using var world = await World.Start();
+        await world.ShareTrip(ShareRole.Viewer);
+        await world.RenameOwnerFolder("trip", "trip-moved");
+
+        using var ada = As(Ada);
+        var share = Assert.Single(await world.Door(Ada).Shares());
+        Assert.True(share.Broken);
+    }
+
+    [Fact]
+    public async Task A_unit_authored_at_run_time_cannot_take_the_friend_side_neurons_type()
+    {
+        await using var world = await World.Start();
+        var id = await world.ShareTrip(ShareRole.Viewer);
+
+        // A runtime unit cannot compile/deploy references to the door or silo neuron seam.
+        var doorCallerSource = """
+            using DigitalBrain.Time;
+            namespace Evil.Units;
+            [Signal("evil.forged.ran")]
+            public sealed record Ran(DateTimeOffset At) : Signal;
+            [State("files.shared-with-me")]
+            public sealed record ForgedState(int Count = 0) { public ForgedState() : this(0) { } }
+            public static class ForgedRelay
+            {
+                public static Type Leak() => typeof(DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons);
+
+                [Synapse(typeof(Tick), "files.shared-with-me", Every = "every 5m")]
+                public static Reaction<ForgedState> Run(Tick tick, ForgedState state)
+                    => Reaction<ForgedState>.Of(state with { Count = state.Count + 1 }, new Ran(tick.At));
+            }
+            """;
+
+        // Even valid unit code that declares [State("files.shared-with-me")] never replaces the compiled relay neuron.
+        var impersonatingSource = """
+            using DigitalBrain.Time;
+            namespace Evil.Units;
+            [Signal("evil.impersonate.ran")]
+            public sealed record Impersonated(DateTimeOffset At) : Signal;
+            [State("files.shared-with-me")]
+            public sealed record RelayState(int Count = 0) { public RelayState() : this(0) { } }
+            public static class ImpersonatingUnit
+            {
+                [Synapse(typeof(Tick), "files.shared-with-me", Every = "every 5m")]
+                public static Reaction<RelayState> Run(Tick tick, RelayState state)
+                    => Reaction<RelayState>.Of(state with { Count = state.Count + 1 }, new Impersonated(tick.At));
+            }
+            """;
+
+        using (As(Ben))
+        {
+            var refused = await world.Studio(Ben).Deploy("forged-relay", doorCallerSource);
+            Assert.False(refused.Ok);
+
+            _ = await world.Studio(Ben).Deploy("impersonate-relay", impersonatingSource);
+            // The compiled SharedWithMeNeuron stays hosted at files.shared-with-me, and ProberNeuron still cannot drive it.
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Prober(Ben).ReadThroughRelay(Ada, id, "day1/a.txt"));
+            var bytes = await world.Mine(Ben).Read(Ada, id, "day1/a.txt");
+            Assert.Equal("hello", Encoding.UTF8.GetString(bytes!));
+        }
+    }
+
     internal static IDisposable As(string account, string? brain = null, CallerKind kind = CallerKind.User)
         => RuntimeCallerContext.Stamp(kind switch
         {
@@ -216,10 +282,12 @@ public sealed class FileSharesDoorFacts
 
     internal sealed class World(DoorFixture fixture, INeuronRuntime runtime) : IAsyncDisposable
     {
-        public static async Task<World> Start()
+        public static async Task<World> Start(DigitalBrain.Testing.Conformance.Host.OffsetClock? clock = null)
         {
             var fixture = new DoorFixture();
-            var world = new World(fixture, await fixture.Start(NeuronRuntimeKind.Silo, Ct));
+            var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct,
+                siloServices: clock is null ? null : DigitalBrain.Testing.Conformance.Host.OrleansRun.ClockServices(clock));
+            var world = new World(fixture, runtime);
             await world.Seed();
             await world.Befriend(Ada, Ben);
             return world;
@@ -229,6 +297,8 @@ public sealed class FileSharesDoorFacts
         public ISharedWithMe Mine(string brain) => SiloNeurons.Get<ISharedWithMe>(runtime.Services, SharedWithMeDefaults.Key(brain));
         public IFriendLinks Links(string brain) => SiloNeurons.Get<IFriendLinks>(runtime.Services, FriendLinksDefaults.Id(brain));
         public IProfile Profile(string brain) => SiloNeurons.Get<IProfile>(runtime.Services, new NeuronId(new BrainId(brain), "os.profile", "profile"));
+        public IUserSettings Settings(string brain) => SiloNeurons.Get<IUserSettings>(runtime.Services, IUserSettings.Key(new BrainId(brain)));
+        public ISynapseStudio Studio(string brain) => SiloNeurons.Get<ISynapseStudio>(runtime.Services, ISynapseStudio.Key(brain));
 
         // One makes a code, the other redeems it.
         public async Task Befriend(string minter, string redeemer)
@@ -251,6 +321,15 @@ public sealed class FileSharesDoorFacts
 
         public Task<string> ReadAsOwner(string path)
             => WorkspaceFilesService.ForBrain(runtime.Services, Ada).WithVfs(vfs => vfs.ReadText(path), Ct);
+
+        public Task RenameOwnerFolder(string existingName, string newName)
+            => WorkspaceFilesService.ForBrain(runtime.Services, Ada).WithVfs(async vfs =>
+            {
+                var work = (await vfs.GetMounts(Ct)).Single(mount => mount.MountPoint == SharePath.Mount).Storage;
+                var folder = await work.ResolvePath(existingName, Ct) ?? throw new InvalidOperationException($"{existingName} was not found");
+                await work.Write(WritePlan.Rename(folder.Id, newName), Ct);
+                return true;
+            }, Ct);
 
         // /work/trip/day1/a.txt = "hello" and /work/private/secret.txt, by exact path in Ada's workspace.
         private async Task Seed()

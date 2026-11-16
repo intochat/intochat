@@ -150,6 +150,6 @@ public sealed class GalleryLibrary : DigitalBrain.Neurons.Neuron<GalleryLibraryS
 
         // 5. 3D Brain & Neurons ("3d-brain")
         new("brain-scene-3d", "3d-brain", "BrainScene3D Orbital Graph", "Interactive 3D orbital projection of active neurons, modules, and traveling [Signal] photon pulses.", "IntoChat.UI.BrainScene@1", ["creator.inspect", "creator.prompt"], "neuron://local/creator/brain-scene#orbital", "await Inspect(new CreatorInspect(\"OperatingSystem\"));") { Icon = "brain-circuit" },
-        new("neuron-paths", "3d-brain", "Distributed NeuronId Addressing", "Canonical neuron:// URIs across Files, UI controls, and cross-brain Circle grants.", "DigitalBrain.NeuronId@1", ["SynapseRoutedSignal"], "neuron://local/storage.files/work/context.md", "new NeuronRef(\"files\", \"neuron://local/storage.files/work/context.md\");") { Icon = "network" },
+        new("neuron-paths", "3d-brain", "Distributed NeuronId Addressing", "Canonical neuron:// URIs across Files, UI controls, and cross-brain Group grants.", "DigitalBrain.NeuronId@1", ["SynapseRoutedSignal"], "neuron://local/storage.files/work/context.md", "new NeuronRef(\"files\", \"neuron://local/storage.files/work/context.md\");") { Icon = "network" },
     ];
 }

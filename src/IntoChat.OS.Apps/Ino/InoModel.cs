@@ -425,7 +425,7 @@ public static class InoModel
         {
             return new(id, "Morning Brief", $"Scenario: Morning Brief ({model})", "idle",
                 [new InoTurn("Prepare my Morning Brief", "Good morning! You have **3 meetings**, **2 Q4 renewals**, and **1 pending review**.", "scenario:morning-brief", 2)],
-                [new InoCard("choice-brief", "choice", "Which workspace should receive the Q4 renewal brief?", "Select a target Circle (1..2) or press Enter.", "neuron://local/circles/primary", "pending", "neuron://local/apps/ino#choice-brief")]);
+                [new InoCard("choice-brief", "choice", "Which workspace should receive the Q4 renewal brief?", "Select a target Group (1..2) or press Enter.", "neuron://local/circles/primary", "pending", "neuron://local/apps/ino#choice-brief")]);
         }
 
         if (id.StartsWith("invoice", StringComparison.Ordinal) || id.Contains("vault", StringComparison.Ordinal) || id.Contains("tripletex", StringComparison.Ordinal))

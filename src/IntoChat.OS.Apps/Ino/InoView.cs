@@ -417,7 +417,7 @@ public static partial class InoView
             case "choice":
                 yield return new ChoiceCardNode(
                     card.Id, card.Title,
-                    [new ChoiceOptionNode("Primary Workspace", "circles/enterprise"), new ChoiceOptionNode("Executive Board Circle", "circles/board")],
+                    [new ChoiceOptionNode("Primary Workspace", "circles/enterprise"), new ChoiceOptionNode("Executive Board Group", "circles/board")],
                     PickedIndex: card.Status == "approved" ? 0 : null);
                 break;
 

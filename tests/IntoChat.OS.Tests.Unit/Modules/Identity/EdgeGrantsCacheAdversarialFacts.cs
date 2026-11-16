@@ -64,16 +64,6 @@ public sealed class EdgeGrantsCacheAdversarialFacts
         // Verify no longer bound
         var isStillBound = await cache.IsConnectionBoundAsync(brain, caller, connectionKey, ct);
         Assert.False(isStillBound, "Unbound connection should not be reported as bound!");
-
-        // Verify CallBindings rejects unbound connection
-        var callBindings = new ConnectionCallBindings(new NoConnectionBindings());
-        var boundCall = new CallRequest
-        {
-            Caller = IntoChat.OS.Tests.TestEdge.From(caller),
-            TargetNeuron = "github/" + connectionKey,
-            Operation = "Read",
-        };
-        Assert.False(await callBindings.IsBound(boundCall, brain, ct));
     }
 
     [Fact]

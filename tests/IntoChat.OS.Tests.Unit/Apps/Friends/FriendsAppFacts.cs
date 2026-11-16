@@ -79,9 +79,13 @@ public sealed class FriendsAppFacts
     {
         var state = WithFriends() with
         {
-            SharedByMe = [new WorkspaceShare("s1", "ben-account", "/work/trip", IsFolder: true, ShareRole.Viewer, default)],
+            SharedByMe =
+            [
+                new WorkspaceShare("s1", "ben-account", "/work/trip", IsFolder: true, ShareRole.Viewer, default),
+                new WorkspaceShare("s3", "ben-account", "/work/moved", IsFolder: true, ShareRole.Editor, default, Broken: true),
+            ],
             SharedWithMe = [new SharedPointer("ben", "ben-account", "s2", "/work/notes.md", IsFolder: false, ShareRole.Editor)],
-            Opened = new FriendsOpenedShare("ben", "s2", "", CanEdit: true, [], "hello", "ben-account"),
+            Opened = new FriendsOpenedShare("ben", "s2", "", CanEdit: true, [], "hello", "ben-account", DateTimeOffset.UnixEpoch),
         };
 
         var view = Preview(state);
@@ -89,10 +93,12 @@ public sealed class FriendsAppFacts
         var json = System.Text.Json.JsonSerializer.Serialize(view);
 
         Assert.Contains("unshare:s1", keys);
+        Assert.Contains("unshare:s3", keys);
         Assert.Contains("open-shared:s2", keys);
         Assert.Contains("save-shared:s2", keys);
         Assert.Contains("/work/trip", json, StringComparison.Ordinal);
-        Assert.Contains("last saved by ben-account", json, StringComparison.Ordinal);
+        Assert.Contains("Broken", json, StringComparison.Ordinal);
+        Assert.Contains("last saved by ben-account at 1970-01-01 00:00:00Z", json, StringComparison.Ordinal);
     }
 
     [Fact]

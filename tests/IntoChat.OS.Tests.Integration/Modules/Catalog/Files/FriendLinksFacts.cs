@@ -1,4 +1,5 @@
 using DigitalBrain.Capabilities;
+using DigitalBrain.Testing.Conformance.Host;
 using Xunit;
 using static IntoChat.OS.Modules.Apps.Tests.Integration.Files.FileSharesDoorFacts;
 
@@ -35,6 +36,18 @@ public sealed class FriendLinksFacts
     }
 
     [Fact]
+    public async Task An_expired_code_is_refused()
+    {
+        var clock = new OffsetClock();
+        await using var world = await World.Start(clock);
+        FriendCode code;
+        using (As(Ada)) { code = await world.Links(Ada).Mint(); }
+
+        clock.Advance(TimeSpan.FromHours(25));
+        using (As(Eve)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Links(Eve).Redeem(code.Code)); }
+    }
+
+    [Fact]
     public async Task A_wrong_or_malformed_code_is_refused()
     {
         await using var world = await World.Start();
@@ -56,10 +69,28 @@ public sealed class FriendLinksFacts
         using var eve = As(Eve);
         for (var attempt = 0; attempt < 20; attempt++)
         {
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Links(Ada).Accepted($"WRONG{attempt}", "eve", "Eve"));
+            var suffix = $"{attempt:00}AA";
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Links(Eve).Redeem($"ada.AAAA-AAAA-{suffix}"));
         }
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Links(Eve).Redeem(code.Code));
+    }
+
+    [Fact]
+    public async Task Accepted_and_Unfriended_are_refused_unless_called_through_friend_links()
+    {
+        await using var world = await World.Start();
+        using (As(Ada)) { await world.Links(Ada).Mint(); }
+
+        using (As(Eve))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Links(Ada).Accepted("ANY", "eve", "Eve"));
+        }
+
+        using (As(Ben))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Links(Ada).Unfriended());
+        }
     }
 
     [Theory]
@@ -122,8 +153,32 @@ public sealed class FriendLinksFacts
         await world.Befriend(Ada, Eve);
 
         using var eve = As(Eve);
-        Assert.Empty(await world.Door(Ada).SharedWithCaller());
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).SharedWithCaller());
         Assert.Empty(await world.Mine(Eve).Refresh());
+    }
+
+    [Fact]
+    public async Task An_archive_import_restores_friends_as_unconfirmed()
+    {
+        await using var world = await World.Start();
+
+        string json;
+        using (As(Ada))
+        {
+            var exported = await PortableBrainArchive.ExportAsync(Ada, world.Settings(Ada), world.Profile(Ada), world.Studio(Ada));
+            json = PortableBrainArchive.ToJson(exported);
+        }
+
+        using (As(Eve))
+        {
+            var snapshot = PortableBrainArchive.FromJson(json);
+            await PortableBrainArchive.ImportAsync(snapshot, world.Settings(Eve), world.Profile(Eve), world.Studio(Eve));
+            var profile = await world.Profile(Eve).Read();
+            var restored = Assert.Single(profile.Friends!);
+            Assert.Equal(Ben, restored.BrainId);
+            Assert.False(restored.Confirmed);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Eve).Share(Ben, "/work/trip", ShareRole.Viewer));
+        }
     }
 
     [Fact]

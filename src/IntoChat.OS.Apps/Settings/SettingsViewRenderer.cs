@@ -138,7 +138,7 @@ internal static class SettingsViewRenderer
             "install-link" => "Paste a verified Smart App link (https://intochat.app/a/...) to inspect its manifest and capability requirements.",
             "add-connection" or "google-drive" or "google_drive" => "Authorize an OAuth 2.0 or token-based integration through the zero-leakage Capability Broker.",
             "ollama-config" => $"Configure local Ollama or LM Studio server endpoint ({state.LocalOllamaEndpoint}) and reasoning effort.",
-            "invite" => "Invite a teammate to this brain and assign Owner, Member, or Guest circle permissions.",
+            "invite" => "Invite a teammate to this brain and assign Owner, Member, or Guest group permissions.",
             "export-archive" => state.ExportedArchiveJson ?? "Export a portable JSON archive of this brain's settings, profile, and deployed Synapse units.",
             "confirm-delete" => "Two-step confirmation required: deleting or resetting this brain permanently revokes all sessions.",
             _ => $"Active modal sheet: {sheet}",
@@ -616,7 +616,7 @@ internal static class SettingsViewRenderer
             return DetailSubPage(
                 $"Team / {subPage}",
                 $"PersonPage · {subPage}",
-                "Individual circle role and capability grant overrides.",
+                "Individual group role and capability grant overrides.",
                 [
                     ["Member", subPage],
                     ["Role", "Owner · Full brain administration"],
@@ -636,7 +636,7 @@ internal static class SettingsViewRenderer
             }),
         ];
 
-        return Surface(SurfaceKind.Elevated, "Team and permissions", "Manage circle members, roles (Owner, Member, Guest), and capability grants")[
+        return Surface(SurfaceKind.Elevated, "Team and permissions", "Manage group members, roles (Owner, Member, Guest), and capability grants")[
             VStack(Space.Md)[
                 StatusPill(StatusKind.Done, $"{memberRows.Length} member(s)"),
                 Table(
