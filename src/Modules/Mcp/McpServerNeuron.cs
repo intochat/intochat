@@ -4,8 +4,10 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Log;
 using DigitalBrain.Limits;
 using DigitalBrain.Neurons;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Tools;
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
@@ -94,6 +96,7 @@ internal sealed class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpServerSto
         try { return await operation(await Client(endpoint, budget.Token), budget.Token); }
         catch (Exception error) when (reused && error is not OperationCanceledException && error is not McpException)
         {
+            OsConsoleLog.For<McpServerNeuron>().LogSwallowed(error, "retrying reused MCP client session");
             await Drop();
             return await operation(await Client(endpoint, budget.Token), budget.Token);
         }

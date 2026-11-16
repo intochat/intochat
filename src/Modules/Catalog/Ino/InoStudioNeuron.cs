@@ -2,8 +2,10 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Brains;
+using DigitalBrain.Log;
 using DigitalBrain.Flows;
 using DigitalBrain.Units;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
@@ -57,14 +59,35 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         if (NeuronId.TryParse(flowId, out var flowNeuronId))
         {
             var deadline = DateTimeOffset.UtcNow + MakePollBudget;
+            DateTimeOffset? nullDetailGraceDeadline = null;
             FlowView? settled = null;
             while (DateTimeOffset.UtcNow < deadline)
             {
                 var current = await Get<IFlows>(IFlows.Key(brainId)).Read(flowId).ConfigureAwait(true);
-                if (current is not null && current.Status is FlowStatus.Waiting or FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled)
+                if (current is not null)
                 {
-                    settled = current;
-                    break;
+                    if (current.Status is FlowStatus.Waiting or FlowStatus.Completed)
+                    {
+                        settled = current;
+                        break;
+                    }
+
+                    if (current.Status is FlowStatus.Failed or FlowStatus.Cancelled)
+                    {
+                        if (!string.IsNullOrWhiteSpace(current.Detail))
+                        {
+                            settled = current;
+                            break;
+                        }
+
+                        // FlowsNeuron.WithHead can observe terminal status from FlowHead before OnFlowDone folds Detail.
+                        nullDetailGraceDeadline ??= DateTimeOffset.UtcNow + TimeSpan.FromSeconds(2);
+                        settled = current;
+                        if (DateTimeOffset.UtcNow >= nullDetailGraceDeadline.Value)
+                        {
+                            break;
+                        }
+                    }
                 }
 
                 await Task.Delay(MakePollInterval).ConfigureAwait(true);
@@ -120,7 +143,11 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
 
                 if (settled.Status is FlowStatus.Failed or FlowStatus.Cancelled)
                 {
-                    var detail = settled.Detail ?? settled.Status.ToString();
+                    var detail = !string.IsNullOrWhiteSpace(settled.Detail)
+                        ? settled.Detail
+                        : services.GetService<IDrafter>() is null
+                            ? "No drafter/model provider is configured on this OS brain."
+                            : settled.Status.ToString();
                     if (IsMissingModelFailure(detail))
                     {
                         var settingsUri = $"neuron://{brainId}/apps/settings";
@@ -234,7 +261,13 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
             var alias = unit.Aliases.FirstOrDefault() ?? unit.SourceKey;
             Dictionary<string, string> sidecars;
             try { sidecars = await studio.Sidecars(alias); }
-            catch (Exception error) when (error is not OperationCanceledException) { lines.Add($"- {alias} ({unit.Status}): sidecars unavailable"); continue; }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                (services.GetService<ILoggerFactory>()?.CreateLogger<InoStudioNeuron>() ?? OsConsoleLog.For<InoStudioNeuron>())
+                    .LogSwallowed(error, "reading synapse unit sidecars");
+                lines.Add($"- {alias} ({unit.Status}): sidecars unavailable");
+                continue;
+            }
             lines.Add($"- {alias} ({unit.Status}): spec.md {Kept(sidecars, "spec.md")}, scenarios.json {Kept(sidecars, "scenarios.json")}");
         }
         var discovered = await SkillDiscovery.DiscoverAsync(studio).ConfigureAwait(true);

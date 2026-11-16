@@ -8,7 +8,6 @@ using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.PhotoCraft;
-using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -39,7 +38,6 @@ public sealed class AppDefinitionAndRuntimeChallengerFacts
     [InlineData(typeof(GalleryApp), "app.gallery")]
     [InlineData(typeof(InoApp), "app.ino")]
     [InlineData(typeof(FriendsApp), "app.friends")]
-    [InlineData(typeof(WorkspaceApp), "app.workspace")]
     public void ShellAppScreenNeuronsMatchNeuronAliasContract(Type screenType, string expectedNeuronType)
     {
         Assert.True(typeof(IScreen).IsAssignableFrom(screenType), $"{screenType.Name} must implement IScreen.");

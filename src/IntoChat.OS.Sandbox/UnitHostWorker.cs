@@ -2,7 +2,6 @@ using System.Collections;
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Sandbox;
 
@@ -21,7 +20,7 @@ internal static class UnitHostWorker
         {
             BaseAddress = new Uri("http://sandbox.invalid/", UriKind.Absolute),
         };
-        var host = new AppSandboxHost(httpClient, new Uri("http://sandbox.invalid/", UriKind.Absolute), NullLogger<AppSandboxHost>.Instance);
+        var host = new AppSandboxHost(httpClient, new Uri("http://sandbox.invalid/", UriKind.Absolute), SandboxConsoleLog.For<AppSandboxHost>());
 
         using var reader = new StreamReader(inputStream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 4096, leaveOpen: true);
         await using var writer = new StreamWriter(outputStream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), bufferSize: 4096, leaveOpen: true)

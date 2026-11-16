@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using MicrosoftSdk = Microsoft;
 using PlaywrightSdk = Microsoft.Playwright;
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
@@ -338,6 +340,7 @@ public sealed partial class PlaywrightSessionProvider(MicrosoftSdk.Extensions.Op
             catch (Exception error) when (error is HttpRequestException or IOException or System.Net.Sockets.SocketException or ArgumentException
                 or InvalidOperationException or OperationCanceledException or PlaywrightSdk.PlaywrightException)
             {
+                OsConsoleLog.For<PlaywrightSessionProvider>().LogSwallowed(error, "aborting routed Playwright browser request");
                 await Task.WhenAny(route.AbortAsync("blockedbyclient")).ConfigureAwait(false);
             }
         }

@@ -18,7 +18,6 @@ internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kerne
     IEnumerable<IFeatureMigration> migrations, IOptions<OsAppsOptions> options, FeatureCatalog catalog, FeatureLoader loader,
     ICapabilityBroker capabilities) : IUiRootProvider
 {
-    public string ActivationApp => "workspace";
 
     private T Neuron<T>(string relative) where T : class => brain.Get<T>($"{BrainScope.CurrentId()}/{relative}");
 
@@ -53,17 +52,16 @@ internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kerne
                 if (outcome.Status != InstallStatus.Ok)
                 { logger.LogInformation("App {App} has an update that asks for more; its installed version was retained until the person consents.", name); }
             }
-            catch (Exception error) when (error is not OperationCanceledException && name is not ("workspace" or "desktop"))
+            catch (Exception error) when (error is not OperationCanceledException && name != "desktop")
             { logger.LogWarning(error, "App {App} could not migrate its view; its installed version was retained.", name); }
         }
         // The desktop's view is the root. Only the desktop the OS ships is: an app that merely bears the name (own, foreign or
-        // edited) would otherwise gain the desktop's workspace authority, so the workspace app's view is shown instead.
+        // edited) would otherwise gain the desktop's workspace authority, so fail closed when desktop is not shipped.
         var desktop = Neuron<IApp>("apps/desktop");
         if (!ShippedApps.Is(await desktop.Read(), "desktop", options.Value.TrustedPublishers))
         {
-            logger.LogWarning("The app named desktop in {Brain} is not the shipped desktop; the workspace view is shown.", scope);
-            await Neuron<IApp>("apps/workspace").Request("open", "");
-            return new(UIVocabulary.ViewType, IApp.Key(scope, "workspace") + "/view");
+            logger.LogWarning("The app named desktop in {Brain} is not the shipped desktop; refusing to open root view.", scope);
+            throw new UnauthorizedAccessException($"The app named desktop in {scope} is not the shipped desktop.");
         }
         await desktop.Request("start", "");
         return new(UIVocabulary.ViewType, IApp.Key(scope, "desktop") + "/view");

@@ -4,9 +4,11 @@ using System.Text;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Log;
 using DigitalBrain.Modules;
 using DigitalBrain.Neurons;
 using DigitalBrain.Operations;
+using IntoChat.OS.Framework.Logging;
 
 namespace IntoChat.OS.Authority;
 
@@ -107,7 +109,7 @@ public sealed class LocalCloudNeuron : Neuron<LocalCloudState>, IStorage
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                _ = error.Message;
+                OsConsoleLog.For<LocalCloudNeuron>().LogSwallowed(error, "Reading LocalCloud grain state failed; using standalone state.");
                 return _standaloneState;
             }
         }
@@ -603,7 +605,7 @@ public sealed class LocalCloudNeuron : Neuron<LocalCloudState>, IStorage
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _ = error.Message;
+            OsConsoleLog.For<LocalCloudNeuron>().LogSwallowed(error, $"Failed to read file attributes for '{fullPath}'.");
             return false;
         }
     }
@@ -651,7 +653,7 @@ public sealed class LocalCloudNeuron : Neuron<LocalCloudState>, IStorage
             try { offset = int.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(cursor)), NumberStyles.None, CultureInfo.InvariantCulture); }
             catch (Exception error) when (error is FormatException or OverflowException)
             {
-                _ = error.Message;
+                OsConsoleLog.For<LocalCloudNeuron>().LogSwallowed(error, "Malformed pagination cursor in LocalCloudNeuron; resetting offset to 0.");
                 offset = 0;
             }
             offset = Math.Clamp(offset, 0, all.Count);

@@ -2,8 +2,8 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.Sdk;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -80,7 +80,7 @@ public static class AppPackageExtensions
             }
             catch (JsonException error)
             {
-                NullLogger.Instance.LogSwallowed(error, "Malformed package manifest JSON; synthesizing AppPackage from source files.");
+                OsConsoleLog.For(typeof(AppPackageExtensions)).LogSwallowed(error, "Malformed package manifest JSON; synthesizing AppPackage from source files.");
             }
         }
 

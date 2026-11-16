@@ -329,7 +329,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         {
             allGrants = [.. allGrants, .. ShippedGrants.ForAssistant(BrainAuthorityDecisions.GrantsBrainOf(request))];
         }
-        var decision = await BrainAuthorityDecisions.Decide(brain with { Grants = allGrants }, request);
+        var decision = await BrainAuthorityDecisions.Decide(brain with { Grants = allGrants }, request, services?.GetService<IEdgeGrantsCache>());
         if (decision is { Allowed: true })
         {
             var consumed = GrantRules.OnceToConsume(request, allGrants);

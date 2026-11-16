@@ -275,7 +275,7 @@ public sealed class ScreenDirectoryNeuronFacts
         await neuron.List();
 
         Assert.Contains(logger.Entries, e =>
-            e.Level == LogLevel.Debug
+            e.Level == LogLevel.Warning
             && e.Message.Contains("Workspace could not be read for screen directory.", StringComparison.Ordinal));
     }
 

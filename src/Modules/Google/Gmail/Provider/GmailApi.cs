@@ -2,16 +2,16 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DigitalBrain.Capabilities.Compute;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Google.Auth;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Google.Gmail;
 
 internal sealed class GmailApi(IHttpClientFactory clients, GmailModuleOptions options, TimeProvider clock, ILogger<GmailApi>? logger = null) : IGmailApi
 {
     private static readonly TimeSpan ProviderTimeout = TimeSpan.FromSeconds(30);
-    private readonly ILogger<GmailApi> _logger = logger ?? NullLogger<GmailApi>.Instance;
+    private readonly ILogger<GmailApi> _logger = logger ?? OsConsoleLog.For<GmailApi>();
 
     public Task<GoogleApiResult<GoogleProfile>> ProfileAsync(string accessToken, GoogleCallContext context, CancellationToken ct)
         => Send(accessToken, context, GoogleOperations.Profile, options.ProfileEndpoint, null, true,

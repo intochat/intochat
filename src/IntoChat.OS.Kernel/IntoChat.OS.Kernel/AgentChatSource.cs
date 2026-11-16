@@ -3,6 +3,7 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Chat;
@@ -15,7 +16,7 @@ namespace IntoChat.OS.Kernel;
 // The OS composes AI and UI. Neither module gains an implementation dependency on the other.
 internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSource
 {
-    private readonly ILogger<AgentChatSource>? _logger = services.GetService<ILogger<AgentChatSource>>();
+    private readonly ILogger<AgentChatSource> _logger = services.GetService<ILogger<AgentChatSource>>() ?? OsConsoleLog.For<AgentChatSource>();
     // The agent is a plain neuron (06-06d): the chat holds a synapse on its signals.
     public ChatAgentSubscription Subscription(string key)
     {
@@ -63,7 +64,7 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
             if (!manifests.TryGetValue(card.App, out var manifest))
             {
                 try { manifest = (await SiloNeurons.Get<IApp>(services, IApp.Key(scope, card.App)).Read()).Manifest; }
-                catch (Exception error) when (error is not OperationCanceledException) { _logger?.LogSwallowed(error, "App manifest unreadable"); manifest = null; }
+                catch (Exception error) when (error is not OperationCanceledException) { _logger.LogSwallowed(error, "App manifest unreadable"); manifest = null; }
                 manifests[card.App] = manifest;
             }
             var named = Named(card, manifest);
@@ -77,7 +78,7 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
                     listed ??= services.GetService<MarketplaceView>() is { } marketplace
                         ? [.. (await marketplace.List(default)).Select(listing => (listing.Publisher, listing.Name))] : [];
                 }
-                catch (Exception error) when (error is not OperationCanceledException) { _logger?.LogSwallowed(error, "App listing unreadable"); listed = []; }
+                catch (Exception error) when (error is not OperationCanceledException) { _logger.LogSwallowed(error, "App listing unreadable"); listed = []; }
                 named = Published(named, listed);
             }
             entries[i] = entries[i] with { App = named };
@@ -125,7 +126,7 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
                 return ChatAppCard.IsAppName(name) ? new(name!, name!, "", true) : null;
             }
         }
-        catch (JsonException exception) { logger?.LogSwallowed(exception, "Unreadable tool-call arguments"); }
+        catch (JsonException exception) { (logger ?? OsConsoleLog.For(typeof(AgentChatSource))).LogSwallowed(exception, "Unreadable tool-call arguments"); }
         return null;
     }
 

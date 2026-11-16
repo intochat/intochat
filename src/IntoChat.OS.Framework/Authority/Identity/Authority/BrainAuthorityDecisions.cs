@@ -13,7 +13,7 @@ namespace IntoChat.OS.Authority.Identity.Authority;
 internal static class BrainAuthorityDecisions
 {
     // Awaited, never blocked on: the expansion calls neurons, and a grain turn that blocks its scheduler on them deadlocks.
-    public static async Task<CallDecision?> Decide(BrainRow state, CallRequest request)
+    public static async Task<CallDecision?> Decide(BrainRow state, CallRequest request, IEdgeGrantsCache? edgeCache = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(request);
@@ -26,9 +26,10 @@ internal static class BrainAuthorityDecisions
         var sameBrainScheduler = caller.Kind == CallerKind.Scheduler && state.BrainId == caller.BrainId;
         if ((!sameBrainScheduler && state.AccountId != caller.AccountId && !circleMember) || state.BrainId != caller.BrainId)
         { return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target scope does not match this brain."); }
-        var principals = await EdgeGrantsCache.Current.ExpandAsync(GrantsBrainOf(request), caller);
+        var cache = edgeCache ?? EdgeGrantsCache.Current;
+        var principals = await cache.ExpandAsync(GrantsBrainOf(request), caller);
         var connectionBound = caller.Kind == CallerKind.App && request.SemanticTypeIds.Length == 0 && GrantRules.AppOf(caller) is not null
-            && await EdgeGrantsCache.Current.IsConnectionBoundAsync(caller, request.TargetNeuron);
+            && await cache.IsConnectionBoundAsync(caller, request.TargetNeuron);
         var grants = state.Grants;
         if (caller.Kind == CallerKind.Agent && !grants.Any(g => g.AppId == CapabilityCallers.AssistantApp))
         {

@@ -1,10 +1,13 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Postgres;
 using IntoChat.OS.Modules.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Kernel.Sandbox;
 
@@ -16,6 +19,7 @@ internal sealed class SdkTablesAdapter(IServiceProvider services)
 {
     private readonly ConcurrentDictionary<string, LocalTableState> _localTables = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _postgresLock = new(1, 1);
+    private ILogger Log => services.GetService<ILoggerFactory>()?.CreateLogger<SdkTablesAdapter>() ?? OsConsoleLog.For<SdkTablesAdapter>();
 
     public Task EnsureAsync(string brainId, string appKey, string tableName, IntoChat.Sdk.TableColumnSpec[] columns, CancellationToken cancellationToken)
     {
@@ -98,7 +102,7 @@ internal sealed class SdkTablesAdapter(IServiceProvider services)
         }
         catch (Exception ex) when (IsPostgresUnavailable(ex))
         {
-            // Postgres module is disabled in local profile; in-memory/local table state serves seamlessly.
+            Log.LogSwallowed(ex, "defining optional Postgres table fallback");
         }
     }
 
@@ -133,7 +137,7 @@ internal sealed class SdkTablesAdapter(IServiceProvider services)
         }
         catch (Exception ex) when (IsPostgresUnavailable(ex))
         {
-            // Fallback already persisted in _localTables.
+            Log.LogSwallowed(ex, "upserting optional Postgres table fallback");
         }
     }
 
@@ -158,6 +162,7 @@ internal sealed class SdkTablesAdapter(IServiceProvider services)
         }
         catch (Exception ex) when (IsPostgresUnavailable(ex))
         {
+            Log.LogSwallowed(ex, "reading optional Postgres table fallback");
             return null;
         }
     }
@@ -189,6 +194,7 @@ internal sealed class SdkTablesAdapter(IServiceProvider services)
         }
         catch (Exception ex) when (IsPostgresUnavailable(ex))
         {
+            Log.LogSwallowed(ex, "listing optional Postgres table fallback");
             return null;
         }
     }
@@ -213,6 +219,7 @@ internal sealed class SdkTablesAdapter(IServiceProvider services)
         }
         catch (Exception ex) when (IsPostgresUnavailable(ex))
         {
+            Log.LogSwallowed(ex, "deleting optional Postgres table fallback");
             return false;
         }
     }

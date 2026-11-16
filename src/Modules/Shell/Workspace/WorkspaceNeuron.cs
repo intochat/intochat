@@ -38,8 +38,8 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
 
     public async Task<WorkspaceState> Apply(WorkspaceUpdate next, string operationId, long expectedRevision)
     {
-        if (!await ShippedCaller("workspace", "desktop"))
-        { throw new UnauthorizedAccessException("Only the shipped workspace and desktop apps may apply navigation state."); }
+        if (!await ShippedCaller("desktop"))
+        { throw new UnauthorizedAccessException("Only the shipped desktop app may apply navigation state."); }
         ArgumentNullException.ThrowIfNull(next);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
         if (operationId.Length > 256) { throw new ArgumentException("An operation id has at most 256 characters."); }

@@ -444,15 +444,17 @@ class WorkspaceAppState extends State<WorkspaceApp>
       }
       if (_hasExplicitRoot) {
         final receiver = _activationApp;
-        if (receiver == null) {
+        if (receiver == null && !_isDesktopRoot) {
           throw StateError('This root has no navigation receiver.');
         }
-        await client.requestApp(
-          brain,
-          receiver,
-          'activate',
-          jsonEncode(action),
-        );
+        if (receiver != null) {
+          await client.requestApp(
+            brain,
+            receiver,
+            'activate',
+            jsonEncode(action),
+          );
+        }
         if (_isDesktopRoot) {
           if (action['operation'] case final String operation
               when app != null && app != receiver) {

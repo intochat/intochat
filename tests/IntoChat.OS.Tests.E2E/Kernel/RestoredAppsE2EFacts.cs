@@ -24,7 +24,6 @@ using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Markdraw;
 using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Apps.Settings;
-using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;

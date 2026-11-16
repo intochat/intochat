@@ -8,6 +8,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.State;
 using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using IntoChat.OS.Modules.AI.Agents.Signals;
@@ -101,7 +102,7 @@ internal sealed class AgentNeuron(
         return [.. masked];
     }
 
-    private ILogger Logger => (ILogger?)logger ?? global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+    private ILogger Logger => (ILogger?)logger ?? OsConsoleLog.For<AgentNeuron>();
     private TimeProvider Clock => clock;
 
     protected override async Task OnActivate(CancellationToken cancellationToken)

@@ -2,9 +2,9 @@ using System.ComponentModel;
 using System.Security;
 using System.Text.Json;
 using DigitalBrain.Operations;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Machine;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Kernel.Composition.Operations;
 
@@ -13,7 +13,7 @@ namespace IntoChat.OS.Kernel.Composition.Operations;
 internal sealed class LocalOperationDriverLifetime(IMachineIdentity? identity, ILocalProcessProbe processes,
     ILogger<LocalOperationDriverLifetime>? logger = null) : IOperationDriverLifetime
 {
-    private readonly ILogger<LocalOperationDriverLifetime> _logger = logger ?? NullLogger<LocalOperationDriverLifetime>.Instance;
+    private readonly ILogger<LocalOperationDriverLifetime> _logger = logger ?? OsConsoleLog.For<LocalOperationDriverLifetime>();
 
     public string? Capture()
     {

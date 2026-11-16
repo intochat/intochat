@@ -5,8 +5,8 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Capabilities.Storage.Confinement;
 using DigitalBrain.Log;
 using DigitalBrain.Operations;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Primitives;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.LocalDisk;
 
@@ -528,8 +528,8 @@ internal sealed class LocalDiskStorage(IReadOnlyList<LocalRoot> roots, IOperatio
     private void Cleanup(string stage)
     {
         try { if (File.Exists(stage)) { File.Delete(stage); } }
-        catch (IOException error) { NullLogger.Instance.LogSwallowed(error, "Storage staging cleanup could not finish."); }
-        catch (UnauthorizedAccessException error) { NullLogger.Instance.LogSwallowed(error, "Storage staging cleanup could not finish."); }
+        catch (IOException error) { OsConsoleLog.For<LocalDiskStorage>().LogSwallowed(error, "Storage staging cleanup could not finish."); }
+        catch (UnauthorizedAccessException error) { OsConsoleLog.For<LocalDiskStorage>().LogSwallowed(error, "Storage staging cleanup could not finish."); }
     }
 
     private sealed class WriteHandle : StorageWriteStream

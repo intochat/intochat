@@ -26,7 +26,6 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
         new Journey[]
         {
             new("settings", "open", "{}", "open.json"),
-            new("workspace", "open", "{}", "open.json"),
             new("gallery", "open", "{}", "open.json"),
             new("creator", "open", "{}", "open.json"),
             new("ino", "open", "{}", "open.json"),
@@ -40,7 +39,6 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
     public static TheoryData<string> Apps =>
     [
         "settings",
-        "workspace",
         "gallery",
         "creator",
         "ino",

@@ -2,11 +2,13 @@ using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Log;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps.Rules;
 using IntoChat.OS.Modules.Apps.Signals;
@@ -336,6 +338,8 @@ internal sealed partial class AppNeuron
         }
         catch (Exception error) when (error is InvalidOperationException or UnauthorizedAccessException)
         {
+            var logger = services?.GetService<ILoggerFactory>()?.CreateLogger<AppNeuron>() ?? OsConsoleLog.For<AppNeuron>();
+            logger.LogSwallowed(error, "ensuring optional app principal");
             return;
         }
     }
@@ -358,6 +362,8 @@ internal sealed partial class AppNeuron
         }
         catch (Exception error) when (error is InvalidOperationException or UnauthorizedAccessException)
         {
+            var logger = services?.GetService<ILoggerFactory>()?.CreateLogger<AppNeuron>() ?? OsConsoleLog.For<AppNeuron>();
+            logger.LogSwallowed(error, "removing optional app principal");
             return;
         }
     }

@@ -11,6 +11,7 @@ using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.SystemOne;
 using IntoChat.OS.Modules.Apps;
@@ -127,13 +128,23 @@ internal sealed class RouterNeuron(IServiceProvider services) : AiNeuron<RouterS
                 if (IApp.NameOf(Scope, instance.Key) is not { } name) { continue; }
                 AppSnapshot snapshot;
                 try { snapshot = await App(instance.Key).Read(); }
-                catch (Exception error) when (error is not OperationCanceledException) { return []; }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    (services.GetService<ILoggerFactory>()?.CreateLogger<RouterNeuron>() ?? OsConsoleLog.For<RouterNeuron>())
+                        .LogSwallowed(error, "reading app menu snapshot");
+                    return [];
+                }
                 if (snapshot.Manifest is null) { continue; }
                 var entry = CatalogEntry.FromSnapshot(name, snapshot, Scope);
                 loaded.Add((name, entry.ToMenuOperations().ToArray()));
             }
         }
-        catch (Exception error) when (error is not OperationCanceledException) { return []; }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            (services.GetService<ILoggerFactory>()?.CreateLogger<RouterNeuron>() ?? OsConsoleLog.For<RouterNeuron>())
+                .LogSwallowed(error, "loading app menu operations");
+            return [];
+        }
         catalog.Replace(Scope, loaded);
         return loaded.SelectMany(item => item.Operations).ToArray();
     }

@@ -14,7 +14,6 @@ public sealed class ShippedPresentationFacts
             ("creator", "Creator", "grid"), ("data", "Data Studio", "grid"), ("desktop", "Desktop", "grid"), ("files", "Files", "folder"),
             ("filmcraft", "FilmCraft", "film"), ("gallery", "UI Gallery", "widgets"), ("ino", "Ino", "grid"), ("markdraw", "Markdraw", "grid"),
             ("photocraft", "PhotoCraft", "image"), ("post", "Post", "grid"), ("settings", "Settings", "settings"), ("tasks", "Tasks", "tasks"),
-            ("workspace", "Workspace", "grid"),
         ];
         foreach (var (app, title, icon) in expected)
         {

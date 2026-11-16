@@ -5,9 +5,9 @@ using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Primitives;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -151,7 +151,7 @@ public sealed class FeatureToPrFlow(
             if (inner.Lease is { } lease)
             {
                 try { await WorkTree.CleanupAsync(lease, CancellationToken.None).ConfigureAwait(true); }
-                catch (Exception cleanupEx) { NullLogger.Instance.LogSwallowed(cleanupEx, "Best-effort worktree cleanup after failed step."); }
+                catch (Exception cleanupEx) { OsConsoleLog.For<FeatureToPrFlow>().LogSwallowed(cleanupEx, "Best-effort worktree cleanup after failed step."); }
             }
 
             if (ex is FlowFailed) { throw; }

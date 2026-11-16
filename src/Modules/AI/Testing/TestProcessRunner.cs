@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using DigitalBrain.Log;
-using Microsoft.Extensions.Logging.Abstractions;
+using IntoChat.OS.Framework.Logging;
 
 namespace IntoChat.OS.Modules.AI.Testing;
 
@@ -166,7 +166,7 @@ internal static class TestProcessRunner
             if (process is not null && !process.HasExited)
             {
                 try { process.Kill(entireProcessTree: true); }
-                catch (Exception killError) { NullLogger.Instance.LogSwallowed(killError, "Process tree termination on cancellation"); }
+                catch (Exception killError) { OsConsoleLog.For(typeof(TestProcessRunner)).LogSwallowed(killError, "Process tree termination on cancellation"); }
             }
 
             return new TestExecutionResult(
@@ -191,7 +191,7 @@ internal static class TestProcessRunner
             }
             catch (Exception cleanupError)
             {
-                NullLogger.Instance.LogSwallowed(cleanupError, "Temp directory cleanup");
+                OsConsoleLog.For(typeof(TestProcessRunner)).LogSwallowed(cleanupError, "Temp directory cleanup");
             }
         }
     }

@@ -8,13 +8,13 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Units;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -333,7 +333,7 @@ internal static class AppsEndpoints
         }
         catch (System.Text.Json.JsonException error)
         {
-            NullLogger.Instance.LogSwallowed(error, "Screen request input is not JSON; forwarding raw scalar.");
+            OsConsoleLog.For(typeof(AppsEndpoints)).LogSwallowed(error, "Screen request input is not JSON; forwarding raw scalar.");
         }
 
         var op = operation.Contains('.', StringComparison.Ordinal)
@@ -373,7 +373,7 @@ internal static class AppsEndpoints
         }
         catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
         {
-            NullLogger.Instance.LogSwallowed(error, "Unit view reader was not available for live view lookup.");
+            OsConsoleLog.For(typeof(AppsEndpoints)).LogSwallowed(error, "Unit view reader was not available for live view lookup.");
         }
 
         foreach (var candidateType in new[] { "app." + name, name })
@@ -389,7 +389,7 @@ internal static class AppsEndpoints
             }
             catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
             {
-                NullLogger.Instance.LogSwallowed(error, "Screen view reader was not available for live view lookup.");
+                OsConsoleLog.For(typeof(AppsEndpoints)).LogSwallowed(error, "Screen view reader was not available for live view lookup.");
             }
         }
 
@@ -403,7 +403,7 @@ internal static class AppsEndpoints
         }
         catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
         {
-            NullLogger.Instance.LogSwallowed(error, "IView lookup was not available for live view lookup.");
+            OsConsoleLog.For(typeof(AppsEndpoints)).LogSwallowed(error, "IView lookup was not available for live view lookup.");
         }
 
         return null;
@@ -424,7 +424,7 @@ internal static class AppsEndpoints
         }
         catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException or System.Text.Json.JsonException)
         {
-            NullLogger.Instance.LogSwallowed(error, "Screen request forwarding failed.");
+            OsConsoleLog.For(typeof(AppsEndpoints)).LogSwallowed(error, "Screen request forwarding failed.");
             return false;
         }
     }

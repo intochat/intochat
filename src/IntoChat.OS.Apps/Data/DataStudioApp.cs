@@ -16,9 +16,9 @@ using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Markdraw;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Apps.Data;
 
@@ -130,7 +130,7 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFi
             try { return Id.Brain.Value is { Length: > 0 } b ? b : "local"; }
             catch (InvalidOperationException error)
             {
-                NullLogger.Instance.LogSwallowed(error, "Unattached neuron uses default local brain id in isolated tests.");
+                OsConsoleLog.For<DataStudioApp>().LogSwallowed(error, "Unattached neuron uses default local brain id in isolated tests.");
                 return "local";
             }
         }
@@ -205,7 +205,7 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFi
     {
         if (FilesVfs is null) { return path; }
         try { return (await FilesVfs.WriteTextAsync(path, content)).VfsPath; }
-        catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Failed to write text to VFS path."); return path; }
+        catch (Exception ex) { OsConsoleLog.For<DataStudioApp>().LogSwallowed(ex, "Failed to write text to VFS path."); return path; }
     }
 
     private async Task RunAndSetQueryResultAsync(string source, string queryText, string preferredChartKind)
@@ -231,7 +231,7 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFi
                     .Where(f => Path.GetExtension(f.Name).ToLowerInvariant() is ".csv" or ".tsv" or ".json")
                     .Select(f => f.VfsPath));
             }
-            catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Failed to list VFS files for data sources."); }
+            catch (Exception ex) { OsConsoleLog.For<DataStudioApp>().LogSwallowed(ex, "Failed to list VFS files for data sources."); }
         }
         return [.. list.Distinct(StringComparer.OrdinalIgnoreCase)];
     }

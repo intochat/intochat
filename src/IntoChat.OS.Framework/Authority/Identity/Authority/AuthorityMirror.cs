@@ -10,7 +10,7 @@ namespace IntoChat.OS.Authority.Identity.Authority;
 
 // Last authority state whose write succeeded in this process. A decision that would consume a Once
 // grant is never answered here: that spend stays a single turn on the grain. A miss falls back too.
-internal sealed class AuthorityMirror
+internal sealed class AuthorityMirror(IEdgeGrantsCache? edgeCache = null)
 {
     private readonly ConcurrentDictionary<string, BrainRow> _states = new(StringComparer.Ordinal);
 
@@ -34,6 +34,6 @@ internal sealed class AuthorityMirror
             if (!_states.TryGetValue(scope, out state)) { return (false, null); }
         }
         if (GrantRules.OnceToConsume(request, state.Grants).Count > 0) { return (false, null); }
-        return (true, await BrainAuthorityDecisions.Decide(state, request));
+        return (true, await BrainAuthorityDecisions.Decide(state, request, edgeCache));
     }
 }

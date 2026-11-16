@@ -12,13 +12,13 @@ using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using StorageV1 = DigitalBrain.Capabilities.Storage.IStorage;
 
 namespace IntoChat.OS.Kernel.Composition.Capabilities;
@@ -63,7 +63,7 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
     public const string SandboxCredentialsBadge = "SANDBOX / TEST CREDENTIALS";
     public const string SandboxConnectionId = "sandbox-test";
 
-    private readonly ILogger _logger = logger ?? (ILogger)NullLogger.Instance;
+    private readonly ILogger _logger = (ILogger?)logger ?? OsConsoleLog.For<KernelCapabilityConnections>();
     private readonly ConcurrentDictionary<string, LocalCloudNeuron> _localClouds = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, LocalCloudNeuron> _sandboxStorages = new(StringComparer.Ordinal);
 

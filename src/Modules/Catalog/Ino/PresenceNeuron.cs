@@ -4,6 +4,7 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Kernel;
 using DigitalBrain.Signals;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
@@ -12,7 +13,6 @@ using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -367,7 +367,7 @@ public sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeuro
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { PresenceLog.Unread(Logger(), error, what); }
     }
 
-    private ILogger Logger() => (ILogger?)logger ?? NullLogger.Instance;
+    private ILogger Logger() => (ILogger?)logger ?? OsConsoleLog.For<PresenceNeuron>();
 }
 
 internal static partial class PresenceLog

@@ -1,6 +1,6 @@
 using System.Text;
 using DigitalBrain.Log;
-using global::Microsoft.Extensions.Logging.Abstractions;
+using IntoChat.OS.Framework.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -41,7 +41,7 @@ public static class SkillDiscovery
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(ex, "SkillDiscovery could not list deployed units.");
+                OsConsoleLog.For(typeof(SkillDiscovery)).LogSwallowed(ex, "SkillDiscovery could not list deployed units.");
             }
 
             foreach (var unit in deployed)
@@ -60,7 +60,7 @@ public static class SkillDiscovery
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    NullLogger.Instance.LogSwallowed(ex, $"SkillDiscovery could not read sidecars for '{alias}'.");
+                    OsConsoleLog.For(typeof(SkillDiscovery)).LogSwallowed(ex, $"SkillDiscovery could not read sidecars for '{alias}'.");
                 }
             }
         }
@@ -250,7 +250,7 @@ public static class SkillDiscovery
         }
         catch (Exception ex)
         {
-            NullLogger.Instance.LogSwallowed(ex, "SkillDiscovery could not probe default apps directory.");
+            OsConsoleLog.For(typeof(SkillDiscovery)).LogSwallowed(ex, "SkillDiscovery could not probe default apps directory.");
         }
 
         return null;

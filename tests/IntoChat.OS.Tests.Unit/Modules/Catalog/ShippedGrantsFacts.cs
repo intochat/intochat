@@ -6,7 +6,6 @@ namespace IntoChat.OS.Modules.Apps;
 public sealed class ShippedGrantsFacts
 {
     [Theory]
-    [InlineData("workspace")]
     [InlineData("desktop")]
     [InlineData("settings")]
     public void A_shell_app_is_granted_run_on_its_own_brain_only(string app)
@@ -71,8 +70,8 @@ public sealed class ShippedGrantsFacts
     }
 
     [Fact]
-    public void The_workspace_reaches_the_workspace_it_was_denied()
-        => Assert.Contains(ShippedGrants.For("owner", "workspace"), grant => grant.Target == "ui.workspace/owner/main");
+    public void The_desktop_reaches_the_workspace_it_was_denied()
+        => Assert.Contains(ShippedGrants.For("owner", "desktop"), grant => grant.Target == "ui.workspace/owner/main");
 
     [Fact]
     public void Settings_reaches_the_brains_preferences()

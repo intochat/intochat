@@ -306,7 +306,7 @@ public sealed class AppUiEventFacts
             AppUiEndpoints.ReadNode(UIVocabulary.ViewType, "owner/apps/missing/view", brain, Scope, Ct, logger));
 
         Assert.Contains(provider.Entries, e =>
-            e.Level == LogLevel.Debug
+            e.Level == LogLevel.Warning
             && e.Message.Contains("Screen view could not be read.", StringComparison.Ordinal));
     }
 

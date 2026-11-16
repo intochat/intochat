@@ -3,12 +3,15 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Compute;
+using DigitalBrain.Log;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.AI.Inference;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.AI.Models;
@@ -543,7 +546,12 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
     private async Task<ResolvedModel?> TryResolve(string? brainId, ModelSelection? selection, CancellationToken ct)
     {
         try { return await Resolve(brainId, selection, requiresTools: true, ct); }
-        catch (Exception error) when (error is ArgumentException or InvalidOperationException or NotSupportedException) { return null; }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException or NotSupportedException)
+        {
+            var logger = services.GetService<ILoggerFactory>()?.CreateLogger<ModelCatalog>() ?? OsConsoleLog.For<ModelCatalog>();
+            logger.LogSwallowed(error, "resolving catalog model candidate");
+            return null;
+        }
     }
 
     private static ModelChoice Describe(string? id, string label, ResolvedModel? model)

@@ -4,12 +4,15 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Orleans;
 
 namespace IntoChat.OS.Kernel.OsRegistry;
@@ -231,7 +234,7 @@ public sealed class RegistryBroker : IRegistryBroker
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _ = ex.Message;
+                Logger().LogSwallowed(ex, $"Failed reading user settings registry entries for brain '{brainId}'.");
             }
         }
 
@@ -255,7 +258,7 @@ public sealed class RegistryBroker : IRegistryBroker
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _ = ex.Message;
+                Logger().LogSwallowed(ex, $"Failed reading env/vault registry entries for brain '{brainId}'.");
             }
         }
 
@@ -294,10 +297,13 @@ public sealed class RegistryBroker : IRegistryBroker
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _ = error.Message;
+            OsConsoleLog.For<RegistryBroker>().LogSwallowed(error, "Could not resolve current BrainScope id; defaulting to local.");
         }
         return "local";
     }
+
+    private ILogger Logger() =>
+        _services.GetService<ILoggerFactory>()?.CreateLogger<RegistryBroker>() ?? OsConsoleLog.For<RegistryBroker>();
 
     private static string? ResolveSettingProperty(UserSettingsState state, string key) => state is null ? null : key.ToLowerInvariant() switch
     {

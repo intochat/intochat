@@ -1,4 +1,6 @@
+using DigitalBrain.Log;
 using DigitalBrain.Flows;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps.Flows;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -14,7 +16,11 @@ internal static class AppBuildStatus
         if (snapshot.Status != AppStatus.Building) { return snapshot; }
         FlowView? view;
         try { view = await app.BuildFlow().WaitAsync(ct) is { } flowId ? await flows.Read(flowId, ct) : null; }
-        catch (Exception error) when (error is not OperationCanceledException) { return snapshot; }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For(typeof(AppBuildStatus)).LogSwallowed(error, "reading optional app build flow status");
+            return snapshot;
+        }
         return view?.Status is FlowStatus.Failed or FlowStatus.Cancelled
             ? snapshot with { Status = AppStatus.Failed, Activity = [.. snapshot.Activity, "build failed: " + (view.Detail ?? view.Status.ToString())] }
             : snapshot;

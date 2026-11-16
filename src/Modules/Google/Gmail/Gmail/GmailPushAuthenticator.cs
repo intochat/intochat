@@ -1,5 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -29,7 +31,11 @@ internal sealed class GmailPushAuthenticator(IModuleIntegrations<GmailModule> in
             var metadata = await Configuration.GetConfigurationAsync(cancellationToken).WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
             return ValidatePushToken(authorization[7..], metadata, audience, email);
         }
-        catch (Exception error) when (error is SecurityTokenException or ArgumentException or InvalidOperationException or HttpRequestException) { return false; }
+        catch (Exception error) when (error is SecurityTokenException or ArgumentException or InvalidOperationException or HttpRequestException)
+        {
+            OsConsoleLog.For<GmailPushAuthenticator>().LogSwallowed(error, "authenticating Gmail PubSub push JWT");
+            return false;
+        }
         catch (TimeoutException) { return false; }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return false; }
     }

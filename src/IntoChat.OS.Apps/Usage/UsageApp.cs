@@ -14,10 +14,10 @@ using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Usage;
@@ -106,7 +106,7 @@ public sealed class UsageApp : AggregateScreen<UsageAppState>
     {
         await base.OnActivate(cancellationToken).ConfigureAwait(true);
         try { await Follow<ICompute, ComputeChanged>("compute").ConfigureAwait(true); }
-        catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Compute follow is optional when running in standalone mode."); }
+        catch (Exception ex) { OsConsoleLog.For<UsageApp>().LogSwallowed(ex, "Compute follow is optional when running in standalone mode."); }
     }
 
     [On]
@@ -145,7 +145,7 @@ public sealed class UsageApp : AggregateScreen<UsageAppState>
         }
         catch (Exception ex)
         {
-            NullLogger.Instance.LogSwallowed(ex, "Failed to set compute budget; falling back to local state.");
+            OsConsoleLog.For<UsageApp>().LogSwallowed(ex, "Failed to set compute budget; falling back to local state.");
             await ApplyDecisionAsync(State.ApplyBudgetCap(cap));
         }
     }
@@ -160,7 +160,7 @@ public sealed class UsageApp : AggregateScreen<UsageAppState>
         }
         catch (Exception ex)
         {
-            NullLogger.Instance.LogSwallowed(ex, "Failed to read compute state; falling back to local state.");
+            OsConsoleLog.For<UsageApp>().LogSwallowed(ex, "Failed to read compute state; falling back to local state.");
             var usd = FormatUsd(State.SpentMicros);
             await Show(State with { FormattedUsd = usd, Status = $"{statusPrefix} Total: {usd}." });
         }

@@ -1,8 +1,8 @@
 using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.Sdk;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -105,7 +105,7 @@ public sealed class SlotResolver(INeuronProxies? proxies = null)
         }
         catch (Exception error)
         {
-            NullLogger.Instance.LogSwallowed(error, "Could not query connections for Windows slot resolution; falling back to host OS check.");
+            OsConsoleLog.For<SlotResolver>().LogSwallowed(error, "Could not query connections for Windows slot resolution; falling back to host OS check.");
             return OperatingSystem.IsWindows();
         }
     }

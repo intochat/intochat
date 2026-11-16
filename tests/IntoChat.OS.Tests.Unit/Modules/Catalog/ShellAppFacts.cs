@@ -8,7 +8,7 @@ public sealed class ShellAppFacts
     [InlineData("settings", "cloud", true)]
     [InlineData("settings", " local ", false)]
     [InlineData("settings", "cloud ", true)]
-    [InlineData("workspace", "cloud", false)]
+    [InlineData("desktop", "cloud", false)]
     [InlineData("settings", null, false)]
     public void TheSettingsAppWritesTheAccountSurfaceOnlyOnACloudHost(string app, string? topology, bool writes)
         => Assert.Equal(writes, AppNeuron.WritesAccountSurface(app, topology));

@@ -14,9 +14,9 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Friends
@@ -210,7 +210,7 @@ namespace IntoChat.OS.Apps.Friends
             }
             catch (Exception error)
             {
-                NullLogger.Instance.LogSwallowed(error, "Failed to deploy forked app-post files into Synapse Studio.");
+                OsConsoleLog.For<FriendsApp>().LogSwallowed(error, "Failed to deploy forked app-post files into Synapse Studio.");
                 await Show(State with { Status = $"Could not fork app {alias}: {error.Message}" });
             }
         }
@@ -258,7 +258,7 @@ namespace IntoChat.OS.Apps.Friends
             }
             catch (Exception ex)
             {
-                NullLogger.Instance.LogSwallowed(ex, "Failed to read unit template for alias.");
+                OsConsoleLog.For<FriendsApp>().LogSwallowed(ex, "Failed to read unit template for alias.");
                 return ("", null);
             }
         }

@@ -6,9 +6,9 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Primitives;
 using DigitalBrain.Log;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -660,5 +660,5 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     }
 
     private static void LogRecoverable(Exception error) =>
-        NullLogger.Instance.LogSwallowed(error, "Recoverable workspace files VFS error.");
+        OsConsoleLog.For<WorkspaceFilesService>().LogSwallowed(error, "Recoverable workspace files VFS error.");
 }

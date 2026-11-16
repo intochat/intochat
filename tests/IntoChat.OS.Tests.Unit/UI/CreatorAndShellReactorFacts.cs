@@ -8,7 +8,6 @@ using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.Tasks;
 using IntoChat.OS.Apps.Tests.Unit;
-using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.UI;
@@ -103,7 +102,7 @@ public sealed class CreatorAndShellReactorFacts
     }
 
     [Fact]
-    public void DesktopAndWorkspaceStates_AggregateExplorer_EnforceDomainRulesAndRenderCleanly()
+    public void DesktopState_AggregateExplorer_EnforcesDomainRulesAndRendersCleanly()
     {
         var desktopState = new DesktopAppState();
         Assert.Equal("intochat", desktopState.StylePreset);
@@ -123,10 +122,6 @@ public sealed class CreatorAndShellReactorFacts
         var desktopGraph = AggregateExplorer<DesktopAppState>.Explore(maxStates: 16);
         Assert.True(desktopGraph.IsHealthy, string.Join("\n", desktopGraph.Violations));
         Assert.Contains(desktopGraph.RejectedTransitions, t => t.BrokenRules.Contains("core_dock_app"));
-
-        var workspaceGraph = AggregateExplorer<WorkspaceAppState>.Explore(maxStates: 12);
-        Assert.True(workspaceGraph.IsHealthy, string.Join("\n", workspaceGraph.Violations));
-        Assert.True(workspaceGraph.States.Count >= 3);
     }
 
     [Theory]

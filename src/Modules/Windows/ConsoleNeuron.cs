@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Storage.Confinement;
+using DigitalBrain.Log;
 using DigitalBrain.Errors;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework.Execution;
+using IntoChat.OS.Framework.Logging;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
@@ -49,7 +51,11 @@ internal sealed class ConsoleNeuron(MachineIdentity identity, IServiceProvider s
     private static bool TryKill(Process process)
     {
         try { process.Kill(entireProcessTree: true); return true; }
-        catch (Exception kill) when (kill is InvalidOperationException or NotSupportedException) { return false; }
+        catch (Exception kill) when (kill is InvalidOperationException or NotSupportedException)
+        {
+            OsConsoleLog.For<ConsoleNeuron>().LogSwallowed(kill, "terminating exited cmd.exe process");
+            return false;
+        }
     }
 
     private static string Clip(string text) => text.Length <= MaxOutputChars ? text : text[..MaxOutputChars];

@@ -3,9 +3,11 @@ using System.Security.Cryptography;
 using System.Xml.Linq;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using DigitalBrain.Log;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Aspire.Hosting;
@@ -112,7 +114,7 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
             }
             catch (Exception error) when (error is System.Xml.XmlException or IOException)
             {
-                // Ignore malformed optional local NuGet config and fall through to CLI token lookup.
+                OsConsoleLog.For(typeof(SandboxModuleHosting)).LogSwallowed(error, "reading optional NuGet GitHub credentials");
             }
         }
 
@@ -137,6 +139,7 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
         }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
+            OsConsoleLog.For(typeof(SandboxModuleHosting)).LogSwallowed(error, "running gh auth token");
             return null;
         }
 

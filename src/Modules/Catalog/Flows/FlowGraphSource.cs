@@ -2,9 +2,9 @@ using DigitalBrain;
 using DigitalBrain.Flows;
 using DigitalBrain.Graph;
 using DigitalBrain.Neurons;
+using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -22,7 +22,7 @@ internal sealed class FlowGraphSource(IServiceProvider services) : IGraphSource
         try { flows = await proxies.Get<IFlows>(IFlows.Key(brain.Value)).List(new FlowQuery(Limit: FlowsState.KeepFinished, AnyStatus: Open), cancellationToken).ConfigureAwait(false); }
         catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
         {
-            FlowsLog.GraphUnlisted(services.GetService<ILoggerFactory>()?.CreateLogger<FlowGraphSource>() ?? (ILogger)NullLogger.Instance, error, brain.Value);
+            FlowsLog.GraphUnlisted(services.GetService<ILoggerFactory>()?.CreateLogger<FlowGraphSource>() ?? OsConsoleLog.For<FlowGraphSource>(), error, brain.Value);
             return;
         }
         Contribute(brain, sink, flows);

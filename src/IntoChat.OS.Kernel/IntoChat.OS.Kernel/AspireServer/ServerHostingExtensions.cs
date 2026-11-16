@@ -2,6 +2,7 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Identity.Local.Custody;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Authority;
@@ -10,6 +11,7 @@ using IntoChat.OS.Client.Orleans;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.ServiceDefaults;
@@ -293,7 +295,7 @@ public static class ServerHostingExtensions
         }
         catch (Exception error)
         {
-            _ = error.Message;
+            OsConsoleLog.For(typeof(ServerHostingExtensions)).LogSwallowed(error, $"Could not create fallback webroot directory '{baseWebRoot}'.");
             return null;
         }
     }

@@ -1,15 +1,15 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Security;
+using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Win32;
 
 namespace IntoChat.OS.Kernel.Composition.Operations;
 
 internal sealed class SystemLocalProcessProbe(ILogger<SystemLocalProcessProbe>? logger = null) : ILocalProcessProbe
 {
-    private readonly ILogger<SystemLocalProcessProbe> _logger = logger ?? NullLogger<SystemLocalProcessProbe>.Instance;
+    private readonly ILogger<SystemLocalProcessProbe> _logger = logger ?? OsConsoleLog.For<SystemLocalProcessProbe>();
 
     public int CurrentProcessId => Environment.ProcessId;
 

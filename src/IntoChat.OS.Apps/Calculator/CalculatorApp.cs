@@ -13,9 +13,9 @@ using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Calculator;
@@ -153,7 +153,7 @@ public sealed class CalculatorApp : AggregateScreen<CalculatorAppState>
         try { return values.Sum(v => v!.Value).ToString(CultureInfo.InvariantCulture); }
         catch (OverflowException error)
         {
-            NullLogger.Instance.LogSwallowed(error, "Overflow in EvaluateSum returns Error.");
+            OsConsoleLog.For<CalculatorApp>().LogSwallowed(error, "Overflow in EvaluateSum returns Error.");
             return "Error";
         }
     }
@@ -169,7 +169,7 @@ public sealed class CalculatorApp : AggregateScreen<CalculatorAppState>
         }
         catch (Exception error)
         {
-            NullLogger.Instance.LogSwallowed(error, "Malformed arithmetic expression evaluates to Error.");
+            OsConsoleLog.For<CalculatorApp>().LogSwallowed(error, "Malformed arithmetic expression evaluates to Error.");
             return "Error";
         }
     }

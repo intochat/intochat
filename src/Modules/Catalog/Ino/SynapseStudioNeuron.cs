@@ -1,8 +1,10 @@
 using System.Globalization;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.Units;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Trace;
 using Microsoft.Extensions.DependencyInjection;
@@ -114,6 +116,7 @@ public sealed partial class SynapseStudioNeuron(
         catch (Exception error) when (error is not OperationCanceledException)
         {
             // A brain hosting no installs neuron installs nothing: the unit is deployed and that is all.
+            OsConsoleLog.For<SynapseStudioNeuron>().LogSwallowed(error, "reading optional installs status for deployed unit");
             return new UnitDeployResult(true, $"{alias} is already deployed (hash {hash}).", DeployStatus.Unchanged, hash, new Dictionary<string, DigitalBrain.Units.InstallOutcome>());
         }
         return new UnitDeployResult(true, $"{alias} is already deployed (hash {hash}).", DeployStatus.Unchanged, hash,

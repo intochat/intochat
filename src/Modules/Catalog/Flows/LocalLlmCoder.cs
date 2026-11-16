@@ -4,13 +4,13 @@ using System.Security;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -111,7 +111,7 @@ public sealed class LocalLlmCoder : ICoder
         ILogger<LocalLlmCoder>? logger = null)
     {
         _services = services;
-        _logger = logger ?? NullLogger<LocalLlmCoder>.Instance;
+        _logger = logger ?? OsConsoleLog.For<LocalLlmCoder>();
         _options = options ?? BindOptions(configuration);
     }
 
@@ -316,7 +316,7 @@ public sealed class LocalLlmCoder : ICoder
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(ex, "Local Ollama model probe did not succeed.");
+            OsConsoleLog.For<LocalLlmCoder>().LogSwallowed(ex, "Local Ollama model probe did not succeed.");
             return null;
         }
     }

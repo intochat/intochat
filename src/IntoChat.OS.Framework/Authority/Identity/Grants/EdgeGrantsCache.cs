@@ -21,6 +21,7 @@ public interface IEdgeGrantsCache
     Task<PrincipalSet> ExpandAsync(string ownerBrain, CapabilityCaller caller);
     Task<bool> IsGrantedAsync(string brain, CapabilityCaller caller, string semanticTypeId, string? targetNeuron = null, CancellationToken ct = default);
     Task<bool> IsConnectionBoundAsync(string brain, CapabilityCaller caller, string targetOrConnectionKey, CancellationToken ct = default);
+    Task<bool> IsConnectionBoundAsync(CapabilityCaller caller, string? targetOrConnectionKey);
     void Invalidate(string brain);
     void Clear();
 }
@@ -67,7 +68,10 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         _listeners = listeners;
         _clock = clock ?? TimeProvider.System;
         _logger = services?.GetService<ILoggerFactory>()?.CreateLogger<EdgeGrantsCache>();
-        Current = this;
+        if (services is null)
+        {
+            Current = this;
+        }
 
         if (listeners is not null)
         {

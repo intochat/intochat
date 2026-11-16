@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
+using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
@@ -10,7 +10,7 @@ internal sealed class WindowsStorageCoordinator(ILogger<WindowsStorageCoordinato
     private static readonly StringComparer Paths = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
     internal ConcurrentDictionary<string, SemaphoreSlim> Gates { get; } = new(Paths);
     internal ConcurrentDictionary<string, byte> WorkingFolders { get; } = new(Paths);
-    internal ILogger Logger { get; } = logger ?? NullLogger<WindowsStorageCoordinator>.Instance;
+    internal ILogger Logger { get; } = logger ?? OsConsoleLog.For<WindowsStorageCoordinator>();
 
     public void Dispose()
     {

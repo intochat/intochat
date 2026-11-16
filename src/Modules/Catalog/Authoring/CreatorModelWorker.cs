@@ -3,12 +3,13 @@ using System.Text.Json;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps.Flows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -86,7 +87,7 @@ internal static class CreatorModel
                     }
                     catch (Exception error) when (explicitModel is not null && IsRecoverableProviderError(error))
                     {
-                        NullLogger.Instance.LogSwallowed(error, "Explicit Creator model selection failed; retrying automatic brain default.");
+                        CreatorLogger(neurons).LogSwallowed(error, "Explicit Creator model selection failed; retrying automatic brain default.");
                         var autoResolved = await ResolveCatalogModelAsync(neurons, catalog, brainId, explicitModel: null, requiresTools, ct).ConfigureAwait(false);
                         if (autoResolved is not null)
                         {
@@ -125,7 +126,7 @@ internal static class CreatorModel
             }
             catch (Exception error) when (error is not OperationCanceledException && IsRecoverableProviderError(error))
             {
-                NullLogger.Instance.LogSwallowed(error, "IModelInference unavailable; probing local Ollama fallback.");
+                CreatorLogger(neurons).LogSwallowed(error, "IModelInference unavailable; probing local Ollama fallback.");
             }
         }
 
@@ -137,7 +138,7 @@ internal static class CreatorModel
             }
             catch (Exception error) when (IsRecoverableProviderError(error))
             {
-                NullLogger.Instance.LogSwallowed(error, "Compiled ILLM neuron unavailable; probing local Ollama fallback.");
+                CreatorLogger(neurons).LogSwallowed(error, "Compiled ILLM neuron unavailable; probing local Ollama fallback.");
             }
         }
 
@@ -194,12 +195,15 @@ internal static class CreatorModel
             }
             catch (Exception error) when (error is not OperationCanceledException && IsRecoverableProviderError(error))
             {
-                NullLogger.Instance.LogSwallowed(error, "ModelCatalog candidate could not resolve; trying next Creator model candidate.");
+                CreatorLogger(neurons).LogSwallowed(error, "ModelCatalog candidate could not resolve; trying next Creator model candidate.");
             }
         }
 
         return null;
     }
+
+    private static ILogger CreatorLogger(IServiceProvider neurons) =>
+        neurons.GetService<ILoggerFactory>()?.CreateLogger(typeof(CreatorModel)) ?? OsConsoleLog.For(typeof(CreatorModel));
 
     private static string ResolveOllamaEndpoint(IServiceProvider neurons)
     {

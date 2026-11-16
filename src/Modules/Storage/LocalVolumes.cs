@@ -1,4 +1,6 @@
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 
 namespace IntoChat.OS.Modules.LocalDisk;
 
@@ -86,7 +88,11 @@ internal sealed class DriveVolumeSource : IVolumeSource
     {
         string full;
         try { full = Path.GetFullPath(path); }
-        catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException) { return null; }
+        catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            OsConsoleLog.For(typeof(LocalVolumes)).LogSwallowed(error, "resolving local volume path");
+            return null;
+        }
         VolumeRow? best = null;
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         foreach (var drive in Drives().Where(LocalVolumes.Include))

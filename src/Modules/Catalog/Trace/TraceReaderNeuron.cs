@@ -2,9 +2,11 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DigitalBrain;
+using DigitalBrain.Log;
 using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.Signals;
+using IntoChat.OS.Framework.Logging;
 
 namespace IntoChat.OS.Modules.Apps.Trace;
 
@@ -43,7 +45,11 @@ public sealed partial class TraceReaderNeuron(ISignalHistory history) : Neuron, 
         var type = journaled.Signal.GetType();
         string payload;
         try { payload = JsonSerializer.Serialize(journaled.Signal, type, JsonSerializerOptions.Web); }
-        catch (Exception error) when (error is NotSupportedException or InvalidOperationException) { payload = type.Name; }
+        catch (Exception error) when (error is NotSupportedException or InvalidOperationException)
+        {
+            OsConsoleLog.For<TraceReaderNeuron>().LogSwallowed(error, "serializing trace signal payload");
+            payload = type.Name;
+        }
         payload = Trim(Redact(payload));
         return new TraceEntry(journaled.Publisher.ToString(), journaled.Sequence, type.GetCustomAttribute<SignalAttribute>()?.Alias ?? type.Name,
             journaled.At, journaled.TraceId, journaled.CausationId, payload);

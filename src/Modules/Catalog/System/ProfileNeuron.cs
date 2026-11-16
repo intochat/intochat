@@ -1,12 +1,13 @@
 using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps;
 
 [DigitalBrain.Neurons.Neuron("os.profile")]
 public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : DigitalBrain.Neurons.Neuron<ProfileState>, IProfile
 {
+    private ILogger Log => (ILogger?)logger ?? OsConsoleLog.For<ProfileNeuron>();
     public Task<ProfileState> Read() => Task.FromResult(State);
 
     public Task<ProfileState> SetBio(string handle, string bio, string[] pinnedApps)
@@ -180,7 +181,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
-                    ((ILogger?)logger ?? NullLogger.Instance).LogSwallowed(error, "IApp unavailable when importing forked AppPackage.");
+                    Log.LogSwallowed(error, "IApp unavailable when importing forked AppPackage.");
                 }
             }
 
@@ -191,7 +192,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                ((ILogger?)logger ?? NullLogger.Instance).LogSwallowed(error, "SynapseStudio unavailable during profile post fork.");
+                Log.LogSwallowed(error, "SynapseStudio unavailable during profile post fork.");
             }
         }
 
@@ -225,7 +226,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            ((ILogger?)logger ?? NullLogger.Instance).LogSwallowed(error, "Failed to read unit source files from SynapseStudio for profile post.");
+            Log.LogSwallowed(error, "Failed to read unit source files from SynapseStudio for profile post.");
         }
 
         if (files.Count == 0 && !string.IsNullOrWhiteSpace(Id.Brain.Value))
@@ -243,7 +244,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                ((ILogger?)logger ?? NullLogger.Instance).LogSwallowed(error, "Failed to read exported AppBundle files for profile post.");
+                Log.LogSwallowed(error, "Failed to read exported AppBundle files for profile post.");
             }
         }
 

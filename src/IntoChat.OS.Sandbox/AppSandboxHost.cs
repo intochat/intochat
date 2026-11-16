@@ -6,7 +6,6 @@ using IntoChat.Sdk;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Sandbox;
 
@@ -95,7 +94,7 @@ public sealed class AppSandboxHost
         ArgumentNullException.ThrowIfNull(httpClient);
         _httpClient = httpClient;
         _defaultKernelUri = defaultKernelUri ?? FallbackKernelUri;
-        _logger = logger ?? NullLogger<AppSandboxHost>.Instance;
+        _logger = logger ?? SandboxConsoleLog.For<AppSandboxHost>();
     }
 
     public int LoadedAppCount => _apps.Count;

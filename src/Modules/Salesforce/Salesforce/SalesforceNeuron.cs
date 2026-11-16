@@ -2,7 +2,9 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Limits;
+using DigitalBrain.Log;
 using IntoChat.OS.Modules.Salesforce.Signals;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Salesforce;
 
@@ -10,6 +12,8 @@ namespace IntoChat.OS.Modules.Salesforce;
 internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISalesforce
 {
     private const int MaxWriteArgumentsBytes = 24 * 1024;
+    private static readonly ILoggerFactory ConsoleLogFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
+    private static readonly ILogger Log = ConsoleLogFactory.CreateLogger<SalesforceNeuron>();
     private static readonly JsonSerializerOptions ArgumentJson = new(JsonSerializerDefaults.Web);
 
     // Salesforce's web-server flow omits expires_in. Without an expiry the base would never refresh
@@ -226,6 +230,7 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
         }
         catch (Exception error) when (error is SalesforceNotConnectedException or SalesforceUnavailableException)
         {
+            Log.LogSwallowed(error, "submitting Salesforce write preview");
             await PublishAsync(new SalesforceWriteUncertain(preview.PreviewId));
             return (null, SalesforceWriteOutcome.Uncertain);
         }

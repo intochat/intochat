@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using DigitalBrain.Log;
 using DigitalBrain.State;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Tools;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
@@ -66,7 +68,10 @@ internal sealed partial class PageToolsNeuron : DigitalBrain.Neurons.Neuron<Page
         string json;
         try { json = await Context.Get<IPlaywright>(new DigitalBrain.NeuronId(Id.Brain, "playwright", state.Driver[(Brain.Length + 1)..])).Evaluate(expression, ct); }
         catch (Exception error) when (error.Message.Contains("page not rendering", StringComparison.Ordinal))
-        { return new ToolResult(true, "page not rendering: open the app's window", []); }
+        {
+            OsConsoleLog.For<PageToolsNeuron>().LogSwallowed(error, "running Playwright page tool while page is hidden");
+            return new ToolResult(true, "page not rendering: open the app's window", []);
+        }
         if (tool == "commands" && input.TryGetProperty("filter", out var filter) && filter.GetString() is { Length: > 0 } text)
         { json = Filter(json, text); }
         return new ToolResult(false, json, []);

@@ -3,11 +3,13 @@ using System.Text.Json;
 using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Log;
 using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -36,7 +38,11 @@ public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : D
             Type[] types;
             try { types = assembly.GetTypes(); }
             catch (ReflectionTypeLoadException error) { types = [.. error.Types.Where(type => type is not null)!]; }
-            catch (Exception error) when (error is not OperationCanceledException) { continue; }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                OsConsoleLog.For<InstalledModulesNeuron>().LogSwallowed(error, $"Failed enumerating types in assembly '{assembly.FullName}'.");
+                continue;
+            }
             foreach (var type in types)
             {
                 if (type is not { IsClass: true, IsAbstract: false } || type.ContainsGenericParameters) { continue; }
@@ -46,13 +52,17 @@ public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : D
                 }
                 catch (FileLoadException error)
                 {
-                    _ = error.Message;
+                    OsConsoleLog.For<InstalledModulesNeuron>().LogSwallowed(error, $"Could not inspect ModuleAttribute on '{type.FullName}'.");
                     continue;
                 }
                 if (!typeof(DigitalBrain.Modules.Module).IsAssignableFrom(type)) { continue; }
                 DigitalBrain.Modules.ModuleManifest manifest;
                 try { manifest = DigitalBrain.Modules.ModuleManifest.Of(type); }
-                catch (Exception error) when (error is InvalidOperationException or InvalidDataException) { continue; }
+                catch (Exception error) when (error is InvalidOperationException or InvalidDataException)
+                {
+                    OsConsoleLog.For<InstalledModulesNeuron>().LogSwallowed(error, $"Could not read ModuleManifest for '{type.FullName}'.");
+                    continue;
+                }
                 var capabilities = string.Join(", ", manifest.Provides.Select(id => id.ToString()).Order(StringComparer.Ordinal));
                 rows.Add(new(manifest.Id ?? type.Name, type.Name, capabilities));
             }

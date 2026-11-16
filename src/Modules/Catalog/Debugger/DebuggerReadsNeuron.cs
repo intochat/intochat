@@ -5,10 +5,10 @@ using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.Units;
 using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps.Trace;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Debugger;
 
@@ -26,7 +26,7 @@ public sealed class DebuggerReadsNeuron(
     private readonly ISynapseCatalogSource? _catalogSource = catalogSource;
     private readonly IEnumerable<CompiledAppsRegistration> _appRegistrations = appRegistrations ?? [];
     private readonly UnitResolver? _unitResolver = unitResolver;
-    private readonly ILogger _logger = (ILogger?)logger ?? NullLogger.Instance;
+    private readonly ILogger _logger = (ILogger?)logger ?? OsConsoleLog.For<DebuggerReadsNeuron>();
 
     public async Task<string?> State(string alias)
     {

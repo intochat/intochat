@@ -1,10 +1,12 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Log;
 using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -12,6 +14,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Circles;
 
@@ -38,7 +41,11 @@ public sealed partial class CirclesModule : DigitalBrain.Modules.Module, IHttpMo
             RuntimeCallerContext.Stamp(caller with { BrainId = brainId });
             try { return Results.Ok(await SiloNeurons.Get<ICircle>(plain, ICircle.Key(brainId)).Accept()); }
             catch (Exception error) when (error is UnauthorizedAccessException or InvalidOperationException)
-            { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+            {
+                (plain.GetService<ILoggerFactory>()?.CreateLogger<CirclesModule>() ?? OsConsoleLog.For<CirclesModule>())
+                    .LogSwallowed(error, "accepting circle invitation");
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+            }
             finally { RuntimeCallerContext.Stamp(caller); }
         });
         MapInviteCodes(endpoints);

@@ -78,7 +78,7 @@ public sealed partial class UnitsAllTheWayFacts
     // The shell's own apps: the desktop and the workspace are the host's surfaces and ino is the shell's agent, not apps a person installs,
     // so the host may name them.
     // Any other app is reached through its manifest, its signals and the registry, never by name.
-    private static readonly string[] ShellApps = ["desktop", "workspace", "ino", "friends"];
+    private static readonly string[] ShellApps = ["desktop", "ino", "friends"];
 
     [Fact]
     public void NoAppNameSwitchboard()

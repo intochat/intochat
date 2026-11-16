@@ -1,8 +1,10 @@
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Flows;
 using DigitalBrain.Operations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
@@ -10,7 +12,6 @@ using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.Apps.Flows.Rules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -76,8 +77,11 @@ public sealed class FlowsNeuron(
         {
             try
             {
-                var starter = Flow(flow.FlowId);
-                await Stop(starter, await starter.Head(), "security interrupt");
+                using (InProcessCallerScope.EnterKernel(Id.Brain.Value))
+                {
+                    var starter = Flow(flow.FlowId);
+                    await Stop(starter, await starter.Head(), "security interrupt");
+                }
             }
             catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { FlowsLog.InterruptCancelFailed(Logger(), error, flow.FlowId); }
         }
@@ -180,7 +184,16 @@ public sealed class FlowsNeuron(
         var flow = Flow(flowId);
         var head = await flow.Head();
         await Check("Cancel", new PersonCancelsApprovalWait(flowId, PersonWaitStep(flowId, head), Context.Caller));
-        await Stop(flow, head, reason, ct);
+        if (Context.Caller is { Actor: Actor.Person, Conversation: null } or { Actor: Actor.Kernel })
+        {
+            await Stop(flow, head, reason, ct);
+            return;
+        }
+        // PersonCancelsApprovalWait above verified the flow is not waiting for a person; Flow.Cancel requires Person or Kernel.
+        using (InProcessCallerScope.EnterKernel(Id.Brain.Value))
+        {
+            await Stop(flow, head, reason, ct);
+        }
     }
 
     // The cancel itself, past the rule: the running step's leaf operation, then the flow.
@@ -388,7 +401,7 @@ public sealed class FlowsNeuron(
                 .Select(relation => relation.TargetFlowId).Distinct(StringComparer.Ordinal)
             : [];
 
-    private ILogger Logger() => (ILogger?)logger ?? NullLogger.Instance;
+    private ILogger Logger() => (ILogger?)logger ?? OsConsoleLog.For<FlowsNeuron>();
 
     private string Caller()
         => Context.Caller?.For?.Principal ?? SystemOwner;

@@ -1,7 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Desktop;
-using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.Logging;
 
@@ -32,9 +31,8 @@ public sealed class DesktopAppFacts
     }
 
     [Fact]
-    public void WorkspaceAndDesktopCarryTheFlutterTrees()
+    public void DesktopCarriesTheFlutterTree()
     {
-        Assert.Equal("workspace", WorkspaceApp.Bundle.Name);
         Assert.Equal("desktop", DesktopApp.Bundle.Name);
     }
 
@@ -133,7 +131,7 @@ public sealed class DesktopAppFacts
 
         Assert.NotEmpty(catalog);
         Assert.Contains(logger.Entries, e =>
-            e.Level == LogLevel.Debug
+            e.Level == LogLevel.Warning
             && e.Message.Contains("Id.Brain is unassigned in standalone tests", StringComparison.Ordinal));
     }
 

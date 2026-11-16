@@ -5,7 +5,7 @@ using GrantModel = IntoChat.OS.Connections.Identity.Grant;
 namespace IntoChat.OS.Authority.Identity.Grants;
 
 [Neuron(IGrantsNeuron.TypeName)]
-public sealed class GrantsNeuron : Neuron<GrantsState>, IGrantsNeuron
+public sealed class GrantsNeuron(IEdgeGrantsCache? edgeCache = null) : Neuron<GrantsState>, IGrantsNeuron
 {
     private async Task<GrantsState> Normalized()
     {
@@ -50,7 +50,7 @@ public sealed class GrantsNeuron : Neuron<GrantsState>, IGrantsNeuron
             Version = nextVersion,
         };
         await Save(nextState, new GrantsChanged(nextVersion));
-        EdgeGrantsCache.Current.Invalidate(Id.Brain.Value);
+        (edgeCache ?? EdgeGrantsCache.Current).Invalidate(Id.Brain.Value);
     }
 
     public async Task Revoke(string grantId)
@@ -70,7 +70,7 @@ public sealed class GrantsNeuron : Neuron<GrantsState>, IGrantsNeuron
             Version = nextVersion,
         };
         await Save(nextState, new GrantsChanged(nextVersion));
-        EdgeGrantsCache.Current.Invalidate(Id.Brain.Value);
+        (edgeCache ?? EdgeGrantsCache.Current).Invalidate(Id.Brain.Value);
     }
 
     public async Task<Grant[]> List()

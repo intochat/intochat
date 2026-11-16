@@ -21,7 +21,6 @@ using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Apps.Tasks;
 using IntoChat.OS.Apps.Usage;
-using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Workspace;
@@ -32,7 +31,7 @@ namespace IntoChat.OS.Apps.Tests.Unit.Desktop;
 [Collection(nameof(RecordingApp))]
 public sealed class ShellAppsScreenBaselineFacts
 {
-    public static readonly IReadOnlyList<Type> Standalone14Apps =
+    public static readonly IReadOnlyList<Type> Standalone13Apps =
     [
         typeof(CalculatorApp),
         typeof(CreatorApp),
@@ -46,8 +45,7 @@ public sealed class ShellAppsScreenBaselineFacts
         typeof(PhotoCraftApp),
         typeof(SettingsApp),
         typeof(TasksApp),
-        typeof(UsageApp),
-        typeof(WorkspaceApp)
+        typeof(UsageApp)
     ];
 
     public static readonly IReadOnlyList<Type> ArtCraftStudio15Apps =
@@ -69,8 +67,8 @@ public sealed class ShellAppsScreenBaselineFacts
         typeof(SolidCraftApp)
     ];
 
-    public static IReadOnlyList<Type> All29ShellApps =>
-        [.. Standalone14Apps, .. ArtCraftStudio15Apps];
+    public static IReadOnlyList<Type> All28ShellApps =>
+        [.. Standalone13Apps, .. ArtCraftStudio15Apps];
 
     private static IReadOnlyList<(string Alias, Type SignalType)> GetScreenSignals(Type screenType)
     {
@@ -90,7 +88,7 @@ public sealed class ShellAppsScreenBaselineFacts
     }
 
     [Fact]
-    public void All29ShellApps_DiscoveredAndMatchExpectedInventory()
+    public void All28ShellApps_DiscoveredAndMatchExpectedInventory()
     {
         var appAssembly = typeof(CalculatorApp).Assembly;
         var concreteScreens = appAssembly.GetTypes()
@@ -98,8 +96,8 @@ public sealed class ShellAppsScreenBaselineFacts
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
 
-        Assert.Equal(29, concreteScreens.Count);
-        foreach (var expected in All29ShellApps)
+        Assert.Equal(28, concreteScreens.Count);
+        foreach (var expected in All28ShellApps)
         {
             Assert.Contains(expected, concreteScreens);
         }
@@ -120,13 +118,13 @@ public sealed class ShellAppsScreenBaselineFacts
     }
 
     [Fact]
-    public void All29ShellApps_SignalRecords_CanDeserializeFromEmptyJsonWithoutThrowing()
+    public void All28ShellApps_SignalRecords_CanDeserializeFromEmptyJsonWithoutThrowing()
     {
         var testedSignalsCount = 0;
         using var emptyDoc = JsonDocument.Parse("{}");
         var emptyBytes = "{}"u8.ToArray();
 
-        foreach (var appType in All29ShellApps)
+        foreach (var appType in All28ShellApps)
         {
             var signals = GetScreenSignals(appType);
             Assert.NotEmpty(signals);
@@ -147,16 +145,16 @@ public sealed class ShellAppsScreenBaselineFacts
             }
         }
 
-        Assert.True(testedSignalsCount >= 50, $"Expected at least 50 signals tested across 29 shell apps, but found {testedSignalsCount}.");
+        Assert.True(testedSignalsCount >= 50, $"Expected at least 50 signals tested across 28 shell apps, but found {testedSignalsCount}.");
     }
 
     [Fact]
-    public async Task All29ShellApps_TestOS_RequestEmptyJson_DoesNotThrowOrCrash()
+    public async Task All28ShellApps_TestOS_RequestEmptyJson_DoesNotThrowOrCrash()
     {
         using var person = Edge.AsPerson();
         using var emptyDoc = JsonDocument.Parse("{}");
 
-        foreach (var appType in All29ShellApps)
+        foreach (var appType in All28ShellApps)
         {
             await using var os = TestOS.Local();
             os.Register<DesktopRecordsNeuron>();
