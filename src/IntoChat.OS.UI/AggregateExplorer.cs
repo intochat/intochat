@@ -348,6 +348,8 @@ public sealed class StateGraph<TState>(
 /// </summary>
 public static class AggregateExplorer<TState> where TState : class, new()
 {
+    private static ChoiceSet ResolveChoices(ChoiceSet? choices) => choices is not null ? choices : new ChoiceSet();
+
     /// <summary>
     /// Explores the state space reachable from <c>new TState()</c> up to <paramref name="maxStates"/>,
     /// checking <see cref="InvariantAttribute"/> members and verifying <paramref name="render"/> throws no exceptions
@@ -361,7 +363,7 @@ public static class AggregateExplorer<TState> where TState : class, new()
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxStates, 1);
 
-        var choiceSet = choices ?? new ChoiceSet();
+        var choiceSet = ResolveChoices(choices);
         var commandMethods = DiscoverCommandMethods();
         var invariants = DiscoverInvariants();
 

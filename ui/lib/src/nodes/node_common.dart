@@ -9,9 +9,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../components/kit/kit_toast.dart';
 import '../design/cards/card_shell.dart';
 import '../theme/brand_visuals.dart';
+import '../theme/wire_node_values.dart';
 
-/// Semantic node tone resolved across `Badge`, `TagPill`, `Text`, and `InfoBar`.
-enum UiNodeTone { neutral, accent, done, working, error }
+export '../theme/wire_node_values.dart' show UiNodeTone;
 
 /// The kit tone for a wire tone string (`neutral`, `done`, `working`, `error`, ...).
 UiTone toneOf(String tone) => switch (nodeToneOf(tone)) {
@@ -22,36 +22,10 @@ UiTone toneOf(String tone) => switch (nodeToneOf(tone)) {
 };
 
 /// Resolves all C# semantic tone strings (`accent`, `ok`, `info`, `warn`, `needs-you`, `idle`, etc.).
-UiNodeTone nodeToneOf(String tone) => switch (tone.trim().toLowerCase()) {
-  'accent' ||
-  'primary' ||
-  'info' ||
-  'needs-you' ||
-  'needs_you' ||
-  'needsyou' => UiNodeTone.accent,
-  'done' ||
-  'ok' ||
-  'success' ||
-  'positive' ||
-  'connected' ||
-  'saved' => UiNodeTone.done,
-  'working' ||
-  'warn' ||
-  'warning' ||
-  'pending' ||
-  'running' ||
-  'syncing' ||
-  'saving' => UiNodeTone.working,
-  'error' ||
-  'danger' ||
-  'critical' ||
-  'failed' ||
-  'destructive' => UiNodeTone.error,
-  _ => UiNodeTone.neutral,
-};
+UiNodeTone nodeToneOf(String tone) => parseUiNodeTone(tone);
 
 /// The card source line for a node's system name, upgraded with allowlisted
-/// brand/provider/capability icons when recognized.
+/// brand/provider/capability icons emitted by C# `VisualCatalog`.
 CardSource cardSource(
   String name, {
   String? iconKey,
@@ -62,30 +36,27 @@ CardSource cardSource(
       (capabilityLabel != null && capabilityLabel.trim().isNotEmpty)
       ? capabilityLabel.trim()
       : null;
-  final resolved = BrandVisuals.tryResolveCapabilityOrAppVisual(
-    preferredLabel ?? name,
-    iconKey: iconKey,
-  );
+  final displayLabel =
+      preferredLabel ?? (isDigitalBrainSourceName(name) ? '' : name.trim());
+  final resolved = BrandVisuals.tryForIconKey(iconKey, label: displayLabel);
   if (resolved != null) {
-    final displayLabel =
-        preferredLabel ??
-        ((name.trim().isEmpty ||
-                name == 'DigitalBrain' ||
-                name.startsWith('I') ||
-                name.contains(':'))
-            ? resolved.label
-            : name);
-    return CardSource(displayLabel, IcBrandIcon(spec: resolved, size: 15));
+    return CardSource(
+      displayLabel.isEmpty ? resolved.label : displayLabel,
+      IcBrandIcon(spec: resolved, size: 15),
+    );
   }
   if (approvalFallbackShield) {
-    final shield = BrandVisuals.catalog['capability:shield']!;
+    final shield = BrandVisuals.fromNode(
+      label: displayLabel,
+      iconKey: 'capability:shield',
+    );
     return CardSource(
-      preferredLabel ?? (name.trim().isEmpty ? shield.label : name),
+      displayLabel.isEmpty ? 'Approval' : displayLabel,
       IcBrandIcon(spec: shield, size: 15),
     );
   }
   return CardSource(
-    preferredLabel ?? name,
+    displayLabel.isEmpty ? name : displayLabel,
     const Icon(LucideIcons.box, size: 14),
   );
 }

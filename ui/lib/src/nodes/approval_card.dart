@@ -3,6 +3,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'node_context.dart';
 import '../design/cards/approval_card.dart';
+import '../theme/wire_node_values.dart';
 import 'node_common.dart';
 
 /// An approval card can only be resolved on the OS confirmation inbox surface
@@ -36,7 +37,7 @@ Widget renderApprovalCard(ApprovalCardNode node, NodeContext ctx) {
       valueLabel: node.valueLabel,
       systemName: node.systemName,
     ),
-    state: _state(node.status),
+    state: parseApprovalState(node.status),
     onApprove: canResolve
         ? () => ctx.resolve(resolve.planId, approve: true)
         : null,
@@ -45,10 +46,3 @@ Widget renderApprovalCard(ApprovalCardNode node, NodeContext ctx) {
         : null,
   );
 }
-
-ApprovalState _state(String status) => switch (status.toLowerCase()) {
-  'approved' => ApprovalState.approved,
-  'rejected' || 'denied' => ApprovalState.rejected,
-  'error' => ApprovalState.error,
-  _ => ApprovalState.pending,
-};

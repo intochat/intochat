@@ -46,11 +46,11 @@ public sealed record CreatorState(Selection? Selected, string? TraceId, long? Re
     [Invariant]
     public bool ValidPreviewViewport => PreviewViewport is "fill" or "720" or "390";
 
-    public Rule EmptyDraft => Decision.Rule("empty_draft", string.IsNullOrWhiteSpace(Draft), "Describe what unit you want to make first.");
+    public Rule EmptyDraft => Decision.Rule("empty_draft", Draft, static d => string.IsNullOrWhiteSpace(d), "Describe what unit you want to make first.");
 
-    public Rule EmptyChangeDraft => Decision.Rule("empty_change_draft", string.IsNullOrWhiteSpace(ChangeDraft), "Describe how this unit should change first.");
+    public Rule EmptyChangeDraft => Decision.Rule("empty_change_draft", ChangeDraft, static d => string.IsNullOrWhiteSpace(d), "Describe how this unit should change first.");
 
-    public Rule RequiresSelectedNode => Decision.Rule("requires_selected_node", Selected is not { Kind: Selection.Node }, "Select a unit node in the graph first.");
+    public Rule RequiresSelectedNode => Decision.Rule("requires_selected_node", Selected, static s => s is not { Kind: Selection.Node }, "Select a unit node in the graph first.");
 
     // ── Rich DDD Aggregate Transitions ───────────────────────────────────────
 
@@ -172,7 +172,7 @@ public sealed record CreatorState(Selection? Selected, string? TraceId, long? Re
     public Decision<CreatorState> ValidateMake([Sample("", "watch elonmusk on X")] string? explicitGoal = null)
     {
         var goal = string.IsNullOrWhiteSpace(explicitGoal) ? Draft.Trim() : explicitGoal.Trim();
-        return Decision.Check("creator.make", Decision.Rule("empty_draft", goal.Length == 0, "Describe what to make."))
+        return Decision.Check("creator.make", Decision.Rule("empty_draft", goal, static g => g.Length == 0, "Describe what to make."))
             ?? Decision.Accept(this with { Draft = string.Empty, Status = $"Building {goal}" });
     }
 
@@ -182,7 +182,7 @@ public sealed record CreatorState(Selection? Selected, string? TraceId, long? Re
         return Decision.Check(
                 "creator.change",
                 RequiresSelectedNode,
-                Decision.Rule("empty_change_draft", wanted.Length == 0, "Describe how the selected unit should change."))
+                Decision.Rule("empty_change_draft", wanted, static w => w.Length == 0, "Describe how the selected unit should change."))
             ?? Decision.Accept(this with { ChangeDraft = string.Empty });
     }
 }

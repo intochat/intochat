@@ -2,21 +2,20 @@
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'node_context.dart';
-import 'node_common.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
+import '../theme/wire_node_values.dart';
 
 Widget renderText(TextNode node, NodeContext ctx) => Builder(
   builder: (context) {
     final theme = Theme.of(context);
     final colors = theme.extension<UiColors>();
-    final rawTone = node.tone.toLowerCase();
-    final color = switch (rawTone) {
-      'muted' ||
-      'subtle' ||
-      'ghost' => colors?.muted ?? theme.colorScheme.onSurfaceVariant,
-      'strong' => colors?.strong ?? theme.colorScheme.onSurface,
-      _ => switch (nodeToneOf(rawTone)) {
+    final (toneKind, semanticTone) = parseTextTone(node.tone);
+    final color = switch (toneKind) {
+      TextToneVariant.muted =>
+        colors?.muted ?? theme.colorScheme.onSurfaceVariant,
+      TextToneVariant.strong => colors?.strong ?? theme.colorScheme.onSurface,
+      TextToneVariant.semantic => switch (semanticTone) {
         UiNodeTone.accent => colors?.accent ?? theme.colorScheme.primary,
         UiNodeTone.done => colors?.done,
         UiNodeTone.working => colors?.working,
@@ -35,7 +34,7 @@ Widget renderText(TextNode node, NodeContext ctx) => Builder(
       node.value,
       style: baseStyle.copyWith(
         color: color,
-        fontWeight: rawTone == 'strong'
+        fontWeight: toneKind == TextToneVariant.strong
             ? FontWeight.w600
             : (node.mono ? FontWeight.w600 : null),
         fontSize: node.size,

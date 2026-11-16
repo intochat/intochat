@@ -2,6 +2,7 @@ using System.Globalization;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.UI;
+using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.UI;
@@ -73,7 +74,8 @@ public static class TasksViewRenderer
 
         if (approvals.FirstOrDefault(a => a.Subject == flow.FlowId && a.Kind != ApprovalKind.Other) is { } approval)
         {
-            children.Add(new ApprovalCardNode("approval", approval.PlanId, approval.Title, approval.Detail, []));
+            var visual = VisualCatalog.ForApproval(approval.Subject);
+            children.Add(new ApprovalCardNode("approval", approval.PlanId, approval.Title, approval.Detail, [], Icon: visual.IconKey, CapabilityLabel: visual.Label));
         }
 
         List<Node?> actions =
@@ -126,7 +128,8 @@ public static class TasksViewRenderer
         if (flow is { Status: FlowStatus.Waiting, WaitingStep: "install" }
             && approvals.FirstOrDefault(a => a.Kind == ApprovalKind.SynapseStaged && a.PlanId == flow.ConfirmationPlanId) is { } consent)
         {
-            yield return new ApprovalCardNode("consent", consent.PlanId, consent.Title, consent.Detail, []);
+            var visual = VisualCatalog.ForApproval(consent.Subject);
+            yield return new ApprovalCardNode("consent", consent.PlanId, consent.Title, consent.Detail, [], Icon: visual.IconKey, CapabilityLabel: visual.Label);
             yield return MutedText("Approve or deny in the inbox.");
         }
 

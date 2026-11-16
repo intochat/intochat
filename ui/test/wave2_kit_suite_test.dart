@@ -103,16 +103,33 @@ void main() {
       testWidgets(
         'BrandVisuals & IcAppIcon render providers, brands & OS apps in ${brightness.name} mode',
         (tester) async {
-          const providerAndBrandKeys = [
-            'anthropic',
-            'openai',
-            'aspire',
-            'ollama',
-            'google',
-            'qwen',
-            'openrouter',
-            'foundry',
-            'github',
+          const canonicalBrandAndAppKeys = [
+            'provider:anthropic',
+            'provider:openai',
+            'brand:aspire',
+            'provider:ollama',
+            'provider:google',
+            'provider:qwen',
+            'provider:openrouter',
+            'provider:foundry',
+            'brand:github',
+            'app:ino',
+            'app:settings',
+            'app:files',
+            'app:gallery',
+            'app:creator',
+            'app:desktop',
+            'app:workspace',
+            'app:tasks',
+            'app:calculator',
+            'app:data',
+            'app:usage',
+            'app:friends',
+            'app:markdraw',
+            'artcraft:artcraft',
+            'artcraft:photocraft',
+            'artcraft:filmcraft',
+            'app:brain',
           ];
           const appIds = [
             'ino',
@@ -135,18 +152,10 @@ void main() {
           ];
 
           final specs = <BrandVisualSpec>[
-            for (final k in providerAndBrandKeys)
-              BrandVisuals.resolveCapabilityOrAppVisual(k),
-            for (final app in appIds)
-              BrandVisuals.resolveCapabilityOrAppVisual(app),
+            for (final k in canonicalBrandAndAppKeys)
+              BrandVisuals.tryForIconKey(k, label: k)!,
           ];
-          for (final spec in specs) {
-            expect(
-              spec.key,
-              isNot('capability:custom'),
-              reason: 'Unresolved brand/app spec: ${spec.label}',
-            );
-          }
+          expect(specs, hasLength(canonicalBrandAndAppKeys.length));
 
           await pumpSurface(
             tester,
@@ -512,265 +521,277 @@ void main() {
     }
   });
 
-  group('UK-12..UK-15 Field UX, InfoBar, Tabs, EmptyState & Virtualized Collection', () {
-    testWidgets(
-      'FieldNode supports search/text clear (x) + Esc clear, and secret eye/eye-off toggle',
-      (tester) async {
-        final sentInputs = <(String, String)>[];
-        final ctx = NodeContext(
-          view: 'local/apps/settings/view',
-          send: (event) async {
-            if (event['kind'] == 'field') {
-              sentInputs.add((
-                event['name'] as String,
-                event['value'] as String,
-              ));
-            }
-            return null;
-          },
-        );
+  group(
+    'UK-12..UK-15 Field UX, InfoBar, Tabs, EmptyState & Virtualized Collection',
+    () {
+      testWidgets(
+        'FieldNode supports search/text clear (x) + Esc clear, and secret eye/eye-off toggle',
+        (tester) async {
+          final sentInputs = <(String, String)>[];
+          final ctx = NodeContext(
+            view: 'local/apps/settings/view',
+            send: (event) async {
+              if (event['kind'] == 'field') {
+                sentInputs.add((
+                  event['name'] as String,
+                  event['value'] as String,
+                ));
+              }
+              return null;
+            },
+          );
 
-        const viewNode = ColumnNode(
-          gap: 12,
-          padding: 16,
-          extents: null,
-          children: [
-            FieldNode(
-              key: 'q',
-              name: 'apps/settings/query',
-              fieldKind: FieldKind.search,
-              placeholder: 'Search settings…',
-              onSubmit: null,
-            ),
-            FieldNode(
-              key: 'api_key',
-              name: 'apps/settings/apiKey',
-              fieldKind: FieldKind.secret,
-              placeholder: 'sk-...',
-              onSubmit: null,
-            ),
-          ],
-        );
-
-        await pumpSurface(
-          tester,
-          NodeRenderer.render(viewNode, ctx),
-          brightness: Brightness.light,
-        );
-
-        // Search field: initially no clear button; typing reveals clear (x) button.
-        expect(find.byKey(const ValueKey('ui_kit_field_clear')), findsNothing);
-        final searchField = find.byType(TextField).first;
-        await tester.enterText(searchField, 'anthropic');
-        await tester.pump();
-        expect(
-          find.byKey(const ValueKey('ui_kit_field_clear')),
-          findsOneWidget,
-        );
-
-        // Clicking clear (x) empties the search field:
-        await tester.tap(find.byKey(const ValueKey('ui_kit_field_clear')));
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(tester.widget<TextField>(searchField).controller?.text, isEmpty);
-        expect(sentInputs.last.$2, isEmpty);
-
-        // Typing again and pressing Escape also clears:
-        await tester.enterText(searchField, 'ollama');
-        await tester.pump();
-        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(tester.widget<TextField>(searchField).controller?.text, isEmpty);
-
-        // Secret field: obscured by default, toggle switches obscureText on/off:
-        final secretField = find.byType(TextField).last;
-        expect(tester.widget<TextField>(secretField).obscureText, isTrue);
-        await tester.tap(
-          find.byKey(const ValueKey('ui_kit_field_secret_toggle')),
-        );
-        await tester.pump();
-        expect(tester.widget<TextField>(secretField).obscureText, isFalse);
-        await tester.tap(
-          find.byKey(const ValueKey('ui_kit_field_secret_toggle')),
-        );
-        await tester.pump();
-        expect(tester.widget<TextField>(secretField).obscureText, isTrue);
-      },
-    );
-
-    testWidgets(
-      'InfoBar places action inline, EmptyState infers app icon, and Tabs rove via arrow keys',
-      (tester) async {
-        String? lastKey;
-        final ctx = NodeContext(
-          view: 'local/apps/files/view',
-          send: (event) async {
-            lastKey = event['key'] as String?;
-            return null;
-          },
-        );
-
-        const node = ColumnNode(
-          gap: 16,
-          padding: 16,
-          extents: null,
-          children: [
-            TabsNode(
-              selectedId: 'all',
-              items: [
-                TabItem(
-                  key: 'tab_all',
-                  id: 'all',
-                  label: 'All files',
-                  emit: Emit(owner: 'v', signal: 's', args: null),
-                  icon: null,
-                ),
-                TabItem(
-                  key: 'tab_recent',
-                  id: 'recent',
-                  label: 'Recent',
-                  emit: Emit(owner: 'v', signal: 's', args: null),
-                  icon: null,
-                ),
-              ],
-            ),
-            InfoBarNode(
-              title: 'Sync paused',
-              message: 'Reconnect storage to resume.',
-              tone: 'working',
-              action: ButtonNode(
-                key: 'reconnect',
-                label: 'Reconnect',
-                emit: null,
-                intent: null,
-                enabled: true,
-                tone: 'neutral',
-                style: 'secondary',
-                icon: 'refresh-cw',
-                small: true,
+          const viewNode = ColumnNode(
+            gap: 12,
+            padding: 16,
+            extents: null,
+            children: [
+              FieldNode(
+                key: 'q',
+                name: 'apps/settings/query',
+                fieldKind: FieldKind.search,
+                placeholder: 'Search settings…',
+                onSubmit: null,
               ),
-            ),
-            EmptyStateNode(
-              title: 'No files yet',
-              body: 'Drop a document to get started.',
-              suggestions: null,
-            ),
-          ],
-        );
-
-        await pumpSurface(
-          tester,
-          SingleChildScrollView(child: NodeRenderer.render(node, ctx)),
-          brightness: Brightness.dark,
-        );
-        expect(tester.takeException(), isNull);
-
-        // EmptyState inferred 'files' instead of hardcoded 'ino':
-        final appIcon = tester.widget<IcAppIcon>(find.byType(IcAppIcon));
-        expect(appIcon.appId, 'files');
-
-        // InfoBar renders Reconnect inline inside Key('ui_info_bar'):
-        expect(
-          find.descendant(
-            of: find.byKey(const Key('ui_info_bar')),
-            matching: find.text('Reconnect'),
-          ),
-          findsOneWidget,
-        );
-        await tester.tap(find.text('Reconnect'));
-        await tester.pump();
-        expect(lastKey, 'reconnect');
-
-        // Tabs arrow key navigation: focus tab 0 and press ArrowRight -> activates tab_recent!
-        final firstTabFocus = tester
-            .widget<FocusableActionDetector>(
-              find
-                  .ancestor(
-                    of: find.byKey(const ValueKey('ui_kit_tab_0')),
-                    matching: find.byType(FocusableActionDetector),
-                  )
-                  .first,
-            )
-            .focusNode!;
-        firstTabFocus.requestFocus();
-        await tester.pump();
-        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-        await tester.pump();
-        expect(lastKey, 'tab_recent');
-      },
-    );
-
-    testWidgets(
-      'Collection virtualizes 1,500 items lazily via ListView.builder without inflating all rows',
-      (tester) async {
-        final largeCollection = CollectionNode(
-          entries: [
-            for (var i = 0; i < 1500; i++)
-              Entry(
-                id: 'item_$i',
-                title: 'Transaction #$i',
-                subtitle: 'Cleared',
-                trailing: '€${i * 10}',
+              FieldNode(
+                key: 'api_key',
+                name: 'apps/settings/apiKey',
+                fieldKind: FieldKind.secret,
+                placeholder: 'sk-...',
+                onSubmit: null,
               ),
-          ],
-        );
+            ],
+          );
 
-        await pumpSurface(
-          tester,
-          ViewHost(
-            kind: 'view',
-            name: 'local/apps/data/ledger',
-            knowsApp: (_) => false,
-            load: (_, _) async => {
-              'generation': 1,
-              'view': {
-                'title': 'Ledger',
-                'root': {
-                  'kind': 'collection',
-                  'entries': [
-                    for (var i = 0; i < 1500; i++)
-                      {
-                        'id': 'item_$i',
-                        'title': 'Transaction #$i',
-                        'subtitle': 'Cleared',
-                        'trailing': '€${i * 10}',
-                      },
-                  ],
+          await pumpSurface(
+            tester,
+            NodeRenderer.render(viewNode, ctx),
+            brightness: Brightness.light,
+          );
+
+          // Search field: initially no clear button; typing reveals clear (x) button.
+          expect(
+            find.byKey(const ValueKey('ui_kit_field_clear')),
+            findsNothing,
+          );
+          final searchField = find.byType(TextField).first;
+          await tester.enterText(searchField, 'anthropic');
+          await tester.pump();
+          expect(
+            find.byKey(const ValueKey('ui_kit_field_clear')),
+            findsOneWidget,
+          );
+
+          // Clicking clear (x) empties the search field:
+          await tester.tap(find.byKey(const ValueKey('ui_kit_field_clear')));
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(
+            tester.widget<TextField>(searchField).controller?.text,
+            isEmpty,
+          );
+          expect(sentInputs.last.$2, isEmpty);
+
+          // Typing again and pressing Escape also clears:
+          await tester.enterText(searchField, 'ollama');
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(
+            tester.widget<TextField>(searchField).controller?.text,
+            isEmpty,
+          );
+
+          // Secret field: obscured by default, toggle switches obscureText on/off:
+          final secretField = find.byType(TextField).last;
+          expect(tester.widget<TextField>(secretField).obscureText, isTrue);
+          await tester.tap(
+            find.byKey(const ValueKey('ui_kit_field_secret_toggle')),
+          );
+          await tester.pump();
+          expect(tester.widget<TextField>(secretField).obscureText, isFalse);
+          await tester.tap(
+            find.byKey(const ValueKey('ui_kit_field_secret_toggle')),
+          );
+          await tester.pump();
+          expect(tester.widget<TextField>(secretField).obscureText, isTrue);
+        },
+      );
+
+      testWidgets(
+        'InfoBar places action inline, EmptyState infers app icon, and Tabs rove via arrow keys',
+        (tester) async {
+          String? lastKey;
+          final ctx = NodeContext(
+            view: 'local/apps/files/view',
+            send: (event) async {
+              lastKey = event['key'] as String?;
+              return null;
+            },
+          );
+
+          const node = ColumnNode(
+            gap: 16,
+            padding: 16,
+            extents: null,
+            children: [
+              TabsNode(
+                selectedId: 'all',
+                items: [
+                  TabItem(
+                    key: 'tab_all',
+                    id: 'all',
+                    label: 'All files',
+                    emit: Emit(owner: 'v', signal: 's', args: null),
+                    icon: null,
+                  ),
+                  TabItem(
+                    key: 'tab_recent',
+                    id: 'recent',
+                    label: 'Recent',
+                    emit: Emit(owner: 'v', signal: 's', args: null),
+                    icon: null,
+                  ),
+                ],
+              ),
+              InfoBarNode(
+                title: 'Sync paused',
+                message: 'Reconnect storage to resume.',
+                tone: 'working',
+                action: ButtonNode(
+                  key: 'reconnect',
+                  label: 'Reconnect',
+                  emit: null,
+                  intent: null,
+                  enabled: true,
+                  tone: 'neutral',
+                  style: 'secondary',
+                  icon: 'refresh-cw',
+                  small: true,
+                ),
+              ),
+              EmptyStateNode(
+                title: 'No files yet',
+                body: 'Drop a document to get started.',
+                suggestions: null,
+              ),
+            ],
+          );
+
+          await pumpSurface(
+            tester,
+            SingleChildScrollView(child: NodeRenderer.render(node, ctx)),
+            brightness: Brightness.dark,
+          );
+          expect(tester.takeException(), isNull);
+
+          // EmptyState inferred 'files' instead of hardcoded 'ino':
+          final appIcon = tester.widget<IcAppIcon>(find.byType(IcAppIcon));
+          expect(appIcon.appId, 'files');
+
+          // InfoBar renders Reconnect inline inside Key('ui_info_bar'):
+          expect(
+            find.descendant(
+              of: find.byKey(const Key('ui_info_bar')),
+              matching: find.text('Reconnect'),
+            ),
+            findsOneWidget,
+          );
+          await tester.tap(find.text('Reconnect'));
+          await tester.pump();
+          expect(lastKey, 'reconnect');
+
+          // Tabs arrow key navigation: focus tab 0 and press ArrowRight -> activates tab_recent!
+          final firstTabFocus = tester
+              .widget<FocusableActionDetector>(
+                find
+                    .ancestor(
+                      of: find.byKey(const ValueKey('ui_kit_tab_0')),
+                      matching: find.byType(FocusableActionDetector),
+                    )
+                    .first,
+              )
+              .focusNode!;
+          firstTabFocus.requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+          await tester.pump();
+          expect(lastKey, 'tab_recent');
+        },
+      );
+
+      testWidgets(
+        'Collection virtualizes 1,500 items lazily via ListView.builder without inflating all rows',
+        (tester) async {
+          final largeCollection = CollectionNode(
+            entries: [
+              for (var i = 0; i < 1500; i++)
+                Entry(
+                  id: 'item_$i',
+                  title: 'Transaction #$i',
+                  subtitle: 'Cleared',
+                  trailing: '€${i * 10}',
+                ),
+            ],
+          );
+
+          await pumpSurface(
+            tester,
+            ViewHost(
+              kind: 'view',
+              name: 'local/apps/data/ledger',
+              knowsApp: (_) => false,
+              load: (_, _) async => {
+                'generation': 1,
+                'view': {
+                  'title': 'Ledger',
+                  'root': {
+                    'kind': 'collection',
+                    'entries': [
+                      for (var i = 0; i < 1500; i++)
+                        {
+                          'id': 'item_$i',
+                          'title': 'Transaction #$i',
+                          'subtitle': 'Cleared',
+                          'trailing': '€${i * 10}',
+                        },
+                    ],
+                  },
                 },
               },
-            },
-          ),
-          brightness: Brightness.light,
-          width: 800,
-          height: 600,
-        );
-        await tester.pump();
+            ),
+            brightness: Brightness.light,
+            width: 800,
+            height: 600,
+          );
+          await tester.pump();
 
-        expect(
-          find.byKey(const ValueKey('virtualized_collection_list')),
-          findsOneWidget,
-        );
-        expect(find.text('Transaction #0'), findsOneWidget);
-        // Item #1499 must NOT be built eagerly while at scroll offset 0!
-        expect(find.text('Transaction #1499'), findsNothing);
-        expect(largeCollection.entries.length, 1500);
+          expect(
+            find.byKey(const ValueKey('virtualized_collection_list')),
+            findsOneWidget,
+          );
+          expect(find.text('Transaction #0'), findsOneWidget);
+          // Item #1499 must NOT be built eagerly while at scroll offset 0!
+          expect(find.text('Transaction #1499'), findsNothing);
+          expect(largeCollection.entries.length, 1500);
 
-        // Scroll down lazily -> distant item builds smoothly on demand!
-        final listFinder = find.byKey(
-          const ValueKey('virtualized_collection_list'),
-        );
-        final scrollable = tester.state<ScrollableState>(
-          find.descendant(of: listFinder, matching: find.byType(Scrollable)),
-        );
-        scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
-        await tester.pump();
-        // Repeat once more after extent estimate refines:
-        scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
-        await tester.pump();
-        expect(find.text('Transaction #1499'), findsOneWidget);
-        expect(find.text('Transaction #0'), findsNothing);
-      },
-    );
-  });
+          // Scroll down lazily -> distant item builds smoothly on demand!
+          final listFinder = find.byKey(
+            const ValueKey('virtualized_collection_list'),
+          );
+          final scrollable = tester.state<ScrollableState>(
+            find.descendant(of: listFinder, matching: find.byType(Scrollable)),
+          );
+          scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+          await tester.pump();
+          // Repeat once more after extent estimate refines:
+          scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+          await tester.pump();
+          expect(find.text('Transaction #1499'), findsOneWidget);
+          expect(find.text('Transaction #0'), findsNothing);
+        },
+      );
+    },
+  );
 
   group('Kit v2 Layout Physics & WinUI-Grade Controls', () {
     testWidgets(

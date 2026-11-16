@@ -1,5 +1,6 @@
 using DigitalBrain.Flows;
 using DigitalBrain.UI;
+using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
@@ -302,7 +303,8 @@ public static class CreatorView
         if (!nodeId.StartsWith("draft:", StringComparison.Ordinal) && inspection.Alias is { Length: > 0 } unitAlias)
         {
             var slash = nodeId.IndexOf('/', StringComparison.Ordinal);
-            var unitBrain = slash > 0 ? nodeId[..slash] : "local";
+            if (slash <= 0) { return false; }
+            var unitBrain = nodeId[..slash];
             slotUri = $"{unitBrain}/units/{unitAlias}/view";
             slotKind = "unit";
             openAppId = unitAlias;
@@ -364,7 +366,7 @@ public static class CreatorView
             public sealed record PomodoroState(int Minutes = 25, bool Running = false)
             {
                 public Rule ValidDuration(int mins) =>
-                    Decision.Rule("duration_bounds", mins is < 1 or > 120, "Choose 1–120 minutes.");
+                    Decision.Rule("duration_bounds", mins, static m => m is < 1 or > 120, "Choose 1–120 minutes.");
 
                 public Decision<PomodoroState> SetDuration(int mins) =>
                     Decision.Check("set-duration", ValidDuration(mins))
@@ -517,7 +519,8 @@ public static class CreatorView
         ];
         if (Consent(flow, approvals) is { } consent)
         {
-            children.Add(new ApprovalCardNode($"consent:{flow.FlowId}", consent.PlanId, consent.Title, consent.Detail, []));
+            var visual = VisualCatalog.ForApproval(consent.Subject);
+            children.Add(new ApprovalCardNode($"consent:{flow.FlowId}", consent.PlanId, consent.Title, consent.Detail, [], Icon: visual.IconKey, CapabilityLabel: visual.Label));
             children.Add(MutedText("Approve or deny in the inbox."));
         }
 

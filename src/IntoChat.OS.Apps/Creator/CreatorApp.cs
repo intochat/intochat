@@ -75,16 +75,35 @@ public sealed class CreatorApp : Screen<CreatorState>
     private static readonly ILogger ConsoleLogger = ConsoleLoggerFactory.CreateLogger<CreatorApp>();
 
     private readonly ILogger _logger;
+    private readonly TimeProvider? _time;
 
-    public CreatorApp() : this(null) { }
+    public CreatorApp() : this(null, null) { }
 
     [ActivatorUtilitiesConstructor]
-    public CreatorApp(ILogger<CreatorApp>? logger = null)
+    public CreatorApp(ILogger<CreatorApp>? logger = null, TimeProvider? time = null)
     {
         _logger = (ILogger?)logger ?? ConsoleLogger;
+        _time = time;
     }
 
     private ILogger Log => _logger;
+
+    private DateTimeOffset NowUtc()
+    {
+        if (_time is not null) { return _time.GetUtcNow(); }
+        try { return Context.Time.GetUtcNow(); }
+        catch (InvalidOperationException) { return TimeProvider.System.GetUtcNow(); }
+    }
+
+    private string TryBrainIdValue()
+    {
+        try { return Id.Brain.Value; }
+        catch (InvalidOperationException error)
+        {
+            Log.LogDebug(error, "Creator brain id is unavailable outside neuron activation.");
+            return string.Empty;
+        }
+    }
 
     private const string FlowsKey = "flows/index";
     private const string ApprovalsKey = "approvals/index";
@@ -305,11 +324,11 @@ public sealed class CreatorApp : Screen<CreatorState>
                 : $"Shared unit {alias}";
             var brainId = State.Selected is { Kind: Selection.Node, Id: { Length: > 0 } nodeId } && nodeId.IndexOf('/', StringComparison.Ordinal) is > 0 and var slash
                 ? nodeId[..slash]
-                : "local";
+                : TryBrainIdValue();
             var post = new ProfilePostItem(
                 Id: $"post-{alias}",
                 Content: summary,
-                CreatedAt: DateTimeOffset.UtcNow,
+                CreatedAt: NowUtc(),
                 Circle: "public",
                 Title: alias,
                 TemplateAppId: alias,

@@ -1,27 +1,13 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../components/kit/ui_kit_field.dart';
+import '../theme/wire_node_values.dart';
 import 'node_context.dart';
 
-String _humanizeFieldPath(String rawName) {
-  final tail = rawName.contains('/')
-      ? rawName.substring(rawName.lastIndexOf('/') + 1)
-      : rawName;
-  if (tail.isEmpty) return '';
-  // Preserve already-capitalized human labels ("Search settings", "API Key").
-  if (tail.contains(' ') || tail[0].toUpperCase() == tail[0] && tail[0].toLowerCase() != tail[0]) {
-    return tail;
-  }
-  final spaced = tail
-      .replaceAllMapped(RegExp(r'([a-z0-9])([A-Z])'), (m) => '${m[1]} ${m[2]}')
-      .replaceAll(RegExp(r'[-_]+'), ' ')
-      .trim();
-  if (spaced.isEmpty) return tail;
-  return '${spaced[0].toUpperCase()}${spaced.substring(1)}';
-}
+String _humanizeFieldPath(String rawName) => humanizeFieldLabel(rawName);
 
 Map<String, dynamic> _fieldMeta(FieldNode node) {
   final args = node.onSubmit?.args;
@@ -165,7 +151,9 @@ class _FieldNodeViewState extends State<FieldNodeView> {
     final label = meta.containsKey('uiLabel')
         ? '${meta['uiLabel'] ?? ''}'
         : _humanizeFieldPath(node.name);
-    final helper = meta['uiHelper'] is String ? meta['uiHelper'] as String : null;
+    final helper = meta['uiHelper'] is String
+        ? meta['uiHelper'] as String
+        : null;
     final error = meta['uiError'] is String ? meta['uiError'] as String : null;
     final clearable =
         node.fieldKind == FieldKind.search ||

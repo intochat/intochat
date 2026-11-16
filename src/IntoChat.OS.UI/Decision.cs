@@ -6,15 +6,19 @@ using DigitalBrain.Rules;
 namespace IntoChat.OS.UI;
 
 /// <summary>
-/// Inline value-object domain <see cref="Rule"/> for concise aggregate invariants and command guards.
+/// Inline value-object domain <see cref="Rule"/> evaluating <paramref name="IsBroken"/> over <paramref name="Value"/>.
 /// </summary>
-public sealed record CheckRule(string Name, bool BrokenValue, string MessageText) : Rule(Name)
+public sealed record PredicateRule<TValue>(
+    string Name,
+    TValue Value,
+    Func<TValue, bool> IsBroken,
+    Func<TValue, string> FormatMessage) : Rule(Name)
 {
     /// <inheritdoc />
-    public override bool Broken => BrokenValue;
+    public override bool Broken => IsBroken(Value);
 
     /// <inheritdoc />
-    public override string Message => MessageText;
+    public override string Message => FormatMessage(Value);
 }
 
 /// <summary>
@@ -108,15 +112,47 @@ public sealed record Decision<TState> where TState : class
 /// </summary>
 public static class Decision
 {
-    /// <summary>Creates a value-object <see cref="CheckRule"/> from a predicate (<paramref name="broken"/> = true when violated).</summary>
+    /// <summary>Creates a domain-judging <see cref="PredicateRule{TValue}"/> evaluating <paramref name="broken"/> over <paramref name="value"/>.</summary>
+    public static Rule Rule<TValue>(string name, TValue value, Func<TValue, bool> broken, string message)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(broken);
+        ArgumentNullException.ThrowIfNull(message);
+        return new PredicateRule<TValue>(name, value, broken, _ => message);
+    }
+
+    /// <summary>Creates a domain-judging <see cref="PredicateRule{TValue}"/> evaluating <paramref name="broken"/> and formatting <paramref name="message"/> over <paramref name="value"/>.</summary>
+    public static Rule Rule<TValue>(string name, TValue value, Func<TValue, bool> broken, Func<TValue, string> message)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(broken);
+        ArgumentNullException.ThrowIfNull(message);
+        return new PredicateRule<TValue>(name, value, broken, message);
+    }
+
+    /// <summary>Creates a domain-judging <see cref="PredicateRule{TValue}"/> from a positive invariant (<paramref name="valid"/> = true when satisfied).</summary>
+    public static Rule Require<TValue>(string name, TValue value, Func<TValue, bool> valid, string message)
+    {
+        ArgumentNullException.ThrowIfNull(valid);
+        return Rule(name, value, v => !valid(v), message);
+    }
+
+    /// <summary>Creates a domain-judging <see cref="PredicateRule{TValue}"/> from a positive invariant with dynamic message formatting.</summary>
+    public static Rule Require<TValue>(string name, TValue value, Func<TValue, bool> valid, Func<TValue, string> message)
+    {
+        ArgumentNullException.ThrowIfNull(valid);
+        return Rule(name, value, v => !valid(v), message);
+    }
+
+    // LEGACY(Wave 3B): retained solely for Modules/Catalog/Files/FilesUi.cs until Wave 3B migrates callers and removes bool rule helpers.
     public static Rule Rule(string name, bool broken, string message)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(message);
-        return new CheckRule(name, broken, message);
+        return new PredicateRule<string>(name, message, _ => broken, static m => m);
     }
 
-    /// <summary>Creates a value-object <see cref="CheckRule"/> from a positive invariant (<paramref name="valid"/> = true when satisfied).</summary>
+    // LEGACY(Wave 3B): retained solely for Modules/Catalog/Files/FilesUi.cs until Wave 3B migrates callers and removes bool rule helpers.
     public static Rule Require(string name, bool valid, string message)
         => Rule(name, !valid, message);
 

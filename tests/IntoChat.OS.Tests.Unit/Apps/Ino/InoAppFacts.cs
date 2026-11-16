@@ -728,6 +728,46 @@ public sealed class InoAppFacts
         Assert.Contains(inoEntries, e => e.Level == LogLevel.Error && e.Exception is NotSupportedException);
     }
 
+    [Fact]
+    public async Task InoAppUsesInjectedTimeProviderAndExtractsModelSetup()
+    {
+        var fixedNow = new DateTimeOffset(2026, 11, 16, 12, 30, 0, TimeSpan.Zero);
+        var fixedClock = new FixedTimeProvider(fixedNow);
+
+        var setupType = typeof(InoApp).Assembly.GetType("IntoChat.OS.Apps.Ino.InoModelSetup", throwOnError: false);
+        Assert.NotNull(setupType);
+        Assert.IsType<InoApp>(new InoApp(logger: null, time: fixedClock));
+
+        var services = new ServiceCollection();
+        services.AddSingleton<ISecretRedactor>(new NoSecrets());
+        services.AddSingleton<TimeProvider>(fixedClock);
+        var provider = services.BuildServiceProvider();
+
+        BackgroundAgent.Reset();
+        BackgroundChat.Reset();
+        try
+        {
+            await using var os = TestOS.Local(o => o.Services = provider);
+            os.Register(typeof(AppsModule).Assembly);
+            os.Register<BackgroundAgent>();
+            os.Register<BackgroundChat>();
+            var ino = await os.Install<InoApp>();
+
+            await ino.Request("send", new InoSend("check clock"));
+            Assert.Equal(fixedNow, ino.App.State.Pending?.At);
+        }
+        finally
+        {
+            BackgroundAgent.Reset();
+            BackgroundChat.Reset();
+        }
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
     private sealed class RecordingLoggerProvider : ILoggerProvider
     {
         public List<(string Category, LogLevel Level, Exception? Exception, string Message)> Entries { get; } = [];

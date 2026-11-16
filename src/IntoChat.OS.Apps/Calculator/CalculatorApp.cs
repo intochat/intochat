@@ -42,8 +42,8 @@ public sealed record CalculatorAppState(string Expression = "", string LastSum =
     [Invariant("LastSum is never empty."), JsonIgnore]
     public bool LastSumNonEmpty => !string.IsNullOrWhiteSpace(LastSum);
 
-    public Rule HasClearableDisplay() => Decision.Rule("display_already_empty", Expression.Length == 0, "Display is already clear.");
-    public Rule NonEmptyKey(string? key) => Decision.Rule("empty_key", string.IsNullOrWhiteSpace(key), "Keypad key is required.");
+    public Rule HasClearableDisplay() => Decision.Rule("display_already_empty", Expression, static e => e.Length == 0, "Display is already clear.");
+    public Rule NonEmptyKey(string? key) => Decision.Rule("empty_key", key, static k => string.IsNullOrWhiteSpace(k), "Keypad key is required.");
 
     public Decision<CalculatorAppState> PressKey([Sample("7", "+", "3", "=", "C", "0")] string key)
     {
@@ -61,7 +61,7 @@ public sealed record CalculatorAppState(string Expression = "", string LastSum =
 
     public Decision<CalculatorAppState> AddSum([Sample("2+3", "42")] string expression)
     {
-        if (Decision.Check("add-sum", Decision.Rule("empty_sum", string.IsNullOrWhiteSpace(expression), "Sum expression is required.")) is { } refusal)
+        if (Decision.Check("add-sum", Decision.Rule("empty_sum", expression, static e => string.IsNullOrWhiteSpace(e), "Sum expression is required.")) is { } refusal)
         {
             return refusal;
         }

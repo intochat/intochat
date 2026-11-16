@@ -139,7 +139,7 @@ public sealed record BoundCommand(
             return emit;
         }
 
-        var baseEmit = emit ?? new Emit(owner, UiCommand.SignalAlias);
+        var baseEmit = CommandBinding.EnsureEmit(emit, owner);
         var map = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
         if (baseEmit.Args is { ValueKind: JsonValueKind.Object } existing)
         {
@@ -189,6 +189,9 @@ public static class CommandBinding
     private static readonly AsyncLocal<string?> CurrentOwner = new();
 
     internal static string ActiveOwner => CurrentOwner.Value ?? PendingOwner;
+
+    internal static Emit EnsureEmit(Emit? emit, string owner)
+        => emit is not null ? emit : new Emit(owner, UiCommand.SignalAlias);
 
     /// <summary>Establishes the active screen owner alias for nested <see cref="Kit"/> builders on the current execution context.</summary>
     public static Scope PushOwner(string owner)

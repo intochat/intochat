@@ -8,61 +8,62 @@ import 'package:intochat_os_flutter_shell/desktop/window_frame.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 void main() {
-  group('BrandVisuals allowlisted catalog & model resolution', () {
-    test('resolves Anthropic, OpenAI, Google, Ollama, Qwen, xAI, OpenRouter, and Foundry models', () {
-      final sonnet = BrandVisuals.resolveModelVisual('claude-sonnet-4-6');
+  group('BrandVisuals allowlisted catalog & C#-driven node binding', () {
+    test('resolves all 8 provider SVG assets, accent colors from wire hex, and labels from C# nodes', () {
+      final sonnet = BrandVisuals.fromNode(
+        label: 'Sonnet 4.6',
+        iconKey: 'provider:anthropic',
+        accentHex: '#D97757',
+      );
       expect(sonnet.label, 'Sonnet 4.6');
       expect(sonnet.svgAsset, 'assets/brands/providers/anthropic.svg');
       expect(sonnet.accent, const Color(0xFFD97757));
 
-      expect(BrandVisuals.resolveModelVisual('sonnet-4.6').label, 'Sonnet 4.6');
-      expect(BrandVisuals.resolveModelVisual('sonnet46').label, 'Sonnet 4.6');
-      expect(
-        BrandVisuals.resolveModelVisual('claude-opus-4-6').label,
-        'Opus 4.6',
+      final gpt = BrandVisuals.fromNode(
+        label: 'GPT-5.4',
+        iconKey: 'provider:openai',
       );
-      expect(
-        BrandVisuals.resolveModelVisual('claude-sonnet-5').label,
-        'Sonnet 5',
-      );
-      expect(
-        BrandVisuals.resolveModelVisual('claude-haiku-4-5').label,
-        'Haiku 4.5',
-      );
-
-      final gpt = BrandVisuals.resolveModelVisual('gpt-5.4');
       expect(gpt.label, 'GPT-5.4');
       expect(gpt.svgAsset, 'assets/brands/providers/openai.svg');
+      expect(gpt.monochromeSvg, isTrue);
 
-      final gemini = BrandVisuals.resolveModelVisual('gemini-3.6-pro');
+      final gemini = BrandVisuals.fromNode(
+        label: 'Gemini 3.6 Pro',
+        iconKey: 'provider:google',
+      );
       expect(gemini.label, 'Gemini 3.6 Pro');
       expect(gemini.svgAsset, 'assets/brands/providers/google.svg');
 
-      final qwenOllama = BrandVisuals.resolveModelVisual('qwen2.5-coder:14b');
-      expect(qwenOllama.label, 'Qwen 2.5 Coder 14B');
-      expect(qwenOllama.svgAsset, 'assets/brands/providers/ollama.svg');
-
-      final qwen3 = BrandVisuals.resolveModelVisual('qwen3:14b');
-      expect(qwen3.label, 'Qwen 3 14B');
-      expect(qwen3.svgAsset, 'assets/brands/providers/ollama.svg');
-
-      final qwenCloud = BrandVisuals.resolveModelVisual(
-        'qwen-max',
-        providerIcon: 'provider:qwen',
-      );
-      expect(qwenCloud.svgAsset, 'assets/brands/providers/qwen.svg');
+      for (final providerKey in const [
+        'provider:ollama',
+        'provider:qwen',
+        'provider:xai',
+        'provider:openrouter',
+        'provider:foundry',
+      ]) {
+        final spec = BrandVisuals.tryForIconKey(
+          providerKey,
+          label: providerKey,
+        );
+        expect(spec, isNotNull, reason: 'Expected asset for $providerKey');
+        expect(spec!.svgAsset, startsWith('assets/brands/providers/'));
+      }
     });
 
     test('resolves Aspire PNG, GitHub SVG, all 17 ArtCraft PNGs, and never loads arbitrary external URLs', () {
-      final aspire = BrandVisuals.resolveCapabilityOrAppVisual(
-        'IAspire',
+      final aspire = BrandVisuals.fromNode(
+        label: 'Aspire',
         iconKey: 'brand:aspire',
+        accentHex: '#512BD4',
       );
       expect(aspire.label, 'Aspire');
       expect(aspire.pngAsset, 'assets/brands/aspire.png');
       expect(aspire.accent, const Color(0xFF512BD4));
 
-      final github = BrandVisuals.resolveCapabilityOrAppVisual('IGitHub');
+      final github = BrandVisuals.fromNode(
+        label: 'GitHub',
+        iconKey: 'brand:github',
+      );
       expect(github.label, 'GitHub');
       expect(github.svgAsset, 'assets/brands/github.svg');
 
@@ -87,12 +88,13 @@ void main() {
       ];
       expect(studioIds, hasLength(17));
       for (final id in studioIds) {
-        final spec = BrandVisuals.resolveCapabilityOrAppVisual('artcraft:$id');
-        expect(spec.pngAsset, 'assets/brands/artcraft/$id.png');
+        final spec = BrandVisuals.tryForIconKey('artcraft:$id', label: id);
+        expect(spec, isNotNull);
+        expect(spec!.pngAsset, 'assets/brands/artcraft/$id.png');
       }
 
-      final untrusted = BrandVisuals.resolveCapabilityOrAppVisual(
-        'https://evil.example/logo.png',
+      final untrusted = BrandVisuals.fromNode(
+        label: 'External',
         iconKey: 'https://evil.example/logo.svg',
       );
       expect(untrusted.pngAsset, isNull);
@@ -101,7 +103,7 @@ void main() {
   });
 
   testWidgets(
-    'ConversationView renders Sonnet 4.6 with Anthropic icon, IAspire ActivityNode with aspire.png & label Aspire, and ApprovalCard with GitHub icon',
+    'ConversationView renders Sonnet 4.6 with Anthropic icon, Aspire ActivityNode with aspire.png & label Aspire, and ApprovalCard with GitHub icon',
     (tester) async {
       final root = <String, dynamic>{
         'kind': 'conversation',
@@ -127,7 +129,7 @@ void main() {
             'activities': [
               {
                 'id': 'act-aspire',
-                'title': 'IAspire',
+                'title': 'Aspire',
                 'status': 'done',
                 'detail': 'Resources',
                 'icon': 'brand:aspire',

@@ -153,9 +153,11 @@ public sealed class DesktopApp : Screen<DesktopAppState>
 
     public IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> EffectiveCatalog()
     {
-        var brain = CurrentBrainOrLocal();
+        var brain = TryCurrentBrain();
         var items = Catalog
-            .Select(entry => entry with { Uri = entry.Uri.Replace("neuron://local/", $"neuron://{brain}/", StringComparison.Ordinal) })
+            .Select(entry => brain is { Length: > 0 } b
+                ? entry with { Uri = entry.Uri.Replace("neuron://local/", $"neuron://{b}/", StringComparison.Ordinal) }
+                : entry)
             .ToList();
         var knownIds = items.Select(i => i.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -165,23 +167,26 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             {
                 continue;
             }
-            items.Add((unitAlias, FormatAppTitle(unitAlias), $"neuron://{brain}/units/{unitAlias}", "zap", "Micro-App", "synapse-unit"));
+            var unitUri = brain is { Length: > 0 } b
+                ? $"neuron://{b}/units/{unitAlias}"
+                : $"neuron:///units/{unitAlias}";
+            items.Add((unitAlias, FormatAppTitle(unitAlias), unitUri, "zap", "Micro-App", "synapse-unit"));
         }
 
         return items;
     }
 
-    private string CurrentBrainOrLocal()
+    private string? TryCurrentBrain()
     {
         try
         {
             var val = Id.Brain.Value;
-            return string.IsNullOrEmpty(val) ? "local" : val;
+            return string.IsNullOrEmpty(val) ? null : val;
         }
         catch (InvalidOperationException ex)
         {
-            Log.LogSwallowed(ex, "Id.Brain is unassigned in standalone tests; defaulting to local.");
-            return "local";
+            Log.LogSwallowed(ex, "Id.Brain is unassigned in standalone tests; keeping unattached state.");
+            return null;
         }
     }
 
@@ -334,7 +339,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 }
                 catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "The app was not there to receive its open view."); }
             }
-            var brain = CurrentBrainOrLocal();
+            var brain = TryCurrentBrain();
             await ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.OpenWorkspaceApp(s, app, brain: brain));
         }
         else
@@ -366,8 +371,8 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         if (!decision.IsAccepted) { return; }
 
         await Show(decision.Next);
+        if (TryCurrentBrain() is not { Length: > 0 } brain) { return; }
         var isPin = request.Pinned;
-        var brain = CurrentBrainOrLocal();
         await ApplyDesktopWorkspaceChangeAsync(s =>
         {
             if (s.Pins.Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase)) == isPin) { return (null, []); }
@@ -402,7 +407,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.App)) { return Task.CompletedTask; }
-        var brain = CurrentBrainOrLocal();
+        var brain = TryCurrentBrain();
         return ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.CloseWorkspaceApp(s, request.App, brain));
     }
 
@@ -431,7 +436,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     public Task NewTab(DesktopNewTab request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var brain = CurrentBrainOrLocal();
+        var brain = TryCurrentBrain();
         return ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.OpenWorkspaceApp(s, "ino", request.WindowId, asNewTab: true, brain: brain));
     }
 
@@ -440,7 +445,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.WindowId)) { return Task.CompletedTask; }
-        var brain = CurrentBrainOrLocal();
+        var brain = TryCurrentBrain();
         return ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.ToggleWorkspaceFavourite(s, request.WindowId, brain));
     }
 
@@ -464,7 +469,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
 
     protected override View Render(DesktopAppState state)
     {
-        var brain = CurrentBrainOrLocal();
+        var brain = TryCurrentBrain();
         var activeWindows = (state.Windows ?? []).Where(w => w.Tabs is { Length: > 0 }).ToArray();
 
         Node BuildWindowFrame(WorkspaceWindow window)
@@ -472,7 +477,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             var winId = window.Id;
             var activeIndex = Math.Max(0, Array.FindIndex(window.Tabs, t => t.Id == window.ActiveTabId));
             var activeTab = window.Tabs[activeIndex];
-            var appId = IApp.NameOf(brain, activeTab.App) ?? activeTab.Id;
+            var appId = brain is { Length: > 0 } b ? IApp.NameOf(b, activeTab.App) ?? activeTab.Id : activeTab.Id;
             var title = char.ToUpperInvariant(appId[0]) + appId[1..];
             var isPinned = (state.Pins ?? []).Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase));
             var isFav = (state.Favourites ?? []).Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));
@@ -499,7 +504,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             return VStack(0, [
                 new Row(chromeButtons) { Gap = 4, Extents = [0, .. chromeButtons.Skip(1).Select(_ => 32.0)] },
                 Tabs($"{winId}/{activeIndex}", tabItems),
-                Slot($"{brain}/apps/desktop/window/{winId}", "viewport"),
+                Slot(brain is { Length: > 0 } ? $"{brain}/apps/desktop/window/{winId}" : $"apps/desktop/window/{winId}", "viewport"),
             ]).Extents(40, 38, 0);
         }
 
@@ -686,7 +691,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
 
     private async Task ClearViewportsAsync(IReadOnlyList<string> closedWindowIds)
     {
-        var brain = CurrentBrainOrLocal();
+        if (TryCurrentBrain() is not { Length: > 0 } brain) { return; }
         foreach (var winId in closedWindowIds)
         {
             try

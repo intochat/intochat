@@ -24,7 +24,7 @@ public sealed record TasksState(string View, FlowQuery Query, string? Selected)
     [Invariant]
     public bool ValidViewMode => View is "board" or "list" or "timeline";
 
-    public Rule EmptyTitle => Decision.Rule("empty_title", string.IsNullOrWhiteSpace(Draft.Title), "Enter a task title.");
+    public Rule EmptyTitle => Decision.Rule("empty_title", Draft, static d => string.IsNullOrWhiteSpace(d.Title), "Enter a task title.");
 
     public TasksState SwitchView([Sample("board", "list", "timeline")] string? view)
     {

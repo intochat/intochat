@@ -748,7 +748,7 @@ public sealed class TabBuilder
     public TabItem ToTabItem()
     {
         var key = _explicitKey ?? _derivedKey ?? $"tab:{_id}";
-        var emit = _emit ?? new Emit(CommandBinding.ActiveOwner, UiCommand.SignalAlias);
+        var emit = CommandBinding.EnsureEmit(_emit, CommandBinding.ActiveOwner);
         return new TabItem(key, _id, _label, emit, _icon);
     }
 
