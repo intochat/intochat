@@ -45,7 +45,6 @@ public sealed class HelloWorldInteractiveAppFacts
             services.AddJournalPayloads(typeof(DigitalBrain.Signals.Activated).Assembly);
             services.AddJournalPayloads(typeof(FlowStarted).Assembly);
             services.AddSingleton<ICapabilityConnections>(new SynapseStudioFacts.EmptyCapabilityConnections());
-            services.TryAddSingleton<ICallFilter, CallFilter>();
             services.TryAddSingleton(TimeProvider.System);
             services.TryAddSingleton(IntoChat.OS.Connections.Contracts.NeuronTypeSearch.Create);
 

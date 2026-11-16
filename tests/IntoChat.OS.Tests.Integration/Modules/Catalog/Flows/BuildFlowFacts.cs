@@ -145,7 +145,6 @@ public sealed class BuildFlowFacts
             services.AddJournalPayloads(typeof(TestFlow).Assembly);
             services.AddSingleton<ICapabilityConnections>(connections);
             services.AddSingleton<IConnectionHosts>(connections);
-            services.TryAddSingleton<ICallFilter, CallFilter>();
             services.TryAddSingleton(TimeProvider.System);
             services.AddSingleton<IDrafter>(drafter);
             services.TryAddSingleton(IntoChat.OS.Connections.Contracts.NeuronTypeSearch.Create);

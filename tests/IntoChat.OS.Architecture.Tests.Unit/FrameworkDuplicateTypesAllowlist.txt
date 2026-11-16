@@ -54,7 +54,6 @@ SecretCipher
 SecretRecord
 SecretRef
 SecretStatus
-ShareableAttribute
 SlotAttribute
 SlotNeed
 TaskBoxing

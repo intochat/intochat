@@ -18,7 +18,7 @@ public static class FriendLinksDefaults
 
 // A brain's friend links. A friend is a link both people confirmed: one makes a code, the other redeems it, and each
 // brain records the other's account. Nothing is shared with a friend who is not confirmed.
-[DigitalBrain.Access.Shareable, NeuronAlias(FriendLinksDefaults.TypeName), DefaultNeuronType(FriendLinksDefaults.TypeName)]
+[Shareable, NeuronAlias(FriendLinksDefaults.TypeName), DefaultNeuronType(FriendLinksDefaults.TypeName)]
 public interface IFriendLinks
 {
     // The brain's owner, acting as a person.

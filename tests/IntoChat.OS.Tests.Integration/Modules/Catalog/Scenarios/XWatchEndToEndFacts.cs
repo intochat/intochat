@@ -121,7 +121,6 @@ public sealed class XWatchEndToEndFacts
             services.AddJournalPayloads(typeof(TestFlow).Assembly);
             services.AddSingleton<ICapabilityConnections>(connection);
             services.AddSingleton<IConnectionHosts>(connection);
-            services.TryAddSingleton<ICallFilter, CallFilter>();
             services.TryAddSingleton(TimeProvider.System);
             services.AddSingleton<IDrafter>(new ScriptedDrafter());
             services.TryAddSingleton(IntoChat.OS.Connections.Contracts.NeuronTypeSearch.Create);

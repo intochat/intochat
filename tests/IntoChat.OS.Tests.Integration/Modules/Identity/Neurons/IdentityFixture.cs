@@ -43,6 +43,5 @@ public sealed class IdentityFixture : BothRuntimesFixture
         services.TryAddSingleton<AuthorityMirror>();
         services.TryAddSingleton<AuthorityNeurons>();
         services.TryAddSingleton<IIdentityClient, LocalIdentityClient>();
-        services.TryAddSingleton<ICallFilter, CallFilter>();
     }
 }

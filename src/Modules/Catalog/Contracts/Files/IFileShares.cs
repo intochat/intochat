@@ -30,7 +30,7 @@ public static class FileSharesDefaults
 
 // The door of a brain's shared files: the one contract a person of another brain can reach. It holds the list of shares
 // and decides every request from the kernel-stamped caller and that list, with no cache.
-[DigitalBrain.Access.Shareable, NeuronAlias(FileSharesDefaults.TypeName), DefaultNeuronType(FileSharesDefaults.TypeName)]
+[Shareable, NeuronAlias(FileSharesDefaults.TypeName), DefaultNeuronType(FileSharesDefaults.TypeName)]
 public interface IFileShares
 {
     // The brain's owner, acting as a person. An app, an agent or a unit is refused.

@@ -62,7 +62,6 @@ public sealed class FriendsForkConsentFacts
             services.AddJournalPayloads(typeof(IntoChat.OS.Modules.Flutter.Views.IView).Assembly);
             services.AddJournalPayloads(typeof(DigitalBrain.Signals.Activated).Assembly);
             services.TryAddSingleton<ICapabilityConnections, EmptyCapabilityConnections>();
-            services.TryAddSingleton<ICallFilter, CallFilter>();
             services.TryAddSingleton(TimeProvider.System);
         }
     }

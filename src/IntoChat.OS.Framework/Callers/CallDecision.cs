@@ -16,9 +16,3 @@ public sealed record CallDecision
     public static CallDecision Deny(CallDenial denial, string explanation) =>
         new() { Allowed = false, Denial = denial, Explanation = explanation };
 }
-
-// The one enforcement point: grants (P2), then allowances and limits (P3), then the broker gateway (P4).
-public interface ICallFilter
-{
-    ValueTask<CallDecision> AuthorizeAsync(CallRequest request, CancellationToken cancellationToken = default);
-}
