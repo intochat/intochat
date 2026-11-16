@@ -47,7 +47,8 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
             {
                 using var kernel = InProcessCallerScope.EnterKernel(brain);
                 await EnsureDefaultLocalRootsAsync(services, brain);
-                var key = IApp.Key(brain, "files");
+                var filesApp = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), "files");
+                var key = filesApp.Key;
                 var app = SiloNeurons.Get<IApp>(services, key);
                 var snapshot = await app.Read();
                 if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
@@ -64,7 +65,7 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
                     }
                     snapshot = await app.Read();
                 }
-                var workspace = SiloNeurons.Get<IFilesWorkspace>(services, key + "/workspace");
+                var workspace = SiloNeurons.Get<IFilesWorkspace>(services, filesApp.ChildKey("workspace"));
                 await workspace.Open(CancellationToken.None);
                 snapshot = await app.Read();
                 using (InProcessCallerScope.EnterApp(brain, key))
@@ -110,9 +111,10 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
         {
             using var kernel = InProcessCallerScope.EnterKernel(brain);
             await EnsureDefaultLocalRootsAsync(services, brain);
-            var key = IApp.Key(brain, "files");
+            var filesApp = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), "files");
+            var key = filesApp.Key;
             var app = SiloNeurons.Get<IApp>(services, key);
-            var workspace = SiloNeurons.Get<IFilesWorkspace>(services, key + "/workspace");
+            var workspace = SiloNeurons.Get<IFilesWorkspace>(services, filesApp.ChildKey("workspace"));
             if (request.Operation == "open")
             {
                 await workspace.Open(cancellationToken);

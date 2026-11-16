@@ -98,6 +98,7 @@ public sealed class ProductHostFixture : IAsyncLifetime
                 services.AddNeuronProxies();
                 services.AddSingleton<IPolicyModel>(_policyModel);
                 services.TryAddSingleton<PolicyWriter>();
+                services.TryAddSingleton<IMemoryEmbedder>(new HybridMemoryEmbedder());
             });
 
         _host = await factory.Start(

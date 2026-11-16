@@ -33,6 +33,7 @@ public sealed class PresenceProofValidator : IPresenceProof
     public const string HeaderName = "X-IntoChat-Presence";
     public const string LegacyHeaderName = "X-Presence-Token";
     public const string CookieName = "IntoChatPresence";
+    internal static readonly RuntimeOptions DefaultRuntimeOptions = new() { HomeKey = "IntoChatOS:Home", DefaultHomeDirectoryName = ".intochat" };
     public const string ExchangePath = "/auth/local-presence";
     public const string ConfigurationKey = "IntoChatOS:Authority:PresenceToken";
     public const string TokenHashConfigurationKey = "IntoChatOS:Security:PresenceTokenHash";
@@ -361,7 +362,7 @@ public sealed class PresenceProofValidator : IPresenceProof
                 return (explicitFile, true);
             }
 
-            var options = runtimeOptions ?? new RuntimeOptions { HomeKey = "IntoChatOS:Home", DefaultHomeDirectoryName = ".intochat" };
+            var options = runtimeOptions ?? DefaultRuntimeOptions;
             var homeRoot = configuration[options.HomeKey];
             if (!string.IsNullOrWhiteSpace(homeRoot) && homeRoot.IndexOfAny(invalidChars) < 0)
             {

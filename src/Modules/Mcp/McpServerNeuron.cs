@@ -45,10 +45,10 @@ internal sealed class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpServerSto
         try { tools = await Session(endpoint, async (client, token) => Describe(await client.ListToolsAsync(cancellationToken: token)), ct); }
         catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            await Save(new McpServerState(spec.Title, spec.Url, false, [], error.Message, DateTimeOffset.UtcNow));
+            await Save(new McpServerState(spec.Title, spec.Url, false, [], error.Message, Context.Time.GetUtcNow()));
             throw new InvalidOperationException($"MCP server {spec.Url} is unreachable: {error.Message}", error);
         }
-        var state = new McpServerState(spec.Title, spec.Url, true, tools, null, DateTimeOffset.UtcNow);
+        var state = new McpServerState(spec.Title, spec.Url, true, tools, null, Context.Time.GetUtcNow());
         await Save(state);
         return state;
     }

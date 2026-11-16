@@ -1,9 +1,11 @@
+using DigitalBrain;
 using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Primitives;
 using IntoChat.OS.Runtime;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -14,11 +16,12 @@ internal static class InstalledApps
 {
     public static async Task<IReadOnlyList<(string Name, AppSnapshot Snapshot)>> Read(INeuronProxies brain, IBrainObserver kernel, string scope, CancellationToken ct)
     {
+        var brainId = new BrainId(scope);
         List<string> names = [];
-        await foreach (var instance in kernel.Instances<IApp>(ct)) { if (IApp.NameOf(scope, instance.Key) is { } app) { names.Add(app); } }
+        await foreach (var instance in kernel.Instances<IApp>(ct)) { if (IntoChat.OS.Primitives.AppRef.TryParse(brainId, instance.Key, out var app)) { names.Add(app.Name); } }
         names.Sort(StringComparer.Ordinal);
         var snapshots = new List<(string, AppSnapshot)>(names.Count);
-        foreach (var name in names) { snapshots.Add((name, await brain.Get<IApp>(IApp.Key(scope, name)).Read().WaitAsync(ct))); }
+        foreach (var name in names) { snapshots.Add((name, await brain.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(brainId, name).Key).Read().WaitAsync(ct))); }
         return snapshots;
     }
 

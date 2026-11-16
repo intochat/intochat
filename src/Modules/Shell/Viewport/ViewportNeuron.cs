@@ -40,14 +40,13 @@ internal sealed class ViewportNeuron
     {
         if (app.StartsWith(appPrefix, StringComparison.Ordinal))
         {
-            var slug = app[appPrefix.Length..];
-            return slug.Length > 0 && !slug.Contains('/') && slug is not ("." or "..");
+            return IntoChat.OS.Primitives.AppRef.TryParse(new BrainId(brain), app, out _);
         }
-        var unitPrefix = brain + "/units/";
-        if (app.StartsWith(unitPrefix, StringComparison.Ordinal))
+        if (!BrainId.IsValid(brain)) { return false; }
+        var brainId = new BrainId(brain);
+        if (app.StartsWith(brain + "/units/", StringComparison.Ordinal))
         {
-            var slug = app[unitPrefix.Length..];
-            return slug.Length > 0 && !slug.Contains('/') && slug is not ("." or "..");
+            return IntoChat.OS.Primitives.UnitAlias.TryFromAddress(brainId, app, out _);
         }
         return AppUiEndpoints.UnitAlias(brain, app) is { } alias
             && alias is not ("." or ".." or "units" or "profile" or "posts" or "main" or "confirmations");

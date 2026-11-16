@@ -76,7 +76,7 @@ public sealed class GrantsNeuron(IEdgeGrantsCache? edgeCache = null) : Neuron<Gr
     public async Task<Grant[]> List()
     {
         var state = await Normalized();
-        var now = DateTimeOffset.UtcNow;
+        var now = Context.Time.GetUtcNow();
         var active = state.Grants
             .Where(g => !g.Revoked && (g.Expires is null || g.Expires.Value > now))
             .ToArray();

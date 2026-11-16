@@ -30,9 +30,10 @@ public sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
 
     private readonly IMemoryEmbedder _embedder;
 
-    public MemoryNeuron(IMemoryEmbedder? embedder = null)
+    public MemoryNeuron(IMemoryEmbedder embedder)
     {
-        _embedder = embedder ?? new HybridMemoryEmbedder();
+        ArgumentNullException.ThrowIfNull(embedder);
+        _embedder = embedder;
     }
 
     public Task<MemorySnapshot> Read()

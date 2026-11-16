@@ -87,4 +87,14 @@ public sealed class EdgeGrantsCacheFacts
         var src = File.ReadAllText(Path.Combine(frameworkDir, "Authority", "Identity", "Grants", "EdgeGrantsCache.cs"));
         Assert.DoesNotContain("GetAwaiter().GetResult()", src, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void TryExtractBrainReturnsFalseWhenTargetHasNoBrainPrefix()
+    {
+        Assert.False(EdgeGrantsCache.TryExtractBrain("standalone-key", out _));
+        Assert.True(EdgeGrantsCache.TryExtractBrain("owner/apps/notes", out var appBrain));
+        Assert.Equal(new DigitalBrain.BrainId("owner"), appBrain);
+        Assert.True(EdgeGrantsCache.TryExtractBrain("postgres/owner/connection/postgres/main", out var neuronBrain));
+        Assert.Equal(new DigitalBrain.BrainId("owner"), neuronBrain);
+    }
 }

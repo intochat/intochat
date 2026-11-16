@@ -538,7 +538,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     private async Task<T> WithCallerAsync<T>(Func<ICapabilityBroker?, Task<T>> action)
     {
         var resolvedBroker = _broker ?? _services?.GetService<ICapabilityBroker>();
-        var filesAppKey = IApp.Key(BrainId, "files");
+        var filesAppKey = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(BrainId), "files").Key;
         var effectiveBroker = resolvedBroker is CapabilityBroker cb ? cb.ForApp(filesAppKey) : resolvedBroker;
 
         using var scope = InProcessCallerScope.Enter();

@@ -7,7 +7,7 @@ namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
 public sealed class InoToolNeuronFacts
 {
-    private static readonly BrainId Brain = new("local");
+    private static readonly BrainId Brain = new("owner");
 
     private static TestOS NewOs(IServiceProvider? services = null)
     {
@@ -32,7 +32,7 @@ public sealed class InoToolNeuronFacts
         var result = await Settings(os).Navigate("models", "local-server");
         Assert.True(result.Card is not null, result.Text);
         Assert.Equal("settings", result.Card.Kind);
-        Assert.Equal("neuron://local/apps/settings", result.Card.SourceNeuronUri);
+        Assert.Equal("neuron://owner/apps/settings", result.Card.SourceNeuronUri);
         Assert.Equal("Settings · models / local-server", result.Card.Title);
     }
 
@@ -160,7 +160,7 @@ public sealed class InoToolNeuronFacts
         Assert.NotNull(result.Card);
         Assert.Equal("settings", result.Card!.Kind);
         Assert.Equal("setup-model", result.Card.Id);
-        Assert.Equal("neuron://local/apps/settings", result.Card.SourceNeuronUri);
+        Assert.Equal("neuron://owner/apps/settings", result.Card.SourceNeuronUri);
     }
 
     [Fact]

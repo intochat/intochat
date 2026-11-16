@@ -267,11 +267,10 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         var clean = StripNeuronPrefix(targetOrConnectionKey);
         var slash = clean.IndexOf('/', StringComparison.Ordinal);
         var canonicalKey = slash >= 0 && ConnectionKeys.Is(clean[(slash + 1)..]) ? clean[(slash + 1)..] : clean;
-        var ownerBrain = ExtractBrain(canonicalKey);
-        if (string.Equals(ownerBrain, "local", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(brain) && !string.Equals(brain, "local", StringComparison.OrdinalIgnoreCase))
-        {
-            ownerBrain = brain;
-        }
+        var ownerBrain = TryExtractBrain(canonicalKey, out var extracted)
+            ? extracted.Value
+            : !string.IsNullOrWhiteSpace(brain) ? brain : string.Empty;
+        if (string.IsNullOrEmpty(ownerBrain)) { return false; }
 
         var targets = new List<string> { canonicalKey };
         if (!string.Equals(canonicalKey, targetOrConnectionKey, StringComparison.Ordinal))
@@ -298,18 +297,28 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     public async Task<bool> IsConnectionBoundAsync(CapabilityCaller caller, string? targetOrConnectionKey)
     {
         if (caller is null || string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
-        var targetBrain = ExtractBrain(targetOrConnectionKey);
-        if (await IsConnectionBoundAsync(targetBrain, caller, targetOrConnectionKey)) { return true; }
-        return !string.IsNullOrWhiteSpace(caller.BrainId) && !string.Equals(caller.BrainId, targetBrain, StringComparison.OrdinalIgnoreCase)
+        if (TryExtractBrain(targetOrConnectionKey, out var targetBrain))
+        {
+            if (await IsConnectionBoundAsync(targetBrain.Value, caller, targetOrConnectionKey)) { return true; }
+            return !string.IsNullOrWhiteSpace(caller.BrainId) && !string.Equals(caller.BrainId, targetBrain.Value, StringComparison.OrdinalIgnoreCase)
+                && await IsConnectionBoundAsync(caller.BrainId, caller, targetOrConnectionKey);
+        }
+
+        return !string.IsNullOrWhiteSpace(caller.BrainId)
             && await IsConnectionBoundAsync(caller.BrainId, caller, targetOrConnectionKey);
     }
 
     public bool IsConnectionBound(CapabilityCaller caller, string? targetOrConnectionKey)
     {
         if (caller is null || string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
-        var targetBrain = ExtractBrain(targetOrConnectionKey);
-        if (IsConnectionBoundInMemory(targetBrain, caller, targetOrConnectionKey)) { return true; }
-        return !string.IsNullOrWhiteSpace(caller.BrainId) && !string.Equals(caller.BrainId, targetBrain, StringComparison.OrdinalIgnoreCase)
+        if (TryExtractBrain(targetOrConnectionKey, out var targetBrain))
+        {
+            if (IsConnectionBoundInMemory(targetBrain.Value, caller, targetOrConnectionKey)) { return true; }
+            return !string.IsNullOrWhiteSpace(caller.BrainId) && !string.Equals(caller.BrainId, targetBrain.Value, StringComparison.OrdinalIgnoreCase)
+                && IsConnectionBoundInMemory(caller.BrainId, caller, targetOrConnectionKey);
+        }
+
+        return !string.IsNullOrWhiteSpace(caller.BrainId)
             && IsConnectionBoundInMemory(caller.BrainId, caller, targetOrConnectionKey);
     }
 
@@ -320,11 +329,10 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         var clean = StripNeuronPrefix(targetOrConnectionKey);
         var slash = clean.IndexOf('/', StringComparison.Ordinal);
         var canonicalKey = slash >= 0 && ConnectionKeys.Is(clean[(slash + 1)..]) ? clean[(slash + 1)..] : clean;
-        var ownerBrain = ExtractBrain(canonicalKey);
-        if (string.Equals(ownerBrain, "local", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(brain) && !string.Equals(brain, "local", StringComparison.OrdinalIgnoreCase))
-        {
-            ownerBrain = brain;
-        }
+        var ownerBrain = TryExtractBrain(canonicalKey, out var extracted)
+            ? extracted.Value
+            : !string.IsNullOrWhiteSpace(brain) ? brain : string.Empty;
+        if (string.IsNullOrEmpty(ownerBrain)) { return false; }
         if (!_cache.TryGetValue(ownerBrain, out var cached)) { return false; }
         var principals = _expansions.TryGetValue(new ExpansionKey(ownerBrain, $"{caller.BrainId}:{caller.AppId}:{caller.PrincipalId}"), out var exp)
             ? exp.Principals
@@ -345,12 +353,16 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         ArgumentException.ThrowIfNullOrWhiteSpace(friendAppId);
         var normalizedKey = StripNeuronPrefix(connectionKey);
         var normalizedFriend = NormalizeAppId(friendAppId);
-        var brain = ExtractBrain(normalizedKey);
-        var grant = Grant.Tuple($"brain:{brain}", $"app:{normalizedFriend}", normalizedKey, $"use-via:{normalizedFriend}") with
+        if (!TryExtractBrain(normalizedKey, out var brain))
+        {
+            throw new ArgumentException($"Connection key '{connectionKey}' must include a valid brain prefix.", nameof(connectionKey));
+        }
+
+        var grant = Grant.Tuple($"brain:{brain.Value}", $"app:{normalizedFriend}", normalizedKey, $"use-via:{normalizedFriend}") with
         {
             Id = $"binding:{normalizedKey}:{normalizedFriend}",
         };
-        AddGrant(brain, grant);
+        AddGrant(brain.Value, grant);
     }
 
     public void UnbindFriendConnection(string connectionKey, string friendAppId)
@@ -358,8 +370,9 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         if (string.IsNullOrWhiteSpace(connectionKey) || string.IsNullOrWhiteSpace(friendAppId)) { return; }
         var normalizedKey = StripNeuronPrefix(connectionKey);
         var normalizedFriend = NormalizeAppId(friendAppId);
-        var brain = ExtractBrain(normalizedKey);
-        RemoveGrant(brain, g => string.Equals(g.Id, $"binding:{normalizedKey}:{normalizedFriend}", StringComparison.Ordinal)
+        if (!TryExtractBrain(normalizedKey, out var brain)) { return; }
+
+        RemoveGrant(brain.Value, g => string.Equals(g.Id, $"binding:{normalizedKey}:{normalizedFriend}", StringComparison.Ordinal)
             || ((string.Equals(g.Target, normalizedKey, StringComparison.Ordinal) || string.Equals(g.TargetNeuronKey, normalizedKey, StringComparison.Ordinal))
                 && (string.Equals(g.Grantee, $"app:{normalizedFriend}", StringComparison.Ordinal) || string.Equals(g.AppId, normalizedFriend, StringComparison.Ordinal))));
     }
@@ -367,20 +380,37 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     private static string NormalizeAppId(string appId)
         => AppPrincipal.AppKeyOf(appId.Trim()) ?? appId.Trim();
 
-    internal static string ExtractBrain(string? keyOrApp)
+    internal static bool TryExtractBrain(string? keyOrApp, out DigitalBrain.BrainId brain)
     {
-        if (string.IsNullOrWhiteSpace(keyOrApp)) { return "local"; }
+        brain = default;
+        if (string.IsNullOrWhiteSpace(keyOrApp)) { return false; }
         var clean = StripNeuronPrefix(keyOrApp);
         if (clean.StartsWith("app:", StringComparison.Ordinal)) { clean = clean["app:".Length..]; }
         var isBrainPrefixed = clean.StartsWith("brain:", StringComparison.Ordinal);
         if (isBrainPrefixed) { clean = clean["brain:".Length..]; }
-        if (ConnectionKeys.TryParse(clean, out var conn)) { return conn.BrainId; }
+        if (ConnectionKeys.TryParse(clean, out var conn) && DigitalBrain.BrainId.IsValid(conn.BrainId))
+        {
+            brain = new DigitalBrain.BrainId(conn.BrainId);
+            return true;
+        }
         var slash = clean.IndexOf('/', StringComparison.Ordinal);
-        if (slash > 0 && ConnectionKeys.TryParse(clean[(slash + 1)..], out var nestedConn)) { return nestedConn.BrainId; }
-        if (clean.StartsWith("connection/", StringComparison.OrdinalIgnoreCase)) { return "local"; }
-        if (slash > 0) { return clean[..slash]; }
-        if (isBrainPrefixed && !string.IsNullOrWhiteSpace(clean)) { return clean; }
-        return "local";
+        if (slash > 0 && ConnectionKeys.TryParse(clean[(slash + 1)..], out var nestedConn) && DigitalBrain.BrainId.IsValid(nestedConn.BrainId))
+        {
+            brain = new DigitalBrain.BrainId(nestedConn.BrainId);
+            return true;
+        }
+        if (clean.StartsWith("connection/", StringComparison.OrdinalIgnoreCase)) { return false; }
+        if (slash > 0 && DigitalBrain.BrainId.IsValid(clean[..slash]))
+        {
+            brain = new DigitalBrain.BrainId(clean[..slash]);
+            return true;
+        }
+        if (isBrainPrefixed && DigitalBrain.BrainId.IsValid(clean))
+        {
+            brain = new DigitalBrain.BrainId(clean);
+            return true;
+        }
+        return false;
     }
 
     public void Invalidate(string brain)
@@ -403,29 +433,29 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
 
     public void AddGrant(string brain, Grant grant)
     {
-        var b = string.IsNullOrWhiteSpace(brain) ? "local" : brain;
+        ArgumentException.ThrowIfNullOrWhiteSpace(brain);
         lock (_sync)
         {
-            var grants = _cache.TryGetValue(b, out var entry) ? entry.Grants.ToList() : new List<Grant>();
+            var grants = _cache.TryGetValue(brain, out var entry) ? entry.Grants.ToList() : new List<Grant>();
             grants.RemoveAll(g => string.Equals(g.Id, grant.Id, StringComparison.Ordinal)
                 || (string.Equals(g.Owner, grant.Owner, StringComparison.Ordinal)
                     && string.Equals(g.Grantee, grant.Grantee, StringComparison.Ordinal)
                     && string.Equals(g.Target, grant.Target, StringComparison.Ordinal)
                     && string.Equals(g.Scope, grant.Scope, StringComparison.Ordinal)));
             grants.Add(grant);
-            _cache[b] = new CachedGrantsEntry(grants.ToArray(), (entry?.Version ?? 0) + 1, _clock.GetUtcNow());
+            _cache[brain] = new CachedGrantsEntry(grants.ToArray(), (entry?.Version ?? 0) + 1, _clock.GetUtcNow());
         }
     }
 
     public void RemoveGrant(string brain, Func<Grant, bool> predicate)
     {
-        var b = string.IsNullOrWhiteSpace(brain) ? "local" : brain;
+        if (string.IsNullOrWhiteSpace(brain)) { return; }
         lock (_sync)
         {
-            if (_cache.TryGetValue(b, out var entry))
+            if (_cache.TryGetValue(brain, out var entry))
             {
                 var filtered = entry.Grants.Where(g => !predicate(g)).ToArray();
-                _cache[b] = new CachedGrantsEntry(filtered, entry.Version + 1, _clock.GetUtcNow());
+                _cache[brain] = new CachedGrantsEntry(filtered, entry.Version + 1, _clock.GetUtcNow());
             }
         }
     }

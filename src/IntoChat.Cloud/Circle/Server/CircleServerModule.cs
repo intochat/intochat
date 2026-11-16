@@ -75,5 +75,9 @@ public sealed partial class CircleServerModule : Module
 
     partial void MapApproval(IEndpointRouteBuilder routes);
 
-    internal static TimeProvider Clock(IServiceProvider services) => services.GetKeyedService<TimeProvider>(ClockKey) ?? TimeProvider.System;
+    internal static TimeProvider Clock(IServiceProvider services) =>
+        (services as IKeyedServiceProvider ?? services.GetService<IKeyedServiceProvider>())
+        ?.GetKeyedService<TimeProvider>(ClockKey)
+        ?? services.GetService<TimeProvider>()
+        ?? TimeProvider.System;
 }

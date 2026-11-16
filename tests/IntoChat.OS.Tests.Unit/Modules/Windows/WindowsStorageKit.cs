@@ -28,7 +28,7 @@ public sealed class WindowsStorageKit : StorageConformance<IStorage>
         }
 
         var operations = new InMemoryOperations();
-        var storage = new WindowsStorage([root], operations: operations);
+        var storage = new WindowsStorage([root], new WindowsStorageCoordinator(), operations: operations);
         var outside = PathConfinement.Normalize(Path.Combine(Directory.GetParent(root)!.FullName, "escape.txt"));
         var windows = PathConfinement.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "win.ini"));
         return new StorageSubject(storage, operations, [WindowsStorage.IdOf(outside), WindowsStorage.IdOf(windows)]);

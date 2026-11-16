@@ -23,8 +23,11 @@ internal sealed partial class GmailNeuron()
 
     private IGmailApi Api => ServiceProvider.GetRequiredService<IGmailApi>();
     private DigitalBrain.Limits.IPolicies Policies => Context.Get<DigitalBrain.Limits.IPolicies>(DigitalBrain.NeuronId.Parse(DigitalBrain.Limits.IPolicies.Key(Id.Brain.Value)));
-    private TimeProvider GmailClock => ServiceProvider.GetKeyedService<TimeProvider>(GmailModule.ClockKey)
-        ?? ServiceProvider.GetRequiredService<TimeProvider>();
+    private TimeProvider GmailClock =>
+        (ServiceProvider as IKeyedServiceProvider ?? ServiceProvider.GetService<IKeyedServiceProvider>())
+        ?.GetKeyedService<TimeProvider>(GmailModule.ClockKey)
+        ?? ServiceProvider.GetService<TimeProvider>()
+        ?? Context.Time;
     private bool HasAcceptedMailbox => _toolAvailability.AcceptedMailbox;
     private bool HasDraftReceipts => _toolAvailability.DraftReceipts;
     private bool IsGrantReady => !_grantAcceptancePending && Snapshot.GrantGeneration > 0

@@ -58,10 +58,10 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         var tasks = $"neuron://{brainId}/apps/tasks#{flowId}";
         if (NeuronId.TryParse(flowId, out var flowNeuronId))
         {
-            var deadline = DateTimeOffset.UtcNow + MakePollBudget;
+            var deadline = Context.Time.GetUtcNow() + MakePollBudget;
             DateTimeOffset? nullDetailGraceDeadline = null;
             FlowView? settled = null;
-            while (DateTimeOffset.UtcNow < deadline)
+            while (Context.Time.GetUtcNow() < deadline)
             {
                 var current = await Get<IFlows>(IFlows.Key(brainId)).Read(flowId).ConfigureAwait(true);
                 if (current is not null)
@@ -81,9 +81,9 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
                         }
 
                         // FlowsNeuron.WithHead can observe terminal status from FlowHead before OnFlowDone folds Detail.
-                        nullDetailGraceDeadline ??= DateTimeOffset.UtcNow + TimeSpan.FromSeconds(2);
+                        nullDetailGraceDeadline ??= Context.Time.GetUtcNow() + TimeSpan.FromSeconds(2);
                         settled = current;
-                        if (DateTimeOffset.UtcNow >= nullDetailGraceDeadline.Value)
+                        if (Context.Time.GetUtcNow() >= nullDetailGraceDeadline.Value)
                         {
                             break;
                         }
@@ -294,7 +294,7 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
     public Task<InoToolResult> Repositories(CancellationToken ct = default)
     {
         _ = CurrentBrainId;
-        var wt = services.GetService<IWorkTree>() ?? new WorkTreeService();
+        var wt = services.GetRequiredService<IWorkTree>();
         var repos = wt.ListRepositories();
         if (repos.Count == 0)
         {
@@ -325,7 +325,7 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         var runKey = Guid.NewGuid().ToString("N")[..12];
 
         // Fail fast with clear guidance if repository is not in the allowlist
-        var wt = services.GetService<IWorkTree>() ?? new WorkTreeService();
+        var wt = services.GetRequiredService<IWorkTree>();
         RepositoryId parsedRepo;
         BranchName? parsedBase;
         try
@@ -356,8 +356,8 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         }
 
         // Poll briefly (within 18s grain-safe budget) so fast local runs immediately return the SHA-bound confirmation card & diff!
-        var deadline = DateTimeOffset.UtcNow + ProposePollBudget;
-        while (DateTimeOffset.UtcNow < deadline && !ct.IsCancellationRequested)
+        var deadline = Context.Time.GetUtcNow() + ProposePollBudget;
+        while (Context.Time.GetUtcNow() < deadline && !ct.IsCancellationRequested)
         {
             var view = await Get<IFlows>(IFlows.Key(brainId)).Read(flowId, ct).ConfigureAwait(true);
             if (view is not null && view.Status is FlowStatus.Waiting or FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled)

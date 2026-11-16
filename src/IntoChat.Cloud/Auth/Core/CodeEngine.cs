@@ -16,6 +16,8 @@ public interface ICodeSource
 
 public sealed class RandomCodeSource : ICodeSource
 {
+    public static readonly RandomCodeSource Shared = new();
+
     public string NewCode() => RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6", CultureInfo.InvariantCulture);
 
     public byte[] NewNonce() => RandomNumberGenerator.GetBytes(CodeId.NonceLength);
@@ -47,7 +49,7 @@ public sealed record CodeRecord(
 /// <summary>Pure W4 D1 state machine: Issue / Verify / ticket, over immutable <see cref="CodeRecord"/>.</summary>
 public sealed class CodeEngine(CodeRules rules, PurposeHasher codesHasher, TimeProvider timeProvider, ICodeSource? source = null)
 {
-    private readonly ICodeSource _source = source ?? new RandomCodeSource();
+    private readonly ICodeSource _source = source ?? RandomCodeSource.Shared;
 
     public CodeRules Rules { get; } = rules;
 

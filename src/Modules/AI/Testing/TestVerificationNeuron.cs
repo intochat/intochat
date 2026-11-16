@@ -23,7 +23,7 @@ public sealed class TestVerificationNeuron : Neuron<TestVerificationState>, ITes
         var summary = new TestResultSummary(
             runId,
             request.SuiteName,
-            DateTimeOffset.UtcNow,
+            Context.Time.GetUtcNow(),
             result.Success,
             result.Total,
             result.Passed,

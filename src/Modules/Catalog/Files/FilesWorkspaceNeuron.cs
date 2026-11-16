@@ -172,7 +172,7 @@ internal sealed partial class FilesWorkspaceNeuron(
                         var enrichedPrompt = !string.IsNullOrWhiteSpace(app.Snapshot.Preview) && !string.Equals(app.Snapshot.Preview, FilesCopy.PreviewUnavailable, StringComparison.Ordinal) ? $"{prompt}\n\n[File Preview]\n{(app.Snapshot.Preview.Length <= 1200 ? app.Snapshot.Preview : app.Snapshot.Preview[..1200])}" : prompt;
                         using (InProcessCallerScope.Enter())
                         {
-                            await DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<IApp>(services, IApp.Key(Id.Brain.Value, ShippedApps.Ino)).Request("send", enrichedPrompt);
+                            await DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<IApp>(services, IntoChat.OS.Primitives.AppRef.Of(Id.Brain, ShippedApps.Ino).Key).Request("send", enrichedPrompt);
                         }
                     }
                     catch (Exception error) when (error is not OperationCanceledException)

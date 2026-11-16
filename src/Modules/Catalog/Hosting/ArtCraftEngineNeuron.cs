@@ -115,8 +115,9 @@ internal sealed class ArtCraftEngineNeuron(IServiceProvider? services = null, II
 
     private async Task<bool> IsAppGrantedAsync(string brain, string appId)
     {
-        var shortAppId = appId.StartsWith(brain + "/apps/", StringComparison.Ordinal)
-            ? appId[(brain.Length + "/apps/".Length)..]
+        var brainId = new DigitalBrain.BrainId(brain);
+        var shortAppId = IntoChat.OS.Primitives.AppRef.TryParse(brainId, appId, out var parsedApp)
+            ? parsedApp.Name
             : appId;
         var isShippedStudio = string.Equals(shortAppId, ShippedApps.Ino, StringComparison.Ordinal)
             || ArtCraftCatalog.IsArtCraftApp(shortAppId);
@@ -133,12 +134,16 @@ internal sealed class ArtCraftEngineNeuron(IServiceProvider? services = null, II
 
         var targetPrefix = $"apps.artcraft-engine/{brain}/";
         var fullTarget = $"apps.artcraft-engine/{brain}/{Id.Key}";
+        var fullAppKey = IntoChat.OS.Primitives.AppRef.TryOf(brainId, shortAppId, out var appRef) ? appRef.Key : null;
         var appGrantees = new HashSet<string>(StringComparer.Ordinal)
         {
             $"app:{appId}",
-            $"app:{brain}/apps/{appId}",
             $"app:{shortAppId}",
         };
+        if (fullAppKey is not null)
+        {
+            appGrantees.Add($"app:{fullAppKey}");
+        }
 
         foreach (var raw in grants)
         {

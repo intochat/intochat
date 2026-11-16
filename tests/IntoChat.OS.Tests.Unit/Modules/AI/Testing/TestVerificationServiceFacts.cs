@@ -251,13 +251,13 @@ public sealed class TestVerificationServiceFacts
         var services = new ServiceCollection().BuildServiceProvider();
         var service = new TestVerificationService(services);
 
-        Assert.Equal(new BrainId("local"), service.ResolveBrainId());
+        Assert.Throws<InvalidOperationException>(() => service.ResolveBrainId());
 
         using (RuntimeCallerContext.StampScope(CapabilityCallers.Of("usr-1", "acc-1", "tenant-beta")))
         {
             Assert.Equal(new BrainId("tenant-beta"), service.ResolveBrainId());
         }
 
-        Assert.Equal(new BrainId("local"), service.ResolveBrainId());
+        Assert.Throws<InvalidOperationException>(() => service.ResolveBrainId());
     }
 }

@@ -113,7 +113,7 @@ internal sealed class MachineCredentialNeuron(
 
     private MachineCredentialRecord Record => store.State;
 
-    private DateTimeOffset Now => (ServiceProvider.GetKeyedService<TimeProvider>(CircleServerModule.ClockKey) ?? TimeProvider.System).GetUtcNow();
+    private DateTimeOffset Now => CircleServerModule.Clock(ServiceProvider).GetUtcNow();
 
     public async Task<IssuedTokens?> Enroll(EnrollGrant grant)
     {

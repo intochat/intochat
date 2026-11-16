@@ -60,6 +60,7 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<AppInstaller>();
 
         services.TryAddSingleton<IDrafter>(sp => sp.GetRequiredService<Creator>());
+        services.TryAddSingleton<ICreatorModel, SiloCreatorModel>();
         services.TryAddSingleton<Creator>();
         services.TryAddSingleton<IWorkTree, WorkTreeService>();
         services.TryAddSingleton<ICoder, LocalLlmCoder>();

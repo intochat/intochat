@@ -5,6 +5,7 @@ using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Logging;
+using IntoChat.OS.Primitives;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -29,7 +30,8 @@ internal sealed class AppGraphSource(IServiceProvider services) : IGraphSource
             {
                 await foreach (var instance in kernel.Instances<IApp>(cancellationToken).ConfigureAwait(false))
                 {
-                    if (IApp.NameOf(brain.Value, instance.Key) is not { } name || sink.IndexOf(instance.Key) < 0) { continue; }
+                    if (!IntoChat.OS.Primitives.AppRef.TryParse(brain, instance.Key, out var appRef) || sink.IndexOf(instance.Key) < 0) { continue; }
+                    var name = appRef.Name;
                     var appProxy = proxies is not null
                         ? proxies.Get<IApp>(instance.Key)
                         : SiloNeurons.Get<IApp>(services, instance.Key);
@@ -49,10 +51,11 @@ internal sealed class AppGraphSource(IServiceProvider services) : IGraphSource
             foreach (var compiled in CompiledApps.Of(assembly))
             {
                 var name = compiled.Bundle.Name;
-                var key = IApp.Key(brain.Value, name);
+                var appRef = IntoChat.OS.Primitives.AppRef.Of(brain, name);
+                var key = appRef.Key;
                 if (sink.IndexOf(key) < 0)
                 {
-                    var nodeIdx = sink.Node(key, GraphNodeKind.App, string.IsNullOrWhiteSpace(compiled.Bundle.Manifest.Title) ? "apps/" + name : compiled.Bundle.Manifest.Title);
+                    var nodeIdx = sink.Node(key, GraphNodeKind.App, string.IsNullOrWhiteSpace(compiled.Bundle.Manifest.Title) ? appRef.RelativePath : compiled.Bundle.Manifest.Title);
                     if (rootIdx >= 0) { sink.Edge(rootIdx, nodeIdx, GraphEdgeKind.Owns); }
                 }
                 if (apps.All(a => !string.Equals(a.Name, name, StringComparison.Ordinal)))
@@ -79,7 +82,7 @@ internal sealed class AppGraphSource(IServiceProvider services) : IGraphSource
     {
         foreach (var (name, snapshot) in apps)
         {
-            var key = IApp.Key(brain.Value, name);
+            var key = IntoChat.OS.Primitives.AppRef.Of(brain, name).Key;
             var app = sink.IndexOf(key);
             if (app < 0) { continue; }
             foreach (var operation in snapshot.Manifest.Operations)

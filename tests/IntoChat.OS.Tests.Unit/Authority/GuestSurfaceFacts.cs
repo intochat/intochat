@@ -9,7 +9,7 @@ using IntoChat.OS.Authority.Identity.Rules;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Mcp;
+using IntoChat.OS.Kernel.Mcp;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;

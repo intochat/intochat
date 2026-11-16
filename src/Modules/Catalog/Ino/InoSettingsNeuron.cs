@@ -25,14 +25,15 @@ public sealed class InoSettingsNeuron : DigitalBrain.Neurons.Neuron, IInoSetting
             return new InoToolResult($"Settings is unavailable, so I could not open {label}: {error.Message}");
         }
 
+        var brain = Id.Brain;
         var card = new InoCard(
             $"settings-{route}",
             "settings",
             $"Settings · {label}",
             $"Autonomous Settings co-pilot navigated to {route}.",
-            "neuron://local/apps/settings",
+            $"neuron://{IntoChat.OS.Primitives.AppRef.Of(brain, "settings").Key}",
             "ready",
-            $"neuron://local/apps/ino#settings-{route}");
+            $"neuron://{IntoChat.OS.Primitives.AppRef.Of(brain, "ino").Key}#settings-{route}");
         return new InoToolResult($"Navigated Settings to {label}.", card);
     }
 

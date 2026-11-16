@@ -25,10 +25,10 @@ internal sealed class Creator(
     IServiceProvider plain,
     IOptions<AppsOptions> options,
     ILogger<Creator> logger,
-    ICreatorModel? model = null,
+    ICreatorModel model,
     SynapseCompiler? compiler = null) : IDrafter
 {
-    private readonly ICreatorModel models = model ?? new SiloCreatorModel(plain);
+    private readonly ICreatorModel models = model;
     private const int MaxAuthorRetries = 2;
     private const int MaxBuilderRounds = 12;
     private const int MaxRequestLength = 4000;
@@ -45,7 +45,7 @@ internal sealed class Creator(
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentException.ThrowIfNullOrWhiteSpace(request);
         if (request.Length > MaxRequestLength) { throw new ArgumentException($"Describe the app in at most {MaxRequestLength} characters."); }
-        var target = name is null ? null : brain.Get<IApp>(IApp.Key(brainId, name));
+        var target = name is null ? null : brain.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brainId), name).Key);
         var existing = target is null ? null : await target.Read();
         var exists = existing is { Manifest.Title.Length: > 0 };
         IApp? reporting = null;
@@ -67,7 +67,7 @@ internal sealed class Creator(
                         Capabilities = Merged(requires.Capabilities, (authored.Slots ?? []).Select(slot => slot.Capability).OfType<string>()),
                     }
                     : null);
-            var app = brain.Get<IApp>(IApp.Key(brainId, name ?? authored.Name));
+            var app = brain.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brainId), name ?? authored.Name).Key);
             if (name is null)
             {
                 ValidateName(authored.Name);

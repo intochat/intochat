@@ -389,7 +389,7 @@
           "comparePoints": null,
           "seriesName": "Current",
           "compareName": "",
-          "sourceNeuronUri": "neuron://local/data//empty",
+          "sourceNeuronUri": "neuron://owner/data//empty",
           "from": "",
           "prefix": "€"
         },
@@ -398,7 +398,7 @@
           "title": "No Data () (0 row(s))",
           "columns": [],
           "rows": [],
-          "sourceNeuronUri": "neuron://local/data//empty",
+          "sourceNeuronUri": "neuron://owner/data//empty",
           "from": ""
         }
       ],

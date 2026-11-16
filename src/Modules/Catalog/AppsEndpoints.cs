@@ -307,7 +307,7 @@ internal static class AppsEndpoints
         ? Results.Json(new { status = "refused", error = outcome.Message }, statusCode: 403)
         : Results.Conflict(new { status = "refused", error = outcome.Message });
 
-    private static string AppKey(string name) => IApp.Key(BrainScope.CurrentId(), name);
+    private static string AppKey(string name) => IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(BrainScope.CurrentId()), name).Key;
 
     private static IApp App(INeuronProxies brain, string name) => brain.Get<IApp>(AppKey(name));
 
@@ -362,25 +362,29 @@ internal static class AppsEndpoints
         CancellationToken ct)
     {
         var brainId = new DigitalBrain.BrainId(scope);
-        try
+        if (IntoChat.OS.Primitives.UnitAlias.TryParse(name, out var unit))
         {
-            var unitStateId = new DigitalBrain.NeuronId(brainId, name, "default");
-            var unitView = await brain.Get<IViewReader>(unitStateId).Read(name).WaitAsync(ct).ConfigureAwait(false);
-            if (unitView is not null)
+            try
             {
-                return unitView;
+                var unitView = await brain.Get<IViewReader>(unit.StateNeuron(brainId)).Read(name).WaitAsync(ct).ConfigureAwait(false);
+                if (unitView is not null)
+                {
+                    return unitView;
+                }
             }
-        }
-        catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
-        {
-            OsConsoleLog.For(typeof(AppsEndpoints)).LogSwallowed(error, "Unit view reader was not available for live view lookup.");
+            catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+            {
+                OsConsoleLog.For(typeof(AppsEndpoints)).LogSwallowed(error, "Unit view reader was not available for live view lookup.");
+            }
         }
 
         foreach (var candidateType in new[] { "app." + name, name })
         {
             try
             {
-                var screenId = new DigitalBrain.NeuronId(brainId, candidateType, "default");
+                var screenId = candidateType.StartsWith("app.", StringComparison.Ordinal) && IntoChat.OS.Primitives.UnitAlias.TryParse(name, out var screenUnit)
+                    ? screenUnit.ScreenNeuron(brainId)
+                    : new DigitalBrain.NeuronId(brainId, candidateType, "default");
                 var screenView = await brain.Get<DigitalBrain.IScreen>(screenId).Read().WaitAsync(ct).ConfigureAwait(false);
                 if (screenView is not null)
                 {
@@ -395,7 +399,7 @@ internal static class AppsEndpoints
 
         try
         {
-            var published = await brain.Get<IntoChat.OS.Modules.Flutter.Views.IView>($"{scope}/apps/{name}/view").Read().WaitAsync(ct).ConfigureAwait(false);
+            var published = await brain.Get<IntoChat.OS.Modules.Flutter.Views.IView>(IntoChat.OS.Primitives.AppRef.Of(brainId, name).ViewKey).Read().WaitAsync(ct).ConfigureAwait(false);
             if (published is not null)
             {
                 return published;

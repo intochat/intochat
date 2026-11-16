@@ -11,7 +11,7 @@ using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace IntoChat.OS.Mcp;
+namespace IntoChat.OS.Kernel.Mcp;
 
 public static class McpHosting
 {
@@ -37,7 +37,7 @@ public static class McpHosting
         services.TryAddSingleton<McpCaller>();
         services.TryAddScoped<NeuronSurface>();
         services.AddMcpServer().WithHttpTransport(options => options.Stateless = true)
-            .WithTools<NeuronTools>().WithTools<ScreenTools>().WithTools<McpCaller>();
+            .WithTools<Tools.NeuronTools>().WithTools<Tools.ScreenTools>().WithTools<McpCaller>();
     }
 
     public static void MapIntoChatOSMcp(this WebApplication app)

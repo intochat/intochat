@@ -11,7 +11,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Apps.Tests.Integration.Ino;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Mcp;
+using IntoChat.OS.Kernel.Mcp;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps.Flows;

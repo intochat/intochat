@@ -1,11 +1,13 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using DigitalBrain;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Postgres;
 using IntoChat.OS.Modules.Postgres.Tables;
+using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -70,7 +72,7 @@ internal sealed class SdkTablesAdapter(IServiceProvider services)
     }
 
     private static string ScopeKey(string brainId, string appKey, string tableName)
-        => $"{brainId}/apps/{appKey}/{SanitizeName(tableName)}";
+        => AppRef.Of(new BrainId(brainId), appKey).ChildKey(SanitizeName(tableName));
 
     private static string SanitizeName(string tableName)
         => string.IsNullOrWhiteSpace(tableName)

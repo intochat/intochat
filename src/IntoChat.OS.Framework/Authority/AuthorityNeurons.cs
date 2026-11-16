@@ -22,12 +22,14 @@ namespace IntoChat.OS.Authority;
 // turns an id into a grain reference; key strings are exactly those callers composed before.
 internal sealed class AuthorityNeurons(IGrainFactory grains, IServiceProvider services, Microsoft.Extensions.Options.IOptions<IdentityHostOptions>? identity = null)
 {
+    private static readonly IdentityHostOptions DefaultIdentity = new();
+
     public IBrain Brain(string brainId) => SiloNeurons.Get<IBrain>(services, IBrain.Key(brainId));
     public IDirectoryStore Directory() => SiloNeurons.Get<IDirectoryStore>(services, IDirectoryStore.Key);
     public IVault Vault(string owner) => SiloNeurons.Get<IVault>(services, IVault.Key(owner));
     public IPrincipalCredential Credential(string principalId) => Resolve<IPrincipalCredential>(principalId);
     public External.IExternalTicketReplay ExternalTicketReplay(string issuer, string jti) => Resolve<External.IExternalTicketReplay>(External.IExternalTicketReplay.Key(issuer, jti));
-    public IIdentityDirectory Passwords() => Resolve<IIdentityDirectory>((identity?.Value ?? new()).DirectoryKey);
+    public IIdentityDirectory Passwords() => Resolve<IIdentityDirectory>((identity?.Value ?? DefaultIdentity).DirectoryKey);
 
     public IIntegration Integration(string integrationId) => Resolve<IIntegration>(IntegrationNeuron.KeyPrefix + integrationId);
     public DigitalBrain.Capabilities.Connections.Catalog.IConnectionCatalog Connections(string brainId) => SiloNeurons.Get<DigitalBrain.Capabilities.Connections.Catalog.IConnectionCatalog>(services, DigitalBrain.Capabilities.Connections.Catalog.IConnectionCatalog.Key(brainId));
