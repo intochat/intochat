@@ -6,7 +6,7 @@ Module id: `local-disk`.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/LocalDisk/tests/IntoChat.OS.Modules.LocalDisk.Tests.Unit/IntoChat.OS.Modules.LocalDisk.Tests.Unit.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:local-disk:Options` (environment prefix `IntoChatOS__Modules__local-disk__Options__`).

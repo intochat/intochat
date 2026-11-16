@@ -105,7 +105,7 @@ public sealed class ModuleDocumentationFacts
         builder.Append($"Module id: `{module.Id}`.\n\n");
         builder.Append(testProject is null ? "How to test: this module has no tests project yet.\n\n"
             : $"How to test: `dotnet test --project {testProject}`\n\n");
-        builder.Append("Documentation: https://github.com/intochat/os.docs (modules).\n");
+        builder.Append("Documentation: `docs/modules.md` at the repository root.\n");
         return builder.ToString();
     }
 

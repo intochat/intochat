@@ -6,7 +6,7 @@ Module id: `time`.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/Time/tests/IntoChat.OS.Modules.Time.Tests.Unit/IntoChat.OS.Modules.Time.Tests.Unit.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:time:Options` (environment prefix `IntoChatOS__Modules__time__Options__`).

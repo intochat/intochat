@@ -6,7 +6,7 @@ Module id: `google-auth`.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/Google/Auth/tests/IntoChat.OS.Modules.Google.Auth.Tests.Unit/IntoChat.OS.Modules.Google.Auth.Tests.Unit.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:google-auth:Options` (environment prefix `IntoChatOS__Modules__google-auth__Options__`).

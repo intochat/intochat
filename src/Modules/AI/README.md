@@ -6,7 +6,7 @@ Module id: `ai`.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/AI/tests/IntoChat.OS.Modules.AI.Tests.Hosting/IntoChat.OS.Modules.AI.Tests.Hosting.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:ai:Options` (environment prefix `IntoChatOS__Modules__ai__Options__`).

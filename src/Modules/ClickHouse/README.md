@@ -6,7 +6,7 @@ Module id: `clickhouse`.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/ClickHouse/tests/IntoChat.OS.Modules.ClickHouse.Tests.Integration/IntoChat.OS.Modules.ClickHouse.Tests.Integration.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:clickhouse:Options` (environment prefix `IntoChatOS__Modules__clickhouse__Options__`).

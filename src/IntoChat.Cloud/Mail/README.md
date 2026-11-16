@@ -6,7 +6,7 @@ Module id: `mail`.
 
 How to test: this module has no tests project yet.
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:mail:Options` (environment prefix `IntoChatOS__Modules__mail__Options__`).

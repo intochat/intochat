@@ -6,7 +6,7 @@ Module id: `artcraft`.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/ArtCraft/ArtCraft/tests/IntoChat.OS.Modules.ArtCraft.Tests.Integration/IntoChat.OS.Modules.ArtCraft.Tests.Integration.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:artcraft:Options` (environment prefix `IntoChatOS__Modules__artcraft__Options__`).

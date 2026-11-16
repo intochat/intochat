@@ -6,7 +6,7 @@ Module id: `hosting`.
 
 How to test: this module has no tests project yet.
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:hosting:Options` (environment prefix `IntoChatOS__Modules__hosting__Options__`).

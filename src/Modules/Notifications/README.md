@@ -6,7 +6,7 @@ Module id: `notifications`.
 
 How to test: this module is tested in `tests/IntoChat.OS.Tests.Unit/Modules/Notifications/`.
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:notifications:Options` (environment prefix `IntoChatOS__Modules__notifications__Options__`).

@@ -8,7 +8,7 @@ Storage writes stay inside the current allowed roots. Delete moves items into `.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/Microsoft/Windows/tests/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration/IntoChat.OS.Modules.Microsoft.Windows.Tests.Integration.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:windows:Options` (environment prefix `IntoChatOS__Modules__windows__Options__`).

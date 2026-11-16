@@ -6,7 +6,7 @@ Module id: `mcp`.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/ModelContextProtocol/Mcp/tests/IntoChat.OS.Modules.Mcp.Tests.Integration/IntoChat.OS.Modules.Mcp.Tests.Integration.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:mcp:Options` (environment prefix `IntoChatOS__Modules__mcp__Options__`).

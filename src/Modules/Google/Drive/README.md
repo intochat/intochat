@@ -6,7 +6,7 @@ Module id: `google-drive`. Needs `google-auth` in the same brain.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/Google/Drive/tests/IntoChat.OS.Modules.Google.Drive.Tests.Integration/IntoChat.OS.Modules.Google.Drive.Tests.Integration.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:google-drive:Options` (environment prefix `IntoChatOS__Modules__google-drive__Options__`).

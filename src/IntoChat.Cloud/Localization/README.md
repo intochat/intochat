@@ -6,7 +6,7 @@ Module id: `localization`.
 
 How to test: this module has no tests project yet.
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:localization:Options` (environment prefix `IntoChatOS__Modules__localization__Options__`).

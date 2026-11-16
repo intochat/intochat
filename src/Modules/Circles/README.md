@@ -6,7 +6,7 @@ Module id: `circles`.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/IntoChat.OS/Circles/tests/IntoChat.OS.Modules.Circles.Tests.Integration/IntoChat.OS.Modules.Circles.Tests.Integration.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:circles:Options` (environment prefix `IntoChatOS__Modules__circles__Options__`).

@@ -6,7 +6,7 @@ Module id: `salesforce`.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/Salesforce/tests/IntoChat.OS.Modules.Salesforce.Tests.Integration/IntoChat.OS.Modules.Salesforce.Tests.Integration.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:salesforce:Options` (environment prefix `IntoChatOS__Modules__salesforce__Options__`).

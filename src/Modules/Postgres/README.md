@@ -6,7 +6,7 @@ Module id: `postgres`.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/Postgres/tests/IntoChat.OS.Modules.Postgres.Tests.Hosting/IntoChat.OS.Modules.Postgres.Tests.Hosting.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:postgres:Options` (environment prefix `IntoChatOS__Modules__postgres__Options__`).

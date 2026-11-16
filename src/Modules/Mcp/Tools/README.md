@@ -6,7 +6,7 @@ Module id: `tools`.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/IntoChat.OS/Tools/tests/IntoChat.OS.Modules.Tools.Tests.Unit/IntoChat.OS.Modules.Tools.Tests.Unit.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:tools:Options` (environment prefix `IntoChatOS__Modules__tools__Options__`).

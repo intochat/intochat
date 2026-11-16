@@ -6,7 +6,7 @@ Module id: `gmail`.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/Google/Gmail/tests/IntoChat.OS.Modules.Google.Gmail.Tests.Integration/IntoChat.OS.Modules.Google.Gmail.Tests.Integration.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 Scripts select a full connection key through configuration or kernel discovery. Reads return one bounded provider page; continuation tokens are mailbox-grant scoped and provider ordering is best effort. Inspect `Failure` before `Value`.
 

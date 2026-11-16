@@ -6,7 +6,7 @@ Module id: `roslyn`.
 
 How to test: `dotnet test --project src/IntoChat.OS.Modules/Microsoft/Roslyn/tests/IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Unit/IntoChat.OS.Modules.Microsoft.Roslyn.Tests.Unit.csproj`
 
-Documentation: https://github.com/intochat/os.docs (modules).
+Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
 Configuration section: `IntoChatOS:Modules:roslyn:Options` (environment prefix `IntoChatOS__Modules__roslyn__Options__`).
