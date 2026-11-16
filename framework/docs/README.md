@@ -1,12 +1,12 @@
-# DigitalBrain
+# DigitalBrain documentation
 
-DigitalBrain is a deterministic actor and reactive state runtime for modular applications.
+DigitalBrain is a C# framework for apps built from neurons, signals and synapses.
 
-## Documentation Index
-
-- [Neurons and Synapses](neurons-and-synapses.md) — State units, signal contracts, and in-process reactions.
-- [Policies](policies.md) — Declarative caps and permission evaluation (`Allow`/`Release`).
-- [Client and Sandbox](client-and-sandbox.md) — Permission-gated HTTP client (`DigitalBrain.Client`) and isolated sandbox runtime.
-- [Testing Tiers](testing-tiers.md) — Fast unit facts, local host testing, integration, and E2E conformance.
-- [Module Template](module-template.md) — Scaffolding in-tree and standalone modules with `dotnet new digitalbrain-module`.
-- [Delivery Contract](delivery-contract.md) — Guarantees and ordering rules for emitted signals.
+- [Getting started](getting-started.md): from nothing to a running, tested app.
+- [Neurons and synapses](neurons-and-synapses.md): state units, signals and the routes between them.
+- [Apps](apps.md): screens, views and operations.
+- [Modules](modules.md): the module manifest and the `digitalbrain-module` template.
+- [Delivery contract](delivery-contract.md): guarantees and ordering rules for signals.
+- [Client and sandbox](client-and-sandbox.md): the client and the isolated sandbox runtime.
+- [Policies](policies.md): caps and permission evaluation.
+- [Testing tiers](testing-tiers.md): unit, integration and end-to-end tests.

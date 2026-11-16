@@ -1,31 +1,33 @@
 # Signal Delivery Contract
 
+How a journaled signal reaches the neurons that hold a synapse to its publisher.
+
 ## Guarantees
-Signals emitted by a neuron via `Save(state, signal)` are delivered **at-least-once** to every registered reaction subscriber in `ISynapseRegistryIndex`.
+Signals a neuron publishes with `Save(next, signals)` or `Publish(signal)` are written to the brain journal and delivered **at-least-once** to every subscriber. `PublishEphemeral(signal)` is not journaled and is outside this contract.
 
 ## Payload
-Each delivered signal envelope carries the strongly typed `Signal` record, sequence number, source neuron address, and trace context.
+The journal keeps each signal as a `JournaledSignal`: the publisher's `NeuronId`, the publisher sequence, the typed `Signal`, the time, the trace id and the causation id. A typed reaction gets the `Signal`. An alias reaction gets a `SignalEnvelope` with the alias and the raw JSON payload.
 
 ## Ordering and dedupe
-Within a single source neuron and signal type, signals are ordered monotonically by sequence number. Subscribers deduplicate replayed deliveries using their last acknowledged watermark.
+Signals of one publisher arrive in sequence order. Each subscriber keeps a cursor per source and stores it with the reaction's own save. A signal at or below the cursor is dropped as a duplicate. When a reaction throws, the cursor moves back and the signal is delivered again.
 
 ## Catch-up
-When a subscriber restarts or reconnects, `ResumeAsync` replays retained signals from the subscriber's watermark forward.
+A subscriber does not depend on the wake-up after an append. When it activates or is nudged, it reads the journal from its cursor forward until it reaches the end (`CatchUp` on the delivery of its host).
 
 ## Retention floor and Gap
-If a subscriber's watermark falls behind the stream's retention floor, the runtime emits `Gap(FromSequence, ToSequence)` before delivering newer signals.
+The journal trims entries below a floor. A subscriber whose cursor is below the floor of a source receives one `Gap(Source, From, To)` signal in place of the missing signals, and rebuilds from the source's current state. On the Orleans runtime `RetentionOptions` sets the floor: `HistoryWindowAge`, `HistoryWindowSignals`.
 
 ## Dead subscribers
-Unreachable or retired subscribers are pruned after bounded retry windows so retention floors advance cleanly.
+A cursor holds the floor back only while it is live. A cursor that has not moved for `StaleCursorAfter` stops pinning the floor. If that subscriber returns, it gets a `Gap`.
 
 ## Write-then-crash window
-State and outbox entries are committed together before stream publication; if a crash occurs before publication completes, recovery publishes the committed outbox entry on activation.
+State, signals and the cursor move are one journal entry: durable as a whole or not at all. If the process dies after the append and before subscribers are woken, the signal is still in the journal and catch-up delivers it. A `[Synapse]` gate is the exception: its state can lag one signal behind the publisher's entry.
 
 ## Authorization
-Every synapse admission checks `AdmitSynapse` against the caller and target scope before any subscription is recorded in `ISynapseRegistryIndex`.
+Before a synapse is created, the runtime asks the source neuron: `AdmitSynapse` gets a `SynapseRequest` with the subscriber, the signal types and the caller the runtime stamped. The default admits subscribers of the same brain. A refusal throws `UnauthorizedAccessException` and no synapse is recorded.
 
 ## Topologies
-Both `TestOS.Local()` (deterministic in-process queue) and `SiloHost` (distributed Orleans streams) honor this exact contract.
+`TestOS.Local()` (in process, deterministic) and the Orleans host started by `SiloHost.Local()` honor the same contract.
 
 ## Stream identity
-Each stream is uniquely identified by `(BrainId, NeuronType, NeuronKey, SignalName)`.
+A synapse is identified by the publisher's `NeuronId` (`brain/type/key`), the signal's `[Signal]` alias and the subscriber's `NeuronId`. A brain-wide synapse has no single publisher: it reads the whole brain's journal in order.

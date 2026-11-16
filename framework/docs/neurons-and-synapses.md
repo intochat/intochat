@@ -1,33 +1,96 @@
 # Neurons and Synapses
 
-Neurons and synapses form the core state and event machinery of DigitalBrain.
+Neurons hold state and publish signals. Synapses carry signals from one neuron to another.
 
 ## Neurons
 
-A **Neuron** is a stateful actor addressable by `(BrainId, NeuronType, NeuronKey)`.
-- Neurons process messages and signals sequentially.
-- State transitions occur via `Save(state, signal)`.
-- Emitted signals are committed with state and routed to subscribers according to the [delivery contract](delivery-contract.md).
+A neuron is a plain class that derives from `Neuron` or `Neuron<TState>` and is marked `[Neuron("type")]`.
 
-## Synapses
+- Its id is a `NeuronId`: a brain, a frozen type name and a key, written `brain/type/key`.
+- It runs one turn at a time.
+- `Neuron<TState>` has persisted state. The state is an immutable record with a parameterless constructor.
+- `Save(next, signal)` writes the state and its signals as one journal entry. There is no save without a signal.
+- `Publish(signal)` publishes without a state change. `PublishEphemeral(signal)` publishes without writing to the journal.
+- `Check(operation, rules)` publishes `Rejected` and throws `RuleViolationException` when a `Rule` is broken.
+- `Get<T>(id)` returns a typed interface to another neuron of the same brain.
 
-A **Synapse** is an in-process reaction unit marked with `[Synapse]` that reacts to signals emitted by neurons.
-- Synapses execute inside isolated load contexts.
-- Roslyn analyzers enforce the synapse shape and its boundary:
-  - `DB0041`: every `[Synapse]` is a gate, reaction or view.
-  - `DB0042`: a synapse's `[State]` record is declared in its own assembly.
-  - `DB0043` (warning): state carries no status-like member; a synapse says no through a gate.
-  - `DB0044`: no `[On]` reactions in a synapse assembly.
-  - `DB0045` (advisory): flags use sites of APIs a unit cannot use (network, disk, processes, environment, console, reflection, expression trees, `dynamic`, native interop, threads, timers and the thread pool), so the author sees the problem at the line.
-- The boundary is the synapse host, not the analyzer: before a build loads, every type and member it references must be on the host allow-list, and it may declare no P/Invoke. Units compile with `unsafe` off. Anything else refuses the deploy with a `DB0045` diagnostic naming the first reference outside the list. The allowed surface:
-  - Whole namespaces: `System`, `System.Collections`, `System.Collections.Generic`, `System.Collections.Immutable`, `System.Collections.Frozen`, `System.Linq` (not `System.Linq.Expressions`), `System.Text`, `System.Text.Json` (+ `.Serialization`, `.Nodes`), `System.Text.RegularExpressions`, `System.Globalization`, `System.Numerics`, `System.Buffers`.
-  - DigitalBrain: `DigitalBrain`, `DigitalBrain.Rules`, `DigitalBrain.Time`, `DigitalBrain.UI`, `DigitalBrain.Capabilities` and the shipped contract namespaces `DigitalBrain.Capabilities.Compute`, `.Connections`, `.Http`, `.Identity`, `.Secrets`, `.Storage`, `.Tools`. The synapse runtime types in `DigitalBrain` are refused (`ISynapseHost`, sources, installs, the catalog, `IViewReader`, `StateNeuron`, policies, `INeuronResolver`, `IBrainSignalLog`, privileged module types, app and module declarations, the neuron base classes and grain-shape attributes), as is everything in `DigitalBrain.Runtime.*` and `DigitalBrain.Spi`. Any other interface marked `[Capability]` is allowed, so a module's or a test's slot contract can be a slot. Every public type in the `DigitalBrain` namespace is ruled one way or the other (`UnitFacingDigitalBrainTypes` or `RefusedDigitalBrainTypes`); an architecture fact fails on a new one that is on neither.
-  - The principle: allow members, never types with member deny-lists. A pure data type is allowed whole; every other type that stays allowed (`RuntimeHelpers`, `Type`, `Task`/`ValueTask` and their awaiters and builders, `CancellationToken`, `CancellationTokenSource`) is allowed member by member (`AllowedApis.MemberAllowList`), so a member a later .NET adds is refused until it is ruled on.
-  - Refused inside them: `System.Progress<T>`, `Activator.*`, `Delegate.CreateDelegate`, `Delegate.DynamicInvoke`, `AppDomain.*`, `AppContext.*`, `Environment.*` (except `NewLine`, `TickCount64`, `CurrentManagedThreadId`), `Console.*`, `GC.*`, `ArrayPool<T>.Shared` (`ArrayPool<T>.Create` is fine).
-  - `Type`, member by member: `typeof`, `==`/`!=`, `FullName`, `Namespace`, `Equals`, `GetHashCode`, `ToString`, `IsAssignableFrom`/`To`, `IsValueType`, `IsEnum`, `IsGenericType`; no `TypeHandle`, `GetType*`, members, interfaces or generics. `System.Text.Json` members that take a `Type` and `JsonSerializerOptions.TypeInfoResolver*` are refused, and a `typeof` argument in a custom attribute must name the unit's own type or one on the allowed surface.
-  - Single types, member by member: `Task`, `Task<T>`, `ValueTask`, `ValueTask<T>` (awaiting, `Delay`, `FromResult`, `WhenAll`/`WhenAny`, status and result; refused: `new Task`, `Run`, `Factory`, `Start`, `ContinueWith`, `ConfigureAwait`, `Yield`, `Wait`); `CancellationToken` (no `Register`), `CancellationTokenSource` (`new()`, `Cancel()`, `Token`, `CreateLinkedTokenSource`, `Dispose`, `TryReset`; no `CancelAfter`, timed constructors or `Cancel(bool)`): a unit's code never leaves the activation's turn; `Interlocked`, `Volatile`, `Lock` (`lock` on a `Lock` field; `System.Threading.Monitor`, so `lock` on a plain object, is refused); `ManualResetValueTaskSourceCore`, `IValueTaskSource`; `MemoryStream`, `Stream`, `TextWriter`, `StringWriter`, `StringReader`; `InAttribute`, `CollectionsMarshal`.
-  - What the compiler emits: the `System.Runtime.CompilerServices` attributes, builders and awaiters for records, nullable, `required`, `init`, `ref readonly`, collection expressions, inline arrays, `params` spans, interpolated strings, switch expressions, async, iterators and async streams; `RuntimeHelpers` only for `InitializeArray`, `CreateSpan`, `GetSubArray` and `EnsureSufficientExecutionStack` (`Box`, `GetUninitializedObject` and every other member refused); the awaiter `OnCompleted` and builder `AwaitOnCompleted` members only from compiler-generated state machines; `ExceptionDispatchInfo.Capture` and `Throw` (await foreach, await in finally); the `System.Diagnostics` debugger attributes, `SetsRequiredMembersAttribute`, `UnscopedRefAttribute`, `System.Reflection.DefaultMemberAttribute`.
-  - Raw memory helpers: `Unsafe.As`, `Unsafe.Add`, `MemoryMarshal.CreateSpan` and `MemoryMarshal.CreateReadOnlySpan` pass only when every call site is inside the compiler's `<PrivateImplementationDetails>` type (the host reads the IL); every other `Unsafe` and `MemoryMarshal` member is refused.
-  - No explicit layout: a type with `LayoutKind.Explicit` or any `[FieldOffset]` is refused (overlapping fields are type confusion); only the compiler's fieldless sizing structs inside `<PrivateImplementationDetails>` pass.
-  - The exact list is `AllowedApis` in `DigitalBrain.Runtime.Synapses`.
-- External interactions must be scheduled through capabilities or out-of-process sandboxes.
+```csharp
+[Neuron("APP_ID.counter")]
+public sealed class CounterNeuron : Neuron<CounterState>, ICounter
+{
+    public async Task<int> Increment()
+    {
+        var next = State with { Count = State.Count + 1 };
+        await Save(next, new Counted(next.Count));
+        return next.Count;
+    }
+
+    public Task<int> Count() => Task.FromResult(State.Count);
+}
+```
+
+From `templates/DigitalBrain.Templates/content/digitalbrain-app/AppName/CounterNeuron.cs`.
+
+## Signals
+
+A signal is a record that derives from `Signal`. `[Signal("alias")]` gives it the frozen alias the journal stores.
+Published signals reach subscribers under the [delivery contract](delivery-contract.md).
+
+## Reactions and synapses
+
+A reaction is a neuron method marked `[On]`. It takes one signal and runs when that signal arrives.
+
+A synapse is a durable route: signals of one type published by one neuron reach another neuron.
+A neuron manages the synapses it holds through `ISynapses` (`Context.Synapses`):
+
+- `Ensure<TSignal>(from)` adds a route from one neuron. `Remove(from)` drops it.
+- `EnsureBrainWide(signals)` hears the signal types from every other neuron of the brain.
+- The source decides who may subscribe in `AdmitSynapse`. The default admits neurons of the same brain.
+
+## Synapse functions
+
+A function marked `[Synapse]` is a pure, public static function over one state record. The record is marked `[State("alias")]`.
+
+- A reaction takes a signal and the state and returns the next state, or a `Reaction<TState>` with signals to publish:
+  `[Synapse(typeof(TSignal), "alias")]`.
+- An alias reaction takes a `SignalEnvelope`, so it needs no reference to the signal type: `[Synapse("signal.alias", "alias")]`.
+- A view takes only the state and returns a value to show: `[Synapse("alias")]`.
+- A `[Slot]` parameter is a capability the installer connects. Its type is an interface marked `[Capability]`.
+- `Every` on a reaction to `Tick` sets a schedule.
+
+```csharp
+[Synapse(typeof(Charging), "week")]
+public static WeekSpend WeeklyCap(Charging s, WeekSpend t) =>
+    t with { Spent = t.Spent + s.Amount };
+```
+
+From `tests/DigitalBrain.Runtime.Synapses.Tests.Unit/Compile/SynapseCompilerFacts.cs`.
+
+## What the build and the host check
+
+`SynapseCompiler` in `DigitalBrain.Runtime.Synapses` compiles synapse source and runs the analyzers:
+
+- `DB0041`: every `[Synapse]` is a reaction or a view.
+- `DB0042`: a synapse's state record is declared in its own assembly.
+- `DB0043` (warning): state carries no status-like member.
+- `DB0044`: no `[On]` reactions in a synapse assembly.
+- `DB0045`: flags banned APIs at the line (network, disk, processes, environment, reflection, native code, `dynamic`, thread pool).
+
+The analyzer is advice. The boundary is the host: `UnitLoader` checks every build before it loads it into a collectible load context.
+
+- Every type and member the build references must be on the allow-list `AllowedApis`, or be an interface marked `[Capability]`.
+- The build may declare no P/Invoke and no explicit-layout types.
+- A refused build fails the deploy with a `DB0045` diagnostic.
+
+The allow-list in short (the exact list is `AllowedApis` in `src/DigitalBrain.Runtime.Synapses/Host/AllowedApis.cs`):
+
+- Whole namespaces: `System`, `System.Collections`, `System.Collections.Generic`, `System.Collections.Immutable`,
+  `System.Collections.Frozen`, `System.Linq`, `System.Text`, `System.Text.Json` (with `.Serialization` and `.Nodes`),
+  `System.Text.RegularExpressions`, `System.Globalization`, `System.Numerics`, `System.Buffers`.
+- DigitalBrain: `DigitalBrain`, `DigitalBrain.Rules`, `DigitalBrain.Time`, `DigitalBrain.UI`, `DigitalBrain.Capabilities` and
+  `DigitalBrain.Capabilities.Compute`, `.Connections`, `.Http`, `.Identity`, `.Secrets`, `.Storage`, `.Tools`.
+  Every other DigitalBrain namespace is closed.
+- Single types such as `Task`, `ValueTask`, `CancellationToken` and what the compiler emits are allowed member by member
+  (`MemberAllowList`). A member a later .NET adds is refused until it is ruled on.
+
+A synapse function reaches the outside only through a `[Slot]` capability.

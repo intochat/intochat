@@ -13,4 +13,4 @@ dotnet test --project tests/MODULE_NAME.Tests.Unit/MODULE_NAME.Tests.Unit.csproj
 ```
 
 The build runs the DigitalBrain analyzers: a module without `[Module]` or a static `Manifest` fails with DB0001.
-The tests use the `DigitalBrain.Testing` fakes. TestOS arrives in a later DigitalBrain release.
+The tests use the `DigitalBrain.Testing` fakes.

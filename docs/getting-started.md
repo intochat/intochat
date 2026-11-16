@@ -1,88 +1,67 @@
-# Getting Started
+# Getting started
 
-This guide walks through building, testing, and launching **IntoChat OS** locally with `.NET Aspire` (`aspire start`) and the native Flutter desktop client.
+This page shows how to run IntoChat from a clone of this repository.
 
 ## Prerequisites
 
-- **.NET 11 SDK** (`11.0.100-preview.3` or newer) & **.NET Aspire CLI** (`aspire`)
-- **Flutter SDK** (`3.41.x` / Dart `3.11+` for the `ui/` workspace)
-- **Docker Desktop** (optional — only needed when running containerized PostgreSQL or external container resources; local development runs out-of-the-box in-memory)
+- The .NET SDK pinned in `global.json` (`11.0.100`; prerelease builds are allowed).
+- Docker, running Linux containers.
+- Ollama on this computer, for the `local` profile.
+- The Flutter SDK, for the shell. Without it, the `local` profile starts with no shell.
 
-## Repository Layout
+The `preflight` profile checks all of these. It also checks free disk space, free ports, WSL on Windows and whether a GPU is present.
 
-Clone the repositories side-by-side under a shared parent directory:
+## Start
 
-```text
-intochat/
-├── digitalbrain/       # Core C# framework (intochat/digitalbrain)
-├── modules/            # Official DDD modules (intochat/modules)
-├── os/                 # IntoChat OS runtime, Aspire AppHost & Flutter UI (intochat/os)
-│   └── ui/             # Dart Pub workspace (core, ui, shell)
-└── nuget/              # Local NuGet feed for cross-repo package development
+Run from the repository root:
+
+```
+dotnet run intochat-os.cs preflight   # check the machine, change nothing
+dotnet run intochat-os.cs local       # check, pull the model if missing, start against host Ollama
+dotnet run intochat-os.cs             # default profile, includes the Flutter shell
 ```
 
-## 1. Run `aspire start`
+`intochat.cs` is the same launcher under a shorter name. Both start the Aspire AppHost in `src/IntoChat.OS.AppHost`, which starts the kernel.
 
-From the root of `intochat/os`, start the `.NET Aspire` AppHost (`src/IntoChat.OS.AppHost`), the `IntoChat.OS.Kernel` Orleans silo, and the native desktop Flutter shell in the background with `aspire start`:
+## Profiles
 
-```powershell
-cd E:\intochat\os
-aspire start
-```
+The first argument selects the profile.
 
-What `aspire start` launches:
-- **`.NET Aspire` Dashboard & AppHost**: Orchestrates all OS resources, health checks, structured logs, and distributed traces.
-- **`IntoChat.OS.Kernel` (`http://localhost:5080`)**: Hosts the Orleans silo, gRPC `NeuronsService`, HTTP/SSE `RuntimeEdge`, unified `/integrations/{provider}` OAuth & webhook endpoints, and built-in `App<TState>` shell apps (`DesktopApp`, `InoApp`, `CreatorApp`, `SettingsApp`, `GalleryApp`, `Files`, `PhotoCraftApp`, `FilmCraftApp`).
-- **WASM Studios (`PhotoCraft` & `FilmCraft`)**: Serves `PhotoCraft` (`http://localhost:18082`) and `FilmCraft` (`http://localhost:18083`) interactive WASM studios rendered via `UI.WebBrowser`.
-- **Native Flutter Desktop Client (`ui/shell`)**: Launches the Whiteboard Home Desk connected to the kernel over HTTP/2 gRPC.
+| Profile | What it does |
+|---|---|
+| `default` | Starts the product with the Flutter shell. Used when no profile is given. |
+| `headless` | Starts the product without the shell. |
+| `local` | Runs preflight, pulls the model if it is missing, then starts with the `local` topology and Ollama on this computer. |
+| `preflight` | Checks the machine and exits. |
+| `reset` | Removes the local run state of this checkout. It lists what it will remove and asks for a typed "yes". |
+| `<config>.json` | Starts with an extra configuration file that the AppHost loads. |
 
-Useful Aspire & launcher commands:
+Anything after a bare `--` goes to the AppHost unchanged.
 
-```powershell
-# List running Aspire AppHosts and resources
-aspire ps
-aspire describe
+## Options
 
-# Stop the running Aspire AppHost
-aspire stop
+| Option | Meaning |
+|---|---|
+| `--model <tag>` | The Ollama model to use. The default is `qwen3.5:4b`; `qwen3.5:2b` is the smaller one. |
+| `--endpoint <url>` | The Ollama address. The default is `http://localhost:11434`. |
+| `--allow-registry` | Allow a model name that pulls from a registry other than the Ollama library. |
+| `--pull` | With `preflight`: pull the model if it is missing. |
+| `--json` | With `preflight`: print the report as JSON. |
+| `--no-fail` | With `preflight`: exit with 0 even when a check fails. |
+| `--skip-preflight` | With `local`: start without running the checks. |
+| `--fake <file>` | Read the machine state from a fixture file instead of probing. Used by tests. |
 
-# Or launch interactively via the repository launcher script
-dotnet run intochat.cs
-```
+`preflight` exits with 0 when the machine passes, 1 when a check fails and 2 for a usage error.
 
-## 2. Build & Test the C# Stack
+## What is running
 
-Run the automated unit, `[Scenario]` BDD, architecture, and integration test suites across all three repositories:
+- The kernel serves the shell on port 5080 and MCP on port 5081 by default (`IntoChatOS:Http:UiPort`, `IntoChatOS:Http:McpPort`).
+- Local state lives under `~/.intochat`. Set `IntoChatOS:Home` to move it.
+- `IntoChatOS:Topology` says where the brain runs. Unset means `local`. See [concepts](concepts.md).
+- In the `local` and `local+cloud` topologies the modules that need containers are off by default. Turn one on with `IntoChatOS:Modules:<id>:Enabled=true`.
 
-```powershell
-# 1. DigitalBrain Framework
-dotnet test E:\intochat\digitalbrain\DigitalBrain.slnx
+## Next
 
-# 2. Official Modules
-dotnet test E:\intochat\modules\IntoChat.Modules.slnx
-
-# 3. IntoChat OS (Unit, Architecture, Integration & E2E)
-dotnet test E:\intochat\os\Intochat.OS.slnx
-```
-
-## 3. Build & Test the Consolidated Flutter UI Workspace (`ui/`)
-
-All Flutter packages live inside the Dart Pub workspace at `e:\intochat\os\ui\` (`ui/core`, `ui/ui`, `ui/shell`), cleanly isolated from MSBuild and `.slnx`:
-
-```powershell
-cd E:\intochat\os\ui
-flutter pub get
-flutter analyze
-flutter test
-```
-
-## 4. Explore the Whiteboard Desktop & Built-In Apps
-
-Once `aspire start` opens the desktop shell:
-1. **Whiteboard Home Desk**: Drag, resize, and **Auto-Arrange** sticky-note smart apps on the canvas. Click the **Pin** button (`LucideIcons.pin`) on any window top bar to lock its position during auto-layout and keep it **always-on-top**.
-2. **Top-Bar Sandbox Controls**:
-   - **Short-click Reload (`LucideIcons.rotateCw`)** to refresh the app's declarative `View` without losing state.
-   - **Long-press (`> 500ms`) or right-click Reload** to hard-restart the isolated app sandbox.
-   - **Settings Popover (`LucideIcons.slidersHorizontal`)** to switch the app's execution mode (`WASM Web UI`, `MCP Server`, `Native Linux CLI`), reset sandbox state, or inspect the app in Creator 3D.
-3. **Talk to Ino (`ino`)**: Send a message in `InoApp`—Ino queries `ReadBrainContext` and recalls relevant facts from `MemoryNeuron` (`IMemory`).
-4. **Build & Debug in Creator (`creator`)**: Select or create an app to watch the 3D `BrainScene3D` halt rotation and smoothly zoom to the target app node, inspect step-by-step plain-English `[Scenario]` BDD results, test in the live `SANDBOX / TEST CREDENTIALS` viewport, and release or roll back semantic versions.
+- [Concepts](concepts.md)
+- [Architecture](architecture.md)
+- [Contributing](../CONTRIBUTING.md), for the build and test commands.

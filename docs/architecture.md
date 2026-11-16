@@ -1,105 +1,64 @@
-# System Architecture
+# Architecture
 
-IntoChat OS is structured across three cleanly decoupled repositories and six architectural pillars so that the core programming model remains lightweight and framework-pure, domain modules stay reusable, and the operating system runtime handles orchestration, sandboxing, zero-token security, and the declarative Flutter desktop.
+IntoChat is built on DigitalBrain, the framework in [`framework/`](../framework/README.md). The framework defines neuron, signal, synapse, app and module; see the [framework docs](../framework/docs/README.md). This page describes the product on top of it.
 
-## End-to-End Topology
+The product has four parts.
 
-```mermaid
-flowchart TB
-    subgraph UI["Flutter Pub Workspace (e:\\intochat\\os\\ui)"]
-        Core["ui/core (intochat_os_flutter)\ngRPC NeuronChannel & Stream Contracts"]
-        UiKit["ui/ui (intochat_os_ui)\nDeclarative NeuronView, BrainScene3D, UiGalleryScreen, LFP Cards"]
-        Shell["ui/shell (intochat_os_flutter_shell)\nWhiteboardWorkspace, WindowFrame, Pin/Reload/Execution Mode Controls"]
-        Shell --> UiKit --> Core
-    end
+| Part | What it is | Where it lives |
+| --- | --- | --- |
+| Kernel | The host process: it composes the modules, hosts the neurons and serves the shell. | `src/IntoChat.OS.Kernel`, `src/IntoChat.OS.Sandbox` |
+| System apps | The apps compiled into the product. | `src/IntoChat.OS.Apps` |
+| Modules | Capabilities and connectors the kernel composes. | `src/Modules` |
+| Shell | What you see: the Flutter client and the desktop launcher. | `ui`, `src/IntoChat.OS.Desktop` |
 
-    subgraph Kernel["IntoChat OS Kernel & Authority (e:\\intochat\\os)"]
-        Grpc["NeuronsService (gRPC) & MapBrainHttp"]
-        Integrations["Unified /integrations/{provider}\nOAuth Callbacks & Inbound Webhooks"]
-        Filter["PlainNeuronCallFilter -> CallFilter -> GrantCallFilterStage"]
-        Broker["ICapabilityBroker & KernelCapabilityConnections"]
-        LocalCloud["Cloud Module: LocalCloudNeuron (Filtered Local IStorage)"]
-        SdkMod["SDK Module: SdkCapabilitySharing & Friend App Grants"]
-        ShellApps["CompiledAppsHost (App<TState>)\nDesktop, Ino, Creator, Settings, Gallery, Files, PhotoCraft, FilmCraft"]
-    end
+`src/IntoChat.OS.Framework` holds product-side hosting code (identity, connections, the call filter, the gRPC service). `src/IntoChat.Cloud` holds the cloud service modules, which load only under the cloud topology.
 
-    subgraph Connectors["3-Part Connection Neurons ({brainId}/connection/{connectorId}/{connectionId})"]
-        ConnNeuron["ConnectionNeuron<TState>\nUseCredentialAsync (Sealed Vault Credentials)"]
-        FriendBind["ConnectionBindings & Friend Capability Grants"]
-    end
+## Kernel
 
-    subgraph Sandbox["Isolated App Execution (WASM / MCP / Native Linux CLI / C# Sandbox)"]
-        Edge["RuntimeEdge (SSE + Invoke + Report)"]
-        Roslyn["In-Memory Roslyn Compiler & BddRunner ([Scenario])"]
-        WasmPhoto["PhotoCraft WASM Studio (http://localhost:18082)"]
-        WasmFilm["FilmCraft WASM Studio (http://localhost:18083)"]
-    end
+`src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Program.cs` is the entry point. It does three things:
 
-    Core <-->|"HTTP/2 gRPC & Watch Stream"| Grpc
-    Grpc --> ShellApps
-    Grpc --> Filter
-    Edge --> Filter
-    Filter --> Broker
-    Broker --> ConnNeuron
-    Broker --> LocalCloud
-    ConnNeuron --> FriendBind
-    Integrations --> ConnNeuron
-    ShellApps --> Roslyn
-    UiKit -->|"UI.WebBrowser"| WasmPhoto
-    UiKit -->|"UI.WebBrowser"| WasmFilm
-```
+1. It takes the module list from `OperatingSystemModules`. On Windows it adds the Windows module. It keeps the modules that load under the configured topology.
+2. `AddIntoChatOSServer` configures the Orleans silo, the DigitalBrain runtime and every selected module. `AddOperatingSystem` adds the modules and the system apps.
+3. `MapIntoChatOSServer` maps the HTTP and gRPC endpoints. `MapIntoChatOSMcp` maps the MCP endpoint at `/mcp`.
 
-## 1. Consolidated Flutter UI Workspace & Single Declarative Toolkit
+The `IntoChatOS:Topology` setting picks clustering, state stores, streams, reminders and secrets.
 
-All Flutter packages reside in a single Dart Pub workspace at `e:\intochat\os\ui\`, completely isolated from MSBuild and `Intochat.OS.slnx` (`Directory.Build.props` excludes `ui\**` from MSBuild globs, and zero `.csproj` files exist under `ui/`):
+The sandbox worker in `src/IntoChat.OS.Sandbox` runs app code made at run time outside the kernel process. See [sandbox and live behaviors](sandbox-and-live-behaviors.md).
 
-```text
-e:\intochat\os\ui\
-├── pubspec.yaml                 # Dart Pub Workspace root (members: core, ui, shell)
-├── analysis_options.yaml
-├── core\                        # package:intochat_os_flutter (gRPC transport & contracts)
-├── ui\                          # package:intochat_os_ui (NeuronView, BrainScene3D, UiGalleryScreen)
-└── shell\                       # package:intochat_os_flutter_shell (Whiteboard desktop & WindowFrame)
-```
+## System apps
 
-Every built-in app (`DesktopApp`, `WorkspaceApp`, `InoApp`, `CreatorApp`, `SettingsApp`, `GalleryApp`, `PostApp`, `PhotoCraftApp`, `FilmCraftApp`, `Files`, `CalculatorApp`) and every runtime Creator app inherits from `DigitalBrain.App<TState>` and returns declarative `DigitalBrain.UI.View` value trees (`Render()` and `RenderSide()`). Legacy per-widget grain contracts (`ILayout`, `IText`, `IButton`) are eliminated in favor of polymorphic `DigitalBrain.UI` nodes projected through `IView` (`ViewNeuron`).
+Each system app has a folder in `src/IntoChat.OS.Apps`, for example `Ino`, `Creator`, `Desktop`, `Settings` and `Tasks`. A system app is a neuron. `InoApp` and `CreatorApp` derive from the framework's `Screen<TState>`: the app keeps a state record and renders it as a `View` tree. C# decides what is on screen; Flutter only draws it.
 
-## 2. Whiteboard Home Desk & Window Top-Bar Controls
+`ShippedShellAppsModule` (id `os-apps`) carries these neurons into the kernel. When a brain is created, `OsDefaults` installs the default apps into it. `src/IntoChat.OS.Apps/Units` holds the unit sources the product ships; `ShippedUnits` deploys them like any unit made at run time.
 
-- **Whiteboard Home Desk (`WhiteboardWorkspace` & `LiveDesktopShell`)**:
-  - Apps on the desktop operate as resizable sticky-note smart cards and floating windows (`DesktopWindowState` + `SmartStickyCardState`) with interactive corner/edge resize handles (`resizeBy`) and drag-to-move (`moveBy`).
-  - **Auto-Arrange (`DesktopAutoArrange`)** arranges unpinned apps into a clean, non-overlapping responsive grid while preserving the exact `(x, y, width, height)` of any pinned app.
-  - **Always-on-Top Pinning (`LucideIcons.pin`)** locks a window both spatially during auto-arrange and at the top of the z-order stack (`[...unpinnedIds, ...pinnedIds]`).
-- **Window Top-Bar Controls (`WindowFrame`)**:
-  - **Reload / Hard-Restart Sandbox (`LucideIcons.rotateCw`)**: Short click (`< 500ms`) refreshes the declarative `NeuronView`; long press (`>= 500ms`) or right-click dispatches `sandbox-restart` (`hard-restart`) to tear down and recreate the isolated app sandbox.
-  - **Execution Mode & Sandbox Settings Popover (`LucideIcons.slidersHorizontal`)**: Switches per-app execution mode (`WASM Web UI`, `MCP Server`, `Native Linux CLI`), resets sandbox state, or opens `CreatorApp` zoomed into the app's 3D neuron node.
-  - **WASM Studios (`UI.WebBrowser`)**: `PhotoCraftApp` (`http://localhost:18082`) and `FilmCraftApp` (`http://localhost:18083`) embed live WASM studios via `UI.WebBrowser` (`WebBrowserNode`).
+### Creator
 
-## 3. Unified `/integrations/{provider}` & Zero-Token Security Model
+`CreatorApp` (`src/IntoChat.OS.Apps/Creator`) is the place to make units and watch them run. It shows the brain as a graph, with an inspector for the selected node, edge or trace. It reads everything from the kernel. Its operations are signals:
 
-All external OAuth flows and inbound webhooks route through a single unified HTTP surface (`/integrations/{provider}`) and address multi-account user connections via 3-part `ConnectionKeys` (`{brainId}/connection/{connectorId}/{connectionId}`).
+- `CreatorMake` passes a goal to `IInoStudio`, which starts a build.
+- `CreatorChange` starts a build flow over a unit's current files through `IFlows`.
+- `CreatorScenario` runs a unit's kept scenarios and shows the transcript.
+- `CreatorSeed` deploys a shipped unit through `ISynapseStudio`.
+- `CreatorApprove` and `CreatorReject` resolve a pending approval through `IConfirmationInbox`.
+- `CreatorSelect`, `CreatorTrace` and `CreatorReplay` drive the inspector and step through a trace.
+- `CreatorShare` publishes the selected unit to your profile.
 
-```mermaid
-sequenceDiagram
-    participant App as Sandboxed App<TState>
-    participant Edge as RuntimeEdge / CallFilter
-    participant Grant as GrantCallFilterStage
-    participant Broker as ICapabilityBroker
-    participant Conn as ConnectionNeuron<TState>
-    participant Vault as BrainSecretSealer / Vault
+## Modules
 
-    App->>Broker: Resolve<IStorage>(brain) / ResolveAll<IStorage>(brain)
-    Broker->>Edge: Invoke Capability Call (Caller = AppPrincipal)
-    Edge->>Grant: AuthorizeAsync(CallRequest)
-    Grant-->>Edge: Allowed (Capability Grant or Friend Binding)
-    Edge->>Conn: Execute Capability Operation
-    Conn->>Vault: Unseal OAuth Credential Inside Grain (UseCredentialAsync)
-    Conn->>Conn: Call External Provider HTTP API with Bearer Token
-    Conn-->>App: Sanitized Domain Result (Zero Raw Token Exposure)
-```
+A module adds neurons, contracts and settings to the kernel. Each lives in a folder under `src/Modules`. See [modules](modules.md).
 
-1. **Zero Raw Token Exposure**: `ConnectionNeuron<TState>.UseCredentialAsync` unseals credentials strictly inside the grain activation (`IBrainSecretSealer`), refreshes expired OAuth tokens internally, and **never** returns raw access tokens, refresh tokens, or API keys across grain boundaries.
-2. **Call-Filter Enforcement**: `RuntimeEdge`, `PlainNeuronCallFilter`, and `GrantCallFilterStage` reject any attempt by an app principal (`app:*`) to invoke `ISecretValueSource`, `IVault`, or internal credential methods directly.
-3. **Core OS Capabilities (`cloud` & `sdk`)**:
-   - `LocalCloudNeuron` (`[Neuron("local-cloud")]`) provides path-traversal-safe local `IStorage` (`storage@1`) scoped to the user's local cloud root.
-   - `SdkCapabilitySharing` and `ConnectionBindings` enable friend-style capability sharing between trusted apps (`ino` <-> `photocraft`, `ino` <-> `files`, `creator` <-> `bdd`).
+## Shell
+
+`ui` is the Flutter client. `ui/lib/desktop` holds the desktop and window frame, `ui/lib/workspace` the app surfaces, and `ui/lib/src/core` the transport to the kernel.
+
+`src/IntoChat.OS.Desktop` is the launcher for one machine. It starts the kernel and the Flutter shell, and keeps its files under `~/.intochat`.
+
+## How a request flows
+
+1. **Shell.** You act in a window. `NeuronChannel` (`ui/lib/src/core/neuron_channel.dart`) sends a call over gRPC, or gRPC-Web in a browser. The call names a brain, a contract, a key, a method and JSON arguments.
+2. **Kernel edge.** `NeuronsService` receives it. `BrainCall` checks that the caller may enter that brain and stamps the caller on the call.
+3. **Neuron surface.** `NeuronSurface` finds the contract, picks the method by name and argument count, reads the JSON arguments and calls the neuron.
+4. **Neuron.** The neuron runs in the Orleans silo. It may change its state and publish signals. `CallFilter` is the enforcement point for who may call what: it refuses a caller with no principal and a call into another brain, then asks each `ICallFilterStage` in order.
+5. **Back.** The result returns as JSON in the reply. The shell also holds a `Watch` stream on the neurons it shows. A change signal tells the view to read again, and Flutter draws the new `View`.
+
+The same `NeuronSurface` serves two other callers. The MCP tools in `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Mcp/Tools` use it, and so does Ino; see [Ino and memory](ino-and-memory.md).

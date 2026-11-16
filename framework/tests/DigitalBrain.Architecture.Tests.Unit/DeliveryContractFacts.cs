@@ -9,7 +9,7 @@ public sealed class DeliveryContractFacts
         "## Dead subscribers", "## Write-then-crash window", "## Authorization", "## Topologies", "## Stream identity",
     ];
 
-    private static readonly string[] Terms = ["at-least-once", "Gap(", "ISynapseRegistryIndex", "ResumeAsync", "AdmitSynapse"];
+    private static readonly string[] Terms = ["at-least-once", "Gap(", "CatchUp", "AdmitSynapse"];
 
     [Fact]
     public void Delivery_contract_names_every_guarantee()

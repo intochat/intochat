@@ -1,12 +1,12 @@
 # AppName
 
-An IntoChat app that follows the app convention.
+A DigitalBrain app that follows the app convention.
 
 | File | Holds |
 | --- | --- |
-| `AppName/AppName.cs` | The `[App]` class: one `[On]` method per operation |
+| `AppName/AppName.cs` | The `Screen<TState>` class marked `[Neuron("app.<id>")]`: one `[On]` method per operation |
 | `AppName/AppName.spec.md` | The spec comment: the description, `Role`, `Shipped`, `Operations` and the scenarios |
-| `AppName.Tests.Unit/AppNameFacts.cs` | The generated baseline theory (`AppBaseline`) and one fact per scenario |
+| `AppName.Tests.Unit/AppNameFacts.cs` | The generated baseline theory (`ScreenBaseline`) and one fact per scenario |
 
 ```
 dotnet build -warnaserror

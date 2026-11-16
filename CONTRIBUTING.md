@@ -4,11 +4,36 @@
 - CI must pass before a pull request is merged.
 - Documentation lives next to the code: `docs/` for the product and `framework/docs/` for DigitalBrain. A change that makes a page untrue fixes the page in the same pull request. Dated plans and reports do not go in `docs/`.
 
-Commands to run before pushing:
+## Where things go
 
-- `dotnet run scripts/sync-solution.cs` after adding or moving a project (`-- --check` verifies).
-- `dotnet run scripts/module-readmes.cs` after changing a module's options or secrets (`-- --check` verifies; CI runs it).
-- When a grain, contract, state, or signal identity changes, rewrite `src/Testing/IntoChat.OS.Architecture.Tests.Unit/ContractManifest.json` from `ContractManifest.Capture()` and commit it with the change. `ContractManifestFacts` fails when that file drifts.
+- The framework is in `framework/`. It may not reference anything named `IntoChat` (`FrameworkBoundaryFacts`).
+- System apps are in `src/IntoChat.OS.Apps`, one folder per app with its scenarios.
+- Modules are in `src/Modules`, one folder per module.
+- The Flutter shell is in `ui`. No project files for .NET go there.
+- Apps never receive a credential. They reach outside services through `ICapabilityBroker` and a connection.
+
+## Checks to run before pushing
+
+CI runs these (`.github/workflows/ci.yml`). On Windows, build single projects, not the whole solution.
+
+```
+dotnet format whitespace Intochat.OS.slnx --verify-no-changes
+dotnet build <project> -c Release
+dotnet test --project <test project> -c Release
+```
+
+For the shell, from `ui`:
+
+```
+flutter pub get --enforce-lockfile
+dart format --output=none --set-exit-if-changed lib test
+dart analyze --fatal-infos
+flutter test --exclude-tags golden
+```
+
+Test projects are in `tests` and `framework/tests`. The project name ends with its tier: Unit, Integration, E2E or Browser. [Testing tiers](framework/docs/testing-tiers.md) describes them.
+
+When a grain, contract, state, or signal identity changes, rewrite `tests/IntoChat.OS.Architecture.Tests.Unit/ContractManifest.json` from `ContractManifest.Capture()` and commit it with the change. `ContractManifestFacts` fails when that file drifts.
 
 ### Ratchets
 
