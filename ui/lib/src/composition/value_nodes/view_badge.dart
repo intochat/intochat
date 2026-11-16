@@ -57,8 +57,12 @@ final class ViewBadge extends StatelessWidget {
       _ => UiTone.fromWire(tone),
     };
 
-    final (Color fill, Color ink, IconData? defaultIcon, bool spinDefault) =
-        isAccent
+    final (
+      Color fill,
+      Color ink,
+      IconData? defaultIcon,
+      bool spinDefault,
+    ) = isAccent
         ? (
             c.needsYouBg,
             c.needsYou,
@@ -88,7 +92,7 @@ final class ViewBadge extends StatelessWidget {
           };
 
     final brandSpec = (icon != null && icon!.contains(':'))
-        ? BrandVisuals.tryResolveCapabilityOrAppVisual(null, iconKey: icon)
+        ? BrandVisuals.tryForIconKey(icon)
         : null;
     final customIcon = (brandSpec == null && icon != null && icon!.isNotEmpty)
         ? uiIcon(icon!)

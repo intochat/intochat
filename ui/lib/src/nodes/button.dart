@@ -2,6 +2,7 @@
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../components/kit/ui_kit_button.dart';
+import '../theme/wire_node_values.dart';
 import 'node_context.dart';
 
 const _guardArgKeys = [
@@ -43,14 +44,7 @@ Widget renderButton(ButtonNode node, NodeContext ctx) => Builder(
     icon: node.icon,
     compact: node.small,
     tooltip: _resolveButtonHint(node, ctx),
-    style: switch (node.style) {
-      'primary' => UiKitButtonStyle.primary,
-      'ghost' => UiKitButtonStyle.ghost,
-      'danger' => UiKitButtonStyle.danger,
-      'link' => UiKitButtonStyle.link,
-      _ when node.tone == 'accent' => UiKitButtonStyle.primary,
-      _ => UiKitButtonStyle.secondary,
-    },
+    style: parseButtonStyle(node.style, node.tone),
     onPressed: node.enabled && ctx.interactive
         ? () => ctx.activate(node.key, context: context)
         : null,

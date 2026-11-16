@@ -83,15 +83,18 @@ public sealed record MarkdrawAppState(
     [Invariant("ActiveDocument and scene collections are non-null."), JsonIgnore]
     public bool NonNullScene => !string.IsNullOrWhiteSpace(ActiveDocument) && Elements is not null && WorkspaceDrawings is not null;
 
-    public Rule HasCanvasElements() => Decision.Rule("canvas_empty", Elements.Length == 0, "Add at least one element before exporting.");
+    public Rule HasCanvasElements() => Decision.Rule("canvas_empty", Elements, static e => e.Length == 0, "Add at least one element before exporting.");
 
-    public Rule SupportedExportFormat(string? format) =>
-        Decision.Rule("invalid_export_format", string.IsNullOrWhiteSpace(format) || format.Trim().TrimStart('.').ToLowerInvariant() is not ("excalidraw" or "svg" or "markdraw"), "Export format must be excalidraw, svg, or markdraw.");
+    public Rule SupportedExportFormat(string? format) => Decision.Rule(
+        "invalid_export_format",
+        format,
+        static f => string.IsNullOrWhiteSpace(f) || f.Trim().TrimStart('.').ToLowerInvariant() is not ("excalidraw" or "svg" or "markdraw"),
+        "Export format must be excalidraw, svg, or markdraw.");
 
     public Decision<MarkdrawAppState> SwitchTemplate([Sample("architecture", "pipeline", "unknown")] string template)
     {
         var clean = template?.Trim().ToLowerInvariant() ?? string.Empty;
-        if (Decision.Check("switch-template", Decision.Rule("unsupported_template", clean is not ("architecture" or "pipeline" or "crm" or "sales"), "Template must be architecture or pipeline.")) is { } refusal)
+        if (Decision.Check("switch-template", Decision.Rule("unsupported_template", clean, static t => t is not ("architecture" or "pipeline" or "crm" or "sales"), "Template must be architecture or pipeline.")) is { } refusal)
         {
             return refusal;
         }
@@ -106,7 +109,7 @@ public sealed record MarkdrawAppState(
 
     public Decision<MarkdrawAppState> RecordExport([Sample("excalidraw", "svg", "bmp")] string format, [Sample("/work/architecture.excalidraw")] string targetPath)
     {
-        if (Decision.Check("export", HasCanvasElements(), SupportedExportFormat(format), Decision.Rule("empty_export_path", string.IsNullOrWhiteSpace(targetPath), "Target export path is required.")) is { } refusal)
+        if (Decision.Check("export", HasCanvasElements(), SupportedExportFormat(format), Decision.Rule("empty_export_path", targetPath, static p => string.IsNullOrWhiteSpace(p), "Target export path is required.")) is { } refusal)
         {
             return refusal;
         }

@@ -1,5 +1,6 @@
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
 using static IntoChat.OS.UI.Kit;
@@ -659,14 +660,20 @@ internal static class SettingsViewRenderer
 
     private static Node RenderNotificationsSection(SettingsAppState state)
     {
-        var approvalCards = state.PendingApprovals.Select(static approval => (Node)new ApprovalCardNode(
-            $"settings-approval-{approval.PlanId}",
-            approval.PlanId,
-            approval.Title,
-            approval.Detail,
-            [new ApprovalRowNode("Subject", "", approval.Subject)],
-            SystemName: "Ino",
-            Status: "pending")).ToArray();
+        var approvalCards = state.PendingApprovals.Select(static approval =>
+        {
+            var visual = VisualCatalog.ForApproval(approval.Subject);
+            return (Node)new ApprovalCardNode(
+                $"settings-approval-{approval.PlanId}",
+                approval.PlanId,
+                approval.Title,
+                approval.Detail,
+                [new ApprovalRowNode("Subject", "", approval.Subject)],
+                SystemName: "Ino",
+                Status: "pending",
+                Icon: visual.IconKey,
+                CapabilityLabel: visual.Label);
+        }).ToArray();
 
         return Surface(SurfaceKind.Elevated, "Notifications", "Choose which neural events alert you and review pending approvals")[
             VStack(Space.Md, [

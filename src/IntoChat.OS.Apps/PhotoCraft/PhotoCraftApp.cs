@@ -79,11 +79,17 @@ public sealed record PhotoCraftAppState(
     [Invariant("PreviewDataUrl is empty or an inline PNG data URL."), JsonIgnore]
     public bool ValidPngPreview => string.IsNullOrEmpty(PreviewDataUrl) || PreviewDataUrl.StartsWith("data:image/png;base64,", StringComparison.Ordinal);
 
-    public Rule SupportedExecutionMode(string? mode) =>
-        Decision.Rule("invalid_execution_mode", string.IsNullOrWhiteSpace(mode) || mode.Trim().ToLowerInvariant() is not ("wasm-ui" or "mcp" or "native-linux"), "Execution mode must be wasm-ui, mcp, or native-linux.");
+    public Rule SupportedExecutionMode(string? mode) => Decision.Rule(
+        "invalid_execution_mode",
+        mode,
+        static m => string.IsNullOrWhiteSpace(m) || m.Trim().ToLowerInvariant() is not ("wasm-ui" or "mcp" or "native-linux"),
+        "Execution mode must be wasm-ui, mcp, or native-linux.");
 
-    public Rule ValidLayerIndex(int index) =>
-        Decision.Rule("layer_out_of_range", index < 0 || index >= EffectiveLayers.Length, $"Layer index {index} is outside 0..{EffectiveLayers.Length - 1}.");
+    public Rule ValidLayerIndex(int index) => Decision.Rule(
+        "layer_out_of_range",
+        (Index: index, Count: EffectiveLayers.Length),
+        static x => x.Index < 0 || x.Index >= x.Count,
+        static x => $"Layer index {x.Index} is outside 0..{x.Count - 1}.");
 
     private string[] EffectiveLayers => Layers is { Length: > 0 } ? Layers : ["Subject Layer (100% · Normal)", "Background Layer (Locked · 100%)"];
 

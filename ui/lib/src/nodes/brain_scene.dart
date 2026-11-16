@@ -8,6 +8,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import '../flame/prefabs/signal_pulse.dart';
 import '../flame/scene_game.dart';
 import '../flame/scene_view.dart';
+import '../theme/wire_node_values.dart';
 import 'node_common.dart';
 import 'node_context.dart';
 
@@ -49,20 +50,16 @@ const brainReplayPrefix = 'replay:';
   final steps = <ReplayStep>[];
   int? at;
   for (final edge in node.synapses) {
-    final label = edge.signalLabel;
-    if (label == null || !label.startsWith(brainReplayPrefix)) continue;
-    final parts = label.split(':');
-    if (parts.length < 5) continue;
-    final index = int.tryParse(parts[1]), seq = int.tryParse(parts[2]);
-    if (index == null || seq == null) continue;
+    final parsed = parseBrainReplayLabel(edge.signalLabel, brainReplayPrefix);
+    if (parsed == null) continue;
     steps.add(
       ReplayStep(
-        index: index,
-        seq: seq,
-        alias: parts[3],
+        index: parsed.index,
+        seq: parsed.seq,
+        alias: parsed.alias,
         from: edge.fromId,
         to: edge.toId,
-        traceId: parts.sublist(4).join(':'),
+        traceId: parsed.traceId,
       ),
     );
     if (edge.active) at = steps.length - 1;
@@ -84,13 +81,13 @@ List<PulseEdge> brainEdges(BrainSceneNode node) {
     for (final edge in node.synapses)
       if (!_isReplay(edge))
         if (at[edge.toId] case final to?)
-          if (edge.fromId == '*' || at.containsKey(edge.fromId))
+          if (isWildcardEdgeOrigin(edge.fromId) || at.containsKey(edge.fromId))
             PulseEdge(
               key: brainEdgeKey(edge),
               fromId: edge.fromId,
               toId: edge.toId,
-              alias: (edge.signalLabel ?? '').split('#').first,
-              start: edge.fromId == '*'
+              alias: stripSignalAliasHash(edge.signalLabel),
+              start: isWildcardEdgeOrigin(edge.fromId)
                   ? to + Vector2(0, -_stub)
                   : at[edge.fromId]!.clone(),
               end: to.clone(),
@@ -130,7 +127,7 @@ SceneState brainSceneState(BrainSceneNode node, {int revision = 1}) {
         transform: SceneTransform(
           x: n.x,
           y: n.y,
-          opacity: n.kind == 'draft' ? .5 : 1,
+          opacity: isDraftBrainNode(n.kind) ? .5 : 1,
         ),
         style: _tints[n.kind] ?? _tints['kernel'],
         parameters: {
@@ -270,7 +267,7 @@ class BrainSceneViewState extends State<BrainSceneView> {
   }
 
   void _input(String id, String kind, double x, double y, String? payload) {
-    if (kind != 'tap') return;
+    if (!isTapBrainInput(kind)) return;
     if (id.startsWith('edge:')) {
       unawaited(widget.ctx.activate(brainSelectKey, value: id));
       return;

@@ -20,6 +20,13 @@ public readonly record struct VisualDescriptor(
 /// </summary>
 public static class VisualCatalog
 {
+    /// <summary>Resolves the canonical capability descriptor (<c>IconKey</c>, <c>Label</c>, <c>AccentHex</c>) for an approval card subject.</summary>
+    public static VisualDescriptor ForApproval(string? sourceOrSubject)
+        => TryForContract(sourceOrSubject, out var found) ? found
+            : !string.IsNullOrWhiteSpace(sourceOrSubject) && sourceOrSubject.Trim().StartsWith("change-", StringComparison.OrdinalIgnoreCase)
+                ? ForContract("IGitHub")
+                : ForContract("IConfirmations");
+
     public static readonly FrozenSet<string> AllIconKeys = new[]
     {
         // Brands
@@ -591,6 +598,16 @@ public static class VisualCatalog
 
         Add(new("Bitcoin", "brand:bitcoin", "#F7931A", "Finance"),
             "bitcoin", "btcalert", "btc", "brand:bitcoin");
+
+        // AI Providers
+        Add(AnthropicProvider, "provider:anthropic");
+        Add(OpenAIProvider, "provider:openai");
+        Add(GoogleProvider, "provider:google");
+        Add(OllamaProvider, "provider:ollama");
+        Add(QwenProvider, "provider:qwen");
+        Add(XaiProvider, "provider:xai");
+        Add(OpenRouterProvider, "provider:openrouter");
+        Add(FoundryProvider, "provider:foundry");
 
         // All 17 ArtCraft Studios + IArtCraftStudio contract
         Add(new("ArtCraft", "artcraft:artcraft", "#6366F1", "ArtCraft Studio"),

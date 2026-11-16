@@ -14,6 +14,7 @@ import '../nodes/error_line.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
 import '../theme/brand_visuals.dart';
+import '../theme/wire_node_values.dart';
 import '../voice_input/ui_voice_input.dart';
 import 'ui_copyable_message.dart';
 
@@ -298,7 +299,7 @@ class _ConversationViewState extends State<ConversationView> {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: _maxColumnWidth),
-              child: msg.role == 'user'
+              child: parseMessageRole(msg.role) == WireMessageRole.user
                   ? _UserMessageItem(message: msg, ctx: widget.ctx.deeper())
                   : _AssistantMessageItem(
                       message: msg,
@@ -312,8 +313,12 @@ class _ConversationViewState extends State<ConversationView> {
   }
 
   static bool _isEmptyFailedAssistantStub(MessageNode msg) {
-    if (msg.role != 'assistant') return false;
-    if (msg.status != 'failed' && msg.status != 'interrupted') return false;
+    if (parseMessageRole(msg.role) != WireMessageRole.assistant) return false;
+    final status = parseMessageStatus(msg.status);
+    if (status != WireMessageStatus.failed &&
+        status != WireMessageStatus.interrupted) {
+      return false;
+    }
     if (msg.text.trim().isNotEmpty) return false;
     if (msg.cards != null && msg.cards!.isNotEmpty) return false;
     if (msg.activities != null && msg.activities!.isNotEmpty) return false;
@@ -430,10 +435,9 @@ class _ConversationViewState extends State<ConversationView> {
                               padding: const EdgeInsets.only(bottom: 3),
                               child: IcBrandChip(
                                 key: const ValueKey('composer-active-model'),
-                                spec: BrandVisuals.resolveModelVisual(
-                                  composer.activeModelLabel,
-                                  modelLabel: composer.activeModelLabel,
-                                  providerIcon: composer.activeProviderIcon,
+                                spec: BrandVisuals.fromNode(
+                                  label: composer.activeModelLabel,
+                                  iconKey: composer.activeProviderIcon,
                                 ),
                                 compact: true,
                               ),
@@ -473,7 +477,8 @@ class _UserMessageItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
-    final sending = message.status == 'sending';
+    final sending =
+        parseMessageStatus(message.status) == WireMessageStatus.sending;
     final bubbleBg = c.bubbleMine;
     final bubbleFg = c.onBubbleMine;
     final cards = message.cards ?? const <Node>[];
@@ -541,7 +546,8 @@ class _AssistantMessageItem extends StatelessWidget {
     final c = IcTheme.of(context);
     final activities = message.activities ?? const <ActivityNode>[];
     final cards = message.cards ?? const <Node>[];
-    final isRunning = message.status == 'running';
+    final isRunning =
+        parseMessageStatus(message.status) == WireMessageStatus.running;
     final model = message.model;
     final modelLabel = message.modelLabel;
     final providerIcon = message.providerIcon;
@@ -611,10 +617,13 @@ class _AssistantMessageItem extends StatelessWidget {
                     Flexible(
                       child: IcBrandChip(
                         key: ValueKey('msg-model:${message.id}'),
-                        spec: BrandVisuals.resolveModelVisual(
-                          model,
-                          modelLabel: modelLabel,
-                          providerIcon: providerIcon,
+                        spec: BrandVisuals.fromNode(
+                          label:
+                              (modelLabel != null &&
+                                  modelLabel.trim().isNotEmpty)
+                              ? modelLabel
+                              : model,
+                          iconKey: providerIcon,
                         ),
                       ),
                     ),
@@ -644,82 +653,23 @@ class _ActivityPill extends StatelessWidget {
 
   final ActivityNode activity;
 
-  (String, String?) _resolveTitleAndDetail(BrandVisualSpec? brandSpec) {
-    final rawTitle = activity.title.trim();
-    final rawDetail = activity.detail?.trim();
-
-    if (brandSpec == null) {
-      return (
-        rawTitle,
-        (rawDetail != null && rawDetail.isNotEmpty) ? rawDetail : null,
-      );
-    }
-
-    // Split compound titles like `Aspire · Resources` or `IAspire.ListResources`
-    if (rawTitle.contains('·')) {
-      final idx = rawTitle.indexOf('·');
-      final head = rawTitle.substring(0, idx).trim();
-      final tail = rawTitle.substring(idx + 1).trim();
-      final combinedTail = [
-        if (tail.isNotEmpty) tail,
-        if (rawDetail != null && rawDetail.isNotEmpty) rawDetail,
-      ].join(' · ');
-      final resolvedHead =
-          BrandVisuals.tryResolveCapabilityOrAppVisual(head) != null
-          ? brandSpec.label
-          : head;
-      return (resolvedHead, combinedTail.isEmpty ? null : combinedTail);
-    }
-
-    if (rawTitle.contains('.') &&
-        !rawTitle.toLowerCase().startsWith('diagnostics.') &&
-        !rawTitle.toLowerCase().startsWith('roslyn.') &&
-        !rawTitle.toLowerCase().startsWith('ai.') &&
-        !rawTitle.toLowerCase().startsWith('ino.')) {
-      final idx = rawTitle.indexOf('.');
-      final head = rawTitle.substring(0, idx).trim();
-      final tail = rawTitle.substring(idx + 1).trim();
-      if (BrandVisuals.tryResolveCapabilityOrAppVisual(head) != null) {
-        final combinedTail = [
-          if (tail.isNotEmpty) tail,
-          if (rawDetail != null && rawDetail.isNotEmpty) rawDetail,
-        ].join(' · ');
-        return (brandSpec.label, combinedTail.isEmpty ? null : combinedTail);
-      }
-    }
-
-    // Direct capability/brand/studio match (`IAspire`, `brand:aspire`, `photocraft`, etc.)
-    final lower = rawTitle.toLowerCase();
-    if (lower == brandSpec.key ||
-        lower == brandSpec.label.toLowerCase() ||
-        rawTitle.startsWith('I') ||
-        lower.contains(':') ||
-        lower.contains('.')) {
-      return (
-        brandSpec.label,
-        (rawDetail != null && rawDetail.isNotEmpty) ? rawDetail : null,
-      );
-    }
-
-    return (
-      rawTitle,
-      (rawDetail != null && rawDetail.isNotEmpty) ? rawDetail : null,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
-    final running =
-        activity.status == 'running' || activity.status == 'working';
-    final failed = activity.status == 'failed' || activity.status == 'error';
+    final status = parseActivityStatus(activity.status);
+    final running = status == WireActivityStatus.running;
+    final failed = status == WireActivityStatus.failed;
     final fg = failed ? c.error : (running ? c.working : c.textMuted);
     final bg = failed ? c.errorBg : (running ? c.workingBg : c.surfaceSunk);
-    final brandSpec = BrandVisuals.tryResolveCapabilityOrAppVisual(
-      activity.title,
-      iconKey: activity.icon,
+    final brandSpec = BrandVisuals.tryForIconKey(
+      activity.icon,
+      label: activity.title,
     );
-    final (primaryLabel, secondaryDetail) = _resolveTitleAndDetail(brandSpec);
+    final primaryLabel = activity.title.trim();
+    final rawDetail = activity.detail?.trim();
+    final secondaryDetail = (rawDetail != null && rawDetail.isNotEmpty)
+        ? rawDetail
+        : null;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
@@ -728,7 +678,7 @@ class _ActivityPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(IcRadius.xs),
         border: Border.all(
           color: (brandSpec != null && !failed && !running)
-              ? brandSpec.accent.withValues(alpha: 0.28)
+              ? (brandSpec.accent ?? c.accent).withValues(alpha: 0.28)
               : fg.withValues(alpha: 0.22),
         ),
       ),

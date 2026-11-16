@@ -318,13 +318,22 @@ public sealed class InoViewFacts
         Assert.NotNull(assistant.Activities);
         Assert.Equal(
             [
-                "Aspire · Resources",
+                "Aspire",
                 "Aspire",
                 "Ino Studio",
                 "GitHub",
-                "CodeGraph · Search Symbols",
+                "CodeGraph",
             ],
             assistant.Activities!.Select(static a => a.Title).ToArray());
+        Assert.Equal(
+            [
+                "Resources · 3 healthy",
+                null,
+                null,
+                null,
+                "Search Symbols · 4 matches",
+            ],
+            assistant.Activities!.Select(static a => a.Detail).ToArray());
         Assert.Equal(
             [
                 "brand:aspire",
@@ -345,10 +354,10 @@ public sealed class InoViewFacts
             assistant.Activities!.Select(static a => a.Category).ToArray());
 
         var aspireVisual = InoView.ResolveActivityVisual(new InoActivity("a1", "IAspire.GetResourcesAsync"));
-        Assert.Equal(("Aspire · Resources", "brand:aspire"), (aspireVisual.Label, aspireVisual.IconKey));
+        Assert.Equal(("Aspire", "brand:aspire", "#512BD4"), (aspireVisual.Label, aspireVisual.IconKey, aspireVisual.AccentHex));
 
         var codeGraphVisual = InoView.ResolveActivityVisual(new InoActivity("a5", "ICodeGraph.SearchSymbols"));
-        Assert.Equal(("CodeGraph · Search Symbols", "capability:codegraph"), (codeGraphVisual.Label, codeGraphVisual.IconKey));
+        Assert.Equal(("CodeGraph", "capability:codegraph", "#10B981"), (codeGraphVisual.Label, codeGraphVisual.IconKey, codeGraphVisual.AccentHex));
 
         var modelVisual = InoView.ResolveModelVisual("claude-sonnet-4-6");
         Assert.NotNull(modelVisual);
@@ -403,8 +412,11 @@ public sealed class InoViewFacts
         Assert.Equal("Qwen 2.5 Coder 14B", assistant.ModelLabel);
         Assert.Equal("provider:ollama", assistant.ProviderIcon);
         Assert.Equal(
-            ["Aspire · Resources", "PhotoCraft · Execute Command"],
+            ["Aspire", "PhotoCraft"],
             assistant.Activities!.Select(static a => a.Title).ToArray());
+        Assert.Equal(
+            ["Resources · ok", "Execute Command · done"],
+            assistant.Activities!.Select(static a => a.Detail).ToArray());
         Assert.Equal(
             ["brand:aspire", "artcraft:photocraft"],
             assistant.Activities!.Select(static a => a.Icon).ToArray());

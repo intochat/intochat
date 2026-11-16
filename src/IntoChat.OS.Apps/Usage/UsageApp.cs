@@ -51,7 +51,7 @@ public sealed record UsageAppState(
     public bool ConsistentBudgetFlag => BudgetExceeded == (SpentMicros > MonthlyBudgetMicros);
 
     public Rule ValidBudgetCap(long budgetMicros) =>
-        Decision.Rule("non_positive_budget", budgetMicros <= 0, "Monthly compute cap must be greater than $0.00.");
+        Decision.Rule("non_positive_budget", budgetMicros, static b => b <= 0, "Monthly compute cap must be greater than $0.00.");
 
     public Decision<UsageAppState> ApplyBudgetCap([Sample(10_000_000L, 50_000_000L, 200_000_000L, 0L)] long monthlyBudgetMicros)
     {

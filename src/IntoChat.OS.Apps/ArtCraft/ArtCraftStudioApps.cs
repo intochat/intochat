@@ -64,8 +64,11 @@ public sealed record ArtCraftStudioAppState(
     [Invariant("AppId and ActiveDocument are non-empty."), JsonIgnore]
     public bool NonEmptyIdentity => !string.IsNullOrWhiteSpace(AppId) && !string.IsNullOrWhiteSpace(ActiveDocument);
 
-    public Rule SupportedExecutionMode(string? mode) =>
-        Decision.Rule("invalid_execution_mode", string.IsNullOrWhiteSpace(mode) || mode.Trim().ToLowerInvariant() is not ("wasm-ui" or "mcp" or "native-linux"), "Execution mode must be wasm-ui, mcp, or native-linux.");
+    public Rule SupportedExecutionMode(string? mode) => Decision.Rule(
+        "invalid_execution_mode",
+        mode,
+        static m => string.IsNullOrWhiteSpace(m) || m.Trim().ToLowerInvariant() is not ("wasm-ui" or "mcp" or "native-linux"),
+        "Execution mode must be wasm-ui, mcp, or native-linux.");
 
     public Decision<ArtCraftStudioAppState> SwitchExecutionMode([Sample("wasm-ui", "mcp", "native-linux", "unsupported")] string mode)
     {

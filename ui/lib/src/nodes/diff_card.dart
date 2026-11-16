@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../design/controls.dart';
 import '../design/tokens.dart';
+import '../theme/wire_node_values.dart';
 import 'node_context.dart';
 
 Widget renderDiffCard(DiffCardNode node, NodeContext ctx) =>
@@ -69,12 +70,7 @@ class _DiffCardViewState extends State<DiffCardView> {
   }
 
   (String, TagTone) _changeBadge(String changeKind) =>
-      switch (changeKind.toLowerCase()) {
-        'added' || 'add' || 'a' || 'new' => ('A', TagTone.done),
-        'deleted' || 'delete' || 'removed' || 'd' => ('D', TagTone.error),
-        'renamed' || 'rename' || 'r' => ('R', TagTone.accent),
-        _ => ('M', TagTone.working),
-      };
+      parseDiffChangeBadge(changeKind);
 
   @override
   Widget build(BuildContext context) {
@@ -284,19 +280,9 @@ class _DiffHunkBlock extends StatelessWidget {
 
   final DiffHunkNode hunk;
 
-  static final RegExp _hunkHeaderNumbers = RegExp(
-    r'@@\s*-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s*@@',
-  );
-
   List<({int? oldNo, int? newNo, String line, _DiffLineKind kind})>
   _parsedLines() {
-    var oldLine = 1;
-    var newLine = 1;
-    final match = _hunkHeaderNumbers.firstMatch(hunk.header);
-    if (match != null) {
-      oldLine = int.tryParse(match.group(1) ?? '') ?? 1;
-      newLine = int.tryParse(match.group(2) ?? '') ?? 1;
-    }
+    var (oldLine, newLine) = parseDiffHunkStart(hunk.header);
 
     final result =
         <({int? oldNo, int? newNo, String line, _DiffLineKind kind})>[];

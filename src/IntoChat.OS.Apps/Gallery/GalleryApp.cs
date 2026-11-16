@@ -48,20 +48,22 @@ public sealed record BankAccount(bool IsOpen = false, string Holder = "", decima
     [Invariant]
     public Rule OpenAccountHasHolder => Decision.Require(
         "holder_present_when_open",
-        !IsOpen || !string.IsNullOrWhiteSpace(Holder),
+        this,
+        static a => !a.IsOpen || !string.IsNullOrWhiteSpace(a.Holder),
         "An open bank account must have a holder.");
 
-    public Rule MustNotBeOpen => Decision.Rule("account_open", IsOpen, "Account is already open.");
-    public Rule MustBeOpen => Decision.Rule("not_open", !IsOpen, "Open the account first.");
-    public Rule PositiveAmount(decimal amount) => Decision.Rule("positive_amount", amount <= 0m, "Amount must be positive.");
+    public Rule MustNotBeOpen => Decision.Rule("account_open", this, static a => a.IsOpen, "Account is already open.");
+    public Rule MustBeOpen => Decision.Rule("not_open", this, static a => !a.IsOpen, "Open the account first.");
+    public Rule PositiveAmount(decimal amount) => Decision.Rule("positive_amount", amount, static a => a <= 0m, "Amount must be positive.");
 
     public Rule SufficientFunds(decimal amount) => Decision.Rule(
         "sufficient_funds",
-        !IsOpen || Balance < amount,
-        string.Create(CultureInfo.InvariantCulture, $"Insufficient funds: balance ${Balance:0}, requested ${amount:0}."));
+        (Account: this, Amount: amount),
+        static x => !x.Account.IsOpen || x.Account.Balance < x.Amount,
+        static x => string.Create(CultureInfo.InvariantCulture, $"Insufficient funds: balance ${x.Account.Balance:0}, requested ${x.Amount:0}."));
 
     public Decision<BankAccount> Open([Sample("alice")] string holder) =>
-        Decision.Check("open", MustNotBeOpen, Decision.Rule("holder_required", string.IsNullOrWhiteSpace(holder), "Account holder name is required."))
+        Decision.Check("open", MustNotBeOpen, Decision.Rule("holder_required", holder, static h => string.IsNullOrWhiteSpace(h), "Account holder name is required."))
         ?? Decision.Accept(new BankAccount(true, holder.Trim(), 0m));
 
     public Decision<BankAccount> Deposit([Sample(50)] decimal amount) =>

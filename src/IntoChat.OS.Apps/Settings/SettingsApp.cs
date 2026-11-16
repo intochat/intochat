@@ -182,17 +182,20 @@ public sealed record SettingsAppState(
 
     public Rule CanReturnRule => Decision.Require(
         "can_go_back",
-        CanGoBack,
+        this,
+        static s => s.CanGoBack,
         "No previous settings page or sheet to return to.");
 
     public static Rule ValidateBudget(long monthlyBudgetMicros) => Decision.Rule(
         "valid_monthly_budget",
-        monthlyBudgetMicros < MinMonthlyBudgetMicros || monthlyBudgetMicros > MaxMonthlyBudgetMicros,
-        $"Monthly compute cap must be between $1.00 and $10,000.00 (received {monthlyBudgetMicros} micro-credits).");
+        monthlyBudgetMicros,
+        static b => b < MinMonthlyBudgetMicros || b > MaxMonthlyBudgetMicros,
+        static b => $"Monthly compute cap must be between $1.00 and $10,000.00 (received {b} micro-credits).");
 
     public static Rule ValidateVariableKey(string? key) => Decision.Rule(
         "variable_key_required",
-        string.IsNullOrWhiteSpace(key),
+        key,
+        static k => string.IsNullOrWhiteSpace(k),
         "Variable key cannot be empty.");
 
     public SettingsAppState Navigate(
@@ -423,22 +426,25 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
 
     private async Task<(IReadOnlyList<SettingsModelOption> Options, string? AutomaticModel, string LocalEndpoint)> TryReadModelCatalogAsync(string? personModel)
     {
-        var brainId = "local";
+        BrainId brain = default;
         try
         {
-            if (Id.Brain.Value is { Length: > 0 } currentBrain)
-            {
-                brainId = currentBrain;
-            }
+            brain = Id.Brain;
         }
         catch (InvalidOperationException error)
         {
-            Log.LogDebug(error, "Settings brain id defaulted during standalone test activation.");
+            Log.LogDebug(error, "Settings brain id is unavailable during standalone test activation.");
+            return (State.AvailableModels is { Count: > 0 } ? State.AvailableModels : CatalogFallbackOptions(), null, State.LocalOllamaEndpoint);
+        }
+
+        if (string.IsNullOrWhiteSpace(brain.Value))
+        {
+            return (State.AvailableModels is { Count: > 0 } ? State.AvailableModels : CatalogFallbackOptions(), null, State.LocalOllamaEndpoint);
         }
 
         try
         {
-            var catalog = Get<IModelCatalog>(IModelCatalog.Key(brainId));
+            var catalog = Get<IModelCatalog>(IModelCatalog.Key(brain.Value));
             var choices = await catalog.List(string.IsNullOrWhiteSpace(personModel) ? null : personModel.Trim());
             var deduped = new Dictionary<string, SettingsModelOption>(StringComparer.OrdinalIgnoreCase);
             foreach (var choice in choices.Models)
@@ -608,7 +614,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
             return;
         }
 
-        var store = PreferenceStore ?? new BrainPreferenceStore(Get<IUserSettings>("settings"));
+        var store = ResolvePreferenceStore();
         var updated = await store.SaveAsync(request, State);
         await ApplyUserSettingsAsync(updated, $"Saved: {updated.DisplayName} ({updated.Theme}, {updated.DefaultModel}, {updated.StylePreset}, {updated.BarLayout})");
     }
@@ -663,8 +669,22 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
     public async Task ExportBrain(SettingsExportBrain request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var snapshot = await PortableBrainArchive.ExportAsync("local", Get<IUserSettings>("settings"), Get<IProfile>("profile"), Get<ISynapseStudio>("ino/synapses"));
+        var brainId = TryCurrentBrainId();
+        var snapshot = await PortableBrainArchive.ExportAsync(brainId, Get<IUserSettings>("settings"), Get<IProfile>("profile"), Get<ISynapseStudio>("ino/synapses"));
         await UpdateAsync(SettingsDecisions.DecideExportBrain(State, PortableBrainArchive.ToJson(snapshot), snapshot.Units.Count));
+    }
+
+    private BrainPreferenceStore ResolvePreferenceStore()
+        => PreferenceStore is { } configured ? configured : new BrainPreferenceStore(Get<IUserSettings>("settings"));
+
+    private string TryCurrentBrainId()
+    {
+        try { return Id.Brain.Value; }
+        catch (InvalidOperationException error)
+        {
+            Log.LogDebug(error, "Settings brain id is unavailable during standalone test activation.");
+            return string.Empty;
+        }
     }
 
     [On]

@@ -39,19 +39,21 @@ public sealed record InoSession(
     [Invariant]
     public Rule BlockedImpliesPaused => Decision.Require(
         "blocked_is_paused",
-        !Blocked || (Status == InoModel.Paused && PendingPrompt is null && ActiveRunId is null),
+        this,
+        static s => !s.Blocked || (s.Status == InoModel.Paused && s.PendingPrompt is null && s.ActiveRunId is null),
         "A blocked session must be paused with no active or pending turn.");
 
     [Invariant]
     public Rule ActiveOrPendingImpliesWorking => Decision.Require(
         "busy_is_working",
-        (PendingPrompt is null && ActiveRunId is null) || Status == InoModel.Working,
+        this,
+        static s => (s.PendingPrompt is null && s.ActiveRunId is null) || s.Status == InoModel.Working,
         "A session with a pending prompt or active run must report Working status.");
 
-    public Rule MustBeIdle => InoModel.IdleRule(PendingPrompt is not null, ActiveRunId is not null);
-    public Rule MustNotBeBlocked => InoModel.NotBlockedRule(Blocked);
-    public Rule HasActiveTurn => Decision.Rule("has_active_turn", PendingPrompt is null && ActiveRunId is null, "No turn is currently running.");
-    public Rule CanRetry => Decision.Rule("can_retry", PendingPrompt is not null || ActiveRunId is not null || string.IsNullOrWhiteSpace(LastUserPrompt), "Nothing to retry while idle without a prior prompt.");
+    public Rule MustBeIdle => InoModel.IdleRule(this);
+    public Rule MustNotBeBlocked => InoModel.NotBlockedRule(this);
+    public Rule HasActiveTurn => Decision.Rule("has_active_turn", this, static s => s.PendingPrompt is null && s.ActiveRunId is null, "No turn is currently running.");
+    public Rule CanRetry => Decision.Rule("can_retry", this, static s => s.PendingPrompt is not null || s.ActiveRunId is not null || string.IsNullOrWhiteSpace(s.LastUserPrompt), "Nothing to retry while idle without a prior prompt.");
 
     public Decision<InoSession> Send([Sample("Summarize Q4 renewals", "")] string prompt) =>
         Decision.Check("send", MustNotBeBlocked, MustBeIdle, InoModel.NonEmptyPromptRule(prompt), InoModel.WithinLimitRule(prompt))
@@ -65,7 +67,10 @@ public sealed record InoSession(
         });
 
     public Decision<InoSession> StartRun([Sample("run-1")] string runId) =>
-        Decision.Check("start-run", Decision.Rule("pending_required", PendingPrompt is null, "Pending prompt required."), Decision.Rule("run_not_started", ActiveRunId is not null, "Run already active."))
+        Decision.Check(
+            "start-run",
+            Decision.Rule("pending_required", this, static s => s.PendingPrompt is null, "Pending prompt required."),
+            Decision.Rule("run_not_started", this, static s => s.ActiveRunId is not null, "Run already active."))
         ?? Decision.Accept(this with { ActiveRunId = runId, Blocked = false, BlockedReason = null, ErrorCode = null, Status = InoModel.Working });
 
     public Decision<InoSession> CompleteTurn([Sample("All 3 renewals are healthy.")] string reply) =>
@@ -77,11 +82,11 @@ public sealed record InoSession(
         ?? Decision.Accept(this with { PendingPrompt = null, ActiveRunId = null, ErrorCode = string.IsNullOrWhiteSpace(code) ? "unknown" : code, Status = InoModel.Failed });
 
     public Decision<InoSession> Pause([Sample("Approval required")] string reason) =>
-        Decision.Check("pause", Decision.Rule("already_blocked", Blocked, "Session is already paused."))
+        Decision.Check("pause", Decision.Rule("already_blocked", this, static s => s.Blocked, "Session is already paused."))
         ?? Decision.Accept(this with { Blocked = true, BlockedReason = InoModel.NormalizeBlockReason(reason), PendingPrompt = null, ActiveRunId = null, ErrorCode = "paused", Status = InoModel.Paused });
 
     public Decision<InoSession> Resume() =>
-        Decision.Check("resume", Decision.Rule("not_paused", !Blocked, "Session is not paused."))
+        Decision.Check("resume", Decision.Rule("not_paused", this, static s => !s.Blocked, "Session is not paused."))
         ?? Decision.Accept(this with { Blocked = false, BlockedReason = null, ErrorCode = ErrorCode == "paused" ? null : ErrorCode, Status = InoModel.Ready });
 
     public Decision<InoSession> Retry() =>
@@ -89,7 +94,7 @@ public sealed record InoSession(
         ?? Decision.Accept(this with { PendingPrompt = LastUserPrompt, ErrorCode = null, Status = InoModel.Working });
 
     public Decision<InoSession> SelectModel([Sample("qwen2.5-coder:14b")] string model) =>
-        Decision.Check("select-model", Decision.Rule("model_required", string.IsNullOrWhiteSpace(model), "Model identifier is required."))
+        Decision.Check("select-model", Decision.Rule("model_required", model, static m => string.IsNullOrWhiteSpace(m), "Model identifier is required."))
         ?? Decision.Accept(this with
         {
             SelectedModel = model.Trim(),
@@ -160,22 +165,25 @@ public static class InoModel
     public static string ToneKeyOf(string conversationId) => $"observer/tone/{AgentKeyOf(conversationId)}";
     public static string MintConversationId() => ConversationId.New().Value;
 
-    public static Rule IdleRule(bool hasPending, bool hasActiveRun)
-        => Decision.Rule("not_busy", hasPending || hasActiveRun, "Wait for the current reply to finish or stop it first.");
+    public static Rule IdleRule(InoSession session)
+        => Decision.Rule("not_busy", session, static s => s.PendingPrompt is not null || s.ActiveRunId is not null, "Wait for the current reply to finish or stop it first.");
 
-    public static Rule NotBlockedRule(bool blocked)
-        => Decision.Rule("not_blocked", blocked, "Ino is paused until the pending interrupt is resolved.");
+    public static Rule IdleRule(InoAppState state)
+        => Decision.Rule("not_busy", state, static s => s.Pending is not null || s.ActiveRunId is not null, "Wait for the current reply to finish or stop it first.");
+
+    public static Rule NotBlockedRule(InoSession session)
+        => Decision.Rule("not_blocked", session, static s => s.Blocked, "Ino is paused until the pending interrupt is resolved.");
 
     public static Rule NonEmptyPromptRule(string? text)
-        => Decision.Rule("non_empty_prompt", string.IsNullOrWhiteSpace(text), "Enter a message to send.");
+        => Decision.Rule("non_empty_prompt", text, static t => string.IsNullOrWhiteSpace(t), "Enter a message to send.");
 
     public static Rule WithinLimitRule(string? text)
-        => Decision.Rule("within_max_chars", (text?.Length ?? 0) > MaxMessageChars, $"Messages cannot exceed {MaxMessageChars:N0} characters.");
+        => Decision.Rule("within_max_chars", text, static t => (t?.Length ?? 0) > MaxMessageChars, $"Messages cannot exceed {MaxMessageChars:N0} characters.");
 
     public static Decision<InoAppState> DecideSend(InoAppState s, string? text, string pendingId, DateTimeOffset at)
     {
         ArgumentNullException.ThrowIfNull(s);
-        var refusal = Decision.Check("send", IdleRule(s.Pending is not null, s.ActiveRunId is not null), NonEmptyPromptRule(text), WithinLimitRule(text));
+        var refusal = Decision.Check("send", IdleRule(s), NonEmptyPromptRule(text), WithinLimitRule(text));
         if (refusal is not null)
         {
             return refusal.Rejection.Rules.Contains("within_max_chars", StringComparer.Ordinal)
@@ -199,7 +207,7 @@ public static class InoModel
     {
         ArgumentNullException.ThrowIfNull(s);
         var lastUser = (s.Messages ?? []).LastOrDefault(m => m.Role == "user")?.Text;
-        var refusal = Decision.Check("retry", IdleRule(s.Pending is not null, s.ActiveRunId is not null), Decision.Rule("has_prior_prompt", string.IsNullOrWhiteSpace(lastUser), "No prior message to try again."));
+        var refusal = Decision.Check("retry", IdleRule(s), Decision.Rule("has_prior_prompt", lastUser, static u => string.IsNullOrWhiteSpace(u), "No prior message to try again."));
         return refusal is not null ? refusal : Decision.Accept(lastUser!);
     }
 
@@ -512,7 +520,8 @@ public static class InoModel
             var target = useKey ? key : !string.IsNullOrWhiteSpace(contract) ? contract : key;
             if (string.IsNullOrWhiteSpace(target)) { return trimmed; }
             var combined = !string.IsNullOrWhiteSpace(method) && !string.Equals(method, "Request", StringComparison.OrdinalIgnoreCase) ? $"{target}.{method}" : target;
-            return InoView.ResolveActivityVisual(new InoActivity(string.Empty, combined)).Label;
+            var (visual, detail) = InoView.ResolveActivityPresentation(new InoActivity(string.Empty, combined));
+            return string.IsNullOrWhiteSpace(detail) ? visual.Label : $"{visual.Label} · {detail}";
         }
         catch (JsonException) { return trimmed; }
     }
