@@ -46,15 +46,15 @@ internal static class AppUiEndpoints
             var provider = providers.SingleOrDefault();
             return Results.Ok(new { Root = provider is null ? null : await provider.Connect(ct), provider?.ActivationApp });
         });
-        apps.MapGet("/node", (string kind, string name, INeuronProxies brain, CancellationToken ct)
-            => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger));
+        apps.MapGet("/node", (string kind, string name, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
+            => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault()));
         apps.MapPost("/event", (UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
             => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct, requirePresenceStamp: true, logger: logger));
 
     }
 
     // GET /apps/node: one app UI node of the caller's brain, by kind.
-    internal static async Task<IResult> ReadNode(string kind, string name, INeuronProxies brain, string scope, CancellationToken ct, ILogger? logger = null)
+    internal static async Task<IResult> ReadNode(string kind, string name, INeuronProxies brain, string scope, CancellationToken ct, ILogger? logger = null, IHostedAppTypes? hosted = null)
     {
         var log = logger ?? ConsoleLog;
         if (kind == UIVocabulary.ConfirmationType)
@@ -96,7 +96,9 @@ internal static class AppUiEndpoints
                 var directViewName = name.EndsWith("/view", StringComparison.Ordinal) ? name : $"{name}/view";
                 if (OwnsUi(scope, directViewName))
                 {
-                    if (ScreenAlias(scope, directViewName) is { } directScreenAlias)
+                    var directAppKey = AppOf(scope, directViewName);
+                    var isDirectHostLoaded = directAppKey is null || (hosted?.IsHostLoaded(directAppKey) ?? true);
+                    if (isDirectHostLoaded && ScreenAlias(scope, directViewName) is { } directScreenAlias)
                     {
                         try
                         {
@@ -137,28 +139,42 @@ internal static class AppUiEndpoints
             var appName = IntoChat.OS.Primitives.AppRef.TryParse(brainId, target.App, out var appRef)
                 ? appRef.Name
                 : target.App;
+            var isHostLoaded = appRef == default || (hosted?.IsHostLoaded(appRef.Key) ?? true);
             if (!appName.Contains('/'))
             {
-                try
+                if (isHostLoaded)
                 {
-                    var screenId = IntoChat.OS.Primitives.UnitAlias.TryParse(appName, out var screenUnit)
-                        ? screenUnit.ScreenNeuron(brainId)
-                        : new NeuronId(brainId, "app." + appName, "default");
-                    var published = await brain.Get<IScreen>(screenId).Read().WaitAsync(ct);
-                    if (published is not null)
+                    try
                     {
-                        return Results.Ok(new
+                        var screenId = IntoChat.OS.Primitives.UnitAlias.TryParse(appName, out var screenUnit)
+                            ? screenUnit.ScreenNeuron(brainId)
+                            : new NeuronId(brainId, "app." + appName, "default");
+                        var published = await brain.Get<IScreen>(screenId).Read().WaitAsync(ct);
+                        if (published is not null)
                         {
-                            viewport.Revision,
-                            viewport.Target,
-                            Root = new ViewRef(UIVocabulary.ViewType, IntoChat.OS.Primitives.AppRef.Of(brainId, appName).ViewKey),
-                            Error = (string?)null,
-                        });
+                            return Results.Ok(new
+                            {
+                                viewport.Revision,
+                                viewport.Target,
+                                Root = new ViewRef(UIVocabulary.ViewType, IntoChat.OS.Primitives.AppRef.Of(brainId, appName).ViewKey),
+                                Error = (string?)null,
+                            });
+                        }
+                    }
+                    catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+                    {
+                        log.LogSwallowed(error, "Screen view could not be read.");
                     }
                 }
-                catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+                if (appRef != default && await brain.Get<IView>(appRef.ViewKey).Read().WaitAsync(ct) is not null)
                 {
-                    log.LogSwallowed(error, "Screen view could not be read.");
+                    return Results.Ok(new
+                    {
+                        viewport.Revision,
+                        viewport.Target,
+                        Root = new ViewRef(UIVocabulary.ViewType, appRef.ViewKey),
+                        Error = (string?)null,
+                    });
                 }
                 try
                 {
@@ -212,18 +228,27 @@ internal static class AppUiEndpoints
             }
             if (ScreenAlias(scope, name) is { } screenAlias)
             {
-                try
+                var appKey = AppOf(scope, name);
+                var isHostLoaded = appKey is null || (hosted?.IsHostLoaded(appKey) ?? true);
+                if (isHostLoaded)
                 {
-                    var screenId = new NeuronId(new BrainId(scope), screenAlias, "default");
-                    var published = await brain.Get<IScreen>(screenId).Read().WaitAsync(ct);
-                    if (published is not null)
+                    try
                     {
-                        return Results.Json(published, ViewJson);
+                        var screenId = new NeuronId(new BrainId(scope), screenAlias, "default");
+                        var published = await brain.Get<IScreen>(screenId).Read().WaitAsync(ct);
+                        if (published is not null)
+                        {
+                            return Results.Json(published, ViewJson);
+                        }
+                    }
+                    catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+                    {
+                        log.LogSwallowed(error, "Screen view could not be read.");
                     }
                 }
-                catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+                else if (await brain.Get<IView>(name).Read().WaitAsync(ct) is { } directAppView)
                 {
-                    log.LogSwallowed(error, "Screen view could not be read.");
+                    return Results.Json(directAppView, ViewJson);
                 }
                 var candidateUnit = screenAlias["app.".Length..];
                 try

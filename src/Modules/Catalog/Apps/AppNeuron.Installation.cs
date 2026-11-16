@@ -335,11 +335,18 @@ internal sealed partial class AppNeuron
             var directory = await broker.Identity();
             var account = await directory.OwnerOfBrain(brain);
             if (account is null) { return; }
+            var principalId = AppPrincipal.Id(Key);
+            if (await directory.Membership(brain, principalId) is { Role: MemberRole.App }) { return; }
+            if (Edge?.Current is { Actor: Actor.App or Actor.Module or Actor.Scheduler }
+                || (RuntimeCallerContext.TryGet(out var caller) && caller.AppId is not null))
+            {
+                return;
+            }
             using (Edge?.EnterInProcess())
             {
                 await directory.EnsureMember(new Member
                 {
-                    PrincipalId = AppPrincipal.Id(Key),
+                    PrincipalId = principalId,
                     AccountId = account.AccountId,
                     BrainId = brain,
                     Role = MemberRole.App,

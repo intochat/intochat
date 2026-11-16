@@ -15,6 +15,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.ArtCraft;
+using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Modules.Flutter.Workspace.Signals;
@@ -626,6 +627,8 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Workspace is optional."); }
 
+        await SyncWindowViewportsAsync(windows);
+
         var widgetsText = "";
         try
         {
@@ -689,24 +692,52 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
 
+    private async Task SyncWindowViewportsAsync(IReadOnlyList<WorkspaceWindow> windows)
+    {
+        if (TryCurrentBrain() is not { Length: > 0 } brain) { return; }
+        foreach (var win in windows)
+        {
+            if (win is null || string.IsNullOrWhiteSpace(win.Id) || win.Tabs is not { Length: > 0 }) { continue; }
+            var activeTab = win.Tabs.FirstOrDefault(t => string.Equals(t.Id, win.ActiveTabId, StringComparison.Ordinal))
+                ?? win.Tabs[0];
+            await SetViewportTargetAsync(brain, win.Id, activeTab, "Failed to sync viewport for open window.");
+        }
+    }
+
     private async Task ClearViewportsAsync(IReadOnlyList<string> closedWindowIds)
     {
         if (TryCurrentBrain() is not { Length: > 0 } brain) { return; }
         foreach (var winId in closedWindowIds)
         {
-            try
+            await SetViewportTargetAsync(brain, winId, target: null, "Failed to clear viewport for closed window.");
+        }
+    }
+
+    private async Task SetViewportTargetAsync(string brain, string winId, WorkspaceViewRef? target, string failureContext)
+    {
+        if (string.IsNullOrWhiteSpace(winId)) { return; }
+        try
+        {
+            var viewport = Get<IViewport>(
+                IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildNeuron(UIVocabulary.ViewportType, $"window/{winId}"));
+            for (var attempt = 0; attempt < 2; attempt++)
             {
-                var viewport = Get<IViewport>(IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildKey($"window/{winId}"));
                 var currentVp = await viewport.Read();
-                if (currentVp.Target is not null)
+                if (currentVp.Target == target) { return; }
+                try
                 {
-                    await viewport.Set(null, currentVp.Revision);
+                    await viewport.Set(target, currentVp.Revision);
+                    return;
+                }
+                catch (RevisionConflictException ex) when (attempt == 0)
+                {
+                    Log.LogSwallowed(ex, "Viewport revision conflict on initial attempt; retrying.");
                 }
             }
-            catch (Exception ex)
-            {
-                Log.LogSwallowed(ex, "Failed to clear viewport for closed window.");
-            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.LogSwallowed(ex, failureContext);
         }
     }
 

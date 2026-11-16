@@ -4,6 +4,7 @@ using global::Microsoft.Extensions.DependencyInjection;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Runtime;
 using TestOS = DigitalBrain.Testing.TestOS;
@@ -184,18 +185,29 @@ public sealed class WorkspaceWindowsFacts
             Assert.Contains(updated.OpenViews, v => v.App == IntoChat.OS.Primitives.AppRef.Of(brain, "files").Key);
             Assert.Equal("files", updated.FocusedViewId);
 
+            var filesWin = Assert.Single(updated.Windows, w => w.ActiveTabId == "files");
+            var vp = os.Get<IViewport>(desktopAppRef.ChildNeuron(UIVocabulary.ViewportType, $"window/{filesWin.Id}"));
+            var vpState = await vp.Read();
+            Assert.NotNull(vpState.Target);
+            Assert.Equal(IntoChat.OS.Primitives.AppRef.Of(brain, "files").Key, vpState.Target!.App);
+
             // Direct person call to IWorkspace.Apply is still refused.
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
                 ws.Apply(new WorkspaceUpdate([], null, []), "direct-person", updated.Revision));
         }
 
-        // Foreign app caller is still refused.
+        // Foreign app caller is still refused for both WorkspaceNeuron and ViewportNeuron.
         var foreignKey = IntoChat.OS.Primitives.AppRef.Of(brain, "other").Key;
         using (os.Edge.Enter(os.Edge.App(foreignKey, new DigitalBrain.Access.Actor.Person("alice", "acct"), brain)))
         {
             var current = await ws.Read();
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
                 ws.Apply(new WorkspaceUpdate([], null, []), "foreign-app", current.Revision));
+            var win = Assert.Single(current.Windows, w => w.ActiveTabId == "files");
+            var vp = os.Get<IViewport>(desktopAppRef.ChildNeuron(UIVocabulary.ViewportType, $"window/{win.Id}"));
+            var vpState = await vp.Read();
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+                vp.Set(new WorkspaceViewRef("hijack", foreignKey, "full", ""), vpState.Revision));
         }
 
         // Edited (non-shipped) desktop app is refused even through DesktopApp.

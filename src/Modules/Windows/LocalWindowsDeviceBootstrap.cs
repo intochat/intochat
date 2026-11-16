@@ -90,9 +90,12 @@ internal sealed class LocalWindowsDeviceBootstrap(
         }
 
         var edge = services.GetService<EdgeAuthority>();
-        var hasHumanUser = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.TryGet(out var caller)
-            && caller.Kind == DigitalBrain.Capabilities.CallerKind.User
-            && !DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.IsModelOriginated(caller);
+        var hasHumanUser = (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.TryGet(out var caller)
+                && caller.Kind == DigitalBrain.Capabilities.CallerKind.User
+                && !DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.IsModelOriginated(caller))
+            || (edge?.Current is { Actor: Actor.Person person, Brain.Value: var currentBrain }
+                && !DigitalBrain.Capabilities.AppPrincipal.IsApp(person.Principal)
+                && string.Equals(currentBrain, brainId, StringComparison.Ordinal));
         using var edgeScope = hasHumanUser
             ? null
             : edge?.Enter(edge.Module(WindowsModule.ManifestName, new BrainId(brainId)));

@@ -1,5 +1,7 @@
 using DigitalBrain;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.State;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -23,6 +25,7 @@ internal sealed class ViewportNeuron
         if (!IntoChat.OS.Primitives.AppRef.TryOf(Id.Brain, appSegment, out var ownerRef))
         { throw new ArgumentException("A viewport belongs to an app."); }
         var owner = ownerRef.Key;
+        RequireOwner(ownerRef);
         if (target is not null && (string.IsNullOrWhiteSpace(target.Id) || target.Id.Length > 128
             || string.IsNullOrWhiteSpace(target.Variant) || target.Variant.Length > 64 || target.Context != ""
             || string.IsNullOrWhiteSpace(target.App) || target.App.Length > 512
@@ -35,6 +38,51 @@ internal sealed class ViewportNeuron
         if (Snapshot.Target == target) { return; }
         var next = new ViewportStorage { Revision = checked(Snapshot.Revision + 1), Target = target };
         await Save(next, new ViewportChanged(name, next.Revision));
+    }
+
+    private void RequireOwner(IntoChat.OS.Primitives.AppRef ownerRef)
+    {
+        var contextCaller = Context.Caller;
+        if (contextCaller is not null)
+        {
+            if (contextCaller.Brain != Id.Brain)
+            {
+                throw new UnauthorizedAccessException("Only callers in the owning brain may change this viewport.");
+            }
+
+            if (contextCaller.Actor is DigitalBrain.Access.Actor.App appActor
+                && appActor.Key != ownerRef.Key
+                && !(contextCaller.Inside && contextCaller.Via == ownerRef.ScreenNeuron))
+            {
+                throw new UnauthorizedAccessException("Only the owning app may change this viewport.");
+            }
+
+            if (contextCaller.Inside
+                && contextCaller.Via is { } via
+                && via.Type.StartsWith("app.", StringComparison.Ordinal)
+                && (via.Brain != Id.Brain || via != ownerRef.ScreenNeuron))
+            {
+                throw new UnauthorizedAccessException("Only the owning screen may change this viewport.");
+            }
+        }
+
+        if (RuntimeCallerContext.TryGet(out var caller))
+        {
+            if (!string.Equals(caller.BrainId, Id.Brain.Value, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException("Only callers in the owning brain may change this viewport.");
+            }
+
+            if (caller.Kind == CallerKind.App
+                && caller.AppId != ownerRef.Key
+                && !(contextCaller is { Inside: true, Via: { } hoppedVia }
+                    && contextCaller.Brain == Id.Brain
+                    && hoppedVia == ownerRef.ScreenNeuron
+                    && contextCaller.Actor is not DigitalBrain.Access.Actor.App))
+            {
+                throw new UnauthorizedAccessException("Only the owning app may change this viewport.");
+            }
+        }
     }
 
     private static bool IsSupportedTarget(BrainId brainId, string app)

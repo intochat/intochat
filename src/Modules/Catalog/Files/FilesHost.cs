@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using DigitalBrain;
 using DigitalBrain.Access;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Log;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -69,12 +70,12 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
                     snapshot = await app.Read();
                 }
                 var workspace = SiloNeurons.Get<IFilesWorkspace>(services, filesApp.ChildKey("workspace"));
-                await workspace.Open(CancellationToken.None);
-                snapshot = await app.Read();
-                using (edge?.Enter(edge.App(key, new Actor.Person(brain, brain), brainId)))
+                await RunAsFilesAppAsync(edge, key, brainId, async () =>
                 {
+                    await workspace.Open(CancellationToken.None);
+                    snapshot = await app.Read();
                     await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
-                }
+                });
             }
             finally
             {
@@ -120,20 +121,29 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
             var key = filesApp.Key;
             var app = SiloNeurons.Get<IApp>(services, key);
             var workspace = SiloNeurons.Get<IFilesWorkspace>(services, filesApp.ChildKey("workspace"));
-            if (request.Operation == "open")
+            await RunAsFilesAppAsync(edge, key, brainId, async () =>
             {
-                await workspace.Open(cancellationToken);
-                var snapshot = await app.Read();
-                using (edge?.Enter(edge.App(key, new Actor.Person(brain, brain), brainId)))
+                if (request.Operation == "open")
                 {
+                    await workspace.Open(cancellationToken);
+                    var snapshot = await app.Read();
                     await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
                 }
-            }
-            if (await FilesRequests.Forward(workspace, request, cancellationToken) is { } failure)
-            { await app.Progress("attention", failure); }
+                if (await FilesRequests.Forward(workspace, request, cancellationToken) is { } failure)
+                { await app.Progress("attention", failure); }
+            });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         { logger.LogWarning(error, "Files did not answer {Operation} in {Brain}.", request.Operation, brain); }
+    }
+
+    private static async Task RunAsFilesAppAsync(EdgeAuthority? edge, string appKey, BrainId brainId, Func<Task> action)
+    {
+        using (edge?.EnterInProcess())
+        using (edge?.Enter(edge.App(appKey, new Actor.Person(AppPrincipal.Id(appKey), brainId.Value), brainId)))
+        {
+            await action();
+        }
     }
 }
 
