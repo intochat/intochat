@@ -1,8 +1,10 @@
+using IntoChat.OS.Primitives;
+
 namespace IntoChat.OS.Modules.Apps;
 
 // The paths of a file share. A share names one folder or one file of the workspace mount; a request names a path
 // relative to it. Both are judged segment by segment, never by string prefix, so "/work/a" does not contain "/work/ab".
-public static class SharePath
+internal static class SharePath
 {
     // Only the brain's own workspace is shareable; the local disk and connected drives are not.
     public const string Mount = "work";
@@ -56,12 +58,12 @@ public static class SharePath
         }
         if (normalized.EndsWith('/')) { normalized = normalized[..^1]; }
 
-        var segments = normalized.Split('/');
-        if (segments.Length == 0 || segments.Any(static segment => segment.Length == 0 || segment is "." or ".." || segment != segment.Trim()))
+        // SafeRelativePath refuses empty and dot segments; it also drops a leading "./", which a share path may not carry.
+        if (!SafeRelativePath.TryParse(normalized, out var safe) || !string.Equals(safe.Value, normalized, StringComparison.Ordinal))
         {
-            throw new ArgumentException("The path holds an empty, '.' or '..' segment.", parameter);
+            throw new ArgumentException("The path holds a segment a share path may not.", parameter);
         }
 
-        return segments;
+        return safe.Value.Split('/');
     }
 }

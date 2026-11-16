@@ -151,6 +151,14 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         return fallbackFirstConnection && connections.Count > 0 ? connections[0].Capability : null;
     }
 
+    // The brain's mounts addressed by exact path: no fallback to another mount and no match by file name. File shares use
+    // this, because a request under a share must reach that path or nothing.
+    public Task<T> WithVfs<T>(Func<IStorageVfs, Task<T>> work, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        return WithCallerAsync(async effectiveBroker => await work(await BuildVfsAsync(effectiveBroker, ct).ConfigureAwait(false)).ConfigureAwait(false));
+    }
+
     public static string ToCanonicalVfsPath(string? fileNameOrPath)
     {
         if (string.IsNullOrWhiteSpace(fileNameOrPath)) { return "/work/artifact.bin"; }

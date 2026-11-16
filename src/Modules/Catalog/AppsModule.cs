@@ -58,6 +58,7 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<MarketplaceView>();
         services.TryAddSingleton<ICapabilitySatisfaction, ConnectedModuleSatisfaction>();
         services.TryAddSingleton<AppInstaller>();
+        services.TryAddSingleton<IBrainOwners, IdentityBrainOwners>();
 
         services.TryAddSingleton<IDrafter>(sp => sp.GetRequiredService<Creator>());
         services.TryAddSingleton<ICreatorModel, SiloCreatorModel>();
