@@ -19,40 +19,39 @@ internal static class ChangeCard
     public const string DiffLabel = "Diff:";
 
     // Repository, remote, base, branch, the commit, every file and the line counts. No model text and no diff.
-    public static string Header(FeatureToPrInner inner)
+    public static string Header(Change change)
     {
-        var lease = inner.Lease;
-        var files = inner.ChangedFiles ?? [];
+        var lease = change.Tree;
+        var files = change.Commit?.ChangedFiles ?? [];
         var remote = WorkTreeService.WithoutCredentials(lease?.OriginUrl)?.Replace("\n", ", ", StringComparison.Ordinal);
         var text = new StringBuilder();
-        // The lease's id is the registered one; the run's own repository is whatever the caller typed.
-        text.Append("Repository: ").Append(lease?.GitHubRepo ?? lease?.RepositoryId ?? inner.Repository).Append('\n');
+        text.Append("Repository: ").Append(lease?.GitHubRepo ?? lease?.RepositoryId ?? change.Repository?.Value ?? string.Empty).Append('\n');
         text.Append("Remote: ").Append(remote ?? "origin (its address was not recorded)").Append('\n');
         text.Append("Base: ").Append(lease?.BaseBranch ?? "unknown").Append(" at ").Append(lease?.BaseCommitSha ?? "unknown").Append('\n');
         text.Append("Branch: ").Append(lease?.BranchName ?? "unknown").Append('\n');
-        text.Append("Commit: ").Append(inner.CommitSha ?? "none").Append('\n');
+        text.Append("Commit: ").Append(change.Commit?.Commit.Value ?? "none").Append('\n');
         text.Append(CultureInfo.InvariantCulture, $"Files ({files.Length}):\n");
         foreach (var file in files)
         {
-            text.Append("  ").Append(file).Append('\n');
+            text.Append("  ").Append(file.Value).Append('\n');
         }
 
-        text.Append(CultureInfo.InvariantCulture, $"Lines: +{inner.Additions} / -{inner.Deletions}");
+        text.Append(CultureInfo.InvariantCulture, $"Lines: +{change.Commit?.Additions ?? 0} / -{change.Commit?.Deletions ?? 0}");
         return text.ToString();
     }
 
-    public static string Body(FeatureToPrInner inner) => Draw(inner, inner.HostRenderedDiff);
+    public static string Body(Change change) => Draw(change, change.Commit?.HostRenderedDiff);
 
     // Why this change cannot go on an approval, or null when the card shows all of it. The diff is passed apart from the
     // state so a step can ask before it stores the diff.
-    public static string? Refusal(FeatureToPrInner inner, string? diff)
+    public static string? Refusal(Change change, string? diff)
     {
         if (FileNotShownAsText(diff) is { } file)
         {
             return $"The change has a file whose content cannot be shown as text: {file}. Nothing was pushed.";
         }
 
-        var size = Draw(inner, diff).Length;
+        var size = Draw(change, diff).Length;
         return size <= MaxChars
             ? null
             : string.Create(
@@ -60,16 +59,15 @@ internal static class ChangeCard
                 $"The change is too large to show on one approval card: {size} characters, the limit is {MaxChars}. Nothing was pushed. Ask for a smaller change.");
     }
 
-    private static string Draw(FeatureToPrInner inner, string? diff)
+    private static string Draw(Change change, string? diff)
     {
         var text = new StringBuilder();
-        // The first line: Ino's dock shows this body under the run's title, not under the plan's.
-        text.Append(inner.Lease?.GitHubRepo is { Length: > 0 }
+        text.Append(change.Tree?.GitHubRepo is { Length: > 0 }
             ? "Approving pushes one commit to a new branch on the remote and opens a draft pull request that names you as its approver."
             : "Approving pushes one commit to a new branch on the remote. It opens no pull request: the remote is not on GitHub.");
-        text.Append("\n\n").Append(Header(inner));
-        Quote(text, GoalLabel, inner.Goal);
-        Quote(text, SummaryLabel, inner.CoderSummary);
+        text.Append("\n\n").Append(Header(change));
+        Quote(text, GoalLabel, change.Goal);
+        Quote(text, SummaryLabel, change.Edit?.Summary);
 
         if (!string.IsNullOrWhiteSpace(diff))
         {
@@ -102,8 +100,6 @@ internal static class ChangeCard
         }
     }
 
-    // Git writes "Binary files a/x and b/x differ" in place of a file it does not treat as text. Every line inside a hunk
-    // starts with '+', '-' or a space, so a line that starts with these words is never file content.
     private static string? FileNotShownAsText(string? diff)
     {
         const string Start = "Binary files ";

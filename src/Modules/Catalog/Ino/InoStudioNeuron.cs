@@ -326,11 +326,13 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
 
         // Fail fast with clear guidance if repository is not in the allowlist
         var wt = services.GetService<IWorkTree>() ?? new WorkTreeService();
+        RepositoryId parsedRepo;
+        BranchName? parsedBase;
         try
         {
-            _ = (wt as WorkTreeService)?.ResolveRepository(cleanRepo)
-                ?? wt.ListRepositories().FirstOrDefault(r => string.Equals(r.Id, cleanRepo, StringComparison.OrdinalIgnoreCase))
-                ?? throw new UnauthorizedAccessException($"Repository '{cleanRepo}' is not registered in the allowlist.");
+            parsedRepo = RepositoryId.Parse(cleanRepo);
+            parsedBase = string.IsNullOrWhiteSpace(baseBranch) ? null : BranchName.FromRequestedBase(baseBranch);
+            _ = wt.ResolveRepository(parsedRepo);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -340,13 +342,9 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         string flowId;
         try
         {
-            var innerJson = JsonSerializer.Serialize(new FeatureToPrInner
-            {
-                RunId = runKey,
-                Repository = cleanRepo,
-                Goal = cleanGoal,
-                RequestedBaseBranch = string.IsNullOrWhiteSpace(baseBranch) ? null : baseBranch.Trim(),
-            }, FeatureToPrFlow.Json);
+            var innerJson = JsonSerializer.Serialize(
+                Change.Start(runKey, parsedRepo, cleanGoal, parsedBase),
+                FeatureToPrFlow.Json);
 
             flowId = await Get<IFlows>(IFlows.Key(brainId))
                 .Start(FeatureToPrFlow.Alias, title, null, innerJson, ct, flowId: runKey)
@@ -392,30 +390,30 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
             return new InoToolResult($"Could not read Feature-to-PR flow '{flowId}': {ex.Message}", Ok: false);
         }
 
-        var inner = JsonSerializer.Deserialize<FeatureToPrInner>(head.InnerJson, FeatureToPrFlow.Json) ?? new FeatureToPrInner();
+        var change = JsonSerializer.Deserialize<Change>(head.InnerJson, FeatureToPrFlow.Json) ?? new Change();
         var status = view?.Status ?? head.Status;
         var tasksUri = $"neuron://{brainId}/apps/tasks#{flowId}";
 
-        if (status == FlowStatus.Waiting && !string.IsNullOrWhiteSpace(inner.ConfirmationPlanId) && !string.IsNullOrWhiteSpace(inner.CommitSha))
+        if (status == FlowStatus.Waiting && change.Approval is { PlanId.Length: > 0 } approval && change.Commit is { } commit)
         {
-            var shortSha = inner.CommitSha[..Math.Min(8, inner.CommitSha.Length)];
-            var branch = inner.Lease?.BranchName ?? "ino/change";
+            var shortSha = commit.Commit.Short;
+            var branch = change.Tree?.BranchName ?? "ino/change";
             // The model gets the facts of the change, not the diff: the whole change is on the approval the person answers.
             var summary = new StringBuilder();
             summary.Append($"Feature-to-PR waits for the person's approval ({flowId}).\n");
-            summary.Append(ChangeCard.Header(inner)).Append('\n');
-            summary.Append($"Approval plan: `{inner.ConfirmationPlanId}`. Only the person can approve it, below the conversation, where the whole change is shown.");
-            if (!string.IsNullOrWhiteSpace(inner.CoderSummary))
+            summary.Append(ChangeCard.Header(change)).Append('\n');
+            summary.Append($"Approval plan: `{approval.PlanId}`. Only the person can approve it, below the conversation, where the whole change is shown.");
+            if (!string.IsNullOrWhiteSpace(change.Edit?.Summary))
             {
-                summary.Append($"\nSummary: {inner.CoderSummary.Trim()}");
+                summary.Append($"\nSummary: {change.Edit.Summary.Trim()}");
             }
 
             // A status, not a place to approve: the one Approve for this plan is the inbox approval Ino shows below the conversation.
             var card = new InoCard(
-                Id: inner.ConfirmationPlanId,
+                Id: approval.PlanId,
                 Kind: "approval",
                 Title: $"Waiting for your approval: {head.Title} ({shortSha})",
-                Summary: $"{inner.ChangedFiles.Length} file(s) on {branch} (+{inner.Additions} / -{inner.Deletions}). The whole change and Approve are below the conversation.",
+                Summary: $"{commit.ChangedFiles.Length} file(s) on {branch} (+{commit.Additions} / -{commit.Deletions}). The whole change and Approve are below the conversation.",
                 SourceNeuronUri: $"neuron://{brainId}/runtime.confirmations/confirmations",
                 Status: "pending",
                 SurfaceScopeUri: tasksUri);
@@ -424,9 +422,11 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
 
         if (status == FlowStatus.Completed)
         {
-            var prLine = !string.IsNullOrWhiteSpace(inner.PullRequestUrl)
-                ? $"Draft PR: {inner.PullRequestUrl}"
-                : $"Pushed ref: {inner.PushedRef}";
+            var prUrl = change.Publication?.PullRequestUrl;
+            var pushedRef = change.Publication?.PushedRef;
+            var prLine = !string.IsNullOrWhiteSpace(prUrl)
+                ? $"Draft PR: {prUrl}"
+                : $"Pushed ref: {pushedRef}";
             var card = new InoCard(
                 Id: flowId,
                 Kind: "flow",
@@ -434,9 +434,9 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
                 Summary: prLine,
                 SourceNeuronUri: tasksUri,
                 Status: "completed",
-                SurfaceScopeUri: inner.PullRequestUrl ?? tasksUri);
+                SurfaceScopeUri: prUrl ?? tasksUri);
             return new InoToolResult(
-                $"Feature-to-PR completed ({flowId}). Commit `{inner.CommitSha}` pushed to `{inner.PushedRef}`. {prLine}",
+                $"Feature-to-PR completed ({flowId}). Commit `{change.Commit?.Commit.Value}` pushed to `{pushedRef}`. {prLine}",
                 card,
                 Ok: true);
         }

@@ -104,7 +104,7 @@ public sealed class WorkTreeServiceFacts : IDisposable
         Assert.Equal("main", osRepo.DefaultBaseBranch);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            service.PrepareAsync("unregistered-repo", "run-1", "add feature", null, Ct));
+            service.PrepareAsync(RepositoryId.Parse("unregistered-repo"), "run-1", "add feature", null, Ct));
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public sealed class WorkTreeServiceFacts : IDisposable
         var stashBefore = RunGit(checkoutPath, ["stash", "list"]).Trim();
         var dirtyReadmeBefore = await File.ReadAllTextAsync(Path.Combine(checkoutPath, "README.md"), Ct);
 
-        var lease = await service.PrepareAsync("os", "run99887766", "Add polite farewell helper", null, Ct);
+        var lease = await service.PrepareAsync(RepositoryId.Parse("os"), "run99887766", "Add polite farewell helper", null, Ct);
 
         Assert.StartsWith("ino/add-polite-farewell-helper-", lease.BranchName, StringComparison.Ordinal);
         Assert.True(Directory.Exists(lease.TreePath));
@@ -141,26 +141,26 @@ public sealed class WorkTreeServiceFacts : IDisposable
 
         var commit = await service.VerifyAndCommitAsync(lease, "Add Farewell method to Greeter", Ct);
 
-        Assert.Equal(40, commit.CommitSha.Length);
-        Assert.Equal(["code/Greeter.cs"], commit.ChangedFiles);
+        Assert.Equal(40, commit.Commit.Value.Length);
+        Assert.Equal([RepoPath.Parse("code/Greeter.cs")], commit.ChangedFiles);
         Assert.Contains("+    public static string Farewell()", commit.HostRenderedDiff, StringComparison.Ordinal);
 
-        // Publish to local bare origin (skips gh CLI cleanly and pushes refs/heads/ino/...)
+        // Publish to local bare origin (skips gh CLI cleanly when GitHubRepo is null and pushes refs/heads/ino/...)
         var published = await service.PublishAsync(
             lease,
-            commit.CommitSha,
+            commit.Commit,
             "Add Farewell helper",
             "Automated PR from Ino",
             Ct);
 
-        Assert.Equal(commit.CommitSha, published.CommitSha);
+        Assert.Equal(commit.Commit, published.Commit);
         Assert.Equal($"refs/heads/{lease.BranchName}", published.PushedRef);
         Assert.Null(published.PullRequestUrl);
         Assert.False(Directory.Exists(lease.TreePath));
 
         // Verify bare origin actually received the exact commit SHA on the branch
         var remoteSha = RunGit(bareOrigin, ["rev-parse", $"refs/heads/{lease.BranchName}"]).Trim();
-        Assert.Equal(commit.CommitSha, remoteSha);
+        Assert.Equal(commit.Commit.Value, remoteSha);
 
         // Verify source checkout & stashes are 100% untouched!
         Assert.Equal(stashBefore, RunGit(checkoutPath, ["stash", "list"]).Trim());
@@ -174,19 +174,19 @@ public sealed class WorkTreeServiceFacts : IDisposable
         var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
         service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
 
-        var plain = await service.PrepareAsync("os", "remote01", "Show the remote", null, Ct);
+        var plain = await service.PrepareAsync(RepositoryId.Parse("os"), "remote01", "Show the remote", null, Ct);
         Assert.Equal(bareOrigin, plain.OriginUrl);
         await service.CleanupAsync(plain, Ct);
 
         // Fetching stays local; pushes go to an address that carries a user name and a token.
         RunGit(checkoutPath, ["remote", "set-url", "--push", "origin", "https://ino:not-a-real-token@example.invalid/intochat/os.git"]);
-        var withToken = await service.PrepareAsync("os", "remote02", "Show the remote", null, Ct);
+        var withToken = await service.PrepareAsync(RepositoryId.Parse("os"), "remote02", "Show the remote", null, Ct);
         Assert.Equal("https://example.invalid/intochat/os.git", withToken.OriginUrl);
         await service.CleanupAsync(withToken, Ct);
 
         // A push goes to every push address, so the lease names every one.
         RunGit(checkoutPath, ["remote", "set-url", "--add", "--push", "origin", "https://second.example.invalid/intochat/os.git"]);
-        var twoAddresses = await service.PrepareAsync("os", "remote03", "Show the remote", null, Ct);
+        var twoAddresses = await service.PrepareAsync(RepositoryId.Parse("os"), "remote03", "Show the remote", null, Ct);
         Assert.Equal("https://example.invalid/intochat/os.git\nhttps://second.example.invalid/intochat/os.git", twoAddresses.OriginUrl);
         await service.CleanupAsync(twoAddresses, Ct);
     }
@@ -200,7 +200,7 @@ public sealed class WorkTreeServiceFacts : IDisposable
         service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
 
         var refused = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.PrepareAsync("os", "noorigin1", "Change with nowhere to push", null, Ct));
+            service.PrepareAsync(RepositoryId.Parse("os"), "noorigin1", "Change with nowhere to push", null, Ct));
 
         Assert.Contains("no 'origin' remote", refused.Message, StringComparison.Ordinal);
         Assert.False(Directory.Exists(Path.Combine(homeDir, "worktrees", "os", "noorigin1")));
@@ -214,18 +214,34 @@ public sealed class WorkTreeServiceFacts : IDisposable
         service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
 
         // A first run commits and is thrown away, as after a denied approval: its branch stays in the source repository.
-        var denied = await service.PrepareAsync("os", "unseen01", "Add a file nobody approved", null, Ct);
+        var denied = await service.PrepareAsync(RepositoryId.Parse("os"), "unseen01", "Add a file nobody approved", null, Ct);
         await File.WriteAllTextAsync(Path.Combine(denied.TreePath, "denied.md"), "the change the person denied\n", Ct);
         _ = await service.VerifyAndCommitAsync(denied, "Add a file nobody approved", Ct);
         await service.CleanupAsync(denied, Ct);
 
         // A push of a commit on that base would carry the first run's commit with it.
         var refused = await Assert.ThrowsAsync<SecurityException>(() =>
-            service.PrepareAsync("os", "unseen02", "Fix a typo", denied.BranchName, Ct));
+            service.PrepareAsync(RepositoryId.Parse("os"), "unseen02", "Fix a typo", BranchName.Parse(denied.BranchName), Ct));
 
         Assert.Contains(denied.BranchName, refused.Message, StringComparison.Ordinal);
         Assert.Contains("the remote does not have", refused.Message, StringComparison.Ordinal);
         Assert.False(Directory.Exists(Path.Combine(homeDir, "worktrees", "os", "unseen02")));
+    }
+
+    [Fact]
+    public async Task PrepareRefusesExplicitBaseBranchMissingOnOriginEvenWhenPresentLocally()
+    {
+        var (_, checkoutPath, homeDir) = CreateBareOriginAndDirtyCheckout();
+        RunGit(checkoutPath, ["branch", "local-only-base", "main"]);
+        var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
+        service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
+
+        var refused = await Assert.ThrowsAsync<SecurityException>(() =>
+            service.PrepareAsync(RepositoryId.Parse("os"), "localonly01", "Fix typo", BranchName.Parse("local-only-base"), Ct));
+
+        Assert.Contains("local-only-base", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("the remote does not have", refused.Message, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(Path.Combine(homeDir, "worktrees", "os", "localonly01")));
     }
 
     [Theory]
@@ -250,7 +266,7 @@ public sealed class WorkTreeServiceFacts : IDisposable
         var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
         service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
 
-        var lease = await service.PrepareAsync("os", "moved001", "Add polite farewell helper", null, Ct);
+        var lease = await service.PrepareAsync(RepositoryId.Parse("os"), "moved001", "Add polite farewell helper", null, Ct);
         await File.WriteAllTextAsync(Path.Combine(lease.TreePath, "README.md"), "# Edited\n", Ct);
         var commit = await service.VerifyAndCommitAsync(lease, "Edit the readme", Ct);
 
@@ -261,7 +277,7 @@ public sealed class WorkTreeServiceFacts : IDisposable
         RunGit(checkoutPath, ["remote", "set-url", "origin", elsewhere]);
 
         var refused = await Assert.ThrowsAsync<SecurityException>(() =>
-            service.PublishAsync(lease, commit.CommitSha, "Edit the readme", "Automated PR from Ino", Ct));
+            service.PublishAsync(lease, commit.Commit, "Edit the readme", "Automated PR from Ino", Ct));
 
         Assert.Contains(elsewhere, refused.Message, StringComparison.Ordinal);
         Assert.Equal("", RunGit(elsewhere, ["branch", "--list", "ino/*"]).Trim());
@@ -276,7 +292,7 @@ public sealed class WorkTreeServiceFacts : IDisposable
         var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
         service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
 
-        var lease = await service.PrepareAsync("os", "second01", "Add polite farewell helper", null, Ct);
+        var lease = await service.PrepareAsync(RepositoryId.Parse("os"), "second01", "Add polite farewell helper", null, Ct);
         await File.WriteAllTextAsync(Path.Combine(lease.TreePath, "README.md"), "# Edited\n", Ct);
         var commit = await service.VerifyAndCommitAsync(lease, "Edit the readme", Ct);
 
@@ -288,12 +304,111 @@ public sealed class WorkTreeServiceFacts : IDisposable
         RunGit(checkoutPath, ["remote", "set-url", "--add", "--push", "origin", elsewhere]);
 
         var refused = await Assert.ThrowsAsync<SecurityException>(() =>
-            service.PublishAsync(lease, commit.CommitSha, "Edit the readme", "Automated PR from Ino", Ct));
+            service.PublishAsync(lease, commit.Commit, "Edit the readme", "Automated PR from Ino", Ct));
 
         Assert.Contains(elsewhere, refused.Message, StringComparison.Ordinal);
         Assert.Equal("", RunGit(elsewhere, ["branch", "--list", "ino/*"]).Trim());
         Assert.Equal("", RunGit(bareOrigin, ["branch", "--list", "ino/*"]).Trim());
         await service.CleanupAsync(lease, Ct);
+    }
+
+    [Fact]
+    public async Task VerifyAndCommitRejectsCSharpFileWithTrailingWhitespaceBeforeCommit()
+    {
+        var (_, checkoutPath, homeDir) = CreateBareOriginAndDirtyCheckout();
+        var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
+        service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
+
+        var lease = await service.PrepareAsync(RepositoryId.Parse("os"), "fmtfail01", "Bad formatting", null, Ct);
+        await File.WriteAllTextAsync(
+            Path.Combine(lease.TreePath, "code", "Greeter.cs"),
+            "namespace Sample;\n\npublic static class Greeter   \n{\n    public static string Hello() => \"Hello\";\n}\n",
+            Ct);
+
+        var failed = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.VerifyAndCommitAsync(lease, "Bad whitespace commit", Ct));
+
+        Assert.Contains("dotnet format whitespace", failed.Message, StringComparison.Ordinal);
+        Assert.Equal(lease.BaseCommitSha, RunGit(lease.TreePath, ["rev-parse", "HEAD"]).Trim());
+        await service.CleanupAsync(lease, Ct);
+    }
+
+    [Fact]
+    public async Task VerifyAndCommitStripsSkipCiTokensFromCommitMessage()
+    {
+        var (_, checkoutPath, homeDir) = CreateBareOriginAndDirtyCheckout();
+        var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
+        service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
+
+        var lease = await service.PrepareAsync(RepositoryId.Parse("os"), "skipci01", "Clean commit message", null, Ct);
+        await File.WriteAllTextAsync(Path.Combine(lease.TreePath, "README.md"), "# Clean edit\n", Ct);
+
+        var commit = await service.VerifyAndCommitAsync(
+            lease,
+            "feat(ino): Safe update [skip ci]\n\nSummary body [CI SKIP]\nskip-checks: true",
+            Ct);
+
+        var recordedMessage = RunGit(lease.TreePath, ["log", "-1", "--format=%B", commit.Commit.Value]);
+        Assert.Contains("Safe update", recordedMessage, StringComparison.Ordinal);
+        Assert.Contains("Summary body", recordedMessage, StringComparison.Ordinal);
+        Assert.DoesNotContain("[skip ci]", recordedMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("[ci skip]", recordedMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("skip-checks", recordedMessage, StringComparison.OrdinalIgnoreCase);
+
+        await service.CleanupAsync(lease, Ct);
+    }
+
+    [Fact]
+    public async Task PushDraftPrAndCleanupAreCheckpointedAndIdempotentAgainstBareRemoteAndScriptedGh()
+    {
+        var (bareOrigin, checkoutPath, homeDir) = CreateBareOriginAndDirtyCheckout();
+        var ghBinDir = BuildScriptedGhBinary(out var ghLogPath, out var ghPrStorePath);
+
+        var service = new WorkTreeService(options: new WorkTreeOptions
+        {
+            HomeDirectory = homeDir,
+            ToolPath = ghBinDir,
+        });
+        service.RegisterRepository(new RegisteredRepository("os", checkoutPath, GitHubRepo: "intochat/os", DefaultBaseBranch: "main"));
+
+        var lease = await service.PrepareAsync(RepositoryId.Parse("os"), "idemp01", "Add farewell helper", null, Ct);
+        await File.WriteAllTextAsync(Path.Combine(lease.TreePath, "code", "Greeter.cs"), """
+            namespace Sample;
+
+            public static class Greeter
+            {
+                public static string Hello() => "Hello";
+                public static string Farewell() => "Bye";
+            }
+            """, Ct);
+        var commit = await service.VerifyAndCommitAsync(lease, "feat(ino): Add farewell helper", Ct);
+
+        // Push once, then repeat PushAsync — second call succeeds idempotently against bare remote!
+        var pushedRef1 = await service.PushAsync(lease, commit.Commit, Ct);
+        var pushedRef2 = await service.PushAsync(lease, commit.Commit, Ct);
+        Assert.Equal($"refs/heads/{lease.BranchName}", pushedRef1);
+        Assert.Equal(pushedRef1, pushedRef2);
+        Assert.Equal(commit.Commit.Value, RunGit(bareOrigin, ["rev-parse", pushedRef1]).Trim());
+
+        // Create Draft PR once, then repeat CreateDraftPullRequestAsync — second call recovers existing PR from `gh pr list`!
+        var prUrl1 = await service.CreateDraftPullRequestAsync(lease, "Add farewell helper [skip ci]", "## Summary\nAdded Farewell", Ct);
+        var prUrl2 = await service.CreateDraftPullRequestAsync(lease, "Add farewell helper [skip ci]", "## Summary\nAdded Farewell", Ct);
+        Assert.Equal("https://github.com/intochat/os/pull/101", prUrl1);
+        Assert.Equal(prUrl1, prUrl2);
+
+        // Verify scripted gh ran from an empty temp directory (never the worktree) and received --draft without [skip ci]
+        var calls = await File.ReadAllLinesAsync(ghLogPath, Ct);
+        var createCalls = calls.Where(static l => l.Contains("pr|create|", StringComparison.Ordinal)).ToArray();
+        Assert.Single(createCalls);
+        Assert.Contains("--draft", createCalls[0], StringComparison.Ordinal);
+        Assert.DoesNotContain("[skip ci]", createCalls[0], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(lease.TreePath, createCalls[0], StringComparison.OrdinalIgnoreCase);
+        Assert.True(File.Exists(ghPrStorePath));
+
+        // Cleanup twice — idempotent!
+        await service.CleanupAsync(lease, Ct);
+        await service.CleanupAsync(lease, Ct);
+        Assert.False(Directory.Exists(lease.TreePath));
     }
 
     [Fact]
@@ -303,7 +418,7 @@ public sealed class WorkTreeServiceFacts : IDisposable
         var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
         service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
 
-        var lease = await service.PrepareAsync("os", "tamper01", "Tamper test", null, Ct);
+        var lease = await service.PrepareAsync(RepositoryId.Parse("os"), "tamper01", "Tamper test", null, Ct);
         await File.WriteAllTextAsync(Path.Combine(lease.TreePath, "README.md"), "# Edited\n", Ct);
 
         // Lock 1: <treePath>/.git is marked ReadOnly, blocking naive overwrite attempts
@@ -328,7 +443,7 @@ public sealed class WorkTreeServiceFacts : IDisposable
         var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
         service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
 
-        var lease = await service.PrepareAsync("os", "tamper02", "Directory tamper test", null, Ct);
+        var lease = await service.PrepareAsync(RepositoryId.Parse("os"), "tamper02", "Directory tamper test", null, Ct);
         var dotGitFile = Path.Combine(lease.TreePath, ".git");
         UnlockDotGitForTest(dotGitFile);
         File.Delete(dotGitFile);
@@ -344,6 +459,7 @@ public sealed class WorkTreeServiceFacts : IDisposable
         {
             File.SetUnixFileMode(dotGitFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
+
         File.SetAttributes(dotGitFile, FileAttributes.Normal);
     }
 
@@ -361,7 +477,7 @@ public sealed class WorkTreeServiceFacts : IDisposable
         var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
         service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
 
-        var lease = await service.PrepareAsync("os", "gate-" + Guid.NewGuid().ToString("N")[..6], "Path gate check", null, Ct);
+        var lease = await service.PrepareAsync(RepositoryId.Parse("os"), "gate-" + Guid.NewGuid().ToString("N")[..6], "Path gate check", null, Ct);
         var fullPath = Path.Combine(lease.TreePath, relativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         await File.WriteAllTextAsync(fullPath, content, Ct);
@@ -379,12 +495,12 @@ public sealed class WorkTreeServiceFacts : IDisposable
         var service = new WorkTreeService(options: new WorkTreeOptions { HomeDirectory = homeDir });
         service.RegisterRepository(new RegisteredRepository("os", checkoutPath, DefaultBaseBranch: "main"));
 
-        var lease = await service.PrepareAsync("os", "toomany01", "Six files test", null, Ct);
+        var lease = await service.PrepareAsync(RepositoryId.Parse("os"), "toomany01", "Six files test", null, Ct);
         for (var i = 1; i <= 6; i++)
         {
             await File.WriteAllTextAsync(
                 Path.Combine(lease.TreePath, "code", $"File{i}.cs"),
-                $"namespace Sample; public sealed class File{i} {{ }}",
+                $"namespace Sample;\n\npublic sealed class File{i} {{ }}\n",
                 Ct);
         }
 
@@ -395,9 +511,104 @@ public sealed class WorkTreeServiceFacts : IDisposable
         await service.CleanupAsync(lease, Ct);
     }
 
-    private static string RunGit(string workingDirectory, IReadOnlyList<string> args)
+    private string BuildScriptedGhBinary(out string logPath, out string storePath)
     {
-        var psi = new ProcessStartInfo("git")
+        var srcDir = Path.Combine(_root, "gh-src");
+        var binDir = Path.Combine(_root, "gh-bin");
+        Directory.CreateDirectory(srcDir);
+        Directory.CreateDirectory(binDir);
+
+        logPath = Path.Combine(_root, "gh-calls.log");
+        storePath = Path.Combine(_root, "gh-prs.txt");
+
+        var escapedLog = logPath.Replace("\\", "\\\\", StringComparison.Ordinal);
+        var escapedStore = storePath.Replace("\\", "\\\\", StringComparison.Ordinal);
+
+        File.WriteAllText(
+            Path.Combine(srcDir, "gh.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net11.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup><Compile Include=\"Program.cs\" /></ItemGroup></Project>");
+
+        var programCs = $$"""
+            using System;
+            using System.Collections.Generic;
+            using System.IO;
+            using System.Linq;
+            using System.Text.Json;
+
+            internal static class Program
+            {
+                public static int Main(string[] args)
+                {
+                    var logPath = "{{escapedLog}}";
+                    var storePath = "{{escapedStore}}";
+                    var cwd = Directory.GetCurrentDirectory();
+                    var emptyEntries = Directory.GetFileSystemEntries(cwd).Length;
+                    File.AppendAllText(logPath, string.Join("|", args) + "|cwdEmpty=" + (emptyEntries == 0) + "|cwd=" + cwd + "\n");
+                    if (emptyEntries != 0)
+                    {
+                        Console.Error.WriteLine("Expected empty working directory, found " + emptyEntries + " entries.");
+                        return 2;
+                    }
+
+                    string? Arg(string name)
+                    {
+                        for (var i = 0; i < args.Length - 1; i++)
+                        {
+                            if (args[i] == name) return args[i + 1];
+                        }
+                        return null;
+                    }
+
+                    var repo = Arg("--repo") ?? "";
+                    var head = Arg("--head") ?? "";
+                    var existing = File.Exists(storePath) ? File.ReadAllLines(storePath).ToList() : new List<string>();
+                    var key = repo + "|" + head + "|";
+                    var found = existing.FirstOrDefault(l => l.StartsWith(key, StringComparison.Ordinal));
+
+                    if (args.Length >= 2 && args[0] == "pr" && args[1] == "list")
+                    {
+                        if (found is not null)
+                        {
+                            var url = found[key.Length..];
+                            Console.WriteLine(JsonSerializer.Serialize(new[] { new { url } }));
+                        }
+                        else
+                        {
+                            Console.WriteLine("[]");
+                        }
+                        return 0;
+                    }
+
+                    if (args.Length >= 2 && args[0] == "pr" && args[1] == "create")
+                    {
+                        if (found is not null)
+                        {
+                            Console.Error.WriteLine("a pull request for branch '" + head + "' into branch 'main' already exists");
+                            return 1;
+                        }
+                        var prUrl = "https://github.com/" + repo + "/pull/101";
+                        File.AppendAllText(storePath, key + prUrl + "\n");
+                        Console.WriteLine(prUrl);
+                        return 0;
+                    }
+
+                    Console.Error.WriteLine("Unsupported gh invocation: " + string.Join(" ", args));
+                    return 1;
+                }
+            }
+            """;
+        File.WriteAllText(Path.Combine(srcDir, "Program.cs"), programCs);
+
+        RunProcess("dotnet", ["build", Path.Combine(srcDir, "gh.csproj"), "-c", "Release", "-o", binDir, "-v", "q"], srcDir);
+        return binDir;
+    }
+
+    private static string RunGit(string workingDirectory, IReadOnlyList<string> args)
+        => RunProcess("git", args, workingDirectory);
+
+    private static string RunProcess(string fileName, IReadOnlyList<string> args, string workingDirectory)
+    {
+        var psi = new ProcessStartInfo(fileName)
         {
             WorkingDirectory = workingDirectory,
             RedirectStandardOutput = true,
@@ -410,13 +621,13 @@ public sealed class WorkTreeServiceFacts : IDisposable
             psi.ArgumentList.Add(arg);
         }
 
-        using var proc = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start git.");
+        using var proc = Process.Start(psi) ?? throw new InvalidOperationException($"Failed to start {fileName}.");
         var stdout = proc.StandardOutput.ReadToEnd();
         var stderr = proc.StandardError.ReadToEnd();
         proc.WaitForExit();
         if (proc.ExitCode != 0)
         {
-            throw new InvalidOperationException($"git {string.Join(' ', args)} failed ({proc.ExitCode}): {stderr}\n{stdout}");
+            throw new InvalidOperationException($"{fileName} {string.Join(' ', args)} failed ({proc.ExitCode}): {stderr}\n{stdout}");
         }
 
         return stdout;

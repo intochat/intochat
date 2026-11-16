@@ -100,7 +100,7 @@ public static class CreatorView
         // 2. Active Change Runs List
         children.Add(SectionHeader("Active Change Runs"));
         var activeFlows = flows
-            .Where(f => f.Type is ChangeFlow.Alias or BuildFlow.Alias)
+            .Where(f => f.Type is FeatureToPrFlow.Alias or BuildFlow.Alias)
             .OrderByDescending(f => f.Started)
             .Take(10)
             .ToArray();
@@ -255,8 +255,8 @@ public static class CreatorView
             }
         }
 
-        // 3. Active ChangeFlow / BuildFlow Pipeline (ONLY rendered when an actual run exists — zero fake placeholder diffs!)
-        var activeRun = flows.FirstOrDefault(f => f.FlowId == state.ActiveRunId || f.Type == ChangeFlow.Alias);
+        // 3. Active FeatureToPrFlow / BuildFlow Pipeline (ONLY rendered when an actual run exists — zero fake placeholder diffs!)
+        var activeRun = flows.FirstOrDefault(f => f.FlowId == state.ActiveRunId || f.Type == FeatureToPrFlow.Alias);
         if (activeRun is not null)
         {
             children.Add(SectionHeader("Change Pipeline (7 Stages)"));

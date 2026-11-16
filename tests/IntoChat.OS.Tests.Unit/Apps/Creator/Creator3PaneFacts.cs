@@ -64,7 +64,7 @@ public sealed class Creator3PaneFacts
 
         FlowView[] flows =
         [
-            new FlowView("cf-run-99", ChangeFlow.Alias, "Update Unit1", "admin", "trace-99", FlowStatus.Waiting, ["clone", "branch", "synthesize-patch", "build", "test", "diff-review", "approval-gate"], ["clone", "branch", "synthesize-patch", "build", "test", "diff-review"], "approval-gate", null, "approval-gate", "plan-cf-99", 6.0 / 7.0, [], [], null, T0, null, "Waiting for approval", Subject: "unit1")
+            new FlowView("cf-run-99", FeatureToPrFlow.Alias, "Update Unit1", "admin", "trace-99", FlowStatus.Waiting, ["clone", "branch", "synthesize-patch", "build", "test", "diff-review", "approval-gate"], ["clone", "branch", "synthesize-patch", "build", "test", "diff-review"], "approval-gate", null, "approval-gate", "plan-cf-99", 6.0 / 7.0, [], [], null, T0, null, "Waiting for approval", Subject: "unit1")
         ];
 
         Approval[] approvals =
@@ -282,13 +282,13 @@ public sealed class Creator3PaneFacts
         [
             new FlowView(
                 "cf-run-100",
-                ChangeFlow.Alias,
+                FeatureToPrFlow.Alias,
                 "Update Unit1",
                 "admin",
                 "trace-100",
                 FlowStatus.Completed,
-                ["prepare-worktree", "edit", "verify-and-commit", "approval-gate", "publish"],
-                ["prepare-worktree", "edit", "verify-and-commit", "approval-gate", "publish"],
+                FeatureToPrFlow.Names,
+                FeatureToPrFlow.Names,
                 null,
                 null,
                 null,
