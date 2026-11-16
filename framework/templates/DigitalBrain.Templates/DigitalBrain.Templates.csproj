@@ -15,7 +15,6 @@
     <EnableDefaultItems>false</EnableDefaultItems>
     <IncludeSymbols>false</IncludeSymbols>
     <DevelopmentDependency>true</DevelopmentDependency>
-    <StampedContent>$(MSBuildProjectDirectory)/obj/stamped/</StampedContent>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="**/*" />
@@ -24,6 +23,9 @@
   <!-- Copy source bytes unchanged; stamp only the version-bearing template configuration. WriteLinesToFile treats
        backslashes in its Lines items as path separators on Unix, so C# sources must never pass through it. -->
   <Target Name="DigitalBrainStampTemplate" BeforeTargets="_GetPackageFiles;GenerateTemplateManifest;Build;Pack">
+    <PropertyGroup>
+      <StampedContent>$(IntermediateOutputPath)stamped/</StampedContent>
+    </PropertyGroup>
     <ItemGroup>
       <_TemplateSource Include="content/**/*" Exclude="content/**/bin/**;content/**/obj/**" />
     </ItemGroup>

@@ -4,11 +4,11 @@
     <Description>Local disk, VFS, and brain file storage connector.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DigitalBrain" />
-    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
-    <PackageReference Include="DigitalBrain.Capabilities.Storage" />
-    <PackageReference Include="DigitalBrain.Runtime.Http" />
-    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />

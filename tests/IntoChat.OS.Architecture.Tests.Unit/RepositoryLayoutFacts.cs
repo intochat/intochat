@@ -82,7 +82,9 @@ public sealed class RepositoryLayoutFacts
         var entries = Repository.Solution.Descendants("Project").Where(entry => !Repository.IsFrameworkEntry(entry) && !Repository.IsFeatureEntry(entry)).ToArray();
         var paths = entries.Select(entry => entry.Attribute("Path")!.Value.Replace('\\', '/')).ToArray();
         Assert.Equal(paths.Length, paths.Distinct(comparer).Count());
-        var disk = Repository.SourceFiles(Repository.SourceRoot, "*.csproj").Select(Repository.Relative).Order().ToArray();
+        var disk = Repository.SourceFiles(Repository.SourceRoot, "*.csproj",
+                path => !Repository.Relative(path).Split('/').Any(part => part is "framework" or "features" or "artifacts" or "templates"))
+            .Select(Repository.Relative).Order().ToArray();
         Assert.True(disk.SequenceEqual(paths.Order(), comparer),
             "Solution entries differ from the projects on disk; fix with FIX_LAYOUT=1.\nOn disk only: "
             + string.Join(", ", disk.Except(paths, comparer)) + "\nIn the solution only: " + string.Join(", ", paths.Except(disk, comparer)));
@@ -183,7 +185,7 @@ public sealed class RepositoryLayoutFacts
 
         var disk = Directory.EnumerateFiles(Repository.SourceRoot, "*.csproj", SearchOption.AllDirectories)
             .Select(path => Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/'))
-            .Where(path => !path.Split('/').Any(part => part is "bin" or "obj" or "templates"))
+            .Where(path => !path.Split('/').Any(part => part is "bin" or "obj" or "artifacts" or "templates" or "framework" or "features"))
             .Concat((Directory.Exists(Path.Combine(root, "features")) ? Directory.EnumerateFiles(Path.Combine(root, "features"), "*.csproj", SearchOption.AllDirectories) : [])
                 .Select(path => Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/'))
                 .Where(path => !path.Split('/').Any(part => part is "bin" or "obj")))
@@ -267,9 +269,10 @@ public sealed class RepositoryLayoutFacts
         {
             return [null];
         }
-        var segments = group[(sourceRel.Length + 1)..].Split('/').Select(s => s.StartsWith(Prefix, StringComparison.Ordinal) ? s[Prefix.Length..] : s).ToArray();
+        var segments = (sourceRel == "." ? group : group[(sourceRel.Length + 1)..]).Split('/')
+            .Select(s => s.StartsWith(Prefix, StringComparison.Ordinal) ? s[Prefix.Length..] : s).ToArray();
         var folder = "/" + string.Join('/', segments) + "/";
-        return segments[^1] == "tests" ? [folder, "/" + string.Join('/', segments[..^1]) + "/"] : [folder];
+        return segments[^1] == "tests" ? [folder, "/" + string.Join('/', segments[..^1]) + "/", null] : [folder, null];
     }
 
     // null stands for "no folder": the project is a direct child of the solution.
@@ -279,7 +282,7 @@ public sealed class RepositoryLayoutFacts
         {
             return [null];
         }
-        var segments = group[(sourceRoot.Length + 1)..].Split('/')
+        var segments = (sourceRoot == "." ? group : group[(sourceRoot.Length + 1)..]).Split('/')
             .Select(segment => segment.StartsWith(Prefix, StringComparison.Ordinal) ? segment[Prefix.Length..] : segment)
             .ToArray();
         var folder = "/" + string.Join('/', segments) + "/";

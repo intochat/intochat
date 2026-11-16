@@ -28,7 +28,7 @@ public sealed partial class HttpBoundaryFacts
     {
         var project = Repository.ProjectNamed(name);
         Assert.DoesNotContain(FrameworkReferences(project.Path), reference => reference.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal));
-        var assets = Path.Combine(project.Directory, "obj", "project.assets.json");
+        var assets = Repository.AssetsFile(project);
         Assert.True(File.Exists(assets), $"{assets} is missing; restore {name} first.");
         using var document = JsonDocument.Parse(File.ReadAllText(assets));
         var libraries = document.RootElement.GetProperty("libraries").EnumerateObject().Select(library => library.Name).ToList();
@@ -71,10 +71,10 @@ public sealed partial class HttpBoundaryFacts
         Assert.Equal(["DigitalBrain.Capabilities.Identity", "DigitalBrain.Capabilities.Storage"], Repository.ProjectReferences(project.Path));
         Assert.Equal(["Microsoft.CodeAnalysis.PublicApiAnalyzers"], Repository.PackageReferences(project.Path));
         Assert.Equal(["Microsoft.AspNetCore.App"], FrameworkReferences(project.Path));
-        var restored = Path.Combine(project.Directory, "obj", "project.assets.json");
+        var restored = Repository.AssetsFile(project);
         Assert.True(File.Exists(restored), $"{restored} is missing; restore {HttpProject} first.");
         using (var restoredDocument = JsonDocument.Parse(File.ReadAllText(restored))) { Assert.Contains("Microsoft.AspNetCore.App", AssetFrameworkReferences(restoredDocument)); }
-        var assets = Path.Combine(project.Directory, "obj", "project.assets.json");
+        var assets = restored;
         Assert.True(File.Exists(assets), $"{assets} is missing; restore {HttpProject} first.");
         using var document = JsonDocument.Parse(File.ReadAllText(assets));
         var libraries = document.RootElement.GetProperty("libraries").EnumerateObject().Select(library => library.Name).ToList();

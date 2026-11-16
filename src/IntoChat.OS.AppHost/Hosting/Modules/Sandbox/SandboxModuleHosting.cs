@@ -164,6 +164,7 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
             Path.Combine("src", "IntoChat.OS"),
             Path.Combine("src", "IntoChat.OS.UI"),
             Path.Combine("src", "IntoChat.OS.Sandbox"),
+            Path.Combine("framework", "src"),
         ];
         foreach (var relDir in sourceDirs)
         {

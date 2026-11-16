@@ -9,11 +9,16 @@ commits = [
   "5947a731031e53c66a41b720fd6331510e7d6338",
   "16f94509427027c713ba9fa8979d23d31135771d",
   "1ad1e5e4ad8998c18fe12767c61edf6d3eabd907",
+  "76357d8698cc0bbf01ca3f0208246d8e5b86950d",
+  "aa3d0ed7d8ea2dff7ab3dd70abb98988eed0f770",
+  "c6485f8967c211f1d82fd8a80217f83f22b4534e",
 ]
 paths = [
   '''src/IntoChat\.OS\.Modules/IntoChat\.OS/Identity/.*''',
   '''src/IntoChat\.OS\.Apps\.Tests\.Unit/Calculator/CalculatorAndUsageAppFacts\.cs''',
   '''tests/IntoChat\.OS\.Tests\.Integration/Apps/Ino/InoWiringFacts\.cs''',
+  '''(framework/)?src/DigitalBrain\.Analyzers\.CodeFixes/Fixes\.cs''',
+  '''(framework/)?tests/DigitalBrain\.Capabilities\.Connections\.Tests\.Unit/AdversarialConnectionsChallengeFacts\.cs''',
 ]
 regexes = [
   '''(?i)Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==''',
@@ -21,4 +26,5 @@ regexes = [
   '''YXV0aC10ZXN0LWhhc2hpbmcta2V5LTMyLWJ5dGVzLWxvbmch''',
   '''b86a8fe4-44ce-4948-aee5-eccb2c155cd7''',
   '''4633458b-17de-408a-b874-0445c86b69e6''',
+  '''CANARY_PLAIN_SECRET_1''',
 ]

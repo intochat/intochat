@@ -9,6 +9,7 @@
          MessagePack 2.5.302 is NU1902 (GHSA-qhrr-8q5h-9q3h); 2.5.307+ is the patched 2.x release. -->
     <PackageVersion Include="MessagePack" Version="2.5.307" />
     <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.13" />
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.13" />
     <PackageVersion Include="Octokit" Version="14.0.0" />
     <PackageVersion Include="Octokit.Webhooks" Version="4.2.0" />
@@ -26,9 +27,14 @@
     <PackageVersion Include="Microsoft.Build.Locator" Version="1.11.2" />
     <PackageVersion Include="Microsoft.Build.Framework" Version="17.11.48" />
     <PackageVersion Include="Microsoft.NET.StringTools" Version="18.11.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Features" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.9.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4" />
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="Aspire.Hosting" Version="$(AspireVersion)" />
@@ -44,6 +50,8 @@
     <PackageVersion Include="Aspire.Azure.Data.Tables" Version="$(AspireVersion)" />
     <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="$(AspireVersion)" />
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.30.1" />
+    <PackageVersion Include="Azure.Storage.Queues" Version="12.28.1" />
+    <PackageVersion Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.5.2" />
     <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.4" />
     <PackageVersion Include="Qdrant.Client" Version="1.19.0" />
     <PackageVersion Include="ClickHouse.Driver" Version="1.5.0" />
@@ -91,6 +99,8 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.20.0" />
     <PackageVersion Include="Microsoft.Orleans.Client" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Clustering.AzureStorage" Version="10.4.0" />
+    <PackageVersion Include="Microsoft.Orleans.Persistence.AzureStorage" Version="10.4.0" />
+    <PackageVersion Include="Microsoft.Orleans.Reminders.AzureStorage" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Dashboard" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Reminders" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Orleans.Sdk" Version="10.4.0" />
@@ -125,26 +135,5 @@
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="Microsoft.Orleans.Core.Abstractions" Version="10.4.0" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageVersion Include="DigitalBrain" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Analyzers" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Capabilities.Compute" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Capabilities.Connections" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Capabilities.Http" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Capabilities.Identity" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Capabilities.Secrets" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Capabilities.Storage" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Capabilities.Tools" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Graph" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Identity.Local" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Runtime.Http" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Runtime.Orleans" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Runtime.Orleans.Azure" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Runtime.Synapses" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Simulation" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Testing" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.Testing.Silo" Version="0.22.3" />
-    <PackageVersion Include="DigitalBrain.UI" Version="0.22.3" />
   </ItemGroup>
 </Project>

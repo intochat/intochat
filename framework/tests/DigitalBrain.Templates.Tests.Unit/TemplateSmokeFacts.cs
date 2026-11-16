@@ -119,6 +119,8 @@ public sealed class TemplateSmokeFacts
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
             if (File.Exists(Path.Combine(directory.FullName, "DigitalBrain.slnx"))) { return directory.FullName; }
+            var framework = Path.Combine(directory.FullName, "framework");
+            if (File.Exists(Path.Combine(framework, "DigitalBrain.slnx"))) { return framework; }
         }
         throw new InvalidOperationException("DigitalBrain.slnx not found above " + AppContext.BaseDirectory);
     }

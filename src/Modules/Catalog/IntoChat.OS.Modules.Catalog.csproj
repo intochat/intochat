@@ -4,10 +4,10 @@
     <Description>App catalog, install, versions, runtime authoring, flows, and Ino tools.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DigitalBrain.Capabilities.Storage" />
-    <PackageReference Include="DigitalBrain.UI" />
-    <PackageReference Include="DigitalBrain.Graph" />
-    <PackageReference Include="DigitalBrain.Simulation" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" />
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>

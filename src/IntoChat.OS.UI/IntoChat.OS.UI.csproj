@@ -6,8 +6,8 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DigitalBrain" PrivateAssets="none" />
-    <PackageReference Include="DigitalBrain.UI" PrivateAssets="none" />
+    <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" PrivateAssets="none" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" PrivateAssets="none" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
     <InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" />

@@ -5,10 +5,10 @@
     <RootNamespace>IntoChat.OS</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DigitalBrain" PrivateAssets="none" />
-    <PackageReference Include="DigitalBrain.Capabilities.Compute" PrivateAssets="none" />
-    <PackageReference Include="DigitalBrain.Capabilities.Connections" PrivateAssets="none" />
-    <PackageReference Include="DigitalBrain.UI" PrivateAssets="none" />
+    <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" PrivateAssets="none" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Compute/DigitalBrain.Capabilities.Compute.csproj" PrivateAssets="none" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" PrivateAssets="none" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" PrivateAssets="none" />
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Core.Abstractions" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />

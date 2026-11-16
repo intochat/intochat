@@ -3,7 +3,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="DigitalBrain.Testing" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="TngTech.ArchUnitNET.xUnitV3" />

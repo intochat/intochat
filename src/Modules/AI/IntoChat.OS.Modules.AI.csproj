@@ -21,10 +21,10 @@
     <PackageReference Include="Concentus" />
     <PackageReference Include="Concentus.Oggfile" />
     <PackageReference Include="NAudio" />
-    <PackageReference Include="DigitalBrain.Graph" />
-    <PackageReference Include="DigitalBrain.Capabilities.Compute" />
-    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
-    <PackageReference Include="DigitalBrain.Runtime.Http" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Compute/DigitalBrain.Capabilities.Compute.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />

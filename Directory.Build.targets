@@ -13,8 +13,8 @@
     <None Include="$(MSBuildThisFileDirectory)src/Assets/nuget/icon.png" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(UsingMicrosoftNetSdk)' == 'true' and '$(IsTestProject)' != 'true' and '$(MSBuildProjectExtension)' == '.csproj'">
-    <PackageReference Include="DigitalBrain.Analyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+  <ItemGroup Condition="'$(UsingMicrosoftNetSdk)' == 'true' and '$(IsTestProject)' != 'true' and '$(MSBuildProjectExtension)' == '.csproj' and !$(MSBuildProjectDirectory.Replace('\', '/').Contains('/framework/'))">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)framework/src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" IsAspireProjectResource="false" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(IntoChatOSOnlyTier)' != '' And '$(IntoChatOSTestTier)' != '' And '$(IntoChatOSTestTier)' != '$(IntoChatOSOnlyTier)'">

@@ -37,11 +37,12 @@ public sealed class PublicApiTextFacts
 
     private static string Root()
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "DigitalBrain.slnx")))
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
-            dir = dir.Parent;
+            if (File.Exists(Path.Combine(dir.FullName, "DigitalBrain.slnx"))) { return dir.FullName; }
+            var framework = Path.Combine(dir.FullName, "framework");
+            if (File.Exists(Path.Combine(framework, "DigitalBrain.slnx"))) { return framework; }
         }
-        return dir?.FullName ?? throw new InvalidOperationException("Repository root not found.");
+        throw new InvalidOperationException("Repository root not found.");
     }
 }

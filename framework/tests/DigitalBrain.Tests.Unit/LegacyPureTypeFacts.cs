@@ -40,9 +40,18 @@ public sealed class LegacyPureTypeFacts
 
     private static XDocument LoadCore()
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "DigitalBrain.slnx"))) { dir = dir.Parent; }
-        Assert.NotNull(dir);
-        return XDocument.Load(Path.Combine(dir.FullName, "src", "DigitalBrain", "DigitalBrain.csproj"));
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "DigitalBrain.slnx")))
+            {
+                return XDocument.Load(Path.Combine(dir.FullName, "src", "DigitalBrain", "DigitalBrain.csproj"));
+            }
+            var framework = Path.Combine(dir.FullName, "framework");
+            if (File.Exists(Path.Combine(framework, "DigitalBrain.slnx")))
+            {
+                return XDocument.Load(Path.Combine(framework, "src", "DigitalBrain", "DigitalBrain.csproj"));
+            }
+        }
+        throw new InvalidOperationException("DigitalBrain.slnx not found above " + AppContext.BaseDirectory);
     }
 }

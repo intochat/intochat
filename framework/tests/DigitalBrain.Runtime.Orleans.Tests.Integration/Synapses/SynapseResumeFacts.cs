@@ -29,8 +29,14 @@ public sealed partial class SynapseResumeFacts(SynapseSilo silo) : IClassFixture
     [Fact]
     public void No_observer_or_lease_code_exists_in_the_digitalbrain_sources()
     {
-        var root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "DigitalBrain.slnx"))) { root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("No repository root."); }
+        string? root = null;
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "DigitalBrain.slnx"))) { root = dir.FullName; break; }
+            var framework = Path.Combine(dir.FullName, "framework");
+            if (File.Exists(Path.Combine(framework, "DigitalBrain.slnx"))) { root = framework; break; }
+        }
+        if (root is null) { throw new InvalidOperationException("No repository root."); }
         var hits = Directory.EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Where(path => Forbidden().IsMatch(File.ReadAllText(path)))

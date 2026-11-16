@@ -109,6 +109,17 @@
     <_CodeGraphStamp>$([System.IO.Path]::Combine('$(_CodeGraphIndex)', 'msbuild-refresh.stamp'))</_CodeGraphStamp>
     <_CodeGraphCommand Condition="'$(_CodeGraphCommand)' == ''">npx -y @colbymchenry/codegraph@1.6.0</_CodeGraphCommand>
   </PropertyGroup>
+
+  <!-- Framework projects keep their own analyzer level and suppressions without changing either side's settings. -->
+  <PropertyGroup Condition="$(MSBuildProjectDirectory.Replace('\', '/').Contains('/framework/'))">
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <PackageTags>neurons;signals;synapses;brain;actors</PackageTags>
+    <NoWarn>$(NoWarn);CA1716;CA1711;CS0618;IDE0011;IDE0019;IDE0023;IDE0039;IDE0040;IDE0045;IDE0047;IDE0052;IDE0060;IDE0062;IDE0063;IDE0065;IDE0200;IDE0410</NoWarn>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(MSBuildProjectDirectory.Replace('\', '/').Contains('/framework/')) And $(MSBuildProjectName.Contains('.Tests.'))">
+    <NoWarn>$(NoWarn);CS1591;CA1707;CA1515</NoWarn>
+  </PropertyGroup>
 </Project>
 
 

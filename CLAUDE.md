@@ -8,7 +8,7 @@ OS and SDK documentation lives in the sibling public repository `E:/intochat/os.
 - Use codegraph for general structure when available.
 - Follow the existing neuron, signal, behavior and connector model. Propose new concepts, contract changes and module-shape changes before implementation.
 - Preserve per-brain ownership and kernel-stamped signal provenance. Do not derive authority from settings.
-- Contracts belong in src/IntoChat.OS and module Contracts assemblies; generic runtime implementation belongs in the DigitalBrain packages (sibling repository); OS-only hosting belongs in src/IntoChat.OS/Hosting/IntoChat.OS.Framework; platform authorities belong in the Identity module's Authority tree.
+- Contracts belong in src/IntoChat.OS and module Contracts assemblies; generic runtime implementation belongs in DigitalBrain (`framework/src/*`); OS-only hosting belongs in src/IntoChat.OS/Hosting/IntoChat.OS.Framework; platform authorities belong in the Identity module's Authority tree.
 - First-party apps are compiled shell apps in `src/IntoChat.OS.Apps/<App>`, one folder per app with its scenarios; apps authored at runtime are synapse units, never source in this repository. Inline app specifications and runtime prompts are source inputs and remain here.
 - Use shared module-owned testing infrastructure for engineering changes. Build individual projects on Windows rather than the solution. Tiers prove one subject: Unit = facts on TestOS, Integration = the same on a real silo through Testing.Silo, E2E = the product on an in-process host without Docker, Browser = the shell in a browser (nightly). The product tier boots the OS as a DigitalBrain app under Aspire's testing builder with no container; a journey that needs a container carries a `needs` trait and runs nightly. CI enforces a time budget per tier.
 - Product assessment and documentation work does not authorize running tests or starting the product. Follow the user's requested verification scope.
@@ -16,8 +16,12 @@ OS and SDK documentation lives in the sibling public repository `E:/intochat/os.
 - Keep C# wire records and Dart mirrors aligned.
 - Use concrete arrays in persisted state. Avoid self-calls on non-reentrant grains. Renew observer leases.
 - Never wipe user state, replace custody keys or assume stored data is disposable. Coordinate changes to persisted formats explicitly.
-- DigitalBrain is an independent sibling repository (`E:/intochat/digitalbrain`) consumed via nuget.org previews, or a developer feed named only in the git-ignored `Directory.Build.local.props`. Framework changes are built, tested, and packed in `digitalbrain`, then consumed here via updated package version pins in `Directory.Packages.props`.
+- DigitalBrain lives under `framework/` in this repository. Product projects reference `framework/src/*` directly with no version pins; `framework/` may never reference anything named `IntoChat` (`FrameworkBoundaryFacts`).
 - Warnings are errors, nullable is enabled and package versions are central. Avoid boilerplate XML summaries; keep comments accurate.
+
+## New in, old out
+
+A change that introduces a new way of doing something removes the old way in the same pull request. If the old way cannot be removed yet, the pull request adds it to a tracked list with an owner and is not called done.
 
 ## Documentation inputs retained here
 

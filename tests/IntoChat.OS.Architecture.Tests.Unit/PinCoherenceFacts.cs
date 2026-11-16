@@ -17,7 +17,7 @@ public sealed class PinCoherenceFacts
             .Select(pin => pin.Version)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
-        Assert.Single(digitalBrainVersions);
+        Assert.Empty(digitalBrainVersions);
 
         var intoChatPins = pins
             .Where(pin => pin.Id.StartsWith("IntoChat.", StringComparison.Ordinal) || pin.Id.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal))

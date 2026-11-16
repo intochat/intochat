@@ -29,7 +29,8 @@ public sealed class HouseRules22Facts
     {
         var slnx = XDocument.Load(Path.Combine(Repository.Root, "Intochat.OS.slnx"));
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var proj in slnx.Descendants("Project"))
+        foreach (var proj in slnx.Descendants("Project")
+            .Where(proj => !Repository.IsFrameworkEntry(proj) && !Repository.IsFeatureEntry(proj)))
         {
             var rel = proj.Attribute("Path")?.Value;
             if (string.IsNullOrWhiteSpace(rel))

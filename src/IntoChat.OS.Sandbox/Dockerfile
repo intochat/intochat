@@ -12,6 +12,7 @@ COPY nuget.config Directory.Build.props Directory.Build.targets Directory.Packag
 COPY src/IntoChat.OS/ ./src/IntoChat.OS/
 COPY src/IntoChat.OS.UI/ ./src/IntoChat.OS.UI/
 COPY src/IntoChat.OS.Sandbox/ ./src/IntoChat.OS.Sandbox/
+COPY framework/src/ ./framework/src/
 
 ARG NUGET_TOKEN=""
 ARG LOCAL_FEED_SUBDIR="src/IntoChat.OS.Sandbox"

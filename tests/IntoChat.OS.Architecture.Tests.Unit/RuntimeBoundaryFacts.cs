@@ -14,7 +14,13 @@ public sealed partial class RuntimeBoundaryFacts
         var pinned = System.Xml.Linq.XDocument.Load(Path.Combine(Repository.Root, "Directory.Packages.props"))
             .Descendants("PackageVersion").Select(version => version.Attribute("Include")?.Value).OfType<string>()
             .Where(IsOrleansPackage).Where(package => !package.StartsWith("DigitalBrain.", StringComparison.Ordinal)).ToHashSet(StringComparer.Ordinal);
-        var referenced = Repository.Projects.Values.SelectMany(project => Repository.PackageReferences(project.Path)).ToHashSet(StringComparer.Ordinal);
+        var frameworkProjects = Directory.Exists(Repository.FrameworkRoot)
+            ? Repository.SourceFiles(Repository.FrameworkRoot, "*.csproj", path => !path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Contains("content"))
+            : [];
+        var referenced = Repository.Projects.Values.Select(project => project.Path)
+            .Concat(frameworkProjects)
+            .SelectMany(Repository.PackageReferences)
+            .ToHashSet(StringComparer.Ordinal);
 
         var unused = pinned.Except(referenced).Order(StringComparer.Ordinal).ToArray();
         Assert.True(unused.Length == 0, "Directory.Packages.props pins Orleans packages no project references:\n" + string.Join('\n', unused));

@@ -128,8 +128,9 @@ public sealed partial class CiWorkflowFacts
     public void OnlyTheWarmWorkflowMayWritePackages()
     {
         Assert.Contains("packages: write", Workflow("artcraft-images.yml"), StringComparison.Ordinal);
+        // release.yml packs and publishes DigitalBrain.* to GitHub Packages using secrets.GITHUB_TOKEN.
         var release = Workflow("release.yml");
-        Assert.DoesNotContain("packages: write", release, StringComparison.Ordinal);
+        Assert.Contains("packages: write", release, StringComparison.Ordinal);
         var ci = Workflow("ci.yml");
         Assert.DoesNotContain("packages: write", ci, StringComparison.Ordinal);
     }

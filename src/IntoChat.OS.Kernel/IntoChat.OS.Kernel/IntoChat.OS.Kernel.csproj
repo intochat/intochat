@@ -9,16 +9,16 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Azure.Data.Tables" />
     <PackageReference Include="Aspire.Azure.Storage.Blobs" />
-    <PackageReference Include="DigitalBrain" />
-    <PackageReference Include="DigitalBrain.Capabilities.Compute" />
-    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
-    <PackageReference Include="DigitalBrain.Capabilities.Http" />
-    <PackageReference Include="DigitalBrain.Graph" />
-    <PackageReference Include="DigitalBrain.Identity.Local" />
-    <PackageReference Include="DigitalBrain.Runtime.Http" />
-    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
-    <PackageReference Include="DigitalBrain.Runtime.Orleans.Azure" />
-    <PackageReference Include="DigitalBrain.Runtime.Synapses" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Compute/DigitalBrain.Capabilities.Compute.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Http/DigitalBrain.Capabilities.Http.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Orleans.Azure/DigitalBrain.Runtime.Orleans.Azure.csproj" />
+    <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Synapses/DigitalBrain.Runtime.Synapses.csproj" />
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Clustering.AzureStorage" />
     <PackageReference Include="Microsoft.Orleans.Dashboard" />

@@ -14,3 +14,7 @@ Commands to run before pushing:
 
 - The architecture project keeps boundary facts (framework inwardness, the Orleans reach ban, test tiers, repository layout, namespace scheme, swallow). There is no capture-all script and no pin JSON besides `ContractManifest.json`.
 - Quarantined facts: timing-dependent facts are `[Fact(Explicit = true)]` with a comment linking their GitHub issue (label `flaky`). They stay out of the PR gate; run them with `dotnet test --project <proj> -c Release -- --explicit only`. Never use `Skip` or retry attributes (`NoRetryFacts`).
+
+### New in, old out
+
+A change that introduces a new way of doing something removes the old way in the same pull request. If the old way cannot be removed yet, the pull request adds it to a tracked list with an owner and is not called done.

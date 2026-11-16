@@ -10,7 +10,7 @@ public sealed class RuntimeHasNoAzureFacts
     {
         var project = Repository.ProjectNamed("DigitalBrain.Runtime.Orleans");
         Assert.True(File.Exists(project.Path), project.Path);
-        var assets = Path.Combine(project.Directory, "obj", "project.assets.json");
+        var assets = Repository.AssetsFile(project);
         Assert.True(File.Exists(assets), $"{assets} is missing; restore DigitalBrain.Runtime.Orleans first.");
 
         using var document = JsonDocument.Parse(File.ReadAllText(assets));

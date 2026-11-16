@@ -61,7 +61,7 @@ public sealed partial class NoProgramLanesFacts
 
     internal static IEnumerable<string> ProductionSources()
         => Repository.SourceFiles(Repository.SourceRoot, "*.cs", path => !Repository.Relative(path).Split('/')
-            .Any(part => part.Contains(".Tests", StringComparison.Ordinal) || part is "tests" or "Testing"));
+            .Any(part => part.Contains(".Tests", StringComparison.Ordinal) || part is "tests" or "Testing" or "framework" or "features" or "artifacts"));
 
     [GeneratedRegex(@"""__[A-Za-z]\w*""", RegexOptions.CultureInvariant)]
     private static partial Regex ReservedKey();

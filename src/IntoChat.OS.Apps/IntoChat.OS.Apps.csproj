@@ -10,10 +10,10 @@
     <InternalsVisibleTo Include="IntoChat.OS.Tests.E2E" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="DigitalBrain.Capabilities.Storage" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
     
-    <PackageReference Include="DigitalBrain.UI" />
-    <PackageReference Include="DigitalBrain.Graph" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" />
     <ProjectReference Include="../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
     <ProjectReference Include="../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />

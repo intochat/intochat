@@ -18,19 +18,41 @@ public sealed class PackageRestoreFacts : E2ETestBase
     {
         var doc = XDocument.Load(PackagesPropsPath);
         var dbPackages = doc.Descendants("PackageVersion")
-            .Where(x => (x.Attribute("Include")?.Value ?? string.Empty).StartsWith("DigitalBrain", StringComparison.Ordinal))
+            .Where(x => (x.Attribute("Include")?.Value ?? string.Empty) is var inc
+                && (inc == "DigitalBrain" || inc.StartsWith("DigitalBrain.", StringComparison.Ordinal)))
+            .Select(x => x.Attribute("Include")?.Value)
             .ToList();
 
-        Assert.NotEmpty(dbPackages);
-        Assert.True(dbPackages.Count >= 17, $"Expected at least 17 DigitalBrain packages, found {dbPackages.Count}.");
+        Assert.Empty(dbPackages);
 
-        var non0223Offenders = dbPackages
-            .Where(x => x.Attribute("Version")?.Value != "0.22.3")
-            .Select(x => $"{x.Attribute("Include")?.Value}: {x.Attribute("Version")?.Value}")
-            .ToList();
+        var version = File.ReadAllText(Path.Combine(RepoRoot, "VERSION")).Trim();
+        Assert.Equal("0.23.0", version);
 
-        Assert.True(non0223Offenders.Count == 0,
-            "All DigitalBrain packages must be pinned to 0.22.3 in Directory.Packages.props:\n" + string.Join("\n", non0223Offenders));
+        var frameworkSrcDir = Path.GetFullPath(Path.Combine(RepoRoot, "framework", SourceSegment)) + Path.DirectorySeparatorChar;
+        Assert.True(Directory.Exists(frameworkSrcDir), $"Expected framework source directory at {frameworkSrcDir}.");
+
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var projectRefCount = 0;
+        foreach (var csproj in FindCsprojFiles())
+        {
+            var projectDoc = XDocument.Load(csproj);
+            var pkgOffenders = projectDoc.Descendants("PackageReference")
+                .Where(p => (p.Attribute("Include")?.Value ?? string.Empty) is var inc
+                    && (inc == "DigitalBrain" || inc.StartsWith("DigitalBrain.", StringComparison.Ordinal)))
+                .Select(p => $"{Path.GetRelativePath(RepoRoot, csproj)}: {p.Attribute("Include")?.Value}")
+                .ToList();
+            Assert.Empty(pkgOffenders);
+
+            var projectDir = Path.GetDirectoryName(csproj)!;
+            projectRefCount += projectDoc.Descendants("ProjectReference")
+                .Select(p => p.Attribute("Include")?.Value)
+                .OfType<string>()
+                .Where(include => !include.Contains("$(", StringComparison.Ordinal))
+                .Select(include => Path.GetFullPath(Path.Combine(projectDir, include.Replace('\\', '/'))))
+                .Count(resolved => resolved.StartsWith(frameworkSrcDir, comparison));
+        }
+
+        Assert.True(projectRefCount > 0, "Expected product projects to reference framework projects via ProjectReference.");
     }
 
     [Fact]
@@ -96,8 +118,17 @@ public sealed class PackageRestoreFacts : E2ETestBase
         var simPackage = doc.Descendants("PackageVersion")
             .FirstOrDefault(p => p.Attribute("Include")?.Value == "DigitalBrain.Simulation");
 
-        Assert.NotNull(simPackage);
-        Assert.Equal("0.22.3", simPackage.Attribute("Version")?.Value);
+        Assert.Null(simPackage);
+
+        var simProject = Path.Combine(RepoRoot, "framework", SourceSegment, "DigitalBrain.Simulation", "DigitalBrain.Simulation.csproj");
+        Assert.True(File.Exists(simProject), $"Expected DigitalBrain.Simulation project at {simProject}.");
+
+        var version = File.ReadAllText(Path.Combine(RepoRoot, "VERSION")).Trim();
+        Assert.Equal("0.23.0", version);
+
+        var infoVersion = typeof(TestOS).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        Assert.NotNull(infoVersion);
+        Assert.StartsWith("0.23.0", infoVersion, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -127,7 +158,9 @@ public sealed class PackageRestoreFacts : E2ETestBase
         Assert.NotNull(appsProj);
 
         var doc = XDocument.Load(appsProj);
-        var hasSim = doc.Descendants("PackageReference").Any(p => p.Attribute("Include")?.Value == "DigitalBrain.Simulation");
+        var hasSim = doc.Descendants("ProjectReference")
+                .Any(p => Path.GetFileNameWithoutExtension((p.Attribute("Include")?.Value ?? string.Empty).Replace('\\', '/')) == "DigitalBrain.Simulation")
+            || doc.Descendants("PackageReference").Any(p => p.Attribute("Include")?.Value == "DigitalBrain.Simulation");
         Assert.True(hasSim, "IntoChat.OS.Modules.Catalog.csproj must reference DigitalBrain.Simulation.");
     }
 
@@ -138,8 +171,11 @@ public sealed class PackageRestoreFacts : E2ETestBase
         Assert.NotNull(appsProj);
 
         var doc = XDocument.Load(appsProj);
-        var hasTesting = doc.Descendants("PackageReference")
-            .Any(p => p.Attribute("Include")?.Value is "DigitalBrain.Testing" or "DigitalBrain.Testing.Silo");
+        var hasTesting = doc.Descendants("ProjectReference")
+                .Any(p => Path.GetFileNameWithoutExtension((p.Attribute("Include")?.Value ?? string.Empty).Replace('\\', '/'))
+                    is "DigitalBrain.Testing" or "DigitalBrain.Testing.Silo")
+            || doc.Descendants("PackageReference")
+                .Any(p => p.Attribute("Include")?.Value is "DigitalBrain.Testing" or "DigitalBrain.Testing.Silo");
         Assert.False(hasTesting, "IntoChat.OS.Modules.Catalog.csproj must NOT reference DigitalBrain.Testing or DigitalBrain.Testing.Silo.");
     }
 
@@ -191,6 +227,10 @@ public sealed class PackageRestoreFacts : E2ETestBase
             var badHarnessRefs = doc.Descendants("PackageReference")
                 .Where(p => p.Attribute("Include")?.Value is "DigitalBrain.Testing" or "DigitalBrain.Testing.Silo" or "Microsoft.Orleans.TestingHost")
                 .Select(p => $"{Path.GetRelativePath(RepoRoot, file)}: {p.Attribute("Include")?.Value}")
+                .Concat(doc.Descendants("ProjectReference")
+                    .Where(p => Path.GetFileNameWithoutExtension((p.Attribute("Include")?.Value ?? string.Empty).Replace('\\', '/'))
+                        is "DigitalBrain.Testing" or "DigitalBrain.Testing.Silo" or "Microsoft.Orleans.TestingHost")
+                    .Select(p => $"{Path.GetRelativePath(RepoRoot, file)}: {p.Attribute("Include")?.Value}"))
                 .ToList();
 
             offenders.AddRange(badHarnessRefs);

@@ -12,12 +12,12 @@
   <ItemGroup>
     <PackageReference Include="Azure.Identity" />
     <PackageReference Include="Azure.Storage.Blobs" />
-    <PackageReference Include="DigitalBrain.Capabilities.Compute" />
-    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
-    <PackageReference Include="DigitalBrain.Identity.Local" />
-    <PackageReference Include="DigitalBrain.Runtime.Http" />
-    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
-    <PackageReference Include="DigitalBrain.UI" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Compute/DigitalBrain.Capabilities.Compute.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Identity.Local/DigitalBrain.Identity.Local.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Grpc.AspNetCore.Web" />
     <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />

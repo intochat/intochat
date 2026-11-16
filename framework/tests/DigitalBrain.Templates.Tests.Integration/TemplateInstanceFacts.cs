@@ -129,7 +129,10 @@ public sealed class TemplateInstanceFacts
             await Dotnet(root, null, ["pack", Path.Combine(root, "src", id, id + ".csproj"), "-c", "Release", "-o", feed,
                 "--artifacts-path", artifacts, "-p:VersionSuffix=" + suffix, "-p:IncludeSymbols=false"], ct);
         }
-        var version = (await File.ReadAllTextAsync(Path.Combine(root, "VERSION"), ct)).Trim() + "-" + suffix;
+        var versionDir = new DirectoryInfo(root);
+        while (versionDir is not null && !File.Exists(Path.Combine(versionDir.FullName, "VERSION"))) { versionDir = versionDir.Parent; }
+        Assert.NotNull(versionDir);
+        var version = (await File.ReadAllTextAsync(Path.Combine(versionDir.FullName, "VERSION"), ct)).Trim() + "-" + suffix;
         return (feed, version);
     }
 
@@ -197,6 +200,8 @@ public sealed class TemplateInstanceFacts
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
             if (File.Exists(Path.Combine(directory.FullName, "DigitalBrain.slnx"))) { return directory.FullName; }
+            var framework = Path.Combine(directory.FullName, "framework");
+            if (File.Exists(Path.Combine(framework, "DigitalBrain.slnx"))) { return framework; }
         }
         throw new InvalidOperationException("DigitalBrain.slnx not found above " + AppContext.BaseDirectory);
     }

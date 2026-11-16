@@ -6,14 +6,14 @@
     <PackageReference Include="Aspire.Hosting" />
     <PackageReference Include="Aspire.Hosting.Testing" />
     <PackageReference Include="Aspire.Hosting.Yarp" />
-    <PackageReference Include="DigitalBrain" />
-    <PackageReference Include="DigitalBrain.Capabilities.Connections" />
-    <PackageReference Include="DigitalBrain.Capabilities.Storage" />
-    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
-    <PackageReference Include="DigitalBrain.Runtime.Synapses" />
-    <PackageReference Include="DigitalBrain.Testing" />
-    <PackageReference Include="DigitalBrain.Testing.Silo" />
-    <PackageReference Include="DigitalBrain.UI" />
+    <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Connections/DigitalBrain.Capabilities.Connections.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Synapses/DigitalBrain.Runtime.Synapses.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Testing.Silo/DigitalBrain.Testing.Silo.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
   </ItemGroup>
   <ItemGroup>

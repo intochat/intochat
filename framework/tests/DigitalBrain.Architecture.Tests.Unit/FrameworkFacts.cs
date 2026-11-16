@@ -77,7 +77,7 @@ public sealed class CoreHasNoOrleansFacts
     {
         var project = Repository.ProjectNamed(name);
         Assert.True(File.Exists(project.Path), project.Path);
-        var assets = Path.Combine(project.Directory, "obj", "project.assets.json");
+        var assets = Repository.AssetsFile(project);
         Assert.True(File.Exists(assets), $"{assets} is missing; restore {name} first.");
 
         using var document = JsonDocument.Parse(File.ReadAllText(assets));
@@ -185,7 +185,10 @@ public sealed class VersionFacts
     [Fact]
     public void Version_is_bare_semver()
     {
-        Assert.Matches("^\\d+\\.\\d+\\.\\d+$", File.ReadAllText(Path.Combine(Repository.Root, "VERSION")).Trim());
+        var directory = new DirectoryInfo(Repository.Root);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "VERSION"))) { directory = directory.Parent; }
+        Assert.NotNull(directory);
+        Assert.Matches("^\\d+\\.\\d+\\.\\d+$", File.ReadAllText(Path.Combine(directory.FullName, "VERSION")).Trim());
     }
 }
 

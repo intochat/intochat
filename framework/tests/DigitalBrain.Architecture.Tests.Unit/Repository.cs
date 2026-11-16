@@ -40,11 +40,21 @@ internal static class Repository
             .Select(reference => reference.Attribute("Include")?.Value)
             .OfType<string>();
 
+    internal static string AssetsFile(Project project)
+    {
+        var local = System.IO.Path.Combine(project.Directory, "obj", "project.assets.json");
+        if (File.Exists(local)) { return local; }
+        var artifacts = System.IO.Path.GetFullPath(System.IO.Path.Combine(Root, "..", "artifacts", "obj", project.Name, "project.assets.json"));
+        return File.Exists(artifacts) ? artifacts : local;
+    }
+
     private static string FindRoot()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
             if (File.Exists(System.IO.Path.Combine(dir.FullName, SolutionFile))) { return dir.FullName; }
+            var framework = System.IO.Path.Combine(dir.FullName, "framework");
+            if (File.Exists(System.IO.Path.Combine(framework, SolutionFile))) { return framework; }
         }
         throw new InvalidOperationException($"{SolutionFile} not found above {AppContext.BaseDirectory}.");
     }

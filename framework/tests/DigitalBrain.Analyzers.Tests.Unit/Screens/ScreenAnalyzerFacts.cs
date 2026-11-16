@@ -23,10 +23,21 @@ public sealed class ScreenRulesFacts
     [Fact]
     public void All_screen_rules_are_unshipped()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "DigitalBrain.Analyzers", "AnalyzerReleases.Unshipped.md");
+        var path = Path.Combine(FrameworkRoot(), "src", "DigitalBrain.Analyzers", "AnalyzerReleases.Unshipped.md");
         Assert.True(File.Exists(path), "Missing " + path);
         var text = File.ReadAllText(path);
         Assert.All(ScreenRules.All, d => Assert.Contains(d.Id + " | DigitalBrain.Screens | " + d.DefaultSeverity, text, StringComparison.Ordinal));
+    }
+
+    private static string FrameworkRoot()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "DigitalBrain.slnx"))) { return dir.FullName; }
+            var framework = Path.Combine(dir.FullName, "framework");
+            if (File.Exists(Path.Combine(framework, "DigitalBrain.slnx"))) { return framework; }
+        }
+        throw new InvalidOperationException("DigitalBrain.slnx not found above " + AppContext.BaseDirectory);
     }
 }
 

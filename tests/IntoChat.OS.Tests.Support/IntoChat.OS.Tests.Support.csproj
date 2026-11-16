@@ -5,8 +5,8 @@
     <NoWarn>$(NoWarn);DB0045</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DigitalBrain" />
-    <PackageReference Include="DigitalBrain.UI" />
+    <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/IntoChat.OS/IntoChat.OS.csproj" />

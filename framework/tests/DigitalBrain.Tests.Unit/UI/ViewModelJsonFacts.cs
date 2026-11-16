@@ -38,8 +38,13 @@ public sealed class ViewModelJsonFacts
     [Fact]
     public void NoEmitTargetsTheConfirmationsResolve()
     {
-        string? root = AppContext.BaseDirectory;
-        while (root is not null && !Directory.Exists(Path.Combine(root, "src", "DigitalBrain.UI"))) { root = Path.GetDirectoryName(root); }
+        string? root = null;
+        for (var dir = AppContext.BaseDirectory; dir is not null; dir = Path.GetDirectoryName(dir))
+        {
+            if (Directory.Exists(Path.Combine(dir, "src", "DigitalBrain.UI"))) { root = dir; break; }
+            var framework = Path.Combine(dir, "framework");
+            if (Directory.Exists(Path.Combine(framework, "src", "DigitalBrain.UI"))) { root = framework; break; }
+        }
         Assert.NotNull(root);
         var needle = "new Emit(\"" + "confirmations\"";
         var sep = Path.DirectorySeparatorChar;

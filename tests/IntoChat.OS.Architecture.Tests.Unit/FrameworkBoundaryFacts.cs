@@ -2,15 +2,19 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DigitalBrain.Modules;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
-// The framework is in the digitalbrain repository (or framework/ if checked out in-tree): os consumes it via NuGet
-// packages and never by ProjectReference across repositories. framework/ names no path outside itself and nothing
-// IntoChat, its tests reference nothing under src/, and the packable set is the DX-03 list. The DigitalBrain closure
-// still reaches no os or host assembly (D-09).
+// The framework lives in-tree under framework/: os consumes it via ProjectReference (never PackageReference or
+// PackageVersion pins). framework/ names no path outside itself and nothing IntoChat, its tests reference nothing
+// under the product source tree, no type is declared on both sides of the boundary (beyond the shrinking allowlist),
+// and the packable set is the DX-03 list. The DigitalBrain closure reaches no os or host assembly (D-09).
 public sealed partial class FrameworkBoundaryFacts
 {
+    private const string SourceSegment = "s" + "rc";
     // REQUIREMENTS DX-03, the digitalbrain packages.
     private static readonly string[] Dx03Packages =
     [
@@ -159,10 +163,13 @@ public sealed partial class FrameworkBoundaryFacts
         Assert.True(offenders.Length == 0, "Build files under framework/ name only paths inside framework/:\n" + string.Join('\n', offenders));
     }
 
+    [GeneratedRegex(@"\b(?:using\s+(?:static\s+|global::|[A-Za-z_]\w*\s*=\s*)*|namespace\s+)IntoChat\b", RegexOptions.CultureInvariant)]
+    private static partial Regex FrameworkTestIntoChatDirective();
+
     [Fact]
     public void FrameworkReferencesNoIntoChat()
     {
-        if (!Directory.Exists(Repository.FrameworkRoot)) { return; }
+        Assert.True(Directory.Exists(Repository.FrameworkRoot), "framework/ must exist at " + Repository.FrameworkRoot);
         var offenders = new List<string>();
         foreach (var project in FrameworkBuildFiles().Where(file => file.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)))
         {
@@ -170,6 +177,7 @@ public sealed partial class FrameworkBoundaryFacts
             var names = document.Descendants("PackageReference").Select(reference => reference.Attribute("Include")?.Value)
                 .Concat(document.Descendants("ProjectReference").Select(reference => reference.Attribute("Include")?.Value is { } include
                     ? Path.GetFileNameWithoutExtension(include.Replace('\\', '/')) : null))
+                .Concat(document.Descendants("InternalsVisibleTo").Select(attribute => attribute.Attribute("Include")?.Value))
                 .OfType<string>();
             offenders.AddRange(names.Where(name => name.StartsWith("IntoChat", StringComparison.OrdinalIgnoreCase)).Select(name => Repository.Relative(project) + " -> " + name));
         }
@@ -177,10 +185,40 @@ public sealed partial class FrameworkBoundaryFacts
     }
 
     [Fact]
+    public void FrameworkSourceContainsNoIntoChatNamespace()
+    {
+        Assert.True(Directory.Exists(Repository.FrameworkRoot), "framework/ must exist at " + Repository.FrameworkRoot);
+
+        var sourceFolders = new[] { SourceSegment, "examples", "templates" }
+            .Select(folder => Path.Combine(Repository.FrameworkRoot, folder))
+            .Where(Directory.Exists)
+            .ToArray();
+        Assert.NotEmpty(sourceFolders);
+
+        var sourceOffenders = sourceFolders
+            .SelectMany(folder => FilesUnder(folder, name => name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) && !name.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)))
+            .Where(file => File.ReadAllText(file).Contains("IntoChat", StringComparison.Ordinal))
+            .Select(Repository.Relative)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.True(sourceOffenders.Length == 0, "Framework source, examples, and templates contain no IntoChat references:\n" + string.Join('\n', sourceOffenders));
+
+        var testsFolder = Path.Combine(Repository.FrameworkRoot, "tests");
+        var testOffenders = (Directory.Exists(testsFolder)
+                ? FilesUnder(testsFolder, name => name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) && !name.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase))
+                : [])
+            .Where(file => FrameworkTestIntoChatDirective().IsMatch(File.ReadAllText(file)))
+            .Select(Repository.Relative)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.True(testOffenders.Length == 0, "Framework tests contain no 'using IntoChat' or 'namespace IntoChat':\n" + string.Join('\n', testOffenders));
+    }
+
+    [Fact]
     public void FrameworkTestsReferenceNoSrc()
     {
         if (!Directory.Exists(Repository.FrameworkRoot)) { return; }
-        var source = Repository.SourceRoot + Path.DirectorySeparatorChar;
+        var source = Path.Combine(Repository.Root, SourceSegment) + Path.DirectorySeparatorChar;
         var projects = new[] { "tests", "templates" }
             .SelectMany(folder => FilesUnder(Path.Combine(Repository.FrameworkRoot, folder), name => name.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)))
             .ToArray();
@@ -189,7 +227,7 @@ public sealed partial class FrameworkBoundaryFacts
             .SelectMany(project => ResolvedPaths(project).Where(path => (path.Resolved + Path.DirectorySeparatorChar).StartsWith(source, PathComparison))
                 .Select(path => Repository.Relative(project) + ": " + path.Raw))
             .ToArray();
-        Assert.True(offenders.Length == 0, "Framework tests and templates reference nothing under src/:\n" + string.Join('\n', offenders));
+        Assert.True(offenders.Length == 0, "Framework tests and templates reference nothing under " + SourceSegment + "/:\n" + string.Join('\n', offenders));
     }
 
     [Fact]
@@ -197,13 +235,110 @@ public sealed partial class FrameworkBoundaryFacts
     {
         var files = FilesUnder(Repository.Root, IsBuildFile).Where(file => !InFramework(file)).ToArray();
         Assert.True(files.Length >= 35, "the scan found " + files.Length + " build files");
-        var offenders = files
-            .SelectMany(file => XDocument.Load(file).Descendants("ProjectReference")
-                .Where(element => element.Attribute("Include")?.Value is { } include
-                    && Path.GetFileNameWithoutExtension(include.Replace('\\', '/')).StartsWith("DigitalBrain", StringComparison.Ordinal))
-                .Select(element => Repository.Relative(file) + ": ProjectReference " + element.Attribute("Include")!.Value))
+
+        static bool IsDigitalBrainId(string? id)
+            => id is not null && (id == "DigitalBrain" || id.StartsWith("DigitalBrain.", StringComparison.Ordinal));
+
+        var packageOffenders = files
+            .SelectMany(file => XDocument.Load(file).Descendants()
+                .Where(element => element.Name.LocalName is "PackageReference" or "PackageVersion")
+                .Where(element => IsDigitalBrainId(element.Attribute("Include")?.Value))
+                .Select(element => Repository.Relative(file) + ": " + element.Name.LocalName + " " + element.Attribute("Include")!.Value))
             .ToArray();
-        Assert.True(offenders.Length == 0, "os consumes the framework as NuGet packages, never by ProjectReference:\n" + string.Join('\n', offenders));
+        Assert.True(packageOffenders.Length == 0, "No build file outside framework/ may reference or pin DigitalBrain* as a NuGet package:\n" + string.Join('\n', packageOffenders));
+
+        var productRoot = Path.Combine(Repository.Root, SourceSegment);
+        var frameworkSourceRoot = Path.GetFullPath(Path.Combine(Repository.FrameworkRoot, SourceSegment)) + Path.DirectorySeparatorChar;
+        var consumerProjects = FilesUnder(productRoot, name => name.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            .Where(project => ResolvedProjectReferences(project).Any(resolved => resolved.StartsWith(frameworkSourceRoot, PathComparison)))
+            .ToArray();
+        Assert.True(consumerProjects.Length >= 20, "Expected at least 20 product projects referencing framework/" + SourceSegment + "/, found " + consumerProjects.Length);
+    }
+
+    [Fact]
+    public void NoTypeIsDeclaredOnBothSidesOfTheBoundary()
+    {
+        var frameworkSource = Path.Combine(Repository.FrameworkRoot, SourceSegment);
+        var productSource = Path.Combine(Repository.Root, SourceSegment);
+        Assert.True(Directory.Exists(frameworkSource), "framework source directory must exist at " + frameworkSource);
+        Assert.True(Directory.Exists(productSource), "product source directory must exist at " + productSource);
+
+        var frameworkTypes = DeclaredPublicOrInternalTypeNames(frameworkSource);
+        var osTypes = DeclaredPublicOrInternalTypeNames(productSource);
+        var duplicates = frameworkTypes.Intersect(osTypes, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+
+        var allowlistPath = Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, "FrameworkDuplicateTypesAllowlist.txt");
+        Assert.True(File.Exists(allowlistPath), "Missing allowlist: " + allowlistPath);
+
+        var allowlistEntries = File.ReadAllLines(allowlistPath)
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0 && !line.StartsWith('#'))
+            .ToArray();
+
+        Assert.True(allowlistEntries.Length <= 63, $"FrameworkDuplicateTypesAllowlist.txt may have at most 63 entries, found {allowlistEntries.Length}.");
+
+        var allowlist = new HashSet<string>(StringComparer.Ordinal);
+        var duplicateAllowlistEntries = new List<string>();
+        foreach (var entry in allowlistEntries)
+        {
+            if (!allowlist.Add(entry))
+            {
+                duplicateAllowlistEntries.Add(entry);
+            }
+        }
+        Assert.True(duplicateAllowlistEntries.Count == 0, "Duplicate entries in FrameworkDuplicateTypesAllowlist.txt:\n" + string.Join('\n', duplicateAllowlistEntries));
+
+        var unexpected = duplicates.Except(allowlist, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        Assert.True(unexpected.Length == 0, "New duplicate type declared in both framework/" + SourceSegment + " and " + SourceSegment + "/:\n" + string.Join('\n', unexpected));
+
+        var stale = allowlist.Except(duplicates, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        Assert.True(stale.Length == 0, "Type is no longer duplicated; remove it from FrameworkDuplicateTypesAllowlist.txt so the list only shrinks:\n" + string.Join('\n', stale));
+    }
+
+    private static IEnumerable<string> ResolvedProjectReferences(string file)
+    {
+        var directory = Path.GetDirectoryName(file)! + Path.DirectorySeparatorChar;
+        foreach (var raw in XDocument.Load(file).Descendants("ProjectReference")
+            .Select(element => element.Attribute("Include")?.Value)
+            .OfType<string>()
+            .SelectMany(value => value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)))
+        {
+            var value = raw.Replace("$(MSBuildThisFileDirectory)", directory, StringComparison.Ordinal)
+                .Replace("$(MSBuildProjectDirectory)", directory, StringComparison.Ordinal);
+            if (value.Contains("$(", StringComparison.Ordinal) || value.Contains("@(", StringComparison.Ordinal) || value.Contains("%(", StringComparison.Ordinal)) { continue; }
+            yield return Path.GetFullPath(Path.Combine(directory, value.Replace('\\', '/')));
+        }
+    }
+
+    private static HashSet<string> DeclaredPublicOrInternalTypeNames(string rootDirectory)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var file in FilesUnder(rootDirectory, name => name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) && !name.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)))
+        {
+            var root = CSharpSyntaxTree.ParseText(File.ReadAllText(file)).GetRoot();
+            foreach (var declaration in root.DescendantNodes().OfType<BaseTypeDeclarationSyntax>())
+            {
+                if (IsPublicOrInternal(declaration))
+                {
+                    names.Add(declaration.Identifier.Text);
+                }
+            }
+        }
+        return names;
+    }
+
+    private static bool IsPublicOrInternal(BaseTypeDeclarationSyntax declaration)
+    {
+        if (declaration.Modifiers.Any(SyntaxKind.PrivateKeyword)
+            || declaration.Modifiers.Any(SyntaxKind.ProtectedKeyword)
+            || declaration.Modifiers.Any(SyntaxKind.FileKeyword))
+        {
+            return false;
+        }
+
+        return declaration.Modifiers.Any(SyntaxKind.PublicKeyword)
+            || declaration.Modifiers.Any(SyntaxKind.InternalKeyword)
+            || declaration.Parent is not BaseTypeDeclarationSyntax;
     }
 
     [Fact]

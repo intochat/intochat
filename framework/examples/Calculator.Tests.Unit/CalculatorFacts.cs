@@ -81,10 +81,13 @@ public sealed class CalculatorFacts
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
-            var candidate = Path.Combine(dir.FullName, "examples", "Calculator", "views");
             if (File.Exists(Path.Combine(dir.FullName, "examples", "Calculator", "Calculator.csproj")))
             {
-                return candidate;
+                return Path.Combine(dir.FullName, "examples", "Calculator", "views");
+            }
+            if (File.Exists(Path.Combine(dir.FullName, "framework", "examples", "Calculator", "Calculator.csproj")))
+            {
+                return Path.Combine(dir.FullName, "framework", "examples", "Calculator", "views");
             }
         }
         throw new InvalidOperationException("Could not locate examples/Calculator from " + AppContext.BaseDirectory);

@@ -3,11 +3,11 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="DigitalBrain.Runtime.Http" />
-    <PackageReference Include="DigitalBrain.Runtime.Orleans" />
-    <PackageReference Include="DigitalBrain.Testing" />
-    <PackageReference Include="DigitalBrain.Testing.Silo" />
-    <PackageReference Include="DigitalBrain.UI" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Http/DigitalBrain.Runtime.Http.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Runtime.Orleans/DigitalBrain.Runtime.Orleans.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Testing.Silo/DigitalBrain.Testing.Silo.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
   </ItemGroup>

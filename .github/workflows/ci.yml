@@ -52,19 +52,39 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
 
-      - name: Authenticate GitHub Packages
-        env:
-          GITHUB_TOKEN: ${{ secrets.DIGITALBRAIN_READ_TOKEN || secrets.GITHUB_TOKEN }}
-        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
-
       - name: Restore dependencies
         run: dotnet restore Intochat.OS.slnx -v quiet
+
+      - name: Check no Orleans in core framework packages
+        run: |
+          status=0
+          for name in DigitalBrain DigitalBrain.Simulation DigitalBrain.UI DigitalBrain.Testing DigitalBrain.Analyzers DigitalBrain.Capabilities.Storage DigitalBrain.Capabilities.Secrets DigitalBrain.Capabilities.Identity DigitalBrain.Capabilities.Compute DigitalBrain.Capabilities.Connections DigitalBrain.Capabilities.Http DigitalBrain.Capabilities.Tools DigitalBrain.Identity.Local DigitalBrain.Runtime.Http; do
+            project="framework/src/$name/$name.csproj"
+            if dotnet list "$project" package --include-transitive | grep -i orleans; then
+              echo "::error::$name references Orleans"
+              status=1
+            fi
+          done
+          exit $status
 
       - name: Format check
         run: dotnet format whitespace Intochat.OS.slnx --verify-no-changes --no-restore --verbosity minimal
 
       - name: Build solution
         run: dotnet build Intochat.OS.slnx -c Release --no-restore -p:CodeGraphRefresh=false -p:DebugType=none
+
+      - name: Pack DigitalBrain packages
+        run: |
+          dotnet pack framework/DigitalBrain.slnx -c Release --no-build -o artifacts/packages -p:CodeGraphRefresh=false
+          dotnet pack framework/templates/DigitalBrain.Templates/DigitalBrain.Templates.csproj -c Release -o artifacts/packages -p:CodeGraphRefresh=false
+
+      - name: Upload DigitalBrain packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: artifacts/packages
+          compression-level: 1
+          retention-days: 1
 
       - name: Upload compiled artifacts
         uses: actions/upload-artifact@v4
@@ -90,6 +110,8 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
 
       - uses: actions/download-artifact@v4
         with:
@@ -99,6 +121,9 @@ jobs:
       - name: Make artifacts executable
         run: chmod -R +x artifacts/bin
 
+      - name: Restore framework graph for architecture facts
+        run: dotnet restore framework/DigitalBrain.slnx -v quiet
+
       - name: Test (Unit Tier)
         run: dotnet test --solution Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Unit -p:CodeGraphRefresh=false
 
@@ -107,6 +132,8 @@ jobs:
     needs: [build]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
     services:
       azurite:
         image: mcr.microsoft.com/azure-storage/azurite:latest
@@ -138,16 +165,25 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
 
       - uses: actions/download-artifact@v4
         with:
           name: compiled-artifacts
           path: artifacts/bin
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: artifacts/packages
+
       - name: Make artifacts executable
         run: chmod -R +x artifacts/bin
 
       - name: Test (Integration Tier)
+        env:
+          DIGITALBRAIN_TEMPLATE_PACKAGES: ${{ github.workspace }}/artifacts/packages
         run: dotnet test --solution Intochat.OS.slnx -c Release --no-build -p:IntoChatOSNightly=false -p:IntoChatOSOnlyTier=Integration -p:CodeGraphRefresh=false
 
   e2e:
@@ -155,6 +191,15 @@ jobs:
     needs: [build]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
+    services:
+      azurite:
+        image: mcr.microsoft.com/azure-storage/azurite:latest
+        ports:
+          - 10000:10000
+          - 10001:10001
+          - 10002:10002
     steps:
       - uses: actions/checkout@v7
 
@@ -177,11 +222,6 @@ jobs:
       - name: Make artifacts executable
         run: chmod -R +x artifacts/bin
 
-      - name: Authenticate GitHub Packages
-        env:
-          GITHUB_TOKEN: ${{ secrets.DIGITALBRAIN_READ_TOKEN || secrets.GITHUB_TOKEN }}
-        run: dotnet nuget update source github --username "${{ github.actor }}" --password "${GITHUB_TOKEN}" --store-password-in-clear-text --configfile nuget.config
-
       - name: Provision Aspire DCP
         run: |
           mkdir -p ~/.aspire/bundle/dcp
@@ -198,6 +238,9 @@ jobs:
 
       - name: Test E2E
         run: dotnet test --project tests/IntoChat.OS.Tests.E2E/IntoChat.OS.Tests.E2E.csproj -c Release --no-build -p:CodeGraphRefresh=false
+
+      - name: Test Framework E2E
+        run: dotnet test --project framework/tests/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj -c Release --no-build -p:CodeGraphRefresh=false
 
   flutter:
     name: flutter
