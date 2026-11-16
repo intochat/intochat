@@ -8,13 +8,5 @@ namespace IntoChat.OS.Modules.Mcp;
 /// </summary>
 internal static class McpConsoleLog
 {
-    private static readonly ILoggerFactory Factory =
-        LoggerFactory.Create(static builder => builder.SetMinimumLevel(LogLevel.Debug).AddConsole());
-
-    public static ILogger For<T>() => Holder<T>.Instance;
-
-    private static class Holder<T>
-    {
-        public static readonly ILogger Instance = Factory.CreateLogger<T>();
-    }
+    public static ILogger For<T>() => IntoChat.OS.Framework.Logging.OsConsoleLog.For<T>();
 }

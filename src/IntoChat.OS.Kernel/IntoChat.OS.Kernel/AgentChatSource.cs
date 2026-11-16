@@ -119,7 +119,7 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
             string? At(int index) => list.GetArrayLength() > index && list[index].ValueKind == JsonValueKind.String ? list[index].GetString() : null;
             if (contract == typeof(IApp).FullName && method == nameof(IApp.Request) && At(0) == "open")
             {
-                var name = Text("key") is { } app && app.LastIndexOf("/apps/", StringComparison.Ordinal) is var at and >= 0 ? app[(at + 6)..] : null;
+                var name = Text("key") is { } app && IntoChat.OS.Primitives.AppRef.TryParse(app, out var appRef) ? appRef.Name : null;
                 return ChatAppCard.IsAppName(name) ? new(name!, name!, "", true, At(1) ?? "") : null;
             }
             if (contract == typeof(IWorkspace).FullName && method == nameof(IWorkspace.Show))

@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
@@ -49,15 +51,19 @@ public static class GrantRules
     public static CallDecision? EvaluateZeroTokenGuard(CallRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var caller = request.Caller.ToCapabilityCaller();
-        if (caller is null) { return null; }
-        if (caller.Kind != CallerKind.App && !AppPrincipal.IsApp(caller.PrincipalId))
+        if (request.Caller is null) { return null; }
+        return EvaluateZeroTokenGuard(CallerIdentity.From(request.Caller), request.TargetNeuron, request.Operation);
+    }
+
+    internal static CallDecision? EvaluateZeroTokenGuard(CallerIdentity caller, string? targetNeuron, string? operationText)
+    {
+        if (caller.IsModule || (caller.Kind != CallerKind.App && !AppPrincipal.IsApp(caller.PrincipalId)))
         {
             return null;
         }
 
-        var target = request.TargetNeuron ?? "";
-        var operation = request.Operation ?? "";
+        var target = targetNeuron ?? "";
+        var operation = operationText ?? "";
         if (IsForbiddenTarget(target))
         {
             return CallDecision.Deny(
@@ -103,18 +109,39 @@ public static class GrantRules
     public static CallDecision? Evaluate(CallRequest request, Member? member, IReadOnlyList<Grant> grants, PrincipalSet principals, bool? connectionBound = null)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (request.Caller is null)
+        {
+            return CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no caller.");
+        }
+        return Evaluate(
+            CallerIdentity.From(request.Caller),
+            request.TargetNeuron,
+            request.Operation,
+            request.SemanticTypeIds,
+            request.TargetScope,
+            member,
+            grants,
+            principals,
+            connectionBound);
+    }
+
+    internal static CallDecision? Evaluate(
+        CallerIdentity caller,
+        string? targetNeuron,
+        string? operation,
+        string[] semanticTypeIds,
+        string? targetScope,
+        Member? member,
+        IReadOnlyList<Grant> grants,
+        PrincipalSet principals,
+        bool? connectionBound = null)
+    {
         ArgumentNullException.ThrowIfNull(principals);
         grants ??= [];
 
-        if (EvaluateZeroTokenGuard(request) is { } zeroTokenDenial)
+        if (EvaluateZeroTokenGuard(caller, targetNeuron, operation) is { } zeroTokenDenial)
         {
             return zeroTokenDenial;
-        }
-
-        var caller = request.Caller.ToCapabilityCaller();
-        if (caller is null)
-        {
-            return CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no caller.");
         }
 
         if (caller.Kind is CallerKind.User or CallerKind.Agent
@@ -135,51 +162,51 @@ public static class GrantRules
 
         // An agent reaches everything through grants only: no connection-bound shortcut, no own-target allowance.
         var isAgent = caller.Kind == CallerKind.Agent;
-        if (!isAgent && request.SemanticTypeIds.Length == 0 && (connectionBound ?? EdgeGrantsCache.Current.IsConnectionBound(caller, request.TargetNeuron)))
+        if (!isAgent && semanticTypeIds.Length == 0 && (connectionBound ?? EdgeGrantsCache.Current.IsConnectionBound(caller, targetNeuron)))
         {
             return CallDecision.Allow();
         }
 
-        var target = request.TargetNeuron ?? "";
+        var target = targetNeuron ?? "";
         if (target.StartsWith("neuron://", StringComparison.Ordinal))
         {
             target = target["neuron://".Length..];
         }
         var app = AppOf(caller)!;
-        var ownPrefix1 = $"{caller.BrainId}/apps/{app}";
-        var ownPrefix2 = app.StartsWith($"{caller.BrainId}/apps/", StringComparison.Ordinal) ? app : null;
-        var ownPrefix3 = app; // if app is already "local/apps/calculator"
+        var appKey = BrainId.IsValid(caller.BrainId)
+            ? IntoChat.OS.Primitives.AppRef.TryParse(new BrainId(caller.BrainId), app, out var parsed)
+                ? parsed.Key
+                : IntoChat.OS.Primitives.AppRef.TryOf(new BrainId(caller.BrainId), app, out var named) ? named.Key : app
+            : app;
 
-        bool IsOwn(string path) => string.Equals(path, ownPrefix1, StringComparison.Ordinal)
-            || path.StartsWith(ownPrefix1 + "/", StringComparison.Ordinal)
-            || (ownPrefix2 is not null && (string.Equals(path, ownPrefix2, StringComparison.Ordinal) || path.StartsWith(ownPrefix2 + "/", StringComparison.Ordinal)))
-            || string.Equals(path, ownPrefix3, StringComparison.Ordinal)
-            || path.StartsWith(ownPrefix3 + "/", StringComparison.Ordinal);
+        bool IsOwn(string path) => string.Equals(path, appKey, StringComparison.Ordinal)
+            || path.StartsWith(appKey + "/", StringComparison.Ordinal)
+            || string.Equals(path, app, StringComparison.Ordinal)
+            || path.StartsWith(app + "/", StringComparison.Ordinal);
 
         // A plain neuron's target is {type}/{brain}/{key}; the app owns it when {brain}/{key} lies under the app.
         var typeEnd = target.IndexOf('/', StringComparison.Ordinal);
         // The csharp runtime gives each app program its own signal session, runtime.session/{brain}/csharp/{app key}.
-        var appKey = ownPrefix2 ?? ownPrefix1;
         var ownSession = string.Equals(target, $"runtime.session/{caller.BrainId}/csharp/{appKey}", StringComparison.Ordinal);
         var ownNotificationEmit = string.Equals(target, $"notifications.inbox/{caller.BrainId}/inbox", StringComparison.Ordinal)
-            && IsNotificationEmitOperation(request.Operation);
+            && IsNotificationEmitOperation(operation);
         if (!isAgent && (ownSession || ownNotificationEmit || IsOwn(target) || typeEnd > 0 && IsOwn(target[(typeEnd + 1)..])))
         {
             return CallDecision.Allow();
         }
 
-        if (request.SemanticTypeIds.Length == 0)
+        if (semanticTypeIds.Length == 0)
         {
-            if (IsGranted(GrantRelations.Run, request.TargetNeuron ?? "", grants, principals, caller, request.TargetScope))
+            if (IsGranted(GrantRelations.Run, targetNeuron ?? "", grants, principals, caller, targetScope))
             {
                 return CallDecision.Allow();
             }
-            return CallDecision.Deny(CallDenial.MissingGrant, $"Caller '{caller.AppId}' requires a valid grant or binding to access '{request.TargetNeuron}'.");
+            return CallDecision.Deny(CallDenial.MissingGrant, $"Caller '{caller.AppId}' requires a valid grant or binding to access '{targetNeuron}'.");
         }
 
-        foreach (var semanticTypeId in request.SemanticTypeIds)
+        foreach (var semanticTypeId in semanticTypeIds)
         {
-            if (!IsGranted(semanticTypeId, request.TargetNeuron ?? "", grants, principals, caller, request.TargetScope))
+            if (!IsGranted(semanticTypeId, targetNeuron ?? "", grants, principals, caller, targetScope))
             {
                 return CallDecision.Deny(CallDenial.MissingGrant, $"No grant for semantic type '{semanticTypeId}'. The value is treated as missing.");
             }
@@ -193,10 +220,14 @@ public static class GrantRules
     public static IReadOnlyList<Grant> OnceToConsume(CallRequest request, IReadOnlyList<Grant> grants)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (grants is null || grants.Count == 0 || request.SemanticTypeIds.Length == 0) { return []; }
+        if (request.Caller is null) { return []; }
+        return OnceToConsume(CallerIdentity.From(request.Caller), request.TargetNeuron, request.SemanticTypeIds, grants);
+    }
 
-        var caller = request.Caller.ToCapabilityCaller();
-        if (caller is null || caller.Kind is not (CallerKind.App or CallerKind.Agent) || AppOf(caller) is not { } app) { return []; }
+    internal static IReadOnlyList<Grant> OnceToConsume(CallerIdentity caller, string targetNeuron, string[] semanticTypeIds, IReadOnlyList<Grant> grants)
+    {
+        if (grants is null || grants.Count == 0 || semanticTypeIds.Length == 0) { return []; }
+        if (caller.Kind is not (CallerKind.App or CallerKind.Agent) || AppOf(caller) is not { } app) { return []; }
 
         return
         [
@@ -204,13 +235,13 @@ public static class GrantRules
                 && grant.Mode == GrantMode.Once
                 && string.Equals(grant.WorkspaceId, caller.BrainId, StringComparison.Ordinal)
                 && string.Equals(grant.AppId, app, StringComparison.Ordinal)
-                && request.SemanticTypeIds.Contains(grant.SemanticTypeId, StringComparer.Ordinal)
-                && (grant.TargetNeuronKey is null || string.Equals(grant.TargetNeuronKey, request.TargetNeuron, StringComparison.Ordinal))
+                && semanticTypeIds.Contains(grant.SemanticTypeId, StringComparer.Ordinal)
+                && (grant.TargetNeuronKey is null || string.Equals(grant.TargetNeuronKey, targetNeuron, StringComparison.Ordinal))
                 && !grants.Any(other => other.Mode != GrantMode.Once && !other.Revoked
                     && other.WorkspaceId == grant.WorkspaceId && other.AppId == grant.AppId
                     && other.SemanticTypeId == grant.SemanticTypeId
-                    && (other.TargetNeuronKey is null || string.Equals(other.TargetNeuronKey, request.TargetNeuron, StringComparison.Ordinal))
-                    && ModeSatisfied(other, caller))),
+                    && (other.TargetNeuronKey is null || string.Equals(other.TargetNeuronKey, targetNeuron, StringComparison.Ordinal))
+                    && ModeSatisfied(other, caller.ConversationId))),
         ];
     }
 
@@ -221,13 +252,29 @@ public static class GrantRules
     public static string? AppOf(CapabilityCaller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        if (string.IsNullOrWhiteSpace(caller.AppId)) { return null; }
-        return AppPrincipal.AppKeyOf(caller.PrincipalId) is { } app && app != caller.AppId ? null : caller.AppId;
+        return AppOf(caller.PrincipalId, caller.AppId);
+    }
+
+    internal static string? AppOf(CallerIdentity caller)
+        => AppOf(caller.PrincipalId, caller.AppId);
+
+    private static string? AppOf(string principalId, string? appId)
+    {
+        if (string.IsNullOrWhiteSpace(appId)) { return null; }
+        return AppPrincipal.AppKeyOf(principalId) is { } app && app != appId ? null : appId;
     }
 
     // targetBrain: the brain the call filter named for the target; a plain neuron's target ({type}/{brain}/{key}) does not start with it.
     internal static bool IsGranted(string relation, string target, IReadOnlyList<Grant> grants, PrincipalSet principals, CapabilityCaller? caller = null,
         string? targetBrain = null)
+        => IsGranted(relation, target, grants, principals, caller?.ConversationId, targetBrain);
+
+    internal static bool IsGranted(string relation, string target, IReadOnlyList<Grant> grants, PrincipalSet principals, CallerIdentity caller,
+        string? targetBrain = null)
+        => IsGranted(relation, target, grants, principals, caller.ConversationId, targetBrain);
+
+    private static bool IsGranted(string relation, string target, IReadOnlyList<Grant> grants, PrincipalSet principals, string? conversationId,
+        string? targetBrain)
     {
         if (grants is null || grants.Count == 0 || string.IsNullOrWhiteSpace(relation))
         {
@@ -287,7 +334,7 @@ public static class GrantRules
                 continue;
             }
 
-            if (caller is not null && !ModeSatisfied(grant, caller))
+            if (!ModeSatisfied(grant, conversationId))
             {
                 continue;
             }
@@ -298,11 +345,11 @@ public static class GrantRules
         return false;
     }
 
-    private static bool ModeSatisfied(Grant grant, CapabilityCaller caller) => grant.Mode switch
+    private static bool ModeSatisfied(Grant grant, string? conversationId) => grant.Mode switch
     {
         GrantMode.Always or GrantMode.Once => true,
-        GrantMode.ThisChat => caller.ConversationId is { Length: > 0 }
-            && string.Equals(grant.ConversationId, caller.ConversationId, StringComparison.Ordinal),
+        GrantMode.ThisChat => conversationId is { Length: > 0 }
+            && string.Equals(grant.ConversationId, conversationId, StringComparison.Ordinal),
         _ => false,
     };
 

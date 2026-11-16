@@ -105,10 +105,6 @@ public static class OperatingSystemModules
         server.AddNeuronModule(typeof(IntoChat.OS.Apps.ShippedShellAppsModule));
         server.ConfigureServices(services =>
         {
-            services.AddSingleton<IntoChat.OS.Modules.Postgres.Tables.ITablesSlot, IntoChat.OS.Modules.Postgres.AppTablesSlot>();
-            Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddEnumerable(
-                services,
-                ServiceDescriptor.Singleton<IntoChat.OS.Modules.Apps.IAppStorageHook, IntoChat.OS.Modules.Postgres.Tables.TableStorageHook>());
             services.AddMeteredHttpPipelines(selected);
             services.AddOperatingSystemApps();
         });

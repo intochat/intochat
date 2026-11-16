@@ -80,6 +80,8 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
+                    (plain.GetService<ILoggerFactory>()?.CreateLogger<GitHubWebhookIngress>() ?? OsConsoleLog.For<GitHubWebhookIngress>())
+                        .LogSwallowed(error, "delivering GitHub webhook event");
                     GitHubTelemetry.Failed(activity, error);
                     results.Add(GitHubWebhookAcceptance.Unavailable);
                 }

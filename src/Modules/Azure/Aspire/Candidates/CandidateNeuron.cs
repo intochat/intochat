@@ -57,6 +57,7 @@ internal sealed class CandidateNeuron(ICandidateHost host, ICandidateVerifier ve
         }
         catch (Exception error)
         {
+            log.LogWarning(error, "Candidate {Candidate} failed during Start.", Key);
             await Fail(error.Message, removeContainer: Snapshot.Stage == CandidateStage.Starting);
         }
         return Describe();
@@ -106,6 +107,7 @@ internal sealed class CandidateNeuron(ICandidateHost host, ICandidateVerifier ve
         try { previous = await host.Commit(Sha, CancellationToken.None); }
         catch (Exception error)
         {
+            log.LogWarning(error, "Candidate {Candidate} commit failed.", Key);
             await Fail($"commit: {error.Message}", removeContainer: true);
             return Describe();
         }
@@ -115,6 +117,7 @@ internal sealed class CandidateNeuron(ICandidateHost host, ICandidateVerifier ve
         try { cluster = await LiveCluster.Restart(Sha); }
         catch (Exception error)
         {
+            log.LogWarning(error, "Candidate {Candidate} cluster restart check failed.", Key);
             // A restart the cluster still heads for is settled by its next activation; any other is not happening.
             if (Snapshot.Stage != CandidateStage.Promoting) { return Describe(); }
             if (await LiveCluster.Read() is { Stage: DeploymentStage.Restarting } heading && heading.TargetSha == Sha) { return Describe(); }

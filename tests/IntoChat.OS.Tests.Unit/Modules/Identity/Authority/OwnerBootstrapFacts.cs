@@ -94,7 +94,7 @@ public sealed class OwnerBootstrapFacts
         // Wire roundtrip check: Authorize over NeuronProxy serializes DirectoryAuthorizeRequest cleanly:
         var appAllowed = await identity.Authorize(new CallRequest
         {
-            Caller = CapabilityCallers.Of(AppPrincipal.Id("owner/apps/demo"), "owner", "owner", CallerKind.App, "owner/apps/demo").ToCaller(),
+            Caller = os.Edge.From(CapabilityCallers.Of(AppPrincipal.Id("owner/apps/demo"), "owner", "owner", CallerKind.App, "owner/apps/demo")),
             TargetNeuron = "owner/apps/demo",
             Operation = "read",
             SemanticTypeIds = ["os.notes"],
@@ -104,7 +104,7 @@ public sealed class OwnerBootstrapFacts
 
         var appDenied = await identity.Authorize(new CallRequest
         {
-            Caller = CapabilityCallers.Of(AppPrincipal.Id("owner/apps/stranger"), "owner", "owner", CallerKind.App, "owner/apps/stranger").ToCaller(),
+            Caller = os.Edge.From(CapabilityCallers.Of(AppPrincipal.Id("owner/apps/stranger"), "owner", "owner", CallerKind.App, "owner/apps/stranger")),
             TargetNeuron = "owner/apps/demo",
             Operation = "read",
             SemanticTypeIds = ["os.notes"],

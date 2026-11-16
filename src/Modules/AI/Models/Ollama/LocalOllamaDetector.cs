@@ -5,13 +5,13 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.AI.Models.Ollama;
 
-public sealed record LocalOllamaDetection(
+internal sealed record LocalOllamaDetection(
     string Endpoint,
     string PreferredModel,
     string[] InstalledModels,
     bool HasNomicEmbed);
 
-public interface ILocalOllamaProbe
+internal interface ILocalOllamaProbe
 {
     Task<LocalOllamaDetection?> Detect(CancellationToken ct = default);
 }

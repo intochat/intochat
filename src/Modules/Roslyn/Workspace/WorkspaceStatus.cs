@@ -1,6 +1,6 @@
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
-public sealed record WorkspaceStatus(WorkspacePhase Phase, string? SolutionPath, int ProjectCount, int DocumentCount, string? Detail, bool ReloadNeeded = false)
+internal sealed record WorkspaceStatus(WorkspacePhase Phase, string? SolutionPath, int ProjectCount, int DocumentCount, string? Detail, bool ReloadNeeded = false)
 {
     public static readonly WorkspaceStatus NotOpened = new(WorkspacePhase.NotOpened, null, 0, 0, null);
 

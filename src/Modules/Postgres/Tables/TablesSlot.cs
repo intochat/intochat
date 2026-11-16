@@ -1,15 +1,14 @@
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.Apps;
-using IntoChat.OS.Modules.Postgres.Tables;
 
-namespace IntoChat.OS.Modules.Postgres;
+namespace IntoChat.OS.Modules.Postgres.Tables;
 
 /// <summary>
 /// An app's reserved <c>tables</c> slot: when the app declares it with the postgres connector and binds it, the app's
 /// tables are placed in that connection's database instead of the brain's own.
 /// </summary>
-public static class TablesSlot
+internal static class TablesSlot
 {
     /// <summary>The reserved slot name.</summary>
     public const string Name = AppTablesSlot.Name;
@@ -31,7 +30,7 @@ internal sealed class AppTablesSlot(IServiceProvider services) : ITablesSlot
 
     public async Task<string?> BoundConnection(TableOwner owner)
     {
-        if (!owner.AppId.StartsWith(owner.BrainId + "/apps/", StringComparison.Ordinal)) { return null; } // a bare behavior owns no slots
+        if (!IntoChat.OS.Primitives.AppRef.TryParse(new DigitalBrain.BrainId(owner.BrainId), owner.AppId, out _)) { return null; } // a bare behavior owns no slots
         var app = await SiloNeurons.Get<IApp>(services, owner.AppId).Read();
         return app.Manifest.Slots.Any(slot => slot.Name == Name && slot.Connector == "postgres")
             && app.Connections.TryGetValue(Name, out var id)

@@ -7,7 +7,7 @@ namespace IntoChat.OS.Modules.Apps;
 // service instance's in-memory overlay (for example the compiled-app host's cached instance) with no storage connected
 // are not visible here.
 [DigitalBrain.Neurons.Neuron("ino.files")]
-public sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceProvider? services = null) : DigitalBrain.Neurons.Neuron, IInoFiles
+internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceProvider? services = null) : DigitalBrain.Neurons.Neuron, IInoFiles
 {
     private IFilesVfsService? _vfs;
 

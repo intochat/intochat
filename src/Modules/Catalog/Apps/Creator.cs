@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.Brains;
 using DigitalBrain.Invocation;
+using DigitalBrain.Log;
 using DigitalBrain.Modules.Options;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -9,6 +10,7 @@ using DigitalBrain.Runtime.Synapses;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter;
@@ -272,6 +274,7 @@ internal sealed class Creator(
         // A failed tool call is the model's problem to correct, not the build's end.
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<Creator>().LogSwallowed(error, $"Creator builder tool '{call.Name}' failed for unit '{alias}'.");
             return JsonSerializer.Serialize(new { error = error.Message }, Json);
         }
     }

@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Security;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.Log;
 using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
@@ -18,7 +19,7 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 /// <summary>
 /// Options controlling <see cref="LocalLlmCoder"/> model selection, tool round budget, timeout, and optional external CLI fallback.
 /// </summary>
-public sealed class LocalLlmCoderOptions
+internal sealed class LocalLlmCoderOptions
 {
     /// <summary>Optional preferred model key/tag (e.g. <c>qwen2.5-coder:14b</c>).</summary>
     public string? PreferredModel { get; set; }
@@ -42,7 +43,7 @@ public sealed class LocalLlmCoderOptions
 /// using strictly path-confined file tools (<c>list_files</c>, <c>read_file</c>, <c>replace_in_file</c>, <c>write_file</c>)
 /// inside <see cref="WorkTreeLease.TreePath"/>.
 /// </summary>
-public sealed class LocalLlmCoder : ICoder
+internal sealed class LocalLlmCoder : ICoder
 {
     private const int MaxListedFiles = 200;
     private const int MaxReadCharacters = 24_000;
@@ -380,6 +381,7 @@ public sealed class LocalLlmCoder : ICoder
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                OsConsoleLog.For<LocalLlmCoder>().LogSwallowed(ex, $"sandbox tool '{name}' failed");
                 return JsonSerializer.Serialize(new { ok = false, error = ex.Message });
             }
         }
@@ -514,7 +516,7 @@ public sealed class LocalLlmCoder : ICoder
 /// Pluggable external CLI coder fallback (e.g. a local script or CLI tool) executed inside <see cref="WorkTreeLease.TreePath"/>
 /// with <c>CreateNoWindow = true</c>. Output is still gated by <see cref="IWorkTree.VerifyAndCommitAsync"/> (Triple Git Lock + C# Path Gate).
 /// </summary>
-public sealed class ExternalCliCoder(string executable, IReadOnlyList<string>? argumentsTemplate = null, TimeSpan? timeout = null) : ICoder
+internal sealed class ExternalCliCoder(string executable, IReadOnlyList<string>? argumentsTemplate = null, TimeSpan? timeout = null) : ICoder
 {
     private readonly TimeSpan _timeout = timeout ?? TimeSpan.FromMinutes(3);
 

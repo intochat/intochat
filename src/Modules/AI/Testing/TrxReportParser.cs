@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 
 namespace IntoChat.OS.Modules.AI.Testing;
 
@@ -93,6 +95,7 @@ internal static class TrxReportParser
         }
         catch (Exception ex)
         {
+            OsConsoleLog.For(typeof(TrxReportParser)).LogSwallowed(ex, "parsing TRX XML");
             return new TestExecutionResult(
                 Success: false,
                 Total: 0,

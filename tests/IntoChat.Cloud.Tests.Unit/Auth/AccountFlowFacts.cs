@@ -6,6 +6,7 @@ using DigitalBrain.UI;
 using IntoChat.Cloud.Auth.Services;
 using IntoChat.Cloud.Auth.Ui;
 using IntoChat.Cloud.Localization;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using OtpNet;
 
@@ -188,7 +189,12 @@ public sealed class AccountFlowFacts
     private static async Task<(AccountSurfaceNeuron Neuron, FakeTimeProvider Clock)> Surface()
     {
         var clock = new FakeTimeProvider(Now);
-        var neuron = new AccountSurfaceNeuron(new AcceptingAuth(), new TableLocalizer(), clock);
+        var services = new ServiceCollection()
+            .AddSingleton<IAccountAuth>(new AcceptingAuth())
+            .AddSingleton<ILocalizer>(new TableLocalizer())
+            .AddSingleton<TimeProvider>(clock)
+            .BuildServiceProvider();
+        var neuron = ActivatorUtilities.CreateInstance<AccountSurfaceNeuron>(services);
         var context = new FakeNeuronContext(AuthIdentityProvider.AccountSurfaceId);
         NeuronAttachment.Attach(neuron, context);
         await NeuronAttachment.Activate(neuron, CancellationToken.None);

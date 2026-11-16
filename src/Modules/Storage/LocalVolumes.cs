@@ -5,16 +5,16 @@ using IntoChat.OS.Framework.Logging;
 namespace IntoChat.OS.Modules.LocalDisk;
 
 /// <summary>One volume row. Tests supply fakes; the host reads <see cref="DriveInfo"/>.</summary>
-public sealed record VolumeRow(string Name, string DriveFormat, bool IsReady, DriveType DriveType, long AvailableFreeSpace, long TotalSize);
+internal sealed record VolumeRow(string Name, string DriveFormat, bool IsReady, DriveType DriveType, long AvailableFreeSpace, long TotalSize);
 
-public interface IVolumeSource
+internal interface IVolumeSource
 {
     IReadOnlyList<VolumeRow> Drives();
 
     VolumeRow? ForPath(string path);
 }
 
-public static class LocalVolumes
+internal static class LocalVolumes
 {
     public static readonly IReadOnlyList<string> ExcludedFormats =
     [

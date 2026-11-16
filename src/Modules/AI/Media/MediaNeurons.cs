@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.AI.Media;
 
-public abstract class MediaNeuron : DigitalBrain.Neurons.Neuron
+internal abstract class MediaNeuron : DigitalBrain.Neurons.Neuron
 {
     public const int MaxPayloadBytes = 8 * 1024 * 1024;
     protected static MediaCapabilities Capabilities(MediaOperation operation, Func<bool> available)
@@ -45,7 +45,7 @@ public abstract class MediaNeuron : DigitalBrain.Neurons.Neuron
 }
 
 [DigitalBrain.Neurons.Neuron("imagegeneratorneuron")]
-public sealed class ImageGeneratorNeuron(IServiceProvider services) : MediaNeuron, IImageGenerator
+internal sealed class ImageGeneratorNeuron(IServiceProvider services) : MediaNeuron, IImageGenerator
 {
     public async Task<MediaCapabilities> Describe()
     {
@@ -64,7 +64,7 @@ public sealed class ImageGeneratorNeuron(IServiceProvider services) : MediaNeuro
 }
 
 [DigitalBrain.Neurons.Neuron("embeddingneuron")]
-public sealed class EmbeddingNeuron(IServiceProvider services) : MediaNeuron, IEmbeddingModel
+internal sealed class EmbeddingNeuron(IServiceProvider services) : MediaNeuron, IEmbeddingModel
 {
     public Task<MediaCapabilities> Describe() => Task.FromResult(Capabilities(MediaOperation.Embedding,
         () => services.GetService<IEmbeddingGenerator<string, Embedding<float>>>() is not null) with
@@ -85,7 +85,7 @@ public sealed class EmbeddingNeuron(IServiceProvider services) : MediaNeuron, IE
 }
 
 [DigitalBrain.Neurons.Neuron("speechrecognizerneuron")]
-public sealed class SpeechRecognizerNeuron(IServiceProvider services) : MediaNeuron, ISpeechRecognizer
+internal sealed class SpeechRecognizerNeuron(IServiceProvider services) : MediaNeuron, ISpeechRecognizer
 {
     public async Task<MediaCapabilities> Describe()
     {
@@ -109,7 +109,7 @@ public sealed class SpeechRecognizerNeuron(IServiceProvider services) : MediaNeu
 }
 
 [DigitalBrain.Neurons.Neuron("speechsynthesizerneuron")]
-public sealed class SpeechSynthesizerNeuron(ISpeechSynthesisTransport transport) : MediaNeuron, ISpeechSynthesizer
+internal sealed class SpeechSynthesizerNeuron(ISpeechSynthesisTransport transport) : MediaNeuron, ISpeechSynthesizer
 {
     public async Task<MediaCapabilities> Describe()
     {

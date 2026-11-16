@@ -2,10 +2,11 @@ using ClickHouse.Driver;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using IntoChat.OS.Modules.ClickHouse.Query;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.ClickHouse;
 
-internal sealed class IntegrationClickHouseProvider(IModuleIntegrations<ClickHouseModule> integrations, IHttpClientFactory clients) : IClickHouseProvider, IIntegrationStartup
+internal sealed class IntegrationClickHouseProvider(IModuleIntegrations<ClickHouseModule> integrations, IHttpClientFactory clients, ILogger<ClickHouseDriverProvider>? logger = null) : IClickHouseProvider, IIntegrationStartup
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private ClickHouseDriverProvider? _current;
@@ -26,7 +27,7 @@ internal sealed class IntegrationClickHouseProvider(IModuleIntegrations<ClickHou
             var released = await handle.ReleaseAsync(ct);
             if (released.Snapshot.Status != IntegrationStatus.Ready) { throw new InvalidOperationException("The ClickHouse integration is unavailable."); }
             var connection = released.Values["ConnectionString"];
-            _current = new(new ClickHouseClient(connection, clients, ClickHouseRegistration.HttpClientName), ClickHouseDriverProvider.DatabaseOf(connection));
+            _current = new(new ClickHouseClient(connection, clients, ClickHouseRegistration.HttpClientName), ClickHouseDriverProvider.DatabaseOf(connection), logger);
             _revision = released.Snapshot.Revision;
             return _current;
         }

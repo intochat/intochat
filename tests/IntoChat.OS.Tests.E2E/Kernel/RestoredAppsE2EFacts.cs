@@ -63,7 +63,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.Equal("Analytical Engine Architect", profileState.Bio);
 
         // 1. DesktopApp lifecycle on the real silo (DesktopStartFacts + ShippedAppJourneys).
-        var desktop = fixture.AttachSilo(new DesktopApp(), brain);
+        var desktop = fixture.AttachSilo<DesktopApp>(brain);
         await desktop.Start(new DesktopStart());
         Assert.Equal("smart-desktop", desktop.State.LayoutMode);
         Assert.Equal("spatial-glass", desktop.State.StylePreset);
@@ -90,7 +90,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.NotNull(desktopView);
 
         // 2. SettingsApp lifecycle on the real silo (AppsAppFacts + Settings preferences & connections).
-        var settingsApp = fixture.AttachSilo(new SettingsApp(), brain);
+        var settingsApp = fixture.AttachSilo<SettingsApp>(brain);
         await settingsApp.Open(new SettingsOpen());
         Assert.Equal("Ada Lovelace", settingsApp.State.DisplayName);
         Assert.Equal("light", settingsApp.State.Theme);
@@ -125,7 +125,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.NotNull(settingsView);
 
         // 3. GalleryApp lifecycle on the real silo.
-        var gallery = fixture.AttachSilo(new GalleryApp(), brain);
+        var gallery = fixture.AttachSilo<GalleryApp>(brain);
         await gallery.Open(new GalleryOpen());
         Assert.Equal("cyber-synaptic", gallery.State.StylePreset);
         Assert.Equal("split-top-dock", gallery.State.BarLayout);
@@ -144,7 +144,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.NotNull(galleryView);
 
         // 4. PhotoCraftApp honest disconnected backend + local UI mode/layer lifecycle on the real silo.
-        var photo = fixture.AttachSilo(new PhotoCraftApp(), brain);
+        var photo = fixture.AttachSilo<PhotoCraftApp>(brain);
         await photo.Open(new PhotoCraftStudioOpen("/work/hero-product.png", "native-linux"));
         Assert.Contains("not connected", photo.State.Status, StringComparison.OrdinalIgnoreCase);
 
@@ -164,7 +164,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.NotNull(photoView);
 
         // 5. FilmCraftApp honest disconnected backend + local UI mode lifecycle on the real silo.
-        var film = fixture.AttachSilo(new FilmCraftApp(), brain);
+        var film = fixture.AttachSilo<FilmCraftApp>(brain);
         await film.Open(new FilmCraftStudioOpen("/work/launch-trailer.fcproj", "native-linux"));
         Assert.Contains("not connected", film.State.Status, StringComparison.OrdinalIgnoreCase);
 
@@ -185,7 +185,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         Assert.NotNull(filmView);
 
         // 6. MarkdrawApp and DataStudioApp lifecycle on the real silo.
-        var markdraw = fixture.AttachSilo(new MarkdrawApp(), brain);
+        var markdraw = fixture.AttachSilo<MarkdrawApp>(brain);
         await markdraw.Open(new MarkdrawOpen("/work/system-architecture.markdraw", "flow"));
         await markdraw.PatchElements(new MarkdrawPatchElements("add rectangle \"API Gateway\" at 140,120 180x84 color #38bdf8", "ino"));
         Assert.True(markdraw.State.Elements.Length >= 5);
@@ -193,7 +193,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         var markdrawView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/markdraw/view").Read();
         Assert.NotNull(markdrawView);
 
-        var dataStudio = fixture.AttachSilo(new DataStudioApp(), brain);
+        var dataStudio = fixture.AttachSilo<DataStudioApp>(brain);
         dataStudio.FilesVfs ??= new IntoChat.OS.Modules.Apps.WorkspaceFilesService();
         await dataStudio.FilesVfs.WriteTextAsync("/work/q4-opportunities.csv", "Opportunity,Account,Stage,Amount\nHavbris pilot,Havbris AS,Proposal,\"€240,000\"\nBergen Port Ops,Bergen Havn,Contract,\"€186,000\"\n", Ct);
         await dataStudio.Open(new DataStudioOpen("/work/q4-opportunities.csv"));
@@ -215,7 +215,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         await settings.SetProfile("Astrid Lindqvist", "dark", "qwen3.5:4b");
         await memory.RememberFact("preference", "Astrid oversees Nordlys Q4 enterprise renewals.", importance: 9);
 
-        var ino = fixture.AttachSilo(new InoApp(), brain);
+        var ino = fixture.AttachSilo<InoApp>(brain);
         await ino.Open(new InoOpen("greet"));
         Assert.Contains("Astrid Lindqvist", ino.State.Status, StringComparison.Ordinal);
 

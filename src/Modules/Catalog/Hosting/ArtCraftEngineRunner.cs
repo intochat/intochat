@@ -1,4 +1,6 @@
 using System.Text.Json;
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Mcp;
 
@@ -335,6 +337,7 @@ public static class ArtCraftEngineRunner
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
+                OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, $"{descriptor.Title} MCP execution failed.");
                 onRecoverableError?.Invoke(error, $"{descriptor.Title} MCP execution failed.");
                 return CreateExecutionFailureResult(
                     descriptor.Id, mode, cmdId, title, paramsJson, inputDoc, outputDoc, layersOrTracks,
@@ -365,6 +368,7 @@ public static class ArtCraftEngineRunner
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
+                OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, $"Could not persist {descriptor.Title} output artifact to Files VFS.");
                 onRecoverableError?.Invoke(error, $"Could not persist {descriptor.Title} output artifact to Files VFS.");
             }
         }
@@ -415,6 +419,7 @@ public static class ArtCraftEngineRunner
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, $"Could not resolve {descriptor.Title} input file against Files VFS.");
             onRecoverableError?.Invoke(error, $"Could not resolve {descriptor.Title} input file against Files VFS.");
         }
 
@@ -430,6 +435,7 @@ public static class ArtCraftEngineRunner
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, $"Could not resolve {label} against Files VFS.");
             onRecoverableError?.Invoke(error, $"Could not resolve {label} against Files VFS.");
         }
 
@@ -468,6 +474,7 @@ public static class ArtCraftEngineRunner
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, "Could not inspect Files VFS for studio input resolution.");
             onRecoverableError?.Invoke(error, "Could not inspect Files VFS for studio input resolution.");
         }
 

@@ -18,8 +18,8 @@
     "IntoChat.OS.Authority.Identity.IPrincipalCredential": "identity.principal-credential-grain",
     "IntoChat.OS.Connections.Platform.Entries.IBrainEntries": "brain.entries",
     "IntoChat.OS.Connections.Platform.Integrations.IIntegration": "integration.registration",
-    "IntoChat.OS.Framework.ITypeTable": "kernel.type-table",
     "IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory": "identity.directory",
+    "IntoChat.OS.Kernel.Composition.ITypeTable": "kernel.type-table",
     "IntoChat.OS.Modules.Apps.IDataAnalyticsWorker": "ino.data-analytics-worker"
   },
   "Contracts": {
@@ -61,7 +61,6 @@
     "IntoChat.OS.Connections.TypeValidationException": "types.type-validation; Kind=0, AllowedValues=1, RejectedValue=2",
     "IntoChat.OS.Framework.CallDecision": "enforcement.call-decision; Allowed=0, Denial=1, Explanation=2, ConsumesOnce=3",
     "IntoChat.OS.Framework.Feature": "kernel.feature; Name=0, Version=1, Owner=2",
-    "IntoChat.OS.Framework.ITypeTable": "kernel.type-table (not generated); ",
     "IntoChat.OS.Framework.Modules.Platform.Identity.Account": "identity.account; AccountId=0, Name=1, OwnerPrincipalId=2, CreatedAt=3",
     "IntoChat.OS.Framework.Modules.Platform.Identity.BrainEntry": "identity.brain-entry; Id=0, Kind=1",
     "IntoChat.OS.Framework.Modules.Platform.Identity.BrainProvision": "identity.brain-provision; Member=0, NewBrain=1",

@@ -122,6 +122,12 @@ public sealed record MarkdrawAppState(
 [Neuron("app.markdraw"), Screen("app.markdraw", Title = "Markdraw")]
 public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesVfs
 {
+    protected override Task OnActivate(CancellationToken cancellationToken)
+    {
+        AppActivationScope.Notify(this);
+        return base.OnActivate(cancellationToken);
+    }
+
     public const string DefaultArchitectureScene =
         "# IntoChat Neuron & Data Architecture\n\n" +
         "Interactive `.markdraw` canvas shared between you and **Ino**. Draw freely on the canvas or ask Ino to add nodes, connect arrows, or diagram any dataset.\n\n" +

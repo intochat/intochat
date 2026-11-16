@@ -28,15 +28,13 @@ public sealed class SwallowFacts
                     .ToArray()
                 : [];
             var exceptionDiscarded = discardSpans.Length > 0;
-            var observedInBlock = name is { Length: > 0 }
-                && clause.Block.DescendantTokens().Any(token =>
-                    token.Text == name && !discardSpans.Any(span => span.Contains(token.Span)));
             var logged = clause.Block.DescendantNodes()
                 .Concat(clause.Filter?.DescendantNodes() ?? [])
                 .OfType<InvocationExpressionSyntax>()
-                .Any(call => MemberName(call).StartsWith("Log", StringComparison.Ordinal));
+                .Any(call => (MemberName(call).StartsWith("Log", StringComparison.Ordinal) || IsSystemTraceCall(call))
+                    && !IsNullLoggerReceiver(call));
             var rethrows = clause.Block.DescendantNodes().Any(node => node is ThrowStatementSyntax or ThrowExpressionSyntax);
-            var handled = observedInBlock || logged || rethrows || HasPositiveTypeNarrowingFilter(clause.Filter, name);
+            var handled = logged || rethrows || HasPositiveTypeNarrowingFilter(clause.Filter, name);
             sites.Add(new Site(
                 clause.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
                 empty,
@@ -67,27 +65,38 @@ public sealed class SwallowFacts
     };
 
     private static bool HasPositiveTypeNarrowingFilter(CatchFilterClauseSyntax? filter, string? name)
+        => filter is not null && name is { Length: > 0 } && IsNarrowingExpression(filter.FilterExpression, name);
+
+    private static bool IsNarrowingExpression(ExpressionSyntax expression, string name) => expression switch
     {
-        if (filter is null || name is not { Length: > 0 })
-        {
-            return false;
-        }
-
-        foreach (var node in filter.FilterExpression.DescendantNodes())
-        {
-            if (node is IsPatternExpressionSyntax isPattern
-                && isPattern.Expression is IdentifierNameSyntax id
+        ParenthesizedExpressionSyntax paren => IsNarrowingExpression(paren.Expression, name),
+        BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.LogicalAndExpression)
+            => IsNarrowingExpression(binary.Left, name) || IsNarrowingExpression(binary.Right, name),
+        BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.LogicalOrExpression)
+            => IsNarrowingExpression(binary.Left, name) && IsNarrowingExpression(binary.Right, name),
+        IsPatternExpressionSyntax isPattern
+            => isPattern.Expression is IdentifierNameSyntax id
                 && id.Identifier.Text == name
-                && isPattern.Pattern is TypePatternSyntax typePattern
-                && !IsBroadOrCancellationType(typePattern.Type.ToString())
-                && !isPattern.Ancestors().Any(ancestor => ancestor is PrefixUnaryExpressionSyntax prefix && prefix.IsKind(SyntaxKind.LogicalNotExpression)))
-            {
-                return true;
-            }
-        }
+                && IsNarrowTypePattern(isPattern.Pattern),
+        BinaryExpressionSyntax isExpr when isExpr.IsKind(SyntaxKind.IsExpression)
+            => isExpr.Left is IdentifierNameSyntax id
+                && id.Identifier.Text == name
+                && isExpr.Right is TypeSyntax type
+                && !IsBroadOrCancellationType(type.ToString()),
+        _ => false,
+    };
 
-        return false;
-    }
+    private static bool IsNarrowTypePattern(PatternSyntax pattern) => pattern switch
+    {
+        ParenthesizedPatternSyntax paren => IsNarrowTypePattern(paren.Pattern),
+        TypePatternSyntax typePattern => !IsBroadOrCancellationType(typePattern.Type.ToString()),
+        ConstantPatternSyntax constant when constant.Expression is NameSyntax or MemberAccessExpressionSyntax
+            => !IsBroadOrCancellationType(constant.Expression.ToString()),
+        DeclarationPatternSyntax declaration => !IsBroadOrCancellationType(declaration.Type.ToString()),
+        BinaryPatternSyntax binary when binary.IsKind(SyntaxKind.OrPattern)
+            => IsNarrowTypePattern(binary.Left) && IsNarrowTypePattern(binary.Right),
+        _ => false,
+    };
 
     private static bool IsBroadOrCancellationType(string typeName)
         => typeName is "Exception" or "System.Exception"
@@ -99,13 +108,29 @@ public sealed class SwallowFacts
     private static bool IsCancellation(CatchClauseSyntax clause)
         => clause.Declaration?.Type.ToString() is "OperationCanceledException" or "System.OperationCanceledException" or "TaskCanceledException" or "System.Threading.Tasks.TaskCanceledException";
 
+    private static bool IsNullLoggerReceiver(InvocationExpressionSyntax call)
+        => call.Expression is MemberAccessExpressionSyntax access
+            && access.Expression.DescendantTokens()
+                .Any(token => token.IsKind(SyntaxKind.IdentifierToken) && token.Text is "NullLogger" or "NullLoggerFactory");
+
     private static string MemberName(InvocationExpressionSyntax call) => call.Expression switch
     {
+        MemberAccessExpressionSyntax access when IsLoggerMessageCall(access) => "Log" + access.Name.Identifier.Text,
         MemberAccessExpressionSyntax access => access.Name.Identifier.Text,
         MemberBindingExpressionSyntax binding => binding.Name.Identifier.Text,
         IdentifierNameSyntax name => name.Identifier.Text,
         _ => "",
     };
+
+    private static bool IsLoggerMessageCall(MemberAccessExpressionSyntax access)
+        => access.Expression is IdentifierNameSyntax receiver
+            && receiver.Identifier.Text.EndsWith("Log", StringComparison.Ordinal)
+            && !receiver.Identifier.Text.Contains("Null", StringComparison.Ordinal);
+
+    private static bool IsSystemTraceCall(InvocationExpressionSyntax call)
+        => call.Expression is MemberAccessExpressionSyntax access
+            && access.Expression.ToString() is "Trace" or "System.Diagnostics.Trace"
+            && access.Name.Identifier.Text is "TraceError" or "TraceWarning" or "TraceInformation";
 
     private static IEnumerable<string> ProductionFiles()
         => Repository.ProjectFiles("*.cs",
@@ -119,18 +144,25 @@ public sealed class SwallowFacts
     public void TheWalkerFindsKnownCatches()
     {
         var sites = Walk(
-            "class C { void M() { try { } catch { } try { } catch (System.Exception) { var x = 1; } try { } catch (System.Exception e) { logger.LogDebug(e, \"x\"); } try { } catch (System.Exception) { throw; } try { } catch (System.Exception error) { sink.TrySetException(error); } try { } catch (System.Exception ex) { _ = ex.Message; } try { } catch (System.Exception ex) when (ex is not System.OperationCanceledException) { return; } } }");
-        Assert.Equal(7, sites.Count);
+            "class C { void M() { try { } catch { } try { } catch (System.Exception) { var x = 1; } try { } catch (System.Exception e) { logger.LogDebug(e, \"x\"); } try { } catch (System.Exception) { throw; } try { } catch (System.Exception error) { sink.TrySetException(error); } try { } catch (System.Exception ex) { _ = ex.Message; } try { } catch (System.Exception ex) when (ex is not System.OperationCanceledException) { return; } try { } catch (System.Exception ex) { NullLogger.Instance.LogSwallowed(ex, \"x\"); } } }");
+        Assert.Equal(8, sites.Count);
         Assert.True(sites[0].Empty);
         Assert.False(sites[0].BroadUnlogged);
         Assert.False(sites[0].ExceptionDiscarded);
         Assert.True(sites[1].BroadUnlogged);
         Assert.False(sites[2].BroadUnlogged);
         Assert.False(sites[3].BroadUnlogged);
-        Assert.False(sites[4].BroadUnlogged);
+        Assert.True(sites[4].BroadUnlogged);
         Assert.True(sites[5].ExceptionDiscarded);
         Assert.True(sites[5].BroadUnlogged);
         Assert.True(sites[6].BroadUnlogged);
+        Assert.True(sites[7].BroadUnlogged);
+        var extra = Walk(
+            "class D { void M(bool flag) { try { } catch (System.Exception ex) when (ex is System.InvalidOperationException or System.IO.IOException) { } try { } catch (System.Exception ex) when (ex is System.IO.IOException || flag) { } try { } catch (System.Exception ex) { System.Diagnostics.Trace.TraceWarning(ex.Message); } } }");
+        Assert.Equal(3, extra.Count);
+        Assert.False(extra[0].BroadUnlogged);
+        Assert.True(extra[1].BroadUnlogged);
+        Assert.False(extra[2].BroadUnlogged);
     }
 
     [Fact]

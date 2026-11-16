@@ -8,7 +8,7 @@ namespace IntoChat.OS.Modules.AI;
 // Hosted speech-to-text over the provider's own audio endpoint. Deliberately not
 // an IHostedService: there is no model to download or load, which is the whole
 // reason this exists alongside the Foundry Local path.
-public sealed class OpenAITranscriptionService : IAudioTranscriptionService
+internal sealed class OpenAITranscriptionService : IAudioTranscriptionService
 {
     // A 25 MB upload is roughly 13 minutes of audio; the default timeout is far
     // too short for the far end to finish transcribing it.

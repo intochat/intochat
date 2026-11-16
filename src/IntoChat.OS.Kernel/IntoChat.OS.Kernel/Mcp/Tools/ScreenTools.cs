@@ -2,8 +2,10 @@ using System.ComponentModel;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Flutter.Screens;
 using IntoChat.OS.Runtime;
 using ModelContextProtocol.Protocol;
@@ -52,6 +54,7 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
         }
         catch (Exception error) when (Mapped(error))
         {
+            OsConsoleLog.For<ScreenTools>().LogSwallowed(error, "MCP screen tool invocation failed.");
             return Failure(error);
         }
     }
@@ -72,6 +75,7 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
         }
         catch (Exception error) when (Mapped(error))
         {
+            OsConsoleLog.For<ScreenTools>().LogSwallowed(error, "MCP screen tool invocation failed.");
             return Failure(error);
         }
     }
@@ -93,6 +97,7 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
         }
         catch (Exception error) when (Mapped(error))
         {
+            OsConsoleLog.For<ScreenTools>().LogSwallowed(error, "MCP screen tool invocation failed.");
             return Failure(error);
         }
     }
@@ -166,6 +171,7 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
         }
         catch (Exception error) when (Mapped(error))
         {
+            OsConsoleLog.For<ScreenTools>().LogSwallowed(error, "MCP screen tool invocation failed.");
             return Failure(error);
         }
     }

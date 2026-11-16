@@ -8,19 +8,7 @@ namespace IntoChat.OS.Modules.Flutter;
 /// </summary>
 internal static class ShellConsoleLog
 {
-    private static readonly ILoggerFactory Factory =
-        LoggerFactory.Create(static builder => builder.SetMinimumLevel(LogLevel.Debug).AddConsole());
+    public static ILogger For<T>() => IntoChat.OS.Framework.Logging.OsConsoleLog.For<T>();
 
-    public static ILogger For<T>() => Holder<T>.Instance;
-
-    public static ILogger For(Type owner)
-    {
-        ArgumentNullException.ThrowIfNull(owner);
-        return Factory.CreateLogger(owner.FullName ?? owner.Name);
-    }
-
-    private static class Holder<T>
-    {
-        public static readonly ILogger Instance = Factory.CreateLogger<T>();
-    }
+    public static ILogger For(Type owner) => IntoChat.OS.Framework.Logging.OsConsoleLog.For(owner);
 }

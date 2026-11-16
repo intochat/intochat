@@ -40,16 +40,17 @@ internal sealed class WindowsNeuron(
         var full = PathConfinement.Normalize(path);
         if (!Directory.Exists(full)) { throw new DirectoryNotFoundException($"'{full}' is not a folder on this machine."); }
         if (Snapshot.Roots.Contains(full, StringComparer.OrdinalIgnoreCase)) { return; }
-        Snapshot.Roots = [.. Snapshot.Roots, full];
-        await SaveQuietly(Snapshot);
+        await SaveQuietly(Snapshot with { Roots = [.. Snapshot.Roots, full] });
     }
 
     public async Task RevokeRoot(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var full = PathConfinement.Normalize(path);
-        Snapshot.Roots = Snapshot.Roots.Where(root => !string.Equals(root, full, StringComparison.OrdinalIgnoreCase)).ToArray();
-        await SaveQuietly(Snapshot);
+        await SaveQuietly(Snapshot with
+        {
+            Roots = Snapshot.Roots.Where(root => !string.Equals(root, full, StringComparison.OrdinalIgnoreCase)).ToArray(),
+        });
     }
 
     // storage@1: the same allowed roots, read fresh on every call, through WindowsStorage.

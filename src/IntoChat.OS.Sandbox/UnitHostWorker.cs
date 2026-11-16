@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Sandbox;
 
@@ -214,6 +215,7 @@ internal static class UnitHostWorker
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            SandboxConsoleLog.For(typeof(UnitHostWorker)).LogWarning(ex, "UnitHost request '{RequestId}' ({Op}) failed.", request.Id, request.Op);
             return new UnitHostFrameResponse(request.Id, Ok: false, Error: ex.Message, ProcessId: Environment.ProcessId);
         }
     }

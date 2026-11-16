@@ -1,6 +1,6 @@
 namespace IntoChat.OS.Modules.AI;
 
-public interface IAudioTranscriptionService
+internal interface IAudioTranscriptionService
 {
     Task<bool> IsReadyAsync(CancellationToken cancellationToken = default);
     bool InitializationFailed { get; }

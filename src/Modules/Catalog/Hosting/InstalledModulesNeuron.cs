@@ -15,7 +15,7 @@ using IntoChat.OS.Framework.Modules;
 namespace IntoChat.OS.Modules.Apps;
 
 [DigitalBrain.Neurons.Neuron("apps.installed-modules")]
-public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : DigitalBrain.Neurons.Neuron, IInstalledModules
+internal sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : DigitalBrain.Neurons.Neuron, IInstalledModules
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 

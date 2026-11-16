@@ -48,7 +48,8 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
         await _verifier.VerifyAsync(resolved, CancellationToken.None);
         if (Snapshot.InstallationId != 0 && Snapshot.InstallationId != resolved.InstallationId)
         {
-            using (IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system"))
+            var edge = ServiceProvider?.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
+            using (edge?.Enter(edge.Module("github", new BrainId("system"))))
             {
                 await Index(Snapshot.InstallationId).Remove(FullKey);
             }
@@ -72,7 +73,8 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
 
     protected override async Task OnConnectedAsync()
     {
-        using (IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system"))
+        var edge = ServiceProvider?.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
+        using (edge?.Enter(edge.Module("github", new BrainId("system"))))
         {
             await Index(Snapshot.InstallationId).Add(FullKey);
         }
@@ -82,7 +84,8 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
     {
         _verifier.Forget(FullKey);
         if (Snapshot.InstallationId == 0) { return; }
-        using (IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system"))
+        var edge = ServiceProvider?.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
+        using (edge?.Enter(edge.Module("github", new BrainId("system"))))
         {
             await Index(Snapshot.InstallationId).Remove(FullKey);
         }
@@ -134,21 +137,20 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
         var deliveries = Snapshot.ProcessedDeliveries.Append(receipt.DeliveryId).TakeLast(MaxProcessedDeliveries).ToArray();
         if (receipt.Action == "revoked")
         {
-            Snapshot.ProcessedDeliveries = deliveries;
-            Snapshot.LastWebhookAt = TimeProvider.System.GetUtcNow();
+            await SaveQuietly(Snapshot with { ProcessedDeliveries = deliveries, LastWebhookAt = Context.Time.GetUtcNow() });
             await RevokeAsync(RevokedDetail);
             return true;
         }
 
         try
         {
-            await ApplyAsync(receipt.Number, receipt, deliveries, TimeProvider.System.GetUtcNow(), cancellationToken);
+            await ApplyAsync(receipt.Number, receipt, deliveries, Context.Time.GetUtcNow(), cancellationToken);
         }
         catch (GitHubAccessDeniedException error)
         {
             // A denied installation token or vanished repository fails this connection only; the
             // delivery is recorded so a redelivery does not retry it. The message is a fixed sentence.
-            Snapshot.ProcessedDeliveries = deliveries;
+            await SaveQuietly(Snapshot with { ProcessedDeliveries = deliveries });
             await MarkFailing(error.Message);
         }
         return true;
@@ -293,17 +295,19 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
             {
                 if (Apply(observed, snapshot, facts, trigger) is { } reason)
                 {
-                    Snapshot.ProcessedDeliveries = deliveries;
+                    await SaveQuietly(Snapshot with { ProcessedDeliveries = deliveries });
                     await MarkFailing(reason);
                     return;
                 }
             }
         }
 
-        Snapshot.PullRequests = observed.Values.OrderBy(item => item.Number).ToArray();
-        Snapshot.ProcessedDeliveries = deliveries;
-        Snapshot.LastWebhookAt = webhookAt ?? Snapshot.LastWebhookAt;
-        await SaveQuietly(Snapshot);
+        await SaveQuietly(Snapshot with
+        {
+            PullRequests = observed.Values.OrderBy(item => item.Number).ToArray(),
+            ProcessedDeliveries = deliveries,
+            LastWebhookAt = webhookAt ?? Snapshot.LastWebhookAt,
+        });
         foreach (var fact in facts)
         {
             await PublishAsync(fact);

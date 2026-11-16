@@ -81,7 +81,7 @@ internal sealed class CircleNeuron(
         ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
         RequirePerson();
         var next = MemberChange();
-        await Check("Invite", new AccountIsNotYetInvitedOrMember(next.Name, accountId, next.Members.Contains(accountId) || next.Invited.Contains(accountId)));
+        await Check("Invite", new AccountIsNotYetInvitedOrMember(next.Name, accountId, next));
         next.Invited = [.. next.Invited, accountId];
         await CommitCore(next);
     }
@@ -92,7 +92,7 @@ internal sealed class CircleNeuron(
         RequirePerson();
         var next = MemberChange();
         if (CallerAccount() != next.Owner) { throw new UnauthorizedAccessException($"Only {next.Name}'s creator names its admins."); }
-        await Check("SetAdmin", new AccountIsCircleMember(next.Name, accountId, next.Members.Contains(accountId)));
+        await Check("SetAdmin", new AccountIsCircleMember(next.Name, accountId, next.Members));
         next.Admins = admin ? [.. next.Admins.Where(known => known != accountId), accountId] : [.. next.Admins.Where(known => known != accountId)];
         await CommitCore(next);
     }
@@ -115,7 +115,7 @@ internal sealed class CircleNeuron(
         var account = CallerAccount();
         var personId = caller.For?.Principal ?? (caller.Actor as Actor.Person)?.Principal ?? account;
         var record = Core();
-        await Check("Accept", new CallerHasCircleInvitation(record.Name, account, string.Equals(caller.Brain.Value, CircleBrain, StringComparison.Ordinal) && record.Invited.Contains(account)));
+        await Check("Accept", new CallerHasCircleInvitation(record.Name, account, record, caller.Brain.Value, CircleBrain));
         await (await broker.Identity()).EnsureMember(new Member
         {
             PrincipalId = personId,
@@ -142,11 +142,11 @@ internal sealed class CircleNeuron(
         { throw new UnauthorizedAccessException($"Only {next.Name}'s creator removes another member."); }
         if (accountId == next.Owner)
         {
-            await Check("Remove", new CircleCreatorCannotBeRemoved(next.Name, callerAccount == next.Owner));
+            await Check("Remove", new CircleCreatorCannotBeRemoved(next.Name, callerAccount, next.Owner));
             await Delete(next);
             return;
         }
-        await Check("Remove", new AccountIsCircleMember(next.Name, accountId, next.Members.Contains(accountId) || next.Invited.Contains(accountId)));
+        await Check("Remove", new AccountIsCircleMember(next.Name, accountId, [.. next.Members, .. next.Invited]));
         await Drop(next, accountId);
         await CommitCore(next);
     }

@@ -64,8 +64,8 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
     public const string SandboxConnectionId = "sandbox-test";
 
     private readonly ILogger _logger = (ILogger?)logger ?? OsConsoleLog.For<KernelCapabilityConnections>();
-    private readonly ConcurrentDictionary<string, LocalCloudNeuron> _localClouds = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, LocalCloudNeuron> _sandboxStorages = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, LocalCloudStorage> _localClouds = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, LocalCloudStorage> _sandboxStorages = new(StringComparer.Ordinal);
 
     private static NeuronId LocalDiskId(BrainId brain) => new(brain, "local-disk", "main");
     private static string LocalDiskConnectionKey(BrainId brain) => $"{brain.Value}/local-disk/main";
@@ -170,7 +170,7 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
             && services.GetService<ConnectionNeuronTypes>()?.NeuronOf(connector) is null)
         {
             var sandboxStorage = new ConnectionStorage(
-                _sandboxStorages.GetOrAdd(key, _ => new LocalCloudNeuron()),
+                _sandboxStorages.GetOrAdd(key, _ => new LocalCloudStorage()),
                 key,
                 null,
                 services.GetService<IStorageWriteAuthorizer>(),
@@ -233,8 +233,8 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _logger.LogDebug(error, "Falling back to in-memory LocalCloudNeuron for {Brain}", brain.Value);
-            return _localClouds.GetOrAdd(brain.Value, _ => new LocalCloudNeuron());
+            _logger.LogDebug(error, "Falling back to in-memory LocalCloudStorage for {Brain}", brain.Value);
+            return _localClouds.GetOrAdd(brain.Value, _ => new LocalCloudStorage());
         }
     }
 

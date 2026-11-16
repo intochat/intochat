@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace IntoChat.OS.Modules.AI.Media;
 
 // Host-only transport; no SDK types cross the neuron boundary.
-public interface ISpeechSynthesisTransport
+internal interface ISpeechSynthesisTransport
 {
     Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default);
     string Model { get; }

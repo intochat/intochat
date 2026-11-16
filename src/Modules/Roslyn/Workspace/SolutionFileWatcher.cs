@@ -5,7 +5,7 @@ namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
 // Saves from the owner's editor, dotnet format or a git checkout reach the snapshot without a reload;
 // project-file changes only flag that a reload is needed (design 4.2).
-public sealed class SolutionFileWatcher(SolutionWorkspace workspace, TimeProvider clock, ILogger<SolutionFileWatcher> logger) : IDisposable
+internal sealed class SolutionFileWatcher(SolutionWorkspace workspace, TimeProvider clock, ILogger<SolutionFileWatcher> logger) : IDisposable
 {
     private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(200);
     private static readonly string[] IgnoredSegments = ["/bin/", "/obj/", "/.git/", "/artifacts/", "/node_modules/"];

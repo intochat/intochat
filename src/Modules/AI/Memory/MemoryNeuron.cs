@@ -7,7 +7,7 @@ using DigitalBrain.State;
 namespace IntoChat.OS.Modules.AI.Memory;
 
 [ExportableState]
-public sealed record MemoryState(
+internal sealed record MemoryState(
     long Revision,
     MemoryEpisode[] Episodes,
     MemoryFact[] Facts,
@@ -20,7 +20,7 @@ public sealed record MemoryState(
 }
 
 [Neuron("ai.memory", State = "memory")]
-public sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
+internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
 {
     private const int MaxEpisodes = 256;
     private const int MaxFacts = 512;

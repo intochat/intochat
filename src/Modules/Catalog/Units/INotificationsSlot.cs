@@ -30,7 +30,7 @@ public interface INotifications
 }
 
 [GenerateSerializer, Alias("apps.notifications-slot-connection-state")]
-public sealed record NotificationsSlotConnectionState : ConnectionState
+internal sealed record NotificationsSlotConnectionState : ConnectionState
 {
     [Id(0)] public bool Enabled { get; set; } = true;
 }
@@ -39,12 +39,11 @@ public sealed record NotificationsSlotConnectionState : ConnectionState
 /// Brain-scoped connection neuron providing <c>notifications@1</c> backed by the brain's durable <c>notifications.inbox</c> neuron.
 /// </summary>
 [Neuron(TypeName, State = "notifications")]
-public sealed class NotificationsSlotConnection : ConnectionNeuron<NotificationsSlotConnectionState>, INotifications
+internal sealed class NotificationsSlotConnection : ConnectionNeuron<NotificationsSlotConnectionState>, INotifications
 {
     public const string TypeName = "notifications.connection";
 
-    private static readonly ILoggerFactory ConsoleLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
-    private static readonly ILogger ConsoleLogger = ConsoleLoggerFactory.CreateLogger<NotificationsSlotConnection>();
+    private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<NotificationsSlotConnection>();
 
     private readonly ILogger _logger;
 

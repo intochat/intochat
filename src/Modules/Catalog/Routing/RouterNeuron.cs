@@ -19,14 +19,16 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Modules.AI.Routing;
+
+namespace IntoChat.OS.Modules.Apps.Routing;
 
 // The Jev router. It reads the deployed contract catalog, asks a System One model which contract
 // and method fit the request, gates on confidence, then fills the call and invokes it. The catalog
 // is the menu; confidence is the trust knob; a language model only fills key and arguments.
 // It keeps its own decisions and shows them to the model, so each request is judged against state.
 [Neuron("ai.router", State = "router")]
-internal sealed class RouterNeuron(IServiceProvider services) : AiNeuron<RouterStorage>, IRouter
+internal sealed class RouterNeuron(IServiceProvider services) : Neuron<RouterStorage>, IRouter
 {
     private const int MaxOptions = 255;
     private const int MaxRecent = 16;
@@ -34,7 +36,8 @@ internal sealed class RouterNeuron(IServiceProvider services) : AiNeuron<RouterS
     // Never routed to: the legacy observer path (Watch/Unwatch, until 06-08 deletes it) and a plain neuron's admission hook
     // (AdmitSynapse, R4-03), which only the runtime calls before it creates a synapse (T-06-14).
     internal static readonly HashSet<string> NotCallable = ["Watch", "Unwatch", "AdmitSynapse"];
-    private string Key => FullKey;
+    private RouterStorage Snapshot => State;
+    private string Key => $"{Id.Brain.Value}/{Id.Key}";
     private string Scope => Id.Brain.Value;
     private NeuronTypeSearch Capabilities() => services.GetRequiredService<NeuronTypeSearch>();
 

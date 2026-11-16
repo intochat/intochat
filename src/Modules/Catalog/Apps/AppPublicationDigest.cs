@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace IntoChat.OS.Modules.Apps;
 
-public static class AppPublicationDigest
+internal static class AppPublicationDigest
 {
     public static string Of(AppBundle bundle)
     {

@@ -88,7 +88,7 @@ public static class AccountSession
     internal const string LocalSessionScheme = "IntoChatOS.LocalCaller";
 
     // The user a cookie session would have been for this caller: the same claim names the framework's membership check reads.
-    internal static ClaimsPrincipal SessionUser(CapabilityCaller caller)
+    public static ClaimsPrincipal SessionUser(CapabilityCaller caller)
         => new(new ClaimsIdentity(
         [
             new Claim(DigitalBrain.Capabilities.Identity.SessionClaims.Principal, caller.PrincipalId),

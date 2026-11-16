@@ -1,7 +1,7 @@
 namespace IntoChat.Files;
 
 // Copy is the 07 UI spec. Callers do not invent their own sentences.
-public static class FilesCopy
+internal static class FilesCopy
 {
     public const string NoStorageHeading = "No storage connected";
     public const string NoStorageBody = "Connect Google Drive or choose folders on this computer to browse files.";

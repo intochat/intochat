@@ -34,13 +34,13 @@ public sealed class GrantRulesChallengerFacts
         {
             var request = new CallRequest
             {
-                Caller = caller.ToCaller(),
+                Caller = IntoChat.OS.Tests.TestEdge.From(caller),
                 TargetNeuron = target,
                 Operation = "Query",
                 SemanticTypeIds = [],
             };
 
-            var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
+            var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(caller));
             Assert.NotNull(decision);
             Assert.False(decision!.Allowed, $"Target '{target}' should have been denied for caller '{caller.AppId}'");
             Assert.Equal(CallDenial.MissingGrant, decision.Denial);
@@ -62,13 +62,13 @@ public sealed class GrantRulesChallengerFacts
 
         var request = new CallRequest
         {
-            Caller = caller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(caller),
             TargetNeuron = target,
             Operation = "Compute",
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
+        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(caller));
         Assert.NotNull(decision);
         Assert.True(decision!.Allowed, $"Target '{target}' should have been allowed for own app caller '{caller.AppId}'");
     }
@@ -84,13 +84,13 @@ public sealed class GrantRulesChallengerFacts
 
         var request = new CallRequest
         {
-            Caller = caller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(caller),
             TargetNeuron = connectionKey,
             Operation = "Read",
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
+        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(caller));
         Assert.NotNull(decision);
         Assert.True(decision!.Allowed);
     }
@@ -121,13 +121,13 @@ public sealed class GrantRulesChallengerFacts
 
         var request = new CallRequest
         {
-            Caller = caller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(caller),
             TargetNeuron = target,
             Operation = "AnyOperation",
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
+        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(caller));
         Assert.NotNull(decision);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, decision.Denial);
@@ -156,13 +156,13 @@ public sealed class GrantRulesChallengerFacts
 
         var request = new CallRequest
         {
-            Caller = caller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(caller),
             TargetNeuron = "local/apps/untrusted-app",
             Operation = operation,
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
+        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(caller));
         Assert.NotNull(decision);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, decision.Denial);
@@ -184,7 +184,7 @@ public sealed class GrantRulesChallengerFacts
         {
             var request = new CallRequest
             {
-                Caller = caller.ToCaller(),
+                Caller = IntoChat.OS.Tests.TestEdge.From(caller),
                 TargetNeuron = target,
                 Operation = "DoSomethingBenign",
                 SemanticTypeIds = [],
@@ -203,13 +203,13 @@ public sealed class GrantRulesChallengerFacts
 
         var request = new CallRequest
         {
-            Caller = spoofedCaller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(spoofedCaller),
             TargetNeuron = "local/apps/victim",
             Operation = "Run",
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
+        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(spoofedCaller));
         Assert.NotNull(decision);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, decision.Denial);
@@ -224,14 +224,14 @@ public sealed class GrantRulesChallengerFacts
 
         var request = new CallRequest
         {
-            Caller = caller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(caller),
             TargetNeuron = target,
             Operation = "ReadTemperature",
             SemanticTypeIds = ["weather.temperature"],
         };
 
         // 1. Without grants -> Denied
-        var noGrantDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
+        var noGrantDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(caller));
         Assert.NotNull(noGrantDecision);
         Assert.False(noGrantDecision!.Allowed);
         Assert.Equal(CallDenial.MissingGrant, noGrantDecision.Denial);
@@ -246,7 +246,7 @@ public sealed class GrantRulesChallengerFacts
             Mode = GrantMode.Always,
             GrantedAt = DateTimeOffset.UtcNow,
         };
-        var unrelatedDecision = GrantRules.Evaluate(request, null, [unrelatedGrant], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
+        var unrelatedDecision = GrantRules.Evaluate(request, null, [unrelatedGrant], PrincipalSet.For(caller));
         Assert.NotNull(unrelatedDecision);
         Assert.False(unrelatedDecision!.Allowed);
         Assert.Equal(CallDenial.MissingGrant, unrelatedDecision.Denial);
@@ -262,7 +262,7 @@ public sealed class GrantRulesChallengerFacts
             Revoked = true,
             GrantedAt = DateTimeOffset.UtcNow,
         };
-        var revokedDecision = GrantRules.Evaluate(request, null, [revokedGrant], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
+        var revokedDecision = GrantRules.Evaluate(request, null, [revokedGrant], PrincipalSet.For(caller));
         Assert.NotNull(revokedDecision);
         Assert.False(revokedDecision!.Allowed);
         Assert.Equal(CallDenial.MissingGrant, revokedDecision.Denial);
@@ -278,7 +278,7 @@ public sealed class GrantRulesChallengerFacts
             Revoked = false,
             GrantedAt = DateTimeOffset.UtcNow,
         };
-        var allowedDecision = GrantRules.Evaluate(request, null, [matchingGrant], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
+        var allowedDecision = GrantRules.Evaluate(request, null, [matchingGrant], PrincipalSet.For(caller));
         Assert.NotNull(allowedDecision);
         Assert.True(allowedDecision!.Allowed);
     }
@@ -303,13 +303,13 @@ public sealed class GrantRulesChallengerFacts
 
         var request = new CallRequest
         {
-            Caller = caller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(caller),
             TargetNeuron = victimTargetNeuron,
             Operation = "ExecutePrivilegedAction",
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(request.Caller.ToCapabilityCaller()!));
+        var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(caller));
         Assert.NotNull(decision);
         // Fail-closed security requires that attacker app CANNOT access foreign victim app
         Assert.False(decision!.Allowed, $"Empirical Bug: foreign target '{victimTargetNeuron}' was allowed for app '{attackerAppKey}' because of substring matching target.Contains(app) in GrantRules.cs:137!");

@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
-public sealed class ChangeSetEditor(CodeFixCatalog codeFixes, ILogger<ChangeSetEditor> logger)
+internal sealed class ChangeSetEditor(CodeFixCatalog codeFixes, ILogger<ChangeSetEditor> logger)
 {
     private const int DiagnosticLimit = 200;
 

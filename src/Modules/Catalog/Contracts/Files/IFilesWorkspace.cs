@@ -5,7 +5,7 @@ namespace IntoChat.OS.Modules.Apps;
 [NeuronAlias("files.workspace"), DefaultNeuronType("apps.files")]
 public interface IFilesWorkspace
 {
-    static string Key(string brain, string app = "files") => $"{brain}/apps/{app}/workspace";
+    static string Key(string brain, string app = "files") => IntoChat.OS.Primitives.AppRef.Of(new(brain), app).ChildKey("workspace");
     Task Open(CancellationToken ct = default);
     [DigitalBrain.Contracts.ReadOnlyCall] Task<long> Revision();
     Task Request(string operation, FilesWorkspaceInput input, long expectedRevision, Guid requestId, CancellationToken ct = default);

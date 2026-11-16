@@ -25,7 +25,7 @@ namespace IntoChat.OS.Modules.Apps;
 // The last failure is not rebuilt. A flow is Ino's when an agent's tool call started it (App "assistant"). A focus lapses when a
 // turn of the current agent starts after it was written.
 [DigitalBrain.Neurons.Neuron("ino.presence")]
-public sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeuron>? logger = null) : DigitalBrain.Neurons.Neuron<Presence>, IPresence
+internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeuron>? logger = null) : DigitalBrain.Neurons.Neuron<Presence>, IPresence
 {
     private static readonly TimeSpan ListeningWindow = TimeSpan.FromSeconds(2), AttentionWindow = TimeSpan.FromSeconds(10);
 

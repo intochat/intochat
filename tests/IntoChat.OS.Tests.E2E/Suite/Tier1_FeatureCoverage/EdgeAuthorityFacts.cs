@@ -31,7 +31,7 @@ public sealed class EdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOSFixtur
         var publicConstructors = actorType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
         Assert.Empty(publicConstructors);
 
-        var nestedTypes = actorType.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic);
+        var nestedTypes = actorType.GetNestedTypes(BindingFlags.Public);
         var recordNames = nestedTypes.Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
 
         // Closed set of records: Person, Agent, App, Module, Scheduler, Kernel
@@ -91,25 +91,21 @@ public sealed class EdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOSFixtur
     }
 
     [Fact]
-    public void T1_Access_InProcessCallerScope_GrantsInternalPrivilege_ForHostTurns()
+    public void T1_Access_EdgeAuthority_EnterInProcess_GrantsInternalPrivilege_ForHostTurns()
     {
-        var orleansAssembly = typeof(RuntimeOptions).Assembly;
-        var scopeType = orleansAssembly.GetType("DigitalBrain.Runtime.Orleans.Access.InProcessCallerScope", throwOnError: true)!;
-        var isActiveProp = scopeType.GetProperty("IsActive", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)!;
-        var enterMethod = scopeType.GetMethod("Enter", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)!;
+        var edge = _fixture.Edge;
 
         // Initially inactive
-        Assert.False((bool)isActiveProp.GetValue(null)!);
+        Assert.False(edge.IsKernelActive);
 
         // Scope activation
-        using (var scope = (IDisposable)enterMethod.Invoke(null, null)!)
+        using (edge.EnterInProcess())
         {
-            Assert.NotNull(scope);
-            Assert.True((bool)isActiveProp.GetValue(null)!);
+            Assert.True(edge.IsKernelActive);
         }
 
         // Reverts after disposal
-        Assert.False((bool)isActiveProp.GetValue(null)!);
+        Assert.False(edge.IsKernelActive);
     }
 
     [Fact]

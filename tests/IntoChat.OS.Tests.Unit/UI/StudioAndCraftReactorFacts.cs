@@ -26,7 +26,7 @@ public sealed class StudioAndCraftReactorFacts
     [Fact]
     public void CalculatorAggregateExplorerVerifiesInvariantsTransitionsAndClearGuard()
     {
-        var graph = AggregateExplorer<CalculatorAppState>.ExploreScreen(new CalculatorApp(), maxStates: 32);
+        var graph = AggregateExplorer<CalculatorAppState>.ExploreScreen<CalculatorApp>(maxStates: 32);
         graph.EnsureHealthy();
 
         Assert.True(graph.IsHealthy);
@@ -37,7 +37,7 @@ public sealed class StudioAndCraftReactorFacts
     [Fact]
     public void DataStudioAggregateExplorerVerifiesChartKindsAndEmptyDatasetExportGuards()
     {
-        var graph = AggregateExplorer<DataStudioAppState>.ExploreScreen(new DataStudioApp(), maxStates: 24);
+        var graph = AggregateExplorer<DataStudioAppState>.ExploreScreen<DataStudioApp>(maxStates: 24);
         graph.EnsureHealthy();
 
         Assert.True(graph.IsHealthy);
@@ -50,7 +50,7 @@ public sealed class StudioAndCraftReactorFacts
     [Fact]
     public void UsageAggregateExplorerVerifiesBudgetCapInvariantsAndRefusesNonPositiveBudget()
     {
-        var graph = AggregateExplorer<UsageAppState>.ExploreScreen(new UsageApp(), maxStates: 16);
+        var graph = AggregateExplorer<UsageAppState>.ExploreScreen<UsageApp>(maxStates: 16);
         graph.EnsureHealthy();
 
         Assert.True(graph.IsHealthy);
@@ -61,7 +61,7 @@ public sealed class StudioAndCraftReactorFacts
     [Fact]
     public void FriendsAggregateExplorerVerifiesFeedScopeTabsAndRefusesInvalidScope()
     {
-        var graph = AggregateExplorer<FriendsAppState>.ExploreScreen(new FriendsApp(), maxStates: 16);
+        var graph = AggregateExplorer<FriendsAppState>.ExploreScreen<FriendsApp>(maxStates: 16);
         graph.EnsureHealthy();
 
         Assert.True(graph.IsHealthy);
@@ -73,20 +73,20 @@ public sealed class StudioAndCraftReactorFacts
     [Fact]
     public void ArtCraftPhotoCraftFilmCraftAndMarkdrawExplorersVerifyAllCreativeAggregates()
     {
-        var artGraph = AggregateExplorer<ArtCraftStudioAppState>.ExploreScreen(new ArtCraftApp(), maxStates: 16).EnsureHealthy();
+        var artGraph = AggregateExplorer<ArtCraftStudioAppState>.ExploreScreen<ArtCraftApp>(maxStates: 16).EnsureHealthy();
         Assert.Contains(artGraph.AcceptedTransitions, t => t.Command.Contains("SwitchExecutionMode(\"mcp\")", StringComparison.Ordinal));
         Assert.Contains(artGraph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_execution_mode"));
 
-        var photoGraph = AggregateExplorer<PhotoCraftAppState>.ExploreScreen(new PhotoCraftApp(), maxStates: 24).EnsureHealthy();
+        var photoGraph = AggregateExplorer<PhotoCraftAppState>.ExploreScreen<PhotoCraftApp>(maxStates: 24).EnsureHealthy();
         Assert.Contains(photoGraph.AcceptedTransitions, t => t.Command.Contains("ToggleLayerByIndex(0)", StringComparison.Ordinal));
         Assert.Contains(photoGraph.RejectedTransitions, t => t.BrokenRules.Contains("layer_out_of_range"));
         Assert.Contains(photoGraph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_execution_mode"));
 
-        var filmGraph = AggregateExplorer<FilmCraftAppState>.ExploreScreen(new FilmCraftApp(), maxStates: 16).EnsureHealthy();
+        var filmGraph = AggregateExplorer<FilmCraftAppState>.ExploreScreen<FilmCraftApp>(maxStates: 16).EnsureHealthy();
         Assert.Contains(filmGraph.AcceptedTransitions, t => t.Command.Contains("SwitchExecutionMode(\"native-linux\")", StringComparison.Ordinal));
         Assert.Contains(filmGraph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_execution_mode"));
 
-        var markdrawGraph = AggregateExplorer<MarkdrawAppState>.ExploreScreen(new MarkdrawApp(), maxStates: 24).EnsureHealthy();
+        var markdrawGraph = AggregateExplorer<MarkdrawAppState>.ExploreScreen<MarkdrawApp>(maxStates: 24).EnsureHealthy();
         Assert.Contains(markdrawGraph.AcceptedTransitions, t => t.Command.Contains("SwitchTemplate(\"pipeline\")", StringComparison.Ordinal));
         Assert.Contains(markdrawGraph.RejectedTransitions, t => t.BrokenRules.Contains("unsupported_template"));
         Assert.Contains(markdrawGraph.RejectedTransitions, t => t.BrokenRules.Contains("invalid_export_format"));
@@ -95,11 +95,14 @@ public sealed class StudioAndCraftReactorFacts
     [Fact]
     public void All15ArtCraftSuiteAppsRenderCleanStudioAppShellDefaultingToNativeMcpAndSupportingExplicitWasmMode()
     {
+        static ArtCraftStudioAppBase CreateSuiteApp<TApp>() where TApp : ArtCraftStudioAppBase, new()
+            => Activator.CreateInstance<TApp>();
+
         ArtCraftStudioAppBase[] suite =
         [
-            new ArtCraftApp(), new VectorCraftApp(), new LightCraftApp(), new EffectCraftApp(), new DesignCraftApp(),
-            new PdfCraftApp(), new WordCraftApp(), new SoundCraftApp(), new DeckCraftApp(), new CadCraftApp(),
-            new GridCraftApp(), new FigCraftApp(), new TextureCraftApp(), new MaterialCraftApp(), new SolidCraftApp(),
+            CreateSuiteApp<ArtCraftApp>(), CreateSuiteApp<VectorCraftApp>(), CreateSuiteApp<LightCraftApp>(), CreateSuiteApp<EffectCraftApp>(), CreateSuiteApp<DesignCraftApp>(),
+            CreateSuiteApp<PdfCraftApp>(), CreateSuiteApp<WordCraftApp>(), CreateSuiteApp<SoundCraftApp>(), CreateSuiteApp<DeckCraftApp>(), CreateSuiteApp<CadCraftApp>(),
+            CreateSuiteApp<GridCraftApp>(), CreateSuiteApp<FigCraftApp>(), CreateSuiteApp<TextureCraftApp>(), CreateSuiteApp<MaterialCraftApp>(), CreateSuiteApp<SolidCraftApp>(),
         ];
 
         foreach (var app in suite)

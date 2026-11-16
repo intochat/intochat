@@ -7,7 +7,7 @@ namespace IntoChat.OS.Modules.Apps;
 /// <summary>
 /// Metadata discovered from an installed or workspace micro-app's <c>SKILL.md</c> sidecar (<c>F-SKL-03</c>).
 /// </summary>
-public sealed record DiscoveredAppSkill(
+internal sealed record DiscoveredAppSkill(
     string Alias,
     string Name,
     string Title,
@@ -21,7 +21,7 @@ public sealed record DiscoveredAppSkill(
 /// Discovers <c>SKILL.md</c> sidecars across deployed Synapse runtime units (<see cref="ISynapseStudio.Sidecars"/>)
 /// and workspace/repository <c>apps/*/SKILL.md</c> folders so Ino automatically discovers micro-app capabilities.
 /// </summary>
-public static class SkillDiscovery
+internal static class SkillDiscovery
 {
     public const string FileName = "SKILL.md";
 

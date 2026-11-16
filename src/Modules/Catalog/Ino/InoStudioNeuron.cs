@@ -15,7 +15,7 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Modules.Apps;
 
 [DigitalBrain.Neurons.Neuron("ino.studio")]
-public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Neurons.Neuron, IInoStudio
+internal sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Neurons.Neuron, IInoStudio
 {
     private static readonly TimeSpan MakePollBudget = TimeSpan.FromSeconds(25);
     private static readonly TimeSpan MakePollInterval = TimeSpan.FromMilliseconds(100);
@@ -52,10 +52,11 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(error, $"starting unit build flow '{title}'");
             return new InoToolResult($"Could not start '{title}': {error.Message}");
         }
 
-        var tasks = $"neuron://{brainId}/apps/tasks#{flowId}";
+        var tasks = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "tasks").Key}#{flowId}";
         if (NeuronId.TryParse(flowId, out var flowNeuronId))
         {
             var deadline = Context.Time.GetUtcNow() + MakePollBudget;
@@ -150,7 +151,7 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
                             : settled.Status.ToString();
                     if (IsMissingModelFailure(detail))
                     {
-                        var settingsUri = $"neuron://{brainId}/apps/settings";
+                        var settingsUri = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "settings").Key}";
                         var setupCard = new InoCard(
                             "setup-model",
                             "settings",
@@ -183,7 +184,7 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
 
         if (services.GetService<IDrafter>() is null)
         {
-            var settingsUri = $"neuron://{brainId}/apps/settings";
+            var settingsUri = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "settings").Key}";
             var setupCard = new InoCard(
                 "setup-model",
                 "settings",
@@ -232,6 +233,7 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(error, $"opening app '{app}'");
             return new InoToolResult($"Could not open {app}: {error.Message}");
         }
 
@@ -246,7 +248,11 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         var studio = Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
         DigitalBrain.Units.DeployedSource[] units;
         try { units = await studio.List(); }
-        catch (Exception error) when (error is not OperationCanceledException) { return new InoToolResult(text + $"\nUnits are not available: {error.Message}"); }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(error, "listing synapse units");
+            return new InoToolResult(text + $"\nUnits are not available: {error.Message}");
+        }
         if (units.Length == 0)
         {
             var workspaceSkills = await SkillDiscovery.DiscoverAsync(studio).ConfigureAwait(true);
@@ -336,6 +342,7 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(ex, $"resolving repository '{cleanRepo}' for Feature-to-PR");
             return new InoToolResult($"Could not start Feature-to-PR on '{cleanRepo}': {ex.Message}", Ok: false);
         }
 
@@ -352,6 +359,7 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(error, $"starting Feature-to-PR flow '{title}'");
             return new InoToolResult($"Could not start Feature-to-PR '{title}': {error.Message}", Ok: false);
         }
 
@@ -387,12 +395,13 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(ex, $"reading Feature-to-PR flow '{flowId}'");
             return new InoToolResult($"Could not read Feature-to-PR flow '{flowId}': {ex.Message}", Ok: false);
         }
 
         var change = JsonSerializer.Deserialize<Change>(head.InnerJson, FeatureToPrFlow.Json) ?? new Change();
         var status = view?.Status ?? head.Status;
-        var tasksUri = $"neuron://{brainId}/apps/tasks#{flowId}";
+        var tasksUri = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), "tasks").Key}#{flowId}";
 
         if (status == FlowStatus.Waiting && change.Approval is { PlanId.Length: > 0 } approval && change.Commit is { } commit)
         {

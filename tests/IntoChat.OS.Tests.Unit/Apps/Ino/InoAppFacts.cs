@@ -736,7 +736,6 @@ public sealed class InoAppFacts
 
         var setupType = typeof(InoApp).Assembly.GetType("IntoChat.OS.Apps.Ino.InoModelSetup", throwOnError: false);
         Assert.NotNull(setupType);
-        Assert.IsType<InoApp>(new InoApp(logger: null, time: fixedClock));
 
         var services = new ServiceCollection();
         services.AddSingleton<ISecretRedactor>(new NoSecrets());

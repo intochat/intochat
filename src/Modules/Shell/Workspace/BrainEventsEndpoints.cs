@@ -3,11 +3,13 @@ using System.Text.Json;
 using System.Threading.Channels;
 using DigitalBrain;
 using DigitalBrain.Brains;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Signalling;
 using DigitalBrain.Signals;
 using DigitalBrain.Units;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -78,7 +80,11 @@ internal static class BrainEventsEndpoints
         {
             try { await foreach (var _ in signals) { changes.Writer.TryWrite(true); } }
             catch (OperationCanceledException) { }
-            catch (Exception error) { changes.Writer.TryComplete(error); }
+            catch (Exception error)
+            {
+                OsConsoleLog.For(typeof(BrainEventsEndpoints)).LogSwallowed(error, "watching brain events stream");
+                changes.Writer.TryComplete(error);
+            }
         }
     }
 

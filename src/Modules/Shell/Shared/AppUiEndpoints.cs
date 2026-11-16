@@ -482,10 +482,11 @@ internal static class AppUiEndpoints
         if (!BrainId.IsValid(scope)) { return null; }
         var brainId = new BrainId(scope);
         if (IntoChat.OS.Primitives.AppRef.TryParse(brainId, view, out var direct)) { return direct.Key; }
-        var prefix = scope + "/apps/";
-        if (!view.StartsWith(prefix, StringComparison.Ordinal)) { return null; }
-        var end = view.IndexOf('/', prefix.Length);
-        return end > prefix.Length && IntoChat.OS.Primitives.AppRef.TryParse(brainId, view[..end], out var owning)
+        var parts = view.Split('/');
+        return parts.Length > 3
+            && parts[0] == scope
+            && parts[1] == "apps"
+            && IntoChat.OS.Primitives.AppRef.TryOf(brainId, parts[2], out var owning)
             ? owning.Key
             : null;
     }
@@ -539,7 +540,8 @@ internal static class AppUiEndpoints
     }
 
     internal static bool OwnsUi(string scope, string name) =>
-        new[] { "/apps/", "/images/", "/applications/", "/units/" }.Any(area => name.StartsWith(scope + area, StringComparison.Ordinal))
+        (name.StartsWith(scope + "/", StringComparison.Ordinal)
+         && name.Split('/') is [_, "apps" or "images" or "applications" or "units", ..])
         || UnitAlias(scope, name) is not null;
 
     // The client's one UI event; Dart mirror: NodeContext (activate, resolve, input) in ui/ui. A confirmation answer carries PlanId

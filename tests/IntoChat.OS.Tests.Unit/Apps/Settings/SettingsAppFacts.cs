@@ -123,9 +123,11 @@ public sealed class SettingsAppFacts
     }
 
     [Fact]
-    public void SettingsInitialStateIncludesDefaultThemeAndAppearance()
+    public async Task SettingsInitialStateIncludesDefaultThemeAndAppearance()
     {
-        var app = new SettingsApp();
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var installed = await os.Install<SettingsApp>();
+        var app = installed.App;
         Assert.Equal("auto", app.State.ThemeMode);
         Assert.Equal("cream", app.State.DesktopTone);
         Assert.Equal("English", app.State.Language);
@@ -367,18 +369,18 @@ public sealed class SettingsAppFacts
 
         View[] initialViews =
         [
-            new IntoChat.OS.Apps.Ino.InoApp().Render(),
-            new IntoChat.OS.Apps.Ino.InoApp().RenderSide(),
-            new IntoChat.OS.Apps.Desktop.DesktopApp().Render(),
-            new SettingsApp().Render(),
-            new IntoChat.OS.Apps.Usage.UsageApp().Render(),
-            new IntoChat.OS.Apps.Friends.FriendsApp().Render(),
-            new IntoChat.OS.Apps.Data.DataStudioApp().Render(),
-            new IntoChat.OS.Apps.Markdraw.MarkdrawApp().Render(),
-            new IntoChat.OS.Apps.FilmCraft.FilmCraftApp().Render(),
-            new IntoChat.OS.Apps.Tasks.TasksApp().Render(),
-            new IntoChat.OS.Apps.Creator.CreatorApp().Render(),
-            new IntoChat.OS.Apps.Gallery.GalleryApp().Render(),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Ino.InoApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Ino.InoApp, View>(app => app.RenderSide()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Desktop.DesktopApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<SettingsApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Usage.UsageApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Friends.FriendsApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Data.DataStudioApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Markdraw.MarkdrawApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.FilmCraft.FilmCraftApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Tasks.TasksApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Creator.CreatorApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Gallery.GalleryApp, View>(app => app.Render()),
         ];
 
         Assert.DoesNotContain("Nordlys", IntoChat.OS.Apps.Markdraw.MarkdrawApp.DefaultPipelineScene, StringComparison.OrdinalIgnoreCase);

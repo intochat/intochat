@@ -6,7 +6,7 @@ namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 // The C# code fixers ship as MEF exports in Microsoft.CodeAnalysis.CSharp.Features. This host has no MEF
 // composition for them, so the ones with a parameterless constructor are built by reflection; fixers that
 // import services are skipped, and a fixer that throws while registering is skipped by the editor.
-public sealed class CodeFixCatalog
+internal sealed class CodeFixCatalog
 {
     private readonly Lazy<IReadOnlyList<CodeFixProvider>> _providers = new(Discover);
 

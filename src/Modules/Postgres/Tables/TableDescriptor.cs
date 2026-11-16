@@ -5,13 +5,13 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 namespace IntoChat.OS.Modules.Postgres.Tables;
 
 [DigitalBrain.Contracts.NeuronAlias("postgres.table-descriptor"), DigitalBrain.Contracts.DefaultNeuronType(TableNeuron.GrainType)]
-public interface ITableDescriptor
+internal interface ITableDescriptor
 {
     Task<TableDescription> Describe(string owner);
 }
 
 [GenerateSerializer, Alias("postgres.table-description")]
-public sealed record TableDescription(
+internal sealed record TableDescription(
     [property: Id(0)] string AppId,
     [property: Id(1)] string TableId,
     [property: Id(2)] TablePlacement Placement,

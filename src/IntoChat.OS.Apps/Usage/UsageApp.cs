@@ -104,6 +104,7 @@ public sealed class UsageApp : AggregateScreen<UsageAppState>
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
+        AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken).ConfigureAwait(true);
         try { await Follow<ICompute, ComputeChanged>("compute").ConfigureAwait(true); }
         catch (Exception ex) { OsConsoleLog.For<UsageApp>().LogSwallowed(ex, "Compute follow is optional when running in standalone mode."); }

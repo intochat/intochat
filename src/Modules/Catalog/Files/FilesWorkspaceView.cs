@@ -1,9 +1,11 @@
 using System.Globalization;
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Log;
 using DigitalBrain.Operations;
 using DigitalBrain.UI;
 using IntoChat.Files;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
@@ -69,8 +71,9 @@ internal sealed partial class FilesWorkspaceNeuron
         var main = VStack(Space.Md, screen.Main, extras).ToNode();
         var full = ResponsiveSplit(leading: screen.Side, trailing: main, leadingExtent: 216, gap: Space.Md);
 
-        // The workspace is host code: it publishes its views as the platform of its brain, whoever's call led here.
-        using (InProcessCallerScope.Enter())
+        // The workspace is host code: it publishes its views cleanly in-process, whoever's call led here.
+        var edge = services?.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
+        using (edge?.EnterInProcess())
         {
             await View("side").Publish(files.Revision, new("Files", screen.Side));
             await View("main").Publish(files.Revision, new("Files", main));
@@ -92,7 +95,11 @@ internal sealed partial class FilesWorkspaceNeuron
         for (var i = 0; i < views.Length; i++)
         {
             try { views[i] = await query.Read(new OperationId(started[i].Id), CancellationToken.None); }
-            catch (Exception error) when (error is not OperationCanceledException) { failed(error); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                OsConsoleLog.For<FilesWorkspaceNeuron>().LogSwallowed(error, "reading workspace file operation view");
+                failed(error);
+            }
         }
 
         return views;

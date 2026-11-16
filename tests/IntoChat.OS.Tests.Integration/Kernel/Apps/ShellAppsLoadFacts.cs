@@ -113,7 +113,7 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
         {
             os.Register(typeof(AppsModule).Assembly);
             using var ungrantedCaller = os.Edge.Enter(
-                CapabilityCallers.Of("app:local/apps/calculator", "local", "local", CallerKind.App, "local/apps/calculator").ToCaller()!);
+                os.Edge.From(CapabilityCallers.Of("app:local/apps/calculator", "local", "local", CallerKind.App, "local/apps/calculator")));
 
             var localModules = os.Get<IInstalledModules>(new NeuronId(new BrainId("local"), "apps.installed-modules", "modules"));
             await Assert.ThrowsAsync<UnauthorizedAccessException>(localModules.List);

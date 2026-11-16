@@ -14,7 +14,7 @@ namespace IntoChat.OS.Modules.Apps;
 // Wraps the silo's synapse host for Ino. A deploy whose step key ({alias}:{source and bindings hash}) already landed does not reach the host
 // again, so a re-advanced task step is not rerun. Failures come back as readable text.
 [DigitalBrain.Neurons.Neuron("ino.synapses")]
-public sealed partial class SynapseStudioNeuron(
+internal sealed partial class SynapseStudioNeuron(
     ISynapseHost? host = null,
     SynapseCompiler? compiler = null) : DigitalBrain.Neurons.Neuron<SynapseStudioState>, ISynapseStudio
 {
@@ -72,6 +72,7 @@ public sealed partial class SynapseStudioNeuron(
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<SynapseStudioNeuron>().LogSwallowed(error, $"deploying synapse unit '{alias}'");
             return Failed($"Could not deploy {alias}: {error.Message}");
         }
 
@@ -134,6 +135,7 @@ public sealed partial class SynapseStudioNeuron(
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<SynapseStudioNeuron>().LogSwallowed(error, $"retiring synapse unit '{alias}'");
             return new InoToolResult($"Could not retire {alias}: {error.Message}", Ok: false);
         }
 

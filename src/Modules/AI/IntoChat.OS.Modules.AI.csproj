@@ -32,9 +32,6 @@
     <ProjectReference Include="../GitHub/IntoChat.OS.Modules.GitHub.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="IntoChat.OS.Modules.Catalog" />
-  </ItemGroup>
-  <ItemGroup>
     <EmbeddedResource Include="Pricing/models.prices.json" LogicalName="IntoChat.OS.Modules.AI.Pricing.models.prices.json" />
   </ItemGroup>
 </Project>

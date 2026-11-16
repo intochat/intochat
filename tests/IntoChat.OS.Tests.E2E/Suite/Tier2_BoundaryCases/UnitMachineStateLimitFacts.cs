@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Contracts;
@@ -10,6 +9,7 @@ using DigitalBrain.Units;
 using IntoChat.OS.Tests.E2E.Fixtures;
 using IntoChat.OS.Tests.E2E.Fixtures.Doubles;
 using IntoChat.OS.Tests.E2E.Harness;
+using IntoChat.OS.Tests.Support;
 using Xunit;
 
 namespace IntoChat.OS.Tests.E2E.Tier2_BoundaryCases;
@@ -54,76 +54,69 @@ public sealed class UnitLimitTestScreen : Screen<UnitLimitTestState>
 public sealed class UnitMachineStateLimitFacts : E2ETestBase, IClassFixture<TestOSFixture>
 {
     private readonly TestOSFixture _fixture;
-    private static readonly MethodInfo RequireFitsGeneric = ResolveRequireFitsMethod();
 
     public UnitMachineStateLimitFacts(TestOSFixture fixture)
     {
         _fixture = fixture;
     }
 
-    private static MethodInfo ResolveRequireFitsMethod()
+    private async Task SetExactStateAsync(string data, BrainId brain)
     {
-        var assembly = typeof(Screen<>).Assembly;
-        var limitsType = assembly.GetType("DigitalBrain.Units.UnitLimits", throwOnError: true)!;
-        var method = limitsType.GetMethod("RequireFits", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)!;
-        return method;
-    }
-
-    private static void InvokeRequireFits<TState>(TState state, NeuronId id)
-    {
-        var typedMethod = RequireFitsGeneric.MakeGenericMethod(typeof(TState));
-        try
-        {
-            typedMethod.Invoke(null, [state, id]);
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException is not null)
-        {
-            throw ex.InnerException;
-        }
+        await using var os = _fixture.CreateIsolated();
+        os.Register(typeof(ExactLimitUnit).Assembly);
+        var neuronId = new NeuronId(brain, "unit.limit_exact", "default");
+        var init = await os.Get<IUnit>(neuronId).Handle(
+            new Ask("probe", "unit.limit_exact.init", JsonSerializer.SerializeToElement(new { }), "default"));
+        Assert.True(init.Ok);
+        var screen = os.Get<IScreen>(neuronId);
+        var view = await screen.Read();
+        Assert.NotNull(view);
+        await screen.Activate(
+            "unit.limit_exact",
+            view.Generation,
+            "apply",
+            data.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     [Fact]
-    public void T2_UnitLimits_RequireFits_Exact2MbBoundary_Succeeds()
+    public async Task T2_UnitLimits_RequireFits_Exact2MbBoundary_Succeeds()
     {
         // 1. Construct state whose JSON serialization UTF-8 byte count is exactly 2,097,152 bytes
         var exactState = OversizedPayloadBuilder.CreateStateOfSerializedLength(2_097_152);
-        var serializedBytes = JsonSerializer.SerializeToUtf8Bytes(exactState, RuntimeProtocol.OptionsFor(typeof(OversizedPayloadBuilder.ExactByteState)));
+        var unitState = new ExactLimitUnitState(exactState.Data);
+        var serializedBytes = JsonSerializer.SerializeToUtf8Bytes(unitState, RuntimeProtocol.OptionsFor(typeof(ExactLimitUnitState)));
         Assert.Equal(2_097_152, serializedBytes.Length);
 
-        var neuronId = new NeuronId(new BrainId("unit-limit-exact"), "unit.test", "default");
-
         // 2. Exact 2 MB cap passes without exception
-        InvokeRequireFits(exactState, neuronId);
+        await SetExactStateAsync(exactState.Data, NewBrain("unit-limit-exact"));
     }
 
     [Fact]
-    public void T2_UnitLimits_RequireFits_2MbPlusOneByte_ThrowsInvalidOperationException()
+    public async Task T2_UnitLimits_RequireFits_2MbPlusOneByte_ThrowsInvalidOperationException()
     {
         // 1. Construct state whose serialized length is exactly 2,097,153 bytes (MaxStateBytes + 1)
         var oversizedState = OversizedPayloadBuilder.CreateStateOfSerializedLength(2_097_153);
-        var serializedBytes = JsonSerializer.SerializeToUtf8Bytes(oversizedState, RuntimeProtocol.OptionsFor(typeof(OversizedPayloadBuilder.ExactByteState)));
+        var unitState = new ExactLimitUnitState(oversizedState.Data);
+        var serializedBytes = JsonSerializer.SerializeToUtf8Bytes(unitState, RuntimeProtocol.OptionsFor(typeof(ExactLimitUnitState)));
         Assert.Equal(2_097_153, serializedBytes.Length);
 
-        var neuronId = new NeuronId(new BrainId("unit-limit-plus-one"), "unit.test", "default");
-
         // 2. MaxStateBytes + 1 byte throws InvalidOperationException mentioning cap
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-            InvokeRequireFits(oversizedState, neuronId));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SetExactStateAsync(oversizedState.Data, NewBrain("unit-limit-plus-one")));
 
         Assert.Contains("exceeding the 2097152-byte cap", ex.Message);
     }
 
     [Fact]
-    public void T2_UnitLimits_RequireFits_FarExceeding2Mb_ThrowsInvalidOperationException()
+    public async Task T2_UnitLimits_RequireFits_FarExceeding2Mb_ThrowsInvalidOperationException()
     {
         // 1. Construct state of 5 MB
         const int fiveMb = 5 * 1024 * 1024;
         var extremeState = OversizedPayloadBuilder.CreateStateOfSerializedLength(fiveMb);
-        var neuronId = new NeuronId(new BrainId("unit-limit-5mb"), "unit.test", "default");
 
         // 2. Far exceeding cap throws InvalidOperationException
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-            InvokeRequireFits(extremeState, neuronId));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SetExactStateAsync(extremeState.Data, NewBrain("unit-limit-5mb")));
 
         Assert.Contains("exceeding the 2097152-byte cap", ex.Message);
     }

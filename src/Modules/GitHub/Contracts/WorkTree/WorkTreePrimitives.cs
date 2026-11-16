@@ -3,6 +3,7 @@ using System.Security;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using IntoChat.OS.Primitives;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 
@@ -20,7 +21,9 @@ public sealed record RepositoryId
     public static bool TryParse(string? raw, out RepositoryId? id)
     {
         id = null;
-        if (string.IsNullOrWhiteSpace(raw))
+        if (string.IsNullOrWhiteSpace(raw)
+            || raw.StartsWith("./", StringComparison.Ordinal)
+            || raw.StartsWith(".\\", StringComparison.Ordinal))
         {
             return false;
         }
@@ -99,7 +102,9 @@ public sealed partial record BranchName
     public static bool TryParse(string? raw, out BranchName? branch)
     {
         branch = null;
-        if (string.IsNullOrWhiteSpace(raw))
+        if (string.IsNullOrWhiteSpace(raw)
+            || raw.StartsWith("./", StringComparison.Ordinal)
+            || raw.StartsWith(".\\", StringComparison.Ordinal))
         {
             return false;
         }
@@ -248,7 +253,9 @@ public sealed record CommitSha
     public static bool TryParse(string? raw, out CommitSha? sha)
     {
         sha = null;
-        if (string.IsNullOrWhiteSpace(raw))
+        if (string.IsNullOrWhiteSpace(raw)
+            || raw.StartsWith("./", StringComparison.Ordinal)
+            || raw.StartsWith(".\\", StringComparison.Ordinal))
         {
             return false;
         }
@@ -324,7 +331,9 @@ public sealed record RepoPath
     public static bool TryParse(string? raw, out RepoPath? path)
     {
         path = null;
-        if (string.IsNullOrWhiteSpace(raw))
+        if (string.IsNullOrWhiteSpace(raw)
+            || raw.StartsWith("./", StringComparison.Ordinal)
+            || raw.StartsWith(".\\", StringComparison.Ordinal))
         {
             return false;
         }
@@ -337,22 +346,14 @@ public sealed record RepoPath
             }
         }
 
-        var normalized = raw.Trim().Replace('\\', '/');
-        if (normalized.Length == 0 || normalized.StartsWith('/') || normalized.Contains(':', StringComparison.Ordinal) || Path.IsPathRooted(normalized))
+        var trimmed = raw.Trim();
+        var normalized = trimmed.Replace('\\', '/');
+        if (normalized.Length == 0 || normalized.StartsWith('/') || Path.IsPathRooted(normalized) || !SafeRelativePath.TryParse(trimmed, out var safe))
         {
             return false;
         }
 
-        var segments = normalized.Split('/', StringSplitOptions.None);
-        foreach (var seg in segments)
-        {
-            if (seg.Length == 0 || seg is "." or "..")
-            {
-                return false;
-            }
-        }
-
-        path = new RepoPath(string.Join('/', segments));
+        path = new RepoPath(safe.Value);
         return true;
     }
 
@@ -546,4 +547,33 @@ public sealed record ChangeSet
                 new WireShape(value.Commit, value.ChangedFiles, value.HostRenderedDiff, value.Additions, value.Deletions),
                 options);
     }
+}
+
+internal static partial class GitHubRemoteParser
+{
+    internal static string? ParseOwnerRepo(string? remoteUrl)
+    {
+        if (string.IsNullOrWhiteSpace(remoteUrl))
+        {
+            return null;
+        }
+
+        var match = GitHubUrlRegex().Match(remoteUrl.Trim());
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        var owner = match.Groups["owner"].Value;
+        var repo = match.Groups["repo"].Value;
+        if (repo.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+        {
+            repo = repo[..^4];
+        }
+
+        return $"{owner}/{repo}";
+    }
+
+    [GeneratedRegex(@"(?:github\.com[:/])(?<owner>[A-Za-z0-9_.-]+)/(?<repo>[A-Za-z0-9_.-]+?)(?:\.git)?/?$", RegexOptions.IgnoreCase)]
+    private static partial Regex GitHubUrlRegex();
 }

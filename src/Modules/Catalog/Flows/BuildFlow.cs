@@ -555,8 +555,8 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     private IApp App(BuildInner inner)
     {
         var key = inner.AppKey ?? throw new FlowFailed("install", "the build names no app");
-        if (key.IndexOf("/apps/", StringComparison.Ordinal) < 0) { throw new FlowFailed("install", $"{key} is not an app key"); }
-        return Context.Get<IApp>(new NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(key.IndexOf('/', StringComparison.Ordinal) + 1)..]));
+        if (!IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, key, out var appRef)) { throw new FlowFailed("install", $"{key} is not an app key"); }
+        return Context.Get<IApp>(appRef.Neuron);
     }
 
     private ISynapseStudio Studio() => Context.Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value));

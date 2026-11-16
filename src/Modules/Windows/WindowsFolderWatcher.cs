@@ -3,6 +3,7 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Storage.Confinement;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Primitives;
 using IntoChat.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -263,14 +264,11 @@ internal sealed class WindowsFolderWatcher : IHostedService, IDisposable
         }
 
         var relativePath = Path.GetRelativePath(entry.NormalizedRoot, confinedPath).Replace('\\', '/');
-        if (string.IsNullOrWhiteSpace(relativePath) ||
-            relativePath == "." ||
-            relativePath == ".." ||
-            relativePath.StartsWith("../", StringComparison.Ordinal) ||
-            Path.IsPathRooted(relativePath))
+        if (Path.IsPathRooted(relativePath) || !SafeRelativePath.TryParse(relativePath, out var safeRelative))
         {
             return;
         }
+        relativePath = safeRelative.Value;
 
         var now = _clock.GetUtcNow();
         var pendingKey = $"{entry.BrainId}\0{entry.Slot}\0{relativePath}";
@@ -359,7 +357,7 @@ internal sealed class WindowsFolderWatcher : IHostedService, IDisposable
         }
 
         var edge = _services.GetService<EdgeAuthority>();
-        using var edgeScope = edge?.EnterKernel(new BrainId(brainId));
+        using var edgeScope = edge?.Enter(edge.Module(WindowsModule.ManifestName, new BrainId(brainId)));
         var gateway = SiloNeurons.Get<IWindowsFolderSignals>(_services, IWindowsFolderGateway.Key(brainId));
         await gateway.PublishFileChangedAsync(signal, cancellationToken).ConfigureAwait(false);
     }

@@ -1,4 +1,6 @@
-using DigitalBrain.Neurons;
+using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Invocation;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Tools;
 
@@ -7,15 +9,15 @@ namespace IntoChat.OS.Modules.Mcp.Tests.Unit;
 // The neuron's argument and state rules, answered before any session is opened: no server, no socket.
 public sealed class McpServerNeuronFacts
 {
-    // A plain neuron on a fake context (06-06d), its state seeded before it activates.
-    private static McpServerNeuron Neuron(McpServerState? state = null)
+    private static (TestOS Os, IMcpServer Neuron) Open(McpServerState? state = null)
     {
-        var neuron = new McpServerNeuron();
-        var context = new FakeNeuronContext(DigitalBrain.NeuronId.Parse("facts/mcp.server/mcp/fake"));
-        if (state is not null) { context.MemoryState.Save(new McpServerStore { State = state }, []).GetAwaiter().GetResult(); }
-        NeuronAttachment.Attach(neuron, context);
-        NeuronAttachment.Activate(neuron, CancellationToken.None).GetAwaiter().GetResult();
-        return neuron;
+        var os = TestOS.Local().Register(typeof(McpModule).Assembly);
+        var id = NeuronId.Parse($"facts/mcp.server/mcp/{Guid.NewGuid():N}");
+        if (state is not null)
+        {
+            os.SeedStoredState(id, JsonSerializer.Serialize(new McpServerStore { State = state }, RuntimeProtocol.OptionsFor(typeof(McpServerStore))));
+        }
+        return (os, os.Get<IMcpServer>(id));
     }
 
     [Theory]
@@ -31,19 +33,26 @@ public sealed class McpServerNeuronFacts
     [InlineData("http://[fe80::1]/mcp")]
     [InlineData("http://[fd00::1]/mcp")]
     public async Task ConnectRefusesAUrlThatIsNotCredentialFreeHttp(string url)
-        => await Assert.ThrowsAsync<ArgumentException>(() => Neuron().Connect(new McpServerSpec("Title", url), TestContext.Current.CancellationToken));
+    {
+        var (os, neuron) = Open();
+        await using var _ = os;
+        await Assert.ThrowsAsync<ArgumentException>(() => neuron.Connect(new McpServerSpec("Title", url), TestContext.Current.CancellationToken));
+    }
 
     [Fact]
     public async Task ConnectRefusesABlankTitleAndANullSpec()
     {
-        await Assert.ThrowsAsync<ArgumentException>(() => Neuron().Connect(new McpServerSpec(" ", "https://example.test/mcp"), TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<ArgumentNullException>(() => Neuron().Connect(null!, TestContext.Current.CancellationToken));
+        var (os, neuron) = Open();
+        await using var _ = os;
+        await Assert.ThrowsAsync<ArgumentException>(() => neuron.Connect(new McpServerSpec(" ", "https://example.test/mcp"), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => neuron.Connect(null!, TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task ANeverConnectedServerReadsEmptyAndOffersNoTools()
     {
-        var neuron = Neuron();
+        var (os, neuron) = Open();
+        await using var _ = os;
 
         var state = await neuron.Read();
         var tools = await neuron.Tools(TestContext.Current.CancellationToken);
@@ -58,7 +67,8 @@ public sealed class McpServerNeuronFacts
     public async Task ADisconnectedServerKeepsItsStateButOffersNoTools()
     {
         var tool = new ToolDescriptor("echo", "Echo", "", "{\"type\":\"object\"}", true);
-        var neuron = Neuron(new McpServerState("Fake", "https://example.test/mcp", false, [tool], null, null));
+        var (os, neuron) = Open(new McpServerState("Fake", "https://example.test/mcp", false, [tool], null, null));
+        await using var _ = os;
 
         Assert.Equal("Fake", (await neuron.Read()).Title);
         Assert.Empty((await neuron.Tools(TestContext.Current.CancellationToken)).Tools);
@@ -68,7 +78,8 @@ public sealed class McpServerNeuronFacts
     public async Task AConnectedServerOffersItsToolsUnderItsTitle()
     {
         var tool = new ToolDescriptor("echo", "Echo", "", "{\"type\":\"object\"}", true);
-        var neuron = Neuron(new McpServerState("Fake", "https://example.test/mcp", true, [tool], null, null));
+        var (os, neuron) = Open(new McpServerState("Fake", "https://example.test/mcp", true, [tool], null, null));
+        await using var _ = os;
 
         var tools = await neuron.Tools(TestContext.Current.CancellationToken);
 
@@ -79,8 +90,10 @@ public sealed class McpServerNeuronFacts
     [Fact]
     public async Task RunNeedsAToolNameAndAConnectedServer()
     {
-        await Assert.ThrowsAsync<ArgumentException>(() => Neuron().Run(" ", "{}", TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => Neuron().Run("echo", "{}", TestContext.Current.CancellationToken));
+        var (os, neuron) = Open();
+        await using var _ = os;
+        await Assert.ThrowsAsync<ArgumentException>(() => neuron.Run(" ", "{}", TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => neuron.Run("echo", "{}", TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -90,6 +103,8 @@ public sealed class McpServerNeuronFacts
     public async Task RunRefusesArgumentsThatAreNotAJsonObject(string arguments)
     {
         var connected = new McpServerState("Fake", "https://example.test/mcp", true, [], null, null);
-        await Assert.ThrowsAsync<ArgumentException>(() => Neuron(connected).Run("echo", arguments, TestContext.Current.CancellationToken));
+        var (os, neuron) = Open(connected);
+        await using var _ = os;
+        await Assert.ThrowsAsync<ArgumentException>(() => neuron.Run("echo", arguments, TestContext.Current.CancellationToken));
     }
 }

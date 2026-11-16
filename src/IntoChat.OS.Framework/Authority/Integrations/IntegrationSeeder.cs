@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using IntoChat.OS.Connections.Platform.Integrations;
@@ -16,7 +18,8 @@ internal sealed class IntegrationSeeder(
     AuthorityNeurons neurons,
     ILogger<IntegrationSeeder> logger,
     ConnectorCatalog? connectors = null,
-    IEnumerable<IIntegrationStartup>? consumers = null) : IStartupTask
+    IEnumerable<IIntegrationStartup>? consumers = null,
+    EdgeAuthority? edge = null) : IStartupTask
 {
     private const int MaxSeedAttempts = 3;
 
@@ -72,7 +75,7 @@ internal sealed class IntegrationSeeder(
             return;
         }
 
-        using var _ = IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system");
+        using var _ = edge?.Enter(edge.Module("integrations.seeder", new BrainId("system")));
         var registration = neurons.Integration(definition.Id);
         var after = await registration.Seed(new ConfigureIntegration { Values = values }).WaitAsync(cancellationToken);
         logger.LogInformation("Integration {IntegrationId} is {Status} after seeding.", definition.Id, after.Status);

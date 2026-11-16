@@ -47,10 +47,7 @@ public sealed class ConfinedProcessAndUnitHostFacts
     [Fact]
     public async Task ConfinedProcessRunnerStripsHostSecretsAndExecutesCleanlyWithZeroWindows()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        if (!OperatingSystem.IsWindows()) { Assert.Skip("AppContainer isolation requires Windows."); return; }
 
         var ct = TestContext.Current.CancellationToken;
         var tempDir = Directory.CreateTempSubdirectory("intochat-confined-env-");
@@ -93,10 +90,7 @@ public sealed class ConfinedProcessAndUnitHostFacts
     [Fact]
     public async Task ConfinedProcessRunnerJobObjectKillsInfiniteLoopChildAtTimeoutWithZeroLingeringProcesses()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        if (!OperatingSystem.IsWindows()) { Assert.Skip("Job object timeout enforcement requires Windows."); return; }
 
         var ct = TestContext.Current.CancellationToken;
         var tempDir = Directory.CreateTempSubdirectory("intochat-confined-timeout-");

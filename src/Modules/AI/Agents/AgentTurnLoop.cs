@@ -1,10 +1,12 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Inference;
@@ -34,6 +36,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
             catch (Exception error)
             {
                 // Only the run's own token makes a cancellation; a provider or tool timing out is a failure.
+                OsConsoleLog.For<AgentTurnLoop>().LogSwallowed(error, "agent turn step failed");
                 var cancelled = error is OperationCanceledException && ct.IsCancellationRequested;
                 failure = new(cancelled ? "The run was interrupted." : error.Message, cancelled)
                 {
@@ -166,7 +169,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                     ct.ThrowIfCancellationRequested();
                     serialized = JsonSerializer.Serialize(result);
                 }
-                catch (Exception error) { fault = ExceptionDispatchInfo.Capture(error); }
+                catch (Exception error) { OsConsoleLog.For<AgentTurnLoop>().LogSwallowed(error, "agent tool invocation faulted before rethrow"); fault = ExceptionDispatchInfo.Capture(error); }
                 finally { currentCall = null; }
                 // An iterator cannot yield from a catch: the failure is reported here, then ends the turn as it failed.
                 if (fault is not null)

@@ -11,7 +11,7 @@ namespace IntoChat.OS.Modules.Apps;
 /// Helpers converting between portable <see cref="AppPackage"/> definitions, <see cref="AppBundle"/> files,
 /// and <see cref="MarketplaceListing"/> metadata, plus an in-process <see cref="ISandboxRuntimeBridge"/> fallback.
 /// </summary>
-public static class AppPackageExtensions
+internal static class AppPackageExtensions
 {
     public const string PackageManifestFile = "package.json";
 
@@ -115,7 +115,7 @@ public static class AppPackageExtensions
 /// Default fallback <see cref="ISandboxRuntimeBridge"/> used in unit tests and headless silos when no external
 /// container URL is configured. Tracks deployments cleanly without executing untrusted dynamic assemblies on host.
 /// </summary>
-public sealed class NullSandboxRuntimeBridge : ISandboxRuntimeBridge
+internal sealed class NullSandboxRuntimeBridge : ISandboxRuntimeBridge
 {
     private readonly ConcurrentDictionary<string, (AppPackage Package, string? StateJson, string? SettingsJson)> _deployments = new(StringComparer.Ordinal);
 

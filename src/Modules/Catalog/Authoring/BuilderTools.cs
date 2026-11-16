@@ -38,10 +38,10 @@ internal static partial class BuilderTools
             """{"type":"object","properties":{"files":{"type":"object","additionalProperties":{"type":"string"}}},"required":["files"]}"""),
     ];
 
-    public sealed record CheckArguments(IReadOnlyDictionary<string, string>? Files);
+    internal sealed record CheckArguments(IReadOnlyDictionary<string, string>? Files);
 
     // What check_unit found: compile diagnostics and scenario failures, one line each, together.
-    public sealed record UnitCheck(bool Passed, IReadOnlyList<ScriptCompilationDiagnostic> Diagnostics, IReadOnlyList<string> Failures);
+    internal sealed record UnitCheck(bool Passed, IReadOnlyList<ScriptCompilationDiagnostic> Diagnostics, IReadOnlyList<string> Failures);
 
     public const string Contracts = """
         namespace DigitalBrain.Capabilities.Http;   // capability "http": GET against the slot's allowed hosts only

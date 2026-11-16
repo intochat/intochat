@@ -17,7 +17,7 @@ namespace IntoChat.OS.Modules.Mcp;
 // The persisted shape keeps its state name "mcp.server"; plain state is JSON (06-06d, clean break under SAFE-01: a server
 // connects again on its next Connect).
 [DigitalBrain.State.ExportableState]
-public sealed class McpServerStore
+internal sealed class McpServerStore
 {
     public McpServerState? State { get; set; }
 }

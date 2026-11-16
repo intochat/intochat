@@ -89,6 +89,12 @@ public sealed record DataStudioAppState(
 [Neuron("app.data"), Screen("app.data", Title = "Data Studio")]
 public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFilesVfs
 {
+    protected override Task OnActivate(CancellationToken cancellationToken)
+    {
+        AppActivationScope.Notify(this);
+        return base.OnActivate(cancellationToken);
+    }
+
     public IFilesVfsService? FilesVfs { get; set; }
     public const string AppName = "data";
 

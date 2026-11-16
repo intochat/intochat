@@ -144,18 +144,6 @@ public static class Decision
         return Rule(name, value, v => !valid(v), message);
     }
 
-    // LEGACY(Wave 3B): retained solely for Modules/Catalog/Files/FilesUi.cs until Wave 3B migrates callers and removes bool rule helpers.
-    public static Rule Rule(string name, bool broken, string message)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        ArgumentNullException.ThrowIfNull(message);
-        return new PredicateRule<string>(name, message, _ => broken, static m => m);
-    }
-
-    // LEGACY(Wave 3B): retained solely for Modules/Catalog/Files/FilesUi.cs until Wave 3B migrates callers and removes bool rule helpers.
-    public static Rule Require(string name, bool valid, string message)
-        => Rule(name, !valid, message);
-
     /// <summary>Accepts <paramref name="next"/> alongside zero or more domain <paramref name="events"/>.</summary>
     public static Decision<TState> Accept<TState>(TState next, params Signal[] events) where TState : class
     {

@@ -48,10 +48,10 @@ public sealed class Gate20EdgeApprovalWallFacts
         // B04: Direct unstamped grain/neuron call with cleared caller provenance is rejected
         var proxies = host.Services.GetRequiredService<INeuronProxies>();
         var inbox = proxies.Get<IConfirmationInbox>(IConfirmationInbox.Key(host.Scope));
-        using (InProcessCallerScope.ClearCaller())
-        {
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(inbox.Read);
-        }
+        Orleans.Runtime.RequestContext.Clear();
+        Assert.False(Edge(host.Services).IsKernelActive);
+        Assert.Null(Edge(host.Services).Current);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(inbox.Read);
 
         // Unproved loopback calls fail closed at the edge with 401 (no "local" fallback)
         using (var unprovedRes = await host.Client.GetAsync($"/brains/{host.Scope}/marketplace", Ct))
@@ -266,7 +266,7 @@ public sealed class Gate20EdgeApprovalWallFacts
             CapabilityCallers.AssistantApp) with
         { ConversationId = "ino-turn" };
 
-        using (InProcessCallerScope.Enter())
+        using (Edge(host.Services).EnterInProcess())
         using (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(agentCaller))
         {
             var inbox = proxies.Get<IConfirmationInbox>(inboxKey);
@@ -279,7 +279,7 @@ public sealed class Gate20EdgeApprovalWallFacts
 
         // Verify the plan is STILL Pending and Outcome is STILL null!
         Assert.True(await IsPendingAsync(host.Services, scope, planId));
-        using (InProcessCallerScope.EnterKernel(scope))
+        using (Edge(host.Services).EnterKernel(new BrainId(scope)))
         {
             Assert.Null(await proxies.Get<IConfirmationRequests>(requestsId).Outcome(planId));
         }
@@ -303,7 +303,7 @@ public sealed class Gate20EdgeApprovalWallFacts
             Assert.Equal(HttpStatusCode.OK, personRes.StatusCode);
         }
 
-        using (InProcessCallerScope.EnterKernel(scope))
+        using (Edge(host.Services).EnterKernel(new BrainId(scope)))
         {
             var resolved = await proxies.Get<IConfirmationRequests>(requestsId).Outcome(planId);
             Assert.NotNull(resolved);
@@ -377,7 +377,7 @@ public sealed class Gate20EdgeApprovalWallFacts
             Assert.Equal(HttpStatusCode.OK, sameOriginRes.StatusCode);
         }
 
-        using (InProcessCallerScope.EnterKernel(scope))
+        using (Edge(host.Services).EnterKernel(new BrainId(scope)))
         {
             var webResolved = await proxies.Get<IConfirmationRequests>(requestsId).Outcome(webPlanId);
             Assert.NotNull(webResolved);
@@ -385,6 +385,8 @@ public sealed class Gate20EdgeApprovalWallFacts
             Assert.Equal(ConfirmationOutcome.Approved, webResolved.Outcome);
         }
     }
+
+    private static EdgeAuthority Edge(IServiceProvider services) => services.GetRequiredService<EdgeAuthority>();
 
     private static async Task RaisePendingPlanAsync(
         IServiceProvider services,
@@ -399,7 +401,7 @@ public sealed class Gate20EdgeApprovalWallFacts
             CallerKind.Scheduler,
             CapabilityCallers.SchedulerApp);
 
-        using var _ = InProcessCallerScope.Enter();
+        using var _ = Edge(services).EnterInProcess();
         using var __ = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(raiserCaller);
         var requests = services.GetRequiredService<INeuronProxies>().Get<IConfirmationRequests>(requestsId);
         var immediate = await requests.Request(plan);
@@ -411,7 +413,7 @@ public sealed class Gate20EdgeApprovalWallFacts
 
     private static async Task<bool> IsPendingAsync(IServiceProvider services, string scope, string planId)
     {
-        using var _ = InProcessCallerScope.EnterKernel(scope);
+        using var _ = Edge(services).EnterKernel(new BrainId(scope));
         var inbox = services.GetRequiredService<INeuronProxies>()
             .Get<IConfirmationInbox>(IConfirmationInbox.Key(scope));
         var state = await inbox.Read();

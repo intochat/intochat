@@ -9,7 +9,7 @@ public sealed class LocalCloudNeuronFacts
     public async Task LocalCloudNeuronReportsKnownQuotaAndEnforcesPerBrainMaxStorageBytes()
     {
         var ct = TestContext.Current.CancellationToken;
-        var cloud = new LocalCloudNeuron { MaxStorageBytes = 100 };
+        var cloud = new LocalCloudStorage { MaxStorageBytes = 100 };
 
         var initial = await cloud.Describe(ct);
         Assert.Equal(QuotaState.Known, initial.Quota.State);

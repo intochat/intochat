@@ -80,6 +80,12 @@ public sealed record CalculatorAppState(string Expression = "", string LastSum =
 [Neuron("app.calculator"), Screen("app.calculator", Title = "Calculator")]
 public sealed class CalculatorApp : AggregateScreen<CalculatorAppState>
 {
+    protected override Task OnActivate(CancellationToken cancellationToken)
+    {
+        AppActivationScope.Notify(this);
+        return base.OnActivate(cancellationToken);
+    }
+
     public static readonly string[] Keys = ["7", "8", "9", "/", "4", "5", "6", "*", "1", "2", "3", "-", "C", "0", "=", "+"];
     public static readonly string[] Labels = ["7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "−", "C", "0", "=", "+"];
 

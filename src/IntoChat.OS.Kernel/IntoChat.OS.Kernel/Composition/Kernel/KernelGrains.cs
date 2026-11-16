@@ -65,8 +65,10 @@ internal sealed class InstanceDirectoryGrain(
     // registered, so awaiting it would deadlock; no caller travels because the kernel is the author.
     private void Announce(Func<IBrainAnnouncer, Task> announce)
     {
-        using var cleared = InProcessCallerScope.ClearCaller();
-        _ = announce(SiloNeurons.Get<IBrainAnnouncer>(ServiceProvider, IBrain.Key(Brain)));
+        if (ServiceProvider is not { } services) { return; }
+        var edge = services.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
+        using var cleared = edge?.ClearCaller();
+        _ = announce(SiloNeurons.Get<IBrainAnnouncer>(services, IBrain.Key(Brain)));
     }
 }
 
@@ -105,6 +107,15 @@ internal sealed class CompiledTypeTableGrain(CompiledTypes compiled) : Grain, IC
             ? KernelInvocationSink.HostTypeOfLoaded(type) : null);
 }
 
+[Alias("kernel.type-table")]
+internal interface ITypeTable : IGrainWithStringKey
+{
+    Task<BrainType[]> List();
+    Task<Feature[]> Features();
+    Task Load(Feature feature, BrainType[] types);
+    Task Unload(string name);
+}
+
 [GrainType("kernel.typetable")]
 internal sealed class TypeTableGrain(
     CompiledTypes compiled,
@@ -138,10 +149,11 @@ internal sealed class TypeTableGrain(
         store.State.Loaded = [.. store.State.Loaded.Where(each => each.Name != feature.Name), feature];
         store.State.Features = [.. store.State.Features.Where(entry => entry.Origin != provider), .. stamped];
         await store.WriteStateAsync();
-        if (this.GetPrimaryKeyString() is var brain && brain != TypeTableKey.NoBrain)
+        if (this.GetPrimaryKeyString() is var brain && brain != TypeTableKey.NoBrain && ServiceProvider is { } services)
         {
-            using var cleared = InProcessCallerScope.ClearCaller();
-            var announcer = SiloNeurons.Get<IBrainAnnouncer>(ServiceProvider, IBrain.Key(brain));
+            var edge = services.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
+            using var cleared = edge?.ClearCaller();
+            var announcer = SiloNeurons.Get<IBrainAnnouncer>(services, IBrain.Key(brain));
             foreach (var added in stamped.Where(type => !known.Contains(type.Name)))
             { _ = announcer.TypeAdded(added.Name); }
         }

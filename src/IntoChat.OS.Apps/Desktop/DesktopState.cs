@@ -3,6 +3,7 @@ using DigitalBrain;
 using DigitalBrain.Rules;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Primitives;
 using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps.Desktop;
@@ -117,8 +118,8 @@ public sealed record DesktopAppState(
         string? brain = null)
     {
         var appName = rawAppName.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(appName) || appName == "desktop" || string.IsNullOrWhiteSpace(brain)) { return (null, []); }
-        var appKey = IApp.Key(brain, appName);
+        if (!BrainId.IsValid(brain) || appName == "desktop" || !IntoChat.OS.Primitives.AppRef.TryOf(new BrainId(brain), appName, out var appRef)) { return (null, []); }
+        var appKey = appRef.Key;
         var windows = s.Windows.Where(w => w.Tabs is { Length: > 0 }).ToList();
 
         if (!asNewTab)
@@ -190,9 +191,10 @@ public sealed record DesktopAppState(
 
     public static (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) CloseWorkspaceApp(WorkspaceState s, string rawAppName, string? brain = null)
     {
-        if (string.IsNullOrWhiteSpace(brain)) { return (null, []); }
+        if (!BrainId.IsValid(brain)) { return (null, []); }
         var normalized = rawAppName.Trim().ToLowerInvariant();
-        var appKey = IApp.Key(brain, normalized);
+        if (!IntoChat.OS.Primitives.AppRef.TryOf(new BrainId(brain), normalized, out var appRef)) { return (null, []); }
+        var appKey = appRef.Key;
         var closedIds = new List<string>();
         var nextWindows = new List<WorkspaceWindow>();
         var changed = false;

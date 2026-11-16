@@ -138,7 +138,7 @@ public sealed class SwappableChatModel : IChatClient
 
 public sealed record HeldTurn(Task Entered, Action Release);
 
-public sealed class ControllableLocalOllamaProbe : ILocalOllamaProbe
+internal sealed class ControllableLocalOllamaProbe : ILocalOllamaProbe
 {
     public LocalOllamaDetection? Current { get; set; }
 
@@ -154,7 +154,7 @@ public sealed class InoSiloFixture : IAsyncLifetime
     private int _brainCounter;
 
     public SwappableChatModel Model { get; } = new();
-    public ControllableLocalOllamaProbe LocalOllama { get; } = new();
+    internal ControllableLocalOllamaProbe LocalOllama { get; } = new();
 
     public IServiceProvider Services => (_host ?? throw new InvalidOperationException("Silo host is not started.")).Services;
 

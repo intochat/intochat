@@ -21,10 +21,11 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 // the FlowDone of a flow whose head is still unknown). Signals are folded idempotently: a repeated
 // or stale one does not move an entry back. The commands find the flow neuron by id and call it, so they interleave.
 [DigitalBrain.Neurons.Neuron("flows")]
-public sealed class FlowsNeuron(
+internal sealed class FlowsNeuron(
     IOperations operations,
     IOperationsQuery operationsQuery,
-    ILogger<FlowsNeuron>? logger = null) : DigitalBrain.Neurons.Neuron<FlowsState>, IFlows
+    ILogger<FlowsNeuron>? logger = null,
+    IServiceProvider? services = null) : DigitalBrain.Neurons.Neuron<FlowsState>, IFlows
 {
     private const string SystemOwner = "system";
 
@@ -77,11 +78,8 @@ public sealed class FlowsNeuron(
         {
             try
             {
-                using (InProcessCallerScope.EnterKernel(Id.Brain.Value))
-                {
-                    var starter = Flow(flow.FlowId);
-                    await Stop(starter, await starter.Head(), "security interrupt");
-                }
+                var starter = Flow(flow.FlowId);
+                await StopElevated(starter, flow.FlowId, await starter.Head(), "security interrupt");
             }
             catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { FlowsLog.InterruptCancelFailed(Logger(), error, flow.FlowId); }
         }
@@ -149,9 +147,9 @@ public sealed class FlowsNeuron(
         ArgumentNullException.ThrowIfNull(innerJson);
         var blocker = parentFlowId is not null && State.Flows.TryGetValue(parentFlowId, out var parent) ? BlockersOf(parent, State.Flows).FirstOrDefault() : null;
         var id = new NeuronId(Id.Brain, type, flowId ?? Guid.NewGuid().ToString("N"));
-        var exists = flowId is not null && (State.Flows.ContainsKey(id.ToString())
-            || (await Context.Get<IFlowStarter>(id).Head()).Status != DigitalBrain.Flows.FlowStatus.Pending);
-        await Check("Start", new ParentNotBlocked(blocker), new FlowIsNew(id.ToString(), exists));
+        var held = flowId is not null && State.Flows.TryGetValue(id.ToString(), out var existingEntry) ? existingEntry : null;
+        var headStatus = flowId is not null && held is null ? (await Context.Get<IFlowStarter>(id).Head()).Status : (DigitalBrain.Flows.FlowStatus?)null;
+        await Check("Start", new ParentNotBlocked(blocker), new FlowIsNew(id.ToString(), flowId, held, headStatus));
         if (RuntimeCallerContext.TryGet(out var caller) && (caller.AppId is { Length: > 0 } || caller.ConversationId is { Length: > 0 }))
         {
             await Fold(id.ToString(), entry => entry.App == caller.AppId && entry.Conversation == caller.ConversationId ? entry
@@ -190,7 +188,18 @@ public sealed class FlowsNeuron(
             return;
         }
         // PersonCancelsApprovalWait above verified the flow is not waiting for a person; Flow.Cancel requires Person or Kernel.
-        using (InProcessCallerScope.EnterKernel(Id.Brain.Value))
+        await StopElevated(flow, flowId, head, reason, ct);
+    }
+
+    private async Task StopElevated(IFlowStarter flow, string flowId, FlowHead head, string reason, CancellationToken ct = default)
+    {
+        if (services?.GetService<IKernel>() is { } kernel && NeuronId.TryParse(flowId, out var neuronId))
+        {
+            await kernel.CancelFlow(Id.Brain, neuronId, head.OperationId, reason, ct);
+            return;
+        }
+        var edge = services?.GetService<EdgeAuthority>();
+        using (edge?.ClearCaller())
         {
             await Stop(flow, head, reason, ct);
         }

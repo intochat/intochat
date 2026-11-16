@@ -96,34 +96,42 @@ public sealed class OrganisationFacts
 
         public OrganisationDirectoryNeuron Directory(string principal) => GetOrCreate(
             OrgIds.Of(IOrganisationDirectory.Type, IOrganisationDirectory.Key(principal)),
-            () => new OrganisationDirectoryNeuron(hasher, this));
+            () => Create<OrganisationDirectoryNeuron>(hasher, this));
 
         public OrganisationNeuron Organisation(string brain) => GetOrCreate(
             OrgIds.Of(IOrganisation.Type, IOrganisation.Key(brain)),
-            () => new OrganisationNeuron(options, Host, this, Identity, Clock, NullLogger<OrganisationNeuron>.Instance));
+            () => Create<OrganisationNeuron>(options, Host, this, Identity, Clock, NullLogger<OrganisationNeuron>.Instance));
 
         public OrgMembershipNeuron Membership(string principal) => GetOrCreate(
             OrgIds.Of(IOrgMembership.Type, IOrgMembership.Key(principal)),
-            () => new OrgMembershipNeuron());
+            () => Create<OrgMembershipNeuron>());
 
         public OrganisationInvitesNeuron Invites(string brain) => GetOrCreate(
             OrgIds.Of(IOrganisationInvites.Type, IOrganisationInvites.Key(brain)),
-            () => new OrganisationInvitesNeuron(options, hasher, Mail, Identity, new AllowAllPersonalOrganisationGuard(), Host, this, Clock, NullLogger<OrganisationInvitesNeuron>.Instance));
+            () => Create<OrganisationInvitesNeuron>(options, hasher, Mail, Identity, new AllowAllPersonalOrganisationGuard(), Host, this, Clock, NullLogger<OrganisationInvitesNeuron>.Instance));
 
         public T Get<T>(NeuronId id) where T : class => id.Type switch
         {
-            IInviteToken.Type => (T)(object)GetOrCreate(id, () => new InviteTokenNeuron(Clock)),
-            IOrgMembership.Type => (T)(object)GetOrCreate(id, () => new OrgMembershipNeuron()),
+            IInviteToken.Type => (T)(object)GetOrCreate(id, () => Create<InviteTokenNeuron>(Clock)),
+            IOrgMembership.Type => (T)(object)GetOrCreate(id, () => Create<OrgMembershipNeuron>()),
             IOrganisation.Type => (T)(object)OrganisationNeuron(id),
             IOrganisationInvites.Type => (T)(object)InvitesNeuron(id),
-            IOrganisationDirectory.Type => (T)(object)GetOrCreate(id, () => new OrganisationDirectoryNeuron(hasher, this)),
+            IOrganisationDirectory.Type => (T)(object)GetOrCreate(id, () => Create<OrganisationDirectoryNeuron>(hasher, this)),
             _ => throw new InvalidOperationException($"No neuron {id}."),
         };
 
-        private OrganisationNeuron OrganisationNeuron(NeuronId id) => GetOrCreate(id, () => new OrganisationNeuron(options, Host, this, Identity, Clock, NullLogger<OrganisationNeuron>.Instance));
+        private OrganisationNeuron OrganisationNeuron(NeuronId id) => GetOrCreate(id, () => Create<OrganisationNeuron>(options, Host, this, Identity, Clock, NullLogger<OrganisationNeuron>.Instance));
 
         private OrganisationInvitesNeuron InvitesNeuron(NeuronId id) =>
-            GetOrCreate(id, () => new OrganisationInvitesNeuron(options, hasher, Mail, Identity, new AllowAllPersonalOrganisationGuard(), Host, this, Clock, NullLogger<OrganisationInvitesNeuron>.Instance));
+            GetOrCreate(id, () => Create<OrganisationInvitesNeuron>(options, hasher, Mail, Identity, new AllowAllPersonalOrganisationGuard(), Host, this, Clock, NullLogger<OrganisationInvitesNeuron>.Instance));
+
+        private static T Create<T>(params object[] args) where T : Neuron
+            => (T)Activator.CreateInstance(
+                typeof(T),
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic,
+                null,
+                args,
+                null)!;
 
         private T GetOrCreate<T>(NeuronId id, Func<T> create) where T : Neuron
         {

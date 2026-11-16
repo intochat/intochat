@@ -27,7 +27,7 @@ public sealed class PlaywrightModule : DigitalBrain.Modules.Module
     }
 }
 
-public static class PlaywrightHosting
+internal static class PlaywrightHosting
 {
     public static IServiceCollection AddPlaywright(this IServiceCollection services)
     {

@@ -14,7 +14,7 @@ namespace IntoChat.OS.Modules.Apps;
 // Browse, inspect and install published apps from inside one brain.
 internal static class MarketplaceEndpoints
 {
-    public sealed record InstallBody(string? Consent, string? Name, Dictionary<string, string>? Bindings);
+    internal sealed record InstallBody(string? Consent, string? Name, Dictionary<string, string>? Bindings);
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {

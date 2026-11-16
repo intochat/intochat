@@ -10,7 +10,7 @@ using MicrosoftSdk = Microsoft;
 namespace IntoChat.OS.Modules.Flutter;
 
 // UI-kit neurons hold per-brain window data: a route's {name} addresses the part at "{brain}/ui/{name}".
-public static class UiScope
+internal static class UiScope
 {
     public static string Key(string scope, string name) => $"{scope}/ui/{name}";
 }

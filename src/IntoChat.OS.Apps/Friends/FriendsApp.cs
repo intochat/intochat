@@ -100,6 +100,12 @@ public sealed record FriendsAppState(
 [Neuron("app.friends"), Screen("app.friends", Title = "Friends")]
 public sealed class FriendsApp : AggregateScreen<FriendsAppState>
 {
+    protected override Task OnActivate(CancellationToken cancellationToken)
+    {
+        AppActivationScope.Notify(this);
+        return base.OnActivate(cancellationToken);
+    }
+
     public static AppBundle Bundle { get; } = new(
         "friends",
         "2.0.0",
@@ -290,7 +296,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
     }
 
     private static string AppUri(BrainId brain, string appId)
-        => string.IsNullOrEmpty(brain.Value) ? $"apps/{appId}" : $"{brain.Value}/apps/{appId}";
+        => IntoChat.OS.Primitives.AppRef.TryOf(brain, appId, out var appRef) ? appRef.Key : $"apps/{appId}";
 
     private static PostEmbeddedApp[] ParseEmbeddedApps(string? rawEmbeddedApps, BrainId brain) =>
         string.IsNullOrWhiteSpace(rawEmbeddedApps)

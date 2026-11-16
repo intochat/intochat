@@ -1,5 +1,5 @@
 using IntoChat.OS.Modules.AI.Agents.Context;
-using IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Modules.Apps.Routing;
 
 namespace IntoChat.OS.Modules.AI.Tests.Unit;
 

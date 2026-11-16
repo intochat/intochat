@@ -57,7 +57,6 @@ public sealed class GallerySettingsFilesReactorFacts
     [Fact]
     public void GalleryAppStateExplorerVerifiesAllTabsUniqueKeysAndZeroMonospace()
     {
-        var gallery = new GalleryApp();
         var choices = new ChoiceSet()
             .ForParameter("tab", "foundation", "inputs", "data", "slots", "catalog")
             .ForParameter("holder", "alice")
@@ -65,9 +64,7 @@ public sealed class GallerySettingsFilesReactorFacts
             .ForParameter("column", "latency", "span")
             .ForParameter("query", "", "Table")
             .ForParameter("category", "all", "chat-lfp");
-
-        var graph = AggregateExplorer<GalleryAppState>.Explore(
-            render: gallery.PreviewNode,
+        var graph = AggregateExplorer<GalleryAppState>.ExploreScreen<GalleryApp>(
             choices: choices,
             maxStates: 40).EnsureHealthy();
 
@@ -83,7 +80,7 @@ public sealed class GallerySettingsFilesReactorFacts
 
         foreach (var tab in GalleryAppState.ShowcaseTabIds)
         {
-            var node = gallery.PreviewNode(new GalleryAppState().SelectTab(tab));
+            var node = AggregateExplorer<GalleryAppState>.PreviewNode<GalleryApp>(new GalleryAppState().SelectTab(tab));
             var wire = JsonSerializer.Serialize(node, RuntimeProtocol.OptionsFor(typeof(Node)));
             Assert.DoesNotContain("\"mono\":true", wire, StringComparison.OrdinalIgnoreCase);
         }
@@ -178,7 +175,6 @@ public sealed class GallerySettingsFilesReactorFacts
         // Verify OverrideBody was removed from SettingsAppState!
         Assert.Null(typeof(SettingsAppState).GetProperty("OverrideBody"));
 
-        var settings = new SettingsApp();
         var choices = new ChoiceSet()
             .ForParameter("section", "general", "models", "billing", "apps:ino")
             .ForParameter("subPage", null, "local-server")
@@ -187,8 +183,7 @@ public sealed class GallerySettingsFilesReactorFacts
             .ForParameter("query", "", "Ollama")
             .ForParameter("monthlyBudgetMicros", 50_000_000L, 0L);
 
-        var graph = AggregateExplorer<SettingsAppState>.Explore(
-            render: settings.PreviewNode,
+        var graph = AggregateExplorer<SettingsAppState>.ExploreScreen<SettingsApp>(
             choices: choices,
             maxStates: 48).EnsureHealthy();
 
@@ -201,7 +196,7 @@ public sealed class GallerySettingsFilesReactorFacts
         foreach (var entry in SettingsApp.SearchIndex)
         {
             var state = new SettingsAppState().Navigate(entry.SectionId);
-            var node = settings.PreviewNode(state);
+            var node = AggregateExplorer<SettingsAppState>.PreviewNode<SettingsApp>(state);
             var wire = JsonSerializer.Serialize(node, RuntimeProtocol.OptionsFor(typeof(Node)));
             Assert.Contains(entry.Title.Replace("&", "\\u0026", StringComparison.Ordinal), wire, StringComparison.Ordinal);
             Assert.DoesNotContain("\"mono\":true", wire, StringComparison.OrdinalIgnoreCase);

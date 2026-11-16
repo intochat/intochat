@@ -5,7 +5,7 @@ namespace IntoChat.OS.Modules.AI.Models;
 
 // Model neurons are reached by their marker contract and the brain's model key. The contracts assembly
 // cannot name the silo host, so callers outside that assembly use this.
-public static class ModelNeurons
+internal static class ModelNeurons
 {
     public static ILLM Resolve(IServiceProvider neurons, string brainId, string model)
     {

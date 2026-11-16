@@ -792,27 +792,7 @@ public sealed partial class WorkTreeService : IWorkTree
     }
 
     internal static string? ParseGitHubOwnerRepo(string? remoteUrl)
-    {
-        if (string.IsNullOrWhiteSpace(remoteUrl))
-        {
-            return null;
-        }
-
-        var match = GitHubUrlRegex().Match(remoteUrl.Trim());
-        if (!match.Success)
-        {
-            return null;
-        }
-
-        var owner = match.Groups["owner"].Value;
-        var repo = match.Groups["repo"].Value;
-        if (repo.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
-        {
-            repo = repo[..^4];
-        }
-
-        return $"{owner}/{repo}";
-    }
+        => GitHubRemoteParser.ParseOwnerRepo(remoteUrl);
 
     private static bool IsLocalFilesystemRemote(string? remoteUrl)
     {
@@ -840,7 +820,4 @@ public sealed partial class WorkTreeService : IWorkTree
             Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
             Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
             OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
-
-    [GeneratedRegex(@"(?:github\.com[:/])(?<owner>[A-Za-z0-9_.-]+)/(?<repo>[A-Za-z0-9_.-]+?)(?:\.git)?/?$", RegexOptions.IgnoreCase)]
-    private static partial Regex GitHubUrlRegex();
 }

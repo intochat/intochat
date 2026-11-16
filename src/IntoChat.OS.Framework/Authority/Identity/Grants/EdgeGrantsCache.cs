@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Kernel;
@@ -56,17 +57,21 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     private readonly ConcurrentDictionary<ExpansionKey, CachedExpansionEntry> _expansions = new();
 
     private readonly IServiceProvider? _services;
-    private readonly IClusterListeners? _listeners;
     private readonly TimeProvider _clock;
+    private readonly Func<Type, NeuronId, object?>? _resolveNeuron;
     private readonly ILogger<EdgeGrantsCache>? _logger;
 
     private sealed record CachedGrantsEntry(Grant[] Grants, long Version, DateTimeOffset CachedAt);
 
-    public EdgeGrantsCache(IServiceProvider? services = null, IClusterListeners? listeners = null, TimeProvider? clock = null)
+    public EdgeGrantsCache(
+        IServiceProvider? services = null,
+        IClusterListeners? listeners = null,
+        TimeProvider? clock = null,
+        Func<Type, NeuronId, object?>? resolveNeuron = null)
     {
         _services = services;
-        _listeners = listeners;
         _clock = clock ?? TimeProvider.System;
+        _resolveNeuron = resolveNeuron;
         _logger = services?.GetService<ILoggerFactory>()?.CreateLogger<EdgeGrantsCache>();
         if (services is null)
         {
@@ -129,9 +134,14 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         return cached?.Grants ?? [];
     }
 
-    public async Task<PrincipalSet> ExpandAsync(string ownerBrain, CapabilityCaller caller)
+    public Task<PrincipalSet> ExpandAsync(string ownerBrain, CapabilityCaller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
+        return ExpandAsync(ownerBrain, CallerIdentity.From(caller));
+    }
+
+    internal async Task<PrincipalSet> ExpandAsync(string ownerBrain, CallerIdentity caller)
+    {
         var set = PrincipalSet.For(caller);
         if (string.IsNullOrWhiteSpace(ownerBrain))
         {
@@ -147,7 +157,7 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
             return cached.Principals;
         }
 
-        if (_services is not null && !string.IsNullOrWhiteSpace(ownerBrain))
+        if ((_services is not null || _resolveNeuron is not null) && !string.IsNullOrWhiteSpace(ownerBrain))
         {
             try
             {
@@ -208,7 +218,13 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         }
     }
 
-    public async Task<bool> IsGrantedAsync(string brain, CapabilityCaller caller, string semanticTypeId, string? targetNeuron = null, CancellationToken ct = default)
+    public Task<bool> IsGrantedAsync(string brain, CapabilityCaller caller, string semanticTypeId, string? targetNeuron = null, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        return IsGrantedAsync(brain, CallerIdentity.From(caller), semanticTypeId, targetNeuron, ct);
+    }
+
+    internal async Task<bool> IsGrantedAsync(string brain, CallerIdentity caller, string semanticTypeId, string? targetNeuron = null, CancellationToken ct = default)
     {
         var grants = await GetGrantsAsync(brain, ct).ConfigureAwait(false);
         var principals = await ExpandAsync(brain, caller).ConfigureAwait(false);
@@ -217,6 +233,15 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
 
     private T? ResolveNeuron<T>(string key) where T : class
     {
+        if (_resolveNeuron is not null)
+        {
+            var id = SiloNeurons.IdOf(typeof(T), key);
+            if (_resolveNeuron(typeof(T), id) is T testNeuron)
+            {
+                return testNeuron;
+            }
+        }
+
         if (_services is null)
         {
             return null;
@@ -232,35 +257,17 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
             return resolved;
         }
 
-        if (_listeners is not null)
-        {
-            var lType = _listeners.GetType();
-            var osMember = lType.GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                .FirstOrDefault(f => f.FieldType.Name == "TestOS") as System.Reflection.MemberInfo
-                ?? lType.GetProperties(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                .FirstOrDefault(p => p.PropertyType.Name == "TestOS");
-
-            if (osMember is not null)
-            {
-                var os = osMember is System.Reflection.FieldInfo fi ? fi.GetValue(_listeners) : ((System.Reflection.PropertyInfo)osMember).GetValue(_listeners);
-                if (os is not null)
-                {
-                    var id = SiloNeurons.IdOf(typeof(T), key);
-                    var getMethod = os.GetType().GetMethod("Get", [typeof(DigitalBrain.NeuronId)])?.MakeGenericMethod(typeof(T));
-                    if (getMethod?.Invoke(os, [id]) is T testNeuron)
-                    {
-                        return testNeuron;
-                    }
-                }
-            }
-        }
-
         return SiloNeurons.Get<T>(_services, key);
     }
 
-    public async Task<bool> IsConnectionBoundAsync(string brain, CapabilityCaller caller, string targetOrConnectionKey, CancellationToken ct = default)
+    public Task<bool> IsConnectionBoundAsync(string brain, CapabilityCaller caller, string targetOrConnectionKey, CancellationToken ct = default)
+        => caller is null
+            ? Task.FromResult(false)
+            : IsConnectionBoundAsync(brain, CallerIdentity.From(caller), targetOrConnectionKey, ct);
+
+    internal async Task<bool> IsConnectionBoundAsync(string brain, CallerIdentity caller, string targetOrConnectionKey, CancellationToken ct = default)
     {
-        if (caller is null || string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
+        if (string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
         var callerAppKey = GrantRules.AppOf(caller);
         if (string.IsNullOrEmpty(callerAppKey)) { return false; }
 
@@ -294,9 +301,14 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     }
 
     // The target's brain answers first, then the caller's own. Grain turns await this one.
-    public async Task<bool> IsConnectionBoundAsync(CapabilityCaller caller, string? targetOrConnectionKey)
+    public Task<bool> IsConnectionBoundAsync(CapabilityCaller caller, string? targetOrConnectionKey)
+        => caller is null
+            ? Task.FromResult(false)
+            : IsConnectionBoundAsync(CallerIdentity.From(caller), targetOrConnectionKey);
+
+    internal async Task<bool> IsConnectionBoundAsync(CallerIdentity caller, string? targetOrConnectionKey)
     {
-        if (caller is null || string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
+        if (string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
         if (TryExtractBrain(targetOrConnectionKey, out var targetBrain))
         {
             if (await IsConnectionBoundAsync(targetBrain.Value, caller, targetOrConnectionKey)) { return true; }
@@ -309,8 +321,11 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     }
 
     public bool IsConnectionBound(CapabilityCaller caller, string? targetOrConnectionKey)
+        => caller is not null && IsConnectionBound(CallerIdentity.From(caller), targetOrConnectionKey);
+
+    internal bool IsConnectionBound(CallerIdentity caller, string? targetOrConnectionKey)
     {
-        if (caller is null || string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
+        if (string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
         if (TryExtractBrain(targetOrConnectionKey, out var targetBrain))
         {
             if (IsConnectionBoundInMemory(targetBrain.Value, caller, targetOrConnectionKey)) { return true; }
@@ -322,7 +337,7 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
             && IsConnectionBoundInMemory(caller.BrainId, caller, targetOrConnectionKey);
     }
 
-    private bool IsConnectionBoundInMemory(string brain, CapabilityCaller caller, string targetOrConnectionKey)
+    private bool IsConnectionBoundInMemory(string brain, CallerIdentity caller, string targetOrConnectionKey)
     {
         var callerAppKey = GrantRules.AppOf(caller);
         if (string.IsNullOrEmpty(callerAppKey)) { return false; }

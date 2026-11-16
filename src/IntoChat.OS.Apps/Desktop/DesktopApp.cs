@@ -18,6 +18,7 @@ using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Modules.Flutter.Workspace.Signals;
+using IntoChat.OS.Primitives;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
@@ -75,9 +76,7 @@ public sealed record DesktopSettings : Signal;
 [Neuron("app.desktop")]
 public sealed class DesktopApp : Screen<DesktopAppState>
 {
-    private static readonly ILoggerFactory ConsoleLogFactory =
-        LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
-    private static readonly ILogger ConsoleLog = ConsoleLogFactory.CreateLogger<DesktopApp>();
+    private static readonly ILogger ConsoleLog = IntoChat.OS.Framework.Logging.OsConsoleLog.For<DesktopApp>();
     private readonly ILogger<DesktopApp>? _logger;
 
     public DesktopApp() : this(null) { }
@@ -205,6 +204,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
+        AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
         try { await Follow<IWorkspace, WorkspaceChanged>("main"); }
         catch (Exception ex) { Log.LogSwallowed(ex, "Workspace follow is optional when running in standalone mode."); }
@@ -376,7 +376,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         await ApplyDesktopWorkspaceChangeAsync(s =>
         {
             if (s.Pins.Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase)) == isPin) { return (null, []); }
-            var appKey = IApp.Key(brain, appId);
+            var appKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), appId).Key;
             WorkspaceViewRef[] nextPins = isPin
                 ? [.. s.Pins, new WorkspaceViewRef(appId, appKey, "full", string.Empty)]
                 : [.. s.Pins.Where(p => !string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase))];
@@ -504,7 +504,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             return VStack(0, [
                 new Row(chromeButtons) { Gap = 4, Extents = [0, .. chromeButtons.Skip(1).Select(_ => 32.0)] },
                 Tabs($"{winId}/{activeIndex}", tabItems),
-                Slot(brain is { Length: > 0 } ? $"{brain}/apps/desktop/window/{winId}" : $"apps/desktop/window/{winId}", "viewport"),
+                Slot(brain is { Length: > 0 } ? IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildKey($"window/{winId}") : $"apps/desktop/window/{winId}", "viewport"),
             ]).Extents(40, 38, 0);
         }
 
@@ -696,7 +696,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         {
             try
             {
-                var viewport = Get<IViewport>($"{brain}/apps/desktop/window/{winId}");
+                var viewport = Get<IViewport>(IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildKey($"window/{winId}"));
                 var currentVp = await viewport.Read();
                 if (currentVp.Target is not null)
                 {

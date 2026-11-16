@@ -19,6 +19,7 @@ using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Primitives;
 using IntoChat.OS.ServiceDefaults;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
 
@@ -99,10 +100,11 @@ public sealed class Tier2_BoundaryCornerFacts
     [Fact]
     [Trait("Category", "Tier2_BoundaryCorner")]
     [Trait("Feature", "F2")]
-    public void F2_B01_IApp_Key_SpecialCharactersInBrain_HandlesVerbatim()
+    public void F2_B01_AppRef_SpecialCharactersInBrain_HandlesVerbatim()
     {
-        var key = IApp.Key("brain:alpha-01.test", "my_app-v2");
-        Assert.Equal("brain:alpha-01.test/apps/my_app-v2", key);
+        Assert.False(BrainId.IsValid("brain:alpha-01.test"));
+        var key = IntoChat.OS.Primitives.AppRef.Of(new BrainId("brain.alpha-01.test"), "my_app-v2").Key;
+        Assert.Equal("brain.alpha-01.test/apps/my_app-v2", key);
     }
 
     [Fact]
@@ -330,7 +332,7 @@ public sealed class Tier2_BoundaryCornerFacts
     public void F5_B03_CallRequest_PathTraversalNeuronName_TreatedAsLiteralString()
     {
         var caller = CapabilityCallers.Of("u", "a", "b");
-        var req = new CallRequest { Caller = caller.ToCaller(), TargetNeuron = "../../etc/shadow", Operation = "read" };
+        var req = new CallRequest { Caller = IntoChat.OS.Tests.TestEdge.From(caller), TargetNeuron = "../../etc/shadow", Operation = "read" };
         Assert.Equal("../../etc/shadow", req.TargetNeuron);
     }
 
@@ -350,7 +352,7 @@ public sealed class Tier2_BoundaryCornerFacts
     public void F5_B05_CallRequest_Defaults_EnforceTargetAndPublicOperationFalse()
     {
         var caller = CapabilityCallers.Of("u", "a", "b");
-        var req = new CallRequest { Caller = caller.ToCaller(), TargetNeuron = "target", Operation = "op" };
+        var req = new CallRequest { Caller = IntoChat.OS.Tests.TestEdge.From(caller), TargetNeuron = "target", Operation = "op" };
         Assert.False(request_PublicOperation(req));
         Assert.False(req.EnforceTarget);
 

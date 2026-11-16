@@ -3,6 +3,7 @@ using DigitalBrain.Modules;
 using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using IntoChat.Cloud.Mail.Templates;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 
 namespace IntoChat.Cloud.Mail.Tests;
@@ -29,10 +30,11 @@ public sealed class MailFacts
     public async Task ACodeAddressIsLimitedToFiveAnHourAndFortyTwoSecondsApart()
     {
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 29, 12, 0, 0, TimeSpan.Zero));
-        var neuron = new MailRateNeuron(clock);
-        var context = new FakeNeuronContext(new NeuronId(new BrainId("system-01"), IMailRate.Type, "mail-rate/h/SignupCode"));
-        NeuronAttachment.Attach(neuron, context);
-        await NeuronAttachment.Activate(neuron, CancellationToken.None);
+        var services = new ServiceCollection()
+            .AddSingleton<TimeProvider>(clock)
+            .BuildServiceProvider();
+        await using var os = TestOS.Local(o => o.Services = services).Register(typeof(MailModule).Assembly);
+        var neuron = os.Get<IMailRate>(new NeuronId(new BrainId("system-01"), IMailRate.Type, "mail-rate/h/SignupCode"));
 
         Assert.True((await neuron.TryAcquire(MailTemplateId.SignupCode)).Allowed);
         var cooled = await neuron.TryAcquire(MailTemplateId.SignupCode);

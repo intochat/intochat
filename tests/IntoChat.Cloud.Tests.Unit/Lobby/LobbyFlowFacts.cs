@@ -10,6 +10,7 @@ using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using IntoChat.Cloud.Localization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 
 namespace IntoChat.Cloud.Lobby.Tests;
@@ -309,7 +310,12 @@ public sealed class LobbyFlowFacts
     {
         var auth = new Scripted();
         var clock = new FakeTimeProvider(Now);
-        var neuron = new LobbyNeuron(auth, new TableLocalizer(), clock);
+        var services = new ServiceCollection()
+            .AddSingleton<ILobbyAuth>(auth)
+            .AddSingleton<ILocalizer>(new TableLocalizer())
+            .AddSingleton<TimeProvider>(clock)
+            .BuildServiceProvider();
+        var neuron = ActivatorUtilities.CreateInstance<LobbyNeuron>(services);
         var context = new FakeNeuronContext(new NeuronId(new BrainId("lobby"), LobbyNeuron.Type, key));
         NeuronAttachment.Attach(neuron, context);
         await NeuronAttachment.Activate(neuron, CancellationToken.None);

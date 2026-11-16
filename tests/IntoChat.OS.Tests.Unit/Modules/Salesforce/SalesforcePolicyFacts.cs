@@ -14,40 +14,36 @@ namespace IntoChat.OS.Modules.Salesforce.Tests.Unit;
 
 public sealed class SalesforcePolicyFacts
 {
-    private static readonly NeuronId PoliciesId = NeuronId.Parse(IPolicies.Key("b"));
-
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static Task Adopt(TestOS os, PolicyRule rule) => os.AdoptPolicy("b", rule, Ct);
 
-    private static async Task<(TestOS Os, SalesforceNeuron Neuron, FakeSalesforceProvider Provider)> CreateHarnessAsync()
+    private static Task<(TestOS Os, ISalesforce Neuron, FakeSalesforceProvider Provider)> CreateHarnessAsync()
     {
-        var os = TestOS.Local().Register(typeof(SalesforceModule).Assembly);
         var provider = new FakeSalesforceProvider();
         var services = new ServiceCollection()
             .AddSingleton(TimeProvider.System)
+            .AddSingleton<ISalesforceProvider>(provider)
             .AddSingleton<ISecretSealer>(new PassthroughSealer())
             .BuildServiceProvider();
+        var os = TestOS.Local(o => o.Services = services).Register(typeof(SalesforceModule).Assembly);
 
         var id = new NeuronId(new BrainId("b"), "salesforce", "connection/salesforce/c1");
-        var context = new FakeNeuronContext(id, services);
-        context.Proxies.Register(PoliciesId, os.Get<IPolicies>(PoliciesId));
-        await context.MemoryState.Save(
-            new SalesforceState
-            {
-                Status = ConnectionStatus.Connected,
-                Account = "https://acme.my.salesforce.com/",
-                Secrets = new Dictionary<string, SealedSecret>(StringComparer.Ordinal)
+        os.SeedStoredState(
+            id,
+            JsonSerializer.Serialize(
+                new SalesforceState
                 {
-                    ["access"] = new SealedSecret { KeyId = "mk", Cipher = "sf-token" },
+                    Status = ConnectionStatus.Connected,
+                    Account = "https://acme.my.salesforce.com/",
+                    Secrets = new Dictionary<string, SealedSecret>(StringComparer.Ordinal)
+                    {
+                        ["access"] = new SealedSecret { KeyId = "mk", Cipher = "sf-token" },
+                    },
                 },
-            },
-            []);
+                DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(SalesforceState))));
 
-        var neuron = new SalesforceNeuron(provider, TimeProvider.System);
-        NeuronAttachment.Attach(neuron, context);
-        await NeuronAttachment.Activate(neuron, CancellationToken.None);
-        return (os, neuron, provider);
+        return Task.FromResult((os, os.Get<ISalesforce>(id), provider));
     }
 
     [Fact]

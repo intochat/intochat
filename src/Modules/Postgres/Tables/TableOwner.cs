@@ -7,7 +7,7 @@ namespace IntoChat.OS.Modules.Postgres.Tables;
 // The identity every app table and table index is keyed by: one brain, one installed app.
 // The key is the grain key, {brain}/tables/{escaped app key}; it is parsed back wherever a guard
 // needs to know whose grain it is.
-public readonly record struct TableOwner(string BrainId, string AppId)
+internal readonly record struct TableOwner(string BrainId, string AppId)
 {
     private const string Segment = "tables";
 

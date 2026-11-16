@@ -1,8 +1,10 @@
 using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Kernel.Sandbox;
 
@@ -15,7 +17,8 @@ internal sealed class SdkAiAdapter(IServiceProvider services)
     public async Task<string> AskAsync(string brainId, string prompt, string? systemPrompt, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
-        using (InProcessCallerScope.EnterKernel(brainId))
+        var edge = services.GetService<EdgeAuthority>();
+        using (edge?.Enter(edge.Module("sandbox.ai", new BrainId(brainId))))
         {
             var messages = new List<AiMessage>();
             if (!string.IsNullOrWhiteSpace(systemPrompt))

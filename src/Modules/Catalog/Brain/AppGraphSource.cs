@@ -20,7 +20,8 @@ internal sealed class AppGraphSource(IServiceProvider services) : IGraphSource
     public async Task Contribute(BrainId brain, GraphSink sink, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(sink);
-        using var _ = InProcessCallerScope.Enter();
+        var edge = services.GetService<DigitalBrain.Access.EdgeAuthority>();
+        using var _ = edge?.Enter(edge.Module("apps.graph", brain));
         var kernel = services.GetService<IBrainObserver>();
         var proxies = services.GetService<INeuronProxies>();
         List<(string Name, AppSnapshot Snapshot)> apps = [];

@@ -3,7 +3,7 @@ using DigitalBrain.Capabilities.Compute;
 namespace IntoChat.OS.Modules.Google.Auth;
 
 // Shared by the three Google modules: each declares its own operations against this one informational list.
-public sealed class GooglePriceList : IPriceList
+internal sealed class GooglePriceList : IPriceList
 {
     public GooglePriceList() { }
     public long? MicrosPerUnit(CostKind kind, string item) => null;

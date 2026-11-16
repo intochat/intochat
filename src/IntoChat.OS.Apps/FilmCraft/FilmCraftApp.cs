@@ -126,6 +126,7 @@ public sealed class FilmCraftApp : ArtCraftStudioAppCore<FilmCraftAppState>
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
+        AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
         if (IsLegacyUnhostedWasmState(State.ExecutionMode, State.WebUrl))
         {

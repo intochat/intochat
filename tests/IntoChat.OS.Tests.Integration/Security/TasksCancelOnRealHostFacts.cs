@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Confirmation;
@@ -75,7 +76,7 @@ public sealed class TasksCancelOnRealHostFacts
 
         // What the button would send (ScreenAppEmitBridge: screen.Request("tasks.cancel")), stamped as McpCaller stamps an MCP
         // client. In process: no route gives an MCP client this request while the card is not published.
-        using (InProcessCallerScope.Enter())
+        using (Edge(host).EnterInProcess())
         using (RuntimeCallerContext.Stamp(McpCaller.AsAgent(Person(host))))
         {
             await TasksScreen(host).Request("tasks.cancel", JsonSerializer.SerializeToElement(new { flowId }));
@@ -153,7 +154,7 @@ public sealed class TasksCancelOnRealHostFacts
     private static async Task<(string FlowId, string PlanId)> PlanWaitingForApproval(EdgeKernelHarness host)
     {
         string flowId;
-        using (InProcessCallerScope.Enter())
+        using (Edge(host).EnterInProcess())
         using (RuntimeCallerContext.Stamp(Person(host)))
         {
             flowId = await Flows(host).Start(PlanFlow.Alias, "Notes", null, JsonSerializer.Serialize(new PlanInner { Goal = "Keep notes" }, PlanFlow.Json), Ct);
@@ -172,12 +173,14 @@ public sealed class TasksCancelOnRealHostFacts
     {
         var view = await ReadFlow(host, flowId);
         Assert.Equal((FlowStatus.Waiting, "approve", WaitReason.Approval), (view.Status, view.WaitingStep, view.WaitingFor));
-        using (InProcessCallerScope.EnterKernel(host.Scope))
+        using (Edge(host).EnterKernel(new BrainId(host.Scope)))
         {
             Assert.Equal(FlowStatus.Waiting, (await Proxies(host).Get<IFlowStarter>(Id(flowId)).Head()).Status);
         }
         Assert.True(await IsPending(host, planId));
     }
+
+    private static EdgeAuthority Edge(EdgeKernelHarness host) => host.Services.GetRequiredService<EdgeAuthority>();
 
     private static INeuronProxies Proxies(EdgeKernelHarness host) => host.Services.GetRequiredService<INeuronProxies>();
 
@@ -193,13 +196,13 @@ public sealed class TasksCancelOnRealHostFacts
 
     private static async Task<FlowView> ReadFlow(EdgeKernelHarness host, string flowId)
     {
-        using var _ = InProcessCallerScope.EnterKernel(host.Scope);
+        using var _ = Edge(host).EnterKernel(new BrainId(host.Scope));
         return await Flows(host).Read(flowId, Ct) ?? throw new InvalidOperationException($"The index has no flow {flowId}.");
     }
 
     private static async Task<bool> IsPending(EdgeKernelHarness host, string planId)
     {
-        using var _ = InProcessCallerScope.EnterKernel(host.Scope);
+        using var _ = Edge(host).EnterKernel(new BrainId(host.Scope));
         var inbox = await Proxies(host).Get<IConfirmationInbox>(IConfirmationInbox.Key(host.Scope)).Read();
         return inbox.Pending.Any(pending => string.Equals(pending.PlanId, planId, StringComparison.Ordinal));
     }

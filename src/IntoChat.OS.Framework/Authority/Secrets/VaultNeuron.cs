@@ -34,7 +34,7 @@ internal sealed class VaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IVau
     public async Task<SecretRef> Set(CapabilityCaller caller, string name, string label, string value)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        await Check("Set", new CallerCanStoreSecret(!(caller.Kind == CallerKind.User && caller.PrincipalId != Principal())));
+        await Check("Set", new CallerCanStoreSecret(caller, Principal()));
 
         var next = Copy(State);
         next.Owner = Principal();
@@ -47,9 +47,7 @@ internal sealed class VaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IVau
     {
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        var isOwner = caller.Kind == CallerKind.User && caller.PrincipalId == Principal();
-        var isPlatform = caller.Kind == CallerKind.Platform && caller.StampedBy == TrustedEdge.Platform;
-        await Check("Remove", new CallerCanRemoveSecret(isOwner || isPlatform));
+        await Check("Remove", new CallerCanRemoveSecret(caller, Principal()));
 
         if (!Copy(State).Fields.ContainsKey(name)) { return; }
         var next = Copy(State);

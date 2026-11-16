@@ -83,9 +83,11 @@ public static class CreatorInspector
     {
         if (inspection.Alias is not { } alias)
         {
-            yield return Card(inspection.Id, inspection.Id.Contains("/apps/", StringComparison.Ordinal) ? "Compiled OS Application" : "Kernel System Neuron");
-            if (inspection.Id.Split("/apps/") is [_, var app] && app.Length > 0)
+            var isApp = IntoChat.OS.Primitives.AppRef.TryParse(inspection.Id, out var appRef);
+            yield return Card(inspection.Id, isApp ? "Compiled OS Application" : "Kernel System Neuron");
+            if (isApp)
             {
+                var app = appRef.Name;
                 yield return HStack(Space.Xs)[
                     PrimaryButton($"Preview {app} in Studio", "eye")
                         .Key("preview-compiled-app")

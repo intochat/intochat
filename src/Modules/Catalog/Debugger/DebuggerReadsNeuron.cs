@@ -15,7 +15,7 @@ namespace IntoChat.OS.Modules.Apps.Debugger;
 // The Creator's reads, run inside the brain. State and View forward to the unit's state neuron; Signals finds the journal's head
 // and reads back a window of it; Topology is the loaded synapse catalog plus the compiled apps.
 [Neuron("creator.reads"), StatelessNeuron]
-public sealed class DebuggerReadsNeuron(
+internal sealed class DebuggerReadsNeuron(
     ISignalHistory history,
     ISynapseCatalogSource? catalogSource = null,
     IEnumerable<CompiledAppsRegistration>? appRegistrations = null,

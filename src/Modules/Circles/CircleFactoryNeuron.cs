@@ -81,7 +81,8 @@ internal sealed class CircleFactoryNeuron(
         List<AppPublication> items = [];
         HashSet<string> unavailable = new(StringComparer.Ordinal);
         MarketplaceListing[] listings;
-        using (InProcessCallerScope.EnterKernel("system"))
+        var edge = plain.GetService<EdgeAuthority>();
+        using (edge?.Enter(edge.Module("circles", new DigitalBrain.BrainId("system"))))
         {
             listings = await SiloNeurons.Get<IMarketplace>(plain, IMarketplace.Key).List();
         }

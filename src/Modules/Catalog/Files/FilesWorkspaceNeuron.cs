@@ -170,7 +170,8 @@ internal sealed partial class FilesWorkspaceNeuron(
                     try
                     {
                         var enrichedPrompt = !string.IsNullOrWhiteSpace(app.Snapshot.Preview) && !string.Equals(app.Snapshot.Preview, FilesCopy.PreviewUnavailable, StringComparison.Ordinal) ? $"{prompt}\n\n[File Preview]\n{(app.Snapshot.Preview.Length <= 1200 ? app.Snapshot.Preview : app.Snapshot.Preview[..1200])}" : prompt;
-                        using (InProcessCallerScope.Enter())
+                        var edge = services.GetService<EdgeAuthority>();
+                        using (edge?.EnterInProcess())
                         {
                             await DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.Get<IApp>(services, IntoChat.OS.Primitives.AppRef.Of(Id.Brain, ShippedApps.Ino).Key).Request("send", enrichedPrompt);
                         }
@@ -315,7 +316,8 @@ internal sealed partial class FilesWorkspaceNeuron(
 
     private async Task WithAppCallerAsync(Func<Task> action)
     {
-        using (InProcessCallerScope.Enter())
+        var edge = services.GetService<EdgeAuthority>();
+        using (edge?.EnterInProcess())
         {
             await action();
         }

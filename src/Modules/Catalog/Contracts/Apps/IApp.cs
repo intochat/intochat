@@ -48,9 +48,6 @@ public interface IApp
     // args JSON), so the signal must be a declared operation and every request rule applies.
     Task<Guid> Emit(string signal, string args);
 
-    // Compatibility helper retained for IntoChat.OS.Apps until Wave 3B removes IApp.Key.
-    static string Key(string brainId, string name) => $"{brainId}/apps/{name}";
-
     // The app's name when an instance key is one of this brain's apps; brain.Kernel.Instances<IApp>() lists them.
     static string? NameOf(string brainId, string key) =>
         DigitalBrain.BrainId.IsValid(brainId) && IntoChat.OS.Primitives.AppRef.TryParse(new DigitalBrain.BrainId(brainId), key, out var app)

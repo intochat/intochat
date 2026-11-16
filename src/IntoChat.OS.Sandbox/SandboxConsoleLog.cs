@@ -15,6 +15,8 @@ internal static class SandboxConsoleLog
 
     public static ILogger<T> For<T>() => Holder<T>.Instance;
 
+    public static ILogger For(Type type) => Factory.CreateLogger(type);
+
     private static class Holder<T>
     {
         public static readonly ILogger<T> Instance = Factory.CreateLogger<T>();

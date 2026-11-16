@@ -11,6 +11,7 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter.Screens;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Flutter.Workspace;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Creator;
 
@@ -174,7 +175,12 @@ public sealed class Creator3PaneFacts
         using var person = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(
             DigitalBrain.Capabilities.CapabilityCallers.Of("alice", "alice", "test-brain"));
         var proxies = new MockProxies();
-        var screenDirectory = new ScreenDirectoryNeuron(proxies, "test-brain");
+        var services = new ServiceCollection()
+            .AddSingleton<INeuronProxies>(proxies)
+            .BuildServiceProvider();
+        await using var os = DigitalBrain.Testing.TestOS.Local(o => o.Services = services)
+            .Register(typeof(IntoChat.OS.Modules.Flutter.FlutterModule).Assembly);
+        var screenDirectory = os.Get<IScreenDirectory>(new NeuronId(new BrainId("test-brain"), IScreenDirectory.TypeName, IScreenDirectory.Key("test-brain")));
 
         var summaries = await screenDirectory.List();
         var creatorSummary = Assert.Single(summaries, s => s.AppId == "creator");
@@ -203,6 +209,10 @@ public sealed class Creator3PaneFacts
                 return (T)(object)Approvals;
             }
             if (typeof(T) == typeof(IConfirmationInbox))
+            {
+                return (T)(object)Inbox;
+            }
+            if (typeof(T) == typeof(IConfirmationRequests))
             {
                 return (T)(object)Inbox;
             }
@@ -249,16 +259,41 @@ public sealed class Creator3PaneFacts
         }
     }
 
-    private sealed class MockInbox : IConfirmationInbox
+    private sealed class MockInbox : IConfirmationInbox, IConfirmationRequests
     {
+        private readonly HashSet<string> _pending = new(["plan-cf-77"], StringComparer.Ordinal);
+        private readonly Dictionary<string, ConfirmationResult> _outcomes = new(StringComparer.Ordinal);
         public List<(string PlanId, bool Approved)> Resolved { get; } = [];
 
-        public Task<ConfirmationInbox> Read()
-            => Task.FromResult(new ConfirmationInbox(0L, []));
+        public Task<ConfirmationInbox> Read() => Task.FromResult(new ConfirmationInbox(
+            0L,
+            [.. _pending.Select(planId => new ConfirmationRequested(
+                planId,
+                new ConfirmationPlan(planId, ConfirmationAction.Other, false, planId, planId, "Approve", "Deny", planId),
+                ConfirmationPrincipal.App("creator"),
+                default,
+                DateTimeOffset.UtcNow.AddHours(1)))]));
 
         public Task Resolve(string planId, bool approved)
         {
             Resolved.Add((planId, approved));
+            _pending.Remove(planId);
+            _outcomes[planId] = new ConfirmationResult(
+                planId,
+                approved ? ConfirmationOutcome.Approved : ConfirmationOutcome.Denied,
+                approved ? ConfirmationDenyReason.None : ConfirmationDenyReason.ByPerson,
+                Skipped: false);
+            return Task.CompletedTask;
+        }
+
+        public Task<ConfirmationResult?> Request(ConfirmationPlan plan) => Task.FromResult<ConfirmationResult?>(null);
+
+        public Task<ConfirmationResult?> Outcome(string planId)
+            => Task.FromResult(_outcomes.TryGetValue(planId, out var outcome) ? outcome : null);
+
+        public Task Withdraw(string planId)
+        {
+            _pending.Remove(planId);
             return Task.CompletedTask;
         }
     }

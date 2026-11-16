@@ -5,7 +5,7 @@ using NAudio.Wave;
 namespace IntoChat.OS.Modules.AI;
 
 // Telegram-class Ogg Opus → PCM WAV (IAW AudioConverter port).
-public sealed class OggOpusToWavConverter : IAudioConverter
+internal sealed class OggOpusToWavConverter : IAudioConverter
 {
     private const int SampleRate = 48000;
     private const int BitsPerSample = 16;

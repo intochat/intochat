@@ -1,3 +1,5 @@
+using global::Microsoft.Extensions.DependencyInjection;
+
 namespace IntoChat.OS.Modules.Microsoft.Azure.Tests.Unit;
 
 internal sealed class RecordingAzure : IAzureArm
@@ -50,7 +52,11 @@ internal static class AzureNeurons
 {
     public static AzureNeuron Create(IAzureArm arm, string subscription)
     {
-        var neuron = new AzureNeuron(arm) { SubscriptionOverride = subscription };
+        var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection()
+            .AddSingleton(arm)
+            .BuildServiceProvider();
+        var neuron = global::Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance<AzureNeuron>(services);
+        neuron.SubscriptionOverride = subscription;
         DigitalBrain.Neurons.NeuronAttachment.Attach(neuron, new DigitalBrain.Testing.FakeNeuronContext(
             new DigitalBrain.NeuronId(new DigitalBrain.BrainId("facts"), "azure", "connection/azure/" + subscription)));
         return neuron;

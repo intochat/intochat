@@ -3,7 +3,7 @@ namespace IntoChat.OS.Modules.Apps;
 /// <summary>
 /// Canonical alias and facade over <see cref="PortableBrainArchive"/> providing brain snapshot export, import, and JSON serialization.
 /// </summary>
-public static class BrainSnapshotArchive
+internal static class BrainSnapshotArchive
 {
     public const string CurrentFormatVersion = PortableBrainArchive.CurrentFormatVersion;
 

@@ -50,6 +50,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
+        AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
         await TryOptionalAsync("settings", () => Follow<IUserSettings, UserSettingsChanged>("settings"));
         await TryOptionalAsync("confirmations-synapses", () => Context.Synapses.EnsureBrainWide([typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged)]));

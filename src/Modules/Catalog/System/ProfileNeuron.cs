@@ -156,7 +156,7 @@ public sealed class ProfileNeuron(ILogger<ProfileNeuron>? logger = null) : Digit
                 TemplateSource: $"[App(\"post.{newPostId.Trim()}\")] public sealed class PostTemplateApp : App<PostState> {{ }}",
                 EmbeddedApps:
                 [
-                    new("canvas", "markdraw", "Markdraw Canvas", $"{brainId}/apps/markdraw"),
+                    new("canvas", "markdraw", "Markdraw Canvas", IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "markdraw").Key),
                 ],
                 AuthorBrainId: brainId);
 

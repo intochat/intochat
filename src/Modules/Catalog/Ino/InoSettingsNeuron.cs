@@ -1,11 +1,13 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Agents.Context;
 
 namespace IntoChat.OS.Modules.Apps;
 
 [DigitalBrain.Neurons.Neuron("ino.settings")]
-public sealed class InoSettingsNeuron : DigitalBrain.Neurons.Neuron, IInoSettings
+internal sealed class InoSettingsNeuron : DigitalBrain.Neurons.Neuron, IInoSettings
 {
     private IUserSettings Settings => Get<IUserSettings>(new DigitalBrain.NeuronId(Id.Brain, "os.settings", "settings"));
 
@@ -22,6 +24,7 @@ public sealed class InoSettingsNeuron : DigitalBrain.Neurons.Neuron, IInoSetting
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoSettingsNeuron>().LogSwallowed(error, $"navigating Settings to '{route}'");
             return new InoToolResult($"Settings is unavailable, so I could not open {label}: {error.Message}");
         }
 
@@ -49,6 +52,7 @@ public sealed class InoSettingsNeuron : DigitalBrain.Neurons.Neuron, IInoSetting
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoSettingsNeuron>().LogSwallowed(error, $"setting default model to '{model}'");
             return new InoToolResult($"Could not switch model to {model}: {error.Message}");
         }
 
@@ -68,6 +72,7 @@ public sealed class InoSettingsNeuron : DigitalBrain.Neurons.Neuron, IInoSetting
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoSettingsNeuron>().LogSwallowed(error, "setting inference temperature");
             return new InoToolResult($"Could not set temperature to {temperature}: {error.Message}");
         }
 
@@ -82,6 +87,7 @@ public sealed class InoSettingsNeuron : DigitalBrain.Neurons.Neuron, IInoSetting
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoSettingsNeuron>().LogSwallowed(error, $"setting Settings variable '{key}'");
             return new InoToolResult($"Could not set variable {key}: {error.Message}");
         }
 

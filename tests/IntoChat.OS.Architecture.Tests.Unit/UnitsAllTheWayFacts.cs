@@ -85,9 +85,9 @@ public sealed partial class UnitsAllTheWayFacts
     public void TheOwnerScopedScanFlagsALiteralOutsideItsOwnerAndNotAnAppNameReference()
     {
         HashSet<string> keys = new(["photocraft", "settings"], StringComparer.Ordinal);
-        Assert.Equal(["photocraft"], Violations("var k = IApp.Key(brain, \"photocraft\");", "Mod/Hosting/Host.cs", keys));
-        Assert.Empty(Violations("var k = IApp.Key(brain, PhotoCraftApp.AppName);", "Mod/Hosting/Host.cs", keys));
-        Assert.Empty(Violations("var k = IApp.Key(brain, \"photocraft\");", "IntoChat.OS.Apps/PhotoCraft/PhotoCraftApp.cs", keys));
+        Assert.Equal(["photocraft"], Violations("var k = AppRef.Of(brain, \"photocraft\");", "Mod/Hosting/Host.cs", keys));
+        Assert.Empty(Violations("var k = AppRef.Of(brain, PhotoCraftApp.AppName);", "Mod/Hosting/Host.cs", keys));
+        Assert.Empty(Violations("var k = AppRef.Of(brain, \"photocraft\");", "IntoChat.OS.Apps/PhotoCraft/PhotoCraftApp.cs", keys));
         Assert.Empty(Violations("var k = Open(\"desktop\", \"ino\");", "Mod/Hosting/Host.cs", keys));
         var verbs = WithoutOperationPositions("DesktopButton(\"more\", \"Settings\", \"settings\", null); AppSignals.Emit(App, \"settings\"); X = Open(\"settings\");");
         Assert.Equal(["settings"], Violations(verbs, "Mod/Hosting/Host.cs", keys));

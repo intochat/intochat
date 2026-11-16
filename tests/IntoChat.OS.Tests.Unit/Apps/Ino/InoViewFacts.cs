@@ -9,6 +9,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 
@@ -186,7 +187,12 @@ public sealed class InoViewFacts
             })
             .Build();
 
-        var neuron = new AspireNeuron(config);
+        var services = new ServiceCollection()
+            .AddSingleton<IConfiguration>(config)
+            .BuildServiceProvider();
+        await using var os = TestOS.Local(o => o.Services = services)
+            .Register(typeof(AspireModule).Assembly);
+        var neuron = os.Get<IAspire>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("owner"), "aspire", "default"));
         var resources = await neuron.GetResourcesAsync();
         Assert.Contains(resources, r => r.Name == "ollama" && r.Endpoint == "http://127.0.0.1:11434" && !r.Endpoint.Contains("pw123", StringComparison.Ordinal));
 

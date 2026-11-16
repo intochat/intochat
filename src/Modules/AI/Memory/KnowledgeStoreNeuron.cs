@@ -10,7 +10,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 namespace IntoChat.OS.Modules.AI.Memory;
 
 [Neuron("ai.knowledge-store", State = "knowledge")]
-public sealed class KnowledgeStoreNeuron : Neuron<KnowledgeStoreState>, IKnowledgeStore
+internal sealed class KnowledgeStoreNeuron : Neuron<KnowledgeStoreState>, IKnowledgeStore
 {
     private const int MaxNodes = 1024;
     private const int MaxEdges = 4096;

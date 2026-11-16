@@ -255,12 +255,11 @@ public sealed class DddReactorAndExplorerFacts
     [Fact]
     public void BankAccountExplorerUnfoldsAccordantStateGraphVerifiesInvariantsAndChecksGuardParity()
     {
-        var screen = new BankScreen();
         var choices = new ChoiceSet()
             .ForParameter("holder", "alice")
             .ForParameter("amount", 50m, 30m, 70m);
 
-        var graph = AggregateExplorer<BankAccount>.ExploreScreen(screen, choices, maxStates: 16);
+        var graph = AggregateExplorer<BankAccount>.ExploreScreen<BankScreen>(choices, maxStates: 16);
         graph.EnsureHealthy();
 
         Assert.True(graph.IsHealthy);

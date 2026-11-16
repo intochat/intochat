@@ -5,7 +5,7 @@ using Microsoft.Extensions.AI;
 
 namespace IntoChat.OS.Modules.AI.Models;
 
-public sealed class InferenceService(ModelCatalog catalog) : IModelInference
+internal sealed class InferenceService(ModelCatalog catalog) : IModelInference
 {
     bool IModelInference.HasProfile(string name) => HasProfile(name);
 

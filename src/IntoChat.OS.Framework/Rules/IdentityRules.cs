@@ -24,16 +24,6 @@ internal sealed record PrincipalIdIsValid(string PrincipalId) : Rule("identity.p
 
 internal sealed record PrincipalIdIsAvailable(string PrincipalId, PrincipalRow? ExistingPrincipal) : Rule("identity.principal-id-available")
 {
-    // LEGACY(Wave 3B): drop once DirectoryNeuron & GuestSurfaceFacts pass PrincipalRow?.
-    internal PrincipalIdIsAvailable(string PrincipalId, bool AlreadyTaken)
-        : this(PrincipalId, AlreadyTaken ? new PrincipalRow
-        {
-            PrincipalId = PrincipalId,
-            DefaultMembership = new Member { PrincipalId = PrincipalId, AccountId = "", BrainId = "", Role = MemberRole.Member, DisplayName = "" },
-        } : null)
-    {
-    }
-
     // The try- prefix marks a guest (GuestSurface): no registered principal may carry it.
     public override bool Broken => PrincipalId is "owner" or "integrations"
         || PrincipalId.StartsWith(GuestSurface.BrainPrefix, StringComparison.Ordinal)
@@ -43,24 +33,12 @@ internal sealed record PrincipalIdIsAvailable(string PrincipalId, PrincipalRow? 
 
 internal sealed record BrainIsProvisioned(string BrainId, BrainRow? Brain) : Rule("identity.brain-provisioned")
 {
-    // LEGACY(Wave 3B): drop once DirectoryNeuron passes BrainRow?.
-    internal BrainIsProvisioned(string BrainId, bool Provisioned)
-        : this(BrainId, Provisioned ? new BrainRow { BrainId = BrainId } : null)
-    {
-    }
-
     public override bool Broken => Brain is null;
     public override string Message => $"Brain {BrainId} is not provisioned.";
 }
 
 internal sealed record MemberIsNotBrainOwner(string BrainId, string? TargetAccountOrPrincipalId, BrainRow? Brain, Member? Member) : Rule("identity.member-not-brain-owner")
 {
-    // LEGACY(Wave 3B): drop once DirectoryNeuron passes domain target, BrainRow?, and Member?.
-    internal MemberIsNotBrainOwner(string BrainId, bool IsOwner)
-        : this(BrainId, IsOwner ? "owner" : null, IsOwner ? new BrainRow { BrainId = BrainId, AccountId = "owner" } : null, null)
-    {
-    }
-
     public override bool Broken => Member?.Role == MemberRole.Owner
         || (Brain is not null && !string.IsNullOrEmpty(TargetAccountOrPrincipalId)
             && (TargetAccountOrPrincipalId == Brain.AccountId
@@ -70,24 +48,12 @@ internal sealed record MemberIsNotBrainOwner(string BrainId, string? TargetAccou
 
 internal sealed record BrainAuthorityIsInitialized(BrainRow? Brain) : Rule("identity.brain-authority-initialized")
 {
-    // LEGACY(Wave 3B): drop once DirectoryNeuron passes BrainRow?.
-    internal BrainAuthorityIsInitialized(bool Initialized)
-        : this(Initialized ? new BrainRow() : null)
-    {
-    }
-
     public override bool Broken => Brain is null;
     public override string Message => "Initialize the brain authority before granting access.";
 }
 
 internal sealed record MemberIsOwnerRole(Member Member) : Rule("identity.member-is-owner-role")
 {
-    // LEGACY(Wave 3B): drop once DirectoryNeuron passes Member.
-    internal MemberIsOwnerRole(bool IsOwner)
-        : this(new Member { PrincipalId = "", AccountId = "", BrainId = "", Role = IsOwner ? MemberRole.Owner : MemberRole.Member, DisplayName = "" })
-    {
-    }
-
     public override bool Broken => Member.Role != MemberRole.Owner;
     public override string Message => "An owner is required.";
 }
@@ -100,50 +66,24 @@ internal sealed record BrainOwnerMatches(string BrainId, string CurrentOwner, st
 
 internal sealed record BrainHasSingleOwner(Member Member) : Rule("identity.brain-has-single-owner")
 {
-    // LEGACY(Wave 3B): drop once DirectoryNeuron passes Member.
-    internal BrainHasSingleOwner(bool IsDifferentOwner)
-        : this(new Member { PrincipalId = "", AccountId = "", BrainId = "", Role = IsDifferentOwner ? MemberRole.Owner : MemberRole.Member, DisplayName = "" })
-    {
-    }
-
     public override bool Broken => Member.Role == MemberRole.Owner;
     public override string Message => "A brain has one owner, its creator.";
 }
 
 internal sealed record MemberRoleMatches(MemberRole ExistingRole, MemberRole RequestedRole) : Rule("identity.member-role-matches")
 {
-    // LEGACY(Wave 3B): drop once DirectoryNeuron passes MemberRole pair.
-    internal MemberRoleMatches(bool RoleMatches)
-        : this(MemberRole.Member, RoleMatches ? MemberRole.Member : MemberRole.Owner)
-    {
-    }
-
     public override bool Broken => ExistingRole != RequestedRole;
     public override string Message => "Membership role conflict.";
 }
 
 internal sealed record BrainKindIsMutable(BrainRow Brain) : Rule("identity.brain-kind-mutable")
 {
-    // LEGACY(Wave 3B): drop once DirectoryNeuron passes BrainRow.
-    internal BrainKindIsMutable(string BrainId, string CurrentKind, bool OwnerProvisioned)
-        : this(new BrainRow
-        {
-            BrainId = BrainId,
-            Kind = Enum.TryParse<BrainKind>(CurrentKind, ignoreCase: true, out var kind) ? kind : BrainKind.Personal,
-            OwnerProvisioned = OwnerProvisioned,
-        })
-    {
-    }
-
     public override bool Broken => Brain.OwnerProvisioned;
     public override string Message => $"Brain {Brain.BrainId} is a {Brain.Kind} brain; its kind is fixed.";
 }
 
 internal sealed partial record ContactListNameIsValid(string List) : Rule("identity.contact-list-name-valid")
 {
-    // LEGACY(Wave 3B): drop once ContactsNeuron passes only List.
-    internal ContactListNameIsValid(string List, bool _) : this(List) { }
-
     [GeneratedRegex("^[a-z0-9][a-z0-9-]{0,39}$")]
     private static partial Regex ListNameRegex();
 
@@ -198,24 +138,12 @@ internal sealed record AuthMethodIsOffered(ConnectorCatalogEntry? Connector, str
 
 internal sealed record CallerCanStoreSecret(CapabilityCaller Caller, string OwnerPrincipal) : Rule("identity.caller-can-store-secret")
 {
-    // LEGACY(Wave 3B): drop once VaultNeuron passes CapabilityCaller and owner principal.
-    internal CallerCanStoreSecret(bool CanStore)
-        : this(new CapabilityCaller(CanStore ? "owner" : "caller", "acct", "vault"), "owner")
-    {
-    }
-
     public override bool Broken => Caller.Kind == CallerKind.User && Caller.PrincipalId != OwnerPrincipal;
     public override string Message => "Only the owner can store a secret.";
 }
 
 internal sealed record CallerCanRemoveSecret(CapabilityCaller Caller, string OwnerPrincipal) : Rule("identity.caller-can-remove-secret")
 {
-    // LEGACY(Wave 3B): drop once VaultNeuron passes CapabilityCaller and owner principal.
-    internal CallerCanRemoveSecret(bool CanRemove)
-        : this(new CapabilityCaller(CanRemove ? "owner" : "caller", "acct", "vault"), "owner")
-    {
-    }
-
     public override bool Broken => !((Caller.Kind == CallerKind.User && Caller.PrincipalId == OwnerPrincipal)
         || (Caller.Kind == CallerKind.Platform && Caller.StampedBy == TrustedEdge.Platform));
     public override string Message => "Only the owner or trusted platform code can remove a secret.";
@@ -223,12 +151,6 @@ internal sealed record CallerCanRemoveSecret(CapabilityCaller Caller, string Own
 
 internal sealed record IssuerIsKnown(string Issuer, IReadOnlyList<TrustedIssuer> TrustedIssuers) : Rule("identity.issuer-known")
 {
-    // LEGACY(Wave 3B): drop once DirectoryNeuron passes TrustedIssuer[].
-    internal IssuerIsKnown(string Issuer, bool Known)
-        : this(Issuer, Known ? [new TrustedIssuer { Name = Issuer }] : [])
-    {
-    }
-
     public override bool Broken => !TrustedIssuers.Any(item => string.Equals(item.Name, Issuer, StringComparison.Ordinal));
     public override string Message => $"External ticket issuer '{Issuer}' is not trusted.";
 }

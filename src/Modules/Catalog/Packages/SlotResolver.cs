@@ -7,7 +7,7 @@ using IntoChat.Sdk;
 namespace IntoChat.OS.Modules.Apps;
 
 /// <summary>Result of resolving an <see cref="AppPackage"/>'s folder and connector slots against a brain.</summary>
-public sealed record SlotResolutionResult(
+internal sealed record SlotResolutionResult(
     bool Ready,
     bool NeedsApproval,
     MissingConnectorProposal[] MissingConnectors,
@@ -17,7 +17,7 @@ public sealed record SlotResolutionResult(
 /// Resolves <see cref="AppPackage.Needs"/> slots on a target brain: proposes enabling the Windows
 /// connector when absent and suggests explicit folder consent (e.g. <c>%USERPROFILE%\Downloads</c>) when present.
 /// </summary>
-public sealed class SlotResolver(INeuronProxies? proxies = null)
+internal sealed class SlotResolver(INeuronProxies? proxies = null)
 {
     public async Task<SlotResolutionResult> ResolveAsync(
         string brainId,

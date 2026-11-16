@@ -3,6 +3,7 @@ using DigitalBrain.Capabilities.Tools;
 using DigitalBrain.Neurons;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Tools;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Mcp.Tests.Unit;
 
@@ -51,19 +52,13 @@ public sealed class McpToolConnectionFacts
         var tool2 = new ToolDescriptor("send_email", "Send Email", "Sends an outgoing message", "{}", false);
 
         var server = new FakeServer { AvailableTools = [tool1, tool2] };
-        var conn = new McpToolConnection(server);
-
-        var context = new FakeNeuronContext(DigitalBrain.NeuronId.Parse("facts/mcp.tool/connection/1"));
-        await context.MemoryState.Save(new McpToolConnectionState
+        var conn = await CreateToolConnectionAsync(server, DigitalBrain.NeuronId.Parse("facts/mcp.tool/connection/1"), new McpToolConnectionState
         {
             Title = "FakeServer",
             Url = "http://localhost:8000",
             Connected = true,
             Tools = [tool1, tool2]
-        }, []);
-
-        NeuronAttachment.Attach(conn, context);
-        await NeuronAttachment.Activate(conn, Ct);
+        }, Ct);
 
         var list = await conn.List();
         Assert.Equal(2, list.Count);
@@ -84,18 +79,12 @@ public sealed class McpToolConnectionFacts
     {
         var tool1 = new ToolDescriptor("ping", "Ping", "Health check", "{}", true);
         var server = new FakeServer { AvailableTools = [tool1] };
-        var conn = new McpToolConnection(server);
-
-        var context = new FakeNeuronContext(DigitalBrain.NeuronId.Parse("facts/mcp.tool/connection/2"));
-        await context.MemoryState.Save(new McpToolConnectionState
+        var conn = await CreateToolConnectionAsync(server, DigitalBrain.NeuronId.Parse("facts/mcp.tool/connection/2"), new McpToolConnectionState
         {
             Title = "FakeServer",
             Connected = true,
             Tools = [tool1]
-        }, []);
-
-        NeuronAttachment.Attach(conn, context);
-        await NeuronAttachment.Activate(conn, Ct);
+        }, Ct);
 
         Assert.True(await conn.Validate("ping", JsonDocument.Parse("{}").RootElement, Ct));
         Assert.False(await conn.Validate("unknown", JsonDocument.Parse("{}").RootElement, Ct));
@@ -112,17 +101,12 @@ public sealed class McpToolConnectionFacts
             OnRun = (t, args) => new ToolResult(false, "{\"sum\": 42}", [])
         };
 
-        var conn = new McpToolConnection(server);
-        var context = new FakeNeuronContext(DigitalBrain.NeuronId.Parse("facts/mcp.tool/connection/3"));
-        await context.MemoryState.Save(new McpToolConnectionState
+        var conn = await CreateToolConnectionAsync(server, DigitalBrain.NeuronId.Parse("facts/mcp.tool/connection/3"), new McpToolConnectionState
         {
             Title = "FakeServer",
             Connected = true,
             Tools = [tool1]
-        }, []);
-
-        NeuronAttachment.Attach(conn, context);
-        await NeuronAttachment.Activate(conn, Ct);
+        }, Ct);
 
         var result = await conn.Run("calc", JsonDocument.Parse("{\"a\": 20, \"b\": 22}").RootElement, Ct);
         Assert.Equal(42, result.GetProperty("sum").GetInt32());
@@ -138,17 +122,12 @@ public sealed class McpToolConnectionFacts
             OnRun = (t, args) => new ToolResult(true, "Internal crash", [])
         };
 
-        var conn = new McpToolConnection(server);
-        var context = new FakeNeuronContext(DigitalBrain.NeuronId.Parse("facts/mcp.tool/connection/4"));
-        await context.MemoryState.Save(new McpToolConnectionState
+        var conn = await CreateToolConnectionAsync(server, DigitalBrain.NeuronId.Parse("facts/mcp.tool/connection/4"), new McpToolConnectionState
         {
             Title = "FakeServer",
             Connected = true,
             Tools = [tool1]
-        }, []);
-
-        NeuronAttachment.Attach(conn, context);
-        await NeuronAttachment.Activate(conn, Ct);
+        }, Ct);
 
         var notFoundEx = await Assert.ThrowsAsync<ToolExecutionException>(() =>
             conn.Run("nonexistent", JsonDocument.Parse("{}").RootElement, Ct));
@@ -177,7 +156,11 @@ public sealed class McpToolConnectionFacts
             OnRun = (t, _) => new ToolResult(false, "{\"from\": 2}", [])
         };
 
-        var brainTools = new BrainToolsConnection(staticSources: [server1, server2]);
+        var brainServices = new ServiceCollection()
+            .AddSingleton<IToolSource>(server1)
+            .AddSingleton<IToolSource>(server2)
+            .BuildServiceProvider();
+        var brainTools = ActivatorUtilities.CreateInstance<BrainToolsConnection>(brainServices);
         var context = new FakeNeuronContext(DigitalBrain.NeuronId.Parse("facts/brain.tools/main"));
         NeuronAttachment.Attach(brainTools, context);
         await NeuronAttachment.Activate(brainTools, Ct);
@@ -200,5 +183,22 @@ public sealed class McpToolConnectionFacts
         var ex = await Assert.ThrowsAsync<ToolExecutionException>(() =>
             brainTools.Run("missing_tool", JsonDocument.Parse("{}").RootElement, Ct));
         Assert.True(ex.IsNotFound);
+    }
+
+    private static async Task<McpToolConnection> CreateToolConnectionAsync(
+        IMcpServer server,
+        DigitalBrain.NeuronId id,
+        McpToolConnectionState state,
+        CancellationToken ct)
+    {
+        var services = new ServiceCollection()
+            .AddSingleton(server)
+            .BuildServiceProvider();
+        var conn = ActivatorUtilities.CreateInstance<McpToolConnection>(services);
+        var context = new FakeNeuronContext(id);
+        await context.MemoryState.Save(state, []);
+        NeuronAttachment.Attach(conn, context);
+        await NeuronAttachment.Activate(conn, ct);
+        return conn;
     }
 }

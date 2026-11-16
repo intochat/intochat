@@ -10,6 +10,7 @@ using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Execution;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -279,6 +280,7 @@ public static class ShellHostingExtensions
                         }
                         catch (Exception ex)
                         {
+                            OsConsoleLog.For(typeof(ShellHostingExtensions)).LogWarning(ex, "Flutter hot reload command failed.");
                             return CommandResults.Failure(ex.Message);
                         }
                     },

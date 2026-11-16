@@ -42,13 +42,14 @@ internal sealed partial class AppNeuron : IViewFacet, IVfsFacet, IConsentFacet
         return Task.FromResult(files.TryGetValue(normalized, out var content) ? content : null);
     }
 
-    Task IVfsFacet.WriteTextAsync(string path, string content)
+    async Task IVfsFacet.WriteTextAsync(string path, string content)
     {
-        var files = new Dictionary<string, string>(State.Files, StringComparer.OrdinalIgnoreCase);
+        var next = State.Clone();
+        var files = new Dictionary<string, string>(next.Files, StringComparer.OrdinalIgnoreCase);
         var normalized = string.IsNullOrWhiteSpace(path) ? "" : path.TrimStart('/');
         files[normalized] = content;
-        State.Files = files;
-        return Task.CompletedTask;
+        next.Files = files;
+        await Store(next);
     }
 
     Task<bool> IVfsFacet.ExistsAsync(string path)

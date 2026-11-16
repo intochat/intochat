@@ -8,7 +8,7 @@ using IntoChat.OS.Modules.AI.Agents.Context;
 namespace IntoChat.OS.Modules.AI.Agents.Observers;
 
 [GenerateSerializer, Alias("ai.security-posture.state")]
-public sealed record SecurityPostureState
+internal sealed record SecurityPostureState
 {
     // The assistant's grants seen in force at the last read: one that is gone from the next read was revoked (or ran out).
     [Id(0)] public string[] Held { get; init; } = [];

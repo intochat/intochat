@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DigitalBrain;
 using DigitalBrain.Rules;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections.Identity;
@@ -456,7 +457,7 @@ public static class InoModel
         return s with
         {
             Status = $"Applied '{sentence}' to {target}",
-            Cards = [.. s.ActiveCards, new InoCard(cardId, "applet", $"Live App: {target}", sentence, $"neuron://{brainId}/apps/{target}", "running", $"neuron://{brainId}/apps/ino#{cardId}")],
+            Cards = [.. s.ActiveCards, new InoCard(cardId, "applet", $"Live App: {target}", sentence, $"neuron://{IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), target).Key}", "running", $"neuron://{IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), "ino").Key}#{cardId}")],
         };
     }
 

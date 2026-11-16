@@ -11,7 +11,7 @@ namespace IntoChat.OS.Authority;
 public sealed class GrantRulesTupleFacts
 {
     private static CapabilityCaller App(string key) => CapabilityCallers.Of(AppPrincipal.Id(key), "test-user", "test-brain", CallerKind.App, key);
-    private static CallRequest Req(string target, params string[] types) => new() { Caller = App("photocraft").ToCaller(), TargetNeuron = target, Operation = "read", SemanticTypeIds = types };
+    private static CallRequest Req(string target, params string[] types) => new() { Caller = IntoChat.OS.Tests.TestEdge.From(App("photocraft")), TargetNeuron = target, Operation = "read", SemanticTypeIds = types };
 
     [Fact]
     public void OwnNamespaceIsAllowedWithoutGrant()

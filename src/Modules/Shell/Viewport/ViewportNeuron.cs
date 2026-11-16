@@ -16,16 +16,17 @@ internal sealed class ViewportNeuron
     public async Task Set(WorkspaceViewRef? target, long expectedRevision)
     {
         var name = FullKey;
-        var marker = name.IndexOf("/apps/", StringComparison.Ordinal);
-        if (marker <= 0) { throw new ArgumentException("A viewport belongs to an app."); }
-        var brain = name[..marker];
-        var prefix = name[..(marker + 6)];
-        var slash = name.IndexOf('/', prefix.Length);
-        var owner = slash < 0 ? name : name[..slash];
+        if (!Id.Key.StartsWith("apps/", StringComparison.Ordinal)) { throw new ArgumentException("A viewport belongs to an app."); }
+        var afterApps = Id.Key["apps/".Length..];
+        var appSegmentEnd = afterApps.IndexOf('/');
+        var appSegment = appSegmentEnd < 0 ? afterApps : afterApps[..appSegmentEnd];
+        if (!IntoChat.OS.Primitives.AppRef.TryOf(Id.Brain, appSegment, out var ownerRef))
+        { throw new ArgumentException("A viewport belongs to an app."); }
+        var owner = ownerRef.Key;
         if (target is not null && (string.IsNullOrWhiteSpace(target.Id) || target.Id.Length > 128
             || string.IsNullOrWhiteSpace(target.Variant) || target.Variant.Length > 64 || target.Context != ""
             || string.IsNullOrWhiteSpace(target.App) || target.App.Length > 512
-            || !IsSupportedTarget(brain, prefix, target.App)
+            || !IsSupportedTarget(Id.Brain, target.App)
             // Never its own app: that app's view may contain this viewport and recurse.
             || target.App == owner))
         { throw new ArgumentException("This viewport supports local app views without an external context."); }
@@ -36,19 +37,14 @@ internal sealed class ViewportNeuron
         await Save(next, new ViewportChanged(name, next.Revision));
     }
 
-    private static bool IsSupportedTarget(string brain, string appPrefix, string app)
+    private static bool IsSupportedTarget(BrainId brainId, string app)
     {
-        if (app.StartsWith(appPrefix, StringComparison.Ordinal))
-        {
-            return IntoChat.OS.Primitives.AppRef.TryParse(new BrainId(brain), app, out _);
-        }
-        if (!BrainId.IsValid(brain)) { return false; }
-        var brainId = new BrainId(brain);
-        if (app.StartsWith(brain + "/units/", StringComparison.Ordinal))
+        if (IntoChat.OS.Primitives.AppRef.TryParse(brainId, app, out _)) { return true; }
+        if (app.StartsWith(brainId.Value + "/units/", StringComparison.Ordinal))
         {
             return IntoChat.OS.Primitives.UnitAlias.TryFromAddress(brainId, app, out _);
         }
-        return AppUiEndpoints.UnitAlias(brain, app) is { } alias
+        return AppUiEndpoints.UnitAlias(brainId.Value, app) is { } alias
             && alias is not ("." or ".." or "units" or "profile" or "posts" or "main" or "confirmations");
     }
 }

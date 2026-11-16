@@ -446,7 +446,9 @@ internal sealed partial class ScreenDirectoryNeuron(
                     {
                         case ViewActivationKind.Emit:
                             var emit = activation.Emit!;
-                            var appKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), emit.Owner.StartsWith("apps/") ? emit.Owner[5..] : emit.Owner).Key;
+                            var appKey = IntoChat.OS.Primitives.AppRef.TryParse(new BrainId(brainId), emit.Owner, out var emitRef)
+                                ? emitRef.Key
+                                : IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), emit.Owner).Key;
                             var args = value is null ? emit.Args : ViewArgs.WithValue(emit.Args, value);
                             await ResolveNeuron<IApp>(appKey).Emit(emit.Signal, args?.GetRawText() ?? "");
                             break;
@@ -494,6 +496,7 @@ internal sealed partial class ScreenDirectoryNeuron(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            Log.LogSwallowed(ex, $"runtime unit view activation failed for '{appId}' control '{key}'");
             return new ScreenActionResult(false, ex.Message);
         }
     }
@@ -709,12 +712,11 @@ internal sealed partial class ScreenDirectoryNeuron(
 
     private static string NormalizeAppId(string brainId, string app)
     {
-        var prefix = brainId + "/apps/";
-        if (app.StartsWith(prefix, StringComparison.Ordinal))
+        if (BrainId.IsValid(brainId) && IntoChat.OS.Primitives.AppRef.TryParse(new BrainId(brainId), app, out var appRef))
         {
-            return app[prefix.Length..];
+            return appRef.Name;
         }
-        prefix = brainId + "/units/";
+        var prefix = brainId + "/units/";
         if (app.StartsWith(prefix, StringComparison.Ordinal))
         {
             return app[prefix.Length..];
@@ -744,10 +746,10 @@ internal sealed partial class ScreenDirectoryNeuron(
 
 [GenerateSerializer, Alias("ui.screen-directory-state")]
 [ExportableState]
-public sealed record ScreenDirectoryState
+internal sealed record ScreenDirectoryState
 {
     [Id(0)] public string[] ResolvedApprovals { get; init; } = [];
 }
 
 [Signal("ui.screens.approval-resolved")]
-public sealed record ApprovalResolved(string BrainId, string ApprovalId, bool Approved) : DigitalBrain.Signal;
+internal sealed record ApprovalResolved(string BrainId, string ApprovalId, bool Approved) : DigitalBrain.Signal;

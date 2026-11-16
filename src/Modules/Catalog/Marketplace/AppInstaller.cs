@@ -169,7 +169,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         {
             foreach (var type in types)
             {
-                await identityClient.GrantAsOwner(caller, IntoChat.OS.Connections.Identity.Grant.Tuple($"brain:{caller.BrainId}", $"app:{appKey}", $"{caller.BrainId}/apps/{appKey}", type));
+                await identityClient.GrantAsOwner(caller, IntoChat.OS.Connections.Identity.Grant.Tuple($"brain:{caller.BrainId}", $"app:{appKey}", IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(caller.BrainId), appKey).Key, type));
             }
             return;
         }

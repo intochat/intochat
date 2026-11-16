@@ -6,7 +6,7 @@ namespace IntoChat.OS.Modules.Apps;
 // so the Ino agent answers in their terms. Model selection is decided per turn by ModelCatalog.Decide
 // and never overwritten in user.profile or conversation.inference here.
 [DigitalBrain.Neurons.Neuron("ino.profile-writer")]
-public sealed class ProfileContextWriter : DigitalBrain.Neurons.Neuron, IProfileContextWriter
+internal sealed class ProfileContextWriter : DigitalBrain.Neurons.Neuron, IProfileContextWriter
 {
     private DigitalBrain.NeuronId SettingsId => new(Id.Brain, "os.settings", "settings");
 

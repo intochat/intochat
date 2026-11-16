@@ -1,9 +1,10 @@
 using System.Collections.Concurrent;
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Log;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.LocalDisk;
@@ -38,16 +39,18 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
 
     private async Task EnsureAsync(string brain)
     {
-        using var cleared = InProcessCallerScope.ClearCaller();
+        var edge = services.GetService<EdgeAuthority>();
+        using var cleared = edge?.ClearCaller();
         try
         {
             var gate = _gates.GetOrAdd(brain, static _ => new SemaphoreSlim(1, 1));
             await gate.WaitAsync();
             try
             {
-                using var kernel = InProcessCallerScope.EnterKernel(brain);
+                var brainId = new BrainId(brain);
+                using var module = edge?.Enter(edge.Module("apps.files", brainId));
                 await EnsureDefaultLocalRootsAsync(services, brain);
-                var filesApp = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), "files");
+                var filesApp = IntoChat.OS.Primitives.AppRef.Of(brainId, "files");
                 var key = filesApp.Key;
                 var app = SiloNeurons.Get<IApp>(services, key);
                 var snapshot = await app.Read();
@@ -68,7 +71,7 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
                 var workspace = SiloNeurons.Get<IFilesWorkspace>(services, filesApp.ChildKey("workspace"));
                 await workspace.Open(CancellationToken.None);
                 snapshot = await app.Read();
-                using (InProcessCallerScope.EnterApp(brain, key))
+                using (edge?.Enter(edge.App(key, new Actor.Person(brain, brain), brainId)))
                 {
                     await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
                 }
@@ -106,12 +109,14 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
 
     private async Task OpenAsync(string brain, AppRequested request, CancellationToken cancellationToken)
     {
-        using var cleared = InProcessCallerScope.ClearCaller();
+        var edge = services.GetService<EdgeAuthority>();
+        using var cleared = edge?.ClearCaller();
         try
         {
-            using var kernel = InProcessCallerScope.EnterKernel(brain);
+            var brainId = new BrainId(brain);
+            using var module = edge?.Enter(edge.Module("apps.files", brainId));
             await EnsureDefaultLocalRootsAsync(services, brain);
-            var filesApp = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), "files");
+            var filesApp = IntoChat.OS.Primitives.AppRef.Of(brainId, "files");
             var key = filesApp.Key;
             var app = SiloNeurons.Get<IApp>(services, key);
             var workspace = SiloNeurons.Get<IFilesWorkspace>(services, filesApp.ChildKey("workspace"));
@@ -119,7 +124,7 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
             {
                 await workspace.Open(cancellationToken);
                 var snapshot = await app.Read();
-                using (InProcessCallerScope.EnterApp(brain, key))
+                using (edge?.Enter(edge.App(key, new Actor.Person(brain, brain), brainId)))
                 {
                     await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
                 }

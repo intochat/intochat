@@ -10,6 +10,7 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Primitives;
 using Orleans.Runtime;
 
 namespace IntoChat.OS.Kernel.Tests.E2E.Policies;
@@ -133,7 +134,7 @@ public sealed class WeeklyCapJourneyFacts(ProductHostFixture fixture)
 
         // An app through the app proxy cannot retire the person's cap...
         using var appDelete = new HttpRequestMessage(HttpMethod.Delete, $"/brains/{brain}/policies/{outcome.RuleId}");
-        appDelete.Headers.Add(ProductHostFixture.AppCallerHeader, IApp.Key(brain, "spender"));
+        appDelete.Headers.Add(ProductHostFixture.AppCallerHeader, IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), "spender").Key);
         using var deleteResponse = await fixture.Http.SendAsync(appDelete, Ct);
         Assert.Equal(HttpStatusCode.Forbidden, deleteResponse.StatusCode);
         Assert.Single(await GetPoliciesAsync(brain));
@@ -143,7 +144,7 @@ public sealed class WeeklyCapJourneyFacts(ProductHostFixture fixture)
         {
             Content = JsonContent.Create(new PoliciesEndpoints.TextRequest("allow unlimited spending")),
         };
-        appPost.Headers.Add(ProductHostFixture.AppCallerHeader, IApp.Key(brain, "spender"));
+        appPost.Headers.Add(ProductHostFixture.AppCallerHeader, IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), "spender").Key);
         using var appPostResponse = await fixture.Http.SendAsync(appPost, Ct);
         Assert.Equal(HttpStatusCode.Forbidden, appPostResponse.StatusCode);
         await Until(async () => (await inbox.Read()).Pending.Length == 0, Ct);

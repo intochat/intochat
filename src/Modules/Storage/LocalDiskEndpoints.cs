@@ -1,5 +1,7 @@
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Primitives;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -37,7 +39,10 @@ internal static class LocalDiskEndpoints
             return Results.Ok(await neuron.Roots().ConfigureAwait(false));
         }
         catch (Exception error) when (LocalDiskRoots.FailureText(error) is { } text)
-        { return Results.BadRequest(new { error = text }); }
+        {
+            OsConsoleLog.For(typeof(LocalDiskEndpoints)).LogSwallowed(error, "updating local disk root");
+            return Results.BadRequest(new { error = text });
+        }
     }
 
     private static bool ValidateBrainId(string? brainId)

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.AI.Memory;
 
-public interface IMemoryEmbedder
+internal interface IMemoryEmbedder
 {
     Task<float[]> EmbedAsync(string text, CancellationToken ct = default);
 }

@@ -142,7 +142,9 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
 
             if (IsApp(app))
             {
-                var existing = openViews.FirstOrDefault(v => v.App == app || v.App.EndsWith("/apps/" + app, StringComparison.Ordinal) || (IntoChat.OS.Primitives.AppRef.TryOf(Id.Brain, app, out var matched) && v.App == matched.Key));
+                var existing = openViews.FirstOrDefault(v => v.App == app
+                    || (IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, v.App, out var existingRef) && existingRef.Name == app)
+                    || (IntoChat.OS.Primitives.AppRef.TryOf(Id.Brain, app, out var matched) && v.App == matched.Key));
                 if (existing is not null)
                 {
                     focusedViewId = existing.Id;

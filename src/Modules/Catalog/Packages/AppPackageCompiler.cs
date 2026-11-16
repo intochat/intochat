@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace IntoChat.OS.Modules.Apps;
 
 /// <summary>Result of validating and compiling an <see cref="AppPackage"/> into a sandbox-ready PE assembly.</summary>
-public sealed record CompiledAppPackage(
+internal sealed record CompiledAppPackage(
     bool Succeeded,
     byte[] AssemblyBytes,
     AppPackage? EnrichedPackage,
@@ -21,7 +21,7 @@ public sealed record CompiledAppPackage(
 /// through <see cref="SynapseCompiler"/>, enforces static PE safety bans, and extracts attribute
 /// metadata directly from compiled PE metadata.
 /// </summary>
-public sealed class AppPackageCompiler
+internal sealed class AppPackageCompiler
 {
     private static readonly string[] BannedTypePrefixes =
     [

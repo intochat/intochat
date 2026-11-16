@@ -30,7 +30,7 @@ public static class GuestSurface
     public static bool MayOpen(string? appId) => appId is not null && Screens.Contains(appId, StringComparer.Ordinal);
 
     // Marks an endpoint a guest may be admitted on. A guest is anonymous on every endpoint without it.
-    internal sealed class Door
+    public sealed class Door
     {
         public static readonly Door Instance = new();
     }

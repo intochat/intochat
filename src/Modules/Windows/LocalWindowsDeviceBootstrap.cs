@@ -89,9 +89,13 @@ internal sealed class LocalWindowsDeviceBootstrap(
             return false;
         }
 
-        using var callerScope = InProcessCallerScope.EnterKernel(brainId);
         var edge = services.GetService<EdgeAuthority>();
-        using var edgeScope = edge?.EnterKernel(new BrainId(brainId));
+        var hasHumanUser = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.TryGet(out var caller)
+            && caller.Kind == DigitalBrain.Capabilities.CallerKind.User
+            && !DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.IsModelOriginated(caller);
+        using var edgeScope = hasHumanUser
+            ? null
+            : edge?.Enter(edge.Module(WindowsModule.ManifestName, new BrainId(brainId)));
         var key = ConnectionKeys.For(brainId, WindowsModule.ManifestName, identity.Id);
         var connection = SiloNeurons.Get<IConnection>(services, ConnectionKeys.IdFor(key));
         var view = await connection.Read().ConfigureAwait(false);
@@ -163,7 +167,8 @@ internal sealed class LocalWindowsDeviceBootstrap(
             try
             {
                 string[] brainIds;
-                using (InProcessCallerScope.EnterKernel(AccountSession.DefaultLogin))
+                var edge = services.GetService<EdgeAuthority>();
+                using (edge?.Enter(edge.RelayedPerson(AccountSession.DefaultLogin, AccountSession.DefaultLogin, new BrainId(AccountSession.DefaultLogin))))
                 {
                     brainIds = await brains.Brains(cancellationToken).ConfigureAwait(false);
                 }

@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
@@ -22,7 +24,7 @@ internal sealed partial class AppNeuron
     public async Task<AppSnapshot> Publish()
     {
         await Check("Publish",
-            new AppExists(Name(), State.Manifest is not null));
+            new AppExists(Name(), State.Manifest));
         var person = Context.Caller?.For;
         await Check("Publish", new PublisherIsSignedIn(person?.Principal));
         if (person is null || !string.Equals(Context.Caller?.Brain.Value, BrainId(), StringComparison.Ordinal))
@@ -30,7 +32,7 @@ internal sealed partial class AppNeuron
         // A listing is one app: the same name from another of the publisher's brains is refused,
         // never a silent takeover of what installers already trust.
         MarketplaceListing? listed;
-        using (InProcessCallerScope.EnterKernel("system"))
+        using (Edge?.Enter(Edge.Module("apps.catalog", new BrainId("system"))))
         {
             listed = await Marketplace.Read(person.Principal, Name());
         }
@@ -44,7 +46,7 @@ internal sealed partial class AppNeuron
         var existing = releases.FirstOrDefault(item => item.Bundle.Version == next.Version);
         await Check("Publish",
             new PublicationIsNotForeign(listed?.Source.Scope(), BrainId()),
-            new VersionContentIsUnchanged(existing is null || existing.Publication.Reference == release.Reference));
+            new VersionContentIsUnchanged(existing, release.Reference));
         next.Releases = existing is null ? [.. releases, release.ToRecord()] : releases;
         if (existing is not null)
         { next.Published = next.Published with { SavedAt = existing.Publication.PublishedAt }; }
@@ -52,7 +54,7 @@ internal sealed partial class AppNeuron
         await Save(next, new AppChanged(name, next.Version, next.Status), new AppPublished(name, next.Version));
         // State first: a failed listing write is repaired by publishing again, never the reverse
         // (a listing whose bundle Install cannot read).
-        using (InProcessCallerScope.EnterKernel("system"))
+        using (Edge?.Enter(Edge.Module("apps.catalog", new BrainId("system"))))
         {
             await Marketplace.Upsert(release.ToMarketplaceListing());
         }
@@ -61,7 +63,7 @@ internal sealed partial class AppNeuron
 
     public async Task<AppBundle> ExportPublished()
     {
-        await Check("ExportPublished", new HasPublishedVersion(State.Published is not null));
+        await Check("ExportPublished", new HasPublishedVersion(State.Published));
         var published = State.Published!;
         return new AppBundle(Name(), published.Version, published.Manifest, published.Spec,
             new(published.Files, StringComparer.Ordinal));

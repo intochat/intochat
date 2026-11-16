@@ -12,7 +12,7 @@ namespace IntoChat.OS.Modules.Apps.Trace;
 
 // Forwards to the brain's signal history. Payloads are shown as journaled, with inline tokens, PATs, URL credentials, and passwords redacted.
 [Neuron("trace.reader"), StatelessNeuron]
-public sealed partial class TraceReaderNeuron(ISignalHistory history) : Neuron, ITraceReader
+internal sealed partial class TraceReaderNeuron(ISignalHistory history) : Neuron, ITraceReader
 {
     public const int PayloadLimit = 2000;
 

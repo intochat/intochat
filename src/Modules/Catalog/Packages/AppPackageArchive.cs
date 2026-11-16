@@ -3,13 +3,14 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DigitalBrain.Units;
+using IntoChat.OS.Primitives;
 
 namespace IntoChat.OS.Modules.Apps;
 
 /// <summary>
 /// Outcome of verifying and optionally deploying an imported micro-app folder or ZIP archive (<c>F-APP-05</c>).
 /// </summary>
-public sealed record AppPackageImportResult(
+internal sealed record AppPackageImportResult(
     bool Succeeded,
     string Alias,
     IReadOnlyDictionary<string, string> Files,
@@ -22,7 +23,7 @@ public sealed record AppPackageImportResult(
 /// <c>{*.cs, scenarios.json, SKILL.md, spec.md}</c>, enforcing path-confinement, Roslyn closed-world boundary
 /// verification, and <see cref="BuilderTools.Check"/> scenario execution before deployment.
 /// </summary>
-public static partial class AppPackageArchive
+internal static partial class AppPackageArchive
 {
     public const int MaxArchiveBytes = 4 * 1024 * 1024;
     public const int MaxEntryCount = 32;
@@ -368,22 +369,21 @@ public static partial class AppPackageArchive
             throw new InvalidDataException("Archive entry path must not be empty.");
         }
 
-        var normalized = fullName.Replace('\\', '/').Trim();
-        if (normalized.StartsWith('/') || Path.IsPathRooted(fullName) || normalized.Contains(':', StringComparison.Ordinal))
+        var trimmed = fullName.Trim();
+        if (Path.IsPathRooted(fullName) || !SafeRelativePath.TryParse(trimmed, out var safe))
         {
-            throw new InvalidDataException($"Rooted or drive-qualified path '{fullName}' is forbidden in unit archive.");
+            throw new InvalidDataException($"Rooted, drive-qualified, or escaping path '{fullName}' is forbidden in unit archive.");
         }
 
-        var segments = normalized.Split('/', StringSplitOptions.None);
-        foreach (var seg in segments)
+        foreach (var seg in safe.Value.Split('/', StringSplitOptions.None))
         {
-            if (seg.Length == 0 || seg is "." or ".." || seg.StartsWith('.'))
+            if (seg.StartsWith('.'))
             {
                 throw new InvalidDataException($"Unsafe path segment in archive entry '{fullName}'.");
             }
         }
 
-        return normalized;
+        return safe.Value;
     }
 
     private static Dictionary<string, string> FilterPortableFiles(IReadOnlyDictionary<string, string> source)

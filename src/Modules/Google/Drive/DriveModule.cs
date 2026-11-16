@@ -54,7 +54,7 @@ public sealed class DriveModule : DigitalBrain.Modules.Module
     }
 }
 
-public static class GoogleDriveOperations
+internal static class GoogleDriveOperations
 {
     public const string About = "google.drive.about.get";
     public const string List = "google.drive.files.list";
@@ -79,4 +79,4 @@ internal static class DriveScopes
 }
 
 [GenerateSerializer, Alias("db.google-drive.unavailable")]
-public sealed class DriveUnavailableException(string message) : InvalidOperationException(message);
+internal sealed class DriveUnavailableException(string message) : InvalidOperationException(message);

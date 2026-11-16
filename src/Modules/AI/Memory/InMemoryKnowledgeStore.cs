@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace IntoChat.OS.Modules.AI.Memory;
 
-public sealed class InMemoryKnowledgeStore : IKnowledgeStore
+internal sealed class InMemoryKnowledgeStore : IKnowledgeStore
 {
     private readonly ConcurrentDictionary<string, KnowledgeNode> _nodes = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, KnowledgeEdge> _edges = new(StringComparer.Ordinal);

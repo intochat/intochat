@@ -12,10 +12,8 @@ namespace IntoChat.OS.Modules.ClickHouse;
 
 // Every statement goes through ExecuteReaderAsync with the same server-side caps: readonly=2,
 // a bounded result, a bounded scan, a memory ceiling and a 15 second execution limit.
-internal sealed class ClickHouseDriverProvider(ClickHouseClient client, string database) : IClickHouseProvider
+internal sealed class ClickHouseDriverProvider(ClickHouseClient client, string database, ILogger<ClickHouseDriverProvider>? logger = null) : IClickHouseProvider
 {
-    private static readonly ILoggerFactory ConsoleLogFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
-    private static readonly ILogger Log = ConsoleLogFactory.CreateLogger<ClickHouseDriverProvider>();
     private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan PingTimeout = TimeSpan.FromSeconds(3);
     private const long MaxRowsToRead = 50_000_000;
@@ -108,7 +106,8 @@ internal sealed class ClickHouseDriverProvider(ClickHouseClient client, string d
         }
         catch (Exception error) when (error is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            Log.LogSwallowed(error, "pinging ClickHouse connection");
+            if (logger is not null) { logger.LogSwallowed(error, "pinging ClickHouse connection"); }
+            else { System.Diagnostics.Trace.TraceWarning("pinging ClickHouse connection: {0}", error); }
             return new(false, database, null, ProviderName);
         }
     }

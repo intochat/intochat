@@ -10,6 +10,7 @@ using DigitalBrain.Signals;
 using DigitalBrain.Signals.Watch;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.Circles;
@@ -89,7 +90,11 @@ internal static class LiveSignalEndpoints
                 }, ct)) { await Queue(created.Key); }
             }
             catch (OperationCanceledException) { }
-            catch (Exception error) { keys.Writer.TryComplete(error); }
+            catch (Exception error)
+            {
+                OsConsoleLog.For(typeof(LiveSignalEndpoints)).LogSwallowed(error, "watching live signal stream");
+                keys.Writer.TryComplete(error);
+            }
         }, ct);
         HashSet<string> seen = [];
         await foreach (var key in keys.Reader.ReadAllAsync(ct))

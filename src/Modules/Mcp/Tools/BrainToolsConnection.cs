@@ -10,14 +10,14 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Modules.Mcp;
 
 [GenerateSerializer, Alias("brain.tools-connection-state")]
-public sealed record BrainToolsConnectionState : ConnectionState
+internal sealed record BrainToolsConnectionState : ConnectionState
 {
     [Id(0)] public string[] RegisteredToolNames { get; set; } = [];
 }
 
 // Brain-scoped aggregator connection for all tool@1 capabilities in the brain.
 [Neuron(IBrainToolsConnection.TypeName, State = "brain.tools")]
-public sealed class BrainToolsConnection(
+internal sealed class BrainToolsConnection(
     IServiceProvider? services = null,
     IEnumerable<IToolSource>? staticSources = null,
     ILogger<BrainToolsConnection>? logger = null)

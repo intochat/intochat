@@ -1,3 +1,6 @@
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
+
 namespace IntoChat.OS.Modules.Apps;
 
 // Installs the boot set: every app in the shipped catalog, plus any ShippedApps root the catalog does not
@@ -20,7 +23,10 @@ public static class ShippedInstall
                 await loader.Load(brainId, name, bundle, new AppOrigin(publisher, new AppSource.Shipped(), name, bundle.Version), ct);
             }
             catch (Exception error) when (error is not OperationCanceledException)
-            { failed?.Invoke(error, $"{publisher}/{name}"); }
+            {
+                OsConsoleLog.For(typeof(ShippedInstall)).LogSwallowed(error, $"installing shipped app '{publisher}/{name}'");
+                failed?.Invoke(error, $"{publisher}/{name}");
+            }
         }
     }
 }

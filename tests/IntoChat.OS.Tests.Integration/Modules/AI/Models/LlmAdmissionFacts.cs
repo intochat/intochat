@@ -15,14 +15,14 @@ public sealed class LlmAdmissionFacts
     [Fact]
     public async Task ASubscriberOfTheModelsBrainIsAdmitted()
     {
-        var neuron = Attached(new LlmNeuron(null!), Model);
+        var neuron = Attached<LlmNeuron>(Model);
         await NeuronAttachment.Admit(neuron, new(Model.Brain, "agent", "agents/main"), [typeof(InferenceStarted), typeof(InferenceCompleted)]);
     }
 
     [Fact]
     public async Task ASubscriberOfAnotherBrainIsRefused()
     {
-        var neuron = Attached(new LlmNeuron(null!), Model);
+        var neuron = Attached<LlmNeuron>(Model);
         var refused = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             NeuronAttachment.Admit(neuron, new(new DigitalBrain.BrainId("other"), "agent", "agents/main"), [typeof(InferenceStarted)]));
         Assert.Contains("another brain", refused.Message, StringComparison.Ordinal);
@@ -32,14 +32,21 @@ public sealed class LlmAdmissionFacts
     public async Task ATypedModelKeepsTheSameRule()
     {
         var id = new DigitalBrain.NeuronId(new DigitalBrain.BrainId("owner"), "ai.llm.gpt56luna", "models");
-        var neuron = Attached(new Gpt56LunaNeuron(null!), id);
+        var neuron = Attached<Gpt56LunaNeuron>(id);
         await NeuronAttachment.Admit(neuron, new(id.Brain, "agent", "agents/main"), [typeof(InferenceFailed)]);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             NeuronAttachment.Admit(neuron, new(new DigitalBrain.BrainId("other"), "agent", "agents/main"), [typeof(InferenceFailed)]));
     }
 
-    private static DigitalBrain.Neurons.Neuron Attached(DigitalBrain.Neurons.Neuron neuron, DigitalBrain.NeuronId id)
+    private static DigitalBrain.Neurons.Neuron Attached<TNeuron>(DigitalBrain.NeuronId id)
+        where TNeuron : DigitalBrain.Neurons.Neuron
     {
+        var neuron = (TNeuron)Activator.CreateInstance(
+            typeof(TNeuron),
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null,
+            [null!],
+            null)!;
         var context = DispatchProxy.Create<INeuronContext, IdOnlyContext>();
         ((IdOnlyContext)(object)context).Id = id;
         NeuronAttachment.Attach(neuron, context);
@@ -61,5 +68,5 @@ public sealed class RouterNotCallableFacts
 {
     [Fact]
     public void TheRouterNeverRoutesAdmissionOrTheObserverPath()
-        => Assert.Superset(new HashSet<string>(["AdmitSynapse", "Watch", "Unwatch"], StringComparer.Ordinal), IntoChat.OS.Modules.AI.Routing.RouterNeuron.NotCallable);
+        => Assert.Superset(new HashSet<string>(["AdmitSynapse", "Watch", "Unwatch"], StringComparer.Ordinal), IntoChat.OS.Modules.Apps.Routing.RouterNeuron.NotCallable);
 }

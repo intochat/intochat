@@ -28,8 +28,7 @@ internal sealed class AzureNeuron(
         var resource = await arm.Ensure(Subscription, tagged, CancellationToken.None);
         var entry = new AzureEnsured(resource, spec.Env, spec.Owner);
         var kept = Snapshot.Ensured.Where(e => e.Resource.Id != resource.Id).ToArray();
-        Snapshot.Ensured = [.. kept, entry];
-        await SaveQuietly(Snapshot);
+        await SaveQuietly(Snapshot with { Ensured = [.. kept, entry] });
         return resource;
     }
 
@@ -43,8 +42,7 @@ internal sealed class AzureNeuron(
     {
         ArgumentNullException.ThrowIfNull(resource);
         await arm.Remove(Subscription, resource, CancellationToken.None);
-        Snapshot.Ensured = Snapshot.Ensured.Where(e => e.Resource.Id != resource.Id).ToArray();
-        await SaveQuietly(Snapshot);
+        await SaveQuietly(Snapshot with { Ensured = Snapshot.Ensured.Where(e => e.Resource.Id != resource.Id).ToArray() });
     }
 
     public async Task<ResourceRef[]> Inventory(string tagValue)

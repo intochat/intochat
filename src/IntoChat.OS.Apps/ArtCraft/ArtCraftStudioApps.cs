@@ -104,8 +104,7 @@ public sealed record ArtCraftStudioAppState(
 
 internal static class ArtCraftConsoleLog
 {
-    private static readonly ILoggerFactory Factory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
-    internal static readonly ILogger Instance = Factory.CreateLogger("IntoChat.OS.Apps.ArtCraft");
+    internal static readonly ILogger Instance = IntoChat.OS.Framework.Logging.OsConsoleLog.For(typeof(ArtCraftStudioAppOpen));
 }
 
 public abstract class ArtCraftStudioAppCore<TState>(string appId, ILogger? logger = null) : AggregateScreen<TState>, IWithFilesVfs

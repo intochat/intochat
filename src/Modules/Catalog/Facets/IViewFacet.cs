@@ -7,7 +7,7 @@ namespace IntoChat.OS.Modules.Apps.Facets;
 
 [Alias("apps.view-facet")]
 [Version(1)]
-public interface IViewFacet : IGrainExtension
+internal interface IViewFacet : IGrainExtension
 {
     Task<string> RenderMainJsonAsync();
     Task<string?> RenderSideJsonAsync();

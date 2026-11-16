@@ -139,7 +139,7 @@ public sealed class IntegrationsAndZeroTokenFacts
 
         var vaultRequest = new CallRequest
         {
-            Caller = appCaller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(appCaller),
             TargetNeuron = "system/identity.vault/ada",
             Operation = "IVault.Resolve",
         };
@@ -155,7 +155,7 @@ public sealed class IntegrationsAndZeroTokenFacts
 
         var exportRequest = new CallRequest
         {
-            Caller = appCaller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(appCaller),
             TargetNeuron = "local/connection/github/personal",
             Operation = "IConnection.ExportFor",
         };
@@ -191,7 +191,7 @@ public sealed class IntegrationsAndZeroTokenFacts
             Directory.CreateDirectory(Path.Combine(tempRoot, ".git"));
             await File.WriteAllTextAsync(Path.Combine(tempRoot, ".git", "config"), "git config", ct);
 
-            var cloud = new LocalCloudNeuron(tempRoot);
+            var cloud = new LocalCloudStorage(tempRoot);
             var descriptor = await cloud.Describe(ct);
             Assert.Equal("Local Cloud", descriptor.Label);
             Assert.Equal("local-cloud", descriptor.Kind);
@@ -265,7 +265,7 @@ public sealed class IntegrationsAndZeroTokenFacts
 
             var friendRequest = new CallRequest
             {
-                Caller = friendCaller.ToCaller(),
+                Caller = IntoChat.OS.Tests.TestEdge.From(friendCaller),
                 TargetNeuron = connectionKey,
                 Operation = "IGitHub.ReadRepo",
                 SemanticTypeIds = ["repo.contents"],
@@ -274,7 +274,7 @@ public sealed class IntegrationsAndZeroTokenFacts
             Assert.NotNull(friendDecision);
             Assert.True(friendDecision!.Allowed);
 
-            var strangerRequest = friendRequest with { Caller = strangerCaller.ToCaller() };
+            var strangerRequest = friendRequest with { Caller = IntoChat.OS.Tests.TestEdge.From(strangerCaller) };
             var strangerDecision = GrantRules.Evaluate(strangerRequest, null, [creatorGrant], PrincipalSet.For(strangerCaller));
             Assert.NotNull(strangerDecision);
             Assert.False(strangerDecision!.Allowed);
@@ -282,7 +282,7 @@ public sealed class IntegrationsAndZeroTokenFacts
             var callBindings = new ConnectionCallBindings(new NoConnectionBindings());
             var boundCall = new CallRequest
             {
-                Caller = friendCaller.ToCaller(),
+                Caller = IntoChat.OS.Tests.TestEdge.From(friendCaller),
                 TargetNeuron = "github/" + connectionKey,
                 Operation = "Read",
             };
@@ -302,7 +302,7 @@ public sealed class IntegrationsAndZeroTokenFacts
         // 1. Foreign target with empty SemanticTypeIds must fail closed (Deny MissingGrant).
         var foreignCall = new CallRequest
         {
-            Caller = appCaller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(appCaller),
             TargetNeuron = "local/connection/postgres/main",
             Operation = "Query",
             SemanticTypeIds = [],
@@ -315,7 +315,7 @@ public sealed class IntegrationsAndZeroTokenFacts
         // 2. Own app target with empty SemanticTypeIds is allowed.
         var ownCall = new CallRequest
         {
-            Caller = appCaller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(appCaller),
             TargetNeuron = "local/apps/calculator",
             Operation = "Compute",
             SemanticTypeIds = [],
@@ -327,7 +327,7 @@ public sealed class IntegrationsAndZeroTokenFacts
         // 3. Typed zero-token guard prevents forbidden types/interfaces/methods.
         var vaultCall = new CallRequest
         {
-            Caller = appCaller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(appCaller),
             TargetNeuron = "system/identity.vault/ada",
             Operation = "Resolve",
             SemanticTypeIds = [],
@@ -339,7 +339,7 @@ public sealed class IntegrationsAndZeroTokenFacts
 
         var exportCall = new CallRequest
         {
-            Caller = appCaller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(appCaller),
             TargetNeuron = "local/connection/github/work",
             Operation = "IConnection.ExportFor",
             SemanticTypeIds = [],
@@ -352,7 +352,7 @@ public sealed class IntegrationsAndZeroTokenFacts
         // 4. Benign substring target (e.g. app named "local/apps/my-vault-helper") does not trigger false positive.
         var benignCall = new CallRequest
         {
-            Caller = CapabilityCallers.Of(AppPrincipal.Id("local/apps/my-vault-helper"), "ada", "local", CallerKind.App, "local/apps/my-vault-helper").ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(CapabilityCallers.Of(AppPrincipal.Id("local/apps/my-vault-helper"), "ada", "local", CallerKind.App, "local/apps/my-vault-helper")),
             TargetNeuron = "local/apps/my-vault-helper",
             Operation = "Help",
             SemanticTypeIds = [],

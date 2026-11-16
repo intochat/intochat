@@ -1,10 +1,12 @@
 using DigitalBrain.Capabilities;
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 
 // The query engine reads files through a WorkspaceFilesService built once per activation, as InoFilesNeuron does.
 [DigitalBrain.Neurons.Neuron("ino.data")]
-public sealed class InoDataNeuron(ICapabilityBroker? broker = null, IServiceProvider? services = null) : DigitalBrain.Neurons.Neuron<InoDataState>, IInoData
+internal sealed class InoDataNeuron(ICapabilityBroker? broker = null, IServiceProvider? services = null) : DigitalBrain.Neurons.Neuron<InoDataState>, IInoData
 {
     private IFilesVfsService? _vfs;
     private long _revision;
@@ -41,6 +43,7 @@ public sealed class InoDataNeuron(ICapabilityBroker? broker = null, IServiceProv
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoDataNeuron>().LogSwallowed(error, "executing Ino data query");
             return new InoToolResult($"Could not run the query: {error.Message}", Ok: false);
         }
 
@@ -66,6 +69,7 @@ public sealed class InoDataNeuron(ICapabilityBroker? broker = null, IServiceProv
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoDataNeuron>().LogSwallowed(error, "building Ino data chart");
             return new InoToolResult($"Could not build the chart: {error.Message}", Ok: false);
         }
 

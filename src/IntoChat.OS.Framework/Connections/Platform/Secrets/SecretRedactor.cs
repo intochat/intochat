@@ -1,6 +1,7 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -8,7 +9,7 @@ namespace IntoChat.OS.Connections.Platform.Secrets;
 
 // Resolves the values at redaction time and keeps them only in locals: nothing is cached or logged.
 // When invoked under an App principal (e.g. InoApp driving AgentNeuron), SecretRedactor enters the
-// owner's kernel scope solely inside Values() so output masking succeeds without ever exposing raw
+// owner's relayed identity scope solely inside Values() so output masking succeeds without ever exposing raw
 // secrets to apps or relaxing VaultSecretValueSource's direct zero-token guard.
 internal sealed class SecretRedactor(IServiceProvider services) : ISecretRedactor
 {
@@ -44,7 +45,7 @@ internal sealed class SecretRedactor(IServiceProvider services) : ISecretRedacto
         return all;
     }
 
-    private static IDisposable? EnterOwnerScopeIfAppCaller()
+    private IDisposable? EnterOwnerScopeIfAppCaller()
     {
         if (!RuntimeCallerContext.TryGet(out var caller)) { return null; }
         if (caller.Kind != CallerKind.App && !AppPrincipal.IsApp(caller.PrincipalId)) { return null; }
@@ -53,7 +54,10 @@ internal sealed class SecretRedactor(IServiceProvider services) : ISecretRedacto
             : !string.IsNullOrEmpty(caller.PrincipalId) && !AppPrincipal.IsApp(caller.PrincipalId)
                 ? caller.PrincipalId
                 : caller.BrainId;
-        return string.IsNullOrWhiteSpace(owner) ? null : InProcessCallerScope.EnterKernel(owner);
+        var edge = services.GetService<EdgeAuthority>();
+        return edge is null || string.IsNullOrWhiteSpace(owner)
+            ? null
+            : edge.Enter(edge.RelayedPerson(owner, owner, new BrainId("system")));
     }
 
     internal static string Apply(string text, IReadOnlyList<string> longestFirst)

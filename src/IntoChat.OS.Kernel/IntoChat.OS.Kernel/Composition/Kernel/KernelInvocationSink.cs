@@ -3,12 +3,11 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
-using DigitalBrain.Runtime.Orleans.Access;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework;
 using Orleans.Runtime;
 
 namespace IntoChat.OS.Kernel.Composition;
@@ -17,7 +16,11 @@ namespace IntoChat.OS.Kernel.Composition;
 // The os side's calls into DigitalBrain plain neurons (06-08): every call goes to the runtime host grain of the [Neuron] class of
 // the target's type, carrying the caller's neuron id in the runtime's provenance slot (RequestContext "db.caller", which host
 // grains read as Context.Caller). The kernel composition owns it (IPlainNeurons, IPlainSignals).
-public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Func<DigitalBrain.NeuronId, DigitalBrain.Invocation.RuntimeInvocation, Task>? streamAccess = null) : IInvocationSink
+public sealed class KernelInvocationSink(
+    IGrainFactory grains,
+    string caller,
+    Func<DigitalBrain.NeuronId, DigitalBrain.Invocation.RuntimeInvocation, Task>? streamAccess = null,
+    EdgeAuthority? edge = null) : IInvocationSink
 {
     // The runtime's provenance key (DigitalBrain.Runtime.Orleans HostNeuronContext.CallerKey), read by every host grain.
     public const string CallerKey = "db.caller";
@@ -29,7 +32,10 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
     public static KernelInvocationSink For(IServiceProvider services, string caller)
     {
         ArgumentNullException.ThrowIfNull(services);
-        return new(Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IGrainFactory>(services), caller);
+        return new(
+            Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IGrainFactory>(services),
+            caller,
+            edge: services.GetService(typeof(EdgeAuthority)) as EdgeAuthority);
     }
 
     internal static void Register(Type contract) => Contracts.TryAdd(NeuronProxy.ContractName(contract), contract);
@@ -37,7 +43,7 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
     public async Task<JsonElement?> Invoke(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation call, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(call);
-        using var _ = IntoChat.OS.Framework.InProcessCallerScope.Enter();
+        using var _ = edge?.EnterInProcess();
         // Preserve the grain scheduler until dispatch: source-origin guards use Orleans' physical caller identity.
         var host = await Host(target, cancellationToken).ConfigureAwait(true);
         Stamp();
@@ -49,7 +55,7 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
     public async Task Post(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        using var _ = IntoChat.OS.Framework.InProcessCallerScope.Enter();
+        using var _ = edge?.EnterInProcess();
         var host = await Host(target, CancellationToken.None).ConfigureAwait(true);
         Stamp();
         var stamped = Stamped(call);
@@ -60,7 +66,7 @@ public sealed class KernelInvocationSink(IGrainFactory grains, string caller, Fu
     public async IAsyncEnumerable<JsonElement> Stream(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation call, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(call);
-        using var _ = IntoChat.OS.Framework.InProcessCallerScope.Enter();
+        using var _ = edge?.EnterInProcess();
         Stamp();
         // A host grain's stream passes no incoming filter, so the os access policy is asked before it starts (06-06d).
         if (streamAccess is not null) { await streamAccess(target, call).ConfigureAwait(true); }

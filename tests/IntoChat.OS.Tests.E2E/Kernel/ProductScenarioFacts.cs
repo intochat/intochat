@@ -42,7 +42,7 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         Assert.Equal("filmcraft", filmCraft.Name);
         Assert.True(filmCraft.Manifest.Studio);
 
-        var film = fixture.AttachSilo(new FilmCraftApp(), brain);
+        var film = fixture.AttachSilo<FilmCraftApp>(brain);
         await film.Open(new FilmCraftStudioOpen("/work/timeline.fcproj", "native-linux"));
 
         var initialState = new AppState

@@ -244,7 +244,7 @@ public sealed class PresenceProofAndEdgeAuthFacts
         Assert.Equal(CallerKind.Agent, stamped.Kind);
         Assert.Equal(CapabilityCallers.AssistantApp, stamped.AppId);
         Assert.Equal("mcp", stamped.ConversationId);
-        Assert.IsType<Actor.Agent>(stamped.ToCaller().Actor);
+        Assert.IsType<Actor.Agent>(os.Edge.From(stamped).Actor);
     }
 
     [Fact]
@@ -256,7 +256,7 @@ public sealed class PresenceProofAndEdgeAuthFacts
         var source = new GrainGrantPolicySource(identity, mirror, auth);
         var stage = new GrantCallFilterStage(source);
 
-        var personCaller = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin).ToCaller();
+        var personCaller = IntoChat.OS.Tests.TestEdge.From(CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin));
         var uiDecision = await stage.EvaluateAsync(new CallRequest
         {
             Caller = personCaller,
@@ -269,9 +269,8 @@ public sealed class PresenceProofAndEdgeAuthFacts
         Assert.NotNull(uiDecision);
         Assert.True(uiDecision.Allowed);
 
-        var untrustedAppCaller = (CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin)
-            with
-        { AppId = "untrusted-app" }).ToCaller();
+        var untrustedAppCaller = IntoChat.OS.Tests.TestEdge.From(
+            CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin) with { AppId = "untrusted-app" });
 
         var vaultDecision = await stage.EvaluateAsync(new CallRequest
         {
@@ -312,7 +311,7 @@ public sealed class PresenceProofAndEdgeAuthFacts
         app.MapGet("/probe/caller", () =>
         {
             var caller = RuntimeCallerContext.Require();
-            var actor = caller.ToCaller().Actor;
+            var actor = IntoChat.OS.Tests.TestEdge.From(caller).Actor;
             return Results.Ok(new CallerProbe(
                 caller.PrincipalId,
                 caller.AccountId,

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Modules.Mcp;
 
 [GenerateSerializer, Alias("mcp.tool-connection-state")]
-public sealed record McpToolConnectionState : ConnectionState
+internal sealed record McpToolConnectionState : ConnectionState
 {
     [Id(0)] public string Title { get; set; } = "";
     [Id(1)] public string Url { get; set; } = "";
@@ -22,7 +22,7 @@ public sealed record McpToolConnectionState : ConnectionState
 
 // A connection neuron representing an external MCP tool source offering tool@1.
 [Neuron(IMcpToolConnection.TypeName, State = "mcp.tool")]
-public sealed class McpToolConnection(
+internal sealed class McpToolConnection(
     IMcpServer? underlyingServer = null,
     ILogger<McpToolConnection>? logger = null)
     : ConnectionNeuron<McpToolConnectionState>, IMcpToolConnection
@@ -141,24 +141,27 @@ public sealed class McpToolConnection(
         }, CancellationToken.None).ConfigureAwait(false);
 
         var (url, title) = ParseSpec(rawValue, _log);
-        Snapshot.Url = url;
-        Snapshot.Title = string.IsNullOrWhiteSpace(title) ? (Uri.TryCreate(url, UriKind.Absolute, out var parsed) ? parsed.Host : "MCP Server") : title;
-        Snapshot.Connected = true;
-        Snapshot.LastError = null;
-        Snapshot.ProbedAt = (Context?.Time ?? TimeProvider.System).GetUtcNow();
+        var next = Snapshot with
+        {
+            Url = url,
+            Title = string.IsNullOrWhiteSpace(title) ? (Uri.TryCreate(url, UriKind.Absolute, out var parsed) ? parsed.Host : "MCP Server") : title,
+            Connected = true,
+            LastError = null,
+            ProbedAt = Context.Time.GetUtcNow(),
+        };
 
         try
         {
-            var serverState = await Server.Connect(new McpServerSpec(Snapshot.Title, Snapshot.Url), CancellationToken.None).ConfigureAwait(false);
-            Snapshot.Tools = [.. serverState.Tools];
+            var serverState = await Server.Connect(new McpServerSpec(next.Title, next.Url), CancellationToken.None).ConfigureAwait(false);
+            next = next with { Tools = [.. serverState.Tools] };
         }
         catch (Exception ex)
         {
-            Snapshot.LastError = ex.Message;
-            Snapshot.Connected = false;
+            _log.LogSwallowed(ex, $"Failed connecting MCP server '{next.Url}'.");
+            next = next with { LastError = ex.Message, Connected = false };
         }
 
-        await SaveQuietly(Snapshot).ConfigureAwait(false);
+        await SaveQuietly(next).ConfigureAwait(false);
     }
 
     protected override async Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
@@ -176,15 +179,14 @@ public sealed class McpToolConnection(
         }
         catch (Exception ex)
         {
+            _log.LogSwallowed(ex, $"Probing MCP server '{url}' failed.");
             return ConnectionProbeResult.Failing($"Probe failed: {ex.Message}");
         }
     }
 
     protected override async Task OnDisconnectedAsync()
     {
-        Snapshot.Connected = false;
-        Snapshot.Tools = [];
-        await SaveQuietly(Snapshot).ConfigureAwait(false);
+        await SaveQuietly(Snapshot with { Connected = false, Tools = [] }).ConfigureAwait(false);
         try
         {
             await Server.Disconnect(CancellationToken.None).ConfigureAwait(false);

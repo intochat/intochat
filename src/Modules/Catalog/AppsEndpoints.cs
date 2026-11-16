@@ -27,12 +27,12 @@ internal static class AppsEndpoints
         MaxDepth = 128,
     };
 
-    public sealed record TextRequest(string? Text);
-    public sealed record SettingsRequest(Dictionary<string, string>? Settings, Dictionary<string, string>? Connections);
-    public sealed record RollbackRequest(string Version);
-    public sealed record RequestBody(string? Operation, string? Input);
-    public sealed record UpdateBody(string? Consent);
-    public sealed record SignalDispatchRequest(string Signal, string? PayloadJson);
+    internal sealed record TextRequest(string? Text);
+    internal sealed record SettingsRequest(Dictionary<string, string>? Settings, Dictionary<string, string>? Connections);
+    internal sealed record RollbackRequest(string Version);
+    internal sealed record RequestBody(string? Operation, string? Input);
+    internal sealed record UpdateBody(string? Consent);
+    internal sealed record SignalDispatchRequest(string Signal, string? PayloadJson);
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {

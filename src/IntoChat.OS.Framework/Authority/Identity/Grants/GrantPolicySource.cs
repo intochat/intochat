@@ -23,27 +23,34 @@ internal sealed class GrainGrantPolicySource(IIdentityClient identity, Authority
 {
     public ValueTask<CallDecision?> AuthorizeAsync(CallRequest request, CancellationToken cancellationToken)
     {
-        var caller = request.Caller.ToCapabilityCaller();
+        ArgumentNullException.ThrowIfNull(request);
         if (request.PublicOperation)
         {
             return ValueTask.FromResult<CallDecision?>(CallDecision.Allow());
         }
 
-        if (caller is null)
+        if (request.Caller is null)
         {
             return ValueTask.FromResult<CallDecision?>(CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no caller."));
         }
 
-        if (caller.Kind == CallerKind.Platform)
+        if (request.Caller.Actor is Actor.Kernel)
         {
             return ValueTask.FromResult<CallDecision?>(CallDecision.Allow());
         }
 
+        if (request.Caller.Actor is Actor.Module)
+        {
+            return string.IsNullOrEmpty(request.TargetScope)
+                || string.Equals(request.TargetScope, request.Caller.Brain.Value, StringComparison.Ordinal)
+                ? ValueTask.FromResult<CallDecision?>(CallDecision.Allow())
+                : ValueTask.FromResult<CallDecision?>(CallDecision.Deny(CallDenial.OutsideWorkspace, "A module caller may not cross into another brain."));
+        }
+
         if (auth?.Value.Posture == IdentityPosture.Open
-            && request.Caller.Actor is Actor.Person
-            && caller.Kind == CallerKind.User
-            && caller.PrincipalId == AccountSession.DefaultLogin
-            && caller.AccountId == AccountSession.DefaultLogin)
+            && request.Caller.Actor is Actor.Person person
+            && person.Principal == AccountSession.DefaultLogin
+            && person.Account == AccountSession.DefaultLogin)
         {
             return ValueTask.FromResult<CallDecision?>(CallDecision.Allow());
         }
@@ -58,8 +65,9 @@ internal sealed class GrainGrantPolicySource(IIdentityClient identity, Authority
         var (decided, mirrored) = await mirror.TryDecide(request).WaitAsync(cancellationToken);
         if (decided && !Provisions(request, mirrored)) { return mirrored; }
         var decision = await identity.Authorize(request).WaitAsync(cancellationToken);
-        var caller = request.Caller.ToCapabilityCaller();
-        if (caller is null || decision is not { Denial: CallDenial.OutsideWorkspace } || auth?.Value.Posture != IdentityPosture.Open
+        if (request.Caller is null) { return decision; }
+        var caller = CallerIdentity.From(request.Caller);
+        if (decision is not { Denial: CallDenial.OutsideWorkspace } || auth?.Value.Posture != IdentityPosture.Open
             || caller.AccountId != AccountSession.DefaultLogin
             || await identity.Membership(BrainScope.Create(caller.AccountId, caller.BrainId).Id, AccountSession.DefaultLogin).WaitAsync(cancellationToken) is not null)
         { return decision; }
@@ -83,7 +91,8 @@ internal sealed class GrainGrantPolicySource(IIdentityClient identity, Authority
     private bool Provisions(CallRequest request, CallDecision? decision)
         => decision is { Denial: CallDenial.OutsideWorkspace }
             && auth?.Value.Posture == IdentityPosture.Open
-            && request.Caller.ToCapabilityCaller()?.AccountId == AccountSession.DefaultLogin;
+            && request.Caller is not null
+            && CallerIdentity.From(request.Caller).AccountId == AccountSession.DefaultLogin;
     public async ValueTask<IReadOnlyList<Grant>> ListGrantsAsync(CapabilityCaller caller, CancellationToken cancellationToken)
         => await identity.ListGrants(BrainScope.Create(caller.AccountId, caller.BrainId).Id).WaitAsync(cancellationToken);
 }

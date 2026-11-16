@@ -9,7 +9,7 @@ namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 // Plain JSON state under the grain's state name (06-06d, clean break under SAFE-01: page tools are configured again).
 [ExportableState]
-public sealed class PageToolsStore
+internal sealed class PageToolsStore
 {
     public PageToolsState? State { get; set; }
 }

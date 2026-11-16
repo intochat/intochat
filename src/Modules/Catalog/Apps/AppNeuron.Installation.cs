@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
@@ -33,15 +34,14 @@ internal sealed partial class AppNeuron
             {
                 if (State.Edited || State.Status == AppStatus.Live) { return Describe(State); }
                 var held = new AppBundle(Name(), State.Version, State.Manifest, State.Spec, new(State.Files, StringComparer.Ordinal));
-                var changed = held.Version != installation.Publication.Version || AppPublicationDigest.Of(held) != installation.Publication.Digest;
-                await Check("Import", new InstalledCopyIsUnchanged(changed));
+                await Check("Import", new InstalledCopyIsUnchanged(held, installation));
                 return await Land(State.Clone());
             }
         }
-        await Check("Import", new AppNameIsFree(Name(), State.Manifest is not null));
+        await Check("Import", new AppNameIsFree(Name(), State.Manifest));
         var next = State.Clone();
         next.BrainScopeId = BrainId();
-        next.Principal = Context.Caller.ToCapabilityCaller() ?? CapabilityCallers.Of(BrainId(), BrainId(), BrainId());
+        next.Principal = CapturePrincipal();
         next.Manifest = bundle.Manifest.Validated();
         next.Spec = bundle.Spec;
         next.Files = bundle.Files;
@@ -63,7 +63,7 @@ internal sealed partial class AppNeuron
         ArgumentNullException.ThrowIfNull(bundle);
         RequireOriginWriter(origin);
         await Check("Replace",
-            new AppExists(Name(), State.Manifest is not null),
+            new AppExists(Name(), State.Manifest),
             new BundleNameIsValid(bundle.Name, Name()),
             new BundleVersionIsSemantic(bundle.Version));
         // A retried update at the version already held, with the same program, changes nothing.
@@ -119,7 +119,7 @@ internal sealed partial class AppNeuron
     // only the runtime's answer makes it Live. Landing again is cheap: Assign is idempotent per program.
     private async Task<AppSnapshot> Land(AppState next)
     {
-        next.Principal ??= Context.Caller.ToCapabilityCaller() ?? CapabilityCallers.Of(BrainId(), BrainId(), BrainId());
+        next.Principal ??= CapturePrincipal();
         next.Status = AppStatus.Deploying;
         next.Refused = null;
         AdvanceProgram(next);
@@ -255,7 +255,7 @@ internal sealed partial class AppNeuron
         {
             try
             {
-                using (InProcessCallerScope.EnterKernel(BrainId()))
+                using (Edge?.Enter(Edge.Module("apps.catalog", Id.Brain)))
                 {
                     await SiloNeurons.Get<ISandboxSignalRouter>(ServiceProvider, ISandboxSignalRouter.Key(BrainId()))
                         .BindSignalsAsync(compiledPackage.Needs.Signals, cancellationToken)
@@ -312,8 +312,7 @@ internal sealed partial class AppNeuron
         if (!RuntimeCallerContext.TryGet(out var caller) || caller.AccountId != installation.AccountId
             || BrainScope.CurrentId() != BrainId())
         { throw new UnauthorizedAccessException("An installation belongs to its initiating account and destination brain."); }
-        var matches = PublishedRelease.IsReceiptMatching(installation, origin, bundle, Name(), caller.AccountId);
-        return Check(operation, new ReceiptMatchesPublication(matches));
+        return Check(operation, new ReceiptMatchesPublication(installation, origin, bundle, Name(), caller.AccountId));
     }
 
     // Phase F: an installed app is a principal of its brain. Its membership (role App, under the brain owner's account)
@@ -328,7 +327,7 @@ internal sealed partial class AppNeuron
             var directory = await broker.Identity();
             var account = await directory.OwnerOfBrain(brain);
             if (account is null) { return; }
-            using (InProcessCallerScope.Enter())
+            using (Edge?.EnterInProcess())
             {
                 await directory.EnsureMember(new Member
                 {
@@ -360,7 +359,7 @@ internal sealed partial class AppNeuron
             var account = await directory.OwnerOfBrain(brain);
             if (account is null) { return; }
             if (await directory.Membership(brain, principal) is not { Role: MemberRole.App }) { return; }
-            using (InProcessCallerScope.Enter())
+            using (Edge?.EnterInProcess())
             {
                 await directory.RemovePrincipalMember(brain, principal);
             }

@@ -157,7 +157,7 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
     }
 
     [Fact]
-    public async Task T3_Screen_EdgeAuthority_InProcessCallerScope_ElevatesHostTurns_BypassingExternalRestrictions()
+    public async Task T3_Screen_EdgeAuthority_EnterInProcess_ElevatesHostTurns_BypassingExternalRestrictions()
     {
         var os = _fixture.OS;
         os.Register<TestAuditedCounterScreen>();
@@ -165,24 +165,20 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
         var brain = NewBrain("screen-host-turn");
         var screenId = new NeuronId(brain, "app.audited_counter", "default");
         var screen = os.Get<IScreen>(screenId);
+        var edge = _fixture.Edge;
 
-        // Resolve InProcessCallerScope reflection helpers
-        var orleansAssembly = typeof(RuntimeOptions).Assembly;
-        var scopeType = orleansAssembly.GetType("DigitalBrain.Runtime.Orleans.Access.InProcessCallerScope", throwOnError: true)!;
-        var isActiveProp = scopeType.GetProperty("IsActive", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
-        var enterMethod = scopeType.GetMethod("Enter", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        Assert.False(edge.IsKernelActive);
 
         // Simulated internal host maintenance turn
-        using (var scope = (IDisposable)enterMethod.Invoke(null, null)!)
+        using (edge.EnterInProcess())
         {
-            Assert.NotNull(scope);
-            Assert.True((bool)isActiveProp.GetValue(null)!);
+            Assert.True(edge.IsKernelActive);
 
             await screen.Activate("app.audited_counter", 1L, "btn-increment");
             await os.Idle();
         }
 
-        Assert.False((bool)isActiveProp.GetValue(null)!);
+        Assert.False(edge.IsKernelActive);
 
         var view = await screen.Read();
         Assert.NotNull(view);

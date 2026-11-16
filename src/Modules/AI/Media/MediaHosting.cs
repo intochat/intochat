@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Modules.AI.Media;
 
-public static class MediaHosting
+internal static class MediaHosting
 {
     public static IServiceCollection AddMediaNeurons(this IServiceCollection services)
     {

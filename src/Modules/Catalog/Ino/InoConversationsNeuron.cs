@@ -4,7 +4,7 @@ using IntoChat.OS.Primitives;
 namespace IntoChat.OS.Modules.Apps;
 
 [DigitalBrain.Neurons.Neuron("ino.conversations")]
-public sealed class InoConversationsNeuron : DigitalBrain.Neurons.Neuron<InoConversationsState>, IInoConversations
+internal sealed class InoConversationsNeuron : DigitalBrain.Neurons.Neuron<InoConversationsState>, IInoConversations
 {
     private const int Kept = 64;
     public const string AgentKeyPrefix = "ino/conversations/";

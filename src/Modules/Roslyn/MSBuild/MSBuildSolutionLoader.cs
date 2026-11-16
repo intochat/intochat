@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.MSBuild;
 
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
-public sealed class MSBuildSolutionLoader : ISolutionLoader
+internal sealed class MSBuildSolutionLoader : ISolutionLoader
 {
     private static readonly Lock RegistrationGate = new();
 

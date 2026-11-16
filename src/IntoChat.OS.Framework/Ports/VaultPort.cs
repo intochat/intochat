@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Capabilities.Secrets;
@@ -7,6 +9,7 @@ using IntoChat.OS.Authority.Secrets;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework.Modules;
+using Microsoft.Extensions.DependencyInjection;
 using OsSecretRef = IntoChat.OS.Connections.SecretRef;
 using SealedSecret = DigitalBrain.Capabilities.Secrets.SealedSecret;
 using SecretRef = DigitalBrain.Capabilities.Secrets.SecretRef;
@@ -18,8 +21,14 @@ namespace IntoChat.OS.Authority;
 public sealed class VaultPort(
     IServiceProvider? services,
     IBrainSecretSealer? sealer = null,
-    Microsoft.Extensions.Configuration.IConfiguration? configuration = null) : ISecretVaultPort
+    Microsoft.Extensions.Configuration.IConfiguration? configuration = null,
+    EdgeAuthority? edge = null) : ISecretVaultPort
 {
+    private IDisposable? EnterVaultScope()
+    {
+        var resolved = edge ?? services?.GetService<EdgeAuthority>();
+        return resolved?.Enter(resolved.Module("identity.vault", new BrainId("system")));
+    }
 
     // A deployment secret (09-05): the installer carries a module's declared secret {s} in IntoChatOS:Modules:{module}:Secrets:{s}
     // (ManifestEnvironment.SecretVariable). The runtime checked the module's manifest declares it; a name "{s}:Key" is covered
@@ -47,7 +56,7 @@ public sealed class VaultPort(
         ArgumentNullException.ThrowIfNull(caller);
         try
         {
-            using var _ = IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system");
+            using var _ = EnterVaultScope();
             var stored = await Vault(caller).Set(Owner(caller), name, label, value).WaitAsync(cancellationToken).ConfigureAwait(false);
             return SecretVaultResult.Stored(ToRef(stored));
         }
@@ -59,7 +68,7 @@ public sealed class VaultPort(
         ArgumentNullException.ThrowIfNull(caller);
         try
         {
-            using var _ = IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system");
+            using var _ = EnterVaultScope();
             await Vault(caller).Remove(Owner(caller), name).WaitAsync(cancellationToken).ConfigureAwait(false);
             return SecretVaultStatus.Ok;
         }
@@ -84,7 +93,7 @@ public sealed class VaultPort(
         if (!string.Equals(owner, caller.PrincipalId, StringComparison.Ordinal)) { return SecretVaultResult.Denied; }
         try
         {
-            using var _ = IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system");
+            using var _ = EnterVaultScope();
             // The vault releases plaintext only to a trusted outbound call: the runtime, on behalf of the stamped caller's app.
             return SecretVaultResult.Resolved(await Vault(caller).Resolve(Platform(caller), reference).WaitAsync(cancellationToken).ConfigureAwait(false));
         }

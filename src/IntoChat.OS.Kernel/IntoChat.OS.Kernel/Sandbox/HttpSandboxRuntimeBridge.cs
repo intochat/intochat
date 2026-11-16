@@ -612,7 +612,8 @@ internal sealed class HttpSandboxRuntimeBridge(
         try
         {
             var generation = entry.NextViewGeneration();
-            using (InProcessCallerScope.EnterKernel(entry.BrainId))
+            var edge = services.GetService<DigitalBrain.Access.EdgeAuthority>();
+            using (edge?.Enter(edge.Module("sandbox.views", new BrainId(entry.BrainId))))
             {
                 var viewId = new NeuronId(new BrainId(entry.BrainId), IntoChat.OS.Modules.Flutter.UIVocabulary.ViewType, $"apps/{entry.AppKey}/view");
                 await SiloNeurons.Get<IView>(services, viewId).Publish(generation, view).WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -830,6 +831,7 @@ internal sealed class HttpSandboxRuntimeBridge(
                             }
                             catch (Exception error) when (error is not OperationCanceledException)
                             {
+                                _logger.LogWarning(error, "Sandbox callback '{CallbackKind}' failed for frame '{FrameId}'.", frame.CallbackKind, frame.Id);
                                 reply = new UnitHostFrameRequest(
                                     frame.Id,
                                     "callback-reply",

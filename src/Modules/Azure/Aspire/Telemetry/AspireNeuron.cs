@@ -7,7 +7,7 @@ using Microsoft.Extensions.Configuration;
 namespace IntoChat.OS.Modules.Microsoft.Aspire;
 
 [ExportableState]
-public sealed record AspireTelemetryState(
+internal sealed record AspireTelemetryState(
     AspireResourceView[] Resources,
     AspireLogEntry[] StructuredLogs,
     AspireTraceSpan[] Traces)
@@ -166,7 +166,7 @@ internal static partial class AspireLiveTelemetry
 }
 
 [DigitalBrain.Neurons.Neuron("aspire", State = "aspire")]
-public sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetryState>, IAspire
+internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetryState>, IAspire
 {
     private readonly IConfiguration? _configuration;
 

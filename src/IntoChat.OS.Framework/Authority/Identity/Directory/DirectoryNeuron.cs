@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Contracts;
 using DigitalBrain.Neurons;
@@ -57,13 +58,15 @@ internal sealed record DirectoryAuthorizeRequest(
     bool HasSideEffects,
     bool EnforceTarget,
     string? TargetScope,
-    bool PublicOperation)
+    bool PublicOperation,
+    bool IsModule = false)
 {
     public static DirectoryAuthorizeRequest From(CallRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        var identity = request.Caller is null ? (CallerIdentity?)null : CallerIdentity.From(request.Caller);
         return new DirectoryAuthorizeRequest(
-            request.Caller?.ToCapabilityCaller(),
+            identity?.ToCapabilityCaller(),
             request.TargetNeuron,
             request.Operation,
             request.SemanticTypeIds,
@@ -71,25 +74,12 @@ internal sealed record DirectoryAuthorizeRequest(
             request.HasSideEffects,
             request.EnforceTarget,
             request.TargetScope,
-            request.PublicOperation);
+            request.PublicOperation,
+            identity?.IsModule ?? false);
     }
 
-    public CallRequest? ToCallRequest()
-    {
-        if (Caller is null) { return null; }
-        return new CallRequest
-        {
-            Caller = Caller.ToCaller(),
-            TargetNeuron = TargetNeuron,
-            Operation = Operation,
-            SemanticTypeIds = SemanticTypeIds ?? [],
-            EstimatedCompute = EstimatedCompute,
-            HasSideEffects = HasSideEffects,
-            EnforceTarget = EnforceTarget,
-            TargetScope = TargetScope,
-            PublicOperation = PublicOperation,
-        };
-    }
+    internal CallerIdentity? ToIdentity()
+        => Caller is null ? null : CallerIdentity.From(Caller) with { IsModule = IsModule };
 }
 
 [DigitalBrain.Signal("identity.directory-changed")]
@@ -202,7 +192,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         principalId ??= "";
         await Check("RegisterPrincipal",
             new PrincipalIdIsValid(principalId),
-            new PrincipalIdIsAvailable(principalId, PrincipalOf(State, principalId)?.DefaultMembership is not null));
+            new PrincipalIdIsAvailable(principalId, PrincipalOf(State, principalId)));
         var accountId = Guid.NewGuid().ToString("N");
         var member = new Member
         {
@@ -231,8 +221,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(issuer);
         ArgumentException.ThrowIfNullOrWhiteSpace(email);
-        var known = auth.Value.TrustedIssuers.Any(item => string.Equals(item.Name, issuer, StringComparison.Ordinal));
-        await Check("RedeemExternalTicket", new IssuerIsKnown(issuer, known));
+        await Check("RedeemExternalTicket", new IssuerIsKnown(issuer, auth.Value.TrustedIssuers));
         var normalizedEmail = DigitalBrain.Capabilities.Identity.ExternalSignInTicket.NormalizeEmail(email) ?? email.Trim();
         var principalId = External.ExternalSignIn.PrincipalOf(issuer, normalizedEmail);
         var name = string.IsNullOrWhiteSpace(displayName) ? normalizedEmail : displayName.Trim();
@@ -260,8 +249,8 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     {
         var brain = BrainOf(State, brainScopeId);
         await Check("RemoveMember",
-            new BrainIsProvisioned(brainScopeId, brain is not null),
-            new MemberIsNotBrainOwner(brainScopeId, brain is not null && accountId == brain.AccountId));
+            new BrainIsProvisioned(brainScopeId, brain),
+            new MemberIsNotBrainOwner(brainScopeId, accountId, brain, null));
         var next = State;
         foreach (var principal in brain!.Members.Where(item => item.AccountId == accountId).Select(item => item.PrincipalId).ToArray())
         { next = DropMember(next, brainScopeId, principal); }
@@ -274,7 +263,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         ArgumentException.ThrowIfNullOrWhiteSpace(principalId);
         var brain = BrainOf(State, brainScopeId);
         if (brain is null || MemberOf(brain, principalId) is not { } member) { return; }
-        await Check("RemovePrincipalMember", new MemberIsNotBrainOwner(brainScopeId, member.Role == MemberRole.Owner || principalId == brain.AccountId));
+        await Check("RemovePrincipalMember", new MemberIsNotBrainOwner(brainScopeId, principalId, brain, member));
         await Commit(DropMember(State, brainScopeId, principalId), brainScopeId);
     }
 
@@ -312,33 +301,46 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     public Task<CallDecision?> Authorize(DirectoryAuthorizeRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.ToCallRequest() is not { } callRequest)
+        if (request.ToIdentity() is not { } caller)
         {
             return Task.FromResult<CallDecision?>(CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no caller."));
         }
-        return AuthorizeCall(callRequest);
+        return AuthorizeIdentity(caller, request.TargetNeuron, request.Operation, request.SemanticTypeIds ?? [], request.TargetScope);
     }
 
-    internal async Task<CallDecision?> AuthorizeCall(CallRequest request)
+    internal async Task<CallDecision?> AuthorizeIdentity(
+        CallerIdentity caller,
+        string targetNeuron,
+        string operation,
+        string[] semanticTypeIds,
+        string? targetScope)
     {
-        var brainId = request.Caller.Brain.Value;
+        var brainId = caller.BrainId;
         var brain = BrainOf(State, brainId) ?? new BrainRow { BrainId = brainId };
-        var durableGrants = await ReadGrants(BrainAuthorityDecisions.GrantsBrainOf(request));
+        var grantsBrain = BrainAuthorityDecisions.GrantsBrainOf(brainId, targetNeuron, targetScope);
+        var durableGrants = await ReadGrants(grantsBrain);
         var allGrants = durableGrants.Length > 0 ? durableGrants : brain.Grants;
-        if (request.Caller.ToCapabilityCaller()?.Kind == CallerKind.Agent && !allGrants.Any(g => g.AppId == CapabilityCallers.AssistantApp))
+        if (caller.Kind == CallerKind.Agent && !allGrants.Any(g => g.AppId == CapabilityCallers.AssistantApp))
         {
-            allGrants = [.. allGrants, .. ShippedGrants.ForAssistant(BrainAuthorityDecisions.GrantsBrainOf(request))];
+            allGrants = [.. allGrants, .. ShippedGrants.ForAssistant(grantsBrain)];
         }
-        var decision = await BrainAuthorityDecisions.Decide(brain with { Grants = allGrants }, request, services?.GetService<IEdgeGrantsCache>());
+        var decision = await BrainAuthorityDecisions.Decide(
+            brain with { Grants = allGrants },
+            caller,
+            targetNeuron,
+            operation,
+            semanticTypeIds,
+            targetScope,
+            services?.GetService<IEdgeGrantsCache>());
         if (decision is { Allowed: true })
         {
-            var consumed = GrantRules.OnceToConsume(request, allGrants);
+            var consumed = GrantRules.OnceToConsume(caller, targetNeuron, semanticTypeIds, allGrants);
             if (consumed.Count > 0)
             {
                 decision = decision with { ConsumesOnce = true };
                 foreach (var c in consumed)
                 {
-                    await RevokeGrant(BrainAuthorityDecisions.GrantsBrainOf(request), c.Id);
+                    await RevokeGrant(grantsBrain, c.Id);
                 }
                 var grants = brain.Grants.Where(grant => !consumed.Contains(grant)).ToArray();
                 await Commit(ReplaceBrain(State, brain with { Grants = grants }), brain.BrainId);
@@ -357,7 +359,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     public async Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant)
     {
         var next = RequireOwner(State, caller);
-        await Check("GrantAsOwner", new BrainAuthorityIsInitialized(BrainOf(next, caller.BrainId) is not null));
+        await Check("GrantAsOwner", new BrainAuthorityIsInitialized(BrainOf(next, caller.BrainId)));
         var normalized = Grant.Normalize(grant);
         ArgumentException.ThrowIfNullOrWhiteSpace(normalized.Grantee);
         ArgumentException.ThrowIfNullOrWhiteSpace(normalized.Scope);
@@ -392,9 +394,11 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         foreach (var grant in grants)
         {
             var normalized = Grant.Normalize(grant);
+            var assistantKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainScopeId), CapabilityCallers.AssistantApp).Key;
             var isAssistantGrantee = string.Equals(normalized.Grantee, $"app:{CapabilityCallers.AssistantApp}", StringComparison.Ordinal)
-                || string.Equals(normalized.Grantee, $"app:{brainScopeId}/apps/{CapabilityCallers.AssistantApp}", StringComparison.Ordinal);
-            var isAppGrantee = normalized.Grantee.StartsWith($"app:{brainScopeId}/apps/", StringComparison.Ordinal);
+                || string.Equals(normalized.Grantee, $"app:{assistantKey}", StringComparison.Ordinal);
+            var isAppGrantee = normalized.Grantee.StartsWith("app:", StringComparison.Ordinal)
+                && IntoChat.OS.Primitives.AppRef.TryParse(new BrainId(brainScopeId), normalized.Grantee["app:".Length..], out _);
             if ((!isAppGrantee && !isAssistantGrantee) || (!string.Equals(normalized.Target, "*", StringComparison.Ordinal) && !InBrain(normalized.Target, brainScopeId)))
             { throw new UnauthorizedAccessException("A shipped app is granted only neurons of the brain it is installed in."); }
             if (brain.Grants.Concat(added).Select(Grant.Normalize).Any(held => !held.Revoked
@@ -454,7 +458,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
 
     private async Task<(DirectoryState Next, bool Created)> ProvisionOwnerRow(string operation, DirectoryState state, Member owner)
     {
-        await Check(operation, new MemberIsOwnerRole(owner.Role == MemberRole.Owner));
+        await Check(operation, new MemberIsOwnerRole(owner));
         var brain = BrainOf(state, owner.BrainId)!;
         if (brain.OwnerProvisioned)
         {
@@ -484,12 +488,12 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         var brain = BrainOf(state, member.BrainId);
         if (brain?.AccountId is { } owner && owner != member.AccountId)
         {
-            await Check("EnsureMember", new BrainHasSingleOwner(member.Role == MemberRole.Owner));
+            await Check("EnsureMember", new BrainHasSingleOwner(member));
         }
         else { state = Initialize(state, member.AccountId, member.BrainId); brain = BrainOf(state, member.BrainId); }
         if (brain!.Members.FirstOrDefault(item => item.PrincipalId == member.PrincipalId) is { } existing)
         {
-            await Check("EnsureMember", new MemberRoleMatches(existing.Role == member.Role));
+            await Check("EnsureMember", new MemberRoleMatches(existing.Role, member.Role));
             return state;
         }
         var members = brain.Members.Append(member).ToArray();
@@ -528,7 +532,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     {
         var brain = BrainOf(state, brainId) ?? new BrainRow { BrainId = brainId };
         if (brain.Kind == kind) { return BrainOf(state, brainId) is null ? ReplaceBrain(state, brain) : state; }
-        await Check(operation, new BrainKindIsMutable(brainId, brain.Kind.ToString(), brain.OwnerProvisioned));
+        await Check(operation, new BrainKindIsMutable(brain));
         return ReplaceBrain(state, brain with { Kind = kind });
     }
 

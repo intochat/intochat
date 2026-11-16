@@ -49,7 +49,7 @@ public sealed class NotificationsSlotFacts
     [Fact]
     public async Task NotificationsSlotFailsHonestlyWhenDetached()
     {
-        var slot = new NotificationsSlotConnection();
+        var slot = Activator.CreateInstance<NotificationsSlotConnection>();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => slot.Notify("BTC Alert", "BTC crossed $100k", "high", Ct));
     }

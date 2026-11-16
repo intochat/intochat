@@ -13,22 +13,13 @@ namespace IntoChat.OS.Authority.Identity.Grants;
 public sealed class SiloAccessCallFilter(
     IEnumerable<ICallFilterStage> stages,
     ICallerAmbient? callerAmbient = null,
-    AccessOptions? accessOptions = null) : IIncomingGrainCallFilter
+    AccessOptions? accessOptions = null,
+    EdgeAuthority? edgeAuthority = null) : IIncomingGrainCallFilter
 {
-    private static readonly Func<bool> IsInProcessCallerScopeActive = ResolveInProcessActiveAccessor();
-
     private readonly ICallFilterStage[] _stages = [.. (stages ?? throw new ArgumentNullException(nameof(stages))).OrderBy(static s => s.Order)];
     private readonly ICallerAmbient? _callerAmbient = callerAmbient;
+    private readonly EdgeAuthority? _edgeAuthority = edgeAuthority;
     private readonly bool _unstampedEdgeIsKernel = accessOptions?.UnstampedEdgeIsKernel ?? false;
-
-    private static Func<bool> ResolveInProcessActiveAccessor()
-    {
-        var prop = Type.GetType("DigitalBrain.Runtime.Orleans.Access.InProcessCallerScope, DigitalBrain.Runtime.Orleans")
-            ?.GetProperty("IsActive", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
-        return prop?.GetMethod is { } getter
-            ? getter.CreateDelegate<Func<bool>>()
-            : static () => false;
-    }
 
     public async Task Invoke(IIncomingGrainCallContext context)
     {
@@ -108,11 +99,11 @@ public sealed class SiloAccessCallFilter(
 
         var caller = ResolveCurrentCaller();
 
-        // Handle unstamped caller provenance: trusted in-process silo hops carry ProcessSecretToken via
-        // InProcessCallerScope.Enter(); unstamped external/edge calls fail closed when UnstampedEdgeIsKernel is false.
+        // Unstamped in-process kernel scopes carry ProcessSecretToken via EdgeAuthority;
+        // unstamped external/edge calls fail closed when UnstampedEdgeIsKernel is false.
         if (caller is null)
         {
-            if (!IsInProcessCallerScopeActive() && !_unstampedEdgeIsKernel)
+            if (!(_edgeAuthority?.IsKernelActive ?? false) && !_unstampedEdgeIsKernel)
             {
                 throw new UnauthorizedAccessException($"Unstamped call to '{targetNeuron}' carried no caller provenance.");
             }
@@ -160,30 +151,28 @@ public sealed class SiloAccessCallFilter(
     {
         var caller = ResolveCurrentCaller();
 
-        if (caller is not null)
+        if (caller is not null
+            && (caller.Actor is Actor.App || (caller.Actor is Actor.Person person && AppPrincipal.IsApp(person.Principal))))
         {
-            var capabilityCaller = caller.ToCapabilityCaller();
-            if (capabilityCaller is not null && (capabilityCaller.Kind == CallerKind.App || AppPrincipal.IsApp(capabilityCaller.PrincipalId)))
+            var ifaceName = context.InterfaceMethod.DeclaringType?.Name ?? "";
+            var methodName = context.InterfaceMethod.Name;
+            var request = new CallRequest
             {
-                var ifaceName = context.InterfaceMethod.DeclaringType?.Name ?? "";
-                var methodName = context.InterfaceMethod.Name;
-                var request = new CallRequest
-                {
-                    Caller = caller,
-                    TargetNeuron = ifaceName,
-                    Operation = $"{ifaceName}.{methodName}",
-                    TargetScope = caller.Brain.Value,
-                    EnforceTarget = true,
-                };
+                Caller = caller,
+                TargetNeuron = ifaceName,
+                Operation = $"{ifaceName}.{methodName}",
+                TargetScope = caller.Brain.Value,
+                EnforceTarget = true,
+            };
 
-                if (GrantRules.EvaluateZeroTokenGuard(request) is { } denial && !denial.Allowed)
-                {
-                    throw new UnauthorizedAccessException(denial.Explanation ?? $"Zero-token guard denied access to {ifaceName}.{methodName}");
-                }
+            if (GrantRules.EvaluateZeroTokenGuard(request) is { } denial && !denial.Allowed)
+            {
+                throw new UnauthorizedAccessException(denial.Explanation ?? $"Zero-token guard denied access to {ifaceName}.{methodName}");
             }
         }
     }
 
     private Caller? ResolveCurrentCaller()
-        => _callerAmbient?.Current ?? RuntimeCallerContext.Current?.ToCaller();
+        => _callerAmbient?.Current
+            ?? (_edgeAuthority is not null && RuntimeCallerContext.Current is { } legacy ? _edgeAuthority.From(legacy) : null);
 }

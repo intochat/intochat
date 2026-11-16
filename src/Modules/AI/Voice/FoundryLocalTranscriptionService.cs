@@ -23,7 +23,7 @@ internal interface ILoadedWhisperModel
 
 // Local Whisper via Microsoft Foundry Local (IAW port). Owned by the AI module.
 // Loaded lazily on the first transcription request so host startup never blocks on model downloads.
-public sealed class FoundryLocalTranscriptionService :
+internal sealed class FoundryLocalTranscriptionService :
     IAudioTranscriptionService,
     IHostedService,
     IAsyncDisposable

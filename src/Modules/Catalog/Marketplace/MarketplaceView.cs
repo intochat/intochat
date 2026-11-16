@@ -1,5 +1,7 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -10,7 +12,8 @@ public sealed class MarketplaceView(IServiceProvider neurons, FeatureCatalog cat
     public async Task<IReadOnlyList<MarketplaceListing>> List(CancellationToken ct)
     {
         MarketplaceListing[] people;
-        using (InProcessCallerScope.EnterKernel("system"))
+        var edge = neurons.GetService<EdgeAuthority>();
+        using (edge?.Enter(edge.Module("apps.marketplace", new BrainId("system"))))
         {
             people = await SiloNeurons.Get<IMarketplace>(neurons, IMarketplace.Key).List().WaitAsync(ct);
         }
@@ -23,7 +26,8 @@ public sealed class MarketplaceView(IServiceProvider neurons, FeatureCatalog cat
         {
             return shipped;
         }
-        using (InProcessCallerScope.EnterKernel("system"))
+        var edge = neurons.GetService<EdgeAuthority>();
+        using (edge?.Enter(edge.Module("apps.marketplace", new BrainId("system"))))
         {
             return await SiloNeurons.Get<IMarketplace>(neurons, IMarketplace.Key).Read(publisher, name).WaitAsync(ct);
         }

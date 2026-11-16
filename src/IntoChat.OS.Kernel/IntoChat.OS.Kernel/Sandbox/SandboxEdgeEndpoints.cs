@@ -144,7 +144,10 @@ internal static class SandboxEdgeEndpoints
                 ? await identityClient.OwnerOfBrain(identity.BrainId).ConfigureAwait(false)
                 : null;
             string? resultJson;
-            using (InProcessCallerScope.EnterApp(identity.BrainId, identity.AppKey, owner?.AccountId))
+            var edge = services.GetService<DigitalBrain.Access.EdgeAuthority>();
+            var resolvedAccount = string.IsNullOrWhiteSpace(owner?.AccountId) ? identity.BrainId : owner.AccountId;
+            var appPrincipal = DigitalBrain.Capabilities.AppPrincipal.Id(identity.AppKey);
+            using (edge?.Enter(edge.App(identity.AppKey, new DigitalBrain.Access.Actor.Person(appPrincipal, resolvedAccount), new BrainId(identity.BrainId))))
             {
                 resultJson = await DispatchContractAsync(identity, request, ai, tables, services, ct).ConfigureAwait(false);
             }

@@ -69,7 +69,8 @@ internal sealed class CircleInvitesNeuron(
         var expiresAt = now + InviteCode.Clamp(request.ValidFor);
         var code = InviteCode.Generate();
         string hash;
-        using (IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system"))
+        var edge = services?.GetService<EdgeAuthority>();
+        using (edge?.Enter(edge.Module("circles", new DigitalBrain.BrainId("system"))))
         {
             hash = InviteCode.Hash(code, await SiloNeurons.Get<IInviteKey>(services!, IInviteKey.Key).Get());
         }
@@ -87,7 +88,7 @@ internal sealed class CircleInvitesNeuron(
         // Unredeemed invites past their expiry carry nothing worth keeping.
         var kept = Snapshot.Invites.Where(known => known.AcceptedAt is not null || known.ExpiresAt > now);
         await SaveQuietly(new CircleInvitesRecord { Invites = [.. kept, invite] });
-        using (IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system"))
+        using (edge?.Enter(edge.Module("circles", new DigitalBrain.BrainId("system"))))
         {
             await SiloNeurons.Get<IInviteCode>(services!, IInviteCode.Key(hash)).Bind(CircleBrain, invite.Id, expiresAt);
         }
@@ -130,7 +131,7 @@ internal sealed class CircleInvitesNeuron(
         var accountId = caller.For?.Account ?? (caller.Actor as Actor.Person)?.Account ?? "";
         var invite = Machine(machineId);
         if (invite.AccountId == accountId) { return Describe(invite); }
-        await Check("ClaimMachine", new MachineIsUnbound(invite.AccountId is null));
+        await Check("ClaimMachine", new MachineIsUnbound(invite.AccountId));
         var claimed = invite with { AccountId = accountId };
         await SaveQuietly(new CircleInvitesRecord { Invites = [.. Snapshot.Invites.Select(known => known.Id == invite.Id ? claimed : known)] });
         return Describe(claimed);

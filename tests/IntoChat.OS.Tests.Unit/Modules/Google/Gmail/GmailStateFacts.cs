@@ -1,100 +1,131 @@
+using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Access;
-using DigitalBrain.Confirmation;
+using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Compute;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Capabilities.Connections.Sealing;
+using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Invocation;
 using DigitalBrain.Kernel;
-using DigitalBrain.Neurons;
-using DigitalBrain.Operations;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Unit;
 
 // The Gmail neuron is plain (06-08): a save that fails leaves its state as it was, and the next save starts from that state.
 public sealed class GmailStateFacts
 {
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
     [Fact]
     public async Task FailedAggregateWritePreservesThePreviousSnapshotOnTheSameActivation()
     {
-        var context = new FaultingContext(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("facts"), "gmail", "connection/gmail/c1"),
-            new GmailState { GrantGeneration = 7, BoundMailbox = "fixture@example.test" });
-        var neuron = new GmailNeuron();
-        NeuronAttachment.Attach(neuron, context);
-        typeof(DigitalBrain.Neurons.Neuron).GetField("_seat", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(neuron, context.Inner);
-        await NeuronAttachment.Activate(neuron, CancellationToken.None);
-        var initial = Assert.IsType<GmailState>(context.Stored);
-        context.Fail = true;
+        var services = new ServiceCollection()
+            .AddSingleton(TimeProvider.System)
+            .AddKeyedSingleton(GmailModule.ClockKey, TimeProvider.System)
+            .AddSingleton<IGmailApi>(new FakeDraftGmailApi())
+            .AddSingleton<ISecretSealer>(new PassthroughSealer())
+            .AddSingleton<IModuleIntegrations<GmailModule>>(new FakeIntegrations())
+            .AddSingleton(typeof(ILogger<>), typeof(NullLogger<>))
+            .BuildServiceProvider();
 
-        await Assert.ThrowsAsync<IOException>(() => neuron.SaveGmailStateAsync(next => next.GrantGeneration = 8));
-        Assert.Same(initial, context.Stored);
-        Assert.Equal(7, initial.GrantGeneration);
-
-        context.Fail = false;
-        await neuron.SaveGmailStateAsync(next => next.GrantGeneration = 9);
-        var stored = Assert.IsType<GmailState>(context.Stored);
-        Assert.NotSame(initial, stored);
-        Assert.Equal(7, initial.GrantGeneration);
-        Assert.Equal(9, stored.GrantGeneration);
-        Assert.Equal("fixture@example.test", stored.BoundMailbox);
-    }
-
-    // A fake context whose state store can be made to fail; everything else is the testing kit's fake.
-    private sealed class FaultingContext : INeuronContext, INeuronState
-    {
-        private readonly FakeNeuronContext _inner;
-        private object? _previous;
-
-        public FaultingContext(DigitalBrain.NeuronId id, GmailState initial)
+        await using var os = TestOS.Local(o =>
         {
-            _inner = new(id, new ServiceCollection()
-                .AddSingleton(TimeProvider.System).BuildServiceProvider());
-            _previous = initial;
-            _inner.MemoryState.Save(initial, []).GetAwaiter().GetResult();
+            o.Services = services;
+        }).Register(typeof(GmailModule).Assembly);
 
-            var savedField = typeof(InMemoryNeuronState).GetField("_saved", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-            var valueField = typeof(InMemoryNeuronState).GetField("_value", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-
-            savedField?.SetValue(_inner.MemoryState, (Action<IReadOnlyList<DigitalBrain.Signal>>)(_ =>
+        var brain = new BrainId("facts");
+        var id = new NeuronId(brain, "gmail", "connection/gmail/c1");
+        os.SeedStoredState(id, JsonSerializer.Serialize(new GmailState
+        {
+            AuthMethodId = "google-oauth",
+            Status = ConnectionStatus.Connected,
+            GrantGeneration = 7,
+            BoundMailbox = "fixture@example.test",
+            Account = "fixture@example.test",
+            PageTokenKey = Enumerable.Range(1, 32).Select(static i => (byte)i).ToArray(),
+            Scopes = $"{GmailScopes.Read} https://www.googleapis.com/auth/gmail.compose",
+            Secrets = new Dictionary<string, SealedSecret>(StringComparer.Ordinal)
             {
-                if (Fail)
-                {
-                    valueField?.SetValue(_inner.MemoryState, _previous);
-                    throw new IOException("Fixture storage unavailable.");
-                }
-                _previous = Stored;
-            }));
-        }
+                ["access"] = new() { KeyId = "mk", Cipher = "token-1" },
+            },
+        }, RuntimeProtocol.OptionsFor(typeof(GmailState))));
 
-        public FakeNeuronContext Inner => _inner;
-        public bool Fail { get; set; }
-        public object? Stored => typeof(InMemoryNeuronState).GetField("_value", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(_inner.MemoryState);
+        using var caller = RuntimeCallerContext.StampScope(CapabilityCallers.Of("user-1", "acc-1", brain.Value, CallerKind.User));
+        using var edge = os.Edge.Enter(os.Edge.Person("user-1", "acc-1", brain));
 
-        public DigitalBrain.NeuronId Id => _inner.Id;
-        public Caller? Caller => ((INeuronContext)_inner).Caller;
-        public IServiceProvider Services => _inner.Services;
-        public TimeProvider Time => _inner.Time;
-        public INeuronState State => this;
-        public IOperationsQuery OperationsQuery => throw new NotSupportedException();
-        public ITimers Timers => _inner.Timers;
-        public IReminders Reminders => _inner.Reminders;
-        public IOperations Operations => null!;
-        public ISynapses Synapses => _inner.Synapses;
-        public ISignalHistory History => null!;
-        public IConfirmations Confirmations => null!;
-        public Task Publish(DigitalBrain.Signal signal) => _inner.Publish(signal);
-        public T Get<T>(DigitalBrain.NeuronId target) where T : class => _inner.Get<T>(target);
-        public void Defer(Func<Task> work) => _inner.Defer(work);
+        var gmail = os.Get<IGmail>(id);
+        var first = await gmail.PreviewDraft(new GmailDraftRequest(["a@example.test"], [], [], "First", "Body-1"), Ct);
+        Assert.NotNull(first.Value);
 
-        public Task<T?> Load<T>() => Task.FromResult(Stored is T value ? value : default);
+        os.FailNextPublishAfterAppend(id);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            gmail.PreviewDraft(new GmailDraftRequest(["b@example.test"], [], [], "Failed", "Body-2"), Ct));
 
-        public Task Save<T>(T next, IReadOnlyList<DigitalBrain.Signal> signals) => _inner.MemoryState.Save(next, signals);
+        var stateJsonAfterFailure = await ((IBrainObserver)os).State(id, Ct);
+        Assert.NotNull(stateJsonAfterFailure);
+        var stateAfterFailure = stateJsonAfterFailure.Value.Deserialize<GmailState>(RuntimeProtocol.OptionsFor(typeof(GmailState)))!;
+        var preservedPreview = Assert.Single(stateAfterFailure.DraftPreviews);
+        Assert.Equal("First", preservedPreview.Value.Subject);
+        Assert.Equal(7, stateAfterFailure.GrantGeneration);
 
-        public Task Clear() => _inner.MemoryState.Clear();
+        var created = await gmail.CreateDraft(new GmailCreateDraftRequest(first.Value!.PreviewId, "req-1"), Ct);
+        Assert.NotNull(created.Value);
+        Assert.Equal("draft-1", created.Value!.DraftId);
+
+        var recovered = await gmail.PreviewDraft(new GmailDraftRequest(["c@example.test"], [], [], "Recovered", "Body-3"), Ct);
+        Assert.NotNull(recovered.Value);
+
+        var stateJsonAfterRecovery = await ((IBrainObserver)os).State(id, Ct);
+        Assert.NotNull(stateJsonAfterRecovery);
+        var stateAfterRecovery = stateJsonAfterRecovery.Value.Deserialize<GmailState>(RuntimeProtocol.OptionsFor(typeof(GmailState)))!;
+        Assert.Equal(["First", "Recovered"], stateAfterRecovery.DraftPreviews.Select(p => p.Value.Subject).ToArray());
     }
 
-    private interface INeuronState
+    private sealed class FakeIntegrations : IModuleIntegrations<GmailModule>
     {
-        Task<T?> Load<T>();
-        Task Save<T>(T next, IReadOnlyList<DigitalBrain.Signal> signals);
-        Task Clear();
+        public IIntegrationHandle Get(string integrationId) => new FakeHandle(integrationId);
+
+        private sealed class FakeHandle(string integrationId) : IIntegrationHandle
+        {
+            public string IntegrationId => integrationId;
+            public Task<IntegrationSnapshot> ReadAsync(CancellationToken cancellationToken = default)
+                => Task.FromResult(new IntegrationSnapshot { IntegrationId = integrationId, Status = IntegrationStatus.Unconfigured });
+            public Task<string> ReadSecretAsync(string field, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            public Task<ReleasedIntegration> ReleaseAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        }
+    }
+
+    private sealed class PassthroughSealer : ISecretSealer
+    {
+        public SealedSecret Seal(string name, string plaintext) => new() { KeyId = "mk", Cipher = plaintext };
+        public string Open(SealedSecret secret) => secret.Cipher;
+    }
+
+    private sealed class FakeDraftGmailApi : IGmailApi
+    {
+        private int _draftCount;
+
+        public Task<GoogleDraftWriteResult> CreateDraftAsync(string accessToken, GoogleCallContext context, byte[] mime, CancellationToken ct)
+            => Task.FromResult(new GoogleDraftWriteResult(GoogleWriteOutcome.Succeeded, DraftId: $"draft-{++_draftCount}"));
+
+        public Task<GoogleApiResult<GoogleProfile>> ProfileAsync(string accessToken, GoogleCallContext context, CancellationToken ct)
+            => throw new NotSupportedException();
+        public Task<GoogleApiResult<GoogleMessagePage>> ListMessagesAsync(string accessToken, GoogleCallContext context, int take, string? pageToken, CancellationToken ct)
+            => throw new NotSupportedException();
+        public Task<GoogleApiResult<GoogleMessageMetadata>> ReadMetadataAsync(string accessToken, GoogleCallContext context, string messageId, CancellationToken ct)
+            => throw new NotSupportedException();
+        public Task<GoogleApiResult<GoogleMessageContent>> ReadMessageAsync(string accessToken, GoogleCallContext context, string messageId, CancellationToken ct)
+            => throw new NotSupportedException();
+        public Task<GoogleApiResult<GoogleWatch>> WatchAsync(string accessToken, GoogleCallContext context, string topic, CancellationToken ct)
+            => throw new NotSupportedException();
+        public Task<GoogleApiResult<GoogleUnit>> StopAsync(string accessToken, GoogleCallContext context, CancellationToken ct)
+            => throw new NotSupportedException();
+        public Task<GoogleApiResult<GoogleHistoryPage>> HistoryAsync(string accessToken, GoogleCallContext context, string startHistoryId, string? pageToken, int take, CancellationToken ct)
+            => throw new NotSupportedException();
     }
 }

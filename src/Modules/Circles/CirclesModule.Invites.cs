@@ -14,7 +14,7 @@ namespace IntoChat.OS.Modules.Circles;
 // (ICircleInviteRedeemer, the cloud enrollment module), not an endpoint here.
 public sealed partial class CirclesModule
 {
-    public sealed record MintCodeRequest(int? ValidForMinutes = null, string? Role = null, bool BindCaller = false);
+    internal sealed record MintCodeRequest(int? ValidForMinutes = null, string? Role = null, bool BindCaller = false);
 
     private static void MapInviteCodes(IEndpointRouteBuilder endpoints)
     {

@@ -101,8 +101,7 @@ public sealed class DataStudioAppFacts
     [Fact]
     public void DataStudioAppDataOwnerConsistencyInEmits()
     {
-        var app = new DataStudioApp();
-        var view = app.Render();
+        var view = IntoChat.OS.UI.ScreenPreview.With<DataStudioApp, View>(app => app.Render());
         Assert.NotNull(view);
 
         var buttons = ExtractButtons(view).ToArray();

@@ -3,7 +3,7 @@ using DigitalBrain.Flows;
 namespace IntoChat.OS.Modules.Apps.Flows;
 
 // The index's persisted entries, keyed by flow id. Fields are only ever added.
-public sealed record FlowsState(Dictionary<string, FlowEntry> Flows)
+internal sealed record FlowsState(Dictionary<string, FlowEntry> Flows)
 {
     // Finished flows kept; the oldest finished beyond this are dropped.
     public const int KeepFinished = 2000;
@@ -28,7 +28,7 @@ public sealed record FlowsState(Dictionary<string, FlowEntry> Flows)
 // that read succeeded HeadKnown is false and the entry is a placeholder. OperationId is the current step's leaf operation, read
 // from the flow when the step starts or waits. HeadAttempts counts failed head reads (retries stop at MaxHeadAttempts);
 // ResolvedStep is the step whose wait was last resolved, so a FlowWaiting for it delivered late is ignored.
-public sealed record FlowEntry(
+internal sealed record FlowEntry(
     string FlowId,
     string Type,
     string Title,

@@ -1,6 +1,6 @@
 using IntoChat.OS.Modules.AI.Agents.Context;
 
-namespace IntoChat.OS.Modules.AI.Routing;
+namespace IntoChat.OS.Modules.Apps.Routing;
 
 // The apps capabilities context: one entry per app, one line per operation, so an agent knows what each app can do
 // without reading the menu. An app operation runs through IApp.Request (as RouterNeuron.Route does it), so that is the contract named.

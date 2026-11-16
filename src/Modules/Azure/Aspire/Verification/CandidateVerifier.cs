@@ -27,6 +27,7 @@ internal sealed class CandidateVerifier(IIntoChatOSBrains brains, IClusterHost c
         try { await server.Connect(new($"candidate {sha}", $"{endpoints.Mcp}/brains/{brainId}/mcp"), ct); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            logger.LogWarning(error, "Connecting to candidate {Sha} MCP server failed.", sha);
             checks.Add(new("connect", false, error.Message));
             return new([.. checks], clock.Elapsed);
         }
@@ -41,7 +42,7 @@ internal sealed class CandidateVerifier(IIntoChatOSBrains brains, IClusterHost c
                     outcome = new(check.Name, passed, detail);
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
-                { outcome = new(check.Name, false, error.Message); }
+                { logger.LogWarning(error, "Candidate {Sha} verification check '{Check}' failed.", sha, check.Name); outcome = new(check.Name, false, error.Message); }
                 checks.Add(outcome);
                 if (!outcome.Passed) { break; }
             }

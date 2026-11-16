@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Modules.Apps;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Desktop;
@@ -125,7 +126,10 @@ public sealed class DesktopAppFacts
     public void DesktopApp_LogsSwallowedFallbackToConstructorInjectedLogger()
     {
         var logger = new RecordingLogger<DesktopApp>();
-        var app = new DesktopApp(logger);
+        var services = new ServiceCollection()
+            .AddSingleton<ILogger<DesktopApp>>(logger)
+            .BuildServiceProvider();
+        var app = ActivatorUtilities.CreateInstance<DesktopApp>(services);
 
         var catalog = app.EffectiveCatalog();
 

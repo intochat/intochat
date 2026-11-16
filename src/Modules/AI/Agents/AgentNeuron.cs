@@ -391,7 +391,7 @@ internal sealed class AgentNeuron(
         {
             // The caller learns why the hand-off failed; a failure to undo it must not replace that.
             try { await Persist(State with { ActiveRun = null }); }
-            catch (Exception error) { Abandon(error, runId); }
+            catch (Exception error) { Logger.LogWarning(error, "Failed to clear active agent run {RunId} after hand-off failure.", runId); Abandon(error, runId); }
             throw;
         }
         return runId;
@@ -613,7 +613,7 @@ internal sealed class AgentNeuron(
                     // The end is announced whether or not it could be stored: a Start caller must never wait forever.
                     var persisted = true;
                     try { await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, run) }); }
-                    catch (Exception persist) { persisted = false; Abandon(persist, runId); }
+                    catch (Exception persist) { persisted = false; Logger.LogWarning(persist, "Failed to persist final agent run {RunId}.", runId); Abandon(persist, runId); }
                     await Announce(persisted);
                     await Notify(new TurnFailed(Key, runId, error, cancelled) { Failure = failureKind }, persisted);
                 }

@@ -5,7 +5,7 @@ namespace IntoChat.OS.Modules.AI.Memory;
 
 [GenerateSerializer, Alias("ai.knowledge-store-state")]
 [ExportableState]
-public sealed record KnowledgeStoreState
+internal sealed record KnowledgeStoreState
 {
     [Id(0)] public long Revision { get; init; }
     [Id(1)] public KnowledgeNodeRecord[] Nodes { get; init; } = [];
@@ -21,7 +21,7 @@ public sealed record KnowledgeStoreState
 }
 
 [GenerateSerializer, Alias("ai.knowledge-node-record")]
-public sealed record KnowledgeNodeRecord
+internal sealed record KnowledgeNodeRecord
 {
     [Id(0)] public string Id { get; init; } = "";
     [Id(1)] public string Label { get; init; } = "";
@@ -38,14 +38,14 @@ public sealed record KnowledgeNodeRecord
 }
 
 [GenerateSerializer, Alias("ai.knowledge-property-record")]
-public sealed record KnowledgePropertyRecord
+internal sealed record KnowledgePropertyRecord
 {
     [Id(0)] public string Key { get; init; } = "";
     [Id(1)] public string Value { get; init; } = "";
 }
 
 [GenerateSerializer, Alias("ai.knowledge-edge-record")]
-public sealed record KnowledgeEdgeRecord
+internal sealed record KnowledgeEdgeRecord
 {
     [Id(0)] public string SourceId { get; init; } = "";
     [Id(1)] public string TargetId { get; init; } = "";

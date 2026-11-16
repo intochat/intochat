@@ -7,7 +7,7 @@ using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Flutter.Compute;
 
-public sealed record ComputeLedgerState(
+internal sealed record ComputeLedgerState(
     ComputeRow[] Rows,
     long MonthlyBudgetMicros = ComputeState.DefaultMonthlyBudgetMicros)
 {

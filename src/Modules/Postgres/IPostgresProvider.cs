@@ -4,7 +4,7 @@ using Npgsql;
 
 namespace IntoChat.OS.Modules.Postgres;
 
-public interface IPostgresProvider
+internal interface IPostgresProvider
 {
     Task<PostgresQueryResult> QueryAsync(string sql, int maxRows, IReadOnlyList<PostgresParameter> parameters, CancellationToken cancellationToken);
     Task<PostgresSchema> ReadSchemaAsync(string? table, CancellationToken cancellationToken);

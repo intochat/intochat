@@ -1,9 +1,11 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority.Identity.Handles;
-using IntoChat.OS.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Connections.Http;
 
@@ -32,9 +34,10 @@ public static class HandleRoutes
 
             var normalizedHandle = IHandleDirectory.Normalize(handle);
             var handleDirectory = ResolveDirectory(http.RequestServices, normalizedHandle);
+            var edge = http.RequestServices.GetService<EdgeAuthority>();
 
             string? brainId;
-            using (InProcessCallerScope.EnterKernel("system"))
+            using (edge?.Enter(edge.Module("identity.handles", new BrainId(IHandleDirectory.BrainOf(normalizedHandle)))))
             {
                 brainId = await handleDirectory.Resolve();
             }

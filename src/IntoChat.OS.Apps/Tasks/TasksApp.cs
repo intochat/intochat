@@ -60,15 +60,19 @@ public sealed class TasksApp : Screen<TasksState>
     private const string ApprovalsKey = "approvals/index";
     private const string SynapsesKey = "ino/synapses";
 
-    private static readonly ILoggerFactory ConsoleLogFactory =
-        LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
-    private static readonly ILogger ConsoleLog = ConsoleLogFactory.CreateLogger<TasksApp>();
+    private static readonly ILogger ConsoleLog = IntoChat.OS.Framework.Logging.OsConsoleLog.For<TasksApp>();
     private readonly ILogger<TasksApp>? _logger;
 
     public TasksApp() : this(null) { }
 
     [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
     public TasksApp(ILogger<TasksApp>? logger = null) => _logger = logger;
+
+    protected override Task OnActivate(CancellationToken cancellationToken)
+    {
+        AppActivationScope.Notify(this);
+        return base.OnActivate(cancellationToken);
+    }
 
     private ILogger Log => _logger ?? ConsoleLog;
 

@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Azure;
 using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
@@ -209,6 +211,7 @@ public static class AzureInstaller
         }
         catch (Exception ex) when (ex is RequestFailedException or InvalidOperationException or NotSupportedException or ArgumentException or FormatException or HttpRequestException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
         {
+            OsConsoleLog.For(typeof(AzureInstaller)).LogSwallowed(ex, $"Azure install step '{current}' failed.");
             await error.WriteLineAsync($"install: {current} failed: {ex.Message}", ct);
             return 1;
         }

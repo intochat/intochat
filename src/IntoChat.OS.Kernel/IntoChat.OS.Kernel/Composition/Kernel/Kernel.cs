@@ -101,6 +101,32 @@ public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = 
         return TypeTable(brain).Unload(name).WaitAsync(cancellationToken);
     }
 
+    public async Task CancelFlow(BrainId brain, NeuronId flowId, string? operationId, string reason, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        var edge = services?.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
+        using var _ = edge?.EnterKernel(brain);
+        if (operationId is { Length: > 0 } id && services is not null)
+        {
+            var operationsQuery = services.GetService(typeof(DigitalBrain.Operations.IOperationsQuery)) as DigitalBrain.Operations.IOperationsQuery;
+            var operations = services.GetService(typeof(DigitalBrain.Operations.IOperations)) as DigitalBrain.Operations.IOperations;
+            var operation = new DigitalBrain.Operations.OperationId(id);
+            if (operationsQuery is not null && operations is not null
+                && await operationsQuery.Read(operation, cancellationToken).ConfigureAwait(false) is { Result: null })
+            {
+                await operations.Cancel(operation, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        if (services is not null)
+        {
+            await DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons
+                .Get<IntoChat.OS.Modules.Apps.Flows.IFlowStarter>(services, flowId)
+                .Cancel(reason)
+                .WaitAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
     private ITypeTable TypeTable(string brain)
     {
         if (!BrainScope.IsValidId(brain)) { throw new ArgumentException($"'{brain}' is not a brain id.", nameof(brain)); }

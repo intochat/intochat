@@ -33,4 +33,4 @@ internal sealed class ProblemReportsNeuron
 
 // A report was filed: the saved change says which intent it came from (never the message itself).
 [Signal("ui.problem-reported")]
-public sealed record ProblemReported(string WorkspaceId, string IntentId) : DigitalBrain.Signal;
+internal sealed record ProblemReported(string WorkspaceId, string IntentId) : DigitalBrain.Signal;

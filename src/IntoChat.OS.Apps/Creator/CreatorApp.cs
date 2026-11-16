@@ -23,6 +23,7 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.Modules.Flutter.Fields;
+using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -71,8 +72,7 @@ public sealed record CreatorReject(string? ApprovalId = null) : DigitalBrain.Sig
 [Neuron("app.creator")]
 public sealed class CreatorApp : Screen<CreatorState>
 {
-    private static readonly ILoggerFactory ConsoleLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
-    private static readonly ILogger ConsoleLogger = ConsoleLoggerFactory.CreateLogger<CreatorApp>();
+    private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<CreatorApp>();
 
     private readonly ILogger _logger;
     private readonly TimeProvider? _time;
@@ -84,6 +84,12 @@ public sealed class CreatorApp : Screen<CreatorState>
     {
         _logger = (ILogger?)logger ?? ConsoleLogger;
         _time = time;
+    }
+
+    protected override Task OnActivate(CancellationToken cancellationToken)
+    {
+        AppActivationScope.Notify(this);
+        return base.OnActivate(cancellationToken);
     }
 
     private ILogger Log => _logger;
@@ -472,7 +478,7 @@ public sealed class CreatorApp : Screen<CreatorState>
     private async Task<Inspection> NodeAsync(string id)
     {
         var alias = UnitAlias(id);
-        if (alias is null) { return new Inspection(Selection.Node, id) { Notice = id.Contains("/apps/", StringComparison.Ordinal) ? "A compiled app." : "A kernel neuron." }; }
+        if (alias is null) { return new Inspection(Selection.Node, id) { Notice = IntoChat.OS.Primitives.AppRef.TryParse(id, out _) ? "A compiled app." : "A kernel neuron." }; }
         var reads = Get<IDebuggerReads>(IDebuggerReads.DefaultKey);
         string? state = null, view = null, notice = null;
         if (!id.StartsWith("draft:", StringComparison.Ordinal))
@@ -561,7 +567,7 @@ public sealed class CreatorApp : Screen<CreatorState>
         {
             try
             {
-                var exported = await Get<IApp>(IApp.Key(Id.Brain.Value, alias)).Export();
+                var exported = await Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(Id.Brain, alias).Key).Export();
                 if (exported?.Files is { Count: > 0 })
                 {
                     foreach (var (path, text) in exported.Files)

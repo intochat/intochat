@@ -53,7 +53,7 @@ public sealed class EdgePresenceSecurityFacts
     [Fact]
     public async Task SiloAccessCallFilter_FailsClosed_WhenStagesEmptyOrReturnNull()
     {
-        var personCaller = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin).ToCaller();
+        var personCaller = IntoChat.OS.Tests.TestEdge.From(CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin));
         var ambient = new FixedCallerAmbient(personCaller);
         var invocation = new RuntimeInvocation("app.view", "DigitalBrain.UI.IView", "main", "Read", []);
         var callContext = new FakeGrainCallContext(GrainId.Create("neuron", "owner/app.view/main"), invocation);
@@ -78,7 +78,7 @@ public sealed class EdgePresenceSecurityFacts
         var provenPerson = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin);
         var personDecision = await source.AuthorizeAsync(new CallRequest
         {
-            Caller = provenPerson.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(provenPerson),
             TargetNeuron = "app.view/owner/main",
             Operation = "IView.Read",
             TargetScope = AccountSession.DefaultLogin,
@@ -91,7 +91,7 @@ public sealed class EdgePresenceSecurityFacts
         var agent = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin, CallerKind.Agent, CapabilityCallers.AssistantApp);
         var agentDecision = await source.AuthorizeAsync(new CallRequest
         {
-            Caller = agent.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(agent),
             TargetNeuron = "app.view/owner/main",
             Operation = "IView.Read",
             TargetScope = AccountSession.DefaultLogin,
@@ -102,7 +102,7 @@ public sealed class EdgePresenceSecurityFacts
         var scheduler = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin, CallerKind.Scheduler, CapabilityCallers.SchedulerApp);
         var schedulerDecision = await source.AuthorizeAsync(new CallRequest
         {
-            Caller = scheduler.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(scheduler),
             TargetNeuron = "app.view/owner/main",
             Operation = "IView.Read",
             TargetScope = AccountSession.DefaultLogin,
@@ -113,7 +113,7 @@ public sealed class EdgePresenceSecurityFacts
         var arbitraryApp = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin, CallerKind.App, "untrusted-app");
         var appDecision = await source.AuthorizeAsync(new CallRequest
         {
-            Caller = arbitraryApp.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(arbitraryApp),
             TargetNeuron = "app.view/owner/main",
             Operation = "IView.Read",
             TargetScope = AccountSession.DefaultLogin,

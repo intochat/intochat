@@ -372,8 +372,7 @@ public sealed record GalleryAppState(
 [Screen("app.gallery", Title = "UI Gallery", Icon = Icons.Sparkles)]
 public sealed class GalleryApp : AggregateScreen<GalleryAppState>
 {
-    private static readonly ILoggerFactory ConsoleLoggerFactory = LoggerFactory.Create(static b => b.SetMinimumLevel(LogLevel.Debug).AddConsole());
-    private static readonly ILogger ConsoleLogger = ConsoleLoggerFactory.CreateLogger<GalleryApp>();
+    private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<GalleryApp>();
 
     private readonly ILogger _logger;
 

@@ -78,8 +78,8 @@ public static class CreatorView
         }
 
         var appNodes = topology.Nodes
-            .Where(n => n.Role == BrainGraph.App || n.Id.Contains("/apps/", StringComparison.Ordinal))
-            .Where(n => !n.Id.EndsWith("/apps/creator", StringComparison.Ordinal))
+            .Where(n => n.Role == BrainGraph.App || IntoChat.OS.Primitives.AppRef.TryParse(n.Id, out _))
+            .Where(n => !IntoChat.OS.Primitives.AppRef.TryParse(n.Id, out var a) || a.Name != App)
             .Take(12)
             .ToArray();
 
@@ -88,7 +88,9 @@ public static class CreatorView
             children.Add(SectionHeader("Installed Apps"));
             var appButtons = appNodes.Select(node =>
             {
-                var label = node.Label.Length > 0 ? node.Label : node.Id.Split("/apps/").Last();
+                var label = node.Label.Length > 0
+                    ? node.Label
+                    : IntoChat.OS.Primitives.AppRef.TryParse(node.Id, out var nodeRef) ? nodeRef.Name : node.Id;
                 var isSelected = state.Selected is { Kind: Selection.Node } sel && sel.Id == node.Id;
                 return (Node)(isSelected ? PrimaryButton(label) : GhostButton(label))
                     .Key($"app:{node.Id}")
@@ -291,12 +293,12 @@ public static class CreatorView
             return false;
         }
 
-        if (nodeId.Split("/apps/") is [var brain, var appName] && appName.Length > 0 && appName != App)
+        if (IntoChat.OS.Primitives.AppRef.TryParse(nodeId, out var appRef) && appRef.Name != App)
         {
-            slotUri = $"{brain}/apps/{appName}/view";
+            slotUri = appRef.ChildKey("view");
             slotKind = "app";
-            openAppId = appName;
-            displayTitle = appName;
+            openAppId = appRef.Name;
+            displayTitle = appRef.Name;
             return true;
         }
 
