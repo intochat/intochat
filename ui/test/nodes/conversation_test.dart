@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -23,6 +24,7 @@ Future<void> _host(
   List<Map<String, dynamic>>? events,
   Object? Function(Map<String, dynamic> event)? answer,
   int Function()? generationOf,
+  VoiceTranscriber? transcribe,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -35,6 +37,7 @@ Future<void> _host(
           load: (kind, name) async =>
               _published(root, generation: generationOf?.call() ?? 3),
           watch: (kind, name) => const Stream.empty(),
+          transcribe: transcribe,
           onAction: (event) async {
             events?.add(event);
             return answer?.call(event);
@@ -54,6 +57,7 @@ Map<String, dynamic> _conversation({
   Map<String, dynamic>? waiting,
   Map<String, dynamic>? empty,
   bool enabled = true,
+  bool? dictation,
 }) => {
   'kind': 'conversation',
   'key': 'conversation',
@@ -63,6 +67,7 @@ Map<String, dynamic> _conversation({
     'onSubmit': {'owner': 'app.ino', 'signal': 'send'},
     'placeholder': 'Ask anything.',
     'enabled': enabled,
+    'dictation': ?dictation,
   },
   'waiting': waiting,
   'status': status,
@@ -473,4 +478,172 @@ void main() {
       expect(events, isEmpty);
     },
   );
+
+  testWidgets('no microphone when composer.dictation is false', (tester) async {
+    await _host(
+      tester,
+      _conversation(dictation: false),
+      transcribe: (_, _) async => 'ignored',
+    );
+
+    expect(find.byType(UiVoiceInput), findsNothing);
+    expect(find.byIcon(Icons.mic_none_rounded), findsNothing);
+    expect(find.byKey(const Key('workspace_voice')), findsNothing);
+  });
+
+  Future<void> pumpUntil(
+    WidgetTester tester,
+    bool Function() condition, {
+    int maxSteps = 100,
+  }) async {
+    for (var i = 0; i < maxSteps; i++) {
+      await tester.pump();
+      if (condition()) return;
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+    }
+    await tester.pump();
+  }
+
+  testWidgets('a dictated transcript lands in the draft and is not sent', (
+    tester,
+  ) async {
+    final tempDir = Directory.systemTemp.createTempSync('ino_voice_test_');
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+    const recordChannel = MethodChannel('com.llfbandit.record/messages');
+    const pathChannel = MethodChannel('plugins.flutter.io/path_provider');
+    String? recordingPath;
+    final eventChannels = <MethodChannel>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+
+    messenger.setMockMethodCallHandler(pathChannel, (call) async {
+      if (call.method == 'getTemporaryDirectory') {
+        return tempDir.path;
+      }
+      return null;
+    });
+    messenger.setMockMethodCallHandler(recordChannel, (call) async {
+      final args = call.arguments is Map
+          ? Map<Object?, Object?>.from(call.arguments as Map)
+          : const <Object?, Object?>{};
+      switch (call.method) {
+        case 'create':
+          final recorderId = args['recorderId'] as String?;
+          if (recorderId != null) {
+            final eventChannel = MethodChannel(
+              'com.llfbandit.record/events/$recorderId',
+            );
+            eventChannels.add(eventChannel);
+            messenger.setMockMethodCallHandler(eventChannel, (_) async => null);
+          }
+          return null;
+        case 'dispose':
+        case 'cancel':
+          return null;
+        case 'hasPermission':
+        case 'isEncoderSupported':
+          return true;
+        case 'start':
+          recordingPath = args['path'] as String;
+          File(recordingPath!).writeAsBytesSync(const [1, 2, 3, 4]);
+          return null;
+        case 'stop':
+          return recordingPath;
+      }
+      return null;
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(recordChannel, null);
+      messenger.setMockMethodCallHandler(pathChannel, null);
+      for (final channel in eventChannels) {
+        messenger.setMockMethodCallHandler(channel, null);
+      }
+    });
+
+    final events = <Map<String, dynamic>>[];
+    final transcriptions = <({Uint8List audio, String fileName})>[];
+    await _host(
+      tester,
+      _conversation(dictation: true),
+      events: events,
+      transcribe: (audio, fileName) async {
+        transcriptions.add((audio: audio, fileName: fileName));
+        return transcriptions.length == 1
+            ? 'check the release status'
+            : 'please';
+      },
+    );
+
+    expect(find.byType(UiVoiceInput), findsOneWidget);
+    expect(find.byIcon(Icons.mic_none_rounded), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('workspace_voice')));
+    await pumpUntil(
+      tester,
+      () => find.byIcon(Icons.stop_circle_outlined).evaluate().isNotEmpty,
+    );
+    expect(find.byIcon(Icons.stop_circle_outlined), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('workspace_voice')));
+    await pumpUntil(
+      tester,
+      () => find.byIcon(Icons.mic_none_rounded).evaluate().isNotEmpty,
+    );
+    expect(find.byIcon(Icons.mic_none_rounded), findsOneWidget);
+
+    expect(transcriptions, hasLength(1));
+    expect(transcriptions.single.audio, const [1, 2, 3, 4]);
+    expect(transcriptions.single.fileName, 'voice.wav');
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'check the release status',
+    );
+    expect(events, isEmpty);
+
+    await tester.tap(find.byKey(const Key('workspace_voice')));
+    await pumpUntil(
+      tester,
+      () => find.byIcon(Icons.stop_circle_outlined).evaluate().isNotEmpty,
+    );
+    expect(find.byIcon(Icons.stop_circle_outlined), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('workspace_voice')));
+    await pumpUntil(
+      tester,
+      () => find.byIcon(Icons.mic_none_rounded).evaluate().isNotEmpty,
+    );
+    expect(find.byIcon(Icons.mic_none_rounded), findsOneWidget);
+
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'check the release status please',
+    );
+    expect(events, isEmpty);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await pumpUntil(tester, () => events.isNotEmpty);
+
+    expect(events.single, containsPair('key', 'composer'));
+    expect(
+      events.single,
+      containsPair('value', 'check the release status please'),
+    );
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      isEmpty,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump();
+  });
 }

@@ -38,6 +38,7 @@ class ViewHost extends StatefulWidget {
     this.refreshEvery = const Duration(seconds: 2),
     this.watch,
     this.signals,
+    this.transcribe,
     this.embedded = false,
   });
   final String kind, name;
@@ -75,6 +76,9 @@ class ViewHost extends StatefulWidget {
   /// The brain's journal tail from its head: given, the view's brain scenes draw it as pulses ([BrainSignals]). Only the
   /// Creator's window passes one.
   final Stream<List<JournalTailSignal>> Function()? signals;
+
+  /// Host capability used by dictation composers to transcribe captured audio into a draft.
+  final VoiceTranscriber? transcribe;
 
   @override
   State<ViewHost> createState() => _ViewHostState();
@@ -228,6 +232,7 @@ class _ViewHostState extends State<ViewHost> {
     slotAncestors: widget.slotAncestors,
     revision: widget.revision,
     enabled: widget.enabled,
+    transcribe: widget.transcribe,
     embedded: true,
   );
 
@@ -299,6 +304,7 @@ class _ViewHostState extends State<ViewHost> {
       slotAncestors: {...activeSlotAncestors, trimmedUri, resolvedName},
       revision: widget.revision,
       enabled: widget.enabled,
+      transcribe: widget.transcribe,
       embedded: true,
       inlineSlot: true,
     );
@@ -377,6 +383,7 @@ class _ViewHostState extends State<ViewHost> {
           slotAncestors: activeSlotAncestors,
           buttonHints: buttonHints,
           nodeKeys: nodeKeys,
+          transcribe: widget.transcribe,
         );
         final appView = AppView.fromJson(normalizedView);
         final fills = NodeRenderer.fills(appView.root);
