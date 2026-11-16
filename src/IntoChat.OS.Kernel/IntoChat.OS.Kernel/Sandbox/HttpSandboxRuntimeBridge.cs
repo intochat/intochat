@@ -466,11 +466,19 @@ internal sealed class HttpSandboxRuntimeBridge(
         return new UnitHostFrameRequest(frame.Id, "callback-reply", Ok: false, StatusCode: StatusCodes.Status404NotFound, Error: $"Unsupported callback '{kind}'.");
     }
 
-    private string ResolveKernelCallbackUrl()
+    internal string? ResolveKernelCallbackUrl()
     {
         if (!string.IsNullOrWhiteSpace(options.Value.KernelCallbackUrl))
         {
             return options.Value.KernelCallbackUrl!;
+        }
+
+        // In external container mode, the container orchestrator (Aspire / compose) supplies
+        // SANDBOX_KERNEL_URL pointing to the container-reachable tunnel endpoint; overriding it
+        // with Kernel's internal loopback Kestrel address breaks callbacks from Linux containers.
+        if (!string.IsNullOrWhiteSpace(options.Value.Url))
+        {
+            return null;
         }
 
         var server = services.GetService<IServer>();

@@ -149,7 +149,7 @@ public sealed class HelloWorldInteractiveAppFacts
         Assert.Contains("Tasks board", makeResult.Text, StringComparison.Ordinal);
         if (string.Equals(card.Status, "running", StringComparison.Ordinal))
         {
-            // Under parallel Silo CPU contention, BuildFlow can exceed InoStudioNeuron.MakePollBudget (25s) and return running.
+            // Under parallel Silo CPU contention, BuildFlow can exceed InoStudioNeuron.MakePollBudget (15s) and return running.
             FlowView? settled = null;
             var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(60);
             while (DateTimeOffset.UtcNow < deadline)

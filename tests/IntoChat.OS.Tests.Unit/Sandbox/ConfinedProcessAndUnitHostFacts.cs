@@ -4,6 +4,9 @@ using System.Text.Json;
 using IntoChat.OS.Framework.Execution;
 using IntoChat.OS.Kernel.Sandbox;
 using IntoChat.OS.Modules.Apps;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -257,6 +260,64 @@ public sealed class ConfinedProcessAndUnitHostFacts
             }
 
             await services.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ResolveKernelCallbackUrlPreservesContainerUrlUnlessExplicitlyConfigured()
+    {
+        await using var services = new ServiceCollection()
+            .AddHttpClient()
+            .AddLogging()
+            .AddSingleton<IServer>(new StubServer("http://localhost:17990"))
+            .BuildServiceProvider();
+
+        HttpSandboxRuntimeBridge CreateBridge(string url, string? callbackUrl = null)
+        {
+            var options = Options.Create(new SandboxOptions
+            {
+                Url = url,
+                KernelCallbackUrl = callbackUrl,
+                TokenSigningMaterial = "unit-host-test-signing-material-0123456789abcdef",
+            });
+            return new HttpSandboxRuntimeBridge(
+                services.GetRequiredService<IHttpClientFactory>(),
+                options,
+                new AppTokenService(options),
+                services,
+                services.GetRequiredService<ILogger<HttpSandboxRuntimeBridge>>());
+        }
+
+        await using var remoteDefault = CreateBridge("http://localhost:18080");
+        await using var remoteOverride = CreateBridge("http://localhost:18080", "http://127.0.0.1:5080");
+        await using var localUnitHost = CreateBridge(string.Empty);
+
+        Assert.Null(remoteDefault.ResolveKernelCallbackUrl());
+        Assert.Equal("http://127.0.0.1:5080", remoteOverride.ResolveKernelCallbackUrl());
+        Assert.Equal("http://localhost:17990", localUnitHost.ResolveKernelCallbackUrl());
+    }
+
+    private sealed class StubServer : IServer
+    {
+        public StubServer(params string[] addresses)
+        {
+            var feature = new ServerAddressesFeature();
+            foreach (var address in addresses)
+            {
+                feature.Addresses.Add(address);
+            }
+            Features.Set<IServerAddressesFeature>(feature);
+        }
+
+        public IFeatureCollection Features { get; } = new FeatureCollection();
+
+        public Task StartAsync<TContext>(IHttpApplication<TContext> application, CancellationToken cancellationToken) where TContext : notnull
+            => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void Dispose()
+        {
         }
     }
 }

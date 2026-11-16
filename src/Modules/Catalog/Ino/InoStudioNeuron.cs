@@ -17,7 +17,8 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Neurons.Neuron("ino.studio")]
 internal sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Neurons.Neuron, IInoStudio
 {
-    private static readonly TimeSpan MakePollBudget = TimeSpan.FromSeconds(25);
+    // Bounded well below Orleans' default 30s grain RPC ResponseTimeout so contention still returns a tracking card cleanly.
+    private static readonly TimeSpan MakePollBudget = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan MakePollInterval = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan ProposePollBudget = TimeSpan.FromSeconds(18);
     private static readonly TimeSpan ProposePollInterval = TimeSpan.FromMilliseconds(250);
