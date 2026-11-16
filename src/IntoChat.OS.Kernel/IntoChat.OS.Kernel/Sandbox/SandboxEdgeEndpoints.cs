@@ -2,6 +2,8 @@ using System.Reflection;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Contracts;
+using DigitalBrain.Invocation;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Kernel.Composition;
@@ -32,6 +34,8 @@ internal static class SandboxEdgeEndpoints
 
     internal sealed record EdgeLogRequest(string Message, DateTimeOffset TimestampUtc);
 
+    internal sealed record EdgeInvokeOutcome(int StatusCode, EdgeInvokeResponse Response);
+
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
@@ -52,32 +56,10 @@ internal static class SandboxEdgeEndpoints
                 return Results.Unauthorized();
             }
 
-            try
-            {
-                var identityClient = services.GetService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>();
-                var owner = identityClient is not null
-                    ? await identityClient.OwnerOfBrain(identity.BrainId).ConfigureAwait(false)
-                    : null;
-                string? resultJson;
-                using (InProcessCallerScope.EnterApp(identity.BrainId, identity.AppKey, owner?.AccountId))
-                {
-                    resultJson = await DispatchContractAsync(identity, request, ai, tables, services, ct).ConfigureAwait(false);
-                }
-
-                return Results.Ok(new EdgeInvokeResponse(resultJson));
-            }
-            catch (Exception error) when (error is UnauthorizedAccessException or DigitalBrain.Capabilities.Storage.Confinement.ConfinementDenied)
-            {
-                return Results.Json(new EdgeInvokeResponse(null, error.Message), statusCode: StatusCodes.Status403Forbidden);
-            }
-            catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException or KeyNotFoundException)
-            {
-                return Results.Json(new EdgeInvokeResponse(null, error.Message), statusCode: StatusCodes.Status404NotFound);
-            }
-            catch (Exception error) when (error is ArgumentException or JsonException or NotSupportedException)
-            {
-                return Results.Json(new EdgeInvokeResponse(null, error.Message), statusCode: StatusCodes.Status422UnprocessableEntity);
-            }
+            var outcome = await InvokeEdgeAsync(identity, request, ai, tables, services, ct).ConfigureAwait(false);
+            return outcome.StatusCode == StatusCodes.Status200OK
+                ? Results.Ok(outcome.Response)
+                : Results.Json(outcome.Response, statusCode: outcome.StatusCode);
         });
 
         group.MapPost("/signals", async (
@@ -118,26 +100,25 @@ internal static class SandboxEdgeEndpoints
         });
     }
 
-    private static bool TryAuthenticate(
-        HttpRequest request,
+    internal static bool TryAuthenticateToken(
+        string? token,
+        string? claimedBrain,
+        string? claimedApp,
         AppTokenService tokens,
         out VerifiedAppToken identity)
     {
         identity = null!;
-        var token = request.Headers["X-App-Token"].FirstOrDefault();
         if (!tokens.TryVerify(token, out var verified) || verified is null)
         {
             return false;
         }
 
-        var claimedBrain = request.Headers["X-Brain-Id"].FirstOrDefault();
         if (!string.IsNullOrWhiteSpace(claimedBrain)
             && !string.Equals(claimedBrain, verified.BrainId, StringComparison.Ordinal))
         {
             return false;
         }
 
-        var claimedApp = request.Headers["X-App-Key"].FirstOrDefault();
         if (!string.IsNullOrWhiteSpace(claimedApp)
             && !string.Equals(claimedApp, verified.AppKey, StringComparison.Ordinal))
         {
@@ -147,6 +128,53 @@ internal static class SandboxEdgeEndpoints
         identity = verified;
         return true;
     }
+
+    internal static async Task<EdgeInvokeOutcome> InvokeEdgeAsync(
+        VerifiedAppToken identity,
+        EdgeInvokeRequest request,
+        SdkAiAdapter ai,
+        SdkTablesAdapter tables,
+        IServiceProvider services,
+        CancellationToken ct)
+    {
+        try
+        {
+            var identityClient = services.GetService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>();
+            var owner = identityClient is not null
+                ? await identityClient.OwnerOfBrain(identity.BrainId).ConfigureAwait(false)
+                : null;
+            string? resultJson;
+            using (InProcessCallerScope.EnterApp(identity.BrainId, identity.AppKey, owner?.AccountId))
+            {
+                resultJson = await DispatchContractAsync(identity, request, ai, tables, services, ct).ConfigureAwait(false);
+            }
+
+            return new EdgeInvokeOutcome(StatusCodes.Status200OK, new EdgeInvokeResponse(resultJson));
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or DigitalBrain.Capabilities.Storage.Confinement.ConfinementDenied)
+        {
+            return new EdgeInvokeOutcome(StatusCodes.Status403Forbidden, new EdgeInvokeResponse(null, error.Message));
+        }
+        catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException or KeyNotFoundException)
+        {
+            return new EdgeInvokeOutcome(StatusCodes.Status404NotFound, new EdgeInvokeResponse(null, error.Message));
+        }
+        catch (Exception error) when (error is ArgumentException or JsonException or NotSupportedException)
+        {
+            return new EdgeInvokeOutcome(StatusCodes.Status422UnprocessableEntity, new EdgeInvokeResponse(null, error.Message));
+        }
+    }
+
+    private static bool TryAuthenticate(
+        HttpRequest request,
+        AppTokenService tokens,
+        out VerifiedAppToken identity)
+        => TryAuthenticateToken(
+            request.Headers["X-App-Token"].FirstOrDefault(),
+            request.Headers["X-Brain-Id"].FirstOrDefault(),
+            request.Headers["X-App-Key"].FirstOrDefault(),
+            tokens,
+            out identity);
 
     private static async Task<string?> DispatchContractAsync(
         VerifiedAppToken identity,
@@ -394,15 +422,14 @@ internal static class SandboxEdgeEndpoints
     {
         var contract = KernelInvocationSink.ContractOf(request.Contract)
             ?? throw new NotSupportedException($"Contract '{request.Contract}' is not registered in the kernel.");
-        var neuronType = contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type
-            ?? contract.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias
-            ?? throw new NotSupportedException($"Contract '{request.Contract}' does not declare [DefaultNeuronType] or [NeuronAlias].");
+        var neuronType = ResolveNeuronType(contract)
+            ?? throw new NotSupportedException($"Contract '{request.Contract}' does not declare [DefaultNeuronType], a hosted [Neuron], or [NeuronAlias].");
 
-        var slotKey = string.IsNullOrWhiteSpace(request.Slot) ? "default" : request.Slot.Trim();
+        var slotKey = string.IsNullOrWhiteSpace(request.Slot) ? ResolveDefaultSlotKey(contract) : request.Slot.Trim();
         var neuronId = new NeuronId(new BrainId(identity.BrainId), neuronType, slotKey);
         var proxy = SiloNeurons.Get(services, contract, neuronId);
 
-        var method = contract.GetMethod(request.Method, BindingFlags.Instance | BindingFlags.Public)
+        var method = FindInterfaceMethod(contract, request.Method)
             ?? throw new NotSupportedException($"Method '{request.Contract}.{request.Method}' was not found.");
 
         var parameters = method.GetParameters();
@@ -420,7 +447,7 @@ internal static class SandboxEdgeEndpoints
 
             if (jsonIdx < args.GetArrayLength())
             {
-                invokeArgs[i] = args[jsonIdx].Deserialize(param.ParameterType, JsonSerializerOptions.Web);
+                invokeArgs[i] = args[jsonIdx].Deserialize(param.ParameterType, RuntimeProtocol.OptionsFor(param.ParameterType));
             }
             else if (param.HasDefaultValue)
             {
@@ -453,10 +480,96 @@ internal static class SandboxEdgeEndpoints
             }
 
             var value = task.GetType().GetProperty("Result", BindingFlags.Instance | BindingFlags.Public)?.GetValue(task);
-            return value is null ? null : JsonSerializer.Serialize(value, value.GetType(), JsonSerializerOptions.Web);
+            return value is null ? null : JsonSerializer.Serialize(value, value.GetType(), RuntimeProtocol.OptionsFor(value.GetType()));
         }
 
-        return rawResult is null ? null : JsonSerializer.Serialize(rawResult, rawResult.GetType(), JsonSerializerOptions.Web);
+        if (rawResult is ValueTask valueTask)
+        {
+            await valueTask.ConfigureAwait(false);
+            return null;
+        }
+
+        if (rawResult is not null
+            && rawResult.GetType() is { IsGenericType: true } vtType
+            && vtType.GetGenericTypeDefinition() == typeof(ValueTask<>))
+        {
+            var asTask = (Task)vtType.GetMethod("AsTask", BindingFlags.Instance | BindingFlags.Public)!.Invoke(rawResult, null)!;
+            await asTask.WaitAsync(ct).ConfigureAwait(false);
+            var value = asTask.GetType().GetProperty("Result", BindingFlags.Instance | BindingFlags.Public)?.GetValue(asTask);
+            return value is null ? null : JsonSerializer.Serialize(value, value.GetType(), RuntimeProtocol.OptionsFor(value.GetType()));
+        }
+
+        return rawResult is null ? null : JsonSerializer.Serialize(rawResult, rawResult.GetType(), RuntimeProtocol.OptionsFor(rawResult.GetType()));
+    }
+
+    private static MethodInfo? FindInterfaceMethod(Type contract, string methodName)
+    {
+        if (contract.GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public) is { } direct)
+        {
+            return direct;
+        }
+
+        foreach (var parent in contract.GetInterfaces())
+        {
+            if (parent.GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public) is { } inherited)
+            {
+                return inherited;
+            }
+        }
+
+        return null;
+    }
+
+    private static string ResolveDefaultSlotKey(Type contract)
+    {
+        var field = contract.GetField("DefaultKey", BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+        if (field?.IsLiteral == true && field.GetRawConstantValue() is string literal && !string.IsNullOrWhiteSpace(literal))
+        {
+            return literal;
+        }
+
+        return "default";
+    }
+
+    private static string? ResolveNeuronType(Type contract)
+    {
+        if (contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type is { Length: > 0 } defaultType)
+        {
+            return defaultType;
+        }
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (assembly.IsDynamic)
+            {
+                continue;
+            }
+
+            Type[] types;
+            try
+            {
+                types = assembly.GetTypes();
+            }
+            catch (ReflectionTypeLoadException error)
+            {
+                types = [.. error.Types.OfType<Type>()];
+            }
+
+            foreach (var candidate in types)
+            {
+                if (candidate.IsAbstract || candidate.IsInterface || !contract.IsAssignableFrom(candidate))
+                {
+                    continue;
+                }
+
+                if (candidate.GetCustomAttribute<NeuronAttribute>(inherit: false)?.Type is { Length: > 0 } hostedType)
+                {
+                    return hostedType;
+                }
+            }
+        }
+
+        return contract.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias;
     }
 
     private static T? ReadArg<T>(JsonElement args, int index)

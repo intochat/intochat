@@ -4,18 +4,27 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
+using DigitalBrain.Runtime.Synapses;
+using DigitalBrain.Units;
 using IntoChat.OS.Aspire.Server;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Authority.Identity.Grants;
+using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel;
 using IntoChat.OS.Kernel.Sandbox;
+using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Microsoft.Windows;
 using IntoChat.OS.Sandbox;
@@ -208,17 +217,240 @@ public sealed class SandboxEndToEndIntegrationFacts
         }
     }
 
+    [Fact]
+    public async Task OutOfProcUnitHostCompilesAndExecutesRuntimeSynapseThroughAccessGate()
+    {
+        await using var harness = await DualServerHarness.StartAsync(Ct, withExternalSandboxUrl: false);
+        var bridge = harness.KernelServices.GetRequiredService<ISandboxRuntimeBridge>();
+        var appCompiler = new AppPackageCompiler();
+        var synapseCompiler = new SynapseCompiler(ReferenceSet.FromDefaultContext());
+
+        // A) Pure [State]/[Synapse] runtime unit compiled via SynapseCompiler orchestrating INotifications slot through AccessGate
+        const string synapseCode = """
+            using System;
+            using System.Threading;
+            using System.Threading.Tasks;
+            using DigitalBrain;
+            using DigitalBrain.UI;
+            using INotifySlot = IntoChat.OS.Modules.Apps.Notifications.INotifications;
+
+            namespace RuntimeGuardSynapse;
+
+            [Signal("synapse.alert.check")]
+            public sealed record SynapseAlertCheck(string Tag) : Signal;
+
+            [State("synapse.alert")]
+            public sealed record SynapseAlertState(int Checks = 0, string LastReceiptId = "")
+            {
+                public SynapseAlertState() : this(0, "") { }
+            }
+
+            public static class AlertSynapse
+            {
+                [Synapse(typeof(SynapseAlertCheck), "synapse.alert")]
+                public static async Task<Reaction<SynapseAlertState>> OnCheck(
+                    SynapseAlertCheck signal,
+                    SynapseAlertState state,
+                    [DigitalBrain.Slot(Name = "inbox")] INotifySlot notifications,
+                    CancellationToken ct)
+                {
+                    var receipt = await notifications.Notify(
+                        $"Synapse Alert {signal.Tag}",
+                        "Dispatched via NeuronProxy",
+                        "normal",
+                        ct);
+                    var receiptId = receipt.GetProperty("id").GetString() ?? "";
+                    return Reaction<SynapseAlertState>.Of(state with
+                    {
+                        Checks = state.Checks + 1,
+                        LastReceiptId = receiptId,
+                    });
+                }
+
+                [Synapse("synapse.alert")]
+                public static View Render(SynapseAlertState state)
+                    => new("Synapse Alert", new Text($"checks={state.Checks};receipt={state.LastReceiptId}"));
+            }
+            """;
+
+        var synapseBuild = synapseCompiler.Compile(new SynapseSource(
+            "synapse.alert",
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["AlertSynapse.cs"] = synapseCode },
+            null));
+        Assert.True(synapseBuild.Success, string.Join("\n", synapseBuild.Diagnostics.Select(d => $"{d.File}({d.Line}) {d.Id}: {d.Message}")));
+
+        var synapsePkg = new AppPackage(
+            Key: "synapse.alert",
+            Version: "1.0.0",
+            Title: "Synapse Alert",
+            Summary: "Runtime synapse exercising INotifications slot through AccessGate",
+            Icon: "bell",
+            Category: "Synapses",
+            Author: "test",
+            SourceFiles: [new AppSourceFile("AlertSynapse.cs", synapseCode)],
+            Needs: new AppPackageNeeds([], ["synapse.alert.check"], [], []),
+            DefaultSettingsJson: "{}",
+            Digest: synapseBuild.Hash);
+
+        // B) Runtime C# BrainApp compiled via AppPackageCompiler (SynapseCompiler) awaiting IMemory directly via Brain.Slot<IMemory>
+        const string memoryAppCode = """
+            using System;
+            using System.Threading;
+            using System.Threading.Tasks;
+            using DigitalBrain.UI;
+            using IntoChat.OS.Modules.AI.Memory;
+            using IntoChat.Sdk;
+
+            namespace RuntimeMemoryGuard;
+
+            public sealed class MemoryGuardState
+            {
+                public int Pid { get; set; }
+                public int Checks { get; set; }
+                public string LastSubject { get; set; } = string.Empty;
+            }
+
+            public sealed class MemoryGuardSettings
+            {
+                public string Slot { get; set; } = "default";
+            }
+
+            [App("memory.guard", Title = "Memory Guard", Summary = "Orchestrates IMemory via NeuronProxy")]
+            public sealed class MemoryGuardApp : BrainApp<MemoryGuardState, MemoryGuardSettings>
+            {
+                [OnSignal("memory.guard.check")]
+                public async Task OnCheck(string? tag, CancellationToken ct)
+                {
+                    var memory = Brain.Slot<IMemory>(Settings.Slot);
+                    var episode = await memory.CaptureEpisode($"rule-{tag ?? "run"}", "Use sandboxed synapses");
+                    var snapshot = await memory.Read();
+                    State.Pid = Environment.ProcessId;
+                    State.Checks++;
+                    State.LastSubject = $"{episode.Agent}:episodes={snapshot.Episodes.Length}";
+                    await Brain.Notifications.NotifyAsync(
+                        $"Memory Guard {tag ?? "run"}",
+                        $"recorded={State.LastSubject}",
+                        NotificationPriority.Normal,
+                        ct);
+                }
+
+                public override View Render()
+                    => new("Memory Guard", new Text($"pid={State.Pid};checks={State.Checks};last={State.LastSubject}"));
+            }
+            """;
+
+        var memoryCompiled = appCompiler.Compile(new AppPackage(
+            Key: "memory.guard",
+            Version: "1.0.0",
+            Title: "Memory Guard",
+            Summary: "Orchestrates IMemory via NeuronProxy",
+            Icon: "brain",
+            Category: "Synapses",
+            Author: "test",
+            SourceFiles: [new AppSourceFile("MemoryGuard.cs", memoryAppCode)],
+            Needs: AppPackageNeeds.Empty,
+            DefaultSettingsJson: "{}",
+            Digest: string.Empty));
+        Assert.True(memoryCompiled.Succeeded, string.Join("\n", memoryCompiled.Errors));
+
+        var deploySynapse = await bridge.DeployPackageAsync(harness.Scope, synapsePkg, synapseBuild.Assembly, null, null, Ct);
+        Assert.True(deploySynapse.Succeeded, deploySynapse.Error);
+
+        var deployMemory = await bridge.DeployPackageAsync(harness.Scope, memoryCompiled.EnrichedPackage!, memoryCompiled.AssemblyBytes, null, null, Ct);
+        Assert.True(deployMemory.Succeeded, deployMemory.Error);
+
+        try
+        {
+            // 1. Fail-closed before any grants exist for either unit/app
+            var ungrantedSynapse = await bridge.DispatchSignalAsync(harness.Scope, "synapse.alert", "synapse.alert.check", "{\"tag\":\"s1\"}", Ct);
+            Assert.NotNull(ungrantedSynapse.Error);
+            Assert.Contains("grant", ungrantedSynapse.Error, StringComparison.OrdinalIgnoreCase);
+
+            var ungrantedMemory = await bridge.DispatchSignalAsync(harness.Scope, "memory.guard", "memory.guard.check", "\"m1\"", Ct);
+            Assert.NotNull(ungrantedMemory.Error);
+            Assert.Contains("grant", ungrantedMemory.Error, StringComparison.OrdinalIgnoreCase);
+
+            // 2. Grant AccessGate permission for both slots via real Kernel grants API, dispatch out-of-proc, verify success & distinct child PID
+            var notifGrant = Grant.Tuple(
+                $"brain:{harness.Scope}",
+                "app:synapse.alert",
+                $"notifications.connection/{harness.Scope}/inbox",
+                GrantRelations.Run) with
+            { Id = "grant-synapse-alert-notif" };
+            var memoryGrant = Grant.Tuple(
+                $"brain:{harness.Scope}",
+                "app:memory.guard",
+                $"ai.memory/{harness.Scope}/default",
+                GrantRelations.Run) with
+            { Id = "grant-memory-guard-default" };
+
+            using (var g1 = await harness.KernelClient.PostAsJsonAsync($"/brains/{harness.Scope}/grants", notifGrant, Ct))
+            {
+                Assert.Equal(HttpStatusCode.OK, g1.StatusCode);
+            }
+
+            using (var g2 = await harness.KernelClient.PostAsJsonAsync($"/brains/{harness.Scope}/grants", memoryGrant, Ct))
+            {
+                Assert.Equal(HttpStatusCode.OK, g2.StatusCode);
+            }
+
+            var grantedSynapse = await bridge.DispatchSignalAsync(harness.Scope, "synapse.alert", "synapse.alert.check", "{\"tag\":\"s2\"}", Ct);
+            Assert.True(grantedSynapse.Handled, grantedSynapse.Error);
+            Assert.Null(grantedSynapse.Error);
+
+            var grantedMemory = await bridge.DispatchSignalAsync(harness.Scope, "memory.guard", "memory.guard.check", "\"m2\"", Ct);
+            Assert.True(grantedMemory.Handled, grantedMemory.Error);
+            Assert.Null(grantedMemory.Error);
+
+            var memoryView = await bridge.RenderAsync(harness.Scope, "memory.guard", Ct);
+            Assert.NotNull(memoryView);
+            var memoryViewJson = JsonSerializer.Serialize(memoryView, JsonSerializerOptions.Web);
+            Assert.Contains("checks=1;last=rule-m2:episodes=1", memoryViewJson, StringComparison.Ordinal);
+            Assert.DoesNotContain($"pid={Environment.ProcessId};", memoryViewJson, StringComparison.Ordinal);
+
+            var afterNotifs = await harness.KernelClient.GetFromJsonAsync<NotificationInboxPayload>(
+                $"/brains/{harness.Scope}/notifications",
+                Ct);
+            Assert.Contains(afterNotifs?.Items ?? [], item => item.Title == "Synapse Alert s2");
+            var memoryAlert = Assert.Single(afterNotifs?.Items ?? [], item => item.Title == "Memory Guard m2");
+            Assert.Equal("memory.guard", memoryAlert.SourceApp);
+
+            // 3. Revoke grants and verify AccessGate fails closed again
+            using (var r1 = await harness.KernelClient.PostAsJsonAsync($"/brains/{harness.Scope}/grants/revoke", new { id = notifGrant.Id }, Ct))
+            {
+                r1.EnsureSuccessStatusCode();
+            }
+
+            using (var r2 = await harness.KernelClient.PostAsJsonAsync($"/brains/{harness.Scope}/grants/revoke", new { id = memoryGrant.Id }, Ct))
+            {
+                r2.EnsureSuccessStatusCode();
+            }
+
+            var revokedSynapse = await bridge.DispatchSignalAsync(harness.Scope, "synapse.alert", "synapse.alert.check", "{\"tag\":\"s3\"}", Ct);
+            Assert.NotNull(revokedSynapse.Error);
+            Assert.Contains("grant", revokedSynapse.Error, StringComparison.OrdinalIgnoreCase);
+            var revokedMemory = await bridge.DispatchSignalAsync(harness.Scope, "memory.guard", "memory.guard.check", "\"m3\"", Ct);
+            Assert.NotNull(revokedMemory.Error);
+            Assert.Contains("grant", revokedMemory.Error, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            await bridge.UnloadAsync(harness.Scope, "synapse.alert", Ct);
+            await bridge.UnloadAsync(harness.Scope, "memory.guard", Ct);
+        }
+    }
+
     private sealed record NotificationInboxPayload(NotificationItem[] Items, int UnreadCount);
 
     private sealed class DualServerHarness : IAsyncDisposable
     {
-        private readonly WebApplication _sandboxApp;
+        private readonly WebApplication? _sandboxApp;
         private readonly WebApplication _kernelApp;
         private readonly PortLease _ports;
         private readonly string _homeDir;
 
         private DualServerHarness(
-            WebApplication sandboxApp,
+            WebApplication? sandboxApp,
             WebApplication kernelApp,
             HttpClient kernelClient,
             PortLease ports,
@@ -237,7 +469,7 @@ public sealed class SandboxEndToEndIntegrationFacts
         public IServiceProvider KernelServices => _kernelApp.Services;
         public string Scope { get; }
 
-        public static async Task<DualServerHarness> StartAsync(CancellationToken ct)
+        public static async Task<DualServerHarness> StartAsync(CancellationToken ct, bool withExternalSandboxUrl = true)
         {
             var enrollKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
             var signingMaterial = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
@@ -245,8 +477,8 @@ public sealed class SandboxEndToEndIntegrationFacts
             Directory.CreateDirectory(homeDir);
 
             var ports = PortReservation.ReservePair();
-            var sandboxApp = await StartSandboxWorkerAsync(enrollKey, ct);
-            var sandboxUrl = sandboxApp.Urls.First();
+            var sandboxApp = withExternalSandboxUrl ? await StartSandboxWorkerAsync(enrollKey, ct) : null;
+            var sandboxUrl = sandboxApp?.Urls.First() ?? string.Empty;
 
             WebApplication? kernelApp = null;
             HttpClient? kernelClient = null;
@@ -262,7 +494,7 @@ public sealed class SandboxEndToEndIntegrationFacts
                 kernelBuilder.WebHost.UseUrls("http://127.0.0.1:0");
 
                 var sandboxOptionsPrefix = ModuleConfiguration.ModuleOptionsSection(SandboxOptions.SectionName);
-                kernelBuilder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+                var config = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
                 {
                     [IntoChatOSNames.TopologyKey] = IntoChatOSNames.TopologyLocal,
                     [IntoChatOSNames.HomeKey] = homeDir,
@@ -271,10 +503,14 @@ public sealed class SandboxEndToEndIntegrationFacts
                     [AuthOptions.PostureKey] = "Open",
                     [TopologyContext.SiloPortKey] = ports.SiloPort.ToString(CultureInfo.InvariantCulture),
                     [TopologyContext.GatewayPortKey] = ports.GatewayPort.ToString(CultureInfo.InvariantCulture),
-                    [$"{sandboxOptionsPrefix}:Url"] = sandboxUrl,
                     [$"{sandboxOptionsPrefix}:EnrollKey"] = enrollKey,
                     [$"{sandboxOptionsPrefix}:TokenSigningMaterial"] = signingMaterial,
-                });
+                };
+                if (!string.IsNullOrEmpty(sandboxUrl))
+                {
+                    config[$"{sandboxOptionsPrefix}:Url"] = sandboxUrl;
+                }
+                kernelBuilder.Configuration.AddInMemoryCollection(config);
 
                 LocalRunDefaults.Apply(kernelBuilder.Configuration);
                 OsModule[] modules =
@@ -332,7 +568,11 @@ public sealed class SandboxEndToEndIntegrationFacts
                     await kernelApp.DisposeAsync();
                 }
 
-                await sandboxApp.DisposeAsync();
+                if (sandboxApp is not null)
+                {
+                    await sandboxApp.DisposeAsync();
+                }
+
                 ports.Dispose();
                 DeleteDirectoryIfPresent(homeDir);
                 throw;
@@ -344,8 +584,12 @@ public sealed class SandboxEndToEndIntegrationFacts
             KernelClient.Dispose();
             await _kernelApp.StopAsync();
             await _kernelApp.DisposeAsync();
-            await _sandboxApp.StopAsync();
-            await _sandboxApp.DisposeAsync();
+            if (_sandboxApp is not null)
+            {
+                await _sandboxApp.StopAsync();
+                await _sandboxApp.DisposeAsync();
+            }
+
             _ports.Dispose();
             DeleteDirectoryIfPresent(_homeDir);
         }

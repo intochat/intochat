@@ -17,7 +17,7 @@ namespace IntoChat.OS.Mcp;
 /// and resolve pending approval gates without manual grain-key choreography.
 /// </summary>
 [McpServerToolType]
-internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller, Orleans.IGrainFactory? grains = null)
+internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
 {
     private const int MaxMappedErrorLength = 500;
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
@@ -65,12 +65,6 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller, Orlean
             Admit(ReadName, appId);
             var snapshot = await Directory(ReadName).Read(appId, instanceId).WaitAsync(cancellationToken).ConfigureAwait(false)
                 ?? throw new KeyNotFoundException($"Screen '{appId}' was not found.");
-            if (snapshot is { Kind: "unit", Generation: 0L, PendingApprovals.Length: 0 })
-            {
-                await CatchUpRuntimeUnitAsync(grains, caller.Stamp(ReadName).BrainId, snapshot.AppId).WaitAsync(cancellationToken).ConfigureAwait(false);
-                await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-                snapshot = await Directory(ReadName).Read(appId, instanceId).WaitAsync(cancellationToken).ConfigureAwait(false) ?? snapshot;
-            }
 
             return Text(JsonSerializer.Serialize(snapshot, Json));
         }
@@ -157,7 +151,6 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller, Orlean
             {
                 for (var attempt = 0; attempt < 20; attempt++)
                 {
-                    await CatchUpRuntimeUnitAsync(grains, stamped.BrainId, unitAlias).WaitAsync(cancellationToken).ConfigureAwait(false);
                     await Task.Delay(100, cancellationToken).ConfigureAwait(false);
                     var updated = await Directory(ApproveName).Read(unitAlias).WaitAsync(cancellationToken).ConfigureAwait(false);
                     if (updated is { Controls.Length: > 0 })
@@ -172,27 +165,6 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller, Orlean
         catch (Exception error) when (Mapped(error))
         {
             return Failure(error);
-        }
-    }
-
-    private static async Task CatchUpRuntimeUnitAsync(Orleans.IGrainFactory? grains, string brainId, string alias)
-    {
-        if (grains is null) { return; }
-        var hostType = typeof(DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext).Assembly
-            .GetType("DigitalBrain.Runtime.Orleans.Synapses.ISynapseHost");
-        if (hostType is null) { return; }
-        var getGrain = typeof(Orleans.IGrainFactory).GetMethods()
-            .FirstOrDefault(m => m.Name == nameof(Orleans.IGrainFactory.GetGrain)
-                && m.IsGenericMethodDefinition
-                && m.GetParameters() is { Length: 1 } p
-                && p[0].ParameterType == typeof(Orleans.Runtime.GrainId));
-        if (getGrain is null) { return; }
-        var grain = getGrain.MakeGenericMethod(hostType)
-            .Invoke(grains, [Orleans.Runtime.GrainId.Create("neuron.host", $"{brainId}/{alias}/default")]);
-        var catchUp = hostType.GetMethod("CatchUp", Type.EmptyTypes);
-        if (grain is not null && catchUp?.Invoke(grain, null) is Task task)
-        {
-            await task.ConfigureAwait(false);
         }
     }
 

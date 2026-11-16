@@ -320,7 +320,6 @@ internal sealed partial class AppNeuron(
         {
             await bridge.UnloadAsync(BrainId(), Name(), CancellationToken.None).ConfigureAwait(false);
         }
-        await Runtime.Retire(key, CancellationToken.None);
         if (ServiceProvider?.GetService<IKernel>() is { } kernel) { await kernel.UnloadFeature(BrainId(), Name()); }
         foreach (var hook in storageHooks) { await hook.OnRetired(State.BrainScopeId ?? "", key, CancellationToken.None); }
         await RemoveAppPrincipal();

@@ -3,7 +3,7 @@ using System.Text.Json;
 using DigitalBrain.Capabilities.Storage.Confinement;
 using IntoChat.Sdk;
 
-namespace IntoChat.OS.Modules.Apps;
+namespace IntoChat.OS.Tests.Support.Fakes;
 
 /// <summary>
 /// Deterministic in-memory <see cref="IBrain"/> implementation used by scenario verification and tests
