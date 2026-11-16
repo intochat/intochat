@@ -2,7 +2,7 @@
 
 - Open pull requests against `master`.
 - CI must pass before a pull request is merged.
-- Documentation changes go to https://github.com/intochat/os.docs (see its [contributing page](https://github.com/intochat/os.docs/blob/main/contributing.md)); product planning is internal.
+- Documentation lives next to the code: `docs/` for the product and `framework/docs/` for DigitalBrain. A change that makes a page untrue fixes the page in the same pull request. Dated plans and reports do not go in `docs/`.
 
 Commands to run before pushing:
 

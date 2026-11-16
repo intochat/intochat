@@ -1,5 +1,5 @@
 /// The scene node vocabulary as one schema, mirroring the Flame contracts' `FlameSchema`. The canonical
-/// artifact is `docs/superpowers/contracts/flame-schema.json`; `node_schema_test.dart` fails if this mirror
+/// artifact is `ui/contracts/flame-schema.json`; `node_schema_test.dart` fails if this mirror
 /// drifts from it, and the contracts' `SchemaParityFacts` fails if the C# side drifts from the same file.
 library;
 

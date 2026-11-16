@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
@@ -6,11 +6,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-    'the Dart node schema matches docs/superpowers/contracts/flame-schema.json',
+    'the Dart node schema matches ui/contracts/flame-schema.json',
     () {
       final json = jsonDecode(
         File(
-          '${_repositoryRoot()}/docs/superpowers/contracts/flame-schema.json',
+          '${_repositoryRoot()}/ui/contracts/flame-schema.json',
         ).readAsStringSync(),
       ) as Map<String, dynamic>;
 
