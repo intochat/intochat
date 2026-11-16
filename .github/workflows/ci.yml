@@ -135,12 +135,6 @@ jobs:
     env:
       AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
     services:
-      azurite:
-        image: mcr.microsoft.com/azure-storage/azurite:latest
-        ports:
-          - 10000:10000
-          - 10001:10001
-          - 10002:10002
       postgres:
         image: postgres:16-alpine
         env:
@@ -156,6 +150,10 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v7
+
+      # A service container cannot pass arguments, and Azurite refuses newer storage API versions without this flag.
+      - name: Start Azurite
+        run: docker run -d --name azurite -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck
 
       - name: Free root disk in the background
         run: |
@@ -193,15 +191,12 @@ jobs:
     timeout-minutes: 20
     env:
       AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
-    services:
-      azurite:
-        image: mcr.microsoft.com/azure-storage/azurite:latest
-        ports:
-          - 10000:10000
-          - 10001:10001
-          - 10002:10002
     steps:
       - uses: actions/checkout@v7
+
+      # A service container cannot pass arguments, and Azurite refuses newer storage API versions without this flag.
+      - name: Start Azurite
+        run: docker run -d --name azurite -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck
 
       - name: Free root disk in the background
         run: |

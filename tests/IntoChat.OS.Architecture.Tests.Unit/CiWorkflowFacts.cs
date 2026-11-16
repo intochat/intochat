@@ -77,6 +77,22 @@ public sealed partial class CiWorkflowFacts
         Assert.Contains("flutter", needs);
     }
 
+    // Azurite refuses a storage API version newer than its own release unless it is started with --skipApiVersionCheck.
+    // A service container cannot pass that argument, so every job that uses Azurite starts it with docker run.
+    [Theory]
+    [InlineData("test-integration")]
+    [InlineData("e2e")]
+    public void EveryJobThatUsesAzuriteStartsItWithTheApiVersionCheckSkipped(string jobName)
+    {
+        var job = Job(Workflow("ci.yml"), jobName);
+
+        Assert.Contains("AZURITE_CONNECTION_STRING", job, StringComparison.Ordinal);
+        Assert.DoesNotContain("image: mcr.microsoft.com/azure-storage/azurite", job, StringComparison.Ordinal);
+        var start = Regex.Match(job, @"docker run [^\r\n]*mcr\.microsoft\.com/azure-storage/azurite[^\r\n]*");
+        Assert.True(start.Success, $"job '{jobName}' must start Azurite with docker run");
+        Assert.Contains("--skipApiVersionCheck", start.Value, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ReleaseBuildsImagesOnceAndDeploysTestThenProdViaKernelInstallWithZeroScripts()
     {
