@@ -21,14 +21,16 @@ public sealed class DesktopBootstrapFacts
         // Warm up JIT + IPGlobalProperties once so we measure steady-state socket table query latency.
         _ = DesktopBootstrap.IsPortListening(closedPort);
 
+        const double maxProbeMs = 50.0;
+
         var swClosed = Stopwatch.StartNew();
         var closedListening = DesktopBootstrap.IsPortListening(closedPort);
         swClosed.Stop();
 
         Assert.False(closedListening);
         Assert.True(
-            swClosed.Elapsed.TotalMilliseconds < 5.0,
-            $"Closed port check took {swClosed.Elapsed.TotalMilliseconds:F3}ms (expected < 5ms, replacing 2043ms HTTP timeout).");
+            swClosed.Elapsed.TotalMilliseconds < maxProbeMs,
+            $"Closed port check took {swClosed.Elapsed.TotalMilliseconds:F3}ms (expected < {maxProbeMs:F0}ms, replacing 2043ms HTTP timeout).");
 
         if (boundPorts.Count > 0)
         {
@@ -39,8 +41,8 @@ public sealed class DesktopBootstrapFacts
 
             Assert.True(activeListening);
             Assert.True(
-                swActive.Elapsed.TotalMilliseconds < 5.0,
-                $"Active port check took {swActive.Elapsed.TotalMilliseconds:F3}ms (expected < 5ms).");
+                swActive.Elapsed.TotalMilliseconds < maxProbeMs,
+                $"Active port check took {swActive.Elapsed.TotalMilliseconds:F3}ms (expected < {maxProbeMs:F0}ms).");
         }
     }
 

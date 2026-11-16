@@ -219,7 +219,10 @@ void main() {
 
       final tabular = UiType.tabularStyle(13);
       expect(tabular.fontFamily, 'Inter');
-      expect(tabular.fontFeatures, contains(const FontFeature.tabularFigures()));
+      expect(
+        tabular.fontFeatures,
+        contains(const FontFeature.tabularFigures()),
+      );
 
       final codeStyle = IcType.code(12, color: const Color(0xFF17140F));
       expect(codeStyle.fontFamily, 'Inter');

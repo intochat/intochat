@@ -8,6 +8,7 @@ description = "Azurite well-known development storage key, Azure built-in RBAC r
 commits = [
   "5947a731031e53c66a41b720fd6331510e7d6338",
   "16f94509427027c713ba9fa8979d23d31135771d",
+  "1ad1e5e4ad8998c18fe12767c61edf6d3eabd907",
 ]
 paths = [
   '''src/IntoChat\.OS\.Modules/IntoChat\.OS/Identity/.*''',

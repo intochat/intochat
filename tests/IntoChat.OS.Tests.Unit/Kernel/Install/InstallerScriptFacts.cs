@@ -96,6 +96,23 @@ public sealed class InstallerScriptFacts
     private static string ToPosixPath(string path, bool viaWsl)
         => viaWsl ? ToWslPath(path) : path;
 
+    private static (int ExitCode, string StdOut, string StdErr) RunPosixShScript(
+        bool viaWsl,
+        string shellCmd,
+        params string[] scriptArgs)
+    {
+        var args = new List<string>();
+        if (viaWsl)
+        {
+            args.Add("-e");
+            args.Add("sh");
+        }
+        args.Add("-c");
+        args.Add(shellCmd);
+        args.AddRange(scriptArgs);
+        return RunProcess(viaWsl ? "wsl.exe" : "sh", args, new Dictionary<string, string?>());
+    }
+
     private static (int ExitCode, string StdOut, string StdErr) RunProcess(
         string fileName,
         IReadOnlyList<string> arguments,
@@ -444,26 +461,10 @@ public sealed class InstallerScriptFacts
                 exec sh "$3" --home "$4" --no-launch
                 """.Replace("\r\n", "\n", StringComparison.Ordinal);
 
-            var args = new List<string>();
-            if (viaWsl)
-            {
-                args.Add("-e");
-            }
-            args.Add("sh");
-            args.Add("-c");
-            args.Add(shellCmd);
-            args.Add("installer-test");
-            args.Add(userHomePosix);
-            args.Add(archivePosix);
-            args.Add(scriptPosix);
-            args.Add(installHomePosix);
-            if (candidateHash is not null)
-            {
-                args.Add(candidateHash);
-            }
-
-            var exe = viaWsl ? "wsl.exe" : "sh";
-            var (exitCode, stdout, stderr) = RunProcess(exe, args, new Dictionary<string, string?>());
+            string[] scriptArgs = candidateHash is null
+                ? ["installer-test", userHomePosix, archivePosix, scriptPosix, installHomePosix]
+                : ["installer-test", userHomePosix, archivePosix, scriptPosix, installHomePosix, candidateHash];
+            var (exitCode, stdout, stderr) = RunPosixShScript(viaWsl, shellCmd, scriptArgs);
             Assert.NotEqual(0, exitCode);
             Assert.Contains("SHA-256", stderr, StringComparison.OrdinalIgnoreCase);
             Assert.False(Directory.Exists(Path.Combine(installHome, "bin")), $"Failed verification must not stage bin/. stdout={stdout}\nstderr={stderr}");
@@ -505,23 +506,15 @@ public sealed class InstallerScriptFacts
                 exec sh "$3" --home "$4" --no-launch
                 """.Replace("\r\n", "\n", StringComparison.Ordinal);
 
-            var args = new List<string>();
-            if (viaWsl)
-            {
-                args.Add("-e");
-            }
-            args.Add("sh");
-            args.Add("-c");
-            args.Add(shellCmd);
-            args.Add("installer-test");
-            args.Add(userHomePosix);
-            args.Add(archivePosix);
-            args.Add(scriptPosix);
-            args.Add(installHomePosix);
-            args.Add($"  {realSha}  ");
-
-            var exe = viaWsl ? "wsl.exe" : "sh";
-            var (exitCode, stdout, stderr) = RunProcess(exe, args, new Dictionary<string, string?>());
+            var (exitCode, stdout, stderr) = RunPosixShScript(
+                viaWsl,
+                shellCmd,
+                "installer-test",
+                userHomePosix,
+                archivePosix,
+                scriptPosix,
+                installHomePosix,
+                $"  {realSha}  ");
             Assert.True(exitCode == 0, $"Expected exit 0, got {exitCode}.\nstdout:\n{stdout}\nstderr:\n{stderr}");
             Assert.True(File.Exists(Path.Combine(installHome, "bin", "IntoChat.OS.Desktop")));
             Assert.True(File.Exists(Path.Combine(installHome, "bin", "intochat")));
@@ -607,22 +600,14 @@ public sealed class InstallerScriptFacts
                 exec sh "$3" --home "$4" --no-launch
                 """.Replace("\r\n", "\n", StringComparison.Ordinal);
 
-            var args = new List<string>();
-            if (viaWsl)
-            {
-                args.Add("-e");
-            }
-            args.Add("sh");
-            args.Add("-c");
-            args.Add(shellCmd);
-            args.Add("installer-test");
-            args.Add(userHomePosix);
-            args.Add(mockBinPosix);
-            args.Add(scriptPosix);
-            args.Add(installHomePosix);
-
-            var exe = viaWsl ? "wsl.exe" : "sh";
-            var (exitCode, stdout, stderr) = RunProcess(exe, args, new Dictionary<string, string?>());
+            var (exitCode, stdout, stderr) = RunPosixShScript(
+                viaWsl,
+                shellCmd,
+                "installer-test",
+                userHomePosix,
+                mockBinPosix,
+                scriptPosix,
+                installHomePosix);
 
             if (scenario == "sums-valid")
             {

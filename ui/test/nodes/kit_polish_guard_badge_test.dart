@@ -19,42 +19,55 @@ void main() {
         const c = UiColors.intochatLight;
         const ctx = NodeContext(view: 'local/apps/sample/view');
 
-        final cases = <(String tone, String label, IconData icon, Color fg, Color bg)>[
-          ('done', 'Completed', LucideIcons.check, c.done, c.doneBg),
-          ('success', 'Synced', LucideIcons.check, c.done, c.doneBg),
-          (
-            'working',
-            'Running',
-            LucideIcons.loaderCircle,
-            c.working,
-            c.workingBg,
-          ),
-          (
-            'warning',
-            'Pending',
-            LucideIcons.loaderCircle,
-            c.working,
-            c.workingBg,
-          ),
-          ('error', 'Failed', LucideIcons.triangleAlert, c.error, c.errorBg),
-          (
-            'danger',
-            'Blocked',
-            LucideIcons.triangleAlert,
-            c.error,
-            c.errorBg,
-          ),
-          (
-            'needs-you',
-            'Needs approval',
-            LucideIcons.hand,
-            c.needsYou,
-            c.needsYouBg,
-          ),
-          ('accent', 'Your turn', LucideIcons.hand, c.needsYou, c.needsYouBg),
-          ('idle', 'Waiting', LucideIcons.clock, c.idle, c.surfaceSunk),
-          ('neutral', 'Queued', LucideIcons.clock, c.idle, c.surfaceSunk),
-        ];
+        final cases =
+            <(String tone, String label, IconData icon, Color fg, Color bg)>[
+              ('done', 'Completed', LucideIcons.check, c.done, c.doneBg),
+              ('success', 'Synced', LucideIcons.check, c.done, c.doneBg),
+              (
+                'working',
+                'Running',
+                LucideIcons.loaderCircle,
+                c.working,
+                c.workingBg,
+              ),
+              (
+                'warning',
+                'Pending',
+                LucideIcons.loaderCircle,
+                c.working,
+                c.workingBg,
+              ),
+              (
+                'error',
+                'Failed',
+                LucideIcons.triangleAlert,
+                c.error,
+                c.errorBg,
+              ),
+              (
+                'danger',
+                'Blocked',
+                LucideIcons.triangleAlert,
+                c.error,
+                c.errorBg,
+              ),
+              (
+                'needs-you',
+                'Needs approval',
+                LucideIcons.hand,
+                c.needsYou,
+                c.needsYouBg,
+              ),
+              (
+                'accent',
+                'Your turn',
+                LucideIcons.hand,
+                c.needsYou,
+                c.needsYouBg,
+              ),
+              ('idle', 'Waiting', LucideIcons.clock, c.idle, c.surfaceSunk),
+              ('neutral', 'Queued', LucideIcons.clock, c.idle, c.surfaceSunk),
+            ];
 
         for (final (tone, label, expectedIcon, expectedFg, expectedBg)
             in cases) {
@@ -81,10 +94,12 @@ void main() {
           );
 
           final box = tester.widget<Container>(
-            find.ancestor(
-              of: find.text(label),
-              matching: find.byType(Container),
-            ).first,
+            find
+                .ancestor(
+                  of: find.text(label),
+                  matching: find.byType(Container),
+                )
+                .first,
           );
           final deco = box.decoration as BoxDecoration;
           expect(deco.color, expectedBg, reason: 'bg for $tone');
@@ -154,103 +169,100 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
 
-        expect(
-          find.text('Insufficient funds (balance €30).'),
-          findsOneWidget,
-        );
+        expect(find.text('Insufficient funds (balance €30).'), findsOneWidget);
 
         await mouse.moveTo(tester.getCenter(find.text('Close account')));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
 
-        expect(
-          find.text('Balance must be €0 before closing.'),
-          findsOneWidget,
-        );
+        expect(find.text('Balance must be €0 before closing.'), findsOneWidget);
       },
     );
   });
 
-  group('DataTable & Chart token conformance (DESIGN.md §2.4, §3.1, §12.5)', () {
-    testWidgets(
-      'DataTable renders surfaceSunk header band, borderHairline dividers, and tabular numerals',
-      (tester) async {
-        const c = UiColors.intochatLight;
-        const ctx = NodeContext(view: 'local/apps/sales/view');
+  group(
+    'DataTable & Chart token conformance (DESIGN.md §2.4, §3.1, §12.5)',
+    () {
+      testWidgets(
+        'DataTable renders surfaceSunk header band, borderHairline dividers, and tabular numerals',
+        (tester) async {
+          const c = UiColors.intochatLight;
+          const ctx = NodeContext(view: 'local/apps/sales/view');
 
-        await tester.pumpWidget(
-          host(
-            SizedBox(
-              width: 560,
-              child: NodeRenderer.render(
-                const DataTableNode(
-                  title: 'Top deals',
-                  columns: ['Account', 'ARR'],
-                  rows: [
-                    ['Acme Corp', '€120,000'],
-                    ['Northwind', '€84,500'],
-                  ],
-                  from: 'Salesforce',
-                  sourceNeuronUri: null,
-                ),
-                ctx,
-              ),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        final headerBand = tester
-            .widgetList<Container>(find.byType(Container))
-            .where((w) => w.color == c.surfaceSunk);
-        expect(headerBand, isNotEmpty);
-
-        final arrCell = tester.widget<Text>(find.text('€120,000'));
-        expect(arrCell.textAlign, TextAlign.right);
-        expect(
-          arrCell.style?.fontFeatures,
-          contains(const FontFeature.tabularFigures()),
-        );
-      },
-    );
-
-    testWidgets(
-      'ChartNode supports columns, line, and pie with accent + chartContext (#9C9182)',
-      (tester) async {
-        const ctx = NodeContext(view: 'local/apps/metrics/view');
-
-        for (final chartKind in ['columns', 'line', 'pie']) {
           await tester.pumpWidget(
             host(
               SizedBox(
-                width: 600,
+                width: 560,
                 child: NodeRenderer.render(
-                  ChartNode(
-                    title: 'Revenue ($chartKind)',
-                    chartKind: chartKind,
-                    points: const [
-                      ChartPointNode(label: 'Q1', value: 120),
-                      ChartPointNode(label: 'Q2', value: 180),
+                  const DataTableNode(
+                    title: 'Top deals',
+                    columns: ['Account', 'ARR'],
+                    rows: [
+                      ['Acme Corp', '€120,000'],
+                      ['Northwind', '€84,500'],
                     ],
-                    from: 'Stripe',
-                    prefix: '€',
-                    comparePoints: const [100, 140],
-                    seriesName: '2026',
-                    compareName: '2025',
+                    from: 'Salesforce',
                     sourceNeuronUri: null,
                   ),
                   ctx,
                 ),
               ),
-              brightness: Brightness.dark,
             ),
           );
           await tester.pumpAndSettle();
 
-          expect(find.text('Revenue ($chartKind)'), findsOneWidget);
-          expect(tester.takeException(), isNull);
-        }
-      },
-    );
-  });
+          final headerBand = tester
+              .widgetList<Container>(find.byType(Container))
+              .where((w) => w.color == c.surfaceSunk);
+          expect(headerBand, isNotEmpty);
+
+          final arrCell = tester.widget<Text>(find.text('€120,000'));
+          expect(arrCell.textAlign, TextAlign.right);
+          expect(
+            arrCell.style?.fontFeatures,
+            contains(const FontFeature.tabularFigures()),
+          );
+        },
+      );
+
+      testWidgets(
+        'ChartNode supports columns, line, and pie with accent + chartContext (#9C9182)',
+        (tester) async {
+          const ctx = NodeContext(view: 'local/apps/metrics/view');
+
+          for (final chartKind in ['columns', 'line', 'pie']) {
+            await tester.pumpWidget(
+              host(
+                SizedBox(
+                  width: 600,
+                  child: NodeRenderer.render(
+                    ChartNode(
+                      title: 'Revenue ($chartKind)',
+                      chartKind: chartKind,
+                      points: const [
+                        ChartPointNode(label: 'Q1', value: 120),
+                        ChartPointNode(label: 'Q2', value: 180),
+                      ],
+                      from: 'Stripe',
+                      prefix: '€',
+                      comparePoints: const [100, 140],
+                      seriesName: '2026',
+                      compareName: '2025',
+                      sourceNeuronUri: null,
+                    ),
+                    ctx,
+                  ),
+                ),
+                brightness: Brightness.dark,
+              ),
+            );
+            await tester.pumpAndSettle();
+
+            expect(find.text('Revenue ($chartKind)'), findsOneWidget);
+            expect(tester.takeException(), isNull);
+          }
+        },
+      );
+    },
+  );
 }

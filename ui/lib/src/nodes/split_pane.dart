@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -138,10 +138,7 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
               ? CrossAxisAlignment.stretch
               : CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: effectiveLeading,
-              child: leadingPane,
-            ),
+            SizedBox(width: effectiveLeading, child: leadingPane),
             Semantics(
               key: const ValueKey('split_pane_sash'),
               label: 'Resize sidebar',
@@ -250,12 +247,11 @@ class _SplitPaneWidgetState extends State<_SplitPaneWidget> {
           label: _compactDrawerOpen ? 'Hide navigation' : 'Show navigation',
           child: FocusableActionDetector(
             enabled: interactive,
-            onShowFocusHighlight: (f) =>
-                setState(() => _focusDrawerToggle = f),
-            onShowHoverHighlight: (h) =>
-                setState(() => _hoverDrawerToggle = h),
-            mouseCursor:
-                interactive ? SystemMouseCursors.click : MouseCursor.defer,
+            onShowFocusHighlight: (f) => setState(() => _focusDrawerToggle = f),
+            onShowHoverHighlight: (h) => setState(() => _hoverDrawerToggle = h),
+            mouseCursor: interactive
+                ? SystemMouseCursors.click
+                : MouseCursor.defer,
             actions: {
               ActivateIntent: CallbackAction<ActivateIntent>(
                 onInvoke: (_) {

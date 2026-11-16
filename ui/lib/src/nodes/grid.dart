@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
@@ -33,8 +33,7 @@ Widget renderGrid(GridNode node, NodeContext ctx) {
         < kCompactGridBreakpoint => math.min(requestedColumns, 2),
         _ => requestedColumns,
       };
-      final rawWidth =
-          (maxW - gap * (effectiveColumns - 1)) / effectiveColumns;
+      final rawWidth = (maxW - gap * (effectiveColumns - 1)) / effectiveColumns;
       final width = math.max(0.0, rawWidth);
 
       return Wrap(

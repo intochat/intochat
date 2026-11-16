@@ -228,8 +228,7 @@ class IcColors extends ThemeExtension<IcColors> {
   Color get needsYou => accent;
   Color get needsYouBg => accentTint;
   Color get accentOnInk => const Color(0xFF8FB0FF);
-  Color get scrim =>
-      isDark ? const Color(0x80110F0B) : const Color(0x4717140F);
+  Color get scrim => isDark ? const Color(0x80110F0B) : const Color(0x4717140F);
   Color get chartContext => _chartContext ?? textSubtle;
 
   /// User message bubble & text (`DESIGN.md` §13.3, §20).
