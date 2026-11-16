@@ -69,15 +69,16 @@ internal sealed record FlowEntry(
         ArgumentNullException.ThrowIfNull(head);
         var ended = head.Status is FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled;
         var finished = ended || Finished;
+        var completedSteps = head.Status == FlowStatus.Completed && head.Steps.Length > 0
+            ? (head.Done.Length > 0 ? head.Done : head.Steps)
+            : head.Done;
         return this with
         {
             Title = Title.Length == 0 ? head.Title : Title,
             Owner = head.Owner.Length == 0 ? Owner : head.Owner,
             TraceId = head.TraceId,
             Steps = head.Steps,
-            Done = head.Status == FlowStatus.Completed && head.Steps.Length > 0
-                ? [.. Done.Union(head.Done.Length > 0 ? head.Done : head.Steps, StringComparer.Ordinal)]
-                : [.. Done.Union(head.Done, StringComparer.Ordinal)],
+            Done = [.. completedSteps.Union(Done, StringComparer.Ordinal)],
             Status = ended && !Finished ? head.Status : Status == FlowStatus.Pending ? head.Status : Status,
             Current = finished ? null : Current,
             Waiting = finished ? null : Waiting,

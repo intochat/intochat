@@ -203,6 +203,7 @@ public sealed class FlowsNeuronFacts
         var key = runtime.Id(TestFlow.Alias, Guid.NewGuid().ToString("N"));
         var id = key.ToString();
         await runtime.Get<IFlowStarter>(key).StartFromJson("Late", "owner-1", null, Inner(new TestInner()));
+        await HeadEventually(runtime, id, FlowStatus.Completed);
         var flows = Flows(runtime);
         await flows.List(new FlowQuery(), Ct);
         var pump = runtime.Get<IFlowSignalPump>(runtime.Id(FlowSignalPump.Alias, "pump"));
