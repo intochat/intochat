@@ -95,7 +95,7 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
         }
     }
 
-    [McpServerTool(Name = ApproveName), Description("Approve or deny a pending approval gate (ChangeFlow promotion, unit deploy, synapse staged install, or confirmation card) by approvalId.")]
+    [McpServerTool(Name = ApproveName), Description("Approve or deny a pending approval gate (FeatureToPrFlow promotion, unit deploy, synapse staged install, or confirmation card) by approvalId.")]
     public async Task<CallToolResult> Approve(
         [Description("Pending approval id / plan id from screen_read or screen_list.")] string approvalId,
         [Description("True to approve and execute; false to deny/reject.")] bool approved,

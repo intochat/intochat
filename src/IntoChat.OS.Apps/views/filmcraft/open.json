@@ -5,30 +5,364 @@
   "main": {
     "title": "FilmCraft",
     "root": {
-      "kind": "column",
-      "children": [
-        {
-          "kind": "text",
-          "value": "FilmCraft tools connected (WASM Web UI) · Sequence: /work/launch-trailer.fcproj · /work/launch-trailer.fcproj -> /work/launch-trailer.cut.mp4",
-          "tone": "muted",
-          "tabular": true,
-          "mono": false
-        },
-        {
-          "kind": "webBrowser",
-          "key": "filmcraft-wasm",
-          "url": "http://localhost:18083",
-          "title": "FilmCraft WASM Studio",
-          "height": 0,
-          "executionMode": "wasm-ui"
-        }
-      ],
-      "gap": 4,
-      "padding": 0,
-      "extents": [
-        24,
-        0
-      ]
+      "kind": "appShell",
+      "key": "filmcraft-shell",
+      "sidebar": {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "heading",
+            "value": "Document",
+            "level": 6,
+            "subtitle": null
+          },
+          {
+            "kind": "card",
+            "title": "/work/launch-trailer.fcproj",
+            "body": "Sequence -> /work/launch-trailer.cut.mp4",
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "value": "Ready · FilmCraft Studio",
+                    "tone": "muted",
+                    "tabular": false,
+                    "mono": false
+                  }
+                ],
+                "gap": 4,
+                "padding": 0
+              }
+            ]
+          },
+          {
+            "kind": "heading",
+            "value": "Timeline Tracks",
+            "level": 6,
+            "subtitle": "3 item(s)"
+          },
+          {
+            "kind": "surface",
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "value": "V2 · Title Overlay (00:00:00:00 -> 00:00:05:00)",
+                    "tone": "neutral",
+                    "tabular": true,
+                    "mono": false
+                  },
+                  {
+                    "kind": "text",
+                    "value": "V1 · A-Roll Main Camera (00:00:00:00 -> 00:00:14:00)",
+                    "tone": "neutral",
+                    "tabular": true,
+                    "mono": false
+                  },
+                  {
+                    "kind": "text",
+                    "value": "A1 · Master Dialogue Bus (-14 LUFS)",
+                    "tone": "neutral",
+                    "tabular": true,
+                    "mono": false
+                  }
+                ],
+                "gap": 4,
+                "padding": 0
+              }
+            ],
+            "surfaceKind": "recessed",
+            "title": null,
+            "subtitle": null,
+            "padding": 8
+          }
+        ],
+        "gap": 12,
+        "padding": 0
+      },
+      "body": {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "surface",
+            "children": [
+              {
+                "kind": "heading",
+                "value": "Timeline Tools",
+                "level": 6,
+                "subtitle": null
+              },
+              {
+                "kind": "button",
+                "key": "tool-razor",
+                "label": "Razor Split",
+                "emit": {
+                  "owner": "app.filmcraft",
+                  "signal": "ui.command",
+                  "args": {
+                    "target": "screen",
+                    "method": "RazorSplitDefaultAsync",
+                    "args": null,
+                    "valueIndex": null,
+                    "value": null,
+                    "guardReason": null,
+                    "tooltip": null
+                  }
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "icon": "scissors",
+                "small": true
+              },
+              {
+                "kind": "button",
+                "key": "tool-trim",
+                "label": "Ripple Trim (-24f)",
+                "emit": {
+                  "owner": "app.filmcraft",
+                  "signal": "ui.command",
+                  "args": {
+                    "target": "screen",
+                    "method": "RippleTrimAsync",
+                    "args": null,
+                    "valueIndex": null,
+                    "value": null,
+                    "guardReason": null,
+                    "tooltip": null
+                  }
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              },
+              {
+                "kind": "button",
+                "key": "tool-lumetri",
+                "label": "Lumetri Grade",
+                "emit": {
+                  "owner": "app.filmcraft",
+                  "signal": "ui.command",
+                  "args": {
+                    "target": "screen",
+                    "method": "LumetriAutoGradeAsync",
+                    "args": null,
+                    "valueIndex": null,
+                    "value": null,
+                    "guardReason": null,
+                    "tooltip": null
+                  }
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              }
+            ],
+            "surfaceKind": "toolbar",
+            "title": null,
+            "subtitle": null,
+            "padding": 8
+          },
+          {
+            "kind": "surface",
+            "children": [
+              {
+                "kind": "text",
+                "value": "No monitor frame rendered (/work/launch-trailer.fcproj -> /work/launch-trailer.cut.mp4).",
+                "tone": "muted",
+                "tabular": false,
+                "mono": false
+              }
+            ],
+            "surfaceKind": "elevated",
+            "title": "Program Monitor",
+            "subtitle": "Connect FilmCraft MCP in Settings to render preview frames.",
+            "padding": 18
+          },
+          {
+            "kind": "dataTable",
+            "title": "Non-Linear Sequence Tracks",
+            "columns": [
+              "Track",
+              "Timeline Span & Routing"
+            ],
+            "rows": [
+              [
+                "T1",
+                "V2 · Title Overlay (00:00:00:00 -> 00:00:05:00)"
+              ],
+              [
+                "T2",
+                "V1 · A-Roll Main Camera (00:00:00:00 -> 00:00:14:00)"
+              ],
+              [
+                "T3",
+                "A1 · Master Dialogue Bus (-14 LUFS)"
+              ]
+            ],
+            "sourceNeuronUri": null,
+            "from": "DigitalBrain"
+          }
+        ],
+        "gap": 12,
+        "padding": 0
+      },
+      "toolbar": {
+        "kind": "row",
+        "children": [
+          {
+            "kind": "heading",
+            "value": "FilmCraft",
+            "level": 2,
+            "subtitle": "FilmCraft MCP server not connected (MCP Server (filmcraft-mcp)) · Sequence: /work/launch-trailer.fcproj"
+          },
+          {
+            "kind": "spacer",
+            "size": 0
+          },
+          {
+            "kind": "tagPill",
+            "label": "MCP Server (filmcraft-mcp)",
+            "tone": "done",
+            "icon": "check"
+          },
+          {
+            "kind": "button",
+            "key": "mode-mcp",
+            "label": "MCP",
+            "emit": {
+              "owner": "app.filmcraft",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SwitchExecutionMode",
+                "args": [
+                  "mcp"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "style": "secondary",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "mode-native-linux",
+            "label": "CLI",
+            "emit": {
+              "owner": "app.filmcraft",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SwitchExecutionMode",
+                "args": [
+                  "native-linux"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "style": "ghost",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "mode-wasm-ui",
+            "label": "WASM",
+            "emit": {
+              "owner": "app.filmcraft",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SwitchExecutionMode",
+                "args": [
+                  "wasm-ui"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "style": "ghost",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "razor-split",
+            "label": "Razor Split",
+            "emit": {
+              "owner": "app.filmcraft",
+              "signal": "ui.command",
+              "args": {
+                "target": "screen",
+                "method": "RazorSplitDefaultAsync",
+                "args": null,
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "style": "secondary",
+            "icon": "scissors",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "export-mp4",
+            "label": "Export MP4",
+            "emit": {
+              "owner": "app.filmcraft",
+              "signal": "ui.command",
+              "args": {
+                "target": "screen",
+                "method": "ExportMp4DefaultAsync",
+                "args": null,
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
+            },
+            "intent": null,
+            "enabled": true,
+            "tone": "accent",
+            "style": "primary",
+            "icon": "film",
+            "small": true
+          }
+        ],
+        "gap": 8,
+        "padding": 0
+      },
+      "inspector": null
     }
   }
 }

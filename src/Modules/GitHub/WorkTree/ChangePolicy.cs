@@ -64,7 +64,9 @@ public sealed partial record ChangePolicy
     /// Evaluates a validated <see cref="RepoPath"/> against dotfile, blocked instruction file, and allowed extension rules.
     /// Returns <see langword="null"/> when allowed, or a human-readable refusal reason.
     /// </summary>
-    public string? Check(RepoPath path)
+    public string? Check(RepoPath path) => CheckAccess(path, requireWriteAllowed: true, allowDirectory: false);
+
+    private string? CheckAccess(RepoPath path, bool requireWriteAllowed, bool allowDirectory)
     {
         ArgumentNullException.ThrowIfNull(path);
 
@@ -76,16 +78,19 @@ public sealed partial record ChangePolicy
             }
         }
 
-        if (BlockedFileNames.Contains(path.FileName))
+        if (!allowDirectory && BlockedFileNames.Contains(path.FileName))
         {
             return $"Path gate rejected agent instruction file '{path.Value}'.";
         }
 
-        var ext = path.Extension;
-        if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
+        if (requireWriteAllowed)
         {
-            var sorted = string.Join(", ", AllowedExtensions.Order(StringComparer.OrdinalIgnoreCase));
-            return $"Path gate rejected disallowed file extension '{ext}' on '{path.Value}'. Allowed: {sorted}.";
+            var ext = path.Extension;
+            if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
+            {
+                var sorted = string.Join(", ", AllowedExtensions.Order(StringComparer.OrdinalIgnoreCase));
+                return $"Path gate rejected disallowed file extension '{ext}' on '{path.Value}'. Allowed: {sorted}.";
+            }
         }
 
         return null;
@@ -132,6 +137,28 @@ public sealed partial record ChangePolicy
             : $"Path gate rejected invalid or traversal path '{rawPath}'.";
 
     /// <summary>
+    /// Validates <paramref name="rawPath"/> against traversal, dotfiles, blocked instruction files,
+    /// optional extension write policy (<paramref name="requireWriteAllowed"/>), root confinement, and symlinks/reparse points.
+    /// Returns the normalized repository-relative path and confined full disk path, or throws <see cref="SecurityException"/>.
+    /// </summary>
+    public (string RelativePath, string FullPath) ResolveConfinedPath(
+        string treeRoot,
+        string rawPath,
+        bool requireWriteAllowed,
+        bool allowDirectory = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(treeRoot);
+        var normalizedRoot = Path.GetFullPath(treeRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (allowDirectory && string.Equals(rawPath?.Trim(), ".", StringComparison.Ordinal))
+        {
+            return ("", normalizedRoot);
+        }
+
+        var (repoPath, candidateFull) = ResolveAndVerifyRepoPath(normalizedRoot, rawPath, requireWriteAllowed, allowDirectory);
+        return (repoPath.Value, candidateFull);
+    }
+
+    /// <summary>
     /// Validates raw paths, enforces policy rules, verifies root confinement on disk, and rejects symlinks/reparse points.
     /// Throws <see cref="SecurityException"/> on any violation.
     /// </summary>
@@ -149,22 +176,32 @@ public sealed partial record ChangePolicy
         var parsed = new List<RepoPath>(rawPaths.Count);
         foreach (var raw in rawPaths)
         {
-            if (!RepoPath.TryParse(raw, out var repoPath))
-            {
-                throw new SecurityException($"Path gate rejected invalid, rooted, or traversal path '{raw}'.");
-            }
-
-            if (Check(repoPath!) is { } refusal)
-            {
-                throw new SecurityException(refusal);
-            }
-
-            var candidateFull = repoPath!.ResolveUnder(treeRoot);
-            EnsureNoReparsePointsInHierarchy(treeRoot, candidateFull);
+            var (repoPath, _) = ResolveAndVerifyRepoPath(treeRoot, raw, requireWriteAllowed: true, allowDirectory: false);
             parsed.Add(repoPath);
         }
 
         return [.. parsed.Distinct().OrderBy(static p => p.Value, StringComparer.Ordinal)];
+    }
+
+    private (RepoPath Path, string FullPath) ResolveAndVerifyRepoPath(
+        string treeRoot,
+        string? rawPath,
+        bool requireWriteAllowed,
+        bool allowDirectory)
+    {
+        if (!RepoPath.TryParse(rawPath, out var repoPath))
+        {
+            throw new SecurityException($"Path gate rejected invalid, rooted, or traversal path '{rawPath}'.");
+        }
+
+        if (CheckAccess(repoPath!, requireWriteAllowed, allowDirectory) is { } refusal)
+        {
+            throw new SecurityException(refusal);
+        }
+
+        var candidateFull = repoPath!.ResolveUnder(treeRoot);
+        EnsureNoReparsePointsInHierarchy(treeRoot, candidateFull);
+        return (repoPath, candidateFull);
     }
 
     /// <summary>

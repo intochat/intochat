@@ -121,9 +121,9 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
         var brainB = NewBrain("brain-beta");
         var screenIdA = new NeuronId(brainA, "app.audited_counter", "default");
 
-        // Caller belongs to Brain B attempting to call Brain A
+        // Caller belongs to Brain B attempting to call Owner operation on Brain A
         var foreignCaller = CreatePersonCaller(edge, principal: "mallory", account: "acct_evil", brain: brainB);
-        var decision = AccessPolicy.Decide(foreignCaller, screenIdA, OperationAccess.Public);
+        var decision = AccessPolicy.Decide(foreignCaller, screenIdA, OperationAccess.Owner);
 
         Assert.False(decision.Allowed);
         Assert.Equal(AccessDenial.OutsideBrain, decision.Denial);

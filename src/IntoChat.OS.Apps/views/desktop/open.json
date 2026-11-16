@@ -202,7 +202,7 @@
                   "intent": null,
                   "enabled": true,
                   "tone": "accent",
-                  "style": "secondary",
+                  "style": "primary",
                   "icon": "ino",
                   "small": false
                 },
@@ -265,11 +265,10 @@
               "kind": "row",
               "children": [
                 {
-                  "kind": "text",
-                  "value": "Usage",
-                  "tone": "neutral",
-                  "tabular": false,
-                  "mono": false
+                  "kind": "tagPill",
+                  "label": "Usage",
+                  "tone": "done",
+                  "icon": "check"
                 },
                 {
                   "kind": "text",

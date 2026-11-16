@@ -87,10 +87,11 @@ public sealed class TestHome : IDisposable
         throw new InvalidOperationException("Repository root containing Intochat.OS.slnx was not found.");
     }
 
-    public static async Task<string> ReadPresenceTokenAsync(string presenceFilePath, CancellationToken ct)
+    public static async Task<string> ReadPresenceTokenAsync(string presenceFilePath, CancellationToken ct, TimeSpan? timeout = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(presenceFilePath);
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(30);
+        var deadline = DateTimeOffset.UtcNow.Add(effectiveTimeout);
         while (true)
         {
             ct.ThrowIfCancellationRequested();
@@ -108,7 +109,7 @@ public sealed class TestHome : IDisposable
 
             if (DateTimeOffset.UtcNow >= deadline)
             {
-                throw new TimeoutException($"Kernel did not mint presence proof at '{presenceFilePath}' within 30s.");
+                throw new TimeoutException($"Kernel did not mint presence proof at '{presenceFilePath}' within {effectiveTimeout.TotalSeconds:0}s.");
             }
 
             await Task.Delay(TimeSpan.FromMilliseconds(50), ct).ConfigureAwait(false);

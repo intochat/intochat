@@ -11,7 +11,7 @@ namespace IntoChat.OS.Apps.Creator;
 /// <summary>
 /// 3-pane Creator screen view built on <see cref="Kit"/>:
 /// Left pane: Catalog units + active change runs list + Describe/Make + Starter templates.
-/// Center pane: BrainScene topology (or Accordant StateGraphView when toggled) + active unit source/state-space + 7-stage ChangeFlow pipeline + unified diff + build/test summary.
+/// Center pane: BrainScene topology (or Accordant StateGraphView when toggled) + active unit source/state-space + 7-stage FeatureToPrFlow pipeline + unified diff + build/test summary.
 /// Right pane: Inspector for selected node/edge/pulse + refine change input + interactive approve/reject gate.
 /// </summary>
 public static class CreatorView

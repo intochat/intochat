@@ -143,36 +143,42 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         var galleryView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/gallery/view").Read();
         Assert.NotNull(galleryView);
 
-        // 4. PhotoCraftApp dual-mode (Native Linux CLI + MCP) lifecycle on the real silo.
+        // 4. PhotoCraftApp honest disconnected backend + local UI mode/layer lifecycle on the real silo.
         var photo = fixture.AttachSilo(new PhotoCraftApp(), brain);
         await photo.Open(new PhotoCraftStudioOpen("/work/hero-product.png", "native-linux"));
+        Assert.Contains("not connected", photo.State.Status, StringComparison.OrdinalIgnoreCase);
+
         await photo.RemoveBackground(new PhotoCraftRemoveBackground("/work/hero-product.png", "native-linux"));
-        Assert.Equal("layer.removeBackground", photo.State.LastCommandId);
         Assert.Equal("native-linux", photo.State.ExecutionMode);
-        Assert.EndsWith(".nobg.png", photo.State.OutputDocument, StringComparison.Ordinal);
+        Assert.Contains("not connected", photo.State.Status, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(string.Empty, photo.State.LastCliInvocation);
+        Assert.Empty(photo.State.History);
 
         await photo.SwitchMode(new PhotoCraftSwitchMode("mcp"));
-        await photo.Edit(new PhotoCraftStudioEdit("make a 512x512 image with a blue-to-orange gradient", "/work/canvas.psd", "mcp"));
         Assert.Equal("mcp", photo.State.ExecutionMode);
-        Assert.Equal("layer.newFillLayer.gradient", photo.State.LastCommandId);
-        Assert.Equal(2, photo.State.History.Length);
+        await photo.ToggleLayer(new PhotoCraftToggleLayer(LayerIndex: 0));
+        Assert.Contains(0, photo.State.HiddenLayerIndices!);
 
         await fixture.PublishAppViewToSiloAsync(brain, "photocraft", null, photo.Render());
         var photoView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/photocraft/view").Read();
         Assert.NotNull(photoView);
 
-        // 5. FilmCraftApp dual-mode (Native Linux CLI + MCP) lifecycle on the real silo.
+        // 5. FilmCraftApp honest disconnected backend + local UI mode lifecycle on the real silo.
         var film = fixture.AttachSilo(new FilmCraftApp(), brain);
         await film.Open(new FilmCraftStudioOpen("/work/launch-trailer.fcproj", "native-linux"));
+        Assert.Contains("not connected", film.State.Status, StringComparison.OrdinalIgnoreCase);
+
         await film.Edit(new FilmCraftStudioEdit("razor split timeline at 00:00:03:12", "/work/launch-trailer.fcproj", "native-linux"));
-        Assert.Equal("timeline.razor", film.State.LastCommandId);
         Assert.Equal("native-linux", film.State.ExecutionMode);
+        Assert.Contains("not connected", film.State.Status, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(string.Empty, film.State.LastCliInvocation);
 
         await film.SwitchMode(new FilmCraftSwitchMode("mcp"));
-        await film.Export(new FilmCraftExport("h264-1080p60", "/work/launch-trailer.fcproj", "mcp"));
         Assert.Equal("mcp", film.State.ExecutionMode);
-        Assert.Equal("sequence.exportMp4", film.State.LastCommandId);
-        Assert.EndsWith(".1080p60.mp4", film.State.OutputFile, StringComparison.Ordinal);
+        await film.Export(new FilmCraftExport("h264-1080p60", "/work/launch-trailer.fcproj", "mcp"));
+        Assert.Contains("failed", film.State.Status, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("/work/launch-trailer.cut.mp4", film.State.OutputFile);
+        Assert.Equal(string.Empty, film.State.LastCliInvocation);
 
         await fixture.PublishAppViewToSiloAsync(brain, "filmcraft", null, film.Render());
         var filmView = await SiloNeurons.Get<IView>(fixture.Services, $"{brain}/apps/filmcraft/view").Read();
@@ -223,9 +229,10 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
             updatedSettings.BarLayout));
         Assert.Contains("Synced settings: ElonWatcher (qwen3.5:4b)", ino.State.Status, StringComparison.Ordinal);
 
-        // 3. Database connection & SQL query visualization producing Table + Chart cards on the silo.
+        // 3. Database connection (unconfigured postgres refuses honestly) & workspace CSV SQL query producing Table + Chart cards on the silo.
         await ino.ConnectDb(new InoConnectDb("Host=db.nordlys.internal;Database=nordlys_crm;Username=readonly", "main"));
-        Assert.Contains("nordlys_crm", ino.State.ConnectedDatabase, StringComparison.Ordinal);
+        Assert.Null(ino.State.ConnectedDatabase);
+        Assert.Contains("not configured", ino.State.Status, StringComparison.OrdinalIgnoreCase);
         ino.FilesVfs ??= new IntoChat.OS.Modules.Apps.WorkspaceFilesService();
         await ino.FilesVfs.WriteTextAsync("/work/opportunities.csv", "account,stage,amount\nAcme,Proposal,240000\nBeta,Contract,186000\n", Ct);
         await ino.QueryDb(new InoQueryDb("SELECT account, stage, amount FROM opportunities"));

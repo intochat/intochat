@@ -137,7 +137,7 @@ public sealed class Creator3PaneFacts
         var idleSubSplit = Assert.IsType<SplitPane>(idleSplit.Trailing);
         var idleCenter = Assert.IsType<Column>(idleSubSplit.Leading);
 
-        // When no ChangeFlow is running, Creator must NOT render fake spec.md diffs or fake 100% pass cards!
+        // When no FeatureToPrFlow is running, Creator must NOT render fake spec.md diffs or fake 100% pass cards!
         Assert.DoesNotContain(idleCenter.Children.OfType<Heading>(), h => h.Value == "Unified Diff Review");
         Assert.DoesNotContain(idleCenter.Children.OfType<Heading>(), h => h.Value == "Build & Test Summary");
         Assert.DoesNotContain(idleCenter.Children.OfType<Card>(), c => c.Title == "spec.md");

@@ -107,7 +107,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     public new InoAppState State => base.State;
     public View Render() => Render(State);
     public View RenderSide() => InoView.Side(State);
-    protected override View Render(InoAppState state) => InoView.Screen(state);
+    protected override View Render(InoAppState state) => InoView.Screen(state, _canDictate);
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {

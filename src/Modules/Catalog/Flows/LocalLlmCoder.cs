@@ -1,4 +1,3 @@
-using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Globalization;
 using System.Security;
@@ -54,49 +53,34 @@ public sealed class LocalLlmCoder : ICoder
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    private static readonly FrozenSet<string> AllowedExtensions = new[]
+    private static IReadOnlyList<InferenceTool> CreateToolDefinitions(ChangePolicy policy)
     {
-        ".cs",
-        ".md",
-        ".dart",
-        ".txt",
-        ".xaml",
-        ".svg",
-    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+        var extensions = string.Join(", ", policy.AllowedExtensions.Order(StringComparer.OrdinalIgnoreCase));
+        return
+        [
+            new(
+                "list_files",
+                "List allowed repository files under a relative directory (or optional substring filter). Never accesses outside the worktree.",
+                """{"type":"object","properties":{"directory":{"type":"string","description":"Optional relative directory path such as src/Modules"},"filter":{"type":"string","description":"Optional filename or path substring filter"}}}"""),
+            new(
+                "read_file",
+                "Read the UTF-8 contents of a single file inside the worktree by repo-relative path.",
+                """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path, e.g. README.md or src/Foo.cs"}},"required":["path"]}"""),
+            new(
+                "replace_in_file",
+                "Replace an exact target snippet with replacement text in an existing file inside the worktree.",
+                """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path"},"old_text":{"type":"string","description":"Exact existing text to replace"},"new_text":{"type":"string","description":"New text"}},"required":["path","old_text","new_text"]}"""),
+            new(
+                "write_file",
+                $"Create or overwrite an allowed file ({extensions}) inside the worktree.",
+                """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path"},"content":{"type":"string","description":"Full UTF-8 file content"}},"required":["path","content"]}"""),
+        ];
+    }
 
-    private static readonly FrozenSet<string> BlockedFileNames = new[]
-    {
-        "claude.md",
-        "agents.md",
-        "skill.md",
-        "copilot-instructions.md",
-    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
-
-    private static readonly IReadOnlyList<InferenceTool> ToolDefinitions =
-    [
-        new(
-            "list_files",
-            "List allowed repository files under a relative directory (or optional substring filter). Never accesses outside the worktree.",
-            """{"type":"object","properties":{"directory":{"type":"string","description":"Optional relative directory path such as src/Modules"},"filter":{"type":"string","description":"Optional filename or path substring filter"}}}"""),
-        new(
-            "read_file",
-            "Read the UTF-8 contents of a single file inside the worktree by repo-relative path.",
-            """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path, e.g. README.md or src/Foo.cs"}},"required":["path"]}"""),
-        new(
-            "replace_in_file",
-            "Replace an exact target snippet with replacement text in an existing file inside the worktree.",
-            """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path"},"old_text":{"type":"string","description":"Exact existing text to replace"},"new_text":{"type":"string","description":"New text"}},"required":["path","old_text","new_text"]}"""),
-        new(
-            "write_file",
-            "Create or overwrite an allowed file (.cs, .md, .dart, .txt, .xaml, .svg) inside the worktree.",
-            """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path"},"content":{"type":"string","description":"Full UTF-8 file content"}},"required":["path","content"]}"""),
-    ];
-
-    private const string SystemPrompt = """
+    private static string BuildSystemPrompt(ChangePolicy policy) => $"""
         You are Ino's surgical coding engine operating inside an isolated Git worktree.
         Rules:
-        1. Modify at most 5 files total, and ONLY touch files directly needed for the goal.
-        2. Allowed extensions ONLY: .cs, .md, .dart, .txt, .xaml, .svg. NEVER touch dotfiles (.git, .github, .claude) or instruction files (CLAUDE.md, AGENTS.md, SKILL.md).
+        {policy.Describe()}
         3. Always inspect existing files with list_files / read_file before editing, unless creating a brand-new file explicitly requested by the goal.
         4. Prefer replace_in_file for surgical edits to existing files, or write_file when creating a new file or rewriting a small file cleanly.
         5. Once you have made at least one real file modification that satisfies the goal, reply with a concise 1-2 sentence summary of the change and stop calling tools.
@@ -105,16 +89,19 @@ public sealed class LocalLlmCoder : ICoder
     private readonly IServiceProvider? _services;
     private readonly LocalLlmCoderOptions _options;
     private readonly ILogger<LocalLlmCoder> _logger;
+    private readonly ChangePolicy _policy;
 
     public LocalLlmCoder(
         IServiceProvider? services = null,
         IConfiguration? configuration = null,
         LocalLlmCoderOptions? options = null,
-        ILogger<LocalLlmCoder>? logger = null)
+        ILogger<LocalLlmCoder>? logger = null,
+        ChangePolicy? policy = null)
     {
         _services = services;
         _logger = logger ?? OsConsoleLog.For<LocalLlmCoder>();
         _options = options ?? BindOptions(configuration);
+        _policy = policy ?? services?.GetService<ChangePolicy>() ?? ChangePolicy.Default;
     }
 
     public async Task<CoderEditResult> EditAsync(WorkTreeLease lease, string goal, CancellationToken ct = default)
@@ -122,7 +109,7 @@ public sealed class LocalLlmCoder : ICoder
         ArgumentNullException.ThrowIfNull(lease);
         ArgumentException.ThrowIfNullOrWhiteSpace(goal);
 
-        var sandbox = new ConfinedWorkTreeSandbox(lease.TreePath);
+        var sandbox = new ConfinedWorkTreeSandbox(lease.TreePath, _policy);
         try
         {
             return await RunWithTimeoutAsync(sandbox, lease, goal, ct).ConfigureAwait(false);
@@ -162,10 +149,11 @@ public sealed class LocalLlmCoder : ICoder
         CancellationToken ct)
     {
         var runner = await ResolveModelRunnerAsync(ct).ConfigureAwait(false);
+        var toolDefinitions = CreateToolDefinitions(_policy);
         var initialListing = sandbox.ListFiles(null, null, maxItems: 60);
         var messages = new List<AiMessage>
         {
-            new("system", [new AiText(SystemPrompt)]),
+            new("system", [new AiText(BuildSystemPrompt(_policy))]),
             new("user", [new AiText(
                 $"Repository: {lease.RepositoryId} (base branch: {lease.BaseBranch})\n" +
                 $"Goal: {goal}\n\n" +
@@ -177,7 +165,7 @@ public sealed class LocalLlmCoder : ICoder
         for (var round = 0; round < _options.MaxToolRounds; round++)
         {
             ct.ThrowIfCancellationRequested();
-            var reply = await runner.InvokeAsync(messages, ToolDefinitions, ct).ConfigureAwait(false);
+            var reply = await runner.InvokeAsync(messages, toolDefinitions, ct).ConfigureAwait(false);
             var assistantMessage = reply.Messages.LastOrDefault(m => string.Equals(m.Role, "assistant", StringComparison.OrdinalIgnoreCase))
                 ?? reply.Messages.LastOrDefault()
                 ?? new AiMessage("assistant", []);
@@ -194,6 +182,11 @@ public sealed class LocalLlmCoder : ICoder
             {
                 if (sandbox.TouchedFiles.Count > 0)
                 {
+                    if (_policy.Check([.. sandbox.TouchedFiles.Select(RepoPath.Parse)]) is { } refusal)
+                    {
+                        throw new SecurityException(refusal);
+                    }
+
                     return new CoderEditResult(lastSummary, sandbox.TouchedFiles, runner.ModelId);
                 }
 
@@ -215,6 +208,11 @@ public sealed class LocalLlmCoder : ICoder
 
         if (sandbox.TouchedFiles.Count > 0)
         {
+            if (_policy.Check([.. sandbox.TouchedFiles.Select(RepoPath.Parse)]) is { } refusal)
+            {
+                throw new SecurityException(refusal);
+            }
+
             return new CoderEditResult(lastSummary, sandbox.TouchedFiles, runner.ModelId);
         }
 
@@ -336,20 +334,20 @@ public sealed class LocalLlmCoder : ICoder
     }
 
     /// <summary>
-    /// Strictly sandboxed file tool executor confined to <c>Path.GetFullPath(treeRoot)</c>.
+    /// Strictly sandboxed file tool executor confined to <c>Path.GetFullPath(treeRoot)</c> via <see cref="ChangePolicy"/>.
     /// Blocks <c>..</c> traversal, symlinks/reparse points, dotfiles (<c>.git</c>, <c>.github</c>, <c>.claude</c>),
     /// agent instruction files (<c>CLAUDE.md</c>, <c>AGENTS.md</c>, <c>SKILL.md</c>), and disallowed extensions on write.
     /// </summary>
     internal sealed class ConfinedWorkTreeSandbox
     {
         private readonly string _root;
-        private readonly string _rootWithSep;
+        private readonly ChangePolicy _policy;
         private readonly HashSet<string> _touched = new(StringComparer.Ordinal);
 
-        public ConfinedWorkTreeSandbox(string treeRoot)
+        public ConfinedWorkTreeSandbox(string treeRoot, ChangePolicy? policy = null)
         {
             _root = Path.GetFullPath(treeRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            _rootWithSep = _root + Path.DirectorySeparatorChar;
+            _policy = policy ?? ChangePolicy.Default;
         }
 
         public IReadOnlyList<string> TouchedFiles => [.. _touched.OrderBy(p => p, StringComparer.Ordinal)];
@@ -493,83 +491,14 @@ public sealed class LocalLlmCoder : ICoder
 
         private void EnforceMaxTouchedBudget(string rel)
         {
-            if (!_touched.Contains(rel) && _touched.Count >= 5)
+            if (!_touched.Contains(rel) && _touched.Count >= _policy.MaxChangedFiles)
             {
-                throw new SecurityException("Maximum of 5 modified files reached for this Feature-to-PR run.");
+                throw new SecurityException($"Maximum of {_policy.MaxChangedFiles} modified files reached for this Feature-to-PR run.");
             }
         }
 
         internal (string RelativePath, string FullPath) ResolveConfinedPath(string rawPath, bool requireWriteAllowed, bool allowDirectory)
-        {
-            if (string.IsNullOrWhiteSpace(rawPath))
-            {
-                throw new SecurityException("Path must not be empty.");
-            }
-
-            var normalized = rawPath.Replace('\\', '/').Trim();
-            if (normalized is "." && allowDirectory)
-            {
-                return ("", _root);
-            }
-
-            if (Path.IsPathRooted(normalized) || normalized.StartsWith('/'))
-            {
-                throw new SecurityException($"Absolute paths are forbidden: '{rawPath}'.");
-            }
-
-            var segments = normalized.Split('/', StringSplitOptions.None);
-            foreach (var seg in segments)
-            {
-                if (seg.Length == 0 || seg is "." or "..")
-                {
-                    throw new SecurityException($"Path traversal segment forbidden in '{rawPath}'.");
-                }
-                if (seg.StartsWith('.'))
-                {
-                    throw new SecurityException($"Access to dotfile or hidden directory '{rawPath}' (including .git) is forbidden.");
-                }
-            }
-
-            var leaf = segments[^1];
-            if (!allowDirectory && BlockedFileNames.Contains(leaf))
-            {
-                throw new SecurityException($"Access to agent instruction file '{rawPath}' is forbidden.");
-            }
-
-            if (requireWriteAllowed)
-            {
-                var ext = Path.GetExtension(leaf);
-                if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
-                {
-                    throw new SecurityException(
-                        $"Writing extension '{ext}' on '{rawPath}' is forbidden. Allowed extensions: {string.Join(", ", AllowedExtensions.Order())}.");
-                }
-            }
-
-            var full = Path.GetFullPath(Path.Combine(_root, normalized.Replace('/', Path.DirectorySeparatorChar)));
-            var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-            if (!full.StartsWith(_rootWithSep, cmp) && !(allowDirectory && string.Equals(full, _root, cmp)))
-            {
-                throw new SecurityException($"Path '{rawPath}' escapes worktree root.");
-            }
-
-            // Reject symlinks/junctions anywhere along the path
-            var cursor = full;
-            while (!string.IsNullOrEmpty(cursor) && !string.Equals(cursor, _root, cmp))
-            {
-                if (File.Exists(cursor) || Directory.Exists(cursor))
-                {
-                    var info = new FileInfo(cursor);
-                    if ((info.Attributes & FileAttributes.ReparsePoint) != 0 || info.LinkTarget is not null)
-                    {
-                        throw new SecurityException($"Symlink or reparse point rejected at '{rawPath}'.");
-                    }
-                }
-                cursor = Path.GetDirectoryName(cursor);
-            }
-
-            return (normalized, full);
-        }
+            => _policy.ResolveConfinedPath(_root, rawPath, requireWriteAllowed, allowDirectory);
 
         private static string RequireString(JsonElement obj, string prop) =>
             obj.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String

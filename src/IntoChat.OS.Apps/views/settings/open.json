@@ -252,450 +252,659 @@
   "main": {
     "title": "Settings",
     "root": {
-      "kind": "column",
-      "children": [
-        {
-          "kind": "surface",
-          "children": [
-            {
-              "kind": "heading",
-              "value": "General",
-              "level": 2,
-              "subtitle": "appearance theme dark light auto glass acrylic spatial cyber synaptic warm paper midnight nordic language timezone date format"
-            },
-            {
-              "kind": "row",
-              "children": [
-                {
-                  "kind": "tagPill",
-                  "label": "Preferences",
-                  "tone": "neutral",
-                  "icon": "sliders-horizontal"
-                },
-                {
-                  "kind": "tagPill",
-                  "label": "fluent-acrylic · auto",
-                  "tone": "accent",
-                  "icon": "palette"
-                },
-                {
-                  "kind": "text",
-                  "value": "Settings (User · dark · qwen3.5:4b)",
-                  "tone": "muted",
-                  "tabular": true,
-                  "mono": false
-                }
-              ],
-              "gap": 8,
-              "padding": 0
+      "kind": "splitPane",
+      "leading": {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "field",
+            "key": "settings:search",
+            "name": "Search settings",
+            "fieldKind": "Search",
+            "placeholder": "Search settings…",
+            "onSubmit": {
+              "owner": "app.settings",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "Filter",
+                "args": [
+                  null
+                ],
+                "valueIndex": 0,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null,
+                "uiLive": true
+              }
             }
-          ],
-          "surfaceKind": "acrylic",
-          "title": "General",
-          "subtitle": null,
-          "padding": 18
-        },
-        {
-          "kind": "column",
-          "children": [
-            {
-              "kind": "grid",
-              "columns": 3,
-              "children": [
-                {
-                  "kind": "statCard",
-                  "key": "stat-preset",
-                  "label": "Active UI Identity",
-                  "value": "fluent-acrylic",
-                  "delta": "floating-glass",
-                  "tone": 1,
-                  "icon": "palette"
-                },
-                {
-                  "kind": "statCard",
-                  "key": "stat-model",
-                  "label": "Default Brain Model",
-                  "value": "qwen3.5:4b",
-                  "delta": "Local + Cloud",
-                  "tone": 2,
-                  "icon": "cpu"
-                },
-                {
-                  "kind": "statCard",
-                  "key": "stat-vault",
-                  "label": "Zero-Leakage Vault",
-                  "value": "0 Connections",
-                  "delta": "Active",
-                  "tone": 0,
-                  "icon": "key-round"
+          },
+          {
+            "kind": "divider",
+            "label": "Preferences"
+          },
+          {
+            "kind": "column",
+            "children": [
+              {
+                "kind": "navItem",
+                "key": "nav-general",
+                "label": "General",
+                "icon": "sliders-horizontal",
+                "action": "navigate:general",
+                "selected": true,
+                "badge": null,
+                "emit": {
+                  "owner": "app.settings",
+                  "signal": "navigate",
+                  "args": "general"
                 }
-              ],
-              "gap": 12
-            },
-            {
-              "kind": "surface",
-              "children": [
-                {
-                  "kind": "heading",
-                  "value": "Appearance & Theme Mode",
-                  "level": 3,
-                  "subtitle": "How IntoChat looks and reads for you."
-                },
-                {
-                  "kind": "row",
-                  "children": [
-                    {
-                      "kind": "button",
-                      "key": "light",
-                      "label": "Light",
-                      "emit": {
-                        "owner": "app.settings",
-                        "signal": "save-preferences",
-                        "args": [
-                          "User",
-                          "light",
-                          "qwen3.5:4b",
-                          "fluent-acrylic",
-                          "floating-glass",
-                          "light"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "sun",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "dark",
-                      "label": "Dark",
-                      "emit": {
-                        "owner": "app.settings",
-                        "signal": "save-preferences",
-                        "args": [
-                          "User",
-                          "dark",
-                          "qwen3.5:4b",
-                          "fluent-acrylic",
-                          "floating-glass",
-                          "dark"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "moon",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "auto",
-                      "label": "Auto",
-                      "emit": {
-                        "owner": "app.settings",
-                        "signal": "save-preferences",
-                        "args": [
-                          "User",
-                          "dark",
-                          "qwen3.5:4b",
-                          "fluent-acrylic",
-                          "floating-glass",
-                          "auto"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "accent",
-                      "style": "secondary",
-                      "icon": "sparkles",
-                      "small": true
-                    }
-                  ],
-                  "gap": 8,
-                  "padding": 0
-                },
-                {
-                  "kind": "heading",
-                  "value": "Theme & UI Identity Presets",
-                  "level": 3,
-                  "subtitle": "Switch live Acrylic glass presets, colour themes, and adaptive OS bar layouts."
-                },
-                {
-                  "kind": "row",
-                  "children": [
-                    {
-                      "kind": "button",
-                      "key": "fluent-acrylic",
-                      "label": "Fluent Acrylic",
-                      "emit": {
-                        "owner": "app.settings",
-                        "signal": "save-preferences",
-                        "args": [
-                          "User",
-                          "dark",
-                          "qwen3.5:4b",
-                          "fluent-acrylic",
-                          "floating-glass"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "accent",
-                      "style": "secondary",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "spatial-glass",
-                      "label": "Spatial Glass",
-                      "emit": {
-                        "owner": "app.settings",
-                        "signal": "save-preferences",
-                        "args": [
-                          "User",
-                          "dark",
-                          "qwen3.5:4b",
-                          "spatial-glass",
-                          "floating-glass"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "cyber-synaptic",
-                      "label": "Cyber Synaptic",
-                      "emit": {
-                        "owner": "app.settings",
-                        "signal": "save-preferences",
-                        "args": [
-                          "User",
-                          "dark",
-                          "qwen3.5:4b",
-                          "cyber-synaptic",
-                          "floating-glass"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "warm-paper",
-                      "label": "Warm Paper",
-                      "emit": {
-                        "owner": "app.settings",
-                        "signal": "save-preferences",
-                        "args": [
-                          "User",
-                          "dark",
-                          "qwen3.5:4b",
-                          "warm-paper",
-                          "floating-glass"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "midnight",
-                      "label": "Midnight",
-                      "emit": {
-                        "owner": "app.settings",
-                        "signal": "save-preferences",
-                        "args": [
-                          "User",
-                          "dark",
-                          "qwen3.5:4b",
-                          "midnight",
-                          "floating-glass"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "nordic",
-                      "label": "Nordic",
-                      "emit": {
-                        "owner": "app.settings",
-                        "signal": "save-preferences",
-                        "args": [
-                          "User",
-                          "dark",
-                          "qwen3.5:4b",
-                          "nordic",
-                          "floating-glass"
-                        ]
-                      },
-                      "intent": null,
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "small": true
-                    }
-                  ],
-                  "gap": 8,
-                  "padding": 0
-                },
-                {
-                  "kind": "recordCard",
-                  "objectLabel": "Locale & Regional Formatting",
-                  "name": "English",
-                  "fields": [
-                    {
-                      "label": "Language",
-                      "value": "English",
-                      "warn": false
-                    },
-                    {
-                      "label": "Time Zone",
-                      "value": "UTC",
-                      "warn": false
-                    },
-                    {
-                      "label": "Date Format",
-                      "value": "17 Oct 2026",
-                      "warn": false
-                    },
-                    {
-                      "label": "Desktop Tone",
-                      "value": "cream",
-                      "warn": false
-                    }
-                  ],
-                  "subtitle": "General Preferences",
-                  "linkLabel": "Open Neuron",
-                  "open": null
+              },
+              {
+                "kind": "navItem",
+                "key": "nav-desktop",
+                "label": "Desktop & Dock",
+                "icon": "monitor",
+                "action": "navigate:desktop",
+                "selected": false,
+                "badge": null,
+                "emit": {
+                  "owner": "app.settings",
+                  "signal": "navigate",
+                  "args": "desktop"
                 }
-              ],
-              "surfaceKind": "acrylic",
-              "title": "1 · General & Appearance",
-              "subtitle": null,
-              "padding": 18
-            },
-            {
-              "kind": "surface",
-              "children": [
-                {
-                  "kind": "heading",
-                  "value": "Quick OS Windows & Security Sheets",
-                  "level": 3,
-                  "subtitle": "Declarative os:// window and sheet protocol across Profile, Secure Vault, App Store & File Conflict."
-                },
-                {
-                  "kind": "row",
-                  "children": [
-                    {
-                      "kind": "button",
-                      "key": "open-profile-2fa",
-                      "label": "Open Profile & 2FA",
-                      "emit": null,
-                      "intent": {
-                        "intentKind": "OpenWindow",
-                        "arg": "os://window/profile"
-                      },
-                      "enabled": true,
-                      "tone": "accent",
-                      "style": "secondary",
-                      "icon": "user",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "open-secure-vault",
-                      "label": "Open Secure Vault",
-                      "emit": null,
-                      "intent": {
-                        "intentKind": "OpenWindow",
-                        "arg": "os://window/secure"
-                      },
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "key-round",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "install-app-by-link",
-                      "label": "Install App by Link",
-                      "emit": null,
-                      "intent": {
-                        "intentKind": "OpenWindow",
-                        "arg": "os://sheet/install"
-                      },
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "package-plus",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "review-update-consent",
-                      "label": "Review Update Consent",
-                      "emit": null,
-                      "intent": {
-                        "intentKind": "OpenWindow",
-                        "arg": "os://sheet/reconsent"
-                      },
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "shield-check",
-                      "small": true
-                    },
-                    {
-                      "kind": "button",
-                      "key": "resolve-file-conflict",
-                      "label": "Resolve File Conflict",
-                      "emit": null,
-                      "intent": {
-                        "intentKind": "OpenWindow",
-                        "arg": "os://sheet/conflict"
-                      },
-                      "enabled": true,
-                      "tone": "neutral",
-                      "style": "secondary",
-                      "icon": "git-compare",
-                      "small": true
-                    }
-                  ],
-                  "gap": 8,
-                  "padding": 0
+              }
+            ],
+            "gap": 2,
+            "padding": 0
+          },
+          {
+            "kind": "divider",
+            "label": "Capabilities & Data"
+          },
+          {
+            "kind": "column",
+            "children": [
+              {
+                "kind": "navItem",
+                "key": "nav-apps",
+                "label": "Apps",
+                "icon": "layout-grid",
+                "action": "navigate:apps",
+                "selected": false,
+                "badge": null,
+                "emit": {
+                  "owner": "app.settings",
+                  "signal": "navigate",
+                  "args": "apps"
                 }
-              ],
-              "surfaceKind": "elevated",
-              "title": "2 · Profile, Secure Vault & Modal Sheets",
-              "subtitle": null,
-              "padding": 18
+              },
+              {
+                "kind": "navItem",
+                "key": "nav-connections",
+                "label": "Connections",
+                "icon": "plug",
+                "action": "navigate:connections",
+                "selected": false,
+                "badge": null,
+                "emit": {
+                  "owner": "app.settings",
+                  "signal": "navigate",
+                  "args": "connections"
+                }
+              },
+              {
+                "kind": "navItem",
+                "key": "nav-files",
+                "label": "Files",
+                "icon": "folder",
+                "action": "navigate:files",
+                "selected": false,
+                "badge": null,
+                "emit": {
+                  "owner": "app.settings",
+                  "signal": "navigate",
+                  "args": "files"
+                }
+              },
+              {
+                "kind": "navItem",
+                "key": "nav-models",
+                "label": "AI models",
+                "icon": "sparkles",
+                "action": "navigate:models",
+                "selected": false,
+                "badge": null,
+                "emit": {
+                  "owner": "app.settings",
+                  "signal": "navigate",
+                  "args": "models"
+                }
+              },
+              {
+                "kind": "navItem",
+                "key": "nav-keys",
+                "label": "API keys",
+                "icon": "key-round",
+                "action": "navigate:keys",
+                "selected": false,
+                "badge": null,
+                "emit": {
+                  "owner": "app.settings",
+                  "signal": "navigate",
+                  "args": "keys"
+                }
+              },
+              {
+                "kind": "navItem",
+                "key": "nav-variables",
+                "label": "Variables and secrets",
+                "icon": "braces",
+                "action": "navigate:variables",
+                "selected": false,
+                "badge": null,
+                "emit": {
+                  "owner": "app.settings",
+                  "signal": "navigate",
+                  "args": "variables"
+                }
+              }
+            ],
+            "gap": 2,
+            "padding": 0
+          },
+          {
+            "kind": "divider",
+            "label": "Organization & System"
+          },
+          {
+            "kind": "column",
+            "children": [
+              {
+                "kind": "navItem",
+                "key": "nav-billing",
+                "label": "Billing",
+                "icon": "credit-card",
+                "action": "navigate:billing",
+                "selected": false,
+                "badge": null,
+                "emit": {
+                  "owner": "app.settings",
+                  "signal": "navigate",
+                  "args": "billing"
+                }
+              },
+              {
+                "kind": "navItem",
+                "key": "nav-team",
+                "label": "Team and permissions",
+                "icon": "users",
+                "action": "navigate:team",
+                "selected": false,
+                "badge": null,
+                "emit": {
+                  "owner": "app.settings",
+                  "signal": "navigate",
+                  "args": "team"
+                }
+              },
+              {
+                "kind": "navItem",
+                "key": "nav-notifications",
+                "label": "Notifications",
+                "icon": "bell",
+                "action": "navigate:notifications",
+                "selected": false,
+                "badge": null,
+                "emit": {
+                  "owner": "app.settings",
+                  "signal": "navigate",
+                  "args": "notifications"
+                }
+              },
+              {
+                "kind": "navItem",
+                "key": "nav-keyboard",
+                "label": "Keyboard",
+                "icon": "keyboard",
+                "action": "navigate:keyboard",
+                "selected": false,
+                "badge": null,
+                "emit": {
+                  "owner": "app.settings",
+                  "signal": "navigate",
+                  "args": "keyboard"
+                }
+              }
+            ],
+            "gap": 2,
+            "padding": 0
+          },
+          {
+            "kind": "divider",
+            "label": null
+          },
+          {
+            "kind": "navItem",
+            "key": "nav-danger",
+            "label": "Danger zone",
+            "icon": "triangle-alert",
+            "action": "navigate:danger",
+            "selected": false,
+            "badge": null,
+            "emit": {
+              "owner": "app.settings",
+              "signal": "navigate",
+              "args": "danger"
             }
-          ],
-          "gap": 12,
-          "padding": 0
-        }
-      ],
-      "gap": 14,
-      "padding": 0
+          }
+        ],
+        "gap": 8,
+        "padding": 0
+      },
+      "trailing": {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "column",
+            "children": [
+              {
+                "kind": "row",
+                "children": [
+                  {
+                    "kind": "heading",
+                    "value": "General",
+                    "level": 2,
+                    "subtitle": "Settings (User · dark · qwen3.5:4b)"
+                  },
+                  {
+                    "kind": "spacer",
+                    "size": 0
+                  },
+                  {
+                    "kind": "tagPill",
+                    "label": "Preferences",
+                    "tone": "neutral",
+                    "icon": null
+                  },
+                  {
+                    "kind": "tagPill",
+                    "label": "fluent-acrylic · auto",
+                    "tone": "done",
+                    "icon": "check"
+                  }
+                ],
+                "gap": 8,
+                "padding": 0
+              },
+              {
+                "kind": "divider",
+                "label": null
+              }
+            ],
+            "gap": 4,
+            "padding": 0
+          },
+          {
+            "kind": "column",
+            "children": [
+              {
+                "kind": "grid",
+                "columns": 3,
+                "children": [
+                  {
+                    "kind": "statCard",
+                    "key": "stat-preset",
+                    "label": "Active UI identity",
+                    "value": "fluent-acrylic",
+                    "delta": "floating-glass",
+                    "tone": 1,
+                    "icon": "palette"
+                  },
+                  {
+                    "kind": "statCard",
+                    "key": "stat-model",
+                    "label": "Default brain model",
+                    "value": "qwen3.5:4b",
+                    "delta": "Local + cloud",
+                    "tone": 2,
+                    "icon": "cpu"
+                  },
+                  {
+                    "kind": "statCard",
+                    "key": "stat-vault",
+                    "label": "Connected integrations",
+                    "value": "0",
+                    "delta": "None yet",
+                    "tone": 0,
+                    "icon": "key-round"
+                  }
+                ],
+                "gap": 12
+              },
+              {
+                "kind": "surface",
+                "children": [
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "select",
+                        "label": "Appearance mode",
+                        "selected": "auto",
+                        "options": [
+                          {
+                            "key": "opt-theme-light",
+                            "id": "light",
+                            "label": "Light",
+                            "emit": {
+                              "owner": "app.settings",
+                              "signal": "save-preferences",
+                              "args": [
+                                "User",
+                                "light",
+                                "qwen3.5:4b",
+                                "fluent-acrylic",
+                                "floating-glass",
+                                "light"
+                              ]
+                            }
+                          },
+                          {
+                            "key": "opt-theme-dark",
+                            "id": "dark",
+                            "label": "Dark",
+                            "emit": {
+                              "owner": "app.settings",
+                              "signal": "save-preferences",
+                              "args": [
+                                "User",
+                                "dark",
+                                "qwen3.5:4b",
+                                "fluent-acrylic",
+                                "floating-glass",
+                                "dark"
+                              ]
+                            }
+                          },
+                          {
+                            "key": "opt-theme-auto",
+                            "id": "auto",
+                            "label": "Auto (follow system)",
+                            "emit": {
+                              "owner": "app.settings",
+                              "signal": "save-preferences",
+                              "args": [
+                                "User",
+                                "dark",
+                                "qwen3.5:4b",
+                                "fluent-acrylic",
+                                "floating-glass",
+                                "auto"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "row",
+                        "children": [
+                          {
+                            "kind": "button",
+                            "key": "pref-fluent-acrylic",
+                            "label": "Fluent Acrylic",
+                            "emit": {
+                              "owner": "app.settings",
+                              "signal": "save-preferences",
+                              "args": [
+                                "User",
+                                "dark",
+                                "qwen3.5:4b",
+                                "fluent-acrylic",
+                                "floating-glass"
+                              ]
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "accent",
+                            "style": "primary",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "pref-spatial-glass",
+                            "label": "Spatial Glass",
+                            "emit": {
+                              "owner": "app.settings",
+                              "signal": "save-preferences",
+                              "args": [
+                                "User",
+                                "dark",
+                                "qwen3.5:4b",
+                                "spatial-glass",
+                                "floating-glass"
+                              ]
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "style": "secondary",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "pref-cyber-synaptic",
+                            "label": "Cyber Synaptic",
+                            "emit": {
+                              "owner": "app.settings",
+                              "signal": "save-preferences",
+                              "args": [
+                                "User",
+                                "dark",
+                                "qwen3.5:4b",
+                                "cyber-synaptic",
+                                "floating-glass"
+                              ]
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "style": "secondary",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "pref-warm-paper",
+                            "label": "Warm Paper",
+                            "emit": {
+                              "owner": "app.settings",
+                              "signal": "save-preferences",
+                              "args": [
+                                "User",
+                                "dark",
+                                "qwen3.5:4b",
+                                "warm-paper",
+                                "floating-glass"
+                              ]
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "style": "secondary",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "pref-midnight",
+                            "label": "Midnight",
+                            "emit": {
+                              "owner": "app.settings",
+                              "signal": "save-preferences",
+                              "args": [
+                                "User",
+                                "dark",
+                                "qwen3.5:4b",
+                                "midnight",
+                                "floating-glass"
+                              ]
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "style": "secondary",
+                            "small": true
+                          },
+                          {
+                            "kind": "button",
+                            "key": "pref-nordic",
+                            "label": "Nordic",
+                            "emit": {
+                              "owner": "app.settings",
+                              "signal": "save-preferences",
+                              "args": [
+                                "User",
+                                "dark",
+                                "qwen3.5:4b",
+                                "nordic",
+                                "floating-glass"
+                              ]
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "neutral",
+                            "style": "secondary",
+                            "small": true
+                          }
+                        ],
+                        "gap": 8,
+                        "padding": 0
+                      },
+                      {
+                        "kind": "dataTable",
+                        "title": "Regional settings",
+                        "columns": [
+                          "Setting",
+                          "Active value"
+                        ],
+                        "rows": [
+                          [
+                            "Display name",
+                            "User"
+                          ],
+                          [
+                            "Language",
+                            "English"
+                          ],
+                          [
+                            "Time zone",
+                            "UTC"
+                          ],
+                          [
+                            "Date format",
+                            "17 Oct 2026"
+                          ],
+                          [
+                            "Desktop tone",
+                            "cream"
+                          ]
+                        ],
+                        "sourceNeuronUri": null,
+                        "from": "DigitalBrain"
+                      }
+                    ],
+                    "gap": 12,
+                    "padding": 0
+                  }
+                ],
+                "surfaceKind": "elevated",
+                "title": "Appearance & Regional Preferences",
+                "subtitle": "How IntoChat looks and formats dates for you",
+                "padding": 18
+              },
+              {
+                "kind": "card",
+                "title": "Profile, Secure Vault & OS Sheets",
+                "body": "Open focused security windows without leaving your current workspace",
+                "children": [
+                  {
+                    "kind": "row",
+                    "children": [
+                      {
+                        "kind": "button",
+                        "key": "intent:profile",
+                        "label": "Open profile & 2FA",
+                        "emit": null,
+                        "intent": {
+                          "intentKind": "OpenWindow",
+                          "arg": "os://window/profile"
+                        },
+                        "enabled": true,
+                        "tone": "accent",
+                        "style": "primary",
+                        "icon": "user",
+                        "small": true
+                      },
+                      {
+                        "kind": "button",
+                        "key": "intent:vault",
+                        "label": "Open secure vault",
+                        "emit": null,
+                        "intent": {
+                          "intentKind": "OpenWindow",
+                          "arg": "os://window/secure"
+                        },
+                        "enabled": true,
+                        "tone": "neutral",
+                        "style": "secondary",
+                        "icon": "key-round",
+                        "small": true
+                      },
+                      {
+                        "kind": "button",
+                        "key": "intent:install",
+                        "label": "Install app by link",
+                        "emit": null,
+                        "intent": {
+                          "intentKind": "OpenWindow",
+                          "arg": "os://sheet/install"
+                        },
+                        "enabled": true,
+                        "tone": "neutral",
+                        "style": "secondary",
+                        "icon": "package-plus",
+                        "small": true
+                      },
+                      {
+                        "kind": "button",
+                        "key": "intent:conflict",
+                        "label": "Resolve file conflict",
+                        "emit": null,
+                        "intent": {
+                          "intentKind": "OpenWindow",
+                          "arg": "os://sheet/conflict"
+                        },
+                        "enabled": true,
+                        "tone": "neutral",
+                        "style": "secondary",
+                        "icon": "git-compare",
+                        "small": true
+                      }
+                    ],
+                    "gap": 8,
+                    "padding": 0
+                  }
+                ]
+              }
+            ],
+            "gap": 12,
+            "padding": 0
+          }
+        ],
+        "gap": 12,
+        "padding": 0
+      },
+      "leadingExtent": 248,
+      "gap": 16
     }
   }
 }

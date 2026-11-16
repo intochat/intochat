@@ -261,11 +261,13 @@ public sealed class InoAppFacts
             await ino.Request("open", new InoOpen());
 
             Assert.True(ino.App.CanDictate);
+            Assert.True(Assert.IsType<Conversation>(ino.App.Render().Root).Composer.Dictation);
             Assert.Null(typeof(InoAppState).GetProperty("CanDictate"));
 
             FakeSpeechRecognizer.AvailableResult = false;
             await ino.Request("open", new InoOpen());
             Assert.False(ino.App.CanDictate);
+            Assert.False(Assert.IsType<Conversation>(ino.App.Render().Root).Composer.Dictation);
         }
         finally
         {

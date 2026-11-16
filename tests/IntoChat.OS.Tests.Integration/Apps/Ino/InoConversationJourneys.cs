@@ -192,13 +192,14 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
         await SubmitInoPromptAsync("Diagnose cluster heartbeat latency.");
 
         var errored = await WaitForScreenAsync(
-            s => s.Controls.Contains(InoView.ErrorActionKey, StringComparer.Ordinal)
-                || s.Controls.Contains(InoView.RetryKey, StringComparer.Ordinal),
-            "Ino did not surface retry/error-action button after Ollama 503 failure");
+            s => s.Controls.Contains(InoView.RetryKey, StringComparer.Ordinal)
+                || (s.Controls.Contains(InoView.ErrorActionKey, StringComparer.Ordinal)
+                    && s.RawJson.Contains("\"signal\":\"ino.retry\"", StringComparison.Ordinal)),
+            "Ino did not surface retry button after Ollama 503 failure");
 
-        var retryKey = errored.Controls.Contains(InoView.ErrorActionKey, StringComparer.Ordinal)
-            ? InoView.ErrorActionKey
-            : InoView.RetryKey;
+        var retryKey = errored.Controls.Contains(InoView.RetryKey, StringComparer.Ordinal)
+            ? InoView.RetryKey
+            : InoView.ErrorActionKey;
 
         host.Ollama.EnqueueReply("Recovered diagnostics: cluster heartbeat is 4ms.", model);
 

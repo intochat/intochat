@@ -66,12 +66,16 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         var p0 = new PresentationChanged(filmCraft.Name, 1, 1);
         Assert.Equal(1, p0.Revision);
 
-        // Step 2: Execute studio edit and export on the silo and record checkpoints in AspireNeuron
+        // Step 2: Execute studio edit/mode-switch/export on the silo (without connected ArtCraft server, fails honestly without fake output) and record checkpoints in AspireNeuron
         var aspire = SiloNeurons.Get<IAspire>(fixture.Services, $"{brain}/aspire");
         await film.Edit(new FilmCraftStudioEdit("razor split timeline at 00:00:03:12", "/work/timeline.fcproj", "native-linux"));
+        Assert.Contains("not connected", film.State.Status, StringComparison.OrdinalIgnoreCase);
         await film.SwitchMode(new FilmCraftSwitchMode("mcp"));
+        Assert.Equal("mcp", film.State.ExecutionMode);
         await film.Export(new FilmCraftExport("h264-1080p60", "/work/timeline.fcproj", "mcp"));
-        Assert.EndsWith(".1080p60.mp4", film.State.OutputFile, StringComparison.Ordinal);
+        Assert.Contains("failed", film.State.Status, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("/work/launch-trailer.cut.mp4", film.State.OutputFile);
+        Assert.Equal(string.Empty, film.State.LastCliInvocation);
 
         const int totalFrames = 500;
         for (int frame = 1; frame <= totalFrames; frame++)

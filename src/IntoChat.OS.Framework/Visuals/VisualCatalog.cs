@@ -548,7 +548,7 @@ public static class VisualCatalog
             "IAspire", "aspire", "diagnostics.aspire", "diagnostics/aspire", "brand:aspire");
 
         Add(new("GitHub", "brand:github", "#24292F", "Developer"),
-            "IGitHub", "IWorkTree", "IGitHubRepository", "IFeatureToPr", "github", "worktree", "f2pr", "brand:github");
+            "IGitHub", "IWorkTree", "IGitHubRepository", "github", "worktree", "f2pr", "brand:github");
 
         Add(new("Gmail", "brand:gmail", "#EA4335", "Connector"),
             "IGmail", "gmail", "google.gmail", "brand:gmail");

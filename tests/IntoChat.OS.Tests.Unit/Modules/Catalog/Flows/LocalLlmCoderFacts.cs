@@ -207,6 +207,60 @@ public sealed class LocalLlmCoderFacts : IDisposable
         await Assert.ThrowsAsync<TimeoutException>(() => coder.EditAsync(lease, "Sleep", Ct));
     }
 
+    [Fact]
+    public async Task LocalLlmCoderRendersChangePolicyIntoPromptAndEnforcesPolicyLimits()
+    {
+        var customPolicy = new ChangePolicy(
+            maxChangedFiles: 1,
+            allowedExtensions: [".cs"],
+            blockedFileNames: ["SECRET_NOTES.cs"]);
+
+        string? systemPrompt = null;
+        var inference = new ScriptedModelInference(
+            req =>
+            {
+                systemPrompt = string.Join("\n", req.Messages[0].Content.OfType<AiText>().Select(t => t.Text));
+                return new AiMessage(
+                    "assistant",
+                    [
+                        new AiToolCall("call-bad-ext", "write_file", """{"path":"README.md","content":"disallowed"}"""),
+                        new AiToolCall("call-ok", "write_file", """{"path":"code/First.cs","content":"namespace Demo;"}"""),
+                        new AiToolCall("call-over-budget", "write_file", """{"path":"code/Second.cs","content":"namespace Demo;"}"""),
+                    ]);
+            },
+            req =>
+            {
+                var results = req.Messages[^1].Content.OfType<AiToolResult>().ToArray();
+                Assert.Contains("Path gate rejected disallowed file extension", results[0].ResultJson, StringComparison.Ordinal);
+                Assert.Contains("\"ok\":true", results[1].ResultJson, StringComparison.Ordinal);
+                Assert.Contains("Maximum of 1 modified files reached", results[2].ResultJson, StringComparison.Ordinal);
+                return new AiMessage("assistant", [new AiText("Added First.cs within policy.")]);
+            });
+
+        var services = new ServiceCollection()
+            .AddSingleton<IModelInference>(inference)
+            .BuildServiceProvider();
+
+        var coder = new LocalLlmCoder(services, policy: customPolicy);
+        var lease = new WorkTreeLease(
+            RunId: "run-policy",
+            RepositoryId: "os",
+            SourceRepoPath: _treePath,
+            TreePath: _treePath,
+            RealGitDirPath: _treePath,
+            GitPointerSha256Hex: new string('b', 64),
+            BaseBranch: "main",
+            BaseCommitSha: new string('a', 40),
+            BranchName: "ino/policy-run",
+            GitHubRepo: "intochat/os");
+
+        var edit = await coder.EditAsync(lease, "Add First.cs", Ct);
+
+        Assert.NotNull(systemPrompt);
+        Assert.Contains(customPolicy.Describe(), systemPrompt!, StringComparison.Ordinal);
+        Assert.Equal(["code/First.cs"], edit.TouchedFiles);
+    }
+
     private sealed class SlowTimeoutInference : IModelInference
     {
         public bool HasProfile(string name) => true;

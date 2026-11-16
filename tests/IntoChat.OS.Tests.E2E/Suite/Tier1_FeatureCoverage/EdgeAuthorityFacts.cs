@@ -125,11 +125,12 @@ public sealed class EdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOSFixtur
         var kernelDecision = AccessPolicy.Decide(kernelCaller, targetNeuronA, OperationAccess.Internal);
         Assert.Equal(AccessDecision.Allow, kernelDecision);
 
-        // 2. Cross-brain call is denied with OutsideBrain
+        // 2. Cross-brain Owner/Internal call is denied with OutsideBrain
         var outsidePersonCaller = edge.Person("bob", "acct_2", brainB);
-        var outsideDecision = AccessPolicy.Decide(outsidePersonCaller, targetNeuronA, OperationAccess.Public);
+        var outsideDecision = AccessPolicy.Decide(outsidePersonCaller, targetNeuronA, OperationAccess.Owner);
         Assert.False(outsideDecision.Allowed);
         Assert.Equal(AccessDenial.OutsideBrain, outsideDecision.Denial);
+        Assert.Equal(AccessDenial.OutsideBrain, AccessPolicy.Decide(outsidePersonCaller, targetNeuronA, OperationAccess.Internal).Denial);
 
         // 3. External client calling Internal operation is denied with InternalOnly
         var externalPersonCaller = edge.Person("alice", "acct_1", brainA);

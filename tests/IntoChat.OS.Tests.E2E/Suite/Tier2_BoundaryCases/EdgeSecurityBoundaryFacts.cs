@@ -267,11 +267,12 @@ public sealed class EdgeSecurityBoundaryFacts : E2ETestBase, IClassFixture<TestO
         var targetNeuronA = new NeuronId(brainA, "test.vault", "default");
 
         var callerB = edge.Person("bob", "acct_2", brainB);
-        var decision = AccessPolicy.Decide(callerB, targetNeuronA, OperationAccess.Public);
+        var decision = AccessPolicy.Decide(callerB, targetNeuronA, OperationAccess.Owner);
 
         Assert.False(decision.Allowed);
         Assert.Equal(AccessDenial.OutsideBrain, decision.Denial);
         Assert.Contains("may not call a neuron of brain", decision.Explanation);
+        Assert.Equal(AccessDenial.OutsideBrain, AccessPolicy.Decide(callerB, targetNeuronA, OperationAccess.Internal).Denial);
     }
 
     [Fact]

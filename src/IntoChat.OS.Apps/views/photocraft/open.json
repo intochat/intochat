@@ -5,178 +5,368 @@
   "main": {
     "title": "PhotoCraft",
     "root": {
-      "kind": "column",
-      "children": [
-        {
-          "kind": "text",
-          "value": "PhotoCraft tools connected (WASM Web UI) · Active: /work/portrait.png · /work/portrait.png -> /work/portrait.nobg.png",
-          "tone": "muted",
-          "tabular": true,
-          "mono": false
-        },
-        {
-          "kind": "row",
-          "children": [
-            {
-              "kind": "button",
-              "key": "preset-cutout",
-              "label": "Remove Background",
-              "emit": {
-                "owner": "app.photocraft",
-                "signal": "photocraft.remove-background",
-                "args": {
-                  "Document": "/work/portrait.png",
-                  "Mode": "wasm-ui"
-                }
+      "kind": "appShell",
+      "key": "photocraft-shell",
+      "sidebar": {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "heading",
+            "value": "Document",
+            "level": 6,
+            "subtitle": null
+          },
+          {
+            "kind": "card",
+            "title": "/work/portrait.png",
+            "body": "Active -> /work/portrait.nobg.png",
+            "children": [
+              {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "text",
+                    "value": "Preview (pending) · History: 0/10",
+                    "tone": "muted",
+                    "tabular": true,
+                    "mono": false
+                  },
+                  {
+                    "kind": "heading",
+                    "value": "Layers",
+                    "level": 6,
+                    "subtitle": "2 layer(s)"
+                  },
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "button",
+                        "key": "toggle-layer-0",
+                        "label": "Hide · Subject Layer (100% · Nor…",
+                        "emit": {
+                          "owner": "app.photocraft",
+                          "signal": "ui.command",
+                          "args": {
+                            "target": "state",
+                            "method": "ToggleLayerByIndex",
+                            "args": [
+                              0
+                            ],
+                            "valueIndex": null,
+                            "value": null,
+                            "guardReason": null,
+                            "tooltip": null
+                          }
+                        },
+                        "intent": null,
+                        "enabled": true,
+                        "tone": "neutral",
+                        "style": "ghost",
+                        "icon": "eye",
+                        "small": true
+                      },
+                      {
+                        "kind": "button",
+                        "key": "toggle-layer-1",
+                        "label": "Hide · Background Layer (Locked …",
+                        "emit": {
+                          "owner": "app.photocraft",
+                          "signal": "ui.command",
+                          "args": {
+                            "target": "state",
+                            "method": "ToggleLayerByIndex",
+                            "args": [
+                              1
+                            ],
+                            "valueIndex": null,
+                            "value": null,
+                            "guardReason": null,
+                            "tooltip": null
+                          }
+                        },
+                        "intent": null,
+                        "enabled": true,
+                        "tone": "neutral",
+                        "style": "ghost",
+                        "icon": "eye",
+                        "small": true
+                      }
+                    ],
+                    "gap": 4,
+                    "padding": 0
+                  }
+                ],
+                "gap": 4,
+                "padding": 0
+              }
+            ]
+          }
+        ],
+        "gap": 12,
+        "padding": 0
+      },
+      "body": {
+        "kind": "column",
+        "children": [
+          {
+            "kind": "surface",
+            "children": [
+              {
+                "kind": "heading",
+                "value": "Quick Presets",
+                "level": 6,
+                "subtitle": null
               },
-              "intent": null,
-              "enabled": true,
-              "tone": "accent",
-              "style": "secondary",
-              "icon": "wand-sparkles",
-              "small": true
+              {
+                "kind": "button",
+                "key": "preset-warm",
+                "label": "Warm Cinema",
+                "emit": {
+                  "owner": "app.photocraft",
+                  "signal": "ui.command",
+                  "args": {
+                    "target": "screen",
+                    "method": "ApplyQuickPresetAsync",
+                    "args": [
+                      "warm"
+                    ],
+                    "valueIndex": null,
+                    "value": null,
+                    "guardReason": null,
+                    "tooltip": null
+                  }
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              },
+              {
+                "kind": "button",
+                "key": "preset-vivid",
+                "label": "Vivid Pop",
+                "emit": {
+                  "owner": "app.photocraft",
+                  "signal": "ui.command",
+                  "args": {
+                    "target": "screen",
+                    "method": "ApplyQuickPresetAsync",
+                    "args": [
+                      "vivid"
+                    ],
+                    "valueIndex": null,
+                    "value": null,
+                    "guardReason": null,
+                    "tooltip": null
+                  }
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              },
+              {
+                "kind": "button",
+                "key": "preset-mono",
+                "label": "Monochrome",
+                "emit": {
+                  "owner": "app.photocraft",
+                  "signal": "ui.command",
+                  "args": {
+                    "target": "screen",
+                    "method": "ApplyQuickPresetAsync",
+                    "args": [
+                      "monochrome"
+                    ],
+                    "valueIndex": null,
+                    "value": null,
+                    "guardReason": null,
+                    "tooltip": null
+                  }
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              },
+              {
+                "kind": "button",
+                "key": "preset-gradient",
+                "label": "Gradient Canvas",
+                "emit": {
+                  "owner": "app.photocraft",
+                  "signal": "ui.command",
+                  "args": {
+                    "target": "screen",
+                    "method": "ApplyQuickPresetAsync",
+                    "args": [
+                      "gradient"
+                    ],
+                    "valueIndex": null,
+                    "value": null,
+                    "guardReason": null,
+                    "tooltip": null
+                  }
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              }
+            ],
+            "surfaceKind": "toolbar",
+            "title": null,
+            "subtitle": null,
+            "padding": 8
+          },
+          {
+            "kind": "surface",
+            "children": [
+              {
+                "kind": "text",
+                "value": "No raster preview rendered (/work/portrait.png -> /work/portrait.nobg.png).",
+                "tone": "muted",
+                "tabular": false,
+                "mono": false
+              }
+            ],
+            "surfaceKind": "elevated",
+            "title": "Canvas Preview",
+            "subtitle": "Connect PhotoCraft MCP in Settings to render live previews.",
+            "padding": 18
+          }
+        ],
+        "gap": 12,
+        "padding": 0
+      },
+      "toolbar": {
+        "kind": "row",
+        "children": [
+          {
+            "kind": "heading",
+            "value": "PhotoCraft",
+            "level": 2,
+            "subtitle": "PhotoCraft MCP server not connected (MCP Server (photocraft-mcp)) · Active: /work/portrait.png"
+          },
+          {
+            "kind": "spacer",
+            "size": 0
+          },
+          {
+            "kind": "tagPill",
+            "label": "MCP Server (photocraft-mcp)",
+            "tone": "done",
+            "icon": "check"
+          },
+          {
+            "kind": "button",
+            "key": "mode-mcp",
+            "label": "MCP",
+            "emit": {
+              "owner": "app.photocraft",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SwitchExecutionMode",
+                "args": [
+                  "mcp"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
             },
-            {
-              "kind": "button",
-              "key": "preset-warm",
-              "label": "Warm Cinema",
-              "emit": {
-                "owner": "app.photocraft",
-                "signal": "photocraft.apply-preset",
-                "args": {
-                  "Preset": "warm",
-                  "Document": "/work/portrait.png",
-                  "Mode": "wasm-ui"
-                }
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "style": "secondary",
-              "small": true
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "style": "secondary",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "mode-native-linux",
+            "label": "CLI",
+            "emit": {
+              "owner": "app.photocraft",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SwitchExecutionMode",
+                "args": [
+                  "native-linux"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
             },
-            {
-              "kind": "button",
-              "key": "preset-vivid",
-              "label": "Vivid Pop",
-              "emit": {
-                "owner": "app.photocraft",
-                "signal": "photocraft.apply-preset",
-                "args": {
-                  "Preset": "vivid",
-                  "Document": "/work/portrait.png",
-                  "Mode": "wasm-ui"
-                }
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "style": "secondary",
-              "small": true
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "style": "ghost",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "mode-wasm-ui",
+            "label": "WASM",
+            "emit": {
+              "owner": "app.photocraft",
+              "signal": "ui.command",
+              "args": {
+                "target": "state",
+                "method": "SwitchExecutionMode",
+                "args": [
+                  "wasm-ui"
+                ],
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
             },
-            {
-              "kind": "button",
-              "key": "preset-mono",
-              "label": "Monochrome",
-              "emit": {
-                "owner": "app.photocraft",
-                "signal": "photocraft.apply-preset",
-                "args": {
-                  "Preset": "monochrome",
-                  "Document": "/work/portrait.png",
-                  "Mode": "wasm-ui"
-                }
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "style": "secondary",
-              "small": true
+            "intent": null,
+            "enabled": true,
+            "tone": "neutral",
+            "style": "ghost",
+            "small": true
+          },
+          {
+            "kind": "button",
+            "key": "preset-cutout",
+            "label": "Remove Background",
+            "emit": {
+              "owner": "app.photocraft",
+              "signal": "ui.command",
+              "args": {
+                "target": "screen",
+                "method": "RemoveBackgroundDefaultAsync",
+                "args": null,
+                "valueIndex": null,
+                "value": null,
+                "guardReason": null,
+                "tooltip": null
+              }
             },
-            {
-              "kind": "button",
-              "key": "preset-gradient",
-              "label": "Gradient Canvas",
-              "emit": {
-                "owner": "app.photocraft",
-                "signal": "photocraft.apply-preset",
-                "args": {
-                  "Preset": "gradient",
-                  "Document": "/work/portrait.png",
-                  "Mode": "wasm-ui"
-                }
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "style": "secondary",
-              "small": true
-            }
-          ],
-          "gap": 6,
-          "padding": 0
-        },
-        {
-          "kind": "row",
-          "children": [
-            {
-              "kind": "button",
-              "key": "toggle-layer-0",
-              "label": "Hide: Subject Layer (100% · Normal)",
-              "emit": {
-                "owner": "app.photocraft",
-                "signal": "photocraft.toggle-layer",
-                "args": {
-                  "LayerIndex": 0,
-                  "LayerName": null
-                }
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "style": "secondary",
-              "small": true
-            },
-            {
-              "kind": "button",
-              "key": "toggle-layer-1",
-              "label": "Hide: Background Layer (Locked · 100%)",
-              "emit": {
-                "owner": "app.photocraft",
-                "signal": "photocraft.toggle-layer",
-                "args": {
-                  "LayerIndex": 1,
-                  "LayerName": null
-                }
-              },
-              "intent": null,
-              "enabled": true,
-              "tone": "neutral",
-              "style": "secondary",
-              "small": true
-            }
-          ],
-          "gap": 6,
-          "padding": 0
-        },
-        {
-          "kind": "text",
-          "value": "Preview ready (PNG inline) · History: 0 step(s)",
-          "tone": "muted",
-          "tabular": true,
-          "mono": false
-        },
-        {
-          "kind": "webBrowser",
-          "key": "photocraft-wasm",
-          "url": "http://localhost:18082",
-          "title": "PhotoCraft WASM Studio",
-          "height": 0,
-          "executionMode": "wasm-ui"
-        }
-      ],
-      "gap": 6,
-      "padding": 0
+            "intent": null,
+            "enabled": true,
+            "tone": "accent",
+            "style": "primary",
+            "icon": "wand-sparkles",
+            "small": true
+          }
+        ],
+        "gap": 8,
+        "padding": 0
+      },
+      "inspector": null
     }
   }
 }

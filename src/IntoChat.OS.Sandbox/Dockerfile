@@ -10,9 +10,12 @@ WORKDIR /src
 
 COPY nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props Intochat.OS.slnx global.json VERSION .editorconfig ./
 COPY src/IntoChat.OS/ ./src/IntoChat.OS/
+COPY src/IntoChat.OS.UI/ ./src/IntoChat.OS.UI/
 COPY src/IntoChat.OS.Sandbox/ ./src/IntoChat.OS.Sandbox/
 
 ARG NUGET_TOKEN=""
+ARG LOCAL_FEED_SUBDIR="src/IntoChat.OS.Sandbox"
+COPY ${LOCAL_FEED_SUBDIR}/ ./local-feed/
 
 RUN --mount=type=cache,target=/root/.nuget/packages \
     --mount=type=secret,id=nuget_token,required=false \
@@ -20,7 +23,12 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
     if [ -z "${TOKEN}" ] && [ -f /run/secrets/nuget_token ] && [ -s /run/secrets/nuget_token ]; then \
         TOKEN="$(cat /run/secrets/nuget_token)"; \
     fi; \
-    dotnet nuget remove source local --configfile nuget.config >/dev/null 2>&1 || true; \
+    if ls /src/local-feed/*.nupkg >/dev/null 2>&1; then \
+        dotnet nuget update source local-feed --source /src/local-feed --configfile nuget.config >/dev/null 2>&1 || true; \
+    else \
+        dotnet nuget remove source local --configfile nuget.config >/dev/null 2>&1 || true; \
+        dotnet nuget remove source local-feed --configfile nuget.config >/dev/null 2>&1 || true; \
+    fi; \
     if [ -n "${TOKEN}" ]; then \
         dotnet nuget update source github \
             --username "intochat" \
@@ -35,7 +43,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
       -p:DebugType=none \
       -o /out/sandbox \
       --nologo \
-    && rm -rf /src/artifacts /src/nuget.config
+    && rm -rf /src/artifacts /src/nuget.config /src/local-feed
 
 FROM mcr.microsoft.com/dotnet/aspnet:11.0.0 AS final
 WORKDIR /app

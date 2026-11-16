@@ -134,7 +134,10 @@
           "args": {}
         },
         "placeholder": "Ask anything.",
-        "enabled": true
+        "enabled": true,
+        "activeModelLabel": "Qwen 3.5 4B",
+        "activeProviderIcon": "provider:ollama",
+        "dictation": false
       },
       "waiting": null,
       "status": "ready",
