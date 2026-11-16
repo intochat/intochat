@@ -734,6 +734,8 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 scenes: widget.programmingClient!.scenes(
                                   _brain!,
                                 ),
+                                transcribe:
+                                    widget.programmingClient!.transcribe,
                                 journal: (brain, since) => widget
                                     .programmingClient!
                                     .watchJournal(brain, since: since),
@@ -765,6 +767,8 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     .appRequest(_brain!, 'event', body: event),
                                 onActivate: (action) =>
                                     unawaited(_activate(action)),
+                                transcribe:
+                                    widget.programmingClient!.transcribe,
                                 knowsApp: (app) => _knownApps.contains(app),
                               ),
                       ),

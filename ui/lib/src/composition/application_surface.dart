@@ -75,6 +75,7 @@ class _ApplicationSurfaceState extends State<ApplicationSurface> {
             widget.client.appRequest(widget.workspace, 'event', body: event),
         onActivate: widget.onActivate,
         knowsApp: widget.knowsApp,
+        transcribe: widget.client.transcribe,
       );
     },
   );

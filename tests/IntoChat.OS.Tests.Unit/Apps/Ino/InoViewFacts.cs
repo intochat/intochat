@@ -410,6 +410,32 @@ public sealed class InoViewFacts
             assistant.Activities!.Select(static a => a.Icon).ToArray());
     }
 
+    [Fact]
+    public void ComposerDictationDefaultsToFalseWhenOmitted()
+    {
+        var state = new InoAppState();
+
+        var conversation = InoView.Conversation(state);
+        Assert.False(conversation.Composer.Dictation);
+
+        var screen = InoView.Screen(state);
+        var rootConversation = Assert.IsType<Conversation>(screen.Root);
+        Assert.False(rootConversation.Composer.Dictation);
+    }
+
+    [Fact]
+    public void ComposerDictationReflectsTrueWhenEnabled()
+    {
+        var state = new InoAppState();
+
+        var conversation = InoView.Conversation(state, dictation: true);
+        Assert.True(conversation.Composer.Dictation);
+
+        var screen = InoView.Screen(state, dictation: true);
+        var rootConversation = Assert.IsType<Conversation>(screen.Root);
+        Assert.True(rootConversation.Composer.Dictation);
+    }
+
     private static IReadOnlyList<string> Texts(View view)
         => new PresentedView("main", view).Texts;
 

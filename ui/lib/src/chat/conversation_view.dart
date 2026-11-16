@@ -14,6 +14,7 @@ import '../nodes/error_line.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
 import '../theme/brand_visuals.dart';
+import '../voice_input/ui_voice_input.dart';
 import 'ui_copyable_message.dart';
 
 /// Declarative conversation surface rendered from a `ConversationNode`.
@@ -114,6 +115,22 @@ class _ConversationViewState extends State<ConversationView> {
 
   void _onDraftChange() {
     if (mounted) setState(() {});
+  }
+
+  void _appendDictationDraft(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    final existing = _controller.text;
+    final next = existing.isEmpty
+        ? trimmed
+        : existing.endsWith(' ') || existing.endsWith('\n')
+        ? '$existing$trimmed'
+        : '$existing $trimmed';
+    _controller.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
+    _composerFocus.requestFocus();
   }
 
   bool get _composerEnabled =>
@@ -420,6 +437,14 @@ class _ConversationViewState extends State<ConversationView> {
                                 ),
                                 compact: true,
                               ),
+                            ),
+                          ],
+                          if (composer.dictation) ...[
+                            const SizedBox(width: 8),
+                            UiVoiceInput(
+                              enabled: _composerEnabled,
+                              onTranscribe: widget.ctx.transcribe,
+                              onDraft: _appendDictationDraft,
                             ),
                           ],
                           const SizedBox(width: 8),

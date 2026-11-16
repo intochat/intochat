@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +14,12 @@ typedef NeuronLoader = Future<Map<String, dynamic>> Function(
 
 /// Posts one UI event (`POST /apps/event`) and returns the response body, if any.
 typedef NeuronAction = Future<Object?> Function(Map<String, dynamic> event);
+
+/// Transcribes recorded audio bytes and returns the recognized text.
+typedef VoiceTranscriber = Future<String> Function(
+  Uint8List audio,
+  String fileName,
+);
 
 /// One ordered event channel for a rendered view. An activation is sent only
 /// after the field edits before it, regardless of network latency or focus.
@@ -68,6 +74,7 @@ class NodeContext {
     this.slotAncestors = const {},
     this.buttonHints = const {},
     this.nodeKeys = const {},
+    this.transcribe,
   });
 
   /// The view neuron's name, which every activation names.
@@ -114,6 +121,9 @@ class NodeContext {
   /// such as `chart` or `dataTable` (indexed by `'chart:<title>'` / `'dataTable:<title>'`).
   final Map<String, String> nodeKeys;
 
+  /// Transcribes recorded voice drafts into text without submitting them.
+  final VoiceTranscriber? transcribe;
+
   bool get interactive => enabled && send != null;
 
   NodeContext deeper() => NodeContext(
@@ -134,6 +144,7 @@ class NodeContext {
     slotAncestors: slotAncestors,
     buttonHints: buttonHints,
     nodeKeys: nodeKeys,
+    transcribe: transcribe,
   );
 
   /// The brain scope the view lives under: `{scope}/apps/{app}/…` or `{scope}/{alias}`.

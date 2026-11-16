@@ -71,6 +71,7 @@ class LiveDesktopShell extends StatefulWidget {
     this.notificationsClient,
     this.installedApps = const <String>[],
     this.onDynamicAppsChanged,
+    this.transcribe,
     required this.knowsApp,
   });
 
@@ -121,6 +122,9 @@ class LiveDesktopShell extends StatefulWidget {
 
   /// Optional callback notified whenever runtime apps discovered on the desktop change.
   final ValueChanged<List<SmartAppTileSpec>>? onDynamicAppsChanged;
+
+  /// Host capability used by dictation composers to transcribe captured audio into a draft.
+  final VoiceTranscriber? transcribe;
 
   @override
   State<LiveDesktopShell> createState() => _LiveDesktopShellState();
@@ -1327,6 +1331,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         watch: widget.watch,
         onAction: widget.onAction,
         knowsApp: widget.knowsApp,
+        transcribe: widget.transcribe,
         onActivate: widget.onActivate,
       );
     }
@@ -1659,6 +1664,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                         watch: widget.watch,
                                         onAction: widget.onAction,
                                         knowsApp: _knowsDesktopApp,
+                                        transcribe: widget.transcribe,
                                         signals: _journalFor(
                                           w.viewportRef['name'] as String,
                                         ),
@@ -1681,6 +1687,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 watch: widget.watch,
                                 onAction: widget.onAction,
                                 knowsApp: _knowsDesktopApp,
+                                transcribe: widget.transcribe,
                                 signals: _journalFor(
                                   spec.viewportRef['name'] as String,
                                 ),

@@ -846,10 +846,49 @@ final class IntoChatOSUiClient {
   SceneClient scenes(String workspace) =>
       SceneClient(_http, baseUri, workspace);
 
+  /// Transcribes recorded [audio] bytes (`fileName` names the audio format, e.g. `voice.wav`)
+  /// through `POST /ai/transcriptions` and returns the recognized text.
+  Future<String> transcribe(Uint8List audio, String fileName) async {
+    final trimmed = fileName.trim();
+    final safeName = trimmed.isEmpty ? 'voice.wav' : trimmed;
+    final path = Uri(
+      path: '/ai/transcriptions',
+      queryParameters: {'fileName': safeName},
+    ).toString();
+    final response = await _request(
+      'POST',
+      path,
+      bodyBytes: audio,
+      contentType: _audioContentType(safeName),
+      timeout: const Duration(minutes: 5),
+    );
+    final decoded = response.body.isEmpty
+        ? const <String, dynamic>{}
+        : jsonDecode(response.body);
+    if (decoded is Map && decoded['text'] is String) {
+      return decoded['text'] as String;
+    }
+    throw StateError('Transcription response missing text.');
+  }
+
+  static String _audioContentType(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.ogg')) return 'audio/ogg';
+    if (lower.endsWith('.opus')) return 'audio/opus';
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.m4a') || lower.endsWith('.mp4')) return 'audio/mp4';
+    if (lower.endsWith('.webm')) return 'audio/webm';
+    if (lower.endsWith('.flac')) return 'audio/flac';
+    return 'application/octet-stream';
+  }
+
   Future<http.Response> _request(
     String method,
     String path, {
     Map<String, Object?>? body,
+    Uint8List? bodyBytes,
+    String? contentType,
     Duration? timeout,
     Future<void>? cancelled,
   }) async {
@@ -868,6 +907,10 @@ final class IntoChatOSUiClient {
     if (body != null) {
       request.headers['content-type'] = 'application/json';
       request.body = jsonEncode(body);
+    } else if (bodyBytes != null) {
+      request.headers['content-type'] =
+          contentType ?? 'application/octet-stream';
+      request.bodyBytes = bodyBytes;
     }
     final operation = _http.send(request).then(http.Response.fromStream);
     final response = timeout == null

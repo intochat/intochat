@@ -56,7 +56,7 @@ public static partial class InoView
         return selected;
     }
 
-    public static Conversation Conversation(InoAppState s)
+    public static Conversation Conversation(InoAppState s, bool dictation = false)
     {
         ArgumentNullException.ThrowIfNull(s);
         var shown = Shown(s);
@@ -118,7 +118,8 @@ public static partial class InoView
                 "Ask anything.",
                 Enabled: s.ActiveRunId is null && s.Pending is null && !s.Blocked,
                 ActiveModelLabel: activeModelVisual?.Label,
-                ActiveProviderIcon: activeModelVisual?.IconKey),
+                ActiveProviderIcon: activeModelVisual?.IconKey,
+                Dictation: dictation),
             Waiting: waiting,
             Status: ConversationStatusOf(s),
             Error: errorLine,
@@ -126,10 +127,10 @@ public static partial class InoView
             Empty: shown.Count == 0 ? Empty("What do you need?") : null);
     }
 
-    public static View Screen(InoAppState s)
+    public static View Screen(InoAppState s, bool dictation = false)
     {
         ArgumentNullException.ThrowIfNull(s);
-        var conversation = Conversation(s);
+        var conversation = Conversation(s, dictation);
         if (HasUnprojectedVaultSecretPrompt(s))
         {
             Node[] topNodes = [.. s.ActiveCards.SelectMany(RenderCardNodes), conversation];
