@@ -12,6 +12,7 @@ public sealed class SandboxOptions : IModuleOptions
     public string? EnrollKey { get; set; }
     public string? TokenSigningMaterial { get; set; }
     public string? KernelCallbackUrl { get; set; }
+    public string? UnitHostAssemblyPath { get; set; }
 
     [Range(1, 1440)]
     public int TokenTtlMinutes { get; set; } = 30;

@@ -9,7 +9,6 @@ using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Modules.Apps;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
@@ -44,18 +43,5 @@ public sealed class AppDefinitionAndRuntimeChallengerFacts
         var attr = screenType.GetCustomAttribute<NeuronAttribute>(inherit: false);
         Assert.NotNull(attr);
         Assert.Equal(expectedNeuronType, attr!.Type);
-    }
-
-    [Fact]
-    public async Task InProcessAppRuntimeValidatesInputFailClosed()
-    {
-        var services = new ServiceCollection().BuildServiceProvider();
-        var runtime = new InProcessAppRuntime(services);
-
-        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Deploy("invalid-key", [], CancellationToken.None));
-        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Deploy("/invalid-key", [], CancellationToken.None));
-
-        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Retire("invalid-key", CancellationToken.None));
-        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Retire("/invalid-key", CancellationToken.None));
     }
 }

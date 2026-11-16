@@ -1,8 +1,11 @@
+using System.Collections.Immutable;
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
+using DigitalBrain.Runtime.Synapses;
+using DigitalBrain.Units;
 using IntoChat.Sdk;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -14,12 +17,13 @@ public sealed record CompiledAppPackage(
     string[] Errors);
 
 /// <summary>
-/// Compiles idiomatic C# <see cref="BrainApp{TState, TSettings}"/> packages via Roslyn, enforces
-/// static sandbox safety bans, and extracts attribute metadata directly from compiled symbols.
+/// Compiles idiomatic C# <see cref="BrainApp{TState, TSettings}"/> packages and runtime synapses
+/// through <see cref="SynapseCompiler"/>, enforces static PE safety bans, and extracts attribute
+/// metadata directly from compiled PE metadata.
 /// </summary>
 public sealed class AppPackageCompiler
 {
-    private static readonly HashSet<string> BannedTypePrefixes =
+    private static readonly string[] BannedTypePrefixes =
     [
         "System.IO.File",
         "System.IO.Directory",
@@ -32,7 +36,7 @@ public sealed class AppPackageCompiler
         "System.Diagnostics.Process",
         "System.Net.Http.HttpClient",
         "System.Net.Sockets",
-        "System.Runtime.Loader.AssemblyLoadContext",
+        "System.Runtime.Loader.",
         "System.Runtime.InteropServices.DllImportAttribute",
         "System.Runtime.InteropServices.LibraryImportAttribute",
     ];
@@ -40,18 +44,27 @@ public sealed class AppPackageCompiler
     private const string GlobalUsingsPath = "AppGlobalUsings.g.cs";
 
     private const string GlobalUsingsSource = """
-        global using System;
-        global using System.Collections.Generic;
         global using System.Linq;
-        global using System.Threading;
-        global using System.Threading.Tasks;
-        global using DigitalBrain.Rules;
-        global using DigitalBrain.UI;
         global using IntoChat.OS.UI;
         global using IntoChat.Sdk;
+        global using SlotAttribute = IntoChat.Sdk.SlotAttribute;
         """;
 
-    private static readonly Lazy<MetadataReference[]> DefaultReferences = new(BuildReferences);
+    private static readonly Lazy<SynapseCompiler> DefaultCompiler =
+        new(() => new SynapseCompiler(ReferenceSet.FromDefaultContext()));
+
+    private readonly SynapseCompiler _compiler;
+
+    public AppPackageCompiler()
+        : this(null)
+    {
+    }
+
+    [ActivatorUtilitiesConstructor]
+    public AppPackageCompiler(SynapseCompiler? compiler = null)
+    {
+        _compiler = compiler ?? DefaultCompiler.Value;
+    }
 
     public CompiledAppPackage Compile(AppPackage package)
     {
@@ -61,60 +74,44 @@ public sealed class AppPackageCompiler
             return new CompiledAppPackage(false, [], null, ["Package contains no C# source files."]);
         }
 
-        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview);
-        var trees = package.SourceFiles
-            .OrderBy(file => file.Path, StringComparer.Ordinal)
-            .Select(file => CSharpSyntaxTree.ParseText(file.Code, parseOptions, path: file.Path))
-            .Append(CSharpSyntaxTree.ParseText(GlobalUsingsSource, parseOptions, path: GlobalUsingsPath))
-            .ToArray();
-
-        var syntaxErrors = new List<string>();
-        foreach (var tree in trees)
+        var files = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var file in package.SourceFiles.OrderBy(file => file.Path, StringComparer.Ordinal))
         {
-            var root = tree.GetRoot();
-            if (root.DescendantNodes().OfType<UnsafeStatementSyntax>().Any()
-                || root.DescendantTokens().Any(token => token.IsKind(SyntaxKind.UnsafeKeyword)))
-            {
-                syntaxErrors.Add($"{tree.FilePath}: unsafe code is forbidden in sandboxed apps.");
-            }
+            files[file.Path] = file.Code;
         }
 
-        if (syntaxErrors.Count > 0)
+        var isSynapseUnit = files.Values.Any(static code =>
+            code.Contains("[Synapse", StringComparison.Ordinal)
+            || code.Contains("[DigitalBrain.Synapse", StringComparison.Ordinal));
+        if (!isSynapseUnit && !files.ContainsKey(GlobalUsingsPath))
         {
-            return new CompiledAppPackage(false, [], null, [.. syntaxErrors]);
+            files[GlobalUsingsPath] = GlobalUsingsSource;
         }
 
-        var assemblyName = $"AppPkg_{SanitizeAssemblyName(package.Key)}_{package.Version.Replace('.', '_')}";
-        var compilationOptions = new CSharpCompilationOptions(
-            OutputKind.DynamicallyLinkedLibrary,
-            deterministic: true,
-            optimizationLevel: OptimizationLevel.Release,
-            allowUnsafe: false);
-
-        var compilation = CSharpCompilation.Create(
-            assemblyName,
-            trees,
-            DefaultReferences.Value,
-            compilationOptions);
-
-        var semanticErrors = ValidateBannedApis(compilation);
-        if (semanticErrors.Count > 0)
+        var build = _compiler.Compile(new SynapseSource(package.Key, files, null));
+        if (!build.Success)
         {
-            return new CompiledAppPackage(false, [], null, [.. semanticErrors]);
-        }
-
-        using var peStream = new MemoryStream();
-        var emit = compilation.Emit(peStream);
-        if (!emit.Success)
-        {
-            var diagnostics = emit.Diagnostics
-                .Where(d => d.Severity == DiagnosticSeverity.Error)
-                .Select(d => d.ToString())
+            var errors = build.Diagnostics
+                .Select(d => $"{d.File}({d.Line}): {d.Id}: {d.Message}")
                 .ToArray();
-            return new CompiledAppPackage(false, [], null, diagnostics);
+            if (errors.Length == 0)
+            {
+                errors = ["Compilation failed."];
+            }
+
+            return new CompiledAppPackage(false, [], null, errors);
         }
 
-        var extracted = ExtractNeeds(compilation, package);
+        using var pe = new PEReader(ImmutableArray.Create(build.Assembly));
+        var reader = pe.GetMetadataReader();
+
+        var bannedErrors = ValidateBannedApis(reader);
+        if (bannedErrors.Count > 0)
+        {
+            return new CompiledAppPackage(false, [], null, [.. bannedErrors]);
+        }
+
+        var extracted = ExtractNeeds(reader, package);
         if (extracted.Error is { } metaError)
         {
             return new CompiledAppPackage(false, [], null, [metaError]);
@@ -127,84 +124,117 @@ public sealed class AppPackageCompiler
             extracted.Package.DefaultSettingsJson);
 
         var finalPackage = extracted.Package with { Digest = digest };
-        return new CompiledAppPackage(true, peStream.ToArray(), finalPackage, []);
+        return new CompiledAppPackage(true, build.Assembly, finalPackage, []);
     }
 
-    private static List<string> ValidateBannedApis(CSharpCompilation compilation)
+    private static List<string> ValidateBannedApis(MetadataReader reader)
     {
-        var errors = new List<string>();
-        foreach (var tree in compilation.SyntaxTrees)
+        var errors = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var methodHandle in reader.MethodDefinitions)
         {
-            var model = compilation.GetSemanticModel(tree);
-            var root = tree.GetRoot();
-            foreach (var node in root.DescendantNodes())
+            var method = reader.GetMethodDefinition(methodHandle);
+            if ((method.Attributes & MethodAttributes.PinvokeImpl) != 0 || !method.GetImport().Name.IsNil)
             {
-                ISymbol? symbol = node switch
-                {
-                    InvocationExpressionSyntax invocation => model.GetSymbolInfo(invocation).Symbol,
-                    ObjectCreationExpressionSyntax creation => model.GetSymbolInfo(creation).Symbol,
-                    MemberAccessExpressionSyntax access => model.GetSymbolInfo(access).Symbol,
-                    _ => null,
-                };
+                errors.Add($"P/Invoke '{reader.GetString(method.Name)}' is restricted in sandboxed apps.");
+            }
+        }
 
-                if (symbol is null)
-                {
-                    continue;
-                }
+        foreach (var typeHandle in reader.TypeReferences)
+        {
+            var fullName = FullTypeName(reader, reader.GetTypeReference(typeHandle));
+            CheckBannedType(fullName, errors);
+        }
 
-                var containingType = symbol.ContainingType?.ToDisplayString();
-                if (string.IsNullOrWhiteSpace(containingType))
-                {
-                    continue;
-                }
+        foreach (var memberHandle in reader.MemberReferences)
+        {
+            var member = reader.GetMemberReference(memberHandle);
+            var fullType = ResolveTypeName(reader, member.Parent);
+            if (string.IsNullOrWhiteSpace(fullType))
+            {
+                continue;
+            }
 
-                if (BannedTypePrefixes.Any(prefix => containingType.StartsWith(prefix, StringComparison.Ordinal)))
-                {
-                    errors.Add($"{tree.FilePath}: '{containingType}' is restricted in sandboxed apps. Use IntoChat.Sdk capabilities (Brain.Folder / Brain.Notifications / Brain.Ai / Brain.Tables) instead.");
-                    continue;
-                }
+            CheckBannedType(fullType, errors);
 
-                if (containingType == "System.Environment" && symbol.Name is "GetEnvironmentVariable" or "GetEnvironmentVariables" or "Exit")
-                {
-                    errors.Add($"{tree.FilePath}: 'System.Environment.{symbol.Name}' is restricted in sandboxed apps.");
-                    continue;
-                }
+            var memberName = reader.GetString(member.Name);
+            if (fullType == "System.Environment" && memberName is "GetEnvironmentVariable" or "GetEnvironmentVariables" or "Exit")
+            {
+                errors.Add($"'System.Environment.{memberName}' is restricted in sandboxed apps.");
+            }
+            else if (fullType == "System.Reflection.Assembly" && memberName.StartsWith("Load", StringComparison.Ordinal))
+            {
+                errors.Add($"'System.Reflection.Assembly.{memberName}' is restricted in sandboxed apps.");
+            }
+        }
 
-                if (containingType == "System.Reflection.Assembly" && symbol.Name.StartsWith("Load", StringComparison.Ordinal))
+        return [.. errors];
+    }
+
+    private static void CheckBannedType(string fullTypeName, HashSet<string> errors)
+    {
+        if (BannedTypePrefixes.Any(prefix => fullTypeName.StartsWith(prefix, StringComparison.Ordinal)))
+        {
+            errors.Add($"'{fullTypeName}' is restricted in sandboxed apps. Use IntoChat.Sdk capabilities (Brain.Folder / Brain.Notifications / Brain.Ai / Brain.Tables) instead.");
+        }
+    }
+
+    private static (AppPackage? Package, string? Error) ExtractNeeds(MetadataReader reader, AppPackage original)
+    {
+        var provider = MetadataTypeProvider.Instance;
+        var appCandidates = new List<(TypeDefinition Type, CustomAttributeValue<string> Attr)>();
+
+        foreach (var typeHandle in reader.TypeDefinitions)
+        {
+            var typeDef = reader.GetTypeDefinition(typeHandle);
+            if ((typeDef.Attributes & (TypeAttributes.Interface | TypeAttributes.Abstract)) != 0)
+            {
+                continue;
+            }
+
+            foreach (var attrHandle in typeDef.GetCustomAttributes())
+            {
+                var attr = reader.GetCustomAttribute(attrHandle);
+                if (AttributeTypeName(reader, attr) == typeof(AppAttribute).FullName)
                 {
-                    errors.Add($"{tree.FilePath}: 'System.Reflection.Assembly.{symbol.Name}' is restricted in sandboxed apps.");
+                    appCandidates.Add((typeDef, attr.DecodeValue(provider)));
+                    break;
                 }
             }
         }
 
-        return errors.Distinct(StringComparer.Ordinal).ToList();
-    }
-
-    private static (AppPackage? Package, string? Error) ExtractNeeds(CSharpCompilation compilation, AppPackage original)
-    {
-        var candidates = AllTypes(compilation.Assembly.GlobalNamespace)
-            .Where(type => type.TypeKind == TypeKind.Class && !type.IsAbstract)
-            .Select(type => (Type: type, AppAttr: FindAttribute(type, typeof(AppAttribute).FullName!)))
-            .Where(pair => pair.AppAttr is not null)
-            .ToArray();
-
-        if (candidates.Length == 0)
+        if (appCandidates.Count == 1)
         {
-            return (null, "App package must declare exactly one concrete class annotated with [IntoChat.Sdk.App(...)].");
+            return ExtractBrainAppNeeds(reader, provider, appCandidates[0].Type, appCandidates[0].Attr, original);
         }
 
-        if (candidates.Length > 1)
+        if (appCandidates.Count > 1)
         {
             return (null, "App package must declare a single [App] entry class.");
         }
 
-        var (appType, appAttr) = candidates[0];
-        if (!InheritsBrainApp(appType))
+        var synapseNeeds = TryExtractSynapseNeeds(reader, provider);
+        if (synapseNeeds is not null)
         {
-            return (null, $"[App] class '{appType.Name}' must inherit from IntoChat.Sdk.BrainApp<TState, TSettings>.");
+            return (original with { Needs = synapseNeeds }, null);
         }
 
-        var attrKey = appAttr!.ConstructorArguments.FirstOrDefault().Value as string;
+        return (null, "App package must declare exactly one concrete class annotated with [IntoChat.Sdk.App(...)].");
+    }
+
+    private static (AppPackage? Package, string? Error) ExtractBrainAppNeeds(
+        MetadataReader reader,
+        MetadataTypeProvider provider,
+        TypeDefinition appType,
+        CustomAttributeValue<string> appAttr,
+        AppPackage original)
+    {
+        if (!InheritsBrainApp(reader, provider, appType))
+        {
+            return (null, $"[App] class '{reader.GetString(appType.Name)}' must inherit from IntoChat.Sdk.BrainApp<TState, TSettings>.");
+        }
+
+        var attrKey = FixedString(appAttr, 0);
         var key = string.IsNullOrWhiteSpace(attrKey) ? original.Key : attrKey!;
         var title = NamedArg<string>(appAttr, nameof(AppAttribute.Title)) ?? (string.IsNullOrWhiteSpace(original.Title) ? key : original.Title);
         var summary = NamedArg<string>(appAttr, nameof(AppAttribute.Summary)) ?? original.Summary;
@@ -214,23 +244,30 @@ public sealed class AppPackageCompiler
         var author = NamedArg<string>(appAttr, nameof(AppAttribute.Author)) ?? original.Author;
 
         var slots = new List<AppSlotSpec>();
-        foreach (var attr in appType.GetAttributes().Where(a => a.AttributeClass?.ToDisplayString() == typeof(SlotAttribute).FullName))
+        foreach (var attrHandle in appType.GetCustomAttributes())
         {
-            var slotName = attr.ConstructorArguments.Length > 0 ? attr.ConstructorArguments[0].Value as string : null;
-            var contractType = attr.ConstructorArguments.Length > 1 ? attr.ConstructorArguments[1].Value as ITypeSymbol : null;
-            if (string.IsNullOrWhiteSpace(slotName) || contractType is null)
+            var attr = reader.GetCustomAttribute(attrHandle);
+            if (AttributeTypeName(reader, attr) != typeof(SlotAttribute).FullName)
             {
                 continue;
             }
 
-            var required = NamedArg<bool?>(attr, nameof(SlotAttribute.Required)) ?? true;
-            var description = NamedArg<string>(attr, nameof(SlotAttribute.Description)) ?? "";
-            var accessRaw = NamedArg<int?>(attr, nameof(SlotAttribute.Access)) ?? 0;
-            var defaultPath = NamedArg<string>(attr, nameof(SlotAttribute.DefaultPath)) ?? "";
+            var decoded = attr.DecodeValue(provider);
+            var slotName = FixedString(decoded, 0);
+            var contractType = FixedString(decoded, 1);
+            if (string.IsNullOrWhiteSpace(slotName) || string.IsNullOrWhiteSpace(contractType))
+            {
+                continue;
+            }
+
+            var required = NamedArgNullable<bool>(decoded, nameof(SlotAttribute.Required)) ?? true;
+            var description = NamedArg<string>(decoded, nameof(SlotAttribute.Description)) ?? string.Empty;
+            var accessRaw = NamedArgNullable<int>(decoded, nameof(SlotAttribute.Access)) ?? 0;
+            var defaultPath = NamedArg<string>(decoded, nameof(SlotAttribute.DefaultPath)) ?? string.Empty;
 
             slots.Add(new AppSlotSpec(
                 slotName,
-                contractType.ToDisplayString(),
+                NormalizeContractName(contractType),
                 required,
                 description,
                 (FolderAccess)accessRaw,
@@ -241,23 +278,38 @@ public sealed class AppPackageCompiler
         var schedules = new SortedSet<string>(StringComparer.Ordinal);
         var commands = new List<AppCommandSpec>();
 
-        foreach (var method in appType.GetMembers().OfType<IMethodSymbol>().Where(m => m.MethodKind == MethodKind.Ordinary))
+        foreach (var methodHandle in appType.GetMethods())
         {
-            foreach (var attr in method.GetAttributes())
+            var methodDef = reader.GetMethodDefinition(methodHandle);
+            foreach (var attrHandle in methodDef.GetCustomAttributes())
             {
-                var fullName = attr.AttributeClass?.ToDisplayString();
-                if (fullName == typeof(OnSignalAttribute).FullName && attr.ConstructorArguments.FirstOrDefault().Value is string sig && !string.IsNullOrWhiteSpace(sig))
+                var attr = reader.GetCustomAttribute(attrHandle);
+                var attrName = AttributeTypeName(reader, attr);
+                if (attrName == typeof(OnSignalAttribute).FullName)
                 {
-                    signals.Add(sig);
+                    var sig = FixedString(attr.DecodeValue(provider), 0);
+                    if (!string.IsNullOrWhiteSpace(sig))
+                    {
+                        signals.Add(sig);
+                    }
                 }
-                else if (fullName == typeof(EveryAttribute).FullName && attr.ConstructorArguments.FirstOrDefault().Value is string cron && !string.IsNullOrWhiteSpace(cron))
+                else if (attrName == typeof(EveryAttribute).FullName)
                 {
-                    schedules.Add(cron);
+                    var cron = FixedString(attr.DecodeValue(provider), 0);
+                    if (!string.IsNullOrWhiteSpace(cron))
+                    {
+                        schedules.Add(cron);
+                    }
                 }
-                else if (fullName == typeof(OnCommandAttribute).FullName && attr.ConstructorArguments.FirstOrDefault().Value is string cmd && !string.IsNullOrWhiteSpace(cmd))
+                else if (attrName == typeof(OnCommandAttribute).FullName)
                 {
-                    var desc = NamedArg<string>(attr, nameof(OnCommandAttribute.Description)) ?? "";
-                    commands.Add(new AppCommandSpec(cmd, desc));
+                    var decoded = attr.DecodeValue(provider);
+                    var cmd = FixedString(decoded, 0);
+                    if (!string.IsNullOrWhiteSpace(cmd))
+                    {
+                        var desc = NamedArg<string>(decoded, nameof(OnCommandAttribute.Description)) ?? string.Empty;
+                        commands.Add(new AppCommandSpec(cmd, desc));
+                    }
                 }
             }
         }
@@ -276,84 +328,249 @@ public sealed class AppPackageCompiler
         }, null);
     }
 
-    private static IEnumerable<INamedTypeSymbol> AllTypes(INamespaceSymbol ns)
+    private static AppPackageNeeds? TryExtractSynapseNeeds(MetadataReader reader, MetadataTypeProvider provider)
     {
-        foreach (var member in ns.GetTypeMembers())
-        {
-            yield return member;
-        }
+        var hasState = false;
+        var hasSynapse = false;
+        var signalAliasesByType = new Dictionary<string, string>(StringComparer.Ordinal);
+        var signals = new SortedSet<string>(StringComparer.Ordinal);
+        var schedules = new SortedSet<string>(StringComparer.Ordinal);
+        var slots = new List<AppSlotSpec>();
 
-        foreach (var child in ns.GetNamespaceMembers())
+        foreach (var typeHandle in reader.TypeDefinitions)
         {
-            foreach (var nested in AllTypes(child))
+            var typeDef = reader.GetTypeDefinition(typeHandle);
+            var fullName = FullTypeName(reader, typeDef);
+            foreach (var attrHandle in typeDef.GetCustomAttributes())
             {
-                yield return nested;
+                var attr = reader.GetCustomAttribute(attrHandle);
+                var attrName = AttributeTypeName(reader, attr);
+                if (attrName == typeof(DigitalBrain.StateAttribute).FullName)
+                {
+                    hasState = true;
+                }
+                else if (attrName == typeof(DigitalBrain.SignalAttribute).FullName)
+                {
+                    var alias = FixedString(attr.DecodeValue(provider), 0);
+                    if (!string.IsNullOrWhiteSpace(alias))
+                    {
+                        signalAliasesByType[fullName] = alias;
+                    }
+                }
             }
         }
-    }
 
-    private static AttributeData? FindAttribute(ISymbol symbol, string fullName)
-        => symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == fullName);
-
-    private static T? NamedArg<T>(AttributeData attr, string name)
-    {
-        foreach (var pair in attr.NamedArguments)
+        foreach (var typeHandle in reader.TypeDefinitions)
         {
-            if (string.Equals(pair.Key, name, StringComparison.Ordinal) && pair.Value.Value is T typed)
+            var typeDef = reader.GetTypeDefinition(typeHandle);
+            foreach (var methodHandle in typeDef.GetMethods())
             {
-                return typed;
+                var methodDef = reader.GetMethodDefinition(methodHandle);
+                foreach (var attrHandle in methodDef.GetCustomAttributes())
+                {
+                    var attr = reader.GetCustomAttribute(attrHandle);
+                    if (AttributeTypeName(reader, attr) != typeof(DigitalBrain.SynapseAttribute).FullName)
+                    {
+                        continue;
+                    }
+
+                    hasSynapse = true;
+                    var decoded = attr.DecodeValue(provider);
+                    if (decoded.FixedArguments.Length > 1)
+                    {
+                        var arg0 = decoded.FixedArguments[0].Value as string;
+                        if (!string.IsNullOrWhiteSpace(arg0))
+                        {
+                            var normalized = NormalizeContractName(arg0);
+                            if (signalAliasesByType.TryGetValue(normalized, out var mapped))
+                            {
+                                signals.Add(mapped);
+                            }
+                            else if (arg0 == typeof(DigitalBrain.Time.Tick).FullName)
+                            {
+                                // Schedule signal represented below via Every named arg.
+                            }
+                            else
+                            {
+                                signals.Add(arg0);
+                            }
+                        }
+                    }
+
+                    var every = NamedArg<string>(decoded, "Every");
+                    if (!string.IsNullOrWhiteSpace(every))
+                    {
+                        schedules.Add(every);
+                    }
+                }
+
+                foreach (var paramHandle in methodDef.GetParameters())
+                {
+                    var param = reader.GetParameter(paramHandle);
+                    var paramName = reader.GetString(param.Name);
+                    foreach (var attrHandle in param.GetCustomAttributes())
+                    {
+                        var attr = reader.GetCustomAttribute(attrHandle);
+                        if (AttributeTypeName(reader, attr) != typeof(DigitalBrain.SlotAttribute).FullName)
+                        {
+                            continue;
+                        }
+
+                        var decoded = attr.DecodeValue(provider);
+                        var slotName = NamedArg<string>(decoded, nameof(DigitalBrain.SlotAttribute.Name)) ?? paramName;
+                        if (!string.IsNullOrWhiteSpace(slotName) && slots.All(s => !string.Equals(s.Name, slotName, StringComparison.Ordinal)))
+                        {
+                            slots.Add(new AppSlotSpec(slotName, string.Empty, true, string.Empty, FolderAccess.Read, string.Empty));
+                        }
+                    }
+                }
             }
         }
 
-        return default;
+        if (!hasState || !hasSynapse)
+        {
+            return null;
+        }
+
+        return new AppPackageNeeds([.. slots], [.. signals], [.. schedules], []);
     }
 
-    private static bool InheritsBrainApp(INamedTypeSymbol type)
+    private static bool InheritsBrainApp(MetadataReader reader, MetadataTypeProvider provider, TypeDefinition typeDef)
     {
-        for (var current = type.BaseType; current is not null; current = current.BaseType)
+        var baseHandle = typeDef.BaseType;
+        while (!baseHandle.IsNil)
         {
-            if (current.OriginalDefinition.ToDisplayString() == "IntoChat.Sdk.BrainApp<TState, TSettings>")
+            var baseName = ResolveTypeName(reader, baseHandle, provider);
+            if (baseName == "IntoChat.Sdk.BrainApp`2")
             {
                 return true;
+            }
+
+            if (baseHandle.Kind == HandleKind.TypeDefinition)
+            {
+                baseHandle = reader.GetTypeDefinition((TypeDefinitionHandle)baseHandle).BaseType;
+            }
+            else
+            {
+                break;
             }
         }
 
         return false;
     }
 
-    private static string SanitizeAssemblyName(string key)
-        => new([.. key.Select(ch => char.IsLetterOrDigit(ch) ? ch : '_')]);
-
-    private static MetadataReference[] BuildReferences()
-    {
-        var trustedAssemblies = new List<Assembly>
+    private static string ResolveTypeName(MetadataReader reader, EntityHandle handle, MetadataTypeProvider? provider = null)
+        => handle.Kind switch
         {
-            typeof(object).Assembly,
-            typeof(Task).Assembly,
-            typeof(Enumerable).Assembly,
-            typeof(System.Linq.Expressions.Expression).Assembly,
-            typeof(System.Text.Json.JsonSerializer).Assembly,
-            typeof(System.Text.RegularExpressions.Regex).Assembly,
-            typeof(IntoChat.Sdk.IBrain).Assembly,
-            typeof(IntoChat.OS.UI.Kit).Assembly,
-            typeof(DigitalBrain.Signal).Assembly,
-            typeof(DigitalBrain.UI.View).Assembly,
+            HandleKind.TypeReference => FullTypeName(reader, reader.GetTypeReference((TypeReferenceHandle)handle)),
+            HandleKind.TypeDefinition => FullTypeName(reader, reader.GetTypeDefinition((TypeDefinitionHandle)handle)),
+            HandleKind.TypeSpecification when provider is not null =>
+                reader.GetTypeSpecification((TypeSpecificationHandle)handle).DecodeSignature(provider, genericContext: null),
+            _ => string.Empty,
         };
 
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+    private static string FullTypeName(MetadataReader reader, TypeReference typeRef)
+    {
+        var ns = reader.GetString(typeRef.Namespace);
+        var name = reader.GetString(typeRef.Name);
+        return string.IsNullOrWhiteSpace(ns) ? name : $"{ns}.{name}";
+    }
+
+    private static string FullTypeName(MetadataReader reader, TypeDefinition typeDef)
+    {
+        var ns = reader.GetString(typeDef.Namespace);
+        var name = reader.GetString(typeDef.Name);
+        return string.IsNullOrWhiteSpace(ns) ? name : $"{ns}.{name}";
+    }
+
+    private static string? AttributeTypeName(MetadataReader reader, CustomAttribute attr)
+    {
+        return attr.Constructor.Kind switch
         {
-            var name = assembly.GetName().Name;
-            if (name is "System.Runtime" or "System.Collections" or "System.Linq" or "System.Linq.Expressions"
-                or "System.Console" or "System.Text.Json" or "System.Text.RegularExpressions"
-                or "System.ComponentModel" or "netstandard")
+            HandleKind.MemberReference => ResolveTypeName(reader, reader.GetMemberReference((MemberReferenceHandle)attr.Constructor).Parent),
+            HandleKind.MethodDefinition => FullTypeName(
+                reader,
+                reader.GetTypeDefinition(reader.GetMethodDefinition((MethodDefinitionHandle)attr.Constructor).GetDeclaringType())),
+            _ => null,
+        };
+    }
+
+    private static string? FixedString(CustomAttributeValue<string> value, int index)
+        => index < value.FixedArguments.Length ? value.FixedArguments[index].Value as string : null;
+
+    private static T? NamedArg<T>(CustomAttributeValue<string> value, string name) where T : class
+    {
+        foreach (var pair in value.NamedArguments)
+        {
+            if (string.Equals(pair.Name, name, StringComparison.Ordinal) && pair.Value is T typed)
             {
-                trustedAssemblies.Add(assembly);
+                return typed;
             }
         }
 
-        return [.. trustedAssemblies
-            .Where(a => !a.IsDynamic && !string.IsNullOrWhiteSpace(a.Location))
-            .DistinctBy(a => a.Location, StringComparer.OrdinalIgnoreCase)
-            .Select(a => MetadataReference.CreateFromFile(a.Location))];
+        return null;
+    }
+
+    private static T? NamedArgNullable<T>(CustomAttributeValue<string> value, string name) where T : struct
+    {
+        foreach (var pair in value.NamedArguments)
+        {
+            if (string.Equals(pair.Name, name, StringComparison.Ordinal) && pair.Value is T typed)
+            {
+                return typed;
+            }
+        }
+
+        return null;
+    }
+
+    private static string NormalizeContractName(string raw)
+    {
+        var comma = raw.IndexOf(',', StringComparison.Ordinal);
+        return (comma >= 0 ? raw[..comma] : raw).Trim();
+    }
+
+    private sealed class MetadataTypeProvider : ICustomAttributeTypeProvider<string>, ISignatureTypeProvider<string, object?>
+    {
+        public static MetadataTypeProvider Instance { get; } = new();
+
+        public string GetPrimitiveType(PrimitiveTypeCode typeCode) => typeCode.ToString();
+
+        public string GetSystemType() => typeof(Type).FullName!;
+
+        public string GetSZArrayType(string elementType) => elementType + "[]";
+
+        public string GetArrayType(string elementType, ArrayShape shape) => elementType + "[]";
+
+        public string GetByReferenceType(string elementType) => elementType + "&";
+
+        public string GetPointerType(string elementType) => elementType + "*";
+
+        public string GetPinnedType(string elementType) => elementType;
+
+        public string GetTypeFromDefinition(MetadataReader mr, TypeDefinitionHandle handle, byte rawTypeKind)
+            => FullTypeName(mr, mr.GetTypeDefinition(handle));
+
+        public string GetTypeFromReference(MetadataReader mr, TypeReferenceHandle handle, byte rawTypeKind)
+            => FullTypeName(mr, mr.GetTypeReference(handle));
+
+        public string GetTypeFromSpecification(MetadataReader mr, object? genericContext, TypeSpecificationHandle handle, byte rawTypeKind)
+            => mr.GetTypeSpecification(handle).DecodeSignature(this, genericContext);
+
+        public string GetTypeFromSerializedName(string name) => NormalizeContractName(name);
+
+        public PrimitiveTypeCode GetUnderlyingEnumType(string type) => PrimitiveTypeCode.Int32;
+
+        public bool IsSystemType(string type) => string.Equals(type, typeof(Type).FullName, StringComparison.Ordinal);
+
+        public string GetGenericInstantiation(string genericType, ImmutableArray<string> typeArguments) => genericType;
+
+        public string GetGenericMethodParameter(object? genericContext, int index) => $"!!{index}";
+
+        public string GetGenericTypeParameter(object? genericContext, int index) => $"!{index}";
+
+        public string GetFunctionPointerType(MethodSignature<string> signature) => "fnptr";
+
+        public string GetModifiedType(string modifier, string unmodifiedType, bool isRequired) => unmodifiedType;
     }
 }

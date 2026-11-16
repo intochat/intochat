@@ -352,7 +352,7 @@ public sealed class CatalogDomainFacts
         state.PutFile("readme.md", "# Hello");
         state.PutSetting(legacyBehaviorKey, "deprecated");
         state.PutSetting("lib.dll.base64", "eHl6");
-        state.PutSetting(InProcessAppRuntime.CompiledTypeKey, "MyCompiledType");
+        state.PutSetting(AppTrust.CompiledTypeSetting, "MyCompiledType");
         state.PutSetting("normalSetting", "value");
 
         var markers = LegacyAppRecord.DetectMarkers(state);
@@ -362,7 +362,7 @@ public sealed class CatalogDomainFacts
         Assert.Contains($"setting:{legacyBehaviorKey}", markers);
         Assert.Contains("setting:lib.dll.base64", markers);
         Assert.DoesNotContain("file:readme.md", markers);
-        Assert.DoesNotContain($"setting:{InProcessAppRuntime.CompiledTypeKey}", markers);
+        Assert.DoesNotContain($"setting:{AppTrust.CompiledTypeSetting}", markers);
         Assert.DoesNotContain("setting:normalSetting", markers);
 
         LegacyAppRecord.Cleanse(state);
@@ -373,7 +373,7 @@ public sealed class CatalogDomainFacts
 
         Assert.False(state.Settings.ContainsKey(legacyBehaviorKey));
         Assert.False(state.Settings.ContainsKey("lib.dll.base64"));
-        Assert.True(state.Settings.ContainsKey(InProcessAppRuntime.CompiledTypeKey));
+        Assert.True(state.Settings.ContainsKey(AppTrust.CompiledTypeSetting));
         Assert.True(state.Settings.ContainsKey("normalSetting"));
 
         // Cleaned state now has 0 legacy markers

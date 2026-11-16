@@ -1,8 +1,13 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Net.Http.Json;
+using System.Net;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Contracts;
+using DigitalBrain.Invocation;
+using DigitalBrain.Log;
 using IntoChat.Sdk;
 using Microsoft.Extensions.Logging;
 
@@ -30,21 +35,24 @@ public sealed record SandboxLogRequest(
     string Message,
     DateTimeOffset TimestampUtc);
 
-/// <summary>HTTP-backed <see cref="IBrain"/> implementation mediating sandbox app calls through the kernel edge gateway.</summary>
+/// <summary>
+/// <see cref="IBrain"/> implementation backed by DigitalBrain <see cref="NeuronProxy"/> and a single
+/// <see cref="IInvocationSink"/> mediating sandbox capability calls through the kernel edge gateway.
+/// </summary>
 public sealed class IntoChatClient : IBrain
 {
+    internal const string DefaultSlotKey = "slot.default";
     internal static readonly JsonSerializerOptions JsonOptions = JsonSerializerOptions.Web;
 
-    private static readonly MethodInfo InvokeAsyncMethod = typeof(IntoChatClient)
-        .GetMethod(nameof(InvokeAsync), BindingFlags.Instance | BindingFlags.NonPublic)!;
-
-    private static readonly MethodInfo InvokeValueTaskAsyncMethod = typeof(IntoChatClient)
-        .GetMethod(nameof(InvokeValueTaskAsync), BindingFlags.Instance | BindingFlags.NonPublic)!;
+    private static readonly MethodInfo NeuronProxyCreateGeneric = typeof(NeuronProxy)
+        .GetMethod(nameof(NeuronProxy.Create), BindingFlags.Public | BindingFlags.Static)!;
 
     private readonly Uri _kernelBaseUri;
     private readonly string _appToken;
     private readonly HttpClient _httpClient;
     private readonly ILogger? _logger;
+    private readonly BrainId _neuronBrainId;
+    private readonly SandboxInvocationSink _sink;
 
     public IntoChatClient(
         string brainId,
@@ -65,10 +73,12 @@ public sealed class IntoChatClient : IBrain
         _appToken = appToken ?? string.Empty;
         _httpClient = httpClient;
         _logger = logger;
+        _neuronBrainId = DigitalBrain.BrainId.IsValid(brainId) ? new BrainId(brainId) : DigitalBrain.BrainId.Kernel;
+        _sink = new SandboxInvocationSink(this);
 
-        Notifications = new NotificationsProxy(this);
-        Ai = new AiProxy(this);
-        Tables = new TablesProxy(this);
+        Notifications = NeuronProxy.Create<INotifications>(new NeuronId(_neuronBrainId, "notifications", DefaultSlotKey), _sink);
+        Ai = new AiProxy(_sink, _neuronBrainId);
+        Tables = new TablesProxy(_sink, _neuronBrainId);
     }
 
     public string BrainId { get; }
@@ -80,37 +90,42 @@ public sealed class IntoChatClient : IBrain
     public IFolder Folder(string slot = "folder")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(slot);
-        return new FolderProxy(this, slot);
+        return NeuronProxy.Create<IFolder>(new NeuronId(_neuronBrainId, "folder", slot.Trim()), _sink);
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2091", Justification = "Sandbox worker executes dynamic user apps with full reflection.")]
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Sandbox worker requires dynamic DispatchProxy generation.")]
     public TContract Slot<TContract>(string? slot = null) where TContract : class
+        => (TContract)Slot(typeof(TContract), slot);
+
+    [UnconditionalSuppressMessage("Trimming", "IL2060", Justification = "Sandbox worker binds runtime synapse slot interfaces dynamically.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Sandbox worker requires dynamic DispatchProxy generation.")]
+    internal object Slot(Type contractType, string? slot = null)
     {
-        if (!typeof(TContract).IsInterface)
+        ArgumentNullException.ThrowIfNull(contractType);
+        if (!contractType.IsInterface)
         {
-            throw new ArgumentException($"Slot contract '{typeof(TContract).FullName}' must be an interface.", nameof(TContract));
+            throw new ArgumentException($"Slot contract '{contractType.FullName}' must be an interface.", nameof(contractType));
         }
 
-        var proxy = DispatchProxy.Create<TContract, ContractDispatchProxy>();
-        var dispatchProxy = (ContractDispatchProxy)(object)proxy;
-        var contractName = typeof(TContract).FullName ?? typeof(TContract).Name;
-        dispatchProxy.Configure(this, contractName, slot);
-        return proxy;
+        var neuronType = ResolveNeuronType(contractType);
+        var slotKey = string.IsNullOrWhiteSpace(slot) ? DefaultSlotKey : slot.Trim();
+        var targetId = new NeuronId(_neuronBrainId, neuronType, slotKey);
+        return NeuronProxyCreateGeneric.MakeGenericMethod(contractType).Invoke(null, [targetId, _sink])!;
     }
 
     public async Task PublishAsync<TSignal>(TSignal signal, CancellationToken cancellationToken = default)
-        where TSignal : DigitalBrain.Signal
+        where TSignal : Signal
     {
         ArgumentNullException.ThrowIfNull(signal);
 
-        var signalName = typeof(TSignal).GetCustomAttribute<DigitalBrain.SignalAttribute>(inherit: false)?.Alias
+        var signalName = typeof(TSignal).GetCustomAttribute<SignalAttribute>(inherit: false)?.Alias
             ?? typeof(TSignal).Name;
         var payloadJson = JsonSerializer.Serialize(signal, typeof(TSignal), JsonOptions);
         var requestBody = new SandboxSignalRequest(signalName, payloadJson);
 
         using var response = await SendKernelPostAsync("/edge/sandbox/signals", requestBody, cancellationToken).ConfigureAwait(false);
-        await EnsureSuccessAsync(response, "/edge/sandbox/signals", cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, "/edge/sandbox/signals", cancellationToken, _logger).ConfigureAwait(false);
     }
 
     public async Task LogAsync(string message, CancellationToken cancellationToken = default)
@@ -138,136 +153,18 @@ public sealed class IntoChatClient : IBrain
         }
     }
 
-    internal async Task InvokeVoidAsync(
-        string contract,
-        string method,
-        string? slot,
-        object?[] args,
-        CancellationToken cancellationToken)
+    private static string ResolveNeuronType(Type contractType)
     {
-        _ = await SendInvokeAsync(contract, method, slot, args, cancellationToken).ConfigureAwait(false);
-    }
-
-    internal async Task<TResult> InvokeAsync<TResult>(
-        string contract,
-        string method,
-        string? slot,
-        object?[] args,
-        CancellationToken cancellationToken)
-    {
-        var resultJson = await SendInvokeAsync(contract, method, slot, args, cancellationToken).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(resultJson))
+        var candidate = contractType.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type
+            ?? contractType.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias;
+        if (!string.IsNullOrWhiteSpace(candidate)
+            && !candidate.Contains('/', StringComparison.Ordinal)
+            && !candidate.Any(char.IsControl))
         {
-            return default!;
+            return candidate!;
         }
 
-        return JsonSerializer.Deserialize<TResult>(resultJson, JsonOptions)!;
-    }
-
-    internal async ValueTask<TResult> InvokeValueTaskAsync<TResult>(
-        string contract,
-        string method,
-        string? slot,
-        object?[] args,
-        CancellationToken cancellationToken)
-        => await InvokeAsync<TResult>(contract, method, slot, args, cancellationToken).ConfigureAwait(false);
-
-    internal object InvokeProxyMethod(
-        string contractName,
-        string? slot,
-        MethodInfo targetMethod,
-        object?[]? args)
-    {
-        var parameters = targetMethod.GetParameters();
-        var ct = CancellationToken.None;
-        var filteredArgs = new List<object?>(parameters.Length);
-
-        for (var i = 0; i < parameters.Length; i++)
-        {
-            var value = args is not null && i < args.Length ? args[i] : null;
-            if (parameters[i].ParameterType == typeof(CancellationToken))
-            {
-                if (value is CancellationToken token)
-                {
-                    ct = token;
-                }
-                continue;
-            }
-
-            filteredArgs.Add(value);
-        }
-
-        var argsArray = filteredArgs.ToArray();
-        var returnType = targetMethod.ReturnType;
-
-        if (returnType == typeof(Task))
-        {
-            return InvokeVoidAsync(contractName, targetMethod.Name, slot, argsArray, ct);
-        }
-
-        if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>))
-        {
-            var resultType = returnType.GetGenericArguments()[0];
-            return InvokeAsyncMethod.MakeGenericMethod(resultType)
-                .Invoke(this, [contractName, targetMethod.Name, slot, argsArray, ct])!;
-        }
-
-        if (returnType == typeof(ValueTask))
-        {
-            return new ValueTask(InvokeVoidAsync(contractName, targetMethod.Name, slot, argsArray, ct));
-        }
-
-        if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(ValueTask<>))
-        {
-            var resultType = returnType.GetGenericArguments()[0];
-            return InvokeValueTaskAsyncMethod.MakeGenericMethod(resultType)
-                .Invoke(this, [contractName, targetMethod.Name, slot, argsArray, ct])!;
-        }
-
-        throw new NotSupportedException(
-            $"Slot contract method '{contractName}.{targetMethod.Name}' must return Task, Task<T>, ValueTask, or ValueTask<T>.");
-    }
-
-    private async Task<string?> SendInvokeAsync(
-        string contract,
-        string method,
-        string? slot,
-        object?[] args,
-        CancellationToken cancellationToken)
-    {
-        var argsJson = JsonSerializer.Serialize(args, JsonOptions);
-        var payload = new SandboxInvokeRequest(contract, method, slot, argsJson);
-
-        using var response = await SendKernelPostAsync("/edge/sandbox/invoke", payload, cancellationToken).ConfigureAwait(false);
-        await EnsureSuccessAsync(response, "/edge/sandbox/invoke", cancellationToken).ConfigureAwait(false);
-
-        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(body))
-        {
-            return null;
-        }
-
-        using var doc = JsonDocument.Parse(body);
-        if (doc.RootElement.ValueKind == JsonValueKind.Object)
-        {
-            if (doc.RootElement.TryGetProperty("error", out var errorElement)
-                && errorElement.ValueKind == JsonValueKind.String
-                && !string.IsNullOrWhiteSpace(errorElement.GetString()))
-            {
-                throw new InvalidOperationException(errorElement.GetString());
-            }
-
-            if (doc.RootElement.TryGetProperty("resultJson", out var resultJsonElement))
-            {
-                return resultJsonElement.ValueKind == JsonValueKind.String
-                    ? resultJsonElement.GetString()
-                    : resultJsonElement.ValueKind == JsonValueKind.Null
-                        ? null
-                        : resultJsonElement.GetRawText();
-            }
-        }
-
-        return body;
+        return "slot";
     }
 
     private Task<HttpResponseMessage> SendKernelPostAsync<TPayload>(
@@ -295,7 +192,8 @@ public sealed class IntoChatClient : IBrain
     private static async Task EnsureSuccessAsync(
         HttpResponseMessage response,
         string path,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ILogger? logger = null)
     {
         if (response.IsSuccessStatusCode)
         {
@@ -303,182 +201,169 @@ public sealed class IntoChatClient : IBrain
         }
 
         var detail = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        var errorMessage = ExtractErrorDetail(detail, logger);
+
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(errorMessage ?? $"Access denied by kernel sandbox endpoint '{path}'.");
+        }
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            throw new FileNotFoundException(errorMessage ?? $"Resource not found at kernel sandbox endpoint '{path}'.");
+        }
+
         throw new HttpRequestException(
             $"Kernel sandbox endpoint '{path}' failed with status {(int)response.StatusCode} ({response.ReasonPhrase}): {detail}",
             null,
             response.StatusCode);
     }
 
-    private sealed class NotificationsProxy(IntoChatClient client) : INotifications
+    private static string? ExtractErrorDetail(string body, ILogger? logger)
     {
-        private static readonly string ContractName = typeof(INotifications).FullName!;
-
-        public Task<NotificationReceipt> SendAsync(NotificationRequest request, CancellationToken cancellationToken = default)
+        if (string.IsNullOrWhiteSpace(body))
         {
-            ArgumentNullException.ThrowIfNull(request);
-            return client.InvokeAsync<NotificationReceipt>(ContractName, nameof(SendAsync), null, [request], cancellationToken);
+            return null;
         }
 
-        public Task<NotificationReceipt> NotifyAsync(
-            string title,
-            string body,
-            NotificationPriority priority = NotificationPriority.Normal,
-            CancellationToken cancellationToken = default)
+        if (!body.AsSpan().TrimStart().StartsWith("{", StringComparison.Ordinal))
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(title);
-            ArgumentNullException.ThrowIfNull(body);
-            return client.InvokeAsync<NotificationReceipt>(ContractName, nameof(NotifyAsync), null, [title, body, priority], cancellationToken);
+            return body;
         }
 
-        public Task<NotificationItem[]> ListAsync(int limit = 50, bool unreadOnly = false, CancellationToken cancellationToken = default)
-            => client.InvokeAsync<NotificationItem[]>(ContractName, nameof(ListAsync), null, [limit, unreadOnly], cancellationToken);
-
-        public Task MarkReadAsync(string notificationId, CancellationToken cancellationToken = default)
+        try
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(notificationId);
-            return client.InvokeVoidAsync(ContractName, nameof(MarkReadAsync), null, [notificationId], cancellationToken);
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("error", out var errorElement)
+                && errorElement.ValueKind == JsonValueKind.String)
+            {
+                return errorElement.GetString();
+            }
+        }
+        catch (JsonException error)
+        {
+            var effectiveLogger = logger is not null && logger.IsEnabled(LogLevel.Warning)
+                ? logger
+                : SandboxConsoleLog.For<IntoChatClient>();
+            effectiveLogger.LogSwallowed(error, "Parsing sandbox invoke error payload.");
         }
 
-        public Task MarkAllReadAsync(CancellationToken cancellationToken = default)
-            => client.InvokeVoidAsync(ContractName, nameof(MarkAllReadAsync), null, [], cancellationToken);
+        return body;
     }
 
-    private sealed class AiProxy(IntoChatClient client) : IAi
+    internal sealed class SandboxInvocationSink(IntoChatClient client) : IInvocationSink
     {
-        private static readonly string ContractName = typeof(IAi).FullName!;
-
-        public Task<string> AskAsync(string prompt, string? systemPrompt = null, CancellationToken cancellationToken = default)
+        public async Task<JsonElement?> Invoke(NeuronId target, RuntimeInvocation call, CancellationToken cancellationToken)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
-            return client.InvokeAsync<string>(ContractName, nameof(AskAsync), null, [prompt, systemPrompt], cancellationToken);
+            ArgumentNullException.ThrowIfNull(call);
+            var slot = string.Equals(target.Key, DefaultSlotKey, StringComparison.Ordinal) ? null : target.Key;
+            var argsJson = JsonSerializer.Serialize(call.Arguments, JsonOptions);
+            var payload = new SandboxInvokeRequest(call.Contract, call.Method, slot, argsJson);
+
+            using var response = await client.SendKernelPostAsync("/edge/sandbox/invoke", payload, cancellationToken).ConfigureAwait(false);
+            await EnsureSuccessAsync(response, "/edge/sandbox/invoke", cancellationToken, client._logger).ConfigureAwait(false);
+
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                return null;
+            }
+
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                if (doc.RootElement.TryGetProperty("error", out var errorElement)
+                    && errorElement.ValueKind == JsonValueKind.String
+                    && !string.IsNullOrWhiteSpace(errorElement.GetString()))
+                {
+                    throw new InvalidOperationException(errorElement.GetString());
+                }
+
+                if (doc.RootElement.TryGetProperty("resultJson", out var resultJsonElement))
+                {
+                    var resultJson = resultJsonElement.ValueKind == JsonValueKind.String
+                        ? resultJsonElement.GetString()
+                        : resultJsonElement.ValueKind == JsonValueKind.Null
+                            ? null
+                            : resultJsonElement.GetRawText();
+
+                    if (string.IsNullOrWhiteSpace(resultJson))
+                    {
+                        return null;
+                    }
+
+                    using var resultDoc = JsonDocument.Parse(resultJson);
+                    return resultDoc.RootElement.Clone();
+                }
+            }
+
+            return doc.RootElement.Clone();
         }
 
-        public Task<T> ExtractAsync<T>(string prompt, CancellationToken cancellationToken = default)
+        public Task Post(NeuronId target, RuntimeInvocation call)
+            => Invoke(target, call, CancellationToken.None);
+
+        public async IAsyncEnumerable<JsonElement> Stream(
+            NeuronId target,
+            RuntimeInvocation call,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask.ConfigureAwait(false);
+            throw new NotSupportedException("Streaming neuron calls are not supported over the sandbox edge.");
+#pragma warning disable CS0162
+            yield break;
+#pragma warning restore CS0162
+        }
+    }
+
+    private sealed class AiProxy(SandboxInvocationSink sink, BrainId brainId) : IAi
+    {
+        private static readonly string ContractName = typeof(IAi).FullName!;
+        private readonly BrainId _brainId = brainId;
+        private readonly NeuronId _defaultTarget = new(brainId, "ai", DefaultSlotKey);
+
+        public async Task<string> AskAsync(string prompt, string? systemPrompt = null, CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
+            var call = new RuntimeInvocation(
+                Behavior: "sandbox",
+                Contract: ContractName,
+                Key: DefaultSlotKey,
+                Method: nameof(AskAsync),
+                Arguments:
+                [
+                    JsonSerializer.SerializeToElement(prompt, JsonOptions),
+                    JsonSerializer.SerializeToElement(systemPrompt, JsonOptions),
+                ]);
+
+            var result = await sink.Invoke(_defaultTarget, call, cancellationToken).ConfigureAwait(false);
+            return result is { } json ? json.Deserialize<string>(JsonOptions) ?? string.Empty : string.Empty;
+        }
+
+        public async Task<T> ExtractAsync<T>(string prompt, CancellationToken cancellationToken = default)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
             var targetTypeName = typeof(T).FullName ?? typeof(T).Name;
-            return client.InvokeAsync<T>(ContractName, nameof(ExtractAsync), targetTypeName, [prompt], cancellationToken);
+            var target = new NeuronId(_brainId, "ai", targetTypeName);
+            var call = new RuntimeInvocation(
+                Behavior: "sandbox",
+                Contract: ContractName,
+                Key: targetTypeName,
+                Method: nameof(ExtractAsync),
+                Arguments: [JsonSerializer.SerializeToElement(prompt, JsonOptions)]);
+
+            var result = await sink.Invoke(target, call, cancellationToken).ConfigureAwait(false);
+            return result is { } json ? json.Deserialize<T>(JsonOptions)! : default!;
         }
     }
 
-    private sealed class TablesProxy(IntoChatClient client) : ITables
+    private sealed class TablesProxy(SandboxInvocationSink sink, BrainId brainId) : ITables
     {
         public ITableHandle Table(string name)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
-            return new TableHandleProxy(client, name);
+            return NeuronProxy.Create<ITableHandle>(new NeuronId(brainId, "table", name), sink);
         }
-    }
-
-    private sealed class TableHandleProxy(IntoChatClient client, string tableName) : ITableHandle
-    {
-        private static readonly string ContractName = typeof(ITableHandle).FullName!;
-
-        public Task EnsureAsync(TableColumnSpec[] columns, CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(columns);
-            return client.InvokeVoidAsync(ContractName, nameof(EnsureAsync), tableName, [columns], cancellationToken);
-        }
-
-        public Task UpsertAsync(string key, string jsonRow, CancellationToken cancellationToken = default)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(key);
-            ArgumentNullException.ThrowIfNull(jsonRow);
-            return client.InvokeVoidAsync(ContractName, nameof(UpsertAsync), tableName, [key, jsonRow], cancellationToken);
-        }
-
-        public Task<string?> GetAsync(string key, CancellationToken cancellationToken = default)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(key);
-            return client.InvokeAsync<string?>(ContractName, nameof(GetAsync), tableName, [key], cancellationToken);
-        }
-
-        public Task<TableRow[]> ListAsync(int offset = 0, int limit = 100, CancellationToken cancellationToken = default)
-            => client.InvokeAsync<TableRow[]>(ContractName, nameof(ListAsync), tableName, [offset, limit], cancellationToken);
-
-        public Task<bool> DeleteAsync(string key, CancellationToken cancellationToken = default)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(key);
-            return client.InvokeAsync<bool>(ContractName, nameof(DeleteAsync), tableName, [key], cancellationToken);
-        }
-    }
-
-    private sealed class FolderProxy(IntoChatClient client, string slot) : IFolder
-    {
-        private static readonly string ContractName = typeof(IFolder).FullName!;
-
-        public async Task<FolderEntry[]> ListAsync(string relativePath = "", CancellationToken cancellationToken = default)
-            => await client.InvokeAsync<FolderEntry[]>(ContractName, nameof(ListAsync), slot, [relativePath], cancellationToken).ConfigureAwait(false)
-                ?? [];
-
-        public Task<string> ReadTextAsync(string relativePath, CancellationToken cancellationToken = default)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
-            return client.InvokeAsync<string>(ContractName, nameof(ReadTextAsync), slot, [relativePath], cancellationToken);
-        }
-
-        public async Task<byte[]> ReadBytesAsync(string relativePath, CancellationToken cancellationToken = default)
-            => await client.InvokeAsync<byte[]>(ContractName, nameof(ReadBytesAsync), slot, [relativePath], cancellationToken).ConfigureAwait(false)
-                ?? [];
-
-        public Task WriteTextAsync(string relativePath, string content, CancellationToken cancellationToken = default)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
-            ArgumentNullException.ThrowIfNull(content);
-            return client.InvokeVoidAsync(ContractName, nameof(WriteTextAsync), slot, [relativePath, content], cancellationToken);
-        }
-
-        public Task WriteBytesAsync(string relativePath, byte[] content, CancellationToken cancellationToken = default)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
-            ArgumentNullException.ThrowIfNull(content);
-            return client.InvokeVoidAsync(ContractName, nameof(WriteBytesAsync), slot, [relativePath, content], cancellationToken);
-        }
-
-        public Task<bool> ExistsAsync(string relativePath, CancellationToken cancellationToken = default)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
-            return client.InvokeAsync<bool>(ContractName, nameof(ExistsAsync), slot, [relativePath], cancellationToken);
-        }
-
-        public Task DeleteAsync(string relativePath, CancellationToken cancellationToken = default)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
-            return client.InvokeVoidAsync(ContractName, nameof(DeleteAsync), slot, [relativePath], cancellationToken);
-        }
-
-        public Task MoveAsync(string sourceRelativePath, string destinationRelativePath, CancellationToken cancellationToken = default)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(sourceRelativePath);
-            ArgumentException.ThrowIfNullOrWhiteSpace(destinationRelativePath);
-            return client.InvokeVoidAsync(ContractName, nameof(MoveAsync), slot, [sourceRelativePath, destinationRelativePath], cancellationToken);
-        }
-    }
-}
-
-/// <summary>Dynamic proxy forwarding interface calls on <see cref="IBrain.Slot{TContract}"/> to <see cref="IntoChatClient"/>.</summary>
-internal class ContractDispatchProxy : DispatchProxy
-{
-    private IntoChatClient? _client;
-    private string? _contractName;
-    private string? _slot;
-
-    internal void Configure(IntoChatClient client, string contractName, string? slot)
-    {
-        _client = client;
-        _contractName = contractName;
-        _slot = slot;
-    }
-
-    protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
-    {
-        ArgumentNullException.ThrowIfNull(targetMethod);
-
-        if (_client is null || _contractName is null)
-        {
-            throw new InvalidOperationException("ContractDispatchProxy has not been configured.");
-        }
-
-        return _client.InvokeProxyMethod(_contractName, _slot, targetMethod, args);
     }
 }

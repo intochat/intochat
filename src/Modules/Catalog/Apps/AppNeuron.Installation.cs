@@ -48,7 +48,7 @@ internal sealed partial class AppNeuron
         next.Settings = bundle.Manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
         if (!string.IsNullOrWhiteSpace(bundle.CompiledType))
         {
-            next.PutSetting(InProcessAppRuntime.CompiledTypeKey, bundle.CompiledType);
+            next.PutSetting(AppTrust.CompiledTypeSetting, bundle.CompiledType);
         }
         next.Connections = new Dictionary<string, string>();
         next.Version = bundle.Version;
@@ -90,7 +90,7 @@ internal sealed partial class AppNeuron
         { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default); } }
         if (!string.IsNullOrWhiteSpace(bundle.CompiledType))
         {
-            next.PutSetting(InProcessAppRuntime.CompiledTypeKey, bundle.CompiledType);
+            next.PutSetting(AppTrust.CompiledTypeSetting, bundle.CompiledType);
         }
         next.Version = bundle.Version;
         Adopt(next, origin);
@@ -179,21 +179,12 @@ internal sealed partial class AppNeuron
             await DeploySandboxPackageAsync(package, CancellationToken.None).ConfigureAwait(false);
             return;
         }
-        if (!HasProgram(State)) { return; }
-        var configuration = Configuration(State);
-        using (InProcessCallerScope.Enter())
-        {
-            // Reassign the source on activation so a new host's contracts replace old calls, even when the app's version did not change.
-            await Runtime.Deploy(Key, configuration, CancellationToken.None);
-        }
+        VerifyCompiledProgramType();
     }
-
-    // The in-process host is the only runtime; it holds nothing, so each call takes a fresh one.
-    private InProcessAppRuntime Runtime => new(services ?? throw new InvalidOperationException("No services"));
 
     // An app runs only when it names a compiled module type; anything else is data.
     private static bool HasProgram(AppState state)
-        => state.Settings.TryGetValue(InProcessAppRuntime.CompiledTypeKey, out var ct) && !string.IsNullOrWhiteSpace(ct);
+        => state.Settings.TryGetValue(AppTrust.CompiledTypeSetting, out var ct) && !string.IsNullOrWhiteSpace(ct);
 
     // The whole program, every time: the runtime decides what changed. No program means nothing runs.
     private async Task Deploy()
@@ -204,10 +195,24 @@ internal sealed partial class AppNeuron
             await DeploySandboxPackageAsync(package, CancellationToken.None).ConfigureAwait(false);
             return;
         }
-        if (!HasProgram(State)) { await Runtime.Retire(Key, CancellationToken.None); return; }
-        using (InProcessCallerScope.Enter())
+        VerifyCompiledProgramType();
+    }
+
+    private void VerifyCompiledProgramType()
+    {
+        if (!State.Settings.TryGetValue(AppTrust.CompiledTypeSetting, out var typeName)
+            || string.IsNullOrWhiteSpace(typeName))
         {
-            await Runtime.Deploy(Key, Configuration(State), CancellationToken.None);
+            return;
+        }
+
+        var resolved = Type.GetType(typeName, throwOnError: false)
+            ?? AppDomain.CurrentDomain.GetAssemblies()
+                .Select(assembly => assembly.GetType(typeName, throwOnError: false))
+                .FirstOrDefault(type => type is not null);
+        if (resolved is null)
+        {
+            throw new InvalidOperationException($"Compiled app type '{typeName}' could not be resolved.");
         }
     }
 
