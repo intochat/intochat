@@ -8,7 +8,7 @@ using Npgsql;
 
 namespace IntoChat.OS.Modules.Postgres;
 
-public interface IPostgresSourceRegistry
+internal interface IPostgresSourceRegistry
 {
     Task<NpgsqlDataSource> Get(TablePlacement placement, CancellationToken ct = default);
 }

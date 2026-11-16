@@ -56,7 +56,7 @@ public static partial class InoView
         return selected;
     }
 
-    public static Conversation Conversation(InoAppState s)
+    public static Conversation Conversation(InoAppState s, bool dictation = false)
     {
         ArgumentNullException.ThrowIfNull(s);
         var shown = Shown(s);
@@ -118,7 +118,8 @@ public static partial class InoView
                 "Ask anything.",
                 Enabled: s.ActiveRunId is null && s.Pending is null && !s.Blocked,
                 ActiveModelLabel: activeModelVisual?.Label,
-                ActiveProviderIcon: activeModelVisual?.IconKey),
+                ActiveProviderIcon: activeModelVisual?.IconKey,
+                Dictation: dictation),
             Waiting: waiting,
             Status: ConversationStatusOf(s),
             Error: errorLine,
@@ -126,10 +127,10 @@ public static partial class InoView
             Empty: shown.Count == 0 ? Empty("What do you need?") : null);
     }
 
-    public static View Screen(InoAppState s)
+    public static View Screen(InoAppState s, bool dictation = false)
     {
         ArgumentNullException.ThrowIfNull(s);
-        var conversation = Conversation(s);
+        var conversation = Conversation(s, dictation);
         if (HasUnprojectedVaultSecretPrompt(s))
         {
             Node[] topNodes = [.. s.ActiveCards.SelectMany(RenderCardNodes), conversation];
@@ -199,8 +200,8 @@ public static partial class InoView
 
     private static ActivityNode ToActivityNode(InoActivity a)
     {
-        var visual = ResolveActivityVisual(a);
-        return new ActivityNode(a.Id, visual.Label, a.Error is { Length: > 0 } ? "failed" : "done", StripNeuronUri(a.Error ?? a.Result), visual.IconKey, visual.Category);
+        var (visual, detail) = ResolveActivityPresentation(a);
+        return new ActivityNode(a.Id, visual.Label, a.Error is { Length: > 0 } ? "failed" : "done", detail, visual.IconKey, visual.Category);
     }
 
     private static string ConversationStatusOf(InoAppState s)
@@ -213,17 +214,20 @@ public static partial class InoView
         => string.IsNullOrWhiteSpace(model) ? null : VisualCatalog.ForModel(model);
 
     public static VisualDescriptor ResolveApprovalVisual(string? sourceOrSubject)
-        => VisualCatalog.TryForContract(sourceOrSubject, out var found) ? found
-            : !string.IsNullOrWhiteSpace(sourceOrSubject) && sourceOrSubject.Trim().StartsWith("change-", StringComparison.OrdinalIgnoreCase)
-                ? VisualCatalog.ForContract("IGitHub")
-                : VisualCatalog.ForContract("IConfirmations");
+        => VisualCatalog.ForApproval(sourceOrSubject);
 
     public static VisualDescriptor ResolveActivityVisual(InoActivity activity)
+        => ResolveActivityPresentation(activity).Visual;
+
+    public static (VisualDescriptor Visual, string? Detail) ResolveActivityPresentation(InoActivity activity)
     {
         ArgumentNullException.ThrowIfNull(activity);
+        var rawResult = StripNeuronUri(activity.Error ?? activity.Result);
+        var resultDetail = string.IsNullOrWhiteSpace(rawResult) ? null : rawResult;
+
         if (string.IsNullOrWhiteSpace(activity.Title))
         {
-            return new VisualDescriptor("Tool call", "capability:studio", "#64748B", "Tool");
+            return (new VisualDescriptor("Tool call", "capability:studio", "#64748B", "Tool"), resultDetail);
         }
 
         var clean = StripNeuronUri(activity.Title);
@@ -233,24 +237,34 @@ public static partial class InoView
             var tail = clean[(sep + 3)..].Trim();
             if (VisualCatalog.TryForContract(head, out var preformatted))
             {
-                return string.IsNullOrWhiteSpace(tail) ? preformatted : preformatted with { Label = $"{preformatted.Label} · {tail}" };
+                return (preformatted, CombineActivityDetail(string.IsNullOrWhiteSpace(tail) ? null : tail, resultDetail));
             }
         }
 
         if (VisualCatalog.TryForContract(clean, out var direct))
         {
             var action = ExtractMethodSuffix(clean, direct.Label);
-            return string.IsNullOrWhiteSpace(action) ? direct : direct with { Label = $"{direct.Label} · {action}" };
+            return (direct, CombineActivityDetail(action, resultDetail));
         }
 
-        return clean switch
+        var fallback = clean switch
         {
             "neurons_search" => new VisualDescriptor("Capability Search", "capability:studio", "#6366F1", "Studio"),
             "neurons_list" => new VisualDescriptor("Capability List", "capability:studio", "#6366F1", "Studio"),
             "neurons_context" => new VisualDescriptor("Brain Context", "brand:intochat", "#6366F1", "Studio"),
             _ => new VisualDescriptor(StripInternalToolLabel(clean), "capability:studio", "#64748B", "Tool"),
         };
+        return (fallback, resultDetail);
     }
+
+    private static string? CombineActivityDetail(string? action, string? result)
+        => (action, result) switch
+        {
+            ({ Length: > 0 } a, { Length: > 0 } r) => $"{a} · {r}",
+            ({ Length: > 0 } a, _) => a,
+            (_, { Length: > 0 } r) => r,
+            _ => null,
+        };
 
     private static string? ExtractMethodSuffix(string rawTitle, string resolvedLabel)
     {
@@ -335,7 +349,7 @@ public static partial class InoView
         return new ApprovalCardNode(
             $"approval-{approval.PlanId}", approval.PlanId, approval.Title, approval.Detail,
             [new ApprovalRowNode("Subject", "", approval.Subject)],
-            SystemName: "Ino", Status: "pending", Resolve: new Resolve(approval.PlanId),
+            SystemName: "Ino", Status: "pending",
             Icon: visual.IconKey, CapabilityLabel: visual.Label);
     }
 

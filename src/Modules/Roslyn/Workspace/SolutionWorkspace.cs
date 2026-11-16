@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
-public sealed class SolutionWorkspace(ISolutionLoader loader, ILogger<SolutionWorkspace> logger) : IDisposable
+internal sealed class SolutionWorkspace(ISolutionLoader loader, ILogger<SolutionWorkspace> logger) : IDisposable
 {
     private readonly Lock _gate = new();
     private readonly CancellationTokenSource _lifetime = new();

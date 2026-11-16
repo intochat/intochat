@@ -7,39 +7,44 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.Tests.Unit;
 
 public sealed class GitHubPolicyFacts
 {
-    private static readonly NeuronId PoliciesId = NeuronId.Parse(IPolicies.Key("b"));
-
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static Task Adopt(TestOS os, PolicyRule rule) => os.AdoptPolicy("b", rule, Ct);
 
-    private static async Task<(TestOS Os, GitHubRepositoryNeuron Neuron, FakeGitHubSource Source)> CreateHarnessAsync()
+    private static Task<(TestOS Os, IRepository Neuron, FakeGitHubSource Source)> CreateHarnessAsync()
     {
-        var os = TestOS.Local().Register(typeof(GitHubModule).Assembly);
         var source = new FakeGitHubSource();
+        var services = new ServiceCollection();
+        GitHubModule.ConfigureServices(services, new global::Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
+        services.AddSingleton<DigitalBrain.Capabilities.Connections.Integrations.IModuleIntegrations<GitHubModule>>(new FakeIntegrations());
+        services.AddSingleton<IGitHubRepositorySource>(source);
+        var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register(typeof(GitHubModule).Assembly);
         var id = new NeuronId(new BrainId("b"), "github", "connection/github/main");
-        var context = new FakeNeuronContext(id);
-        context.Proxies.Register(PoliciesId, os.Get<IPolicies>(PoliciesId));
-        await context.MemoryState.Save(
-            new GitHubRepositoryState
-            {
-                Status = ConnectionStatus.Connected,
-                RepositoryId = 12345,
-                Owner = "intochat",
-                Name = "os",
-                Account = "intochat/os",
-            },
-            []);
+        os.SeedStoredState(
+            id,
+            System.Text.Json.JsonSerializer.Serialize(
+                new GitHubRepositoryState
+                {
+                    Status = ConnectionStatus.Connected,
+                    RepositoryId = 12345,
+                    Owner = "intochat",
+                    Name = "os",
+                    Account = "intochat/os",
+                },
+                DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(GitHubRepositoryState))));
 
-        var neuron = new GitHubRepositoryNeuron(source, null!, null!, null!);
-        NeuronAttachment.Attach(neuron, context);
-        await NeuronAttachment.Activate(neuron, CancellationToken.None);
-        return (os, neuron, source);
+        return Task.FromResult((os, os.Get<IRepository>(id), source));
+    }
+
+    private sealed class FakeIntegrations : DigitalBrain.Capabilities.Connections.Integrations.IModuleIntegrations<GitHubModule>
+    {
+        public DigitalBrain.Capabilities.Connections.Integrations.IIntegrationHandle Get(string integrationId) => throw new NotSupportedException();
     }
 
     [Fact]

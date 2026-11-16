@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Authority.Identity.Authority;
 using IntoChat.OS.Connections.Identity;
@@ -8,19 +10,19 @@ using IntoChat.OS.Framework.Modules.Platform.Identity;
 namespace IntoChat.OS.Authority.Identity;
 
 // The in-module directory facade. State lives on DirectoryNeuron; product callers use ICapabilityBroker.
-internal sealed class LocalIdentityClient(AuthorityNeurons neurons) : IIdentityClient
+internal sealed class LocalIdentityClient(AuthorityNeurons neurons, EdgeAuthority? edge = null) : IIdentityClient
 {
     private IDirectoryStore Directory => neurons.Directory();
 
-    private static async Task<T> SystemCall<T>(Func<Task<T>> call)
+    private async Task<T> SystemCall<T>(Func<Task<T>> call)
     {
-        using var _ = InProcessCallerScope.EnterKernel("system");
+        using var _ = edge?.Enter(edge.Module("identity.directory", new BrainId("system")));
         return await call();
     }
 
-    private static async Task SystemCall(Func<Task> call)
+    private async Task SystemCall(Func<Task> call)
     {
-        using var _ = InProcessCallerScope.EnterKernel("system");
+        using var _ = edge?.Enter(edge.Module("identity.directory", new BrainId("system")));
         await call();
     }
 

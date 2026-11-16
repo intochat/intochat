@@ -165,7 +165,6 @@ public sealed class JournalTailEndpointsFacts
         {
             var caller = CapabilityCallers.Of("ada", "owner", Brain, CallerKind.User);
             using (RuntimeCallerContext.StampScope(caller))
-            using ((IDisposable)typeof(DigitalBrain.Brains.BrainScope).Assembly.GetType("DigitalBrain.Brains.CallerAdmission")!.GetMethod("Stamp", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.Invoke(null, [caller])!)
             {
                 await next(http);
             }

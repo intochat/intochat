@@ -7,4 +7,4 @@ namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 // the trip, via the base Exception message.
 [GenerateSerializer]
 [Alias("coding.workspace-not-ready")]
-public sealed class WorkspaceNotReadyException(WorkspaceStatus status) : InvalidOperationException(status.Advice);
+internal sealed class WorkspaceNotReadyException(WorkspaceStatus status) : InvalidOperationException(status.Advice);

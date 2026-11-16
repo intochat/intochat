@@ -1,6 +1,3 @@
-using System.Collections.Concurrent;
-using System.Collections.Frozen;
-using System.Diagnostics;
 using System.Globalization;
 using System.Security;
 using System.Security.Cryptography;
@@ -8,150 +5,78 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 
 /// <summary>
-/// Options controlling <see cref="WorkTreeService"/> home directory, repository allowlist path, and CLI timeouts.
+/// Options controlling <see cref="WorkTreeService"/> home directory, repository allowlist path, policy, and CLI timeouts.
 /// </summary>
 public sealed class WorkTreeOptions
 {
-    /// <summary>Override root home directory (defaults to <c>IntoChatOS__Home</c> or <c>%USERPROFILE%\.intochat</c>).</summary>
     public string? HomeDirectory { get; set; }
 
-    /// <summary>Explicit path to <c>repos.json</c> (defaults to <c>&lt;HomeDirectory&gt;/repos.json</c>).</summary>
     public string? ReposConfigPath { get; set; }
 
-    /// <summary>Maximum changed files permitted in a single Feature-to-PR run (default: 5).</summary>
-    public int MaxChangedFiles { get; set; } = 5;
+    public int MaxChangedFiles
+    {
+        get => Policy.MaxChangedFiles;
+        set => Policy = new ChangePolicy(value, Policy.AllowedExtensions, Policy.BlockedFileNames);
+    }
 
-    /// <summary>Timeout per git/gh subprocess invocation.</summary>
+    public ChangePolicy Policy { get; set; } = ChangePolicy.Default;
+
     public TimeSpan CommandTimeout { get; set; } = TimeSpan.FromSeconds(60);
+
+    public bool VerifyFormatting { get; set; } = true;
+
+    public string? ToolPath { get; set; }
 }
 
 /// <summary>
-/// Production implementation of <see cref="IWorkTree"/> enforcing:
-/// <list type="bullet">
-/// <item><description>Allowlisted repositories (<c>~/.intochat/repos.json</c>, <see cref="IConfiguration"/>, or programmatic registration)</description></item>
-/// <item><description>Isolated external worktrees (<c>&lt;Home&gt;/worktrees/&lt;repo&gt;/&lt;runId&gt;</c>) that never touch the source checkout or its stashes</description></item>
-/// <item><description>Triple Git Lock (R10): SHA-256 verification of <c>&lt;treePath&gt;/.git</c>, explicit <c>--git-dir</c> + <c>--work-tree</c>, <c>core.fsmonitor=false</c>, <c>core.hooksPath=/dev/null</c>, <c>protocol.file.allow=never</c>, and <c>GIT_CONFIG_NOSYSTEM=1</c></description></item>
-/// <item><description>Deterministic C# path gate: NUL-delimited <c>git status -z --no-renames</c>, max 5 files, extension allowlist, dotfile/agent-instruction blocklist, symlink/submodule rejection</description></item>
-/// <item><description>Single commit authored as <c>Ino &lt;ino@intochat.ai&gt;</c> + <c>gh pr create --draft</c> from an empty temp directory</description></item>
-/// </list>
+/// Application service coordinating <see cref="RepositoryAllowlist"/>, <see cref="GitCommandRunner"/>,
+/// Triple Git Lock verification, and <see cref="ChangePolicy"/> enforcement.
 /// </summary>
 public sealed partial class WorkTreeService : IWorkTree
 {
     public const string AuthorName = "Ino";
     public const string AuthorEmail = "ino@intochat.ai";
 
-    private static readonly FrozenSet<string> AllowedExtensions = new[]
-    {
-        ".cs",
-        ".md",
-        ".dart",
-        ".txt",
-        ".xaml",
-        ".svg",
-    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
-
-    private static readonly FrozenSet<string> BlockedFileNames = new[]
-    {
-        "claude.md",
-        "agents.md",
-        "skill.md",
-        "copilot-instructions.md",
-    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
-
-    private readonly ConcurrentDictionary<string, RegisteredRepository> _programmatic = new(StringComparer.OrdinalIgnoreCase);
-    private readonly IConfiguration? _configuration;
+    private static readonly WorkTreeOptions DefaultOptions = new();
     private readonly WorkTreeOptions _options;
     private readonly ILogger<WorkTreeService> _logger;
+    private readonly RepositoryAllowlist _allowlist;
+    private readonly GitCommandRunner _git;
 
     public WorkTreeService(
         IConfiguration? configuration = null,
         WorkTreeOptions? options = null,
         ILogger<WorkTreeService>? logger = null)
     {
-        _configuration = configuration;
-        _options = options ?? new WorkTreeOptions();
-        _logger = logger ?? NullLogger<WorkTreeService>.Instance;
+        _options = options ?? DefaultOptions;
+        _logger = logger ?? OsConsoleLog.For<WorkTreeService>();
+        _allowlist = new RepositoryAllowlist(configuration, _options, _logger);
+        _git = new GitCommandRunner(_options, _logger);
     }
 
-    public string HomeDirectory => ResolveHomeDirectory();
+    public string HomeDirectory => _allowlist.HomeDirectory;
 
-    public void RegisterRepository(RegisteredRepository repository)
-    {
-        ArgumentNullException.ThrowIfNull(repository);
-        ArgumentException.ThrowIfNullOrWhiteSpace(repository.Id);
-        ArgumentException.ThrowIfNullOrWhiteSpace(repository.LocalPath);
+    public void RegisterRepository(RegisteredRepository repository) => _allowlist.Register(repository);
 
-        var normalized = repository with
-        {
-            Id = repository.Id.Trim(),
-            LocalPath = Path.GetFullPath(repository.LocalPath.Trim()),
-        };
-        _programmatic[normalized.Id] = normalized;
-    }
+    public IReadOnlyList<RegisteredRepository> ListRepositories() => _allowlist.List();
 
-    public IReadOnlyList<RegisteredRepository> ListRepositories()
-    {
-        var merged = new Dictionary<string, RegisteredRepository>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var entry in LoadFromConfiguration())
-        {
-            merged[entry.Id] = entry;
-        }
-
-        foreach (var entry in LoadFromReposJson())
-        {
-            merged[entry.Id] = entry;
-        }
-
-        foreach (var (key, entry) in _programmatic)
-        {
-            merged[key] = entry;
-        }
-
-        return [.. merged.Values.OrderBy(r => r.Id, StringComparer.OrdinalIgnoreCase)];
-    }
-
-    public RegisteredRepository ResolveRepository(string repositoryId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(repositoryId);
-        var wanted = repositoryId.Trim();
-        var all = ListRepositories();
-
-        var direct = all.FirstOrDefault(r => string.Equals(r.Id, wanted, StringComparison.OrdinalIgnoreCase));
-        if (direct is not null)
-        {
-            return direct;
-        }
-
-        // Also match if caller passed "intochat/os" when registered under "os" with GitHubRepo == "intochat/os", or vice versa
-        var bySlug = all.FirstOrDefault(r =>
-            (!string.IsNullOrWhiteSpace(r.GitHubRepo) && string.Equals(r.GitHubRepo, wanted, StringComparison.OrdinalIgnoreCase))
-            || (wanted.Contains('/', StringComparison.Ordinal) && string.Equals(r.Id, wanted[(wanted.LastIndexOf('/') + 1)..], StringComparison.OrdinalIgnoreCase)));
-        if (bySlug is not null)
-        {
-            return bySlug;
-        }
-
-        var known = all.Count == 0 ? "none configured" : string.Join(", ", all.Select(r => r.Id));
-        throw new UnauthorizedAccessException(
-            $"Repository '{wanted}' is not registered in the allowlist ({ReposJsonPath}). Known repositories: {known}.");
-    }
+    public RegisteredRepository ResolveRepository(RepositoryId repositoryId) => _allowlist.Resolve(repositoryId);
 
     public async Task<WorkTreeLease> PrepareAsync(
-        string repositoryId,
+        RepositoryId repositoryId,
         string runId,
         string goal,
-        string? baseBranch = null,
+        BranchName? baseBranch = null,
         CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(repositoryId);
+        ArgumentNullException.ThrowIfNull(repositoryId);
         ArgumentException.ThrowIfNullOrWhiteSpace(runId);
         ArgumentException.ThrowIfNullOrWhiteSpace(goal);
 
@@ -162,21 +87,18 @@ public sealed partial class WorkTreeService : IWorkTree
             throw new DirectoryNotFoundException($"Registered repository '{repo.Id}' path does not exist: {sourcePath}");
         }
 
-        var safeRepoDir = SanitizeSegment(repo.Id);
-        var safeRunId = SanitizeSegment(runId);
-        var shortRunId = safeRunId.Length <= 8 ? safeRunId : safeRunId[..8];
-        var slug = SlugifyGoal(goal);
-        var branchName = $"ino/{slug}-{shortRunId}";
+        var safeRepoDir = BranchName.SanitizeSegment(repo.Id);
+        var safeRunId = BranchName.SanitizeSegment(runId);
+        var branch = BranchName.CreateFeatureBranch(goal, runId);
 
         var treePath = Path.GetFullPath(Path.Combine(HomeDirectory, "worktrees", safeRepoDir, safeRunId));
         if (Directory.Exists(treePath))
         {
             await RemoveWorktreeDirectoryAsync(sourcePath, treePath, ct).ConfigureAwait(false);
         }
+
         Directory.CreateDirectory(Path.GetDirectoryName(treePath)!);
 
-        // Read the origin without modifying the source checkout. A run with nowhere to push is not started:
-        // its approval would name a remote that is not there, and publish would push to whatever origin is added later.
         var originUrl = await TryGetOriginUrlAsync(sourcePath, ct).ConfigureAwait(false);
         var pushUrl = await TryGetOriginUrlAsync(sourcePath, ct, push: true).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(originUrl) || string.IsNullOrWhiteSpace(pushUrl))
@@ -187,60 +109,44 @@ public sealed partial class WorkTreeService : IWorkTree
         var githubRepo = repo.GitHubRepo ?? ParseGitHubOwnerRepo(originUrl);
         var allowLocalFileTransport = IsLocalFilesystemRemote(originUrl);
 
-        // Fetch origin refs safely (updates refs/remotes/origin/* only; never touches working tree, index, HEAD, or stashes!)
-        var fetch = await RunProcessAsync(
-            "git",
-            BuildSourceGitArgs(sourcePath, allowLocalFileTransport, "fetch", "origin", "--prune", "--no-tags"),
-            workingDirectory: sourcePath,
-            ct: ct).ConfigureAwait(false);
+        var fetch = await _git.RunSourceGitAsync(sourcePath, allowLocalFileTransport, ct, "fetch", "origin", "--prune", "--no-tags").ConfigureAwait(false);
         if (fetch.ExitCode != 0)
         {
             _logger.LogWarning("Non-fatal git fetch warning on {Repo}: {StdErr}", repo.Id, fetch.StdErr);
         }
 
-        var (resolvedBaseBranch, startRef) = await ResolveBaseBranchAndStartRefAsync(
-            sourcePath,
-            baseBranch ?? repo.DefaultBaseBranch,
-            ct).ConfigureAwait(false);
+        var requestedBase = baseBranch ?? (string.IsNullOrWhiteSpace(repo.DefaultBaseBranch)
+            ? null
+            : BranchName.FromRequestedBase(repo.DefaultBaseBranch));
+        var (resolvedBaseBranch, startRef) = await ResolveRemoteBaseBranchAsync(sourcePath, requestedBase, ct).ConfigureAwait(false);
 
-        var baseShaResult = await RunProcessAsync(
-            "git",
-            BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, "rev-parse", "--verify", $"{startRef}^{{commit}}"),
-            workingDirectory: sourcePath,
-            ct: ct).ConfigureAwait(false);
-        EnsureSuccess(baseShaResult, $"resolve base commit '{startRef}'");
-        var baseSha = baseShaResult.StdOut.Trim();
+        var baseShaResult = await _git.RunSourceGitAsync(sourcePath, false, ct, "rev-parse", "--verify", $"{startRef}^{{commit}}").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(baseShaResult, $"resolve base commit '{startRef}'");
+        var baseSha = CommitSha.Parse(baseShaResult.StdOut);
 
-        // The push sends every commit the remote lacks, and the approval shows one. A base that is only local
-        // (a branch never pushed, or one an earlier run left behind) would carry its own commits along unseen.
-        var unpushed = await RunProcessAsync(
-            "git",
-            BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, "rev-list", "--count", baseSha, "--not", "--remotes=origin"),
-            workingDirectory: sourcePath,
-            ct: ct).ConfigureAwait(false);
-        EnsureSuccess(unpushed, $"compare base '{resolvedBaseBranch}' with origin");
+        var unpushed = await _git.RunSourceGitAsync(sourcePath, false, ct, "rev-list", "--count", baseSha.Value, "--not", "--remotes=origin").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(unpushed, $"compare base '{resolvedBaseBranch.Value}' with origin");
         if (unpushed.StdOut.Trim() != "0")
         {
             throw new SecurityException(
-                $"Refusing to start from base '{resolvedBaseBranch}': it has {unpushed.StdOut.Trim()} commit(s) the remote does not have. Push the base first or name a branch that is on the remote.");
+                $"Refusing to start from base '{resolvedBaseBranch.Value}': it has {unpushed.StdOut.Trim()} commit(s) the remote does not have. Push the base first or name a branch that is on the remote.");
         }
 
-        // Prune stale worktree metadata if an earlier crashed run left a dead registration
-        _ = await RunProcessAsync(
-            "git",
-            BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, "worktree", "prune"),
-            workingDirectory: sourcePath,
-            ct: ct).ConfigureAwait(false);
+        _ = await _git.RunSourceGitAsync(sourcePath, false, ct, "worktree", "prune").ConfigureAwait(false);
 
-        // Create external worktree on new branch ino/<slug>-<shortRunId> starting strictly at baseSha
-        var addResult = await RunProcessAsync(
-            "git",
-            BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, "worktree", "add", "--no-track", "-B", branchName, treePath, baseSha),
-            workingDirectory: sourcePath,
-            ct: ct).ConfigureAwait(false);
-        EnsureSuccess(addResult, $"create isolated worktree at '{treePath}'");
+        var addResult = await _git.RunSourceGitAsync(
+            sourcePath,
+            false,
+            ct,
+            "worktree",
+            "add",
+            "--no-track",
+            "-B",
+            branch.Value,
+            treePath,
+            baseSha.Value).ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(addResult, $"create isolated worktree at '{treePath}'");
 
-        // Record Triple Git Lock (R10): exact .git pointer file bytes + canonical RealGitDirPath
         var dotGitFile = Path.Combine(treePath, ".git");
         var attr = File.GetAttributes(dotGitFile);
         if ((attr & FileAttributes.Directory) != 0 || (attr & FileAttributes.ReparsePoint) != 0)
@@ -260,14 +166,14 @@ public sealed partial class WorkTreeService : IWorkTree
             TreePath: treePath,
             RealGitDirPath: realGitDir,
             GitPointerSha256Hex: pointerHashHex,
-            BaseBranch: resolvedBaseBranch,
-            BaseCommitSha: baseSha,
-            BranchName: branchName,
+            BaseBranch: resolvedBaseBranch.Value,
+            BaseCommitSha: baseSha.Value,
+            BranchName: branch.Value,
             GitHubRepo: githubRepo,
             OriginUrl: WithoutCredentials(pushUrl));
     }
 
-    public async Task<WorkTreeCommit> VerifyAndCommitAsync(
+    public async Task<ChangeSet> VerifyAndCommitAsync(
         WorkTreeLease lease,
         string commitMessage,
         CancellationToken ct = default)
@@ -275,141 +181,109 @@ public sealed partial class WorkTreeService : IWorkTree
         ArgumentNullException.ThrowIfNull(lease);
         ArgumentException.ThrowIfNullOrWhiteSpace(commitMessage);
 
-        // 1. Triple Git Lock (R10): Verify <TreePath>/.git is still a regular non-reparse file with 100% identical bytes!
         await VerifyTripleGitLockAsync(lease, ct).ConfigureAwait(false);
 
-        // 2. Verify HEAD is still at BaseCommitSha (unless idempotently re-entering on an already-created 1-commit branch)
-        var headCheck = await RunLockedGitAsync(lease, allowLocalFileTransport: false, ct, "rev-parse", "--verify", "HEAD").ConfigureAwait(false);
-        EnsureSuccess(headCheck, "read worktree HEAD");
-        var currentHead = headCheck.StdOut.Trim();
+        var headCheck = await _git.RunLockedGitAsync(lease, false, ct, "rev-parse", "--verify", "HEAD").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(headCheck, "read worktree HEAD");
+        var currentHead = CommitSha.Parse(headCheck.StdOut);
 
-        // 3. Deterministic C# Path Gate via NUL-delimited `git status -z --porcelain=v1 --no-renames -uall`
-        var statusResult = await RunLockedGitAsync(
+        var statusResult = await _git.RunLockedGitAsync(
             lease,
-            allowLocalFileTransport: false,
+            false,
             ct,
             "status", "-z", "--porcelain=v1", "--no-renames", "-uall").ConfigureAwait(false);
-        EnsureSuccess(statusResult, "inspect worktree status");
+        GitCommandRunner.EnsureSuccess(statusResult, "inspect worktree status");
 
-        var changedPaths = ParsePorcelainZPaths(statusResult.StdOut);
+        var rawChangedPaths = ParsePorcelainZPaths(statusResult.StdOut);
+        var baseSha = CommitSha.Parse(lease.BaseCommitSha);
 
-        // Idempotent recovery: if step already committed 1 commit ahead of BaseCommitSha and working tree is now clean, return that commit!
-        if (changedPaths.Count == 0 && !string.Equals(currentHead, lease.BaseCommitSha, StringComparison.OrdinalIgnoreCase))
+        // Idempotent recovery: if step already committed 1 commit ahead of BaseCommitSha and working tree is clean, verify & return it.
+        if (rawChangedPaths.Count == 0 && currentHead != baseSha)
         {
             await EnsureSingleCommitAheadAsync(lease, currentHead, ct).ConfigureAwait(false);
-            var existingFilesResult = await RunLockedGitAsync(
+            var existingFilesResult = await _git.RunLockedGitAsync(
                 lease,
-                allowLocalFileTransport: false,
+                false,
                 ct,
-                "diff", "--name-only", "-z", "--no-renames", $"{lease.BaseCommitSha}..{currentHead}").ConfigureAwait(false);
-            EnsureSuccess(existingFilesResult, "list committed files");
-            var committedFiles = existingFilesResult.StdOut
-                .Split('\0', StringSplitOptions.RemoveEmptyEntries)
-                .Select(NormalizeRepoRelativePath)
-                .OrderBy(p => p, StringComparer.Ordinal)
-                .ToArray();
-            ValidateChangedPaths(lease.TreePath, committedFiles);
+                "diff", "--name-only", "-z", "--no-renames", $"{baseSha.Value}..{currentHead.Value}").ConfigureAwait(false);
+            GitCommandRunner.EnsureSuccess(existingFilesResult, "list committed files");
+            var existingRaw = existingFilesResult.StdOut.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+            var verifiedExisting = _options.Policy.Enforce(lease.TreePath, existingRaw);
+            await _git.VerifyCSharpFormattingAsync(lease.TreePath, verifiedExisting, ct).ConfigureAwait(false);
             var existingDiff = await RenderUnifiedDiffAsync(lease, currentHead, ct).ConfigureAwait(false);
-            return BuildCommitRecord(currentHead, committedFiles, existingDiff);
+            return ChangeSet.FromDiff(currentHead, verifiedExisting, existingDiff);
         }
 
-        if (!string.Equals(currentHead, lease.BaseCommitSha, StringComparison.OrdinalIgnoreCase))
+        if (currentHead != baseSha)
         {
             throw new SecurityException(
-                $"Worktree HEAD ('{currentHead}') diverged from base commit ('{lease.BaseCommitSha}') before host commit.");
+                $"Worktree HEAD ('{currentHead.Value}') diverged from base commit ('{baseSha.Value}') before host commit.");
         }
 
-        if (changedPaths.Count == 0)
+        if (rawChangedPaths.Count == 0)
         {
             throw new InvalidOperationException("Coder produced zero file modifications in the worktree.");
         }
 
-        ValidateChangedPaths(lease.TreePath, changedPaths);
+        var changedPaths = _options.Policy.Enforce(lease.TreePath, rawChangedPaths);
+        await _git.VerifyCSharpFormattingAsync(lease.TreePath, changedPaths, ct).ConfigureAwait(false);
 
-        // 4. Stage validated paths explicitly and verify index modes (no 120000 symlinks or 160000 gitlinks)
-        var addArgs = new List<string>(changedPaths.Count + 3) { "add", "-A", "--" };
-        addArgs.AddRange(changedPaths);
-        var stageResult = await RunLockedGitAsync(lease, allowLocalFileTransport: false, ct, [.. addArgs]).ConfigureAwait(false);
-        EnsureSuccess(stageResult, "stage validated files");
+        var pathArgs = changedPaths.Select(static p => p.Value).ToArray();
+        var stageResult = await _git.RunLockedGitAsync(lease, false, ct, ["add", "-A", "--", .. pathArgs]).ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(stageResult, "stage validated files");
 
-        var lsStage = await RunLockedGitAsync(
-            lease,
-            allowLocalFileTransport: false,
-            ct,
-            ["ls-files", "--stage", "-z", "--", .. changedPaths]).ConfigureAwait(false);
-        EnsureSuccess(lsStage, "verify staged git index modes");
+        var lsStage = await _git.RunLockedGitAsync(lease, false, ct, ["ls-files", "--stage", "-z", "--", .. pathArgs]).ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(lsStage, "verify staged git index modes");
         VerifyIndexModes(lsStage.StdOut);
 
-        // 5. Create exactly ONE commit authored as Ino <ino@intochat.ai> with GPG signing & hooks disabled
-        var cleanMessage = SanitizeCommitMessage(commitMessage);
-        var commitResult = await RunLockedGitAsync(
+        var cleanMessage = ChangePolicy.SanitizeCommitText(commitMessage);
+        if (cleanMessage.Length == 0)
+        {
+            cleanMessage = "chore(ino): automated change";
+        }
+
+        var commitResult = await _git.RunLockedGitAsync(
             lease,
-            allowLocalFileTransport: false,
+            false,
             ct,
             "-c", $"user.name={AuthorName}",
             "-c", $"user.email={AuthorEmail}",
             "-c", "commit.gpgsign=false",
             "commit", "--no-verify", "-m", cleanMessage).ConfigureAwait(false);
-        EnsureSuccess(commitResult, "create single worktree commit");
+        GitCommandRunner.EnsureSuccess(commitResult, "create single worktree commit");
 
-        // Re-verify Triple Git Lock after commit
         await VerifyTripleGitLockAsync(lease, ct).ConfigureAwait(false);
 
-        var shaResult = await RunLockedGitAsync(lease, allowLocalFileTransport: false, ct, "rev-parse", "--verify", "HEAD").ConfigureAwait(false);
-        EnsureSuccess(shaResult, "read committed SHA");
-        var commitSha = shaResult.StdOut.Trim();
+        var shaResult = await _git.RunLockedGitAsync(lease, false, ct, "rev-parse", "--verify", "HEAD").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(shaResult, "read committed SHA");
+        var commitSha = CommitSha.Parse(shaResult.StdOut);
 
         await EnsureSingleCommitAheadAsync(lease, commitSha, ct).ConfigureAwait(false);
 
         var diff = await RenderUnifiedDiffAsync(lease, commitSha, ct).ConfigureAwait(false);
-        return BuildCommitRecord(commitSha, changedPaths, diff);
+        return ChangeSet.FromDiff(commitSha, changedPaths, diff);
     }
 
-    public async Task<PublishedPrResult> PublishAsync(
+    public async Task<string> PushAsync(
         WorkTreeLease lease,
-        string approvedSha,
-        string prTitle,
-        string prBody,
+        CommitSha approvedSha,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(lease);
-        ArgumentException.ThrowIfNullOrWhiteSpace(approvedSha);
-        ArgumentException.ThrowIfNullOrWhiteSpace(prTitle);
+        ArgumentNullException.ThrowIfNull(approvedSha);
 
-        if (!lease.BranchName.StartsWith("ino/", StringComparison.Ordinal))
+        var branch = BranchName.Parse(lease.BranchName);
+        if (!branch.IsFeatureBranch)
         {
-            throw new SecurityException($"Refusing to push branch '{lease.BranchName}': branch name must start with 'ino/'.");
+            throw new SecurityException($"Refusing to push branch '{branch.Value}': branch name must start with 'ino/'.");
         }
 
-        // 1. Re-verify Triple Git Lock + exact HEAD SHA + 1-commit-ahead + clean working tree
-        await VerifyTripleGitLockAsync(lease, ct).ConfigureAwait(false);
-
-        var headResult = await RunLockedGitAsync(lease, allowLocalFileTransport: false, ct, "rev-parse", "--verify", "HEAD").ConfigureAwait(false);
-        EnsureSuccess(headResult, "verify HEAD before push");
-        var headSha = headResult.StdOut.Trim();
-        if (!string.Equals(headSha, approvedSha.Trim(), StringComparison.OrdinalIgnoreCase))
-        {
-            throw new SecurityException(
-                $"Approved commit SHA mismatch: person approved '{approvedSha}', but worktree HEAD is '{headSha}'.");
-        }
-
-        await EnsureSingleCommitAheadAsync(lease, headSha, ct).ConfigureAwait(false);
-
-        var dirtyCheck = await RunLockedGitAsync(lease, allowLocalFileTransport: false, ct, "status", "--porcelain=v1", "-z", "-uall").ConfigureAwait(false);
-        EnsureSuccess(dirtyCheck, "verify clean worktree before push");
-        if (!string.IsNullOrEmpty(dirtyCheck.StdOut))
-        {
-            throw new SecurityException("Refusing to push: worktree contains uncommitted modifications after commit verification.");
-        }
-
-        // 2. Push exact <approvedSha>:refs/heads/<branchName> to origin
         var originUrl = await TryGetOriginUrlAsync(lease.SourceRepoPath, ct).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(originUrl))
         {
             throw new InvalidOperationException($"Repository '{lease.RepositoryId}' has no 'origin' remote configured.");
         }
 
-        // The person approved a push to the remote the lease recorded. A lease made before the remote was recorded is not checked.
         var pushUrl = WithoutCredentials(await TryGetOriginUrlAsync(lease.SourceRepoPath, ct, push: true).ConfigureAwait(false));
         if (lease.OriginUrl is { } approvedUrl && !string.Equals(approvedUrl, pushUrl, StringComparison.Ordinal))
         {
@@ -417,35 +291,133 @@ public sealed partial class WorkTreeService : IWorkTree
         }
 
         var allowLocalFileTransport = IsLocalFilesystemRemote(originUrl);
-        var targetRef = $"refs/heads/{lease.BranchName}";
-        var pushResult = await RunLockedGitAsync(
+        var targetRef = branch.RemoteRef;
+
+        // Idempotent check: if origin already holds this exact approved commit on targetRef, return without failing.
+        var remoteCheck = await _git.RunSourceGitAsync(
+            lease.SourceRepoPath,
+            allowLocalFileTransport,
+            ct,
+            "ls-remote",
+            "--heads",
+            "origin",
+            branch.Value).ConfigureAwait(false);
+        if (remoteCheck.ExitCode == 0 && TryParseLsRemoteSha(remoteCheck.StdOut, targetRef, out var remoteSha))
+        {
+            if (remoteSha == approvedSha)
+            {
+                return targetRef;
+            }
+
+            throw new SecurityException(
+                $"Refusing to overwrite remote branch '{targetRef}': origin already points to '{remoteSha.Value}', expected '{approvedSha.Value}'.");
+        }
+
+        await VerifyTripleGitLockAsync(lease, ct).ConfigureAwait(false);
+
+        var headResult = await _git.RunLockedGitAsync(lease, false, ct, "rev-parse", "--verify", "HEAD").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(headResult, "verify HEAD before push");
+        var headSha = CommitSha.Parse(headResult.StdOut);
+        if (headSha != approvedSha)
+        {
+            throw new SecurityException(
+                $"Approved commit SHA mismatch: person approved '{approvedSha.Value}', but worktree HEAD is '{headSha.Value}'.");
+        }
+
+        await EnsureSingleCommitAheadAsync(lease, headSha, ct).ConfigureAwait(false);
+        await EnsureSingleUnpushedCommitAgainstOriginAsync(lease, headSha, ct).ConfigureAwait(false);
+
+        var dirtyCheck = await _git.RunLockedGitAsync(lease, false, ct, "status", "--porcelain=v1", "-z", "-uall").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(dirtyCheck, "verify clean worktree before push");
+        if (!string.IsNullOrEmpty(dirtyCheck.StdOut))
+        {
+            throw new SecurityException("Refusing to push: worktree contains uncommitted modifications after commit verification.");
+        }
+
+        var pushResult = await _git.RunLockedGitAsync(
             lease,
             allowLocalFileTransport: allowLocalFileTransport,
             ct,
-            "push", "--porcelain", "--no-verify", "origin", $"{headSha}:{targetRef}").ConfigureAwait(false);
-        EnsureSuccess(pushResult, $"push '{headSha}:{targetRef}' to origin");
+            "push", "--porcelain", "--no-verify", "origin", $"{headSha.Value}:{targetRef}").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(pushResult, $"push '{headSha.Value}:{targetRef}' to origin");
 
-        // 3. Create Draft Pull Request via `gh pr create --draft` from an EMPTY temp directory when remote is GitHub
-        string? prUrl = null;
+        return targetRef;
+    }
+
+    public async Task<string?> CreateDraftPullRequestAsync(
+        WorkTreeLease lease,
+        string prTitle,
+        string prBody,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        ArgumentException.ThrowIfNullOrWhiteSpace(prTitle);
+
+        var originUrl = await TryGetOriginUrlAsync(lease.SourceRepoPath, ct).ConfigureAwait(false);
         var githubRepo = lease.GitHubRepo ?? ParseGitHubOwnerRepo(originUrl);
-        if (!string.IsNullOrWhiteSpace(githubRepo) && !allowLocalFileTransport)
+        if (string.IsNullOrWhiteSpace(githubRepo))
         {
-            prUrl = await CreateGitHubDraftPrFromEmptyDirAsync(
-                githubRepo,
-                lease.BranchName,
-                lease.BaseBranch,
-                prTitle.Trim(),
-                prBody ?? string.Empty,
-                ct).ConfigureAwait(false);
+            return null;
         }
 
-        // 4. Clean up isolated worktree without touching source checkout
+        var branch = BranchName.Parse(lease.BranchName);
+        var baseBranch = BranchName.Parse(lease.BaseBranch);
+        var cleanTitle = ChangePolicy.SanitizeCommitText(prTitle);
+        if (cleanTitle.Length == 0)
+        {
+            cleanTitle = "Automated change";
+        }
+
+        // Idempotent check: reuse an already-created PR if a prior attempt crashed after `gh pr create`.
+        var existingResult = await _git.RunGhFromEmptyDirAsync(
+            ct,
+            "pr", "list",
+            "--repo", githubRepo,
+            "--head", branch.Value,
+            "--state", "all",
+            "--json", "url",
+            "--limit", "1").ConfigureAwait(false);
+        if (existingResult.ExitCode == 0 && TryExtractExistingPrUrl(existingResult.StdOut) is { } existingUrl)
+        {
+            return existingUrl;
+        }
+
+        var createResult = await _git.RunGhFromEmptyDirAsync(
+            ct,
+            "pr", "create",
+            "--draft",
+            "--repo", githubRepo,
+            "--head", branch.Value,
+            "--base", baseBranch.Value,
+            "--title", cleanTitle,
+            "--body", prBody ?? string.Empty).ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(createResult, $"create draft PR on '{githubRepo}'");
+
+        return createResult.StdOut
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .LastOrDefault(static line => line.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            ?? createResult.StdOut.Trim();
+    }
+
+    public async Task<PublishedPrResult> PublishAsync(
+        WorkTreeLease lease,
+        CommitSha approvedSha,
+        string prTitle,
+        string prBody,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        ArgumentNullException.ThrowIfNull(approvedSha);
+        ArgumentException.ThrowIfNullOrWhiteSpace(prTitle);
+
+        var pushedRef = await PushAsync(lease, approvedSha, ct).ConfigureAwait(false);
+        var prUrl = await CreateDraftPullRequestAsync(lease, prTitle, prBody, ct).ConfigureAwait(false);
         await CleanupAsync(lease, ct).ConfigureAwait(false);
 
         return new PublishedPrResult(
-            CommitSha: headSha,
-            BranchName: lease.BranchName,
-            PushedRef: targetRef,
+            Commit: approvedSha,
+            Branch: BranchName.Parse(lease.BranchName),
+            PushedRef: pushedRef,
             PullRequestUrl: prUrl);
     }
 
@@ -456,9 +428,8 @@ public sealed partial class WorkTreeService : IWorkTree
     }
 
     /// <summary>
-    /// Verifies Triple Git Lock (R10): <c>&lt;TreePath&gt;/.git</c> exists as a regular file (never a directory or symlink/junction),
-    /// its exact bytes match <see cref="WorkTreeLease.GitPointerSha256Hex"/> in constant time, and its <c>gitdir:</c> still resolves
-    /// to <see cref="WorkTreeLease.RealGitDirPath"/>.
+    /// Verifies Triple Git Lock (R10): <c>&lt;TreePath&gt;/.git</c> exists as a regular file,
+    /// matches <see cref="WorkTreeLease.GitPointerSha256Hex"/> in constant time, and resolves to <see cref="WorkTreeLease.RealGitDirPath"/>.
     /// </summary>
     public static async Task VerifyTripleGitLockAsync(WorkTreeLease lease, CancellationToken ct = default)
     {
@@ -470,6 +441,7 @@ public sealed partial class WorkTreeService : IWorkTree
             {
                 throw new SecurityException($"Triple Git Lock violation: '{dotGitPath}' was replaced with a directory.");
             }
+
             throw new SecurityException($"Triple Git Lock violation: '{dotGitPath}' is missing.");
         }
 
@@ -497,261 +469,6 @@ public sealed partial class WorkTreeService : IWorkTree
         }
     }
 
-    internal void ValidateChangedPaths(string treeRoot, IReadOnlyList<string> paths)
-    {
-        if (paths.Count > _options.MaxChangedFiles)
-        {
-            throw new SecurityException(
-                $"Path gate rejected change: {paths.Count} files modified, exceeding the maximum of {_options.MaxChangedFiles} files.");
-        }
-
-        var fullRoot = EnsureTrailingSeparator(Path.GetFullPath(treeRoot));
-        foreach (var rawPath in paths)
-        {
-            var rel = NormalizeRepoRelativePath(rawPath);
-            if (string.IsNullOrWhiteSpace(rel) || Path.IsPathRooted(rel))
-            {
-                throw new SecurityException($"Path gate rejected invalid or rooted path '{rawPath}'.");
-            }
-
-            var segments = rel.Split('/', StringSplitOptions.None);
-            foreach (var seg in segments)
-            {
-                if (seg.Length == 0 || seg is "." or "..")
-                {
-                    throw new SecurityException($"Path gate rejected traversal segment in '{rel}'.");
-                }
-
-                // Block ALL dotfiles and dot-directories (.git, .github, .claude, .vscode, .gitignore, etc.)
-                if (seg.StartsWith('.'))
-                {
-                    throw new SecurityException($"Path gate rejected dotfile or hidden directory path '{rel}'.");
-                }
-            }
-
-            var fileName = segments[^1];
-            if (BlockedFileNames.Contains(fileName))
-            {
-                throw new SecurityException($"Path gate rejected agent instruction file '{rel}'.");
-            }
-
-            var ext = Path.GetExtension(fileName);
-            if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
-            {
-                throw new SecurityException(
-                    $"Path gate rejected disallowed file extension '{ext}' on '{rel}'. Allowed: {string.Join(", ", AllowedExtensions.Order())}.");
-            }
-
-            // Canonicalize on disk and verify no symlink / junction along any ancestor segment or leaf
-            var candidateFull = Path.GetFullPath(Path.Combine(treeRoot, rel.Replace('/', Path.DirectorySeparatorChar)));
-            if (!candidateFull.StartsWith(fullRoot, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
-            {
-                throw new SecurityException($"Path gate rejected path escaping worktree root: '{rel}'.");
-            }
-
-            EnsureNoReparsePointsInHierarchy(treeRoot, candidateFull);
-        }
-    }
-
-    private static void EnsureNoReparsePointsInHierarchy(string treeRoot, string targetFullPath)
-    {
-        var stopAt = Path.GetFullPath(treeRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var current = targetFullPath;
-        while (!string.IsNullOrEmpty(current) && !PathsEqual(current, stopAt))
-        {
-            if (File.Exists(current) || Directory.Exists(current))
-            {
-                var info = new FileInfo(current);
-                if ((info.Attributes & FileAttributes.ReparsePoint) != 0 || info.LinkTarget is not null)
-                {
-                    throw new SecurityException($"Path gate rejected symlink or reparse point at '{current}'.");
-                }
-            }
-            current = Path.GetDirectoryName(current);
-        }
-    }
-
-    private static void VerifyIndexModes(string lsFilesStageZ)
-    {
-        foreach (var entry in lsFilesStageZ.Split('\0', StringSplitOptions.RemoveEmptyEntries))
-        {
-            // Format: "<mode> <object> <stage>\t<file>"
-            var space = entry.IndexOf(' ', StringComparison.Ordinal);
-            if (space <= 0) { continue; }
-            var mode = entry[..space];
-            if (mode is "120000")
-            {
-                throw new SecurityException($"Path gate rejected staged symlink entry ('{entry}').");
-            }
-            if (mode is "160000")
-            {
-                throw new SecurityException($"Path gate rejected staged submodule/gitlink entry ('{entry}').");
-            }
-            if (mode is not ("100644" or "100755"))
-            {
-                throw new SecurityException($"Path gate rejected unexpected git index mode '{mode}' ('{entry}').");
-            }
-        }
-    }
-
-    private async Task EnsureSingleCommitAheadAsync(WorkTreeLease lease, string commitSha, CancellationToken ct)
-    {
-        var countResult = await RunLockedGitAsync(
-            lease,
-            allowLocalFileTransport: false,
-            ct,
-            "rev-list", "--count", $"{lease.BaseCommitSha}..{commitSha}").ConfigureAwait(false);
-        EnsureSuccess(countResult, "verify commit count ahead of base");
-        if (!int.TryParse(countResult.StdOut.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var count) || count != 1)
-        {
-            throw new SecurityException(
-                $"Expected exactly 1 commit ahead of base '{lease.BaseCommitSha}', but found {countResult.StdOut.Trim()}.");
-        }
-    }
-
-    private async Task<string> RenderUnifiedDiffAsync(WorkTreeLease lease, string commitSha, CancellationToken ct)
-    {
-        var diffResult = await RunLockedGitAsync(
-            lease,
-            allowLocalFileTransport: false,
-            ct,
-            "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "--unified=3", $"{lease.BaseCommitSha}..{commitSha}").ConfigureAwait(false);
-        EnsureSuccess(diffResult, "render host unified diff");
-        return diffResult.StdOut;
-    }
-
-    private static WorkTreeCommit BuildCommitRecord(string commitSha, IReadOnlyList<string> changedPaths, string diff)
-    {
-        var additions = 0;
-        var deletions = 0;
-        foreach (var line in diff.Split('\n'))
-        {
-            if (line.StartsWith("+++", StringComparison.Ordinal) || line.StartsWith("---", StringComparison.Ordinal))
-            {
-                continue;
-            }
-            if (line.StartsWith('+')) { additions++; }
-            else if (line.StartsWith('-')) { deletions++; }
-        }
-
-        return new WorkTreeCommit(
-            CommitSha: commitSha,
-            ChangedFiles: [.. changedPaths.Select(NormalizeRepoRelativePath).Distinct(StringComparer.Ordinal).OrderBy(p => p, StringComparer.Ordinal)],
-            HostRenderedDiff: diff,
-            Additions: additions,
-            Deletions: deletions);
-    }
-
-    private async Task<string> CreateGitHubDraftPrFromEmptyDirAsync(
-        string githubRepo,
-        string headBranch,
-        string baseBranch,
-        string title,
-        string body,
-        CancellationToken ct)
-    {
-        var emptyDir = Path.Combine(Path.GetTempPath(), "intochat-gh-empty-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(emptyDir);
-        try
-        {
-            var result = await RunProcessAsync(
-                "gh",
-                [
-                    "pr", "create",
-                    "--draft",
-                    "--repo", githubRepo,
-                    "--head", headBranch,
-                    "--base", baseBranch,
-                    "--title", title,
-                    "--body", body,
-                ],
-                workingDirectory: emptyDir,
-                ct: ct).ConfigureAwait(false);
-            EnsureSuccess(result, $"create draft PR on '{githubRepo}'");
-            var url = result.StdOut
-                .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .LastOrDefault(line => line.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-                ?? result.StdOut.Trim();
-            return url;
-        }
-        finally
-        {
-            try { Directory.Delete(emptyDir, recursive: true); }
-            catch (Exception ex) { _logger.LogSwallowed(ex, "Best-effort cleanup of empty gh working directory."); }
-        }
-    }
-
-    private async Task RemoveWorktreeDirectoryAsync(string sourceRepoPath, string treePath, CancellationToken ct)
-    {
-        if (Directory.Exists(sourceRepoPath))
-        {
-            _ = await RunProcessAsync(
-                "git",
-                BuildSourceGitArgs(sourceRepoPath, allowLocalFileTransport: false, "worktree", "remove", "--force", treePath),
-                workingDirectory: sourceRepoPath,
-                ct: ct).ConfigureAwait(false);
-            _ = await RunProcessAsync(
-                "git",
-                BuildSourceGitArgs(sourceRepoPath, allowLocalFileTransport: false, "worktree", "prune"),
-                workingDirectory: sourceRepoPath,
-                ct: ct).ConfigureAwait(false);
-        }
-
-        if (Directory.Exists(treePath))
-        {
-            try
-            {
-                ClearReadOnlyAttributes(treePath);
-                Directory.Delete(treePath, recursive: true);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogSwallowed(ex, "Best-effort directory delete during worktree cleanup.");
-            }
-        }
-    }
-
-    private static void LockDotGitPointer(string dotGitFile, FileAttributes currentAttributes)
-    {
-        if (OperatingSystem.IsWindows())
-        {
-            File.SetAttributes(dotGitFile, currentAttributes | FileAttributes.ReadOnly);
-        }
-        else
-        {
-            File.SetUnixFileMode(dotGitFile, UnixFileMode.UserRead | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
-        }
-    }
-
-    private void ClearReadOnlyAttributes(string directory)
-    {
-        foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
-        {
-            try
-            {
-                if (!OperatingSystem.IsWindows())
-                {
-                    File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-                }
-                File.SetAttributes(file, FileAttributes.Normal);
-            }
-            catch (IOException ex) { _logger.LogSwallowed(ex, "Best-effort clear ReadOnly attribute (IO)."); }
-            catch (UnauthorizedAccessException ex) { _logger.LogSwallowed(ex, "Best-effort clear ReadOnly attribute (ACL)."); }
-        }
-    }
-
-    // push: every address a push goes to, one per line. A pushurl or a pushInsteadOf rule can make them differ from the one fetched from.
-    private async Task<string?> TryGetOriginUrlAsync(string sourcePath, CancellationToken ct, bool push = false)
-    {
-        string[] getUrl = push ? ["remote", "get-url", "--push", "--all", "origin"] : ["remote", "get-url", "origin"];
-        var res = await RunProcessAsync(
-            "git",
-            BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, getUrl),
-            workingDirectory: sourcePath,
-            ct: ct).ConfigureAwait(false);
-        return res.ExitCode == 0 && !string.IsNullOrWhiteSpace(res.StdOut) ? res.StdOut.Trim() : null;
-    }
-
     /// <summary>
     /// The remote address without the user name, password or token a URL can carry before its host.
     /// A remote with several push addresses gives one per line.
@@ -774,191 +491,192 @@ public sealed partial class WorkTreeService : IWorkTree
                 }
 
                 var hostStart = scheme + 3;
-                // Git ends the host at '/', '?' or '#', whichever comes first.
                 var pathStart = url.IndexOfAny(['/', '?', '#'], hostStart);
                 var at = (pathStart < 0 ? url[hostStart..] : url[hostStart..pathStart]).LastIndexOf('@');
                 return at < 0 ? url : url[..hostStart] + url[(hostStart + at + 1)..];
             }));
     }
 
-    private async Task<(string BaseBranch, string StartRef)> ResolveBaseBranchAndStartRefAsync(
+    private async Task<(BranchName BaseBranch, string StartRef)> ResolveRemoteBaseBranchAsync(
         string sourcePath,
-        string? requestedBranch,
+        BranchName? requestedBranch,
         CancellationToken ct)
     {
-        if (!string.IsNullOrWhiteSpace(requestedBranch))
+        if (requestedBranch is not null)
         {
-            var clean = requestedBranch.Trim();
-            if (clean.StartsWith("origin/", StringComparison.Ordinal))
+            var remoteRef = $"refs/remotes/origin/{requestedBranch.Value}";
+            if (await RefExistsAsync(sourcePath, remoteRef, ct).ConfigureAwait(false))
             {
-                clean = clean["origin/".Length..];
+                return (requestedBranch, remoteRef);
             }
 
-            if (await RefExistsAsync(sourcePath, $"refs/remotes/origin/{clean}", ct).ConfigureAwait(false))
-            {
-                return (clean, $"refs/remotes/origin/{clean}");
-            }
-            if (await RefExistsAsync(sourcePath, $"refs/heads/{clean}", ct).ConfigureAwait(false))
-            {
-                return (clean, $"refs/heads/{clean}");
-            }
+            // F-12: strict single base rule — never fall back to local branches or HEAD when origin lacks the requested branch.
+            throw new SecurityException(
+                $"Refusing to start from base '{requestedBranch.Value}': the remote does not have branch '{requestedBranch.Value}'. Push the base first or name a branch that is on the remote.");
         }
 
-        // 1. Try git symbolic-ref refs/remotes/origin/HEAD (e.g. refs/remotes/origin/refactor/ddd-clean-os)
-        var sym = await RunProcessAsync(
-            "git",
-            BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, "symbolic-ref", "-q", "refs/remotes/origin/HEAD"),
-            workingDirectory: sourcePath,
-            ct: ct).ConfigureAwait(false);
+        var sym = await _git.RunSourceGitAsync(sourcePath, false, ct, "symbolic-ref", "-q", "refs/remotes/origin/HEAD").ConfigureAwait(false);
         if (sym.ExitCode == 0 && sym.StdOut.Trim() is { Length: > 0 } symRef)
         {
             const string prefix = "refs/remotes/origin/";
-            if (symRef.StartsWith(prefix, StringComparison.Ordinal))
+            if (symRef.StartsWith(prefix, StringComparison.Ordinal)
+                && await RefExistsAsync(sourcePath, symRef, ct).ConfigureAwait(false))
             {
-                var branch = symRef[prefix.Length..];
-                if (await RefExistsAsync(sourcePath, symRef, ct).ConfigureAwait(false))
-                {
-                    return (branch, symRef);
-                }
+                return (BranchName.Parse(symRef[prefix.Length..]), symRef);
             }
         }
 
-        // 2. Probe well-known remote branches
         foreach (var candidate in new[] { "refactor/ddd-clean-os", "main", "master" })
         {
             var remoteRef = $"refs/remotes/origin/{candidate}";
             if (await RefExistsAsync(sourcePath, remoteRef, ct).ConfigureAwait(false))
             {
-                return (candidate, remoteRef);
+                return (BranchName.Parse(candidate), remoteRef);
             }
         }
 
-        // 3. Fallback to current source branch or local main/master/HEAD (e.g. local repo without remote refs)
-        var headBranch = await RunProcessAsync(
-            "git",
-            BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, "rev-parse", "--abbrev-ref", "HEAD"),
-            workingDirectory: sourcePath,
-            ct: ct).ConfigureAwait(false);
+        var headBranch = await _git.RunSourceGitAsync(sourcePath, false, ct, "rev-parse", "--abbrev-ref", "HEAD").ConfigureAwait(false);
         if (headBranch.ExitCode == 0 && headBranch.StdOut.Trim() is { Length: > 0 } b && b != "HEAD")
         {
-            if (await RefExistsAsync(sourcePath, $"refs/remotes/origin/{b}", ct).ConfigureAwait(false))
+            var remoteRef = $"refs/remotes/origin/{b}";
+            if (await RefExistsAsync(sourcePath, remoteRef, ct).ConfigureAwait(false))
             {
-                return (b, $"refs/remotes/origin/{b}");
+                return (BranchName.Parse(b), remoteRef);
             }
-            return (b, "HEAD");
         }
 
-        return ("main", "HEAD");
+        throw new SecurityException("Refusing to start: origin has no remote tracking branches available as a base.");
     }
 
     private async Task<bool> RefExistsAsync(string sourcePath, string fullRef, CancellationToken ct)
     {
-        var res = await RunProcessAsync(
-            "git",
-            BuildSourceGitArgs(sourcePath, allowLocalFileTransport: false, "show-ref", "--verify", "--quiet", fullRef),
-            workingDirectory: sourcePath,
-            ct: ct).ConfigureAwait(false);
+        var res = await _git.RunSourceGitAsync(sourcePath, false, ct, "show-ref", "--verify", "--quiet", fullRef).ConfigureAwait(false);
         return res.ExitCode == 0;
     }
 
-    private Task<ProcessOutput> RunLockedGitAsync(
-        WorkTreeLease lease,
-        bool allowLocalFileTransport,
-        CancellationToken ct,
-        params string[] gitSubArgs)
+    private async Task EnsureSingleCommitAheadAsync(WorkTreeLease lease, CommitSha commitSha, CancellationToken ct)
     {
-        var protocolPolicy = allowLocalFileTransport ? "protocol.file.allow=always" : "protocol.file.allow=never";
-        var args = new List<string>(gitSubArgs.Length + 8)
+        var countResult = await _git.RunLockedGitAsync(lease, false, ct, "rev-list", "--count", $"{lease.BaseCommitSha}..{commitSha.Value}").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(countResult, "verify commit count ahead of base");
+        if (!int.TryParse(countResult.StdOut.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var count) || count != 1)
         {
-            $"--git-dir={lease.RealGitDirPath}",
-            $"--work-tree={lease.TreePath}",
-            "-c", "core.fsmonitor=false",
-            "-c", "core.hooksPath=/dev/null",
-            "-c", protocolPolicy,
-        };
-        args.AddRange(gitSubArgs);
-        return RunProcessAsync("git", args, workingDirectory: lease.TreePath, ct: ct);
-    }
-
-    private static List<string> BuildSourceGitArgs(string sourcePath, bool allowLocalFileTransport, params string[] gitSubArgs)
-    {
-        var protocolPolicy = allowLocalFileTransport ? "protocol.file.allow=always" : "protocol.file.allow=never";
-        var args = new List<string>(gitSubArgs.Length + 8)
-        {
-            "-C", sourcePath,
-            "-c", "core.fsmonitor=false",
-            "-c", "core.hooksPath=/dev/null",
-            "-c", protocolPolicy,
-        };
-        args.AddRange(gitSubArgs);
-        return args;
-    }
-
-    private async Task<ProcessOutput> RunProcessAsync(
-        string fileName,
-        IReadOnlyList<string> arguments,
-        string workingDirectory,
-        CancellationToken ct)
-    {
-        var psi = new ProcessStartInfo
-        {
-            FileName = fileName,
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            RedirectStandardInput = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-        };
-
-        foreach (var arg in arguments)
-        {
-            psi.ArgumentList.Add(arg);
-        }
-
-        // Harden git subprocess environment: prevent interactive prompts and system config hijacks
-        psi.Environment["GIT_TERMINAL_PROMPT"] = "0";
-        psi.Environment["GCM_INTERACTIVE"] = "never";
-        psi.Environment["GIT_CONFIG_NOSYSTEM"] = "1";
-        psi.Environment["GH_PROMPT_DISABLED"] = "1";
-
-        using var process = new Process { StartInfo = psi };
-        if (!process.Start())
-        {
-            throw new InvalidOperationException($"Failed to start '{fileName}'.");
-        }
-
-        process.StandardInput.Close();
-
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeoutCts.CancelAfter(_options.CommandTimeout);
-
-        var stdOutTask = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
-        var stdErrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
-
-        try
-        {
-            await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
-            var stdOut = await stdOutTask.ConfigureAwait(false);
-            var stdErr = await stdErrTask.ConfigureAwait(false);
-            return new ProcessOutput(process.ExitCode, stdOut, stdErr);
-        }
-        catch (OperationCanceledException)
-        {
-            try { if (!process.HasExited) { process.Kill(entireProcessTree: true); } }
-            catch (Exception ex) { _logger.LogSwallowed(ex, "Best-effort kill on timed-out/cancelled git/gh process."); }
-            throw;
+            throw new SecurityException(
+                $"Expected exactly 1 commit ahead of base '{lease.BaseCommitSha}', but found {countResult.StdOut.Trim()}.");
         }
     }
 
-    private static void EnsureSuccess(ProcessOutput output, string action)
+    private async Task EnsureSingleUnpushedCommitAgainstOriginAsync(WorkTreeLease lease, CommitSha commitSha, CancellationToken ct)
     {
-        if (output.ExitCode != 0)
+        var unpushedResult = await _git.RunLockedGitAsync(lease, false, ct, "rev-list", "--count", commitSha.Value, "--not", "--remotes=origin").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(unpushedResult, "verify unpushed commit count against origin");
+        if (!int.TryParse(unpushedResult.StdOut.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var count) || count != 1)
         {
-            var detail = string.IsNullOrWhiteSpace(output.StdErr) ? output.StdOut.Trim() : output.StdErr.Trim();
-            throw new InvalidOperationException($"Failed to {action} (exit {output.ExitCode}): {detail}");
+            throw new SecurityException(
+                $"Expected exactly 1 unpushed commit against origin, but found {unpushedResult.StdOut.Trim()}.");
+        }
+    }
+
+    private async Task<string> RenderUnifiedDiffAsync(WorkTreeLease lease, CommitSha commitSha, CancellationToken ct)
+    {
+        var diffResult = await _git.RunLockedGitAsync(
+            lease,
+            false,
+            ct,
+            "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "--unified=3", $"{lease.BaseCommitSha}..{commitSha.Value}").ConfigureAwait(false);
+        GitCommandRunner.EnsureSuccess(diffResult, "render host unified diff");
+        return diffResult.StdOut;
+    }
+
+    private async Task<string?> TryGetOriginUrlAsync(string sourcePath, CancellationToken ct, bool push = false)
+    {
+        string[] getUrl = push ? ["remote", "get-url", "--push", "--all", "origin"] : ["remote", "get-url", "origin"];
+        var res = await _git.RunSourceGitAsync(sourcePath, false, ct, getUrl).ConfigureAwait(false);
+        return res.ExitCode == 0 && !string.IsNullOrWhiteSpace(res.StdOut) ? res.StdOut.Trim() : null;
+    }
+
+    private async Task RemoveWorktreeDirectoryAsync(string sourceRepoPath, string treePath, CancellationToken ct)
+    {
+        if (Directory.Exists(sourceRepoPath))
+        {
+            _ = await _git.RunSourceGitAsync(sourceRepoPath, false, ct, "worktree", "remove", "--force", treePath).ConfigureAwait(false);
+            _ = await _git.RunSourceGitAsync(sourceRepoPath, false, ct, "worktree", "prune").ConfigureAwait(false);
+        }
+
+        if (Directory.Exists(treePath))
+        {
+            try
+            {
+                ClearReadOnlyAttributes(treePath);
+                Directory.Delete(treePath, recursive: true);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogSwallowed(ex, "Best-effort directory delete during worktree cleanup.");
+            }
+        }
+    }
+
+    private void ClearReadOnlyAttributes(string directory)
+    {
+        foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        {
+            try
+            {
+                if (!OperatingSystem.IsWindows())
+                {
+                    File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+                }
+
+                File.SetAttributes(file, FileAttributes.Normal);
+            }
+            catch (IOException ex)
+            {
+                _logger.LogSwallowed(ex, "Best-effort clear ReadOnly attribute (IO).");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogSwallowed(ex, "Best-effort clear ReadOnly attribute (ACL).");
+            }
+        }
+    }
+
+    private static void LockDotGitPointer(string dotGitFile, FileAttributes currentAttributes)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            File.SetAttributes(dotGitFile, currentAttributes | FileAttributes.ReadOnly);
+        }
+        else
+        {
+            File.SetUnixFileMode(dotGitFile, UnixFileMode.UserRead | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+        }
+    }
+
+    private static void VerifyIndexModes(string lsFilesStageZ)
+    {
+        foreach (var entry in lsFilesStageZ.Split('\0', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var space = entry.IndexOf(' ', StringComparison.Ordinal);
+            if (space <= 0)
+            {
+                continue;
+            }
+
+            var mode = entry[..space];
+            if (mode is "120000")
+            {
+                throw new SecurityException($"Path gate rejected staged symlink entry ('{entry}').");
+            }
+
+            if (mode is "160000")
+            {
+                throw new SecurityException($"Path gate rejected staged submodule/gitlink entry ('{entry}').");
+            }
+
+            if (mode is not ("100644" or "100755"))
+            {
+                throw new SecurityException($"Path gate rejected unexpected git index mode '{mode}' ('{entry}').");
+            }
         }
     }
 
@@ -977,18 +695,17 @@ public sealed partial class WorkTreeService : IWorkTree
             throw new SecurityException($"Empty gitdir target in '{treePath}/.git'.");
         }
 
-        var combined = Path.IsPathRooted(rawTarget)
-            ? rawTarget
-            : Path.Combine(treePath, rawTarget);
+        var combined = Path.IsPathRooted(rawTarget) ? rawTarget : Path.Combine(treePath, rawTarget);
         var fullGitDir = Path.GetFullPath(combined);
         if (!Directory.Exists(fullGitDir))
         {
             throw new SecurityException($"Resolved worktree gitdir '{fullGitDir}' does not exist.");
         }
+
         return fullGitDir;
     }
 
-    internal static IReadOnlyList<string> ParsePorcelainZPaths(string porcelainZOutput)
+    private static IReadOnlyList<string> ParsePorcelainZPaths(string porcelainZOutput)
     {
         if (string.IsNullOrEmpty(porcelainZOutput))
         {
@@ -999,7 +716,6 @@ public sealed partial class WorkTreeService : IWorkTree
         var paths = new List<string>(entries.Length);
         foreach (var entry in entries)
         {
-            // Porcelain v1 -z --no-renames format: "XY PATH" (3 chars prefix: X, Y, space)
             if (entry.Length < 4 || entry[2] != ' ')
             {
                 throw new SecurityException($"Unexpected git status entry format: '{entry}'.");
@@ -1011,34 +727,72 @@ public sealed partial class WorkTreeService : IWorkTree
                 throw new SecurityException($"Unmerged conflict entry rejected: '{entry}'.");
             }
 
-            paths.Add(NormalizeRepoRelativePath(entry[3..]));
+            paths.Add(entry[3..].Replace('\\', '/').Trim());
         }
 
         return paths;
     }
 
-    internal static string? ParseGitHubOwnerRepo(string? remoteUrl)
+    private static bool TryParseLsRemoteSha(string lsRemoteOutput, string targetRef, out CommitSha sha)
     {
-        if (string.IsNullOrWhiteSpace(remoteUrl))
+        sha = null!;
+        foreach (var line in lsRemoteOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            return null;
+            var tab = line.IndexOf('\t');
+            if (tab <= 0)
+            {
+                continue;
+            }
+
+            var refPart = line[(tab + 1)..].Trim();
+            if (string.Equals(refPart, targetRef, StringComparison.Ordinal)
+                && CommitSha.TryParse(line[..tab], out var parsed))
+            {
+                sha = parsed!;
+                return true;
+            }
         }
 
-        var trimmed = remoteUrl.Trim();
-        var match = GitHubUrlRegex().Match(trimmed);
-        if (!match.Success)
-        {
-            return null;
-        }
-
-        var owner = match.Groups["owner"].Value;
-        var repo = match.Groups["repo"].Value;
-        if (repo.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
-        {
-            repo = repo[..^4];
-        }
-        return $"{owner}/{repo}";
+        return false;
     }
+
+    private static string? TryExtractExistingPrUrl(string jsonOutput)
+    {
+        if (string.IsNullOrWhiteSpace(jsonOutput))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(jsonOutput);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.Object
+                    && item.TryGetProperty("url", out var urlProp)
+                    && urlProp.ValueKind == JsonValueKind.String
+                    && urlProp.GetString() is { Length: > 0 } url
+                    && url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    return url;
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        return null;
+    }
+
+    internal static string? ParseGitHubOwnerRepo(string? remoteUrl)
+        => GitHubRemoteParser.ParseOwnerRepo(remoteUrl);
 
     private static bool IsLocalFilesystemRemote(string? remoteUrl)
     {
@@ -1061,213 +815,9 @@ public sealed partial class WorkTreeService : IWorkTree
             || Directory.Exists(u);
     }
 
-    private string ResolveHomeDirectory()
-    {
-        if (!string.IsNullOrWhiteSpace(_options.HomeDirectory))
-        {
-            return Path.GetFullPath(_options.HomeDirectory);
-        }
-
-        var fromConfig = _configuration?["IntoChatOS:Home"] ?? _configuration?["Home"];
-        if (!string.IsNullOrWhiteSpace(fromConfig))
-        {
-            return Path.GetFullPath(fromConfig);
-        }
-
-        var fromEnv = Environment.GetEnvironmentVariable("IntoChatOS__Home");
-        if (!string.IsNullOrWhiteSpace(fromEnv))
-        {
-            return Path.GetFullPath(fromEnv);
-        }
-
-        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return Path.GetFullPath(Path.Combine(profile, ".intochat"));
-    }
-
-    private string ReposJsonPath => !string.IsNullOrWhiteSpace(_options.ReposConfigPath)
-        ? Path.GetFullPath(_options.ReposConfigPath)
-        : Path.Combine(HomeDirectory, "repos.json");
-
-    private IEnumerable<RegisteredRepository> LoadFromConfiguration()
-    {
-        if (_configuration is null)
-        {
-            yield break;
-        }
-
-        foreach (var sectionName in new[] { "IntoChatOS:Repositories", "GitHub:Repositories", "Repositories" })
-        {
-            var section = _configuration.GetSection(sectionName);
-            foreach (var child in section.GetChildren())
-            {
-                if (!string.IsNullOrWhiteSpace(child.Value))
-                {
-                    yield return new RegisteredRepository(child.Key, Path.GetFullPath(child.Value));
-                }
-                else if (child["path"] is { Length: > 0 } p || child["localPath"] is { Length: > 0 } lp)
-                {
-                    var local = child["path"] ?? child["localPath"]!;
-                    yield return new RegisteredRepository(
-                        child["id"] ?? child.Key,
-                        Path.GetFullPath(local),
-                        child["githubRepo"] ?? child["remote"],
-                        child["baseBranch"] ?? child["defaultBaseBranch"]);
-                }
-            }
-        }
-    }
-
-    private IEnumerable<RegisteredRepository> LoadFromReposJson()
-    {
-        var path = ReposJsonPath;
-        if (!File.Exists(path))
-        {
-            return [];
-        }
-
-        try
-        {
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            return ParseReposJsonRoot(doc.RootElement);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not parse repository allowlist at {Path}", path);
-            return [];
-        }
-    }
-
-    internal static IReadOnlyList<RegisteredRepository> ParseReposJsonRoot(JsonElement root)
-    {
-        var list = new List<RegisteredRepository>();
-        if (root.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in root.EnumerateArray())
-            {
-                if (TryParseRepoObject(null, item) is { } repo)
-                {
-                    list.Add(repo);
-                }
-            }
-            return list;
-        }
-
-        if (root.ValueKind == JsonValueKind.Object)
-        {
-            if (root.TryGetProperty("repositories", out var reposProp))
-            {
-                return ParseReposJsonRoot(reposProp);
-            }
-
-            foreach (var prop in root.EnumerateObject())
-            {
-                if (prop.Value.ValueKind == JsonValueKind.String && prop.Value.GetString() is { Length: > 0 } strPath)
-                {
-                    list.Add(new RegisteredRepository(prop.Name, Path.GetFullPath(strPath)));
-                }
-                else if (TryParseRepoObject(prop.Name, prop.Value) is { } repo)
-                {
-                    list.Add(repo);
-                }
-            }
-        }
-
-        return list;
-    }
-
-    private static RegisteredRepository? TryParseRepoObject(string? fallbackId, JsonElement element)
-    {
-        if (element.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        var id = GetStringIgnoreCase(element, "id") ?? GetStringIgnoreCase(element, "name") ?? fallbackId;
-        var localPath = GetStringIgnoreCase(element, "path") ?? GetStringIgnoreCase(element, "localPath");
-        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(localPath))
-        {
-            return null;
-        }
-
-        var githubRepo = GetStringIgnoreCase(element, "githubRepo") ?? GetStringIgnoreCase(element, "repo") ?? GetStringIgnoreCase(element, "slug");
-        var baseBranch = GetStringIgnoreCase(element, "baseBranch") ?? GetStringIgnoreCase(element, "defaultBaseBranch");
-        return new RegisteredRepository(id.Trim(), Path.GetFullPath(localPath.Trim()), githubRepo?.Trim(), baseBranch?.Trim());
-    }
-
-    private static string? GetStringIgnoreCase(JsonElement obj, string name)
-    {
-        foreach (var prop in obj.EnumerateObject())
-        {
-            if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase) && prop.Value.ValueKind == JsonValueKind.String)
-            {
-                return prop.Value.GetString();
-            }
-        }
-        return null;
-    }
-
-    private static string NormalizeRepoRelativePath(string path) =>
-        path.Replace('\\', '/').Trim();
-
-    private static string EnsureTrailingSeparator(string fullPath) =>
-        fullPath.EndsWith(Path.DirectorySeparatorChar) ? fullPath : fullPath + Path.DirectorySeparatorChar;
-
-    private static bool PathsEqual(string a, string b) =>
-        string.Equals(
+    private static bool PathsEqual(string a, string b)
+        => string.Equals(
             Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
             Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
             OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
-
-    private static string SanitizeSegment(string value)
-    {
-        var sb = new StringBuilder(value.Length);
-        foreach (var ch in value)
-        {
-            if (char.IsAsciiLetterOrDigit(ch) || ch is '-' or '_')
-            {
-                sb.Append(char.ToLowerInvariant(ch));
-            }
-            else if (ch is '/' or '.' or ' ')
-            {
-                sb.Append('-');
-            }
-        }
-
-        var res = CollapseHyphensRegex().Replace(sb.ToString(), "-").Trim('-');
-        return res.Length == 0 ? "run" : (res.Length <= 40 ? res : res[..40].TrimEnd('-'));
-    }
-
-    internal static string SlugifyGoal(string goal)
-    {
-        var sb = new StringBuilder();
-        foreach (var ch in goal)
-        {
-            if (char.IsAsciiLetterOrDigit(ch))
-            {
-                sb.Append(char.ToLowerInvariant(ch));
-            }
-            else
-            {
-                sb.Append('-');
-            }
-        }
-
-        var slug = CollapseHyphensRegex().Replace(sb.ToString(), "-").Trim('-');
-        if (slug.Length == 0) { return "change"; }
-        return slug.Length <= 28 ? slug : slug[..28].TrimEnd('-');
-    }
-
-    private static string SanitizeCommitMessage(string message)
-    {
-        var clean = message.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
-        return clean.Length == 0 ? "chore(ino): automated change" : clean;
-    }
-
-    private sealed record ProcessOutput(int ExitCode, string StdOut, string StdErr);
-
-    [GeneratedRegex(@"(?:github\.com[:/])(?<owner>[A-Za-z0-9_.-]+)/(?<repo>[A-Za-z0-9_.-]+?)(?:\.git)?/?$", RegexOptions.IgnoreCase)]
-    private static partial Regex GitHubUrlRegex();
-
-    [GeneratedRegex(@"-{2,}")]
-    private static partial Regex CollapseHyphensRegex();
 }

@@ -10,14 +10,14 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Testing;
-using IntoChat.OS.Aspire.Server;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Kernel;
-using IntoChat.OS.Mcp;
+using IntoChat.OS.Kernel.AspireServer;
+using IntoChat.OS.Kernel.Mcp;
 using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -48,13 +48,21 @@ public sealed class Gate20EdgeApprovalWallFacts
         // B04: Direct unstamped grain/neuron call with cleared caller provenance is rejected
         var proxies = host.Services.GetRequiredService<INeuronProxies>();
         var inbox = proxies.Get<IConfirmationInbox>(IConfirmationInbox.Key(host.Scope));
-        using (InProcessCallerScope.ClearCaller())
+        Orleans.Runtime.RequestContext.Clear();
+        Assert.False(Edge(host.Services).IsKernelActive);
+        Assert.Null(Edge(host.Services).Current);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(inbox.Read);
+
+        // Unproved loopback calls fail closed at the edge with 401 (no "local" fallback)
+        using (var unprovedRes = await host.Client.GetAsync($"/brains/{host.Scope}/marketplace", Ct))
         {
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(inbox.Read);
+            Assert.Equal(HttpStatusCode.Unauthorized, unprovedRes.StatusCode);
         }
 
         // Internal SiloNeurons hops (e.g. MarketplaceView.List) remain healthy while UnstampedEdgeIsKernel is false
-        using var marketplaceRes = await host.Client.GetAsync($"/brains/{host.Scope}/marketplace", Ct);
+        using var marketplaceReq = new HttpRequestMessage(HttpMethod.Get, $"/brains/{host.Scope}/marketplace");
+        marketplaceReq.Headers.Add(PresenceProofValidator.HeaderName, host.PresenceToken);
+        using var marketplaceRes = await host.Client.SendAsync(marketplaceReq, Ct);
         Assert.Equal(HttpStatusCode.OK, marketplaceRes.StatusCode);
 
         // B02: POST /identity/register and POST /identity/login succeed with 200 OK (never 500 PrivilegeDenied)
@@ -158,7 +166,7 @@ public sealed class Gate20EdgeApprovalWallFacts
         Assert.True(await IsPendingAsync(host.Services, scope, planId));
 
         // -----------------------------------------------------------------------------------------
-        // Attack 2: Unproved loopback HTTP caller (no X-IntoChat-Presence -> stamped App("local"))
+        // Attack 2: Unproved loopback HTTP caller (no X-IntoChat-Presence -> rejected 401 at edge)
         // Attempt via both /apps/event and /screens/approvals/{id}
         // -----------------------------------------------------------------------------------------
         using (var unprovedEventRes = await host.Client.PostAsJsonAsync(
@@ -172,7 +180,7 @@ public sealed class Gate20EdgeApprovalWallFacts
             },
             Ct))
         {
-            Assert.Equal(HttpStatusCode.Forbidden, unprovedEventRes.StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, unprovedEventRes.StatusCode);
         }
 
         using (var unprovedScreenRes = await host.Client.PostAsJsonAsync(
@@ -180,7 +188,7 @@ public sealed class Gate20EdgeApprovalWallFacts
             new { approved = true, reason = "unproved loopback attempt" },
             Ct))
         {
-            Assert.False(unprovedScreenRes.IsSuccessStatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, unprovedScreenRes.StatusCode);
         }
 
         Assert.True(await IsPendingAsync(host.Services, scope, planId));
@@ -258,7 +266,7 @@ public sealed class Gate20EdgeApprovalWallFacts
             CapabilityCallers.AssistantApp) with
         { ConversationId = "ino-turn" };
 
-        using (InProcessCallerScope.Enter())
+        using (Edge(host.Services).EnterInProcess())
         using (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(agentCaller))
         {
             var inbox = proxies.Get<IConfirmationInbox>(inboxKey);
@@ -271,7 +279,7 @@ public sealed class Gate20EdgeApprovalWallFacts
 
         // Verify the plan is STILL Pending and Outcome is STILL null!
         Assert.True(await IsPendingAsync(host.Services, scope, planId));
-        using (InProcessCallerScope.EnterKernel(scope))
+        using (Edge(host.Services).EnterKernel(new BrainId(scope)))
         {
             Assert.Null(await proxies.Get<IConfirmationRequests>(requestsId).Outcome(planId));
         }
@@ -295,7 +303,7 @@ public sealed class Gate20EdgeApprovalWallFacts
             Assert.Equal(HttpStatusCode.OK, personRes.StatusCode);
         }
 
-        using (InProcessCallerScope.EnterKernel(scope))
+        using (Edge(host.Services).EnterKernel(new BrainId(scope)))
         {
             var resolved = await proxies.Get<IConfirmationRequests>(requestsId).Outcome(planId);
             Assert.NotNull(resolved);
@@ -369,7 +377,7 @@ public sealed class Gate20EdgeApprovalWallFacts
             Assert.Equal(HttpStatusCode.OK, sameOriginRes.StatusCode);
         }
 
-        using (InProcessCallerScope.EnterKernel(scope))
+        using (Edge(host.Services).EnterKernel(new BrainId(scope)))
         {
             var webResolved = await proxies.Get<IConfirmationRequests>(requestsId).Outcome(webPlanId);
             Assert.NotNull(webResolved);
@@ -377,6 +385,8 @@ public sealed class Gate20EdgeApprovalWallFacts
             Assert.Equal(ConfirmationOutcome.Approved, webResolved.Outcome);
         }
     }
+
+    private static EdgeAuthority Edge(IServiceProvider services) => services.GetRequiredService<EdgeAuthority>();
 
     private static async Task RaisePendingPlanAsync(
         IServiceProvider services,
@@ -391,7 +401,7 @@ public sealed class Gate20EdgeApprovalWallFacts
             CallerKind.Scheduler,
             CapabilityCallers.SchedulerApp);
 
-        using var _ = InProcessCallerScope.Enter();
+        using var _ = Edge(services).EnterInProcess();
         using var __ = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(raiserCaller);
         var requests = services.GetRequiredService<INeuronProxies>().Get<IConfirmationRequests>(requestsId);
         var immediate = await requests.Request(plan);
@@ -403,7 +413,7 @@ public sealed class Gate20EdgeApprovalWallFacts
 
     private static async Task<bool> IsPendingAsync(IServiceProvider services, string scope, string planId)
     {
-        using var _ = InProcessCallerScope.EnterKernel(scope);
+        using var _ = Edge(services).EnterKernel(new BrainId(scope));
         var inbox = services.GetRequiredService<INeuronProxies>()
             .Get<IConfirmationInbox>(IConfirmationInbox.Key(scope));
         var state = await inbox.Read();
@@ -463,7 +473,6 @@ public sealed class Gate20EdgeApprovalWallFacts
                     [AuthOptions.PostureKey] = "Open",
                     [TopologyContext.SiloPortKey] = ports.SiloPort.ToString(CultureInfo.InvariantCulture),
                     [TopologyContext.GatewayPortKey] = ports.GatewayPort.ToString(CultureInfo.InvariantCulture),
-                    [PresenceProofValidator.EnvironmentVariable] = null,
                 });
 
                 LocalRunDefaults.Apply(builder.Configuration);

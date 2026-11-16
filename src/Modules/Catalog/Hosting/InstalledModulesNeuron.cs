@@ -3,17 +3,19 @@ using System.Text.Json;
 using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Log;
 using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Modules.Apps;
 
 [DigitalBrain.Neurons.Neuron("apps.installed-modules")]
-public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : DigitalBrain.Neurons.Neuron, IInstalledModules
+internal sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : DigitalBrain.Neurons.Neuron, IInstalledModules
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -36,7 +38,11 @@ public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : D
             Type[] types;
             try { types = assembly.GetTypes(); }
             catch (ReflectionTypeLoadException error) { types = [.. error.Types.Where(type => type is not null)!]; }
-            catch (Exception error) when (error is not OperationCanceledException) { continue; }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                OsConsoleLog.For<InstalledModulesNeuron>().LogSwallowed(error, $"Failed enumerating types in assembly '{assembly.FullName}'.");
+                continue;
+            }
             foreach (var type in types)
             {
                 if (type is not { IsClass: true, IsAbstract: false } || type.ContainsGenericParameters) { continue; }
@@ -46,13 +52,17 @@ public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : D
                 }
                 catch (FileLoadException error)
                 {
-                    _ = error.Message;
+                    OsConsoleLog.For<InstalledModulesNeuron>().LogSwallowed(error, $"Could not inspect ModuleAttribute on '{type.FullName}'.");
                     continue;
                 }
                 if (!typeof(DigitalBrain.Modules.Module).IsAssignableFrom(type)) { continue; }
                 DigitalBrain.Modules.ModuleManifest manifest;
                 try { manifest = DigitalBrain.Modules.ModuleManifest.Of(type); }
-                catch (Exception error) when (error is InvalidOperationException or InvalidDataException) { continue; }
+                catch (Exception error) when (error is InvalidOperationException or InvalidDataException)
+                {
+                    OsConsoleLog.For<InstalledModulesNeuron>().LogSwallowed(error, $"Could not read ModuleManifest for '{type.FullName}'.");
+                    continue;
+                }
                 var capabilities = string.Join(", ", manifest.Provides.Select(id => id.ToString()).Order(StringComparer.Ordinal));
                 rows.Add(new(manifest.Id ?? type.Name, type.Name, capabilities));
             }
@@ -92,7 +102,8 @@ public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : D
 
     private async Task<bool> IsAppGrantedAsync(string brain, string appId)
     {
-        var defaultSettingsKey = IApp.Key(brain, ShippedApps.Settings);
+        var brainId = new DigitalBrain.BrainId(brain);
+        var defaultSettingsKey = IntoChat.OS.Primitives.AppRef.Of(brainId, ShippedApps.Settings).Key;
         if (identity is null)
         {
             return string.Equals(appId, ShippedApps.Settings, StringComparison.Ordinal)
@@ -108,14 +119,18 @@ public sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : D
 
         var targetPrefix = $"apps.installed-modules/{brain}/";
         var fullTarget = $"apps.installed-modules/{brain}/{Id.Key}";
+        var shortAppId = IntoChat.OS.Primitives.AppRef.TryParse(brainId, appId, out var parsedApp)
+            ? parsedApp.Name
+            : appId;
+        var fullAppKey = IntoChat.OS.Primitives.AppRef.TryOf(brainId, shortAppId, out var appRef) ? appRef.Key : null;
         var appGrantees = new HashSet<string>(StringComparer.Ordinal)
         {
             $"app:{appId}",
-            $"app:{brain}/apps/{appId}",
+            $"app:{shortAppId}",
         };
-        if (appId.StartsWith(brain + "/apps/", StringComparison.Ordinal))
+        if (fullAppKey is not null)
         {
-            appGrantees.Add("app:" + appId[(brain.Length + "/apps/".Length)..]);
+            appGrantees.Add($"app:{fullAppKey}");
         }
 
         foreach (var raw in grants)

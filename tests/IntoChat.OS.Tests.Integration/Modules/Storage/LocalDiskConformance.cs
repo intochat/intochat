@@ -4,7 +4,7 @@ using DigitalBrain.Testing.Conformance.Storage;
 
 namespace IntoChat.OS.Modules.LocalDisk.Tests.Integration;
 
-public sealed class LocalDiskConformance : StorageConformance<LocalDiskNeuron>
+public sealed class LocalDiskConformance : StorageConformance<IStorage>
 {
     private string? _rootId;
 

@@ -5,7 +5,7 @@ namespace IntoChat.OS.Modules.Apps.Facets;
 
 [Alias("apps.vfs-facet")]
 [Version(1)]
-public interface IVfsFacet : IGrainExtension
+internal interface IVfsFacet : IGrainExtension
 {
     Task<string[]> ListFilesAsync(string path);
     Task<string?> ReadTextAsync(string path);

@@ -8,6 +8,7 @@ using DigitalBrain.Neurons;
 using DigitalBrain.State;
 using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
 using IntoChat.OS.Modules.AI.Agents.Signals;
@@ -101,7 +102,7 @@ internal sealed class AgentNeuron(
         return [.. masked];
     }
 
-    private ILogger Logger => (ILogger?)logger ?? global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+    private ILogger Logger => (ILogger?)logger ?? OsConsoleLog.For<AgentNeuron>();
     private TimeProvider Clock => clock;
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
@@ -358,7 +359,7 @@ internal sealed class AgentNeuron(
         // A replayed post (same id) never adds a second entry.
         if (State.Runs.Any(run => run.RunId == runId)) { return; }
         if (State.ActiveRun is not null) { throw new InvalidOperationException("The agent is answering; post again when the run ends."); }
-        var now = DateTimeOffset.UtcNow;
+        var now = Clock.GetUtcNow();
         var run = new AgentRun(runId, AgentRunStatus.Completed, "", now, now, text) { Posted = true };
         _mutating = true;
         try
@@ -380,7 +381,7 @@ internal sealed class AgentNeuron(
             await Notify(new TurnCompleted(Key, runId, await Mask(replay.Reply ?? "")));
             return runId;
         }
-        await Persist(State with { ActiveRun = new AgentRun(runId, AgentRunStatus.Running, UserText(turn.Message), DateTimeOffset.UtcNow) { FlowId = flowId, TraceId = TraceContext.Current?.TraceId } });
+        await Persist(State with { ActiveRun = new AgentRun(runId, AgentRunStatus.Running, UserText(turn.Message), Clock.GetUtcNow()) { FlowId = flowId, TraceId = TraceContext.Current?.TraceId } });
         try
         {
             var driven = turn with { RunId = runId };
@@ -390,7 +391,7 @@ internal sealed class AgentNeuron(
         {
             // The caller learns why the hand-off failed; a failure to undo it must not replace that.
             try { await Persist(State with { ActiveRun = null }); }
-            catch (Exception error) { Abandon(error, runId); }
+            catch (Exception error) { Logger.LogWarning(error, "Failed to clear active agent run {RunId} after hand-off failure.", runId); Abandon(error, runId); }
             throw;
         }
         return runId;
@@ -433,7 +434,7 @@ internal sealed class AgentNeuron(
 
         var definition = State.Definition;
         var input = Stored(turn.Message);
-        var run = State.ActiveRun is { } active && active.RunId == runId ? active : new AgentRun(runId, AgentRunStatus.Running, UserText(input), DateTimeOffset.UtcNow) { TraceId = TraceContext.Current?.TraceId };
+        var run = State.ActiveRun is { } active && active.RunId == runId ? active : new AgentRun(runId, AgentRunStatus.Running, UserText(input), Clock.GetUtcNow()) { TraceId = TraceContext.Current?.TraceId };
         // The timeout has its own source, so a run that ran out of time is told apart from a cancelled one.
         using var timeout = new CancellationTokenSource(definition.Timeout);
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
@@ -558,7 +559,7 @@ internal sealed class AgentNeuron(
                             break;
                         case AgentTurnEvent.Completed done:
                             await Refresh(true);
-                            run = run with { Status = AgentRunStatus.Completed, EndedAt = DateTimeOffset.UtcNow, Reply = visible, Usage = done.Usage };
+                            run = run with { Status = AgentRunStatus.Completed, EndedAt = Clock.GetUtcNow(), Reply = visible, Usage = done.Usage };
                             var produced = new List<AiMessage>(done.Messages.Count);
                             foreach (var item in done.Messages) { produced.Add(Compacted(await Mask(item))); }
                             var transcript = Bound([.. State.Transcript, input, .. produced], definition.MaxHistoryMessages, MaxHistoryCharacters, State.Summary);
@@ -612,7 +613,7 @@ internal sealed class AgentNeuron(
                     // The end is announced whether or not it could be stored: a Start caller must never wait forever.
                     var persisted = true;
                     try { await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, run) }); }
-                    catch (Exception persist) { persisted = false; Abandon(persist, runId); }
+                    catch (Exception persist) { persisted = false; Logger.LogWarning(persist, "Failed to persist final agent run {RunId}.", runId); Abandon(persist, runId); }
                     await Announce(persisted);
                     await Notify(new TurnFailed(Key, runId, error, cancelled) { Failure = failureKind }, persisted);
                 }
@@ -693,10 +694,10 @@ internal sealed class AgentNeuron(
         _stale = true;
     }
 
-    private static AgentRun Close(AgentRun run, AgentRunStatus status, string error, string openCallCode = "tool_interrupted") => run with
+    private AgentRun Close(AgentRun run, AgentRunStatus status, string error, string openCallCode = "tool_interrupted") => run with
     {
         Status = status,
-        EndedAt = DateTimeOffset.UtcNow,
+        EndedAt = Clock.GetUtcNow(),
         Error = error,
         ToolCalls = [.. run.ToolCalls.Select(call => call.Result is null && call.Code is null
             ? call with { Code = openCallCode, Error = "Execution ended before the tool call completed." } : call)],

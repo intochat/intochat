@@ -8,8 +8,9 @@ namespace IntoChat.OS.Authority.Identity.Directory;
 
 // The identity front door: every operation goes to the directly keyed actor that owns it.
 [GrainType("identity-directory")]
-internal sealed class IdentityDirectoryNeuron(IIdentityClient identity, PrincipalPasswords passwords) : Grain, IIdentityDirectory
+internal sealed class IdentityDirectoryNeuron(IIdentityClient identity, PrincipalPasswords passwords, TimeProvider? clock = null) : Grain, IIdentityDirectory
 {
+    private TimeProvider Clock => clock ?? TimeProvider.System;
     public async Task<Member> RegisterAsync(string principalId, string password, string displayName, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -34,7 +35,7 @@ internal sealed class IdentityDirectoryNeuron(IIdentityClient identity, Principa
     public async Task<Member> ShareBrainAsync(string accountId, string brainId, string principalId, string displayName, MemberRole role, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var member = new Member { AccountId = accountId, BrainId = brainId, PrincipalId = principalId, DisplayName = displayName, Role = role, JoinedAt = DateTimeOffset.UtcNow };
+        var member = new Member { AccountId = accountId, BrainId = brainId, PrincipalId = principalId, DisplayName = displayName, Role = role, JoinedAt = Clock.GetUtcNow() };
         return (await identity.EnsureMember(member))!;
     }
 }

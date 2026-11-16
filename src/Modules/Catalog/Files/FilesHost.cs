@@ -1,14 +1,16 @@
 using System.Collections.Concurrent;
+using DigitalBrain;
+using DigitalBrain.Access;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Log;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps.Signals;
 using IntoChat.OS.Modules.LocalDisk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -38,16 +40,19 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
 
     private async Task EnsureAsync(string brain)
     {
-        using var cleared = InProcessCallerScope.ClearCaller();
+        var edge = services.GetService<EdgeAuthority>();
+        using var cleared = edge?.ClearCaller();
         try
         {
             var gate = _gates.GetOrAdd(brain, static _ => new SemaphoreSlim(1, 1));
             await gate.WaitAsync();
             try
             {
-                using var kernel = InProcessCallerScope.EnterKernel(brain);
+                var brainId = new BrainId(brain);
+                using var module = edge?.Enter(edge.Module("apps.files", brainId));
                 await EnsureDefaultLocalRootsAsync(services, brain);
-                var key = IApp.Key(brain, "files");
+                var filesApp = IntoChat.OS.Primitives.AppRef.Of(brainId, "files");
+                var key = filesApp.Key;
                 var app = SiloNeurons.Get<IApp>(services, key);
                 var snapshot = await app.Read();
                 if (string.IsNullOrWhiteSpace(snapshot.Manifest.Title))
@@ -64,13 +69,13 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
                     }
                     snapshot = await app.Read();
                 }
-                var workspace = SiloNeurons.Get<IFilesWorkspace>(services, key + "/workspace");
-                await workspace.Open(CancellationToken.None);
-                snapshot = await app.Read();
-                using (InProcessCallerScope.EnterApp(brain, key))
+                var workspace = SiloNeurons.Get<IFilesWorkspace>(services, filesApp.ChildKey("workspace"));
+                await RunAsFilesAppAsync(edge, key, brainId, async () =>
                 {
+                    await workspace.Open(CancellationToken.None);
+                    snapshot = await app.Read();
                     await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
-                }
+                });
             }
             finally
             {
@@ -83,7 +88,7 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
 
     internal static async Task EnsureDefaultLocalRootsAsync(IServiceProvider services, string brain)
     {
-        var logger = services.GetService<ILoggerFactory>()?.CreateLogger<FilesHost>() ?? (ILogger)NullLogger.Instance;
+        var logger = services.GetService<ILoggerFactory>()?.CreateLogger<FilesHost>() ?? OsConsoleLog.For<FilesHost>();
         try
         {
             var disk = SiloNeurons.Get<ILocalDisk>(services, new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), "local-disk", "main"));
@@ -105,28 +110,40 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
 
     private async Task OpenAsync(string brain, AppRequested request, CancellationToken cancellationToken)
     {
-        using var cleared = InProcessCallerScope.ClearCaller();
+        var edge = services.GetService<EdgeAuthority>();
+        using var cleared = edge?.ClearCaller();
         try
         {
-            using var kernel = InProcessCallerScope.EnterKernel(brain);
+            var brainId = new BrainId(brain);
+            using var module = edge?.Enter(edge.Module("apps.files", brainId));
             await EnsureDefaultLocalRootsAsync(services, brain);
-            var key = IApp.Key(brain, "files");
+            var filesApp = IntoChat.OS.Primitives.AppRef.Of(brainId, "files");
+            var key = filesApp.Key;
             var app = SiloNeurons.Get<IApp>(services, key);
-            var workspace = SiloNeurons.Get<IFilesWorkspace>(services, key + "/workspace");
-            if (request.Operation == "open")
+            var workspace = SiloNeurons.Get<IFilesWorkspace>(services, filesApp.ChildKey("workspace"));
+            await RunAsFilesAppAsync(edge, key, brainId, async () =>
             {
-                await workspace.Open(cancellationToken);
-                var snapshot = await app.Read();
-                using (InProcessCallerScope.EnterApp(brain, key))
+                if (request.Operation == "open")
                 {
+                    await workspace.Open(cancellationToken);
+                    var snapshot = await app.Read();
                     await app.Present(snapshot.ProgramRevision, FilesRequests.Presentation(key));
                 }
-            }
-            if (await FilesRequests.Forward(workspace, request, cancellationToken) is { } failure)
-            { await app.Progress("attention", failure); }
+                if (await FilesRequests.Forward(workspace, request, cancellationToken) is { } failure)
+                { await app.Progress("attention", failure); }
+            });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         { logger.LogWarning(error, "Files did not answer {Operation} in {Brain}.", request.Operation, brain); }
+    }
+
+    private static async Task RunAsFilesAppAsync(EdgeAuthority? edge, string appKey, BrainId brainId, Func<Task> action)
+    {
+        using (edge?.EnterInProcess())
+        using (edge?.Enter(edge.App(appKey, new Actor.Person(AppPrincipal.Id(appKey), brainId.Value), brainId)))
+        {
+            await action();
+        }
     }
 }
 

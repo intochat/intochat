@@ -11,9 +11,8 @@ internal static class ShippedGrants
 
     public static Grant[] For(string brain, string app) => app switch
     {
-        "workspace" => Tuples(brain, app, [Workspace(brain), Apps(brain), Person(brain), Compute(brain), $"text/{brain}/apps/desktop/layout"]),
         "desktop" => Tuples(brain, app, [Workspace(brain), Apps(brain), Person(brain), Compute(brain),
-            $"chat/{brain}/apps/ino/transcript", $"agent/{brain}/*", $"textfield/{brain}/settings/workspace/new-tab-app"]),
+            $"chat/{IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), "ino").ChildKey("transcript")}", $"agent/{brain}/*", $"textfield/{brain}/settings/workspace/new-tab-app"]),
         ShippedApps.Settings => Tuples(brain, app, [Apps(brain), $"apps.store/{brain}/*", $"apps.installed-modules/{brain}/*", $"apps.sideload/{brain}/*",
             $"integrations.accounts/{brain}/*", $"ai.models/{brain}/*", $"chat-index/{brain}/*", $"textfield/{brain}/settings/*"]),
         "data" => Tuples(brain, app, [$"files.vfs/{brain}/*"]),
@@ -26,10 +25,10 @@ internal static class ShippedGrants
     };
 
     private static string Workspace(string brain) => $"ui.workspace/{brain}/main";
-    private static string Apps(string brain) => $"{IntoChat.OS.Connections.AppGrainType.Name}/{brain}/apps/*";
+    private static string Apps(string brain) => IntoChat.OS.Primitives.AppRef.WildcardTarget(new DigitalBrain.BrainId(brain));
     private static string Person(string brain) => $"person/{brain}/profile";
     private static string Compute(string brain) => $"ui.compute/{brain}/compute";
 
     private static Grant[] Tuples(string brain, string app, string[] targets)
-        => [.. targets.Select(target => Grant.Tuple($"brain:{brain}", $"app:{brain}/apps/{app}", target, GrantRelations.Run))];
+        => [.. targets.Select(target => Grant.Tuple($"brain:{brain}", $"app:{IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), app).Key}", target, GrantRelations.Run))];
 }

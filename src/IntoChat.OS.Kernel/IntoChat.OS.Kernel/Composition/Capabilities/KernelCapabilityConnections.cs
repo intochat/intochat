@@ -12,13 +12,13 @@ using IntoChat.OS.Authority;
 using IntoChat.OS.Authority.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using StorageV1 = DigitalBrain.Capabilities.Storage.IStorage;
 
 namespace IntoChat.OS.Kernel.Composition.Capabilities;
@@ -50,7 +50,7 @@ public static class KernelCapabilities
         // secrets@1 and identity@1 (05-12): the runtime capabilities over ports to the Authority vault and directory.
         builder.Services.AddSecretsCapability<VaultPort>();
         builder.Services.AddIdentityCapability<DirectoryPort>();
-        builder.Services.TryAddSingleton<IntoChat.OS.Kernel.OsRegistry.IRegistryBroker, IntoChat.OS.Kernel.OsRegistry.RegistryBroker>();
+        builder.Services.TryAddSingleton<IntoChat.OS.Kernel.Composition.Registry.IRegistryBroker, IntoChat.OS.Kernel.Composition.Registry.RegistryBroker>();
         return builder;
     }
 }
@@ -63,9 +63,9 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
     public const string SandboxCredentialsBadge = "SANDBOX / TEST CREDENTIALS";
     public const string SandboxConnectionId = "sandbox-test";
 
-    private readonly ILogger _logger = logger ?? (ILogger)NullLogger.Instance;
-    private readonly ConcurrentDictionary<string, LocalCloudNeuron> _localClouds = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, LocalCloudNeuron> _sandboxStorages = new(StringComparer.Ordinal);
+    private readonly ILogger _logger = (ILogger?)logger ?? OsConsoleLog.For<KernelCapabilityConnections>();
+    private readonly ConcurrentDictionary<string, LocalCloudStorage> _localClouds = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, LocalCloudStorage> _sandboxStorages = new(StringComparer.Ordinal);
 
     private static NeuronId LocalDiskId(BrainId brain) => new(brain, "local-disk", "main");
     private static string LocalDiskConnectionKey(BrainId brain) => $"{brain.Value}/local-disk/main";
@@ -170,7 +170,7 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
             && services.GetService<ConnectionNeuronTypes>()?.NeuronOf(connector) is null)
         {
             var sandboxStorage = new ConnectionStorage(
-                _sandboxStorages.GetOrAdd(key, _ => new LocalCloudNeuron()),
+                _sandboxStorages.GetOrAdd(key, _ => new LocalCloudStorage()),
                 key,
                 null,
                 services.GetService<IStorageWriteAuthorizer>(),
@@ -233,8 +233,8 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _logger.LogDebug(error, "Falling back to in-memory LocalCloudNeuron for {Brain}", brain.Value);
-            return _localClouds.GetOrAdd(brain.Value, _ => new LocalCloudNeuron());
+            _logger.LogDebug(error, "Falling back to in-memory LocalCloudStorage for {Brain}", brain.Value);
+            return _localClouds.GetOrAdd(brain.Value, _ => new LocalCloudStorage());
         }
     }
 

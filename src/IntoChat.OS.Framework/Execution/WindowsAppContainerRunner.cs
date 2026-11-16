@@ -9,7 +9,6 @@ using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Win32.SafeHandles;
 
 namespace IntoChat.OS.Framework.Execution;
@@ -39,11 +38,11 @@ public sealed class WindowsAppContainerRunner : IConfinedProcessRunner
 
     // Instance-scoped cache (never static, respecting StaticCacheFacts) to skip redundant ReadAndExecute grants.
     private readonly ConcurrentDictionary<string, byte> _aclCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ILogger<WindowsAppContainerRunner> _logger;
+    private readonly ILogger<WindowsAppContainerRunner>? _logger;
 
     public WindowsAppContainerRunner(ILogger<WindowsAppContainerRunner>? logger = null)
     {
-        _logger = logger ?? NullLogger<WindowsAppContainerRunner>.Instance;
+        _logger = logger;
     }
 
     public static IReadOnlyDictionary<string, string> BuildCleanEnvironmentDictionary(ConfinementSpec spec, string tempDirectory)
@@ -87,7 +86,7 @@ public sealed class WindowsAppContainerRunner : IConfinedProcessRunner
 
         foreach (var (key, value) in spec.CleanEnvironment)
         {
-            if (!PosixSandboxCommandBuilder.IsBlockedSecretVariableName(key))
+            if (!ChildEnvironmentPolicy.IsBlockedSecretVariableName(key))
             {
                 variables[key] = value;
             }
@@ -206,10 +205,20 @@ public sealed class WindowsAppContainerRunner : IConfinedProcessRunner
                 }
                 catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or UnauthorizedAccessException)
                 {
-                    _logger.LogWarning(
-                        ex,
-                        "AppContainer spawn could not be applied for sandbox {SandboxId}; falling back to JobObject + handle allowlist confinement.",
-                        spec.SandboxId);
+                    if (_logger is not null)
+                    {
+                        _logger.LogWarning(
+                            ex,
+                            "AppContainer spawn could not be applied for sandbox {SandboxId}; falling back to JobObject + handle allowlist confinement.",
+                            spec.SandboxId);
+                    }
+                    else
+                    {
+                        Trace.TraceWarning(
+                            "AppContainer spawn could not be applied for sandbox '{0}'; falling back to JobObject + handle allowlist confinement: {1}",
+                            spec.SandboxId,
+                            ex.Message);
+                    }
                 }
             }
 
@@ -570,7 +579,14 @@ public sealed class WindowsAppContainerRunner : IConfinedProcessRunner
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SystemException)
         {
-            _logger.LogDebug(ex, "Could not revoke temporary AppContainer ACL on {Folder}.", folder);
+            if (_logger is not null)
+            {
+                _logger.LogDebug(ex, "Could not revoke temporary AppContainer ACL on {Folder}.", folder);
+            }
+            else
+            {
+                Trace.TraceWarning("Could not revoke temporary AppContainer ACL on '{0}': {1}", folder, ex.Message);
+            }
         }
     }
 

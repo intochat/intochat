@@ -3,7 +3,7 @@ using IntoChat.Sdk;
 namespace IntoChat.OS.Modules.Apps;
 
 /// <summary>Built-in shareable <see cref="AppPackage"/> automations shipped in the Marketplace.</summary>
-public static class ShippedPackages
+internal static class ShippedPackages
 {
     public const string Publisher = "into-chat";
 
@@ -27,19 +27,19 @@ public static class ShippedPackages
 
             namespace IntoChat.Shipped;
 
-            public sealed record MailAlertState
+            internal sealed record MailAlertState
             {
                 public List<string> RecentSubjects { get; init; } = [];
                 public int TotalNotified { get; init; }
             }
 
-            public sealed record MailAlertSettings
+            internal sealed record MailAlertSettings
             {
                 public bool IgnoreNoReply { get; init; } = true;
                 public string RequiredKeyword { get; init; } = "";
             }
 
-            public sealed record IncomingEmailPayload(string From, string Subject, string Preview = "");
+            internal sealed record IncomingEmailPayload(string From, string Subject, string Preview = "");
 
             [App("email-notifier",
                 Title = "Email Notifier",
@@ -48,7 +48,7 @@ public static class ShippedPackages
                 Icon = "mail",
                 Category = "Communication",
                 Author = "into-chat")]
-            public sealed class EmailNotifierApp : BrainApp<MailAlertState, MailAlertSettings>
+            internal sealed class EmailNotifierApp : BrainApp<MailAlertState, MailAlertSettings>
             {
                 [OnSignal("mail.received")]
                 public async Task OnMailReceived(IncomingEmailPayload email)
@@ -130,13 +130,13 @@ public static class ShippedPackages
 
             namespace IntoChat.Shipped;
 
-            public sealed record InvoiceAppState
+            internal sealed record InvoiceAppState
             {
                 public int ProcessedCount { get; init; }
                 public List<string> RecentFiles { get; init; } = [];
             }
 
-            public sealed record InvoiceAppSettings
+            internal sealed record InvoiceAppSettings
             {
                 public string ProcessedSubfolder { get; init; } = "Processed";
             }
@@ -153,7 +153,7 @@ public static class ShippedPackages
                 Access = FolderAccess.ReadWrite,
                 DefaultPath = "%USERPROFILE%/Downloads",
                 Description = "Host Downloads folder mediated by the Windows connector")]
-            public sealed class DownloadsInvoicesApp : BrainApp<InvoiceAppState, InvoiceAppSettings>
+            internal sealed class DownloadsInvoicesApp : BrainApp<InvoiceAppState, InvoiceAppSettings>
             {
                 [OnSignal("windows.file-changed")]
                 public async Task OnFileChanged(FileChanged change)

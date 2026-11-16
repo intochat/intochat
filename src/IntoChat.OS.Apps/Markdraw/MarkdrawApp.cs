@@ -15,9 +15,9 @@ using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Markdraw;
@@ -83,15 +83,18 @@ public sealed record MarkdrawAppState(
     [Invariant("ActiveDocument and scene collections are non-null."), JsonIgnore]
     public bool NonNullScene => !string.IsNullOrWhiteSpace(ActiveDocument) && Elements is not null && WorkspaceDrawings is not null;
 
-    public Rule HasCanvasElements() => Decision.Rule("canvas_empty", Elements.Length == 0, "Add at least one element before exporting.");
+    public Rule HasCanvasElements() => Decision.Rule("canvas_empty", Elements, static e => e.Length == 0, "Add at least one element before exporting.");
 
-    public Rule SupportedExportFormat(string? format) =>
-        Decision.Rule("invalid_export_format", string.IsNullOrWhiteSpace(format) || format.Trim().TrimStart('.').ToLowerInvariant() is not ("excalidraw" or "svg" or "markdraw"), "Export format must be excalidraw, svg, or markdraw.");
+    public Rule SupportedExportFormat(string? format) => Decision.Rule(
+        "invalid_export_format",
+        format,
+        static f => string.IsNullOrWhiteSpace(f) || f.Trim().TrimStart('.').ToLowerInvariant() is not ("excalidraw" or "svg" or "markdraw"),
+        "Export format must be excalidraw, svg, or markdraw.");
 
     public Decision<MarkdrawAppState> SwitchTemplate([Sample("architecture", "pipeline", "unknown")] string template)
     {
         var clean = template?.Trim().ToLowerInvariant() ?? string.Empty;
-        if (Decision.Check("switch-template", Decision.Rule("unsupported_template", clean is not ("architecture" or "pipeline" or "crm" or "sales"), "Template must be architecture or pipeline.")) is { } refusal)
+        if (Decision.Check("switch-template", Decision.Rule("unsupported_template", clean, static t => t is not ("architecture" or "pipeline" or "crm" or "sales"), "Template must be architecture or pipeline.")) is { } refusal)
         {
             return refusal;
         }
@@ -106,7 +109,7 @@ public sealed record MarkdrawAppState(
 
     public Decision<MarkdrawAppState> RecordExport([Sample("excalidraw", "svg", "bmp")] string format, [Sample("/work/architecture.excalidraw")] string targetPath)
     {
-        if (Decision.Check("export", HasCanvasElements(), SupportedExportFormat(format), Decision.Rule("empty_export_path", string.IsNullOrWhiteSpace(targetPath), "Target export path is required.")) is { } refusal)
+        if (Decision.Check("export", HasCanvasElements(), SupportedExportFormat(format), Decision.Rule("empty_export_path", targetPath, static p => string.IsNullOrWhiteSpace(p), "Target export path is required.")) is { } refusal)
         {
             return refusal;
         }
@@ -119,6 +122,12 @@ public sealed record MarkdrawAppState(
 [Neuron("app.markdraw"), Screen("app.markdraw", Title = "Markdraw")]
 public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesVfs
 {
+    protected override Task OnActivate(CancellationToken cancellationToken)
+    {
+        AppActivationScope.Notify(this);
+        return base.OnActivate(cancellationToken);
+    }
+
     public const string DefaultArchitectureScene =
         "# IntoChat Neuron & Data Architecture\n\n" +
         "Interactive `.markdraw` canvas shared between you and **Ino**. Draw freely on the canvas or ask Ino to add nodes, connect arrows, or diagram any dataset.\n\n" +
@@ -203,7 +212,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
                 else { doc = (await FilesVfs.WriteTextAsync(doc, content)).VfsPath; }
                 drawings = await ListWorkspaceDrawingsAsync(doc);
             }
-            catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Failed to initialize default templates in VFS."); }
+            catch (Exception ex) { OsConsoleLog.For<MarkdrawApp>().LogSwallowed(ex, "Failed to initialize default templates in VFS."); }
         }
 
         var elements = MarkdrawSceneEngine.ParseSceneElements(content);
@@ -312,7 +321,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
                 targetPath = (await FilesVfs.WriteTextAsync(targetPath, payload)).VfsPath;
                 drawings = await ListWorkspaceDrawingsAsync(State.ActiveDocument);
             }
-            catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Failed to export canvas to VFS."); }
+            catch (Exception ex) { OsConsoleLog.For<MarkdrawApp>().LogSwallowed(ex, "Failed to export canvas to VFS."); }
         }
 
         await Show(State with { LastExportPath = targetPath, WorkspaceDrawings = drawings, Status = $"Exported {State.Elements.Length} element(s) to {targetPath} ({format})" });
@@ -395,7 +404,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
             if (await FilesVfs.ResolveFileAsync("/work/architecture.markdraw") is null) { await FilesVfs.WriteTextAsync("/work/architecture.markdraw", DefaultArchitectureScene); }
             if (await FilesVfs.ResolveFileAsync("/work/pipeline-flow.markdraw") is null) { await FilesVfs.WriteTextAsync("/work/pipeline-flow.markdraw", DefaultPipelineScene); }
         }
-        catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Failed to seed demo drawings into VFS."); }
+        catch (Exception ex) { OsConsoleLog.For<MarkdrawApp>().LogSwallowed(ex, "Failed to seed demo drawings into VFS."); }
     }
 
     private async Task<string> ReadVfsOrCurrentContentAsync(string docPath)
@@ -403,7 +412,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
         if (FilesVfs is not null)
         {
             try { if (await FilesVfs.ReadTextAsync(docPath) is { Length: > 0 } text) { return text; } }
-            catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Failed to read drawing document from VFS."); }
+            catch (Exception ex) { OsConsoleLog.For<MarkdrawApp>().LogSwallowed(ex, "Failed to read drawing document from VFS."); }
         }
         return State.Content;
     }
@@ -419,7 +428,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
                 saved = (await FilesVfs.WriteTextAsync(docPath, content)).VfsPath;
                 drawings = await ListWorkspaceDrawingsAsync(saved);
             }
-            catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Failed to persist canvas scene to VFS."); }
+            catch (Exception ex) { OsConsoleLog.For<MarkdrawApp>().LogSwallowed(ex, "Failed to persist canvas scene to VFS."); }
         }
         return (saved, drawings);
     }
@@ -435,7 +444,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
                     .Where(f => Path.GetExtension(f.Name).ToLowerInvariant() is ".markdraw" or ".excalidraw")
                     .Select(f => f.VfsPath));
             }
-            catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Failed to list workspace drawings from VFS."); }
+            catch (Exception ex) { OsConsoleLog.For<MarkdrawApp>().LogSwallowed(ex, "Failed to list workspace drawings from VFS."); }
         }
         return [.. results.Distinct(StringComparer.OrdinalIgnoreCase)];
     }
@@ -445,7 +454,7 @@ public sealed class MarkdrawApp : AggregateScreen<MarkdrawAppState>, IWithFilesV
         if (content.StartsWith('"') && content.EndsWith('"') && content.Length >= 2)
         {
             try { return System.Text.RegularExpressions.Regex.Unescape(content[1..^1]); }
-            catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Failed to unescape incoming scene string; returning raw content."); }
+            catch (Exception ex) { OsConsoleLog.For<MarkdrawApp>().LogSwallowed(ex, "Failed to unescape incoming scene string; returning raw content."); }
         }
         return content;
     }

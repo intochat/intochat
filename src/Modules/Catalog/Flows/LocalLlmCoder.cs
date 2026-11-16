@@ -1,32 +1,34 @@
-using System.Collections.Frozen;
 using System.Diagnostics;
+using System.Globalization;
 using System.Security;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
+using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
 /// <summary>
-/// Options controlling <see cref="LocalLlmCoder"/> model selection, tool round budget, and optional external CLI fallback.
+/// Options controlling <see cref="LocalLlmCoder"/> model selection, tool round budget, timeout, and optional external CLI fallback.
 /// </summary>
-public sealed class LocalLlmCoderOptions
+internal sealed class LocalLlmCoderOptions
 {
     /// <summary>Optional preferred model key/tag (e.g. <c>qwen2.5-coder:14b</c>).</summary>
     public string? PreferredModel { get; set; }
 
-    /// <summary>Local Ollama HTTP base address used when no cloud/host model is configured.</summary>
-    public string OllamaEndpoint { get; set; } = "http://127.0.0.1:11434";
-
     /// <summary>Maximum LLM tool-calling turns per coding task.</summary>
     public int MaxToolRounds { get; set; } = 12;
+
+    /// <summary>Hard wall-clock budget for a coding turn loop before failing with <see cref="TimeoutException"/>.</summary>
+    public TimeSpan? Timeout { get; set; }
 
     /// <summary>Optional external CLI executable fallback (disabled unless explicitly configured).</summary>
     public string? FallbackCliExecutable { get; set; }
@@ -36,12 +38,12 @@ public sealed class LocalLlmCoderOptions
 }
 
 /// <summary>
-/// Local-first <see cref="ICoder"/> implementation that drives <see cref="IModelInference"/> (or direct local Ollama
-/// <c>qwen2.5-coder:14b</c> on RTX 5080 with zero cloud API keys) using strictly path-confined file tools
-/// (<c>list_files</c>, <c>read_file</c>, <c>replace_in_file</c>, <c>write_file</c>) inside <see cref="WorkTreeLease.TreePath"/>.
-/// Supports an optional <see cref="ExternalCliCoder"/> fallback when configured.
+/// Local-first <see cref="ICoder"/> implementation that routes through <see cref="Modules.AI"/>
+/// (<see cref="ModelCatalog.Decide"/> with <see cref="ModelUse.Code"/>) and <see cref="IModelInference"/>
+/// using strictly path-confined file tools (<c>list_files</c>, <c>read_file</c>, <c>replace_in_file</c>, <c>write_file</c>)
+/// inside <see cref="WorkTreeLease.TreePath"/>.
 /// </summary>
-public sealed class LocalLlmCoder : ICoder
+internal sealed class LocalLlmCoder : ICoder
 {
     private const int MaxListedFiles = 200;
     private const int MaxReadCharacters = 24_000;
@@ -52,49 +54,34 @@ public sealed class LocalLlmCoder : ICoder
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    private static readonly FrozenSet<string> AllowedExtensions = new[]
+    private static IReadOnlyList<InferenceTool> CreateToolDefinitions(ChangePolicy policy)
     {
-        ".cs",
-        ".md",
-        ".dart",
-        ".txt",
-        ".xaml",
-        ".svg",
-    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+        var extensions = string.Join(", ", policy.AllowedExtensions.Order(StringComparer.OrdinalIgnoreCase));
+        return
+        [
+            new(
+                "list_files",
+                "List allowed repository files under a relative directory (or optional substring filter). Never accesses outside the worktree.",
+                """{"type":"object","properties":{"directory":{"type":"string","description":"Optional relative directory path such as src/Modules"},"filter":{"type":"string","description":"Optional filename or path substring filter"}}}"""),
+            new(
+                "read_file",
+                "Read the UTF-8 contents of a single file inside the worktree by repo-relative path.",
+                """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path, e.g. README.md or src/Foo.cs"}},"required":["path"]}"""),
+            new(
+                "replace_in_file",
+                "Replace an exact target snippet with replacement text in an existing file inside the worktree.",
+                """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path"},"old_text":{"type":"string","description":"Exact existing text to replace"},"new_text":{"type":"string","description":"New text"}},"required":["path","old_text","new_text"]}"""),
+            new(
+                "write_file",
+                $"Create or overwrite an allowed file ({extensions}) inside the worktree.",
+                """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path"},"content":{"type":"string","description":"Full UTF-8 file content"}},"required":["path","content"]}"""),
+        ];
+    }
 
-    private static readonly FrozenSet<string> BlockedFileNames = new[]
-    {
-        "claude.md",
-        "agents.md",
-        "skill.md",
-        "copilot-instructions.md",
-    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
-
-    private static readonly IReadOnlyList<InferenceTool> ToolDefinitions =
-    [
-        new(
-            "list_files",
-            "List allowed repository files under a relative directory (or optional substring filter). Never accesses outside the worktree.",
-            """{"type":"object","properties":{"directory":{"type":"string","description":"Optional relative directory path such as src/Modules"},"filter":{"type":"string","description":"Optional filename or path substring filter"}}}"""),
-        new(
-            "read_file",
-            "Read the UTF-8 contents of a single file inside the worktree by repo-relative path.",
-            """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path, e.g. README.md or src/Foo.cs"}},"required":["path"]}"""),
-        new(
-            "replace_in_file",
-            "Replace an exact target snippet with replacement text in an existing file inside the worktree.",
-            """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path"},"old_text":{"type":"string","description":"Exact existing text to replace"},"new_text":{"type":"string","description":"New text"}},"required":["path","old_text","new_text"]}"""),
-        new(
-            "write_file",
-            "Create or overwrite an allowed file (.cs, .md, .dart, .txt, .xaml, .svg) inside the worktree.",
-            """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path"},"content":{"type":"string","description":"Full UTF-8 file content"}},"required":["path","content"]}"""),
-    ];
-
-    private const string SystemPrompt = """
+    private static string BuildSystemPrompt(ChangePolicy policy) => $"""
         You are Ino's surgical coding engine operating inside an isolated Git worktree.
         Rules:
-        1. Modify at most 5 files total, and ONLY touch files directly needed for the goal.
-        2. Allowed extensions ONLY: .cs, .md, .dart, .txt, .xaml, .svg. NEVER touch dotfiles (.git, .github, .claude) or instruction files (CLAUDE.md, AGENTS.md, SKILL.md).
+        {policy.Describe()}
         3. Always inspect existing files with list_files / read_file before editing, unless creating a brand-new file explicitly requested by the goal.
         4. Prefer replace_in_file for surgical edits to existing files, or write_file when creating a new file or rewriting a small file cleanly.
         5. Once you have made at least one real file modification that satisfies the goal, reply with a concise 1-2 sentence summary of the change and stop calling tools.
@@ -103,16 +90,19 @@ public sealed class LocalLlmCoder : ICoder
     private readonly IServiceProvider? _services;
     private readonly LocalLlmCoderOptions _options;
     private readonly ILogger<LocalLlmCoder> _logger;
+    private readonly ChangePolicy _policy;
 
     public LocalLlmCoder(
         IServiceProvider? services = null,
         IConfiguration? configuration = null,
         LocalLlmCoderOptions? options = null,
-        ILogger<LocalLlmCoder>? logger = null)
+        ILogger<LocalLlmCoder>? logger = null,
+        ChangePolicy? policy = null)
     {
         _services = services;
-        _logger = logger ?? NullLogger<LocalLlmCoder>.Instance;
+        _logger = logger ?? OsConsoleLog.For<LocalLlmCoder>();
         _options = options ?? BindOptions(configuration);
+        _policy = policy ?? services?.GetService<ChangePolicy>() ?? ChangePolicy.Default;
     }
 
     public async Task<CoderEditResult> EditAsync(WorkTreeLease lease, string goal, CancellationToken ct = default)
@@ -120,16 +110,36 @@ public sealed class LocalLlmCoder : ICoder
         ArgumentNullException.ThrowIfNull(lease);
         ArgumentException.ThrowIfNullOrWhiteSpace(goal);
 
-        var sandbox = new ConfinedWorkTreeSandbox(lease.TreePath);
+        var sandbox = new ConfinedWorkTreeSandbox(lease.TreePath, _policy);
         try
         {
-            return await RunModelLoopAsync(sandbox, lease, goal, ct).ConfigureAwait(false);
+            return await RunWithTimeoutAsync(sandbox, lease, goal, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException && !string.IsNullOrWhiteSpace(_options.FallbackCliExecutable))
         {
             _logger.LogWarning(ex, "Local LLM coder failed; falling back to configured CLI executable '{Cli}'.", _options.FallbackCliExecutable);
-            var cli = new ExternalCliCoder(_options.FallbackCliExecutable!, _options.FallbackCliArguments);
+            var cli = new ExternalCliCoder(_options.FallbackCliExecutable!, _options.FallbackCliArguments, _options.Timeout);
             return await cli.EditAsync(lease, goal, ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<CoderEditResult> RunWithTimeoutAsync(
+        ConfinedWorkTreeSandbox sandbox,
+        WorkTreeLease lease,
+        string goal,
+        CancellationToken ct)
+    {
+        var timeout = _options.Timeout ?? TimeSpan.FromMinutes(4);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(timeout);
+
+        try
+        {
+            return await RunModelLoopAsync(sandbox, lease, goal, timeoutCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new TimeoutException($"Local LLM coder timed out after {timeout}.");
         }
     }
 
@@ -140,10 +150,11 @@ public sealed class LocalLlmCoder : ICoder
         CancellationToken ct)
     {
         var runner = await ResolveModelRunnerAsync(ct).ConfigureAwait(false);
+        var toolDefinitions = CreateToolDefinitions(_policy);
         var initialListing = sandbox.ListFiles(null, null, maxItems: 60);
         var messages = new List<AiMessage>
         {
-            new("system", [new AiText(SystemPrompt)]),
+            new("system", [new AiText(BuildSystemPrompt(_policy))]),
             new("user", [new AiText(
                 $"Repository: {lease.RepositoryId} (base branch: {lease.BaseBranch})\n" +
                 $"Goal: {goal}\n\n" +
@@ -155,7 +166,7 @@ public sealed class LocalLlmCoder : ICoder
         for (var round = 0; round < _options.MaxToolRounds; round++)
         {
             ct.ThrowIfCancellationRequested();
-            var reply = await runner.InvokeAsync(messages, ToolDefinitions, ct).ConfigureAwait(false);
+            var reply = await runner.InvokeAsync(messages, toolDefinitions, ct).ConfigureAwait(false);
             var assistantMessage = reply.Messages.LastOrDefault(m => string.Equals(m.Role, "assistant", StringComparison.OrdinalIgnoreCase))
                 ?? reply.Messages.LastOrDefault()
                 ?? new AiMessage("assistant", []);
@@ -172,6 +183,11 @@ public sealed class LocalLlmCoder : ICoder
             {
                 if (sandbox.TouchedFiles.Count > 0)
                 {
+                    if (_policy.Check([.. sandbox.TouchedFiles.Select(RepoPath.Parse)]) is { } refusal)
+                    {
+                        throw new SecurityException(refusal);
+                    }
+
                     return new CoderEditResult(lastSummary, sandbox.TouchedFiles, runner.ModelId);
                 }
 
@@ -193,6 +209,11 @@ public sealed class LocalLlmCoder : ICoder
 
         if (sandbox.TouchedFiles.Count > 0)
         {
+            if (_policy.Check([.. sandbox.TouchedFiles.Select(RepoPath.Parse)]) is { } refusal)
+            {
+                throw new SecurityException(refusal);
+            }
+
             return new CoderEditResult(lastSummary, sandbox.TouchedFiles, runner.ModelId);
         }
 
@@ -220,14 +241,32 @@ public sealed class LocalLlmCoder : ICoder
 
     private async Task<IModelTurnRunner> ResolveModelRunnerAsync(CancellationToken ct)
     {
+        var catalog = _services?.GetService<ModelCatalog>();
         var inference = _services?.GetService<IModelInference>();
+        var explicitSelection = string.IsNullOrWhiteSpace(_options.PreferredModel)
+            ? null
+            : new ModelSelection(_options.PreferredModel.Trim());
+
+        if (catalog is not null)
+        {
+            var resolved = await catalog.Decide(brainId: null, ModelUse.Code, explicitSelection, personModel: null, requiresTools: true, ct).ConfigureAwait(false);
+            if (resolved.Provider == AiProvider.Host && _services?.GetService<IChatClient>() is null)
+            {
+                throw new NoProviderConfiguredException("No configured tool-capable AI model or local Ollama server is available for Feature-to-PR coding.");
+            }
+
+            var effectiveInference = inference ?? throw new InvalidOperationException("IModelInference must be registered alongside ModelCatalog.");
+            var selection = ToSelection(resolved);
+            var desc = await effectiveInference.Describe(selection, marker: null, cancellationToken: ct, brainId: null).ConfigureAwait(false);
+            return new InferenceServiceRunner(effectiveInference, selection, resolved.Model, desc.Temperature == CapabilitySupport.Supported);
+        }
+
         if (inference is not null)
         {
-            // 1. Try explicit PreferredModel or default configured inference model
             var candidates = new List<ModelSelection?>();
-            if (!string.IsNullOrWhiteSpace(_options.PreferredModel))
+            if (explicitSelection is not null)
             {
-                candidates.Add(new ModelSelection(_options.PreferredModel));
+                candidates.Add(explicitSelection);
             }
             candidates.Add(null);
 
@@ -236,109 +275,42 @@ public sealed class LocalLlmCoder : ICoder
                 try
                 {
                     var desc = await inference.Describe(selection, marker: null, cancellationToken: ct, brainId: null).ConfigureAwait(false);
-                    // AiProvider.Host with "default" when no IChatClient is registered throws on CreateClient; also require tool support for coding!
                     if (desc.Tools == CapabilitySupport.Supported
                         && (!string.Equals(desc.Provider, "Host", StringComparison.OrdinalIgnoreCase)
-                            || _services?.GetService<global::Microsoft.Extensions.AI.IChatClient>() is not null))
+                            || _services?.GetService<IChatClient>() is not null))
                     {
                         return new InferenceServiceRunner(inference, selection, desc.Model, desc.Temperature == CapabilitySupport.Supported);
                     }
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                catch (Exception ex) when (!ct.IsCancellationRequested && ex is ArgumentException or InvalidOperationException or NotSupportedException or ProviderUnavailableException)
                 {
-                    _logger.LogSwallowed(ex, "Configured IModelInference candidate not ready; probing local Ollama fallback.");
+                    _logger.LogWarning(ex, "Configured IModelInference candidate '{Model}' could not resolve.", selection?.Model ?? "default");
                 }
             }
         }
 
-        // 2. Direct zero-key local Ollama probe (e.g. RTX 5080 running qwen2.5-coder:14b at http://127.0.0.1:11434)
-        var ollamaTag = await ProbeLocalOllamaModelAsync(_options.OllamaEndpoint, _options.PreferredModel, ct).ConfigureAwait(false);
-        if (ollamaTag is not null)
-        {
-            return new DirectOllamaChatRunner(_options.OllamaEndpoint, ollamaTag);
-        }
-
-        throw new InvalidOperationException(
-            $"No configured tool-capable AI model or local Ollama server ({_options.OllamaEndpoint}) is available for Feature-to-PR coding.");
+        throw new InvalidOperationException("No configured tool-capable AI model or local Ollama server is available for Feature-to-PR coding.");
     }
 
-    internal static async Task<string?> ProbeLocalOllamaModelAsync(string endpoint, string? preferred, CancellationToken ct)
-    {
-        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var baseUri))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var http = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromSeconds(5) };
-            using var response = await http.GetAsync("/api/tags", ct).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
-                return null;
-            }
-
-            var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            using var doc = JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("models", out var models) || models.ValueKind != JsonValueKind.Array)
-            {
-                return null;
-            }
-
-            var available = models.EnumerateArray()
-                .Select(m => m.TryGetProperty("name", out var n) ? n.GetString() : null)
-                .Where(n => !string.IsNullOrWhiteSpace(n))
-                .Select(n => n!)
-                .ToArray();
-            if (available.Length == 0)
-            {
-                return null;
-            }
-
-            // Priority order: explicit preferred -> qwen2.5-coder:14b -> any qwen*coder* -> qwen3.5* -> first non-embedding model
-            if (!string.IsNullOrWhiteSpace(preferred))
-            {
-                var cleanPref = preferred.StartsWith("ollama/", StringComparison.OrdinalIgnoreCase) || preferred.StartsWith("ollama:", StringComparison.OrdinalIgnoreCase)
-                    ? preferred[7..]
-                    : preferred;
-                var exact = available.FirstOrDefault(m => string.Equals(m, cleanPref, StringComparison.OrdinalIgnoreCase));
-                if (exact is not null) { return exact; }
-            }
-
-            string[] priorities = ["qwen2.5-coder:14b", "qwen2.5-coder", "qwen3-coder", "qwen3.5:4b", "qwen3.5"];
-            foreach (var p in priorities)
-            {
-                var hit = available.FirstOrDefault(m => m.StartsWith(p, StringComparison.OrdinalIgnoreCase));
-                if (hit is not null) { return hit; }
-            }
-
-            return available.FirstOrDefault(m => !m.Contains("embed", StringComparison.OrdinalIgnoreCase)) ?? available[0];
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            NullLogger.Instance.LogSwallowed(ex, "Local Ollama model probe did not succeed.");
-            return null;
-        }
-    }
+    private static ModelSelection? ToSelection(ResolvedModel resolved)
+        => resolved.Provider == AiProvider.Host ? null
+            : resolved.Profile is { Length: > 0 } ? new($"profile:{resolved.Profile}", resolved.Reasoning, resolved.MaxOutputTokens)
+            : resolved.Provider == AiProvider.Ollama ? new($"ollama/{resolved.Model}", resolved.Reasoning, resolved.MaxOutputTokens)
+            : new(resolved.Model, resolved.Reasoning, resolved.MaxOutputTokens);
 
     private static LocalLlmCoderOptions BindOptions(IConfiguration? configuration)
     {
         var opts = new LocalLlmCoderOptions();
         if (configuration is null) { return opts; }
 
-        opts.PreferredModel = configuration["IntoChatOS:Coder:Model"] ?? configuration["AI:Ollama:CoderModel"];
-        if (configuration["AI:Ollama:Endpoint"] is { Length: > 0 } ep)
-        {
-            opts.OllamaEndpoint = ep;
-        }
-        else if (Environment.GetEnvironmentVariable("IntoChatOS__AI__Ollama__Endpoint") is { Length: > 0 } envEp)
-        {
-            opts.OllamaEndpoint = envEp;
-        }
-
+        opts.PreferredModel = configuration["IntoChatOS:Coder:Model"];
         if (configuration["IntoChatOS:Coder:CliExecutable"] is { Length: > 0 } cli)
         {
             opts.FallbackCliExecutable = cli;
+        }
+        if (double.TryParse(configuration["IntoChatOS:Coder:TimeoutSeconds"], NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) && seconds > 0)
+        {
+            opts.Timeout = TimeSpan.FromSeconds(seconds);
         }
 
         return opts;
@@ -362,134 +334,21 @@ public sealed class LocalLlmCoder : ICoder
         }
     }
 
-    private sealed class DirectOllamaChatRunner(string endpoint, string modelTag) : IModelTurnRunner
-    {
-        public string ModelId => $"ollama/{modelTag}";
-
-        public async Task<InferenceResult> InvokeAsync(IReadOnlyList<AiMessage> messages, IReadOnlyList<InferenceTool> tools, CancellationToken ct)
-        {
-            // Call Ollama's native /api/chat directly with think:false & tool declarations so zero external provider config is required
-            using var http = new HttpClient { BaseAddress = new Uri(endpoint), Timeout = TimeSpan.FromMinutes(4) };
-
-            var wireMessages = new List<object>(messages.Count);
-            foreach (var msg in messages)
-            {
-                if (string.Equals(msg.Role, "tool", StringComparison.OrdinalIgnoreCase))
-                {
-                    foreach (var tr in msg.Content.OfType<AiToolResult>())
-                    {
-                        wireMessages.Add(new
-                        {
-                            role = "tool",
-                            content = tr.ResultJson,
-                        });
-                    }
-                    continue;
-                }
-
-                var text = string.Join("\n", msg.Content.OfType<AiText>().Select(t => t.Text));
-                var calls = msg.Content.OfType<AiToolCall>().Select(tc => new
-                {
-                    function = new
-                    {
-                        name = tc.Name,
-                        arguments = ParseJsonOrEmptyObject(tc.ArgumentsJson),
-                    },
-                }).ToArray();
-
-                if (calls.Length > 0)
-                {
-                    wireMessages.Add(new { role = msg.Role, content = text, tool_calls = calls });
-                }
-                else
-                {
-                    wireMessages.Add(new { role = msg.Role, content = text });
-                }
-            }
-
-            var wireTools = tools.Select(t => new
-            {
-                type = "function",
-                function = new
-                {
-                    name = t.Name,
-                    description = t.Description,
-                    parameters = ParseJsonOrEmptyObject(t.ParametersJson),
-                },
-            }).ToArray();
-
-            var payload = JsonSerializer.Serialize(new
-            {
-                model = modelTag,
-                stream = false,
-                think = false,
-                options = new { temperature = 0.1 },
-                messages = wireMessages,
-                tools = wireTools,
-            }, Json);
-
-            using var content = new StringContent(payload, Encoding.UTF8, "application/json");
-            using var response = await http.PostAsync("/api/chat", content, ct).ConfigureAwait(false);
-            var responseBody = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new HttpRequestException($"Ollama /api/chat returned {(int)response.StatusCode}: {responseBody}");
-            }
-
-            using var doc = JsonDocument.Parse(responseBody);
-            var msgEl = doc.RootElement.GetProperty("message");
-            var parts = new List<AiContent>();
-            if (msgEl.TryGetProperty("content", out var textEl) && textEl.ValueKind == JsonValueKind.String)
-            {
-                var s = textEl.GetString();
-                if (!string.IsNullOrEmpty(s)) { parts.Add(new AiText(s)); }
-            }
-
-            if (msgEl.TryGetProperty("tool_calls", out var tcEl) && tcEl.ValueKind == JsonValueKind.Array)
-            {
-                var idx = 0;
-                foreach (var item in tcEl.EnumerateArray())
-                {
-                    if (!item.TryGetProperty("function", out var fn)) { continue; }
-                    var name = fn.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                    var argsJson = fn.TryGetProperty("arguments", out var a)
-                        ? (a.ValueKind == JsonValueKind.String ? a.GetString() ?? "{}" : a.GetRawText())
-                        : "{}";
-                    parts.Add(new AiToolCall($"call_{idx++}_{Guid.NewGuid():N}"[..16], name, argsJson));
-                }
-            }
-
-            return new InferenceResult(
-                [new AiMessage("assistant", [.. parts])],
-                FinishReason: parts.OfType<AiToolCall>().Any() ? "tool_calls" : "stop",
-                Usage: null,
-                ResponseId: null,
-                Model: modelTag);
-        }
-
-        private static JsonElement ParseJsonOrEmptyObject(string raw)
-        {
-            if (string.IsNullOrWhiteSpace(raw)) { return JsonElement.Parse("{}"); }
-            try { return JsonElement.Parse(raw); }
-            catch (JsonException) { return JsonElement.Parse("{}"); }
-        }
-    }
-
     /// <summary>
-    /// Strictly sandboxed file tool executor confined to <c>Path.GetFullPath(treeRoot)</c>.
+    /// Strictly sandboxed file tool executor confined to <c>Path.GetFullPath(treeRoot)</c> via <see cref="ChangePolicy"/>.
     /// Blocks <c>..</c> traversal, symlinks/reparse points, dotfiles (<c>.git</c>, <c>.github</c>, <c>.claude</c>),
     /// agent instruction files (<c>CLAUDE.md</c>, <c>AGENTS.md</c>, <c>SKILL.md</c>), and disallowed extensions on write.
     /// </summary>
     internal sealed class ConfinedWorkTreeSandbox
     {
         private readonly string _root;
-        private readonly string _rootWithSep;
+        private readonly ChangePolicy _policy;
         private readonly HashSet<string> _touched = new(StringComparer.Ordinal);
 
-        public ConfinedWorkTreeSandbox(string treeRoot)
+        public ConfinedWorkTreeSandbox(string treeRoot, ChangePolicy? policy = null)
         {
             _root = Path.GetFullPath(treeRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            _rootWithSep = _root + Path.DirectorySeparatorChar;
+            _policy = policy ?? ChangePolicy.Default;
         }
 
         public IReadOnlyList<string> TouchedFiles => [.. _touched.OrderBy(p => p, StringComparer.Ordinal)];
@@ -522,6 +381,7 @@ public sealed class LocalLlmCoder : ICoder
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                OsConsoleLog.For<LocalLlmCoder>().LogSwallowed(ex, $"sandbox tool '{name}' failed");
                 return JsonSerializer.Serialize(new { ok = false, error = ex.Message });
             }
         }
@@ -633,83 +493,14 @@ public sealed class LocalLlmCoder : ICoder
 
         private void EnforceMaxTouchedBudget(string rel)
         {
-            if (!_touched.Contains(rel) && _touched.Count >= 5)
+            if (!_touched.Contains(rel) && _touched.Count >= _policy.MaxChangedFiles)
             {
-                throw new SecurityException("Maximum of 5 modified files reached for this Feature-to-PR run.");
+                throw new SecurityException($"Maximum of {_policy.MaxChangedFiles} modified files reached for this Feature-to-PR run.");
             }
         }
 
         internal (string RelativePath, string FullPath) ResolveConfinedPath(string rawPath, bool requireWriteAllowed, bool allowDirectory)
-        {
-            if (string.IsNullOrWhiteSpace(rawPath))
-            {
-                throw new SecurityException("Path must not be empty.");
-            }
-
-            var normalized = rawPath.Replace('\\', '/').Trim();
-            if (normalized is "." && allowDirectory)
-            {
-                return ("", _root);
-            }
-
-            if (Path.IsPathRooted(normalized) || normalized.StartsWith('/'))
-            {
-                throw new SecurityException($"Absolute paths are forbidden: '{rawPath}'.");
-            }
-
-            var segments = normalized.Split('/', StringSplitOptions.None);
-            foreach (var seg in segments)
-            {
-                if (seg.Length == 0 || seg is "." or "..")
-                {
-                    throw new SecurityException($"Path traversal segment forbidden in '{rawPath}'.");
-                }
-                if (seg.StartsWith('.'))
-                {
-                    throw new SecurityException($"Access to dotfile or hidden directory '{rawPath}' (including .git) is forbidden.");
-                }
-            }
-
-            var leaf = segments[^1];
-            if (!allowDirectory && BlockedFileNames.Contains(leaf))
-            {
-                throw new SecurityException($"Access to agent instruction file '{rawPath}' is forbidden.");
-            }
-
-            if (requireWriteAllowed)
-            {
-                var ext = Path.GetExtension(leaf);
-                if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
-                {
-                    throw new SecurityException(
-                        $"Writing extension '{ext}' on '{rawPath}' is forbidden. Allowed extensions: {string.Join(", ", AllowedExtensions.Order())}.");
-                }
-            }
-
-            var full = Path.GetFullPath(Path.Combine(_root, normalized.Replace('/', Path.DirectorySeparatorChar)));
-            var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-            if (!full.StartsWith(_rootWithSep, cmp) && !(allowDirectory && string.Equals(full, _root, cmp)))
-            {
-                throw new SecurityException($"Path '{rawPath}' escapes worktree root.");
-            }
-
-            // Reject symlinks/junctions anywhere along the path
-            var cursor = full;
-            while (!string.IsNullOrEmpty(cursor) && !string.Equals(cursor, _root, cmp))
-            {
-                if (File.Exists(cursor) || Directory.Exists(cursor))
-                {
-                    var info = new FileInfo(cursor);
-                    if ((info.Attributes & FileAttributes.ReparsePoint) != 0 || info.LinkTarget is not null)
-                    {
-                        throw new SecurityException($"Symlink or reparse point rejected at '{rawPath}'.");
-                    }
-                }
-                cursor = Path.GetDirectoryName(cursor);
-            }
-
-            return (normalized, full);
-        }
+            => _policy.ResolveConfinedPath(_root, rawPath, requireWriteAllowed, allowDirectory);
 
         private static string RequireString(JsonElement obj, string prop) =>
             obj.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String
@@ -725,7 +516,7 @@ public sealed class LocalLlmCoder : ICoder
 /// Pluggable external CLI coder fallback (e.g. a local script or CLI tool) executed inside <see cref="WorkTreeLease.TreePath"/>
 /// with <c>CreateNoWindow = true</c>. Output is still gated by <see cref="IWorkTree.VerifyAndCommitAsync"/> (Triple Git Lock + C# Path Gate).
 /// </summary>
-public sealed class ExternalCliCoder(string executable, IReadOnlyList<string>? argumentsTemplate = null, TimeSpan? timeout = null) : ICoder
+internal sealed class ExternalCliCoder(string executable, IReadOnlyList<string>? argumentsTemplate = null, TimeSpan? timeout = null) : ICoder
 {
     private readonly TimeSpan _timeout = timeout ?? TimeSpan.FromMinutes(3);
 
@@ -762,16 +553,46 @@ public sealed class ExternalCliCoder(string executable, IReadOnlyList<string>? a
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(_timeout);
-        var stdOut = await process.StandardOutput.ReadToEndAsync(cts.Token).ConfigureAwait(false);
-        var stdErr = await process.StandardError.ReadToEndAsync(cts.Token).ConfigureAwait(false);
-        await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
-
-        if (process.ExitCode != 0)
+        try
         {
-            throw new InvalidOperationException($"External CLI coder '{executable}' exited with code {process.ExitCode}: {stdErr}");
-        }
+            var outTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+            var errTask = process.StandardError.ReadToEndAsync(cts.Token);
+            await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+            var stdOut = await outTask.ConfigureAwait(false);
+            var stdErr = await errTask.ConfigureAwait(false);
 
-        var summary = string.IsNullOrWhiteSpace(stdOut) ? $"Edited via {Path.GetFileName(executable)}." : stdOut.Trim();
-        return new CoderEditResult(summary, [], $"cli:{Path.GetFileName(executable)}");
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidOperationException($"External CLI coder '{executable}' exited with code {process.ExitCode}: {stdErr}");
+            }
+
+            var summary = string.IsNullOrWhiteSpace(stdOut) ? $"Edited via {Path.GetFileName(executable)}." : stdOut.Trim();
+            return new CoderEditResult(summary, [], $"cli:{Path.GetFileName(executable)}");
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            KillProcessTree(process);
+            throw new TimeoutException($"External CLI coder '{executable}' timed out after {_timeout}.");
+        }
+        catch (OperationCanceledException)
+        {
+            KillProcessTree(process);
+            throw;
+        }
+    }
+
+    private static void KillProcessTree(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+        {
+            OsConsoleLog.For<ExternalCliCoder>().LogDebug(ex, "External CLI coder process already exited before termination.");
+        }
     }
 }

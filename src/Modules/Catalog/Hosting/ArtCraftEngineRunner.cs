@@ -1,6 +1,6 @@
-using System.IO.Compression;
-using System.Text;
 using System.Text.Json;
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Mcp;
 
@@ -8,12 +8,6 @@ namespace IntoChat.OS.Modules.Apps;
 
 public static class ArtCraftEngineRunner
 {
-    public static readonly string CyanPreviewPngDataUrl = BuildStudioPreviewPng("cyan");
-    public static readonly string GradientPreviewPngDataUrl = BuildStudioPreviewPng("gradient");
-    public static readonly string CutoutPreviewPngDataUrl = BuildStudioPreviewPng("cutout");
-    public static readonly string MonochromePreviewPngDataUrl = BuildStudioPreviewPng("mono");
-    public static readonly string WarmPresetPngDataUrl = BuildStudioPreviewPng("warm");
-    public static readonly string VividPresetPngDataUrl = BuildStudioPreviewPng("vivid");
 
     private static readonly (string[] Terms, string CmdId, string Title, string DefaultJson, string Suffix, string[] Layers)[] PhotoCommands =
     [
@@ -196,7 +190,7 @@ public static class ArtCraftEngineRunner
         var stem = NonEmptyStem(inputDoc, descriptor.Id);
         var outExt = Path.GetExtension(descriptor.DefaultOutputDocument);
         var outputDoc = $"/work/{stem}.processed{(string.IsNullOrWhiteSpace(outExt) ? ".out" : outExt)}";
-        var cliInvocation = $"{descriptor.CliBinary} run {inputDoc} --cmd {cmdId} --params '{paramsJson}' --out {outputDoc}";
+        var cliInvocation = string.Empty;
 
         return await RunAndPersistStudioCommandAsync(
             descriptor, mode, cmdId, title, paramsJson, inputDoc, outputDoc, cliInvocation,
@@ -230,9 +224,7 @@ public static class ArtCraftEngineRunner
             inputDoc = await TryResolveExactVfsPathAsync(inputDoc, vfs, "PhotoCraft input file", onRecoverableError).ConfigureAwait(false);
         }
 
-        var cliInvocation = isNewGradient
-            ? $"photocraft-cli run --new '{{\"width\":512,\"height\":512}}' --cmd {cmdId} --params '{paramsJson}' --out {outputDoc} --format png"
-            : $"photocraft-cli run {inputDoc} --cmd {cmdId} --params '{paramsJson}' --out {outputDoc} --format png";
+        var cliInvocation = string.Empty;
 
         return await RunAndPersistStudioCommandAsync(
             descriptor, mode, cmdId, title, paramsJson, inputDoc, outputDoc, cliInvocation,
@@ -264,7 +256,7 @@ public static class ArtCraftEngineRunner
             inputDoc = await TryResolveExactVfsPathAsync(inputDoc, vfs, "FilmCraft sequence", onRecoverableError).ConfigureAwait(false);
         }
 
-        var cliInvocation = $"filmcraft-cli exec {inputDoc} --cmd {cmdId} --params '{paramsJson}' --out {outputDoc}";
+        var cliInvocation = string.Empty;
         return await RunAndPersistStudioCommandAsync(
             descriptor, mode, cmdId, title, paramsJson, inputDoc, outputDoc, cliInvocation,
             tracks, "Sequence", isNewGradient: false, studio, mcpResolver, onRecoverableError, vfs).ConfigureAwait(false);
@@ -292,14 +284,9 @@ public static class ArtCraftEngineRunner
         Action<Exception, string>? onRecoverableError,
         IFilesVfsService? vfs)
     {
-        var previewUrl = SelectPreviewPngDataUrl(cmdId, isNewGradient);
-        var modeBadge = mode switch
-        {
-            "mcp" => $"MCP Server ({descriptor.Id}-mcp)",
-            "wasm-ui" => descriptor.Id == ShippedApps.FilmCraft ? "WASM Web UI + Page Bridge" : "WASM Web UI + Engine",
-            _ => $"Native Linux CLI ({descriptor.CliBinary})",
-        };
+        var previewUrl = string.Empty;
 
+        var mcpExecuted = false;
         if (mode == "mcp" && studio is not null && mcpResolver is not null)
         {
             try
@@ -309,10 +296,24 @@ public static class ArtCraftEngineRunner
                 {
                     if (descriptor.Id == ShippedApps.PhotoCraft)
                     {
-                        await mcpServer.Run(
+                        var docResult = await mcpServer.Run(
                             isNewGradient ? "doc_new" : "doc_open",
                             isNewGradient ? "{\"width\":512,\"height\":512,\"name\":\"Gradient\"}" : JsonSerializer.Serialize(new { path = inputDoc }));
-                        await mcpServer.Run("command_run", $"{{\"id\":\"{cmdId}\",\"params\":{paramsJson}}}");
+                        if (docResult.IsError)
+                        {
+                            return CreateExecutionFailureResult(
+                                descriptor.Id, mode, cmdId, title, paramsJson, inputDoc, outputDoc, layersOrTracks,
+                                $"{descriptor.Title} MCP error opening document: {(string.IsNullOrWhiteSpace(docResult.Text) ? "unknown error" : docResult.Text)}");
+                        }
+
+                        var cmdResult = await mcpServer.Run("command_run", $"{{\"id\":\"{cmdId}\",\"params\":{paramsJson}}}");
+                        if (cmdResult.IsError)
+                        {
+                            return CreateExecutionFailureResult(
+                                descriptor.Id, mode, cmdId, title, paramsJson, inputDoc, outputDoc, layersOrTracks,
+                                $"{descriptor.Title} MCP error running '{cmdId}': {(string.IsNullOrWhiteSpace(cmdResult.Text) ? "unknown error" : cmdResult.Text)}");
+                        }
+
                         var previewResult = await mcpServer.Run("render_preview", "{\"format\":\"png\"}");
                         if (!previewResult.IsError && previewResult.Blobs is { Length: > 0 } blobs && !string.IsNullOrWhiteSpace(blobs[0].Data))
                         {
@@ -322,14 +323,36 @@ public static class ArtCraftEngineRunner
                     }
                     else
                     {
-                        await mcpServer.Run("command_run", $"{{\"id\":\"{cmdId}\",\"params\":{paramsJson}}}");
+                        var cmdResult = await mcpServer.Run("command_run", $"{{\"id\":\"{cmdId}\",\"params\":{paramsJson}}}");
+                        if (cmdResult.IsError)
+                        {
+                            return CreateExecutionFailureResult(
+                                descriptor.Id, mode, cmdId, title, paramsJson, inputDoc, outputDoc, layersOrTracks,
+                                $"{descriptor.Title} MCP error running '{cmdId}': {(string.IsNullOrWhiteSpace(cmdResult.Text) ? "unknown error" : cmdResult.Text)}");
+                        }
                     }
+
+                    mcpExecuted = true;
                 }
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                onRecoverableError?.Invoke(error, $"{descriptor.Title} MCP server is optional when running offline or in TestOS.");
+                OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, $"{descriptor.Title} MCP execution failed.");
+                onRecoverableError?.Invoke(error, $"{descriptor.Title} MCP execution failed.");
+                return CreateExecutionFailureResult(
+                    descriptor.Id, mode, cmdId, title, paramsJson, inputDoc, outputDoc, layersOrTracks,
+                    $"{descriptor.Title} execution failed: {error.Message}");
             }
+        }
+
+        if (!mcpExecuted)
+        {
+            var disconnectedSummary = mode == "mcp"
+                ? $"{descriptor.Title} MCP server '{descriptor.Id}-mcp' is not connected. Connect {descriptor.Title} in Settings to run '{cmdId}'."
+                : $"{descriptor.Title} backend '{mode}' is not connected. Connect {descriptor.Title} MCP or a hosted studio runtime to run '{cmdId}'.";
+            return CreateExecutionFailureResult(
+                descriptor.Id, mode, cmdId, title, paramsJson, inputDoc, outputDoc, layersOrTracks,
+                disconnectedSummary);
         }
 
         string? outputNeuronUri = null;
@@ -337,7 +360,7 @@ public static class ArtCraftEngineRunner
         {
             try
             {
-                var bytes = DecodeDataUrlBytes(previewUrl, $"PhotoCraft PNG artifact ({cmdId}) -> {outputDoc}");
+                var bytes = DecodeDataUrlBytes(previewUrl);
                 if (bytes.Length > 0)
                 {
                     outputNeuronUri = (await vfs.WriteFileAsync(outputDoc, bytes).ConfigureAwait(false)).NeuronUri;
@@ -345,16 +368,31 @@ public static class ArtCraftEngineRunner
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
+                OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, $"Could not persist {descriptor.Title} output artifact to Files VFS.");
                 onRecoverableError?.Invoke(error, $"Could not persist {descriptor.Title} output artifact to Files VFS.");
             }
         }
 
+        var modeBadge = $"MCP Server ({descriptor.Id}-mcp)";
         var summary = $"Executed `{cmdId}` ({title}) via **{modeBadge}** · {inputLabel}: `{inputDoc}` -> Output: `{outputDoc}`";
         return new ArtCraftEngineResult(
             descriptor.Id, mode, cmdId, title, paramsJson, inputDoc, outputDoc,
             cliInvocation, summary, previewUrl, layersOrTracks,
             IsValidCommand: true, OutputNeuronUri: outputNeuronUri);
     }
+
+    private static ArtCraftEngineResult CreateExecutionFailureResult(
+        string appId,
+        string mode,
+        string cmdId,
+        string title,
+        string paramsJson,
+        string inputDoc,
+        string outputDoc,
+        string[] layersOrTracks,
+        string summary) => new(
+        appId, mode, cmdId, title, paramsJson, inputDoc, outputDoc, string.Empty,
+        summary, string.Empty, layersOrTracks, IsValidCommand: false, OutputNeuronUri: null);
 
     private static async Task<string> ResolveStudioInputDocumentAsync(
         ArtCraftAppDescriptor descriptor,
@@ -381,6 +419,7 @@ public static class ArtCraftEngineRunner
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, $"Could not resolve {descriptor.Title} input file against Files VFS.");
             onRecoverableError?.Invoke(error, $"Could not resolve {descriptor.Title} input file against Files VFS.");
         }
 
@@ -396,6 +435,7 @@ public static class ArtCraftEngineRunner
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, $"Could not resolve {label} against Files VFS.");
             onRecoverableError?.Invoke(error, $"Could not resolve {label} against Files VFS.");
         }
 
@@ -434,30 +474,14 @@ public static class ArtCraftEngineRunner
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For(typeof(ArtCraftEngineRunner)).LogSwallowed(error, "Could not inspect Files VFS for studio input resolution.");
             onRecoverableError?.Invoke(error, "Could not inspect Files VFS for studio input resolution.");
         }
 
         return currentDocument;
     }
 
-    public static string SelectPreviewPngDataUrl(string? cmdId, bool isNewGradient = false)
-    {
-        if (isNewGradient || string.Equals(cmdId, "layer.newFillLayer.gradient", StringComparison.OrdinalIgnoreCase))
-        {
-            return GradientPreviewPngDataUrl;
-        }
-
-        return cmdId switch
-        {
-            "layer.removeBackground" => CutoutPreviewPngDataUrl,
-            "image.adjustments.desaturate" => MonochromePreviewPngDataUrl,
-            "preset.warm" => WarmPresetPngDataUrl,
-            "preset.vivid" => VividPresetPngDataUrl,
-            _ => CyanPreviewPngDataUrl,
-        };
-    }
-
-    private static byte[] DecodeDataUrlBytes(string? dataUrl, string fallbackText)
+    private static byte[] DecodeDataUrlBytes(string? dataUrl)
     {
         if (!string.IsNullOrWhiteSpace(dataUrl))
         {
@@ -469,7 +493,7 @@ public static class ArtCraftEngineRunner
                 if (Convert.TryFromBase64String(base64, buffer, out var written)) { return buffer[..written]; }
             }
         }
-        return Encoding.UTF8.GetBytes(fallbackText);
+        return [];
     }
 
     public static string? ExtractFileName(string text)
@@ -513,223 +537,4 @@ public static class ArtCraftEngineRunner
 
     private static bool ContainsAny(string text, params string[] terms)
         => terms.Any(term => text.Contains(term, StringComparison.OrdinalIgnoreCase));
-
-    private static string BuildStudioPreviewPng(string palette)
-    {
-        const int width = 320;
-        const int height = 180;
-        var raw = new byte[height * (1 + width * 4)];
-        var offset = 0;
-
-        for (var y = 0; y < height; y++)
-        {
-            raw[offset++] = 0; // filter: None
-            var v = y / (float)(height - 1);
-
-            for (var x = 0; x < width; x++)
-            {
-                var u = x / (float)(width - 1);
-
-                // Smooth cinema landscape ridge + architectural focal prism with anti-aliased SDF
-                var ridgeA = 0.63f - 0.11f * MathF.Sin(u * 4.2f + 0.55f) - 0.05f * MathF.Cos(u * 9.5f - 0.8f);
-                var ridgeB = 0.72f - 0.07f * MathF.Cos(u * 5.6f + 1.4f);
-
-                // Sun / aperture key light disc (smooth anti-aliased glow)
-                var sx = (u - 0.68f) * (width / (float)height);
-                var sy = v - 0.34f;
-                var sunDist = MathF.Sqrt(sx * sx + sy * sy);
-                var sunDisc = Math.Clamp((0.145f - sunDist) * 45f, 0f, 1f);
-                var sunGlow = MathF.Exp(-sunDist * 5.4f);
-
-                // Architectural subject silhouette / portrait monolith in foreground
-                var px = MathF.Abs(u - 0.36f);
-                var py = MathF.Abs(v - 0.54f);
-                var boxSdf = MathF.Max(px - 0.095f, py - 0.21f);
-                var subjectMask = Math.Clamp((0.008f - boxSdf) * 90f, 0f, 1f);
-                var rimMask = Math.Clamp((0.012f - MathF.Abs(boxSdf)) * 75f, 0f, 1f);
-
-                // Subtle 1px studio rule-of-thirds & frame border
-                var isFrame = x == 0 || x == width - 1 || y == 0 || y == height - 1;
-                var isGuide = (x == width / 3 || x == width * 2 / 3 || y == height / 3 || y == height * 2 / 3)
-                              && (x + y) % 4 < 2;
-
-                float fr, fg, fb, fa = 1f;
-                switch (palette)
-                {
-                    case "cutout":
-                        {
-                            var fgAlpha = MathF.Max(subjectMask, sunDisc * 0.92f);
-                            if (fgAlpha <= 0.01f)
-                            {
-                                // Subtle dark studio alpha grid instead of glaring high-contrast grey blocks
-                                var cell = (x / 10 + y / 10) % 2 == 0;
-                                fr = cell ? 24f : 31f;
-                                fg = cell ? 26f : 33f;
-                                fb = cell ? 31f : 39f;
-                                fa = 0.92f;
-                            }
-                            else
-                            {
-                                fr = 28f + 175f * sunGlow + 54f * rimMask;
-                                fg = 152f + 76f * (1f - v) + 42f * rimMask;
-                                fb = 214f + 32f * u;
-                                fa = 1f;
-                            }
-                            break;
-                        }
-                    case "gradient":
-                        {
-                            fr = 24f + 188f * u + 28f * sunGlow;
-                            fg = 48f + 92f * (1f - v) + 44f * u;
-                            fb = 132f + 104f * (1f - u) * (0.65f + 0.35f * (1f - v));
-                            break;
-                        }
-                    case "mono":
-                        {
-                            var luma = 26f + 110f * (1f - v) * 0.55f + 118f * sunGlow;
-                            if (v > ridgeA) { luma *= 0.52f; }
-                            if (v > ridgeB) { luma *= 0.68f; }
-                            luma = luma * (1f - subjectMask) + (48f + 95f * (1f - v)) * subjectMask + 75f * rimMask;
-                            fr = luma;
-                            fg = luma;
-                            fb = luma + 4f;
-                            break;
-                        }
-                    case "warm":
-                        {
-                            fr = 34f + 168f * sunGlow + 56f * (1f - v);
-                            fg = 24f + 104f * sunGlow + 28f * (1f - v);
-                            fb = 28f + 42f * (1f - v) + 32f * sunGlow;
-                            if (v > ridgeA) { fr *= 0.48f; fg *= 0.44f; fb *= 0.54f; }
-                            if (v > ridgeB) { fr *= 0.68f; fg *= 0.65f; fb *= 0.72f; }
-                            fr = fr * (1f - subjectMask) + 38f * subjectMask + 125f * rimMask;
-                            fg = fg * (1f - subjectMask) + 28f * subjectMask + 82f * rimMask;
-                            fb = fb * (1f - subjectMask) + 30f * subjectMask + 46f * rimMask;
-                            break;
-                        }
-                    case "vivid":
-                        {
-                            fr = 28f + 164f * sunGlow + 78f * u;
-                            fg = 22f + 86f * (1f - v) + 72f * sunGlow;
-                            fb = 68f + 142f * (1f - u * 0.4f) * (1f - v * 0.45f);
-                            if (v > ridgeA) { fr *= 0.46f; fg *= 0.48f; fb *= 0.58f; }
-                            fr = fr * (1f - subjectMask) + 42f * subjectMask + 112f * rimMask;
-                            fg = fg * (1f - subjectMask) + 36f * subjectMask + 148f * rimMask;
-                            fb = fb * (1f - subjectMask) + 74f * subjectMask + 164f * rimMask;
-                            break;
-                        }
-                    default:
-                        {
-                            fr = 18f + 64f * sunGlow + 24f * u;
-                            fg = 34f + 122f * sunGlow + 52f * (1f - v);
-                            fb = 58f + 146f * sunGlow + 68f * (1f - v * 0.5f);
-                            if (v > ridgeA) { fr *= 0.50f; fg *= 0.52f; fb *= 0.58f; }
-                            if (v > ridgeB) { fr *= 0.70f; fg *= 0.72f; fb *= 0.76f; }
-                            fr = fr * (1f - subjectMask) + 24f * subjectMask + 70f * rimMask;
-                            fg = fg * (1f - subjectMask) + 44f * subjectMask + 148f * rimMask;
-                            fb = fb * (1f - subjectMask) + 66f * subjectMask + 176f * rimMask;
-                            break;
-                        }
-                }
-
-                if (sunDisc > 0.01f && palette != "gradient")
-                {
-                    var discWeight = sunDisc * 0.55f;
-                    fr = fr * (1f - discWeight) + 248f * discWeight;
-                    fg = fg * (1f - discWeight) + (palette == "warm" ? 204f : 238f) * discWeight;
-                    fb = fb * (1f - discWeight) + (palette == "warm" ? 142f : 246f) * discWeight;
-                }
-
-                if (isGuide)
-                {
-                    fr = fr * 0.88f + 255f * 0.12f;
-                    fg = fg * 0.88f + 255f * 0.12f;
-                    fb = fb * 0.88f + 255f * 0.12f;
-                }
-
-                if (isFrame)
-                {
-                    fr = 54f;
-                    fg = 58f;
-                    fb = 66f;
-                    fa = 1f;
-                }
-
-                raw[offset++] = (byte)Math.Clamp((int)fr, 0, 255);
-                raw[offset++] = (byte)Math.Clamp((int)fg, 0, 255);
-                raw[offset++] = (byte)Math.Clamp((int)fb, 0, 255);
-                raw[offset++] = (byte)Math.Clamp((int)(fa * 255f), 0, 255);
-            }
-        }
-
-        using var ms = new MemoryStream();
-        ms.Write([137, 80, 78, 71, 13, 10, 26, 10]); // PNG magic
-
-        Span<byte> ihdr = stackalloc byte[13];
-        WriteBigEndian(ihdr[..4], width);
-        WriteBigEndian(ihdr.Slice(4, 4), height);
-        ihdr[8] = 8;  // 8-bit depth
-        ihdr[9] = 6;  // RGBA
-        ihdr[10] = 0; // deflate
-        ihdr[11] = 0; // adaptive filter
-        ihdr[12] = 0; // non-interlaced
-        WritePngChunk(ms, "IHDR"u8, ihdr);
-
-        using (var idatPayload = new MemoryStream())
-        {
-            using (var zlib = new ZLibStream(idatPayload, CompressionLevel.Fastest, leaveOpen: true))
-            {
-                zlib.Write(raw);
-            }
-            WritePngChunk(ms, "IDAT"u8, idatPayload.GetBuffer().AsSpan(0, (int)idatPayload.Length));
-        }
-
-        WritePngChunk(ms, "IEND"u8, ReadOnlySpan<byte>.Empty);
-        return "data:image/png;base64," + Convert.ToBase64String(ms.GetBuffer(), 0, (int)ms.Length);
-    }
-
-    private static void WritePngChunk(Stream output, ReadOnlySpan<byte> type, ReadOnlySpan<byte> data)
-    {
-        Span<byte> header = stackalloc byte[4];
-        WriteBigEndian(header, data.Length);
-        output.Write(header);
-        output.Write(type);
-        if (!data.IsEmpty)
-        {
-            output.Write(data);
-        }
-
-        var crc = ComputeCrc32(type, data);
-        WriteBigEndian(header, (int)crc);
-        output.Write(header);
-    }
-
-    private static void WriteBigEndian(Span<byte> dest, int value)
-    {
-        dest[0] = (byte)((value >> 24) & 0xFF);
-        dest[1] = (byte)((value >> 16) & 0xFF);
-        dest[2] = (byte)((value >> 8) & 0xFF);
-        dest[3] = (byte)(value & 0xFF);
-    }
-
-    private static uint ComputeCrc32(ReadOnlySpan<byte> type, ReadOnlySpan<byte> data)
-    {
-        var crc = 0xFFFFFFFFu;
-        crc = UpdateCrc32(crc, type);
-        crc = UpdateCrc32(crc, data);
-        return crc ^ 0xFFFFFFFFu;
-    }
-
-    private static uint UpdateCrc32(uint crc, ReadOnlySpan<byte> bytes)
-    {
-        foreach (var b in bytes)
-        {
-            crc ^= b;
-            for (var k = 0; k < 8; k++)
-            {
-                crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xEDB88320u : crc >> 1;
-            }
-        }
-        return crc;
-    }
 }

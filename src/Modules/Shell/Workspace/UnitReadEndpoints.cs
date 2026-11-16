@@ -2,6 +2,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Units;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
@@ -21,9 +22,16 @@ internal static class UnitReadEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var group = BrainRoutes.Group(endpoints);
-        group.MapGet("/state", (INeuronProxies brain, ISynapseCatalogSource? catalog, string? alias, CancellationToken ct) => State(brain, BrainScope.CurrentId(), catalog, alias, ct));
-        group.MapGet("/view", (INeuronProxies brain, ISynapseCatalogSource? catalog, string? alias, CancellationToken ct) => View(brain, BrainScope.CurrentId(), catalog, alias, ct));
+        group.MapGet("/state", (INeuronProxies brain, ISynapseCatalogSource? catalog, string brainId, string? alias, CancellationToken ct)
+            => State(brain, ResolveScope(brainId), catalog, alias, ct));
+        group.MapGet("/view", (INeuronProxies brain, ISynapseCatalogSource? catalog, string brainId, string? alias, CancellationToken ct)
+            => View(brain, ResolveScope(brainId), catalog, alias, ct));
     }
+
+    private static string ResolveScope(string brainId)
+        => RuntimeCallerContext.TryGet(out var caller)
+            ? BrainScope.Create(caller.AccountId, brainId).Id
+            : BrainScope.CurrentId();
 
     internal static async Task<IResult> State(INeuronProxies brain, string brainId, ISynapseCatalogSource? catalog, string? alias, CancellationToken ct)
     {

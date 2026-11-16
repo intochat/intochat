@@ -4,7 +4,17 @@ using IntoChat.OS.Sandbox;
 
 if (args.Contains("--unit-host", StringComparer.Ordinal))
 {
-    var exitCode = await UnitHostWorker.RunAsync(Console.OpenStandardInput(), Console.OpenStandardOutput()).ConfigureAwait(false);
+    string? contractsDir = null;
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (string.Equals(args[i], "--contracts-dir", StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(args[i + 1]))
+        {
+            contractsDir = args[i + 1];
+            break;
+        }
+    }
+
+    var exitCode = await UnitHostWorker.RunAsync(Console.OpenStandardInput(), Console.OpenStandardOutput(), contractsDir).ConfigureAwait(false);
     Environment.Exit(exitCode);
 }
 

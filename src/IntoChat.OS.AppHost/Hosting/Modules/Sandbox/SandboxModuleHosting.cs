@@ -3,9 +3,11 @@ using System.Security.Cryptography;
 using System.Xml.Linq;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using DigitalBrain.Log;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Modules.Options;
 using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Aspire.Hosting;
@@ -47,9 +49,11 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
             enrollKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
         }
 
+        var (buildContextPath, localFeedStaged, cleanupPath) = PrepareBuildContext(contextPath);
+
 #pragma warning disable ASPIRECERTIFICATES001
         var sandbox = brain.ApplicationBuilder
-            .AddDockerfile(ResourceName, contextPath, dockerfilePath: Dockerfile)
+            .AddDockerfile(ResourceName, buildContextPath, dockerfilePath: Dockerfile)
             .WithDeveloperCertificateTrust(false)
             .WithCertificateTrustScope(CertificateTrustScope.None)
             .WithoutHttpsCertificate()
@@ -71,12 +75,171 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
             .WithParentRelationship(brain.GetOrAddModuleNode(ModuleName));
 #pragma warning restore ASPIRECERTIFICATES001
 
+        if (localFeedStaged)
+        {
+            sandbox.WithBuildArg("LOCAL_FEED_SUBDIR", "local-feed");
+        }
+
+        if (cleanupPath is { Length: > 0 })
+        {
+            RegisterStagedContextCleanup(brain.ApplicationBuilder, cleanupPath);
+        }
+
         if (ResolveGitHubPackagesToken(contextPath) is { Length: > 0 } token)
         {
             sandbox.WithBuildArg("NUGET_TOKEN", token);
         }
 
         brain.AddProjection(new SandboxKernelProjection(sandbox, enrollKey));
+    }
+
+    private static (string ContextPath, bool LocalFeedStaged, string? CleanupPath) PrepareBuildContext(string repoRoot)
+    {
+        var nugetConfigPath = Path.Combine(repoRoot, "nuget.config");
+        if (!File.Exists(nugetConfigPath))
+        {
+            return (repoRoot, false, null);
+        }
+
+        XDocument doc;
+        try
+        {
+            doc = XDocument.Load(nugetConfigPath);
+        }
+        catch (Exception error) when (error is System.Xml.XmlException or IOException)
+        {
+            OsConsoleLog.For(typeof(SandboxModuleHosting)).LogSwallowed(error, "parsing nuget.config for local NuGet feeds");
+            return (repoRoot, false, null);
+        }
+
+        var packageSources = doc.Root?.Element("packageSources")?.Elements("add").ToArray() ?? [];
+        var localFeeds = new List<(XElement Element, string FullPath)>();
+        foreach (var source in packageSources)
+        {
+            var rawValue = source.Attribute("value")?.Value;
+            if (string.IsNullOrWhiteSpace(rawValue)
+                || rawValue.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || rawValue.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var resolved = Path.GetFullPath(rawValue, repoRoot);
+            if (Directory.Exists(resolved))
+            {
+                localFeeds.Add((source, resolved));
+            }
+        }
+
+        if (localFeeds.Count == 0)
+        {
+            return (repoRoot, false, null);
+        }
+
+        var stagedRoot = Path.Combine(Path.GetTempPath(), $"intochat-os-sandbox-ctx-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(stagedRoot);
+
+        string[] rootFiles =
+        [
+            "Directory.Build.props",
+            "Directory.Build.targets",
+            "Directory.Packages.props",
+            "Intochat.OS.slnx",
+            "global.json",
+            "VERSION",
+            ".editorconfig",
+            ".dockerignore",
+        ];
+        foreach (var file in rootFiles)
+        {
+            var src = Path.Combine(repoRoot, file);
+            if (File.Exists(src))
+            {
+                File.Copy(src, Path.Combine(stagedRoot, file), overwrite: true);
+            }
+        }
+
+        string[] sourceDirs =
+        [
+            Path.Combine("src", "IntoChat.OS"),
+            Path.Combine("src", "IntoChat.OS.UI"),
+            Path.Combine("src", "IntoChat.OS.Sandbox"),
+        ];
+        foreach (var relDir in sourceDirs)
+        {
+            var srcDir = Path.Combine(repoRoot, relDir);
+            if (Directory.Exists(srcDir))
+            {
+                CopyDirectoryFiltered(srcDir, Path.Combine(stagedRoot, relDir));
+            }
+        }
+
+        var stagedFeedDir = Path.Combine(stagedRoot, "local-feed");
+        Directory.CreateDirectory(stagedFeedDir);
+        foreach (var (element, feedDir) in localFeeds)
+        {
+            foreach (var nupkg in Directory.EnumerateFiles(feedDir, "*.nupkg", SearchOption.TopDirectoryOnly))
+            {
+                File.Copy(nupkg, Path.Combine(stagedFeedDir, Path.GetFileName(nupkg)), overwrite: true);
+            }
+
+            element.SetAttributeValue("value", "/src/local-feed");
+        }
+
+        doc.Save(Path.Combine(stagedRoot, "nuget.config"));
+        return (stagedRoot, true, stagedRoot);
+    }
+
+    private static void CopyDirectoryFiltered(string sourceDir, string destinationDir)
+    {
+        Directory.CreateDirectory(destinationDir);
+        foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.TopDirectoryOnly))
+        {
+            File.Copy(file, Path.Combine(destinationDir, Path.GetFileName(file)), overwrite: true);
+        }
+
+        foreach (var dir in Directory.EnumerateDirectories(sourceDir, "*", SearchOption.TopDirectoryOnly))
+        {
+            var name = Path.GetFileName(dir);
+            if (string.Equals(name, "bin", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, "obj", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            CopyDirectoryFiltered(dir, Path.Combine(destinationDir, name));
+        }
+    }
+
+    private static void RegisterStagedContextCleanup(IDistributedApplicationBuilder builder, string stagedRoot)
+    {
+        void Cleanup()
+        {
+            try
+            {
+                if (Directory.Exists(stagedRoot))
+                {
+                    Directory.Delete(stagedRoot, recursive: true);
+                }
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                OsConsoleLog.For(typeof(SandboxModuleHosting)).LogSwallowed(error, "cleaning up staged sandbox Docker build context");
+            }
+        }
+
+        builder.Eventing.Subscribe<BeforeStartEvent>((evt, _) =>
+        {
+            if (evt.Services.GetService(typeof(Microsoft.Extensions.Hosting.IHostApplicationLifetime))
+                is Microsoft.Extensions.Hosting.IHostApplicationLifetime lifetime)
+            {
+                lifetime.ApplicationStopped.Register(Cleanup);
+            }
+
+            return Task.CompletedTask;
+        });
+
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => Cleanup();
     }
 
     private static string? ResolveGitHubPackagesToken(string contextPath)
@@ -112,7 +275,7 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
             }
             catch (Exception error) when (error is System.Xml.XmlException or IOException)
             {
-                // Ignore malformed optional local NuGet config and fall through to CLI token lookup.
+                OsConsoleLog.For(typeof(SandboxModuleHosting)).LogSwallowed(error, "reading optional NuGet GitHub credentials");
             }
         }
 
@@ -137,6 +300,7 @@ public sealed class SandboxModuleHosting : IIntoChatOSModuleHosting
         }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
+            OsConsoleLog.For(typeof(SandboxModuleHosting)).LogSwallowed(error, "running gh auth token");
             return null;
         }
 

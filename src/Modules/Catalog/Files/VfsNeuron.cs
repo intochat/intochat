@@ -5,13 +5,13 @@ using IntoChat.OS.Primitives;
 namespace IntoChat.OS.Modules.Apps;
 
 [GenerateSerializer, Alias("apps.vfs-state")]
-public sealed record VfsState
+internal sealed record VfsState
 {
     [Id(0)] public long Revision { get; init; }
 }
 
 [Neuron(VfsNeuronDefaults.TypeName)]
-public sealed class VfsNeuron(IServiceProvider services) : Neuron<VfsState>, IVfsNeuron
+internal sealed class VfsNeuron(IServiceProvider services) : Neuron<VfsState>, IVfsNeuron
 {
     private IFilesVfsService? _vfs;
     private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(services, Id.Brain.Value);

@@ -6,7 +6,7 @@ public sealed class Qwen35 : LLMModel<IQwen35>
 {
     // 4B fits the same ~8 GB Docker Desktop budget as gemma4:e2b while keeping
     // native tool calling and multimodal input for local agent work.
-    public override string Id => "qwen3.5:4b";
+    public override string Id => IntoChat.OS.Contracts.Configuration.IntoChatOSNames.LocalDefaultChatModel;
 
     public override AiProvider Provider => AiProvider.Ollama;
 

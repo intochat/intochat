@@ -3,14 +3,16 @@ using System.Text.Json;
 using ClickHouse.Driver;
 using ClickHouse.Driver.ADO;
 using ClickHouse.Driver.ADO.Parameters;
+using DigitalBrain.Log;
 using IntoChat.OS.Modules.ClickHouse.Query;
+using Microsoft.Extensions.Logging;
 using QueryConnection = IntoChat.OS.Modules.ClickHouse.Query.ClickHouseConnection;
 
 namespace IntoChat.OS.Modules.ClickHouse;
 
 // Every statement goes through ExecuteReaderAsync with the same server-side caps: readonly=2,
 // a bounded result, a bounded scan, a memory ceiling and a 15 second execution limit.
-internal sealed class ClickHouseDriverProvider(ClickHouseClient client, string database) : IClickHouseProvider
+internal sealed class ClickHouseDriverProvider(ClickHouseClient client, string database, ILogger<ClickHouseDriverProvider>? logger = null) : IClickHouseProvider
 {
     private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan PingTimeout = TimeSpan.FromSeconds(3);
@@ -104,6 +106,8 @@ internal sealed class ClickHouseDriverProvider(ClickHouseClient client, string d
         }
         catch (Exception error) when (error is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
+            if (logger is not null) { logger.LogSwallowed(error, "pinging ClickHouse connection"); }
+            else { System.Diagnostics.Trace.TraceWarning("pinging ClickHouse connection: {0}", error); }
             return new(false, database, null, ProviderName);
         }
     }

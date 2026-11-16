@@ -3,8 +3,8 @@ using System.Runtime.Loader;
 
 namespace IntoChat.OS.Sandbox;
 
-/// <summary>Collectible assembly load context that isolates sandboxed user apps from host and runtime assemblies.</summary>
-internal sealed class AppLoadContext(string name) : AssemblyLoadContext(name, isCollectible: true)
+/// <summary>Collectible assembly load context that isolates sandboxed user apps and runtime synapses from host assemblies.</summary>
+internal sealed class AppLoadContext(string name, string? contractsDirectory = null) : AssemblyLoadContext(name, isCollectible: true)
 {
     private static readonly string[] ForbiddenPrefixes =
     [
@@ -21,6 +21,23 @@ internal sealed class AppLoadContext(string name) : AssemblyLoadContext(name, is
         "DigitalBrain.Identity",
     ];
 
+    private static string? _registeredContractsDirectory;
+    private static int _resolverAttached;
+
+    internal static void ConfigureContractsDirectory(string? contractsDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(contractsDirectory))
+        {
+            return;
+        }
+
+        Volatile.Write(ref _registeredContractsDirectory, contractsDirectory);
+        if (Interlocked.CompareExchange(ref _resolverAttached, 1, 0) == 0)
+        {
+            Default.Resolving += ResolveFromContractsDirectory;
+        }
+    }
+
     internal static bool IsAssemblyAllowed(string? assemblyName)
     {
         if (string.IsNullOrWhiteSpace(assemblyName))
@@ -28,17 +45,14 @@ internal sealed class AppLoadContext(string name) : AssemblyLoadContext(name, is
             return false;
         }
 
-        foreach (var forbidden in ForbiddenPrefixes)
+        if (IsForbidden(assemblyName))
         {
-            if (string.Equals(assemblyName, forbidden, StringComparison.OrdinalIgnoreCase)
-                || assemblyName.StartsWith(forbidden + ".", StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
+            return false;
         }
 
         if (string.Equals(assemblyName, "IntoChat.OS", StringComparison.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "IntoChat.OS.UI", StringComparison.OrdinalIgnoreCase)
+            || assemblyName.StartsWith("IntoChat.OS.Modules.", StringComparison.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "Microsoft.Extensions.Logging.Abstractions", StringComparison.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "netstandard", StringComparison.OrdinalIgnoreCase)
             || string.Equals(assemblyName, "mscorlib", StringComparison.OrdinalIgnoreCase)
@@ -71,6 +85,67 @@ internal sealed class AppLoadContext(string name) : AssemblyLoadContext(name, is
             throw new FileLoadException($"Assembly '{assemblyName.Name}' is not permitted in the app sandbox.");
         }
 
-        return Default.LoadFromAssemblyName(assemblyName);
+        foreach (var loaded in Default.Assemblies)
+        {
+            if (string.Equals(loaded.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                return loaded;
+            }
+        }
+
+        try
+        {
+            return Default.LoadFromAssemblyName(assemblyName);
+        }
+        catch (FileNotFoundException)
+        {
+            if (TryProbePath(contractsDirectory ?? Volatile.Read(ref _registeredContractsDirectory), assemblyName.Name) is { } fromContracts)
+            {
+                return Default.LoadFromAssemblyPath(fromContracts);
+            }
+
+            if (TryProbePath(AppContext.BaseDirectory, assemblyName.Name) is { } fromBase)
+            {
+                return Default.LoadFromAssemblyPath(fromBase);
+            }
+
+            throw;
+        }
+    }
+
+    private static bool IsForbidden(string assemblyName)
+    {
+        foreach (var forbidden in ForbiddenPrefixes)
+        {
+            if (string.Equals(assemblyName, forbidden, StringComparison.OrdinalIgnoreCase)
+                || assemblyName.StartsWith(forbidden + ".", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static Assembly? ResolveFromContractsDirectory(AssemblyLoadContext context, AssemblyName assemblyName)
+    {
+        if (string.IsNullOrWhiteSpace(assemblyName.Name) || IsForbidden(assemblyName.Name))
+        {
+            return null;
+        }
+
+        var candidate = TryProbePath(Volatile.Read(ref _registeredContractsDirectory), assemblyName.Name);
+        return candidate is null ? null : context.LoadFromAssemblyPath(candidate);
+    }
+
+    private static string? TryProbePath(string? directory, string? simpleName)
+    {
+        if (string.IsNullOrWhiteSpace(directory) || string.IsNullOrWhiteSpace(simpleName))
+        {
+            return null;
+        }
+
+        var candidate = Path.Combine(directory, simpleName + ".dll");
+        return File.Exists(candidate) ? candidate : null;
     }
 }

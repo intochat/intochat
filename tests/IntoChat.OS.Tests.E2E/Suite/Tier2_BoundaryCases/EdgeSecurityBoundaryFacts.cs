@@ -4,8 +4,13 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Invocation;
 using DigitalBrain.Modules;
+using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans;
+using DigitalBrain.Runtime.Orleans.Hosting;
+using DigitalBrain.Screens;
+using DigitalBrain.UI;
 using DigitalBrain.Units;
+using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Tests.E2E.Fixtures;
 using IntoChat.OS.Tests.E2E.Harness;
 using Orleans;
@@ -207,55 +212,38 @@ public sealed class EdgeSecurityBoundaryFacts : E2ETestBase, IClassFixture<TestO
     }
 
     [Fact]
-    public void T2_Edge_InProcessCallerScope_ActiveScope_ElevatesTurnToInternal_AndDisposalReverts()
+    public void T2_Edge_EnterInProcess_ActiveScope_ElevatesTurnToInternal_AndDisposalReverts()
     {
-        var orleansAssembly = typeof(RuntimeOptions).Assembly;
-        var scopeType = orleansAssembly.GetType("DigitalBrain.Runtime.Orleans.Access.InProcessCallerScope", throwOnError: true)!;
-        var isActiveProp = scopeType.GetProperty("IsActive", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)!;
-        var enterMethod = scopeType.GetMethod("Enter", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)!;
+        var edge = _fixture.Edge;
 
         // Baseline: inactive
-        Assert.False((bool)isActiveProp.GetValue(null)!);
+        Assert.False(edge.IsKernelActive);
 
         // Enter scope: elevated
-        using (var scope = (IDisposable)enterMethod.Invoke(null, null)!)
+        using (edge.EnterInProcess())
         {
-            Assert.NotNull(scope);
-            Assert.True((bool)isActiveProp.GetValue(null)!);
+            Assert.True(edge.IsKernelActive);
         }
 
         // Disposal: cleanly reverted
-        Assert.False((bool)isActiveProp.GetValue(null)!);
+        Assert.False(edge.IsKernelActive);
     }
 
     [Fact]
-    public void T2_AccessGate_UnauthenticatedCallCarryingNoCaller_ThrowsUnauthorizedAccessException()
+    public async Task T2_AccessGate_UnauthenticatedCallCarryingNoCaller_ThrowsUnauthorizedAccessException()
     {
-        var edge = _fixture.Edge;
         var brain = NewBrain("edge-unauth");
         var targetNeuron = new NeuronId(brain, "test.vault", "default");
 
-        // When no ambient caller is stamped and AuditContractInternal is false, AccessGate throws
+        // When no ambient caller is stamped and UnstampedEdgeIsKernel is false, SiloAccessCallFilter rejects the neuron call
         var options = new AccessOptions { UnstampedEdgeIsKernel = false, AuditContractInternal = false };
-        var gateType = typeof(AccessPolicy).Assembly.GetType("DigitalBrain.Access.AccessGate", throwOnError: true)!;
+        var filter = new SiloAccessCallFilter([], new StubCallerAmbient(null), options);
+        var invocation = new RuntimeInvocation("test.vault", nameof(IStubSecurityContract), "default", "DoSomething", []);
+        var context = new UnstampedNeuronHostCallContext(GrainId.Create("neuron", targetNeuron.ToString()), invocation);
 
-        var ambientMock = new StubCallerAmbient(null);
-        var gate = Activator.CreateInstance(
-            gateType,
-            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
-            null,
-            [ambientMock, options, new AccessCounters()],
-            null)!;
+        var ex = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => filter.Invoke(context));
 
-        var admitMethod = gateType.GetMethod("Admit", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!;
-        var binder = new NeuronBinder();
-        var boundCall = binder.Bind(typeof(IStubSecurityContract), new RuntimeInvocation("test", nameof(IStubSecurityContract), "default", "DoSomething", []));
-
-        var ex = Assert.Throws<TargetInvocationException>(() =>
-            admitMethod.Invoke(gate, [targetNeuron, boundCall]));
-
-        Assert.IsType<UnauthorizedAccessException>(ex.InnerException);
-        Assert.Contains("the call carries no caller", ex.InnerException.Message);
+        Assert.Contains("carried no caller provenance", ex.Message);
     }
 
     [Fact]
@@ -267,11 +255,12 @@ public sealed class EdgeSecurityBoundaryFacts : E2ETestBase, IClassFixture<TestO
         var targetNeuronA = new NeuronId(brainA, "test.vault", "default");
 
         var callerB = edge.Person("bob", "acct_2", brainB);
-        var decision = AccessPolicy.Decide(callerB, targetNeuronA, OperationAccess.Public);
+        var decision = AccessPolicy.Decide(callerB, targetNeuronA, OperationAccess.Owner);
 
         Assert.False(decision.Allowed);
         Assert.Equal(AccessDenial.OutsideBrain, decision.Denial);
         Assert.Contains("may not call a neuron of brain", decision.Explanation);
+        Assert.Equal(AccessDenial.OutsideBrain, AccessPolicy.Decide(callerB, targetNeuronA, OperationAccess.Internal).Denial);
     }
 
     [Fact]
@@ -291,22 +280,117 @@ public sealed class EdgeSecurityBoundaryFacts : E2ETestBase, IClassFixture<TestO
     }
 
     [Fact]
-    public void T2_Screen_PayloadSanitizer_UntrustedByField_StrippedAndOverwrittenWithHostAssertedBy()
+    public async Task T2_Screen_PayloadSanitizer_UntrustedByField_StrippedAndOverwrittenWithHostAssertedBy()
     {
-        // Construct args JSON containing author/attacker injected 'by' claim
-        var spoofedArgsJson = "{\"by\":\"attacker@evil.com\",\"action\":\"deposit\",\"amount\":500}";
-        var rawArgs = JsonSerializer.Deserialize<JsonElement>(spoofedArgsJson);
+        var os = _fixture.OS;
+        os.Register<PayloadSanitizerProbeScreen>();
 
-        // Sanitize via internal ViewNodes.Payload
-        var viewNodesType = typeof(Screen<>).Assembly.GetType("DigitalBrain.Units.ViewNodes", throwOnError: true)!;
-        var payloadMethod = viewNodesType.GetMethod("Payload", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)!;
-        var sanitizedElement = (JsonElement)payloadMethod.Invoke(null, [rawArgs, null, "alice@intochat.io"])!;
+        var brain = NewBrain("payload-sanitizer");
+        var screenId = new NeuronId(brain, "app.payload_sanitizer_probe", "default");
+        var screen = os.Get<IScreen>(screenId);
 
-        var dictionary = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(sanitizedElement.GetRawText())!;
-        Assert.True(dictionary.ContainsKey("by"));
-        Assert.Equal("alice@intochat.io", dictionary["by"].GetString());
-        Assert.Equal("deposit", dictionary["action"].GetString());
-        Assert.Equal(500, dictionary["amount"].GetInt32());
+        // Client-supplied "by" in Request args is stripped (becomes null) rather than trusting attacker claim
+        var spoofedArgs = JsonSerializer.Deserialize<JsonElement>("{\"by\":\"attacker@evil.com\",\"action\":\"deposit\",\"amount\":500}");
+        await screen.Request("payload_sanitizer.deposit", spoofedArgs);
+        await os.Idle();
+
+        var afterRequest = await screen.Read();
+        Assert.NotNull(afterRequest);
+        Assert.Contains("By: none;Action: deposit;Amount: 500", afterRequest.View.GetRawText());
+
+        // Host Activate stamps host-asserted "by" onto emitted signal payload
+        await screen.Activate("app.payload_sanitizer_probe", afterRequest.Generation, "btn-deposit", fieldValue: null, by: "alice@intochat.io");
+        await os.Idle();
+
+        var afterActivate = await screen.Read();
+        Assert.NotNull(afterActivate);
+        Assert.Contains("By: alice@intochat.io;Action: deposit;Amount: 500", afterActivate.View.GetRawText());
+    }
+
+    public sealed record PayloadProbeState(string? LastBy = null, string LastAction = "", int LastAmount = 0)
+    {
+        public PayloadProbeState() : this(null, "", 0) { }
+    }
+
+    [Signal("payload_sanitizer.deposit")]
+    public sealed record PayloadProbeDeposit(
+        string Action,
+        int Amount,
+        [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string? By = null) : Signal;
+
+    /*
+    # PayloadSanitizerProbe
+    Screen verifying host-reserved "by" claim sanitization.
+    */
+    [Neuron("app.payload_sanitizer_probe")]
+    public sealed class PayloadSanitizerProbeScreen : Screen<PayloadProbeState>
+    {
+        protected override View Render(PayloadProbeState state) => new(
+            "PayloadProbe",
+            new Column([
+                new Text($"By: {state.LastBy ?? "none"};Action: {state.LastAction};Amount: {state.LastAmount}"),
+                new Button("btn-deposit", "Deposit", Emits(new PayloadProbeDeposit("deposit", 500))),
+            ]));
+
+        [On]
+        public Task OnDeposit(PayloadProbeDeposit signal) => Show(new PayloadProbeState(signal.By, signal.Action, signal.Amount));
+    }
+
+    private sealed class StubNeuronHost : INeuronHost
+    {
+        public Task<bool> IsInterleaved(RuntimeInvocation call) => Task.FromResult(false);
+        public Task<JsonElement?> Invoke(RuntimeInvocation call, CancellationToken cancellationToken = default) => Task.FromResult<JsonElement?>(null);
+        public Task<JsonElement?> InvokeInterleaved(RuntimeInvocation call, CancellationToken cancellationToken = default) => Task.FromResult<JsonElement?>(null);
+        public Task Post(RuntimeInvocation call) => Task.CompletedTask;
+        public Task PostInterleaved(RuntimeInvocation call) => Task.CompletedTask;
+        public async IAsyncEnumerable<JsonElement> Stream(RuntimeInvocation call, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+        public Task<JsonElement?> InspectState(CancellationToken cancellationToken = default) => Task.FromResult<JsonElement?>(null);
+    }
+
+    private class InvokableProxy : DispatchProxy
+    {
+        public RuntimeInvocation Invocation { get; set; } = null!;
+
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => targetMethod?.Name switch
+        {
+            "GetArgumentCount" => 1,
+            "GetArgument" => Invocation,
+            _ => targetMethod?.ReturnType is { IsValueType: true } vt && vt != typeof(void)
+                ? Activator.CreateInstance(vt)
+                : null,
+        };
+    }
+
+    private sealed class UnstampedNeuronHostCallContext : IIncomingGrainCallContext
+    {
+        private readonly StubNeuronHost _grain = new();
+        private readonly IInvokable _request;
+
+        public UnstampedNeuronHostCallContext(GrainId targetId, RuntimeInvocation invocation)
+        {
+            TargetId = targetId;
+            var proxy = DispatchProxy.Create<IInvokable, InvokableProxy>();
+            ((InvokableProxy)(object)proxy).Invocation = invocation;
+            _request = proxy;
+        }
+
+        public GrainId TargetId { get; }
+        public GrainId? SourceId => null;
+        public string InterfaceName => typeof(INeuronHost).FullName!;
+        public string MethodName => nameof(INeuronHost.Invoke);
+        public object Grain => _grain;
+        public IInvokable Request => _request;
+        public object? Result { get; set; }
+        public Response? Response { get; set; } = Orleans.Serialization.Invocation.Response.FromResult<object?>(null);
+        public MethodInfo InterfaceMethod => typeof(INeuronHost).GetMethod(nameof(INeuronHost.Invoke))!;
+        public MethodInfo ImplementationMethod => InterfaceMethod;
+        public IGrainContext TargetContext => null!;
+        public GrainInterfaceType InterfaceType => default;
+        public Task Invoke() => Task.CompletedTask;
     }
 
     private sealed class StubCallerAmbient(Caller? current) : ICallerAmbient

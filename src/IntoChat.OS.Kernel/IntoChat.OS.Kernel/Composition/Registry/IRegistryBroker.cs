@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Kernel.OsRegistry;
+namespace IntoChat.OS.Kernel.Composition.Registry;
 
 /// <summary>
 /// The three tiers of the unified operating system registry.

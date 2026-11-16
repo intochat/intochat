@@ -352,7 +352,7 @@ public sealed class CatalogDomainFacts
         state.PutFile("readme.md", "# Hello");
         state.PutSetting(legacyBehaviorKey, "deprecated");
         state.PutSetting("lib.dll.base64", "eHl6");
-        state.PutSetting(InProcessAppRuntime.CompiledTypeKey, "MyCompiledType");
+        state.PutSetting(AppTrust.CompiledTypeSetting, "MyCompiledType");
         state.PutSetting("normalSetting", "value");
 
         var markers = LegacyAppRecord.DetectMarkers(state);
@@ -362,7 +362,7 @@ public sealed class CatalogDomainFacts
         Assert.Contains($"setting:{legacyBehaviorKey}", markers);
         Assert.Contains("setting:lib.dll.base64", markers);
         Assert.DoesNotContain("file:readme.md", markers);
-        Assert.DoesNotContain($"setting:{InProcessAppRuntime.CompiledTypeKey}", markers);
+        Assert.DoesNotContain($"setting:{AppTrust.CompiledTypeSetting}", markers);
         Assert.DoesNotContain("setting:normalSetting", markers);
 
         LegacyAppRecord.Cleanse(state);
@@ -373,10 +373,45 @@ public sealed class CatalogDomainFacts
 
         Assert.False(state.Settings.ContainsKey(legacyBehaviorKey));
         Assert.False(state.Settings.ContainsKey("lib.dll.base64"));
-        Assert.True(state.Settings.ContainsKey(InProcessAppRuntime.CompiledTypeKey));
+        Assert.True(state.Settings.ContainsKey(AppTrust.CompiledTypeSetting));
         Assert.True(state.Settings.ContainsKey("normalSetting"));
 
         // Cleaned state now has 0 legacy markers
         Assert.Empty(LegacyAppRecord.DetectMarkers(state));
+    }
+
+    [Fact]
+    public void AppManifestValidatedNormalizesOmittedCollectionsAndRejectsNullEntries()
+    {
+        const string minimalJson = """
+            {
+              "title": "Minimal App",
+              "description": "Missing optional collections"
+            }
+            """;
+
+        var deserialized = System.Text.Json.JsonSerializer.Deserialize<AppManifest>(minimalJson, System.Text.Json.JsonSerializerOptions.Web);
+        Assert.NotNull(deserialized);
+        Assert.Null(deserialized.Operations);
+        Assert.Null(deserialized.Settings);
+        Assert.Null(deserialized.Slots);
+
+        var validated = deserialized.Validated();
+        Assert.NotNull(validated.Operations);
+        Assert.NotNull(validated.Settings);
+        Assert.NotNull(validated.Slots);
+        Assert.Empty(validated.Operations);
+        Assert.Empty(validated.Settings);
+        Assert.Empty(validated.Slots);
+
+        const string nullSlotJson = """
+            {
+              "title": "Bad Slot App",
+              "description": "Null slot entry",
+              "slots": [null]
+            }
+            """;
+        var withNullSlot = System.Text.Json.JsonSerializer.Deserialize<AppManifest>(nullSlotJson, System.Text.Json.JsonSerializerOptions.Web)!;
+        Assert.Throws<InvalidDataException>(withNullSlot.Validated);
     }
 }

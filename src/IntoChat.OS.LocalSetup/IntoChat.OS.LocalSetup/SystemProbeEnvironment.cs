@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 
 namespace IntoChat.OS.LocalSetup;
 
@@ -68,6 +70,7 @@ public sealed class SystemProbeEnvironment : IProbeEnvironment
         }
         catch (Exception exception) when (exception is IOException or ArgumentException or UnauthorizedAccessException)
         {
+            OsConsoleLog.For<SystemProbeEnvironment>().LogSwallowed(exception, "probing drive free bytes");
             return null;
         }
     }
@@ -92,6 +95,10 @@ public sealed class SystemProbeEnvironment : IProbeEnvironment
     public string? ReadFile(string path)
     {
         try { return File.ReadAllText(path); }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return null; }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            OsConsoleLog.For<SystemProbeEnvironment>().LogSwallowed(exception, "reading optional probe file");
+            return null;
+        }
     }
 }

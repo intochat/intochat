@@ -6,9 +6,9 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Primitives;
 using DigitalBrain.Log;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -37,9 +37,9 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     private readonly IServiceProvider? _services;
     private readonly ICapabilityBroker? _broker;
     private readonly string _rootDirectory;
-    private readonly LocalCloudNeuron _fallbackWorkStorage;
-    private readonly LocalCloudNeuron _fallbackLocalStorage;
-    private readonly LocalCloudNeuron _fallbackDriveStorage;
+    private readonly LocalCloudStorage _fallbackWorkStorage;
+    private readonly LocalCloudStorage _fallbackLocalStorage;
+    private readonly LocalCloudStorage _fallbackDriveStorage;
 
     public WorkspaceFilesService(
         IServiceProvider? services = null,
@@ -62,9 +62,9 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         Directory.CreateDirectory(localDir);
         Directory.CreateDirectory(driveDir);
 
-        _fallbackWorkStorage = new LocalCloudNeuron(workDir);
-        _fallbackLocalStorage = new LocalCloudNeuron(localDir);
-        _fallbackDriveStorage = new LocalCloudNeuron(driveDir);
+        _fallbackWorkStorage = new LocalCloudStorage(workDir);
+        _fallbackLocalStorage = new LocalCloudStorage(localDir);
+        _fallbackDriveStorage = new LocalCloudStorage(driveDir);
     }
 
     public string BrainId { get; }
@@ -77,34 +77,34 @@ public sealed class WorkspaceFilesService : IFilesVfsService
         string? rootDirectory = null)
         => new(services, brainId, broker, rootDirectory);
 
-    public static LocalCloudNeuron GetFallbackWorkspaceStorage(string brainId, string? rootDirectory = null)
+    public static LocalCloudStorage GetFallbackWorkspaceStorage(string brainId, string? rootDirectory = null)
     {
         var baseDir = !string.IsNullOrWhiteSpace(rootDirectory)
             ? Path.GetFullPath(rootDirectory)
             : Path.Combine(Path.GetTempPath(), "intochat-vfs", NormalizeBrainId(brainId));
         var workDir = Path.Combine(baseDir, "work");
         Directory.CreateDirectory(workDir);
-        return new LocalCloudNeuron(workDir);
+        return new LocalCloudStorage(workDir);
     }
 
-    public static LocalCloudNeuron GetFallbackLocalStorage(string brainId, string? rootDirectory = null)
+    public static LocalCloudStorage GetFallbackLocalStorage(string brainId, string? rootDirectory = null)
     {
         var baseDir = !string.IsNullOrWhiteSpace(rootDirectory)
             ? Path.GetFullPath(rootDirectory)
             : Path.Combine(Path.GetTempPath(), "intochat-vfs", NormalizeBrainId(brainId));
         var localDir = Path.Combine(baseDir, "local");
         Directory.CreateDirectory(localDir);
-        return new LocalCloudNeuron(localDir);
+        return new LocalCloudStorage(localDir);
     }
 
-    public static LocalCloudNeuron GetFallbackDriveStorage(string brainId, string? rootDirectory = null)
+    public static LocalCloudStorage GetFallbackDriveStorage(string brainId, string? rootDirectory = null)
     {
         var baseDir = !string.IsNullOrWhiteSpace(rootDirectory)
             ? Path.GetFullPath(rootDirectory)
             : Path.Combine(Path.GetTempPath(), "intochat-vfs", NormalizeBrainId(brainId));
         var driveDir = Path.Combine(baseDir, "drive");
         Directory.CreateDirectory(driveDir);
-        return new LocalCloudNeuron(driveDir);
+        return new LocalCloudStorage(driveDir);
     }
 
     public async Task<IStorageVfs> BuildVfsAsync(ICapabilityBroker? effectiveBroker, CancellationToken ct = default)
@@ -538,10 +538,11 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     private async Task<T> WithCallerAsync<T>(Func<ICapabilityBroker?, Task<T>> action)
     {
         var resolvedBroker = _broker ?? _services?.GetService<ICapabilityBroker>();
-        var filesAppKey = IApp.Key(BrainId, "files");
+        var filesAppKey = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(BrainId), "files").Key;
         var effectiveBroker = resolvedBroker is CapabilityBroker cb ? cb.ForApp(filesAppKey) : resolvedBroker;
 
-        using var scope = InProcessCallerScope.Enter();
+        var edge = _services?.GetService<DigitalBrain.Access.EdgeAuthority>();
+        using var scope = edge?.EnterInProcess();
         return await action(effectiveBroker).ConfigureAwait(false);
     }
 
@@ -660,5 +661,5 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     }
 
     private static void LogRecoverable(Exception error) =>
-        NullLogger.Instance.LogSwallowed(error, "Recoverable workspace files VFS error.");
+        OsConsoleLog.For<WorkspaceFilesService>().LogSwallowed(error, "Recoverable workspace files VFS error.");
 }

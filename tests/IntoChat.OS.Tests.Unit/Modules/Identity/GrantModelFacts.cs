@@ -17,7 +17,7 @@ public sealed class GrantModelFacts
         => CapabilityCallers.Of(AppPrincipal.Id(key), "test-user", brain, CallerKind.App, key);
 
     private static CallRequest Req(CapabilityCaller caller, string target, params string[] types)
-        => new() { Caller = caller.ToCaller(), TargetNeuron = target, Operation = "read", SemanticTypeIds = types };
+        => new() { Caller = IntoChat.OS.Tests.TestEdge.From(caller), TargetNeuron = target, Operation = "read", SemanticTypeIds = types };
 
     [Fact]
     public void RunGrantAllowsInvocationWithoutSemanticTypes()

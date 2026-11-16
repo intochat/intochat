@@ -1,10 +1,13 @@
 using DigitalBrain.Brains;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Connections;
 
@@ -51,6 +54,12 @@ public static class BrainAccessFilter
         var creating = seen.GetOrAdd(scope, _ => new Lazy<Task>(() => brains.Get<IBrain>(IBrain.Key(scope)).Create(new Owner(accountId))));
         // Best effort: the request itself is already allowed, and the next one retries.
         try { await creating.Value; }
-        catch (Exception error) when (error is not OperationCanceledException) { seen.TryRemove(new(scope, creating)); }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            var logger = http.RequestServices.GetService<ILoggerFactory>()?.CreateLogger(typeof(BrainAccessFilter))
+                ?? OsConsoleLog.For(typeof(BrainAccessFilter));
+            logger.LogSwallowed(error, "best-effort brain EnsureCreated");
+            seen.TryRemove(new(scope, creating));
+        }
     }
 }

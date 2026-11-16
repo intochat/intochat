@@ -1,6 +1,6 @@
 namespace IntoChat.OS.Modules.AI;
 
-public interface IAudioConverter
+internal interface IAudioConverter
 {
     string ConvertToWav(string inputPath);
 }

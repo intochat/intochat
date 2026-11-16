@@ -1,5 +1,6 @@
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Time.Timers;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Modules.Time;
@@ -17,10 +18,13 @@ public sealed class TimeModuleOnTestOS : ModuleOnTestOSFacts<TimeModule>
     [Fact]
     public async Task TimerNeuronEnforcesConfiguredMinimumTimerPeriod()
     {
-        var options = Options.Create(new TimeModuleOptions { MinimumTimerPeriod = TimeSpan.FromSeconds(5) });
-        var neuron = new TimerNeuron(options);
+        var services = new ServiceCollection();
+        services.Configure<TimeModuleOptions>(options => options.MinimumTimerPeriod = TimeSpan.FromSeconds(5));
+        await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider())
+            .Register(typeof(TimeModule).Assembly);
+        var timer = os.Get<IntoChat.OS.Modules.Time.Timers.ITimer>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("owner"), "timer", "t1"));
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
-            () => neuron.Start(TimeSpan.Zero, TimeSpan.FromSeconds(1)));
+            () => timer.Start(TimeSpan.Zero, TimeSpan.FromSeconds(1)));
     }
 }

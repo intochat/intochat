@@ -4,8 +4,12 @@ namespace IntoChat.OS.Primitives;
 /// Validated forward-slash relative path that cannot escape a storage or workspace root.
 /// </summary>
 [GenerateSerializer, Alias("os.safe-relative-path")]
-public readonly record struct SafeRelativePath([property: Id(0)] string Value)
+public readonly record struct SafeRelativePath
 {
+    [Id(0)]
+    public string Value { get; init; }
+
+    private SafeRelativePath(string value) => Value = value;
     public static bool TryParse(string? raw, out SafeRelativePath path)
     {
         if (string.IsNullOrWhiteSpace(raw) || raw.Contains('\0', StringComparison.Ordinal))

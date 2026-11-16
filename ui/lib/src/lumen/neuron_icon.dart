@@ -173,7 +173,7 @@ final class NeuronIcon extends StatelessWidget {
         semanticsLabel: semanticLabel ?? kind.name,
       );
     }
-    final spec = BrandVisuals.tryResolveCapabilityOrAppVisual(kind.name);
+    final spec = BrandVisuals.tryForIconKey('capability:${kind.name}');
     if (spec != null && spec.hasAsset) {
       return IcBrandIcon(spec: spec, size: size);
     }

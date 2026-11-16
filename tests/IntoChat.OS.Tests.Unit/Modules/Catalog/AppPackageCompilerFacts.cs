@@ -1,4 +1,5 @@
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Tests.Support.Fakes;
 using IntoChat.Sdk;
 
 namespace IntoChat.OS.Tests.Unit.Modules.Catalog;

@@ -5,7 +5,7 @@ namespace IntoChat.OS.Modules.Postgres;
 /// <summary>
 /// Classifies Postgres and Npgsql exceptions into uniform domain exceptions.
 /// </summary>
-public static class PostgresExceptionClassifier
+internal static class PostgresExceptionClassifier
 {
     /// <summary>
     /// Classifies an exception into either a <see cref="PostgresUnavailableException"/> (for transient/connection failures)

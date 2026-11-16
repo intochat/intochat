@@ -459,791 +459,706 @@
       "kind": "column",
       "children": [
         {
-          "kind": "surface",
+          "kind": "row",
           "children": [
-            {
-              "kind": "row",
-              "children": [
-                {
-                  "kind": "button",
-                  "key": "back-to-gallery",
-                  "label": "Back to Gallery",
-                  "emit": {
-                    "owner": "app.gallery",
-                    "signal": "select",
-                    "args": "home"
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "arrow-left",
-                  "small": true
-                },
-                {
-                  "kind": "tagPill",
-                  "label": "Data & 13 LFP Chat Cards",
-                  "tone": "accent",
-                  "icon": "check-check"
-                },
-                {
-                  "kind": "tagPill",
-                  "label": "IntoChat.UI.ApprovalCard@1",
-                  "tone": "ok",
-                  "icon": "cpu"
-                },
-                {
-                  "kind": "tagPill",
-                  "label": "[Signal] confirmations.Resolve (0)",
-                  "tone": "done",
-                  "icon": "zap"
-                },
-                {
-                  "kind": "tagPill",
-                  "label": "fluent-acrylic · floating-glass",
-                  "tone": "neutral",
-                  "icon": "palette"
-                }
-              ],
-              "gap": 8,
-              "padding": 0
-            },
             {
               "kind": "heading",
-              "value": "ApprovalCard (LFP)",
-              "level": 1,
-              "subtitle": "Inline human-in-the-loop confirmation card rendered inside Ino chat turns and Smart Desktop."
+              "value": "IntoChat UI Kit Gallery",
+              "level": 2,
+              "subtitle": "Warm Ink & Paper · 7 canonical component families · DDD Aggregate rule guards · Accordant state graphs"
             },
             {
-              "kind": "text",
-              "value": "UI Gallery Ready · 30 controls loaded · Category: all",
-              "tone": "muted",
-              "tabular": true,
-              "mono": false
+              "kind": "spacer",
+              "size": 0
             },
             {
-              "kind": "text",
-              "value": "Control: ApprovalCard (LFP) [IntoChat.UI.ApprovalCard@1]",
+              "kind": "tagPill",
+              "label": "30 components",
+              "tone": "done",
+              "icon": "check"
+            },
+            {
+              "kind": "tagPill",
+              "label": "fluent-acrylic · floating-glass",
               "tone": "neutral",
-              "tabular": true,
-              "mono": false
-            },
-            {
-              "kind": "text",
-              "value": "URI: neuron://local/os.confirmations/inbox#approval-card",
-              "tone": "neutral",
-              "tabular": true,
-              "mono": true
-            },
-            {
-              "kind": "text",
-              "value": "Signals: confirmations.Resolve",
-              "tone": "neutral",
-              "tabular": false,
-              "mono": true
-            },
-            {
-              "kind": "neuronRef",
-              "refKind": "gallery",
-              "neuronUri": "neuron://local/os.confirmations/inbox#approval-card"
+              "icon": null
             }
           ],
-          "surfaceKind": "acrylic",
-          "title": "UI Gallery · Interactive Control Playground",
-          "subtitle": null,
-          "padding": 18
+          "gap": 8,
+          "padding": 0
         },
         {
-          "kind": "splitPane",
-          "leading": {
-            "kind": "surface",
-            "children": [
-              {
-                "kind": "approvalCard",
-                "key": "card-gallery-1",
-                "id": "card-gallery-1",
-                "title": "Approve storage write to /work/notes.md?",
-                "summary": "Confirmation required by storage capability policy (scope:neuron://local/apps/ino#card-1)",
-                "rows": [
-                  {
-                    "label": "Target Path",
-                    "oldValue": "/work/draft.md",
-                    "newValue": "/work/notes.md",
-                    "amount": null,
-                    "warn": false
-                  },
-                  {
-                    "label": "Scope",
-                    "oldValue": "Read-Only",
-                    "newValue": "Read/Write",
-                    "amount": null,
-                    "warn": false
-                  }
-                ],
-                "valueLabel": "Value",
-                "systemName": "Storage",
-                "status": "pending",
-                "resolve": null,
-                "sourceNeuronUri": "neuron://local/os.confirmations/inbox#approval-card"
-              }
-            ],
-            "surfaceKind": "acrylic",
-            "title": "Live Control Preview",
-            "subtitle": "IntoChat.UI.ApprovalCard@1 · State: interactive · Surface: acrylic",
-            "padding": 18
-          },
-          "trailing": {
-            "kind": "surface",
-            "children": [
-              {
-                "kind": "text",
-                "value": "STYLE (Primary · Secondary · Ghost · Danger)",
-                "tone": "muted",
-                "tabular": false,
-                "mono": false,
-                "size": 11
-              },
-              {
-                "kind": "row",
-                "children": [
-                  {
-                    "kind": "button",
-                    "key": "knob:style:primary",
-                    "label": "Primary",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:style:primary"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "accent",
-                    "style": "primary",
-                    "small": true
-                  },
-                  {
-                    "kind": "button",
-                    "key": "knob:style:secondary",
-                    "label": "Secondary",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:style:secondary"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true
-                  },
-                  {
-                    "kind": "button",
-                    "key": "knob:style:ghost",
-                    "label": "Ghost",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:style:ghost"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true
-                  },
-                  {
-                    "kind": "button",
-                    "key": "knob:style:danger",
-                    "label": "Danger",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:style:danger"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true
-                  }
-                ],
-                "gap": 6,
-                "padding": 0
-              },
-              {
-                "kind": "text",
-                "value": "TONE (Neutral · Accent · Done · Working · Error)",
-                "tone": "muted",
-                "tabular": false,
-                "mono": false,
-                "size": 11
-              },
-              {
-                "kind": "row",
-                "children": [
-                  {
-                    "kind": "button",
-                    "key": "knob:tone:neutral",
-                    "label": "Neutral",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:tone:neutral"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true
-                  },
-                  {
-                    "kind": "button",
-                    "key": "knob:tone:accent",
-                    "label": "Accent",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:tone:accent"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "accent",
-                    "style": "primary",
-                    "small": true
-                  },
-                  {
-                    "kind": "button",
-                    "key": "knob:tone:done",
-                    "label": "Done",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:tone:done"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true
-                  },
-                  {
-                    "kind": "button",
-                    "key": "knob:tone:working",
-                    "label": "Working",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:tone:working"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true
-                  },
-                  {
-                    "kind": "button",
-                    "key": "knob:tone:error",
-                    "label": "Error",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:tone:error"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true
-                  }
-                ],
-                "gap": 6,
-                "padding": 0
-              },
-              {
-                "kind": "text",
-                "value": "SIZE (Standard 36px · Small 30px)",
-                "tone": "muted",
-                "tabular": false,
-                "mono": false,
-                "size": 11
-              },
-              {
-                "kind": "row",
-                "children": [
-                  {
-                    "kind": "button",
-                    "key": "knob:size:standard",
-                    "label": "Standard (36px)",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:size:standard"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "accent",
-                    "style": "primary",
-                    "small": true
-                  },
-                  {
-                    "kind": "button",
-                    "key": "knob:size:small",
-                    "label": "Small (30px)",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:size:small"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true
-                  }
-                ],
-                "gap": 6,
-                "padding": 0
-              },
-              {
-                "kind": "text",
-                "value": "STATE (Interactive · Loading · Disabled · Empty)",
-                "tone": "muted",
-                "tabular": false,
-                "mono": false,
-                "size": 11
-              },
-              {
-                "kind": "row",
-                "children": [
-                  {
-                    "kind": "button",
-                    "key": "knob:state:interactive",
-                    "label": "Interactive",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:state:interactive"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "accent",
-                    "style": "primary",
-                    "small": true
-                  },
-                  {
-                    "kind": "button",
-                    "key": "knob:state:loading",
-                    "label": "Loading",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:state:loading"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true
-                  },
-                  {
-                    "kind": "button",
-                    "key": "knob:state:disabled",
-                    "label": "Disabled",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:state:disabled"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true
-                  },
-                  {
-                    "kind": "button",
-                    "key": "knob:state:empty",
-                    "label": "Empty",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:state:empty"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true
-                  }
-                ],
-                "gap": 6,
-                "padding": 0
-              },
-              {
-                "kind": "text",
-                "value": "SURFACE (Acrylic · Elevated · Recessed)",
-                "tone": "muted",
-                "tabular": false,
-                "mono": false,
-                "size": 11
-              },
-              {
-                "kind": "row",
-                "children": [
-                  {
-                    "kind": "button",
-                    "key": "knob:surface:acrylic",
-                    "label": "Acrylic",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:surface:acrylic"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "accent",
-                    "style": "primary",
-                    "small": true
-                  },
-                  {
-                    "kind": "button",
-                    "key": "knob:surface:elevated",
-                    "label": "Elevated",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:surface:elevated"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true
-                  },
-                  {
-                    "kind": "button",
-                    "key": "knob:surface:recessed",
-                    "label": "Recessed",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:surface:recessed"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true
-                  }
-                ],
-                "gap": 6,
-                "padding": 0
-              },
-              {
-                "kind": "text",
-                "value": "CHART KIND (Bar · Line)",
-                "tone": "muted",
-                "tabular": false,
-                "mono": false,
-                "size": 11
-              },
-              {
-                "kind": "row",
-                "children": [
-                  {
-                    "kind": "button",
-                    "key": "knob:chart:bar",
-                    "label": "Bar",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:chart:bar"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "accent",
-                    "style": "primary",
-                    "small": true
-                  },
-                  {
-                    "kind": "button",
-                    "key": "knob:chart:line",
-                    "label": "Line",
-                    "emit": {
-                      "owner": "app.gallery",
-                      "signal": "select",
-                      "args": "knob:chart:line"
-                    },
-                    "intent": null,
-                    "enabled": true,
-                    "tone": "neutral",
-                    "style": "secondary",
-                    "small": true
-                  }
-                ],
-                "gap": 6,
-                "padding": 0
-              }
-            ],
-            "surfaceKind": "recessed",
-            "title": "Property Knobs",
-            "subtitle": "Live C# state mutation",
-            "padding": 18
-          },
-          "leadingExtent": 540,
-          "gap": 14
-        },
-        {
-          "kind": "surface",
-          "children": [
+          "kind": "tabs",
+          "items": [
             {
-              "kind": "row",
-              "children": [
-                {
-                  "kind": "button",
-                  "key": "fluent-acrylic",
-                  "label": "Fluent Acrylic",
-                  "emit": {
-                    "owner": "app.gallery",
-                    "signal": "switch-identity",
-                    "args": [
-                      "fluent-acrylic",
-                      "floating-glass"
-                    ]
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "accent",
-                  "style": "secondary",
-                  "icon": "palette",
-                  "small": true
-                },
-                {
-                  "kind": "button",
-                  "key": "spatial-glass",
-                  "label": "Spatial Glass",
-                  "emit": {
-                    "owner": "app.gallery",
-                    "signal": "switch-identity",
-                    "args": [
-                      "spatial-glass",
-                      "compact-pill"
-                    ]
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "sparkles",
-                  "small": true
-                },
-                {
-                  "kind": "button",
-                  "key": "cyber-synaptic",
-                  "label": "Cyber Synaptic",
-                  "emit": {
-                    "owner": "app.gallery",
-                    "signal": "switch-identity",
-                    "args": [
-                      "cyber-synaptic",
-                      "split-top-dock"
-                    ]
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "zap",
-                  "small": true
-                },
-                {
-                  "kind": "button",
-                  "key": "warm-paper",
-                  "label": "Warm Paper",
-                  "emit": {
-                    "owner": "app.gallery",
-                    "signal": "switch-identity",
-                    "args": [
-                      "warm-paper",
-                      "classic-bottom"
-                    ]
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "sun",
-                  "small": true
-                },
-                {
-                  "kind": "button",
-                  "key": "warm-mica",
-                  "label": "Warm Mica",
-                  "emit": {
-                    "owner": "app.gallery",
-                    "signal": "switch-identity",
-                    "args": [
-                      "fluent-warm-mica",
-                      "floating-glass"
-                    ]
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "sun",
-                  "small": true
-                },
-                {
-                  "kind": "button",
-                  "key": "linear-carbon",
-                  "label": "Linear Carbon",
-                  "emit": {
-                    "owner": "app.gallery",
-                    "signal": "switch-identity",
-                    "args": [
-                      "linear-carbon",
-                      "classic-bottom"
-                    ]
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "terminal",
-                  "small": true
-                },
-                {
-                  "kind": "button",
-                  "key": "nordic-tactical",
-                  "label": "Nordic Tactical",
-                  "emit": {
-                    "owner": "app.gallery",
-                    "signal": "switch-identity",
-                    "args": [
-                      "nordic-tactical",
-                      "split-top-dock"
-                    ]
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "shield",
-                  "small": true
+              "key": "tab:foundation",
+              "id": "foundation",
+              "label": "Foundation & status",
+              "emit": {
+                "owner": "app.gallery",
+                "signal": "ui.command",
+                "args": {
+                  "target": "state",
+                  "method": "SelectTab",
+                  "args": [
+                    "foundation"
+                  ],
+                  "valueIndex": null,
+                  "value": null,
+                  "guardReason": null,
+                  "tooltip": null
                 }
-              ],
-              "gap": 8,
-              "padding": 0
+              },
+              "icon": "sparkles"
             },
             {
-              "kind": "row",
-              "children": [
-                {
-                  "kind": "button",
-                  "key": "c-digitalbrain-ui",
-                  "label": "C# DigitalBrain.UI",
-                  "emit": {
-                    "owner": "app.gallery",
-                    "signal": "select",
-                    "args": "tab:csharp"
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "accent",
-                  "style": "secondary",
-                  "icon": "code",
-                  "small": true
-                },
-                {
-                  "kind": "button",
-                  "key": "flutter-ic",
-                  "label": "Flutter Ic*",
-                  "emit": {
-                    "owner": "app.gallery",
-                    "signal": "select",
-                    "args": "tab:flutter"
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "layers",
-                  "small": true
-                },
-                {
-                  "kind": "button",
-                  "key": "contract-signal",
-                  "label": "Contract & [Signal]",
-                  "emit": {
-                    "owner": "app.gallery",
-                    "signal": "select",
-                    "args": "tab:contract"
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "radio",
-                  "small": true
-                },
-                {
-                  "kind": "button",
-                  "key": "fire-test-signal",
-                  "label": "Fire Test [Signal]",
-                  "emit": {
-                    "owner": "app.gallery",
-                    "signal": "select",
-                    "args": "pulse"
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "accent",
-                  "style": "secondary",
-                  "icon": "zap",
-                  "small": true
-                },
-                {
-                  "kind": "button",
-                  "key": "copy-snippet",
-                  "label": "Copy Snippet",
-                  "emit": null,
-                  "intent": {
-                    "intentKind": "Copy",
-                    "arg": "// IntoChat.UI.ApprovalCard@1 · [confirmations.Resolve]\nawait ApproveCard(new InoApproveCard(\"card-1\", Approved: true));"
-                  },
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "copy",
-                  "small": true
+              "key": "tab:inputs",
+              "id": "inputs",
+              "label": "Inputs & rule guards",
+              "emit": {
+                "owner": "app.gallery",
+                "signal": "ui.command",
+                "args": {
+                  "target": "state",
+                  "method": "SelectTab",
+                  "args": [
+                    "inputs"
+                  ],
+                  "valueIndex": null,
+                  "value": null,
+                  "guardReason": null,
+                  "tooltip": null
                 }
-              ],
-              "gap": 8,
-              "padding": 0
+              },
+              "icon": "landmark"
+            },
+            {
+              "key": "tab:data",
+              "id": "data",
+              "label": "Data & charts",
+              "emit": {
+                "owner": "app.gallery",
+                "signal": "ui.command",
+                "args": {
+                  "target": "state",
+                  "method": "SelectTab",
+                  "args": [
+                    "data"
+                  ],
+                  "valueIndex": null,
+                  "value": null,
+                  "guardReason": null,
+                  "tooltip": null
+                }
+              },
+              "icon": "chart-column"
+            },
+            {
+              "key": "tab:slots",
+              "id": "slots",
+              "label": "Live slots & Accordant state graph",
+              "emit": {
+                "owner": "app.gallery",
+                "signal": "ui.command",
+                "args": {
+                  "target": "state",
+                  "method": "SelectTab",
+                  "args": [
+                    "slots"
+                  ],
+                  "valueIndex": null,
+                  "value": null,
+                  "guardReason": null,
+                  "tooltip": null
+                }
+              },
+              "icon": "brain-circuit"
+            },
+            {
+              "key": "tab:catalog",
+              "id": "catalog",
+              "label": "Component catalog",
+              "emit": {
+                "owner": "app.gallery",
+                "signal": "ui.command",
+                "args": {
+                  "target": "state",
+                  "method": "SelectTab",
+                  "args": [
+                    "catalog"
+                  ],
+                  "valueIndex": null,
+                  "value": null,
+                  "guardReason": null,
+                  "tooltip": null
+                }
+              },
+              "icon": "sliders-horizontal"
+            }
+          ],
+          "selectedId": "foundation"
+        },
+        {
+          "kind": "column",
+          "children": [
+            {
+              "kind": "splitPane",
+              "leading": {
+                "kind": "surface",
+                "children": [
+                  {
+                    "kind": "column",
+                    "children": [
+                      {
+                        "kind": "heading",
+                        "value": "Warm ink on sunlit paper",
+                        "level": 1,
+                        "subtitle": "Display scale pairs InterDisplay headings with legible Inter body copy."
+                      },
+                      {
+                        "kind": "heading",
+                        "value": "Section heading (level 2)",
+                        "level": 2,
+                        "subtitle": "Sentence case across every bar, panel, and action."
+                      },
+                      {
+                        "kind": "heading",
+                        "value": "Card & panel heading (level 3)",
+                        "level": 3,
+                        "subtitle": null
+                      },
+                      {
+                        "kind": "text",
+                        "value": "Body prose uses Inter 14/400 with generous line height so dense operational workspaces remain calm.",
+                        "tone": "neutral",
+                        "tabular": false,
+                        "mono": false
+                      },
+                      {
+                        "kind": "text",
+                        "value": "Tabular numerals keep live counters aligned: 1,492,048 tokens · 12.4 ms p95 · $50.00 cap.",
+                        "tone": "strong",
+                        "tabular": true,
+                        "mono": false
+                      },
+                      {
+                        "kind": "text",
+                        "value": "Secondary captions use muted warm stone without falling back to developer monospace.",
+                        "tone": "muted",
+                        "tabular": false,
+                        "mono": false
+                      },
+                      {
+                        "kind": "divider",
+                        "label": "Spacing & surfaces"
+                      },
+                      {
+                        "kind": "row",
+                        "children": [
+                          {
+                            "kind": "text",
+                            "value": "4px grid",
+                            "tone": "neutral",
+                            "tabular": false,
+                            "mono": false
+                          },
+                          {
+                            "kind": "spacer",
+                            "size": 8
+                          },
+                          {
+                            "kind": "text",
+                            "value": "Active status: UI Gallery ready · 30 controls loaded · Category: all",
+                            "tone": "muted",
+                            "tabular": true,
+                            "mono": false
+                          }
+                        ],
+                        "gap": 8,
+                        "padding": 0
+                      }
+                    ],
+                    "gap": 8,
+                    "padding": 0
+                  }
+                ],
+                "surfaceKind": "elevated",
+                "title": "Typography & Hierarchy",
+                "subtitle": "Family 1 · InterDisplay + Inter with tabular figures",
+                "padding": 18
+              },
+              "trailing": {
+                "kind": "column",
+                "children": [
+                  {
+                    "kind": "surface",
+                    "children": [
+                      {
+                        "kind": "column",
+                        "children": [
+                          {
+                            "kind": "text",
+                            "value": "Every status badge pairs semantic foreground/tint tokens with a distinct Lucide icon and plain-language word:",
+                            "tone": "muted",
+                            "tabular": false,
+                            "mono": false
+                          },
+                          {
+                            "kind": "row",
+                            "children": [
+                              {
+                                "kind": "tagPill",
+                                "label": "Done",
+                                "tone": "done",
+                                "icon": "check"
+                              },
+                              {
+                                "kind": "tagPill",
+                                "label": "Working",
+                                "tone": "working",
+                                "icon": "loader-circle"
+                              },
+                              {
+                                "kind": "tagPill",
+                                "label": "Error",
+                                "tone": "error",
+                                "icon": "triangle-alert"
+                              },
+                              {
+                                "kind": "tagPill",
+                                "label": "Idle",
+                                "tone": "neutral",
+                                "icon": null
+                              },
+                              {
+                                "kind": "tagPill",
+                                "label": "Needs your approval",
+                                "tone": "accent",
+                                "icon": "hand"
+                              }
+                            ],
+                            "gap": 8,
+                            "padding": 0
+                          },
+                          {
+                            "kind": "divider",
+                            "label": null
+                          },
+                          {
+                            "kind": "infoBar",
+                            "title": "Capability check passed",
+                            "message": "All 7 component families render through a single declarative C# View tree.",
+                            "tone": "info",
+                            "action": {
+                              "key": "foundation:go-inputs",
+                              "label": "Inspect inputs",
+                              "emit": {
+                                "owner": "app.gallery",
+                                "signal": "ui.command",
+                                "args": {
+                                  "target": "state",
+                                  "method": "SelectTab",
+                                  "args": [
+                                    "inputs"
+                                  ],
+                                  "valueIndex": null,
+                                  "value": null,
+                                  "guardReason": null,
+                                  "tooltip": null
+                                }
+                              },
+                              "intent": null,
+                              "enabled": true,
+                              "tone": "neutral",
+                              "style": "secondary",
+                              "small": false
+                            }
+                          }
+                        ],
+                        "gap": 8,
+                        "padding": 0
+                      }
+                    ],
+                    "surfaceKind": "elevated",
+                    "title": "Status Is Never Colour Alone",
+                    "subtitle": "Family 5 · All 5 DESIGN.md §2.5 semantic status triads",
+                    "padding": 18
+                  },
+                  {
+                    "kind": "card",
+                    "title": "Honest Empty State",
+                    "body": "Family 5 · Clear guidance with one direct outcome button",
+                    "children": [
+                      {
+                        "kind": "emptyState",
+                        "title": "No pinned snapshots yet",
+                        "body": "Open the interactive BankAccount aggregate or browse the 28-entry component catalog.",
+                        "suggestions": [
+                          {
+                            "key": "empty:open-guards",
+                            "label": "Open rule guards",
+                            "emit": {
+                              "owner": "app.gallery",
+                              "signal": "ui.command",
+                              "args": {
+                                "target": "state",
+                                "method": "SelectTab",
+                                "args": [
+                                  "inputs"
+                                ],
+                                "valueIndex": null,
+                                "value": null,
+                                "guardReason": null,
+                                "tooltip": null
+                              }
+                            },
+                            "intent": null,
+                            "enabled": true,
+                            "tone": "accent",
+                            "style": "primary",
+                            "small": false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "gap": 12,
+                "padding": 0
+              },
+              "leadingExtent": 460,
+              "gap": 16
             },
             {
               "kind": "surface",
               "children": [
                 {
-                  "kind": "text",
-                  "value": "// IntoChat.UI.ApprovalCard@1 · [confirmations.Resolve]\nawait ApproveCard(new InoApproveCard(\"card-1\", Approved: true));",
-                  "tone": "neutral",
-                  "tabular": true,
-                  "mono": true
+                  "kind": "row",
+                  "children": [
+                    {
+                      "kind": "button",
+                      "key": "preset-fluent-acrylic",
+                      "label": "Fluent Acrylic",
+                      "emit": {
+                        "owner": "app.gallery",
+                        "signal": "switch-identity",
+                        "args": [
+                          "fluent-acrylic",
+                          "floating-glass"
+                        ]
+                      },
+                      "intent": null,
+                      "enabled": true,
+                      "tone": "accent",
+                      "style": "primary",
+                      "icon": "palette",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "preset-spatial-glass",
+                      "label": "Spatial Glass",
+                      "emit": {
+                        "owner": "app.gallery",
+                        "signal": "switch-identity",
+                        "args": [
+                          "spatial-glass",
+                          "compact-pill"
+                        ]
+                      },
+                      "intent": null,
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "sparkles",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "preset-cyber-synaptic",
+                      "label": "Cyber Synaptic",
+                      "emit": {
+                        "owner": "app.gallery",
+                        "signal": "switch-identity",
+                        "args": [
+                          "cyber-synaptic",
+                          "split-top-dock"
+                        ]
+                      },
+                      "intent": null,
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "zap",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "preset-warm-paper",
+                      "label": "Warm Paper",
+                      "emit": {
+                        "owner": "app.gallery",
+                        "signal": "switch-identity",
+                        "args": [
+                          "warm-paper",
+                          "classic-bottom"
+                        ]
+                      },
+                      "intent": null,
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "sun",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "preset-warm-mica",
+                      "label": "Warm Mica",
+                      "emit": {
+                        "owner": "app.gallery",
+                        "signal": "switch-identity",
+                        "args": [
+                          "fluent-warm-mica",
+                          "floating-glass"
+                        ]
+                      },
+                      "intent": null,
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "sun",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "preset-linear-carbon",
+                      "label": "Linear Carbon",
+                      "emit": {
+                        "owner": "app.gallery",
+                        "signal": "switch-identity",
+                        "args": [
+                          "linear-carbon",
+                          "classic-bottom"
+                        ]
+                      },
+                      "intent": null,
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "sliders-horizontal",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "preset-nordic-tactical",
+                      "label": "Nordic Tactical",
+                      "emit": {
+                        "owner": "app.gallery",
+                        "signal": "switch-identity",
+                        "args": [
+                          "nordic-tactical",
+                          "split-top-dock"
+                        ]
+                      },
+                      "intent": null,
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "shield",
+                      "small": true
+                    }
+                  ],
+                  "gap": 8,
+                  "padding": 0
                 }
               ],
-              "surfaceKind": "acrylic",
-              "title": null,
-              "subtitle": null,
+              "surfaceKind": "recessed",
+              "title": "UI Identity & Bar Layout Presets",
+              "subtitle": "Family 2 · Instant theme materiality switching",
+              "padding": 18
+            },
+            {
+              "kind": "surface",
+              "children": [
+                {
+                  "kind": "column",
+                  "children": [
+                    {
+                      "kind": "surface",
+                      "children": [
+                        {
+                          "kind": "heading",
+                          "value": "Studio Chrome",
+                          "level": 6,
+                          "subtitle": null
+                        },
+                        {
+                          "kind": "select",
+                          "label": "segmented:",
+                          "selected": "claude-sonnet-4-5",
+                          "options": [
+                            {
+                              "key": "seg:claude",
+                              "id": "claude-sonnet-4-5",
+                              "label": "Sonnet 4.5",
+                              "emit": {
+                                "owner": "app.gallery",
+                                "signal": "ui.command",
+                                "args": {
+                                  "target": "state",
+                                  "method": "SelectModelOption",
+                                  "args": [
+                                    "claude-sonnet-4-5"
+                                  ],
+                                  "valueIndex": null,
+                                  "value": null,
+                                  "guardReason": null,
+                                  "tooltip": null
+                                }
+                              }
+                            },
+                            {
+                              "key": "seg:gpt5",
+                              "id": "gpt-5-thinking",
+                              "label": "GPT-5",
+                              "emit": {
+                                "owner": "app.gallery",
+                                "signal": "ui.command",
+                                "args": {
+                                  "target": "state",
+                                  "method": "SelectModelOption",
+                                  "args": [
+                                    "gpt-5-thinking"
+                                  ],
+                                  "valueIndex": null,
+                                  "value": null,
+                                  "guardReason": null,
+                                  "tooltip": null
+                                }
+                              }
+                            },
+                            {
+                              "key": "seg:qwen",
+                              "id": "qwen3.5:4b",
+                              "label": "Qwen Local",
+                              "emit": {
+                                "owner": "app.gallery",
+                                "signal": "ui.command",
+                                "args": {
+                                  "target": "state",
+                                  "method": "SelectModelOption",
+                                  "args": [
+                                    "qwen3.5:4b"
+                                  ],
+                                  "valueIndex": null,
+                                  "value": null,
+                                  "guardReason": null,
+                                  "tooltip": null
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "spacer",
+                          "size": 0
+                        },
+                        {
+                          "kind": "surface",
+                          "children": [
+                            {
+                              "kind": "text",
+                              "value": "Workspace",
+                              "tone": "neutral",
+                              "tabular": false,
+                              "mono": false
+                            },
+                            {
+                              "kind": "text",
+                              "value": "UI Kit v2",
+                              "tone": "neutral",
+                              "tabular": false,
+                              "mono": false
+                            },
+                            {
+                              "kind": "tagPill",
+                              "label": "Live",
+                              "tone": "done",
+                              "icon": "check"
+                            }
+                          ],
+                          "surfaceKind": "breadcrumb",
+                          "title": null,
+                          "subtitle": null,
+                          "padding": 0
+                        }
+                      ],
+                      "surfaceKind": "toolbar",
+                      "title": null,
+                      "subtitle": null,
+                      "padding": 8
+                    },
+                    {
+                      "kind": "grid",
+                      "columns": 2,
+                      "children": [
+                        {
+                          "kind": "surface",
+                          "children": [
+                            {
+                              "kind": "text",
+                              "value": "No raster preview attached.",
+                              "tone": "muted",
+                              "tabular": false,
+                              "mono": false
+                            }
+                          ],
+                          "surfaceKind": "elevated",
+                          "title": "ImageView Canvas",
+                          "subtitle": "Connect a live VFS or studio image source to preview raster frames.",
+                          "padding": 18
+                        },
+                        {
+                          "kind": "surface",
+                          "children": [],
+                          "surfaceKind": "code:csharp",
+                          "title": "Declarative C# Kit v2",
+                          "subtitle": "HeaderBar(\"Studio\", \"Ready\",\n    PrimaryButton(\"Deploy\").Guard(state.CanDeploy));",
+                          "padding": 180
+                        }
+                      ],
+                      "gap": 12
+                    },
+                    {
+                      "kind": "surface",
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "Expanders keep secondary configuration tucked cleanly away without cluttering primary workflows.",
+                          "tone": "neutral",
+                          "tabular": false,
+                          "mono": false
+                        }
+                      ],
+                      "surfaceKind": "expander:closed",
+                      "title": "Disclosure Panel (Expander)",
+                      "subtitle": "Click to inspect bounded progressive disclosure",
+                      "padding": 12
+                    }
+                  ],
+                  "gap": 12,
+                  "padding": 0
+                }
+              ],
+              "surfaceKind": "elevated",
+              "title": "WinUI-Grade Desktop Chrome & Media Surfaces (Kit v2)",
+              "subtitle": "Toolbar, Breadcrumb, Segmented, SectionHeader, Expander, ImageView & CodeBlock",
               "padding": 18
             }
           ],
-          "surfaceKind": "recessed",
-          "title": "C# App<TState> & [Signal] Contract",
-          "subtitle": "IntoChat.UI.ApprovalCard@1 · neuron://local/os.confirmations/inbox#approval-card",
-          "padding": 18
+          "gap": 16,
+          "padding": 0
         }
       ],
       "gap": 16,

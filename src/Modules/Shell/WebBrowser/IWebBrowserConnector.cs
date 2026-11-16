@@ -7,7 +7,7 @@ using IntoChat.OS.Framework.Modules;
 namespace IntoChat.OS.Modules.Flutter.WebBrowser;
 
 [NeuronAlias("webbrowser.connector"), DefaultNeuronType(UIVocabulary.WebBrowserType)]
-public interface IWebBrowserConnector
+internal interface IWebBrowserConnector
 {
     Task Connect(int port, string sessionId);
     Task Disconnect(string sessionId);

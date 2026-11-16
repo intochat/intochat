@@ -172,30 +172,34 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
         Assert.Null(mockSource.LastMergePullRequest);
     }
 
-    private (GitHubRepositoryNeuron neuron, MockGitHubRepositorySource source) CreateConnectedNeuron()
+    private (IRepository neuron, MockGitHubRepositorySource source) CreateConnectedNeuron()
     {
         var mockSource = new MockGitHubRepositorySource();
-        var neuron = new GitHubRepositoryNeuron(mockSource, null!, null!, null!);
-
+        var services = new ServiceCollection();
+        GitHubModule.ConfigureServices(services, new global::Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
+        services.AddSingleton<DigitalBrain.Capabilities.Connections.Integrations.IModuleIntegrations<GitHubModule>>(new FakeIntegrations());
+        services.AddSingleton<IGitHubRepositorySource>(mockSource);
+        var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register(typeof(GitHubModule).Assembly);
         var id = new NeuronId(new BrainId("local"), "github", "connection/github/main");
-        var context = new FakeNeuronContext(id);
-        var policiesId = NeuronId.Parse(IPolicies.Key("local"));
-        context.Proxies.Register(policiesId, _os.Get<IPolicies>(policiesId));
-        context.MemoryState.Save(
-            new GitHubRepositoryState
-            {
-                Status = ConnectionStatus.Connected,
-                RepositoryId = 12345,
-                Owner = "intochat",
-                Name = "os",
-                Account = "intochat/os",
-            },
-            []).GetAwaiter().GetResult();
+        os.SeedStoredState(
+            id,
+            System.Text.Json.JsonSerializer.Serialize(
+                new GitHubRepositoryState
+                {
+                    Status = ConnectionStatus.Connected,
+                    RepositoryId = 12345,
+                    Owner = "intochat",
+                    Name = "os",
+                    Account = "intochat/os",
+                },
+                DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(GitHubRepositoryState))));
 
-        NeuronAttachment.Attach(neuron, context);
-        NeuronAttachment.Activate(neuron, CancellationToken.None).GetAwaiter().GetResult();
+        return (os.Get<IRepository>(id), mockSource);
+    }
 
-        return (neuron, mockSource);
+    private sealed class FakeIntegrations : DigitalBrain.Capabilities.Connections.Integrations.IModuleIntegrations<GitHubModule>
+    {
+        public DigitalBrain.Capabilities.Connections.Integrations.IIntegrationHandle Get(string integrationId) => throw new NotSupportedException();
     }
 
     private static PullRequestSnapshot CreateSnapshot(int number, string headSha)

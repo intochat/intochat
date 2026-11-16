@@ -2,14 +2,18 @@ using System.ComponentModel;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Flutter.Screens;
 using IntoChat.OS.Runtime;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
-namespace IntoChat.OS.Mcp;
+using IntoChat.OS.Kernel.Mcp;
+
+namespace IntoChat.OS.Kernel.Mcp.Tools;
 
 /// <summary>
 /// First-class MCP screen tools backed by <see cref="IScreenDirectory"/> so any MCP client
@@ -17,7 +21,7 @@ namespace IntoChat.OS.Mcp;
 /// and resolve pending approval gates without manual grain-key choreography.
 /// </summary>
 [McpServerToolType]
-internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller, Orleans.IGrainFactory? grains = null)
+internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
 {
     private const int MaxMappedErrorLength = 500;
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
@@ -50,6 +54,7 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller, Orlean
         }
         catch (Exception error) when (Mapped(error))
         {
+            OsConsoleLog.For<ScreenTools>().LogSwallowed(error, "MCP screen tool invocation failed.");
             return Failure(error);
         }
     }
@@ -65,17 +70,12 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller, Orlean
             Admit(ReadName, appId);
             var snapshot = await Directory(ReadName).Read(appId, instanceId).WaitAsync(cancellationToken).ConfigureAwait(false)
                 ?? throw new KeyNotFoundException($"Screen '{appId}' was not found.");
-            if (snapshot is { Kind: "unit", Generation: 0L, PendingApprovals.Length: 0 })
-            {
-                await CatchUpRuntimeUnitAsync(grains, caller.Stamp(ReadName).BrainId, snapshot.AppId).WaitAsync(cancellationToken).ConfigureAwait(false);
-                await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-                snapshot = await Directory(ReadName).Read(appId, instanceId).WaitAsync(cancellationToken).ConfigureAwait(false) ?? snapshot;
-            }
 
             return Text(JsonSerializer.Serialize(snapshot, Json));
         }
         catch (Exception error) when (Mapped(error))
         {
+            OsConsoleLog.For<ScreenTools>().LogSwallowed(error, "MCP screen tool invocation failed.");
             return Failure(error);
         }
     }
@@ -97,11 +97,12 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller, Orlean
         }
         catch (Exception error) when (Mapped(error))
         {
+            OsConsoleLog.For<ScreenTools>().LogSwallowed(error, "MCP screen tool invocation failed.");
             return Failure(error);
         }
     }
 
-    [McpServerTool(Name = ApproveName), Description("Approve or deny a pending approval gate (ChangeFlow promotion, unit deploy, synapse staged install, or confirmation card) by approvalId.")]
+    [McpServerTool(Name = ApproveName), Description("Approve or deny a pending approval gate (FeatureToPrFlow promotion, unit deploy, synapse staged install, or confirmation card) by approvalId.")]
     public async Task<CallToolResult> Approve(
         [Description("Pending approval id / plan id from screen_read or screen_list.")] string approvalId,
         [Description("True to approve and execute; false to deny/reject.")] bool approved,
@@ -157,7 +158,6 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller, Orlean
             {
                 for (var attempt = 0; attempt < 20; attempt++)
                 {
-                    await CatchUpRuntimeUnitAsync(grains, stamped.BrainId, unitAlias).WaitAsync(cancellationToken).ConfigureAwait(false);
                     await Task.Delay(100, cancellationToken).ConfigureAwait(false);
                     var updated = await Directory(ApproveName).Read(unitAlias).WaitAsync(cancellationToken).ConfigureAwait(false);
                     if (updated is { Controls.Length: > 0 })
@@ -171,28 +171,8 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller, Orlean
         }
         catch (Exception error) when (Mapped(error))
         {
+            OsConsoleLog.For<ScreenTools>().LogSwallowed(error, "MCP screen tool invocation failed.");
             return Failure(error);
-        }
-    }
-
-    private static async Task CatchUpRuntimeUnitAsync(Orleans.IGrainFactory? grains, string brainId, string alias)
-    {
-        if (grains is null) { return; }
-        var hostType = typeof(DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext).Assembly
-            .GetType("DigitalBrain.Runtime.Orleans.Synapses.ISynapseHost");
-        if (hostType is null) { return; }
-        var getGrain = typeof(Orleans.IGrainFactory).GetMethods()
-            .FirstOrDefault(m => m.Name == nameof(Orleans.IGrainFactory.GetGrain)
-                && m.IsGenericMethodDefinition
-                && m.GetParameters() is { Length: 1 } p
-                && p[0].ParameterType == typeof(Orleans.Runtime.GrainId));
-        if (getGrain is null) { return; }
-        var grain = getGrain.MakeGenericMethod(hostType)
-            .Invoke(grains, [Orleans.Runtime.GrainId.Create("neuron.host", $"{brainId}/{alias}/default")]);
-        var catchUp = hostType.GetMethod("CatchUp", Type.EmptyTypes);
-        if (grain is not null && catchUp?.Invoke(grain, null) is Task task)
-        {
-            await task.ConfigureAwait(false);
         }
     }
 

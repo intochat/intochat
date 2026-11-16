@@ -2,18 +2,30 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Modules.Mcp;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Tools;
 
 // A brain's tools as capabilities: every existing instance of a kernel neuron type that is a tool
 // source, asked for its live tools, each one bound to its source's key and called as Run(tool, arguments).
 // Lists are clipped so one misbehaving source cannot flood search.
-public sealed class ToolCapabilitySource(IBrainObserver kernel, IServiceProvider? plain = null) : IRuntimeCapabilitySource
+public sealed class ToolCapabilitySource(
+    IBrainObserver kernel,
+    IServiceProvider? plain = null,
+    ILogger<ToolCapabilitySource>? logger = null) : IRuntimeCapabilitySource
 {
     internal const int MaxTools = 200;
     internal const int MaxDescription = 1000;
+
+    private readonly ILogger _log = logger
+        ?? (plain?.GetService(typeof(ILogger<ToolCapabilitySource>)) as ILogger)
+        ?? (plain?.GetService(typeof(ILoggerFactory)) as ILoggerFactory)?.CreateLogger<ToolCapabilitySource>()
+        ?? McpConsoleLog.For<ToolCapabilitySource>();
+
     // A source is a plain contract deriving IToolSource (06-06d), listed by the kernel's instance directory and reached through
     // the plain-neuron seam. The kernel's Implements names neuron contracts only, so the plain contract is resolved by name.
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Type?> PlainSources = new(StringComparer.Ordinal);
@@ -36,7 +48,11 @@ public sealed class ToolCapabilitySource(IBrainObserver kernel, IServiceProvider
                     var tools = (IToolSource)SiloNeurons.Get(plain!, contract, instance.Key);
                     set = await tools.Tools(ct).WaitAsync(ct);
                 }
-                catch (Exception error) when (error is not OperationCanceledException) { continue; }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    _log.LogSwallowed(error, "Skipping failing tool capability source.");
+                    continue;
+                }
                 capabilities.AddRange(set.Tools.Take(MaxTools).Select(tool => Capability(instance.Key, source.Name, set.Title, tool)));
             }
         }

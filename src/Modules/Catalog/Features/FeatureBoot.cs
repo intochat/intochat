@@ -1,9 +1,10 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
@@ -48,10 +49,11 @@ internal sealed class FeatureBoot(
     private async Task ReconcileAsync(string brainId, CancellationToken cancellationToken)
     {
         // The listener runs in the turn that published Activated, under that turn's caller; reconciling is the module's own act.
-        using var cleared = InProcessCallerScope.ClearCaller();
+        var edge = plain.GetService<EdgeAuthority>();
+        using var cleared = edge?.ClearCaller();
         try
         {
-            using var kernel = InProcessCallerScope.EnterKernel(brainId);
+            using var module = edge?.Enter(edge.Module("apps.feature-boot", new BrainId(brainId)));
             await _loaded;
             await SiloNeurons.Get<IFeatureReconciler>(plain, IFeatureReconciler.Key(brainId)).Reconcile(cancellationToken);
         }

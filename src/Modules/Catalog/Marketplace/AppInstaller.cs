@@ -19,7 +19,7 @@ namespace IntoChat.OS.Modules.Apps;
 // feature loader. A person's bundle is read through ExportPublished, which is public; a feature
 // comes from the shipped catalog. An app that reads data installs only for the brain's owner.
 public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketplace, FeatureCatalog catalog, FeatureLoader loader,
-    IEnumerable<IFeatureMigration> migrations, ICapabilitySatisfaction capabilities, ICapabilityBroker? directory = null,
+    ICapabilitySatisfaction capabilities, ICapabilityBroker? directory = null,
     IOptions<AuthOptions>? auth = null)
 {
 
@@ -54,7 +54,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
             var listing = await marketplace.Read(reference.Publisher, reference.App, ct);
             if (listing?.Source is not AppSource.Brain published || (source is not null && published != source))
             { throw new KeyNotFoundException("This publication's source is unavailable."); }
-            bundle = await SiloNeurons.Get<IApp>(plain, IApp.Key(published.Scope()!, reference.App)).ExportRelease(reference.Version!, reference.Digest!).WaitAsync(ct);
+            bundle = await SiloNeurons.Get<IApp>(plain, IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(published.Scope()!), reference.App).Key).ExportRelease(reference.Version!, reference.Digest!).WaitAsync(ct);
             var release = PublishedRelease.FromBundle(bundle, reference.Publisher, published, DateTimeOffset.UtcNow);
             release.EnsureMatches(reference.Version!, reference.Digest!);
             // The publication (fork) path: refused before loader.Create makes the copy.
@@ -68,7 +68,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
             var listing = await marketplace.Read(reference.Publisher, reference.App, ct)
                 ?? throw new KeyNotFoundException($"{reference.Publisher}/{reference.App} is not in the Marketplace.");
             if (listing.Source.Scope() == scope) { throw new InvalidOperationException($"{name} is already yours: you published it."); }
-            if ((await SiloNeurons.Get<IApp>(plain, IApp.Key(scope, name)).Read().WaitAsync(ct)).Manifest.Title.Length > 0)
+            if ((await SiloNeurons.Get<IApp>(plain, IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(scope), name).Key).Read().WaitAsync(ct)).Manifest.Title.Length > 0)
             { throw new InvalidOperationException($"You already have an app named {name}."); }
             bundle = await Bundle(listing.Source, listing.Publisher, reference.App, ct);
             origin = new(listing.Publisher, listing.Source, reference.App, bundle.Version);
@@ -82,12 +82,12 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         { return InstallOutcome.Refused(OwnerOnly); }
 
         // A retried exact install resumes a copy that exists already; only a copy this call created is rolled back.
-        var existed = exact && (await SiloNeurons.Get<IApp>(plain, IApp.Key(scope, name)).Read().WaitAsync(ct)).Manifest.Title.Length > 0;
+        var key = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(scope), name).Key;
+        var existed = exact && (await SiloNeurons.Get<IApp>(plain, key).Read().WaitAsync(ct)).Manifest.Title.Length > 0;
         var consented = origin with { Consented = Recorded(requires) };
         _ = exact
             ? await loader.Create(scope, name, bundle, consented, receipt!, ct)
             : await loader.Load(scope, name, bundle, consented, ct);
-        var key = IApp.Key(scope, name);
         try
         {
             await Grant(key, requires.SemanticTypes, caller, ct);
@@ -169,7 +169,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         {
             foreach (var type in types)
             {
-                await identityClient.GrantAsOwner(caller, IntoChat.OS.Connections.Identity.Grant.Tuple($"brain:{caller.BrainId}", $"app:{appKey}", $"{caller.BrainId}/apps/{appKey}", type));
+                await identityClient.GrantAsOwner(caller, IntoChat.OS.Connections.Identity.Grant.Tuple($"brain:{caller.BrainId}", $"app:{appKey}", IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(caller.BrainId), appKey).Key, type));
             }
             return;
         }
@@ -196,17 +196,16 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         ArgumentNullException.ThrowIfNull(request);
         var name = request.Name;
         var scope = BrainScope.CurrentId();
-        var target = SiloNeurons.Get<IApp>(plain, IApp.Key(scope, name));
+        var key = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(scope), name).Key;
+        var target = SiloNeurons.Get<IApp>(plain, key);
         var current = await target.Read().WaitAsync(ct);
         if (current.Origin is not { } origin)
         { throw new InvalidOperationException($"{name} was not installed from the Marketplace."); }
-        var migrating = false;
-        foreach (var migration in migrations) { migrating |= await migration.Required(scope, name, current, ct); }
-        if (current.Edited && !migrating)
+        if (current.Edited)
         { throw new InvalidOperationException($"{name} has your own edits; it no longer takes updates from {origin.Publisher}."); }
         if (origin.Source is AppSource.Shipped) { await catalog.Reload(origin.Publisher, origin.Name).WaitAsync(ct); }
         var listing = await marketplace.Read(origin.Publisher, origin.Name, ct) ?? throw Gone(origin.Source, origin.Publisher, origin.Name);
-        if (!migrating && AppVersions.Compare(listing.Version, origin.Version) <= 0 && !Unconfirmed(current.Status)) { return InstallOutcome.Installed(name); }
+        if (AppVersions.Compare(listing.Version, origin.Version) <= 0 && !Unconfirmed(current.Status)) { return InstallOutcome.Installed(name); }
         var bundle = await Bundle(origin.Source, origin.Publisher, origin.Name, ct);
         // The installed version stays when the new one needs a capability this brain has no connection for.
         await CheckCapabilities(scope, bundle.Manifest, ct);
@@ -223,7 +222,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : null;
         if (added.SemanticTypes is { Length: > 0 } && !await IsOwner(scope, caller)) { return InstallOutcome.Refused(OwnerOnly); }
         await loader.Load(scope, name, bundle, next with { Consented = Recorded(requires) }, ct);
-        await Grant(IApp.Key(scope, name), added.SemanticTypes, caller, ct);
+        await Grant(key, added.SemanticTypes, caller, ct);
         return InstallOutcome.Installed(name);
     }
 
@@ -232,7 +231,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         ArgumentNullException.ThrowIfNull(listing);
         var scope = BrainScope.CurrentId();
         if (listing.Source.Scope() == scope) { return new(listing, true, false); }
-        var local = await SiloNeurons.Get<IApp>(plain, IApp.Key(scope, listing.Name)).Read().WaitAsync(ct);
+        var local = await SiloNeurons.Get<IApp>(plain, IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(scope), listing.Name).Key).Read().WaitAsync(ct);
         return CatalogEntry.FromListing(listing, local, scope).ToMarketplaceEntry();
     }
 
@@ -242,7 +241,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         ArgumentNullException.ThrowIfNull(source);
         return source switch
         {
-            AppSource.Brain => await SiloNeurons.Get<IApp>(plain, IApp.Key(source.Scope()!, name)).ExportPublished().WaitAsync(ct),
+            AppSource.Brain => await SiloNeurons.Get<IApp>(plain, IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(source.Scope()!), name).Key).ExportPublished().WaitAsync(ct),
             AppSource.Shipped => await catalog.Find(publisher, name) ?? throw Gone(source, publisher, name),
             _ => throw new NotSupportedException($"Unknown app source {source.GetType().Name}."),
         };

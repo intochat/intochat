@@ -13,29 +13,9 @@ internal sealed class CatalogHostedAppTypes(FeatureCatalog catalog) : IHostedApp
             return false;
         }
 
-        string name;
-        var appsMarker = appKey.IndexOf("/apps/", StringComparison.Ordinal);
-        if (appsMarker > 0)
-        {
-            if (appKey.AsSpan(0, appsMarker).Contains('/'))
-            {
-                return false;
-            }
-            name = appKey[(appsMarker + "/apps/".Length)..];
-            if (name.Length == 0 || name.Contains('/'))
-            {
-                return false;
-            }
-        }
-        else if (!appKey.Contains('/'))
-        {
-            name = appKey;
-        }
-        else
-        {
-            return false;
-        }
-
-        return catalog.IsCompiledHostApp(name);
+        var name = IntoChat.OS.Primitives.AppRef.TryParse(appKey, out var app)
+            ? app.Name
+            : !appKey.Contains('/') ? appKey : null;
+        return name is not null && catalog.IsCompiledHostApp(name);
     }
 }

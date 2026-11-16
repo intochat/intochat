@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 
 namespace IntoChat.OS.Modules.Microsoft.Roslyn;
 
-public sealed record EditOutcome(
+internal sealed record EditOutcome(
     Solution Changed,
     IReadOnlyList<DiagnosticHit> Diagnostics,
     string Diff,

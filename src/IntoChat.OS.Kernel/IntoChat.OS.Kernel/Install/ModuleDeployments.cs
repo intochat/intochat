@@ -1,7 +1,8 @@
 using DigitalBrain.Modules.Options;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Microsoft.Azure;
 
-namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
+namespace IntoChat.OS.Kernel.Install;
 
 public sealed record ModuleDeploymentBinding(string ModuleId, IModuleDeployment Deployment);
 

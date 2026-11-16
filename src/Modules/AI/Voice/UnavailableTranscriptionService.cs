@@ -3,7 +3,7 @@ namespace IntoChat.OS.Modules.AI;
 // Stands in whenever no transcription model is usable, so a voice
 // misconfiguration answers 503 with a reason instead of refusing to boot the
 // silo. Every other surface keeps working.
-public sealed class UnavailableTranscriptionService : IAudioTranscriptionService
+internal sealed class UnavailableTranscriptionService : IAudioTranscriptionService
 {
     private const string NotConfigured =
         "Voice-to-text is not configured. Call AIModule.WithVoiceToText<T>() in AppHost.";

@@ -16,7 +16,7 @@ public static class ShippedApps
     public const string Ino = "ino";
 
     // The OS's own services: the desktop shows none of them as a window.
-    public static readonly IReadOnlySet<string> Services = new HashSet<string>(["desktop", "workspace"], StringComparer.Ordinal);
+    public static readonly IReadOnlySet<string> Services = new HashSet<string>(["desktop"], StringComparer.Ordinal);
 
     // What the OS runs on, which Remove refuses: its services, Settings, Apps, Ino and Creator.
     // Apps folded into Settings (08-09). The folder is no longer a boot root.

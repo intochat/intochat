@@ -1,5 +1,6 @@
 using ClickHouse.Driver;
 using IntoChat.OS.Modules.ClickHouse.Query;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.ClickHouse;
 
@@ -9,19 +10,19 @@ internal interface IClickHouseSourceFactory
     IClickHouseProvider ForConnectionString(string connectionString);
 }
 
-internal sealed class ClickHouseClientSourceFactory(IHttpClientFactory clients) : IClickHouseSourceFactory
+internal sealed class ClickHouseClientSourceFactory(IHttpClientFactory clients, ILogger<ClickHouseDriverProvider>? logger = null) : IClickHouseSourceFactory
 {
-    public IClickHouseProvider ForConnectionString(string connectionString) => new ConnectionStringClickHouseProvider(connectionString, clients);
+    public IClickHouseProvider ForConnectionString(string connectionString) => new ConnectionStringClickHouseProvider(connectionString, clients, logger);
 
     // One client per call, disposed with it: nothing outlives the grain turn that opened the value.
-    private sealed class ConnectionStringClickHouseProvider(string connectionString, IHttpClientFactory clients) : IClickHouseProvider
+    private sealed class ConnectionStringClickHouseProvider(string connectionString, IHttpClientFactory clients, ILogger<ClickHouseDriverProvider>? logger) : IClickHouseProvider
     {
         public string ProviderName => ClickHouseModule.DriverProviderName;
 
         private async Task<T> Execute<T>(Func<ClickHouseDriverProvider, Task<T>> operation)
         {
             using var client = new ClickHouseClient(connectionString, clients, ClickHouseRegistration.HttpClientName);
-            return await operation(new ClickHouseDriverProvider(client, ClickHouseDriverProvider.DatabaseOf(connectionString))).ConfigureAwait(false);
+            return await operation(new ClickHouseDriverProvider(client, ClickHouseDriverProvider.DatabaseOf(connectionString), logger)).ConfigureAwait(false);
         }
         public Task<ClickHouseQueryResult> QueryAsync(string sql, int maxRows, CancellationToken cancellationToken)
             => Execute(provider => provider.QueryAsync(sql, maxRows, cancellationToken));

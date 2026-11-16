@@ -20,6 +20,7 @@ using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Memory;
+using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Flows;
@@ -28,6 +29,7 @@ using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 
@@ -85,6 +87,8 @@ public sealed class InoAppFacts
         Assert.Contains("ProposeChange", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("RememberPreference", def.Instructions, StringComparison.Ordinal);
         Assert.Contains("GetTracesAsync", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph", def.Instructions, StringComparison.Ordinal);
+        Assert.DoesNotContain("IntoChat.OS.Modules.Roslyn.ICodeGraph", def.Instructions, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -135,14 +139,17 @@ public sealed class InoAppFacts
         Assert.Equal("compact-pill", uiIdentity.BarLayout);
 
         var photoCraftInstalled = await os.Install<PhotoCraftApp>();
-        Assert.Equal("http://localhost:18082", photoCraftInstalled.App.State.WebUrl);
+        Assert.Null(photoCraftInstalled.App.State.WebUrl);
         await photoCraftInstalled.Request("remove-background", new PhotoCraftRemoveBackground("/work/hero.png", "native-linux"));
-        Assert.Contains(photoCraftInstalled.Main.Texts, text => text.Contains("/work/hero.nobg.png", StringComparison.Ordinal));
+        Assert.Contains("not connected", photoCraftInstalled.App.State.Status, StringComparison.Ordinal);
+        Assert.Contains(photoCraftInstalled.Main.Texts, text => text.Contains("not connected", StringComparison.Ordinal));
+        Assert.Empty(photoCraftInstalled.App.State.History);
 
         var filmCraftInstalled = await os.Install<FilmCraftApp>();
-        Assert.Equal("http://localhost:18083", filmCraftInstalled.App.State.WebUrl);
+        Assert.Null(filmCraftInstalled.App.State.WebUrl);
         await filmCraftInstalled.Request("export", new FilmCraftExport("h264-1080p60", "/work/clip.fcproj", "native-linux"));
-        Assert.Contains(filmCraftInstalled.Main.Texts, text => text.Contains("/work/clip.1080p60.mp4", StringComparison.Ordinal));
+        Assert.Contains("not connected", filmCraftInstalled.App.State.Status, StringComparison.Ordinal);
+        Assert.Contains(filmCraftInstalled.Main.Texts, text => text.Contains("not connected", StringComparison.Ordinal));
 
         var desktopInstalled = await os.Install<DesktopApp>();
         await desktopInstalled.Request("start");
@@ -200,42 +207,129 @@ public sealed class InoAppFacts
         await ino.Request("send", new InoSend("turn 1"));
         Assert.Equal("qwen3.5:4b", BackgroundAgent.LastConfiguredModel);
         Assert.Equal("qwen3.5:4b", BackgroundAgent.LastTurnModel);
-        await Deliver(ino, new TurnCompleted("ino/conversations/main", "run-1", "reply 1"));
+        BackgroundChat.Complete("local/ino/conversations/main", "run-1", "turn 1", "reply 1");
+        await Deliver(ino, new ChatRunChanged("local/ino/chats/main", BackgroundChat.Revision, ChatRunStatus.Completed));
         BackgroundAgent.Starts = 0;
 
-        await ino.Request("send", new InoSend("/model claude-sonnet-4-5"));
-        Assert.Equal("Switched model to claude-sonnet-4-5", ino.App.State.Status);
+        await ino.Request("send", new InoSend("/model claude-sonnet-4-6"));
+        Assert.Equal("Switched model to claude-sonnet-4-6", ino.App.State.Status);
         await os.Idle();
-        Assert.Contains("claude-sonnet-4-5", ino.App.State.Status, StringComparison.Ordinal);
-        Assert.Equal("claude-sonnet-4-5", (await userSettings.Read()).DefaultModel);
-        Assert.Equal("claude-sonnet-4-5", BackgroundAgent.LastConfiguredModel);
+        Assert.Contains("claude-sonnet-4-6", ino.App.State.Status, StringComparison.Ordinal);
+        Assert.Equal("claude-sonnet-4-6", (await userSettings.Read()).DefaultModel);
+        Assert.Equal("claude-sonnet-4-6", BackgroundAgent.LastConfiguredModel);
 
         await ino.Request("send", new InoSend("turn 2"));
-        Assert.Equal("claude-sonnet-4-5", BackgroundAgent.LastTurnModel);
-        await Deliver(ino, new TurnCompleted("ino/conversations/main", "run-1", "reply 2"));
+        Assert.Equal("claude-sonnet-4-6", BackgroundAgent.LastTurnModel);
+        BackgroundChat.Complete("local/ino/conversations/main", "run-1", "turn 2", "reply 2");
+        await Deliver(ino, new ChatRunChanged("local/ino/chats/main", BackgroundChat.Revision, ChatRunStatus.Completed));
         BackgroundAgent.Starts = 0;
 
         await settingsApp.Request("save-preferences", new SettingsSavePreferences(
             DisplayName: "Ada Lovelace",
             Theme: "dark",
-            DefaultModel: "gpt-5",
+            DefaultModel: "gpt-5.4",
             StylePreset: "fluent-acrylic",
             BarLayout: "floating-glass"));
         await os.Idle();
-        Assert.Equal("gpt-5", (await userSettings.Read()).DefaultModel);
-        Assert.Equal("gpt-5", BackgroundAgent.LastConfiguredModel);
+        Assert.Equal("gpt-5.4", (await userSettings.Read()).DefaultModel);
+        Assert.Equal("gpt-5.4", BackgroundAgent.LastConfiguredModel);
 
         await ino.Request("send", new InoSend("turn 3"));
-        Assert.Equal("gpt-5", BackgroundAgent.LastTurnModel);
+        Assert.Equal("gpt-5.4", BackgroundAgent.LastTurnModel);
 
         await using var agentOs = AgentOs();
         var liveIno = await agentOs.Install<InoApp>();
         var liveProfile = agentOs.Get<IAgentContext>(new NeuronId(Brain, "agent-context", "context/user.profile"));
         var liveAgent = agentOs.Get<IAgent>(AgentOf("main"));
-        await liveIno.Request("send", new InoSend("/model claude-sonnet-4-5"));
+        await liveIno.Request("send", new InoSend("/model claude-sonnet-4-6"));
         await agentOs.Idle();
-        Assert.Equal("claude-sonnet-4-5", (await liveAgent.Read()).Definition.Model?.Model);
-        Assert.Equal("""{"model":"claude-sonnet-4-5"}""", Assert.Single((await liveProfile.Read()).Entries, e => e.Name == "inference").Text);
+        Assert.Equal("claude-sonnet-4-6", (await liveAgent.Read()).Definition.Model?.Model);
+        Assert.Equal("claude-sonnet-4-6", liveIno.App.State.SelectedModel);
+        // ProfileContextWriter never writes an "inference" model entry into user.profile.
+        Assert.DoesNotContain((await liveProfile.Read()).Entries, e => e.Name == "inference");
+    }
+
+    [Fact]
+    public async Task OpenComputesCanDictateWithoutPersistingIt()
+    {
+        FakeSpeechRecognizer.AvailableResult = true;
+        try
+        {
+            await using var os = BackgroundOs();
+            os.Register<FakeSpeechRecognizer>();
+            var ino = await os.Install<InoApp>();
+            await ino.Request("open", new InoOpen());
+
+            Assert.True(ino.App.CanDictate);
+            Assert.True(Assert.IsType<Conversation>(ino.App.Render().Root).Composer.Dictation);
+            Assert.Null(typeof(InoAppState).GetProperty("CanDictate"));
+
+            FakeSpeechRecognizer.AvailableResult = false;
+            await ino.Request("open", new InoOpen());
+            Assert.False(ino.App.CanDictate);
+            Assert.False(Assert.IsType<Conversation>(ino.App.Render().Root).Composer.Dictation);
+        }
+        finally
+        {
+            FakeSpeechRecognizer.AvailableResult = false;
+        }
+    }
+
+    [Fact]
+    public async Task ChoosingStockChatModelInSettingsIsPreservedWhenCoderIsDetectedLocally()
+    {
+        await using var os = BackgroundOs();
+        os.Register<FakeModelCatalog>();
+        FakeModelCatalog.LocalSummary = new LocalModelSummary(
+            Available: true,
+            PreferredModel: "qwen2.5-coder:14b",
+            InstalledModels: ["qwen2.5-coder:14b", "qwen3.5:4b"]);
+
+        try
+        {
+            var ino = await os.Install<InoApp>();
+            var settingsApp = await os.Install<SettingsApp>();
+
+            await settingsApp.Request("save-preferences", new SettingsSavePreferences(
+                DisplayName: "User",
+                Theme: "dark",
+                DefaultModel: "qwen3.5:4b",
+                StylePreset: "fluent-acrylic",
+                BarLayout: "floating-glass"));
+            await os.Idle();
+
+            await ino.Request("send", new InoSend("chat with default"));
+            Assert.Equal("qwen3.5:4b", BackgroundAgent.LastTurnModel);
+            Assert.Equal("qwen3.5:4b", ino.App.State.SelectedModel);
+        }
+        finally
+        {
+            FakeModelCatalog.Reset();
+        }
+    }
+
+    [Fact]
+    public async Task MissingOllamaUnderLocalTopologySurfacesNoProviderSetupCard()
+    {
+        await using var os = BackgroundOs();
+        os.Register<FakeModelCatalog>();
+        FakeModelCatalog.AutomaticModel = new ModelChoice("automatic", "Automatic", "Ollama", "qwen3.5:4b", true, ["Tools"]);
+        FakeModelCatalog.LocalSummary = new LocalModelSummary(Available: false, PreferredModel: null, InstalledModels: []);
+
+        try
+        {
+            var ino = await os.Install<InoApp>();
+            await ino.Request("send", new InoSend("hello without ollama"));
+            BackgroundChat.Fail("local/ino/conversations/main", "run-1", "hello without ollama", "provider-unavailable");
+            await Deliver(ino, new ChatRunChanged("local/ino/chats/main", BackgroundChat.Revision, ChatRunStatus.Failed));
+
+            Assert.Equal("no-provider", ino.App.State.Error?.Code);
+            Assert.True(InoView.ShouldShowModelSetup(ino.App.State));
+        }
+        finally
+        {
+            FakeModelCatalog.Reset();
+        }
     }
 
     [Fact]
@@ -274,8 +368,9 @@ public sealed class InoAppFacts
         var ino = await os.Install<InoApp>();
         await ino.Request("send", new InoSend("hello"));
         BackgroundAgent.Reply = "Hi from the background";
+        BackgroundChat.Complete("local/ino/conversations/main", "run-1", "hello", "Hi from the background");
 
-        await Deliver(ino, new TurnCompleted("ino/conversations/main", "run-1", "Hi from the background"));
+        await Deliver(ino, new ChatRunChanged("local/ino/chats/main", BackgroundChat.Revision, ChatRunStatus.Completed));
 
         Assert.Equal(InoModel.Ready, ino.App.State.Status);
         Assert.Null(ino.App.State.ActiveRunId);
@@ -326,10 +421,12 @@ public sealed class InoAppFacts
     private static TestOS BackgroundOs()
     {
         BackgroundAgent.Reset();
+        BackgroundChat.Reset();
         FakeCompute.Reset();
         var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
         os.Register<BackgroundAgent>();
+        os.Register<BackgroundChat>();
         os.Register<FakeCompute>();
         return os;
     }
@@ -337,8 +434,7 @@ public sealed class InoAppFacts
     private static Task Deliver<TSignal>(InstalledApp<InoApp> ino, TSignal signal) where TSignal : Signal
         => signal switch
         {
-            TurnCompleted c => ino.App.OnTurnCompleted(c),
-            TurnFailed f => ino.App.OnTurnFailed(f),
+            ChatRunChanged c => ino.App.OnChatRunChanged(c),
             AgentBlocked b => ino.App.OnAgentBlocked(b),
             _ => throw new NotSupportedException($"Unknown signal {typeof(TSignal).Name}"),
         };
@@ -590,6 +686,104 @@ public sealed class InoAppFacts
         Assert.Empty(ino.App.State.ActiveCards);
     }
 
+    [Fact]
+    public async Task EmptySendIsIgnoredWithoutSendingHello()
+    {
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+
+        await ino.Request("send", new InoSend(null, null, null));
+        await ino.Request("send", new InoSend("   "));
+
+        Assert.Equal(0, BackgroundAgent.Starts);
+        Assert.Equal("New chat", ino.App.State.Title);
+        Assert.Null(ino.App.State.Pending);
+        Assert.Null(ino.App.State.ActiveRunId);
+        Assert.Equal(InoModel.Ready, ino.App.State.Status);
+    }
+
+    [Fact]
+    public async Task InoLogsItsFailuresFacts()
+    {
+        Assert.IsType<InoApp>(Activator.CreateInstance(typeof(InoApp)));
+
+        var logs = new RecordingLoggerProvider();
+        var services = new ServiceCollection();
+        services.AddLogging(b => b.AddProvider(logs).SetMinimumLevel(LogLevel.Debug));
+        var provider = services.BuildServiceProvider();
+        var diConstructed = ActivatorUtilities.CreateInstance<InoApp>(provider);
+        Assert.NotNull(diConstructed);
+
+        await using var os = TestOS.Local(o => o.Services = provider);
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register<RecordingAgent>();
+        var ino = await os.Install<InoApp>();
+        ino.App.FilesVfs = new BrokenVfs();
+
+        await ino.Request("query-db", new InoQueryDb("SELECT a FROM /work/missing.csv"));
+        await ino.Request("send", new InoSend("trigger start error"));
+
+        var inoEntries = logs.Entries.Where(e => string.Equals(e.Category, typeof(InoApp).FullName, StringComparison.Ordinal)).ToArray();
+        Assert.Contains(inoEntries, e => e.Level == LogLevel.Warning && e.Exception is IOException);
+        Assert.Contains(inoEntries, e => e.Level == LogLevel.Error && e.Exception is NotSupportedException);
+    }
+
+    [Fact]
+    public async Task InoAppUsesInjectedTimeProviderAndExtractsModelSetup()
+    {
+        var fixedNow = new DateTimeOffset(2026, 11, 16, 12, 30, 0, TimeSpan.Zero);
+        var fixedClock = new FixedTimeProvider(fixedNow);
+
+        var setupType = typeof(InoApp).Assembly.GetType("IntoChat.OS.Apps.Ino.InoModelSetup", throwOnError: false);
+        Assert.NotNull(setupType);
+
+        var services = new ServiceCollection();
+        services.AddSingleton<ISecretRedactor>(new NoSecrets());
+        services.AddSingleton<TimeProvider>(fixedClock);
+        var provider = services.BuildServiceProvider();
+
+        BackgroundAgent.Reset();
+        BackgroundChat.Reset();
+        try
+        {
+            await using var os = TestOS.Local(o => o.Services = provider);
+            os.Register(typeof(AppsModule).Assembly);
+            os.Register<BackgroundAgent>();
+            os.Register<BackgroundChat>();
+            var ino = await os.Install<InoApp>();
+
+            await ino.Request("send", new InoSend("check clock"));
+            Assert.Equal(fixedNow, ino.App.State.Pending?.At);
+        }
+        finally
+        {
+            BackgroundAgent.Reset();
+            BackgroundChat.Reset();
+        }
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
+    private sealed class RecordingLoggerProvider : ILoggerProvider
+    {
+        public List<(string Category, LogLevel Level, Exception? Exception, string Message)> Entries { get; } = [];
+        public ILogger CreateLogger(string categoryName) => new RecordingLogger(categoryName, Entries);
+        public void Dispose() { }
+
+        private sealed class RecordingLogger(
+            string category,
+            List<(string Category, LogLevel Level, Exception? Exception, string Message)> entries) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+            public bool IsEnabled(LogLevel logLevel) => true;
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+                => entries.Add((category, logLevel, exception, formatter(state, exception)));
+        }
+    }
+
     private sealed class BrokenVfs : IFilesVfsService
     {
         public string BrainId => "local";
@@ -687,6 +881,82 @@ public sealed class InoAppFacts
         public Task Post(string text, string id) => Task.CompletedTask;
     }
 
+    [Neuron(IChat.Type)]
+    private sealed class BackgroundChat : Neuron, IChat
+    {
+        private static long _revision;
+        private static ChatState _state = new();
+        public static long Revision => _revision;
+
+        public static void Reset()
+        {
+            _revision = 0;
+            _state = new();
+        }
+
+        public static void Complete(string agentKey, string runId, string userText, string reply)
+        {
+            _revision++;
+            _state = new ChatState
+            {
+                Name = "local/ino/chats/main",
+                Revision = _revision,
+                Selection = new ChatSelection(agentKey, 1),
+                Projection = new ChatProjection(agentKey, 1, _revision,
+                [
+                    new ChatEntry($"{runId}/user", ChatRole.User, userText),
+                    new ChatEntry($"{runId}/assistant", ChatRole.Assistant, reply),
+                ]),
+                Run = new ChatRunSnapshot(agentKey, 1, _revision, runId, ChatRunStatus.Completed),
+            };
+        }
+
+        public static void Fail(string agentKey, string runId, string userText, string failureCode)
+        {
+            _revision++;
+            _state = new ChatState
+            {
+                Name = "local/ino/chats/main",
+                Revision = _revision,
+                Selection = new ChatSelection(agentKey, 1),
+                Projection = new ChatProjection(agentKey, 1, _revision,
+                [
+                    new ChatEntry($"{runId}/user", ChatRole.User, userText),
+                    new ChatEntry($"{runId}/assistant", ChatRole.Assistant, "")
+                    {
+                        Status = "failed",
+                        Failure = failureCode,
+                    },
+                ]),
+                Run = new ChatRunSnapshot(agentKey, 1, _revision, runId, ChatRunStatus.Failed),
+            };
+        }
+
+        public Task<ChatSelection> SelectAgent(string agent, long expectedSelectionRevision, Guid operationId)
+        {
+            _revision++;
+            var selection = new ChatSelection(agent, expectedSelectionRevision + 1);
+            _state = _state with
+            {
+                Name = $"{Id.Brain.Value}/{Id.Key}",
+                Revision = _revision,
+                Selection = selection,
+            };
+            return Task.FromResult(selection);
+        }
+
+        public Task Project(ChatProjection projection)
+        {
+            _revision++;
+            _state = _state with { Revision = _revision, Projection = projection };
+            return Task.CompletedTask;
+        }
+
+        public Task Activate(string source, long generation, string actionId) => Task.CompletedTask;
+        public Task MarkRead(string source, long generation, long version, string[] messageIds) => Task.CompletedTask;
+        public Task<ChatState> Read() => Task.FromResult(_state);
+    }
+
     [Neuron("ui.compute")]
     private sealed class FakeCompute : Neuron, IntoChat.OS.Modules.Flutter.Compute.ICompute
     {
@@ -699,5 +969,50 @@ public sealed class InoAppFacts
             Records.Add((key, micros));
             return Read();
         }
+    }
+
+    [Neuron("speechrecognizerneuron")]
+    private sealed class FakeSpeechRecognizer : Neuron, IntoChat.OS.Modules.AI.Media.ISpeechRecognizer
+    {
+        public static bool AvailableResult { get; set; }
+
+        public Task<IntoChat.OS.Modules.AI.Media.MediaCapabilities> Describe()
+            => Task.FromResult(new IntoChat.OS.Modules.AI.Media.MediaCapabilities(
+                IntoChat.OS.Modules.AI.Media.MediaOperation.SpeechRecognition,
+                AvailableResult,
+                1024));
+
+        public Task<IntoChat.OS.Modules.AI.Media.SpeechRecognitionResult> Recognize(
+            IntoChat.OS.Modules.AI.Media.SpeechRecognitionRequest request,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+    }
+
+    [Neuron("ai.models")]
+    private sealed class FakeModelCatalog : Neuron, IModelCatalog
+    {
+        public static LocalModelSummary LocalSummary { get; set; } = new(false, null, []);
+        public static ModelChoice AutomaticModel { get; set; } = new("automatic", "Automatic", null, null, false, []);
+
+        public static void Reset()
+        {
+            LocalSummary = new(false, null, []);
+            AutomaticModel = new("automatic", "Automatic", null, null, false, []);
+        }
+
+        public Task<ModelChoices> List(string? defaultModel = null)
+        {
+            var effective = !string.IsNullOrWhiteSpace(defaultModel)
+                ? AutomaticModel with { Model = defaultModel.Trim(), Available = true }
+                : AutomaticModel;
+            return Task.FromResult(new ModelChoices(effective, []));
+        }
+
+        public Task<ModelSelection?> Select(string? id, string? defaultModel = null)
+            => Task.FromResult<ModelSelection?>(string.IsNullOrWhiteSpace(id) ? null : new ModelSelection(id));
+
+        public Task<LocalModelSummary> DetectLocal() => Task.FromResult(LocalSummary);
+
+        public Task SaveProviderCredential(string provider, string credentialValue) => Task.CompletedTask;
     }
 }

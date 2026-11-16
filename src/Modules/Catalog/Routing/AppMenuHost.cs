@@ -10,7 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans;
 
-namespace IntoChat.OS.Modules.AI.Routing;
+namespace IntoChat.OS.Modules.Apps.Routing;
 
 // Fills the operation menu from the apps already installed, then keeps one app current when it changes.
 // The scan runs at startup, outside a person's request. A route after that reads the menu.
@@ -46,17 +46,15 @@ internal sealed class AppMenuHost(DigitalBrain.Kernel.IClusterListeners listener
     // Both happen as apps are installed, not when a person asks to route a message.
     private async Task Refresh(string key, string version, CancellationToken cancellationToken)
     {
-        var marker = key.IndexOf("/apps/", StringComparison.Ordinal);
-        if (marker <= 0) { return; }
-        var brain = key[..marker];
-        // The menu is the module's own read of the brain's apps, made as the platform for that brain: the kernel refuses unstamped
-        // calls to plain neurons.
-        using var inProcess = InProcessCallerScope.Enter();
-        using var platform = RuntimeCallerContext.Stamp(DigitalBrain.Capabilities.CapabilityCallers.Platform("ai.app-menu", "system", brain));
+        if (!IntoChat.OS.Primitives.AppRef.TryParse(key, out var appRef)) { return; }
+        var brain = appRef.Brain.Value;
+        // The menu is the module's own read of the brain's apps, made under an internal module caller for that brain.
+        var edge = plain.GetService<DigitalBrain.Access.EdgeAuthority>();
+        using var module = edge?.Enter(edge.Module("ai.app-menu", appRef.Brain));
         // The first scan includes the changed app itself: a plain app announces its change before the kernel's directory may list
         // it (06-08: the directory registers a plain neuron once its call completes).
         if (!catalog.TryGet(brain, out _)) { await Scan(brain, key, version, cancellationToken); return; }
-        if (IApp.NameOf(brain, key) is not { } name) { return; }
+        var name = appRef.Name;
         if (await Operations(key, name, version, cancellationToken) is { } operations)
         {
             catalog.Upsert(brain, name, operations);
@@ -83,7 +81,8 @@ internal sealed class AppMenuHost(DigitalBrain.Kernel.IClusterListeners listener
         keys.Add(changed);
         foreach (var key in keys)
         {
-            if (IApp.NameOf(brain, key) is not { } name) { continue; }
+            if (!IntoChat.OS.Primitives.AppRef.TryParse(new DigitalBrain.BrainId(brain), key, out var appRef)) { continue; }
+            var name = appRef.Name;
             if (await Operations(key, name, key == changed ? version : null, cancellationToken) is not { } operations) { return; }
             apps.Add((name, operations));
         }

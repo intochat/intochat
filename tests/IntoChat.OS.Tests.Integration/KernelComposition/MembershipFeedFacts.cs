@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
-using IntoChat.OS.Modules.Microsoft.Orleans.Cluster;
+using IntoChat.OS.Kernel.Composition.Cluster;
 using Microsoft.Extensions.Logging.Abstractions;
 using Orleans.Runtime;
 

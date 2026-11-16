@@ -1,21 +1,24 @@
 using System.Text.Json;
+using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Kernel;
 
 // The OS composes AI and UI. Neither module gains an implementation dependency on the other.
 internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSource
 {
+    private readonly ILogger<AgentChatSource> _logger = services.GetService<ILogger<AgentChatSource>>() ?? OsConsoleLog.For<AgentChatSource>();
     // The agent is a plain neuron (06-06d): the chat holds a synapse on its signals.
     public ChatAgentSubscription Subscription(string key)
     {
@@ -33,7 +36,7 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
             ? await IntoChat.OS.Modules.Apps.InoLinks.Json(services, DigitalBrain.Brains.BrainKey.BrainOf(key)) : null;
         var runs = state.Runs.ToList();
         if (state.ActiveRun is { } active) { runs.RemoveAll(run => run.RunId == active.RunId); runs.Add(active); }
-        var projection = new ChatProjection(key, selectionRevision, state.Version, await Named(key, [.. runs.SelectMany(run => Entries(run, links))]))
+        var projection = new ChatProjection(key, selectionRevision, state.Version, await Named(key, [.. runs.SelectMany(run => Entries(run, links, _logger))]))
         {
             Actions = state.ActiveRun is { } running
                 ? [new("stop/" + running.RunId, "Stop", JsonSerializer.Serialize(new { runId = running.RunId }))] : [],
@@ -54,7 +57,7 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
     // Each card is named from its app's manifest at read time: an app without a title is not installed.
     private async Task<ChatEntry[]> Named(string key, ChatEntry[] entries)
     {
-        var scope = key.IndexOf("/apps/", StringComparison.Ordinal) is var cut and > 0 ? key[..cut] : DigitalBrain.Brains.BrainKey.BrainOf(key);
+        var scope = IntoChat.OS.Primitives.AppRef.TryParse(key, out var keyApp) ? keyApp.Brain.Value : DigitalBrain.Brains.BrainKey.BrainOf(key);
         var manifests = new Dictionary<string, AppManifest?>(StringComparer.Ordinal);
         IReadOnlyList<(string Publisher, string Name)>? listed = null;
         for (var i = 0; i < entries.Length; i++)
@@ -62,8 +65,8 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
             if (entries[i].App is not { } card) { continue; }
             if (!manifests.TryGetValue(card.App, out var manifest))
             {
-                try { manifest = (await SiloNeurons.Get<IApp>(services, IApp.Key(scope, card.App)).Read()).Manifest; }
-                catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "App manifest unreadable"); manifest = null; }
+                try { manifest = (await SiloNeurons.Get<IApp>(services, IntoChat.OS.Primitives.AppRef.Of(new BrainId(scope), card.App).Key).Read()).Manifest; }
+                catch (Exception error) when (error is not OperationCanceledException) { _logger.LogSwallowed(error, "App manifest unreadable"); manifest = null; }
                 manifests[card.App] = manifest;
             }
             var named = Named(card, manifest);
@@ -77,7 +80,7 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
                     listed ??= services.GetService<MarketplaceView>() is { } marketplace
                         ? [.. (await marketplace.List(default)).Select(listing => (listing.Publisher, listing.Name))] : [];
                 }
-                catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "App listing unreadable"); listed = []; }
+                catch (Exception error) when (error is not OperationCanceledException) { _logger.LogSwallowed(error, "App listing unreadable"); listed = []; }
                 named = Published(named, listed);
             }
             entries[i] = entries[i] with { App = named };
@@ -99,7 +102,7 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
     }
 
     // The app a completed IApp.Request("open") or IWorkspace.Show tool call opened, else null.
-    internal static ChatAppCard? Opened(AgentToolCall call)
+    internal static ChatAppCard? Opened(AgentToolCall call, ILogger? logger = null)
     {
         if (call.Name != "neurons_call" || call.Result is null || call.Error is not null || call.Code is not null) { return null; }
         try
@@ -116,7 +119,7 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
             string? At(int index) => list.GetArrayLength() > index && list[index].ValueKind == JsonValueKind.String ? list[index].GetString() : null;
             if (contract == typeof(IApp).FullName && method == nameof(IApp.Request) && At(0) == "open")
             {
-                var name = Text("key") is { } app && app.LastIndexOf("/apps/", StringComparison.Ordinal) is var at and >= 0 ? app[(at + 6)..] : null;
+                var name = Text("key") is { } app && IntoChat.OS.Primitives.AppRef.TryParse(app, out var appRef) ? appRef.Name : null;
                 return ChatAppCard.IsAppName(name) ? new(name!, name!, "", true, At(1) ?? "") : null;
             }
             if (contract == typeof(IWorkspace).FullName && method == nameof(IWorkspace.Show))
@@ -125,24 +128,25 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
                 return ChatAppCard.IsAppName(name) ? new(name!, name!, "", true) : null;
             }
         }
-        catch (JsonException exception) { NullLogger.Instance.LogSwallowed(exception, "Unreadable tool-call arguments"); }
+        catch (JsonException exception) { (logger ?? OsConsoleLog.For(typeof(AgentChatSource))).LogSwallowed(exception, "Unreadable tool-call arguments"); }
         return null;
     }
 
     // A posted run (IAgent.Post, e.g. a greeting) has no user turn; any other run keeps its user
     // bubble, even an attachment-only turn with empty text.
-    internal static IEnumerable<ChatEntry> Entries(AgentRun run, string? links = null)
+    internal static IEnumerable<ChatEntry> Entries(AgentRun run, string? links = null, ILogger? logger = null)
     {
         if (!run.Posted) { yield return new ChatEntry(run.RunId + "/user", ChatRole.User, run.UserText); }
         var card = run.Posted
             ? ChatAppCard.TryReadLinkPost(run.RunId, out var request) ? ChatAppCard.FindLink(links, request) : null
-            : run.ToolCalls.Select(Opened).LastOrDefault(opened => opened is not null);
+            : run.ToolCalls.Select(call => Opened(call, logger)).LastOrDefault(opened => opened is not null);
         yield return new ChatEntry(run.RunId + "/assistant", ChatRole.Assistant, run.Reply ?? "")
         {
             Model = run.Posted ? null : run.Model?.Model,
             App = card,
             Status = run.Status.ToString().ToLowerInvariant(),
             Error = run.Error,
+            Failure = run.Status == AgentRunStatus.Failed ? AgentFailures.CodeOf(run.Failure) : null,
             Activities = [.. run.ToolCalls.Select(call => new ChatActivity(call.CallId, call.Name, call.Arguments, call.Result, call.Error))],
         };
     }

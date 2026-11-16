@@ -3,11 +3,13 @@ using System.Text.Json;
 using System.Threading.Channels;
 using DigitalBrain;
 using DigitalBrain.Brains;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Signalling;
 using DigitalBrain.Signals;
 using DigitalBrain.Units;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -78,7 +80,11 @@ internal static class BrainEventsEndpoints
         {
             try { await foreach (var _ in signals) { changes.Writer.TryWrite(true); } }
             catch (OperationCanceledException) { }
-            catch (Exception error) { changes.Writer.TryComplete(error); }
+            catch (Exception error)
+            {
+                OsConsoleLog.For(typeof(BrainEventsEndpoints)).LogSwallowed(error, "watching brain events stream");
+                changes.Writer.TryComplete(error);
+            }
         }
     }
 
@@ -111,7 +117,9 @@ internal static class BrainEventsEndpoints
         foreach (var alias in installedAliases.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
         {
             var descriptors = catalog is not null && catalog.States.ContainsKey(alias) ? catalog.For(alias).Where(d => d.Kind != SynapseKind.View).ToArray() : [];
-            var id = $"{brainId}/{alias}/default";
+            var id = (IntoChat.OS.Primitives.UnitAlias.TryParse(alias, out var unitAlias)
+                ? unitAlias.StateNeuron(new BrainId(brainId))
+                : new NeuronId(new BrainId(brainId), alias, "default")).ToString();
             var handled = descriptors.Select(SignalOf).Distinct(StringComparer.Ordinal).ToArray();
             if (known.Add(id))
             {

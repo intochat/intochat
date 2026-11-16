@@ -10,6 +10,7 @@ public static class LocalSetupKeys
     public const string ShellEnabled = IntoChatOSNames.ShellEnabledKey;
     public const string Gpu = IntoChatOSNames.LocalGpuKey;
     public const string ModelOverride = IntoChatOSNames.LocalModelKey;
+    public const string LocalDefaultChatModel = IntoChatOSNames.LocalDefaultChatModel;
     public const string LocalOllamaEndpoint = IntoChatOSNames.LocalOllamaEndpoint;
     public const string LocalTopology = IntoChatOSNames.TopologyLocal;
 

@@ -2,6 +2,7 @@
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../design/cards/chart_card.dart';
+import '../theme/wire_node_values.dart';
 import 'node_common.dart';
 import 'node_context.dart';
 
@@ -9,12 +10,7 @@ Widget renderChart(ChartNode node, NodeContext ctx) {
   final actionKey = ctx.nodeKeys['chart:${node.title}'];
   return ChartCard(
     source: cardSource(node.from),
-    kind: switch (node.chartKind.trim().toLowerCase()) {
-      'line' => ChartKind.line,
-      'area' => ChartKind.area,
-      'pie' => ChartKind.pie,
-      'bar' || 'bars' || 'column' || 'columns' || _ => ChartKind.columns,
-    },
+    kind: parseChartKind(node.chartKind),
     data: ChartData(
       title: node.title,
       points: [

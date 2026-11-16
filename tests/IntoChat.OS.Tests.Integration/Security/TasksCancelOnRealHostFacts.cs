@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Confirmation;
@@ -11,7 +12,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Apps.Tests.Integration.Ino;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Mcp;
+using IntoChat.OS.Kernel.Mcp;
 using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Apps.Flows;
@@ -75,7 +76,7 @@ public sealed class TasksCancelOnRealHostFacts
 
         // What the button would send (ScreenAppEmitBridge: screen.Request("tasks.cancel")), stamped as McpCaller stamps an MCP
         // client. In process: no route gives an MCP client this request while the card is not published.
-        using (InProcessCallerScope.Enter())
+        using (Edge(host).EnterInProcess())
         using (RuntimeCallerContext.Stamp(McpCaller.AsAgent(Person(host))))
         {
             await TasksScreen(host).Request("tasks.cancel", JsonSerializer.SerializeToElement(new { flowId }));
@@ -93,12 +94,9 @@ public sealed class TasksCancelOnRealHostFacts
         await using var host = await Host();
         var (flowId, planId) = await PlanWaitingForApproval(host);
 
-        // No presence proof: the edge stamps the app "local". The request is one-way, so the route accepts it.
-        Accepted(await Send(host, "/apps/tasks/request", new { operation = "cancel", input = JsonSerializer.Serialize(new { flowId }) }, presence: false));
-
-        var refused = await Eventually(() => ReadTasks(host), screen => screen.Texts.Any(text => text.Contains("Could not cancel", StringComparison.Ordinal)),
-            "Tasks never said the cancel was refused");
-        Assert.Contains(refused.Texts, text => text.Contains($"Could not cancel: flow {flowId} {Refusal}", StringComparison.Ordinal));
+        // No presence proof: fail-closed edge rejects unproved loopback calls with 401 (no "local" fallback).
+        var unproved = await Send(host, "/apps/tasks/request", new { operation = "cancel", input = JsonSerializer.Serialize(new { flowId }) }, presence: false);
+        Assert.Equal(HttpStatusCode.Unauthorized, unproved.Status);
         await StillWaitsForThePerson(host, flowId, planId);
     }
 
@@ -135,6 +133,13 @@ public sealed class TasksCancelOnRealHostFacts
             builder.Services.AddSingleton<IChatClient>(model);
             builder.Services.RemoveAll<IAiCredentials>();
             builder.Services.AddSingleton<IAiCredentials, NoProviders>();
+            // EdgeKernelHarness defaults Topology=Local which sets Ollama.Endpoint and Default.Model;
+            // clear them so ModelCatalog routes PlanFlow to the injected SwappableChatModel on any host.
+            builder.Services.PostConfigure<AIOptions>(ai =>
+            {
+                ai.Ollama.Endpoint = null;
+                ai.Default.Model = null;
+            });
         });
         try
         {
@@ -156,7 +161,7 @@ public sealed class TasksCancelOnRealHostFacts
     private static async Task<(string FlowId, string PlanId)> PlanWaitingForApproval(EdgeKernelHarness host)
     {
         string flowId;
-        using (InProcessCallerScope.Enter())
+        using (Edge(host).EnterInProcess())
         using (RuntimeCallerContext.Stamp(Person(host)))
         {
             flowId = await Flows(host).Start(PlanFlow.Alias, "Notes", null, JsonSerializer.Serialize(new PlanInner { Goal = "Keep notes" }, PlanFlow.Json), Ct);
@@ -166,6 +171,7 @@ public sealed class TasksCancelOnRealHostFacts
             view => view is { Status: FlowStatus.Failed or FlowStatus.Cancelled or FlowStatus.Completed } or { Status: FlowStatus.Waiting, WaitingStep: "approve", ConfirmationPlanId: not null },
             "the plan flow did not reach its approval");
         Assert.Equal((FlowStatus.Waiting, WaitReason.Approval), (waiting.Status, waiting.WaitingFor));
+        Assert.NotEmpty(((SwappableChatModel)host.Services.GetRequiredService<IChatClient>()).Requests);
         var planId = waiting.ConfirmationPlanId!;
         Assert.True(await Eventually(() => IsPending(host, planId), pending => pending, "the plan never reached the inbox"));
         return (flowId, planId);
@@ -175,12 +181,14 @@ public sealed class TasksCancelOnRealHostFacts
     {
         var view = await ReadFlow(host, flowId);
         Assert.Equal((FlowStatus.Waiting, "approve", WaitReason.Approval), (view.Status, view.WaitingStep, view.WaitingFor));
-        using (InProcessCallerScope.EnterKernel(host.Scope))
+        using (Edge(host).EnterKernel(new BrainId(host.Scope)))
         {
             Assert.Equal(FlowStatus.Waiting, (await Proxies(host).Get<IFlowStarter>(Id(flowId)).Head()).Status);
         }
         Assert.True(await IsPending(host, planId));
     }
+
+    private static EdgeAuthority Edge(EdgeKernelHarness host) => host.Services.GetRequiredService<EdgeAuthority>();
 
     private static INeuronProxies Proxies(EdgeKernelHarness host) => host.Services.GetRequiredService<INeuronProxies>();
 
@@ -196,13 +204,13 @@ public sealed class TasksCancelOnRealHostFacts
 
     private static async Task<FlowView> ReadFlow(EdgeKernelHarness host, string flowId)
     {
-        using var _ = InProcessCallerScope.EnterKernel(host.Scope);
+        using var _ = Edge(host).EnterKernel(new BrainId(host.Scope));
         return await Flows(host).Read(flowId, Ct) ?? throw new InvalidOperationException($"The index has no flow {flowId}.");
     }
 
     private static async Task<bool> IsPending(EdgeKernelHarness host, string planId)
     {
-        using var _ = InProcessCallerScope.EnterKernel(host.Scope);
+        using var _ = Edge(host).EnterKernel(new BrainId(host.Scope));
         var inbox = await Proxies(host).Get<IConfirmationInbox>(IConfirmationInbox.Key(host.Scope)).Read();
         return inbox.Pending.Any(pending => string.Equals(pending.PlanId, planId, StringComparison.Ordinal));
     }

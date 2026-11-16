@@ -30,8 +30,11 @@ public sealed class ShellAppsFacts
         foreach (var appType in appTypes)
         {
             var ctors = appType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
-            var ctor = Assert.Single(ctors);
-            Assert.Empty(ctor.GetParameters());
+            Assert.NotEmpty(ctors);
+            Assert.Contains(ctors, c => c.GetParameters().Length == 0);
+            Assert.All(ctors, c => Assert.True(
+                c.GetParameters().All(p => p.HasDefaultValue),
+                $"{appType.FullName} constructors must remain zero-arg callable with optional DI parameters only."));
         }
     }
 }

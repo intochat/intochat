@@ -10,10 +10,10 @@ using DigitalBrain.Flows;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.Units;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -308,14 +308,18 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
-            BuildLog.ChoiceAskFailed((ILogger?)logger ?? NullLogger.Instance, error, Id.ToString(), plan.Id);
+            BuildLog.ChoiceAskFailed((ILogger?)logger ?? OsConsoleLog.For<BuildFlow>(), error, Id.ToString(), plan.Id);
             CleanupAsking(plan.Id);
             return;
         }
         var proof = Guid.NewGuid().ToString("N");
         _proofs.Add(proof);
         try { await Context.Get<IBuildChoices>(Id).ChoiceAnswered(plan.Id, approved, proof); }
-        catch (Exception error) when (error is not OutOfMemoryException) { _proofs.Remove(proof); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            _proofs.Remove(proof);
+            ((ILogger?)logger ?? OsConsoleLog.For<BuildFlow>()).LogSwallowed(error, $"ChoiceAnswered failed for build plan '{plan.Id}'.");
+        }
         finally { CleanupAsking(plan.Id); }
     }
 
@@ -346,7 +350,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
                 try { await Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain)).Withdraw(other); }
                 catch (Exception error) when (error is InvalidOperationException or ArgumentException or UnauthorizedAccessException)
                 {
-                    ((ILogger?)logger ?? NullLogger.Instance).LogSwallowed(error, "Withdrawing candidate choice plan resolution.");
+                    ((ILogger?)logger ?? OsConsoleLog.For<BuildFlow>()).LogSwallowed(error, "Withdrawing candidate choice plan resolution.");
                 }
             }
         }
@@ -551,8 +555,8 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
     private IApp App(BuildInner inner)
     {
         var key = inner.AppKey ?? throw new FlowFailed("install", "the build names no app");
-        if (key.IndexOf("/apps/", StringComparison.Ordinal) < 0) { throw new FlowFailed("install", $"{key} is not an app key"); }
-        return Context.Get<IApp>(new NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(key.IndexOf('/', StringComparison.Ordinal) + 1)..]));
+        if (!IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, key, out var appRef)) { throw new FlowFailed("install", $"{key} is not an app key"); }
+        return Context.Get<IApp>(appRef.Neuron);
     }
 
     private ISynapseStudio Studio() => Context.Get<ISynapseStudio>(ISynapseStudio.Key(Id.Brain.Value));

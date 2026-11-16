@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
@@ -348,6 +349,8 @@ public sealed class StateGraph<TState>(
 /// </summary>
 public static class AggregateExplorer<TState> where TState : class, new()
 {
+    private static ChoiceSet ResolveChoices(ChoiceSet? choices) => choices is not null ? choices : new ChoiceSet();
+
     /// <summary>
     /// Explores the state space reachable from <c>new TState()</c> up to <paramref name="maxStates"/>,
     /// checking <see cref="InvariantAttribute"/> members and verifying <paramref name="render"/> throws no exceptions
@@ -361,7 +364,7 @@ public static class AggregateExplorer<TState> where TState : class, new()
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxStates, 1);
 
-        var choiceSet = choices ?? new ChoiceSet();
+        var choiceSet = ResolveChoices(choices);
         var commandMethods = DiscoverCommandMethods();
         var invariants = DiscoverInvariants();
 
@@ -499,6 +502,19 @@ public static class AggregateExplorer<TState> where TState : class, new()
         return Explore(screen.PreviewNode, choices, maxStates, stateLabel);
     }
 
+    /// <summary>Explores an <see cref="AggregateScreen{TState}"/> by type using its <see cref="AggregateScreenBase{TState}.PreviewNode(TState)"/> projection.</summary>
+    public static StateGraph<TState> ExploreScreen<TScreen>(
+        ChoiceSet? choices = null,
+        int maxStates = 64,
+        Func<TState, string>? stateLabel = null)
+        where TScreen : AggregateScreenBase<TState>, new()
+        => Explore(Activator.CreateInstance<TScreen>().PreviewNode, choices, maxStates, stateLabel);
+
+    /// <summary>Projects a single <typeparamref name="TState"/> snapshot through <typeparamref name="TScreen"/>'s node renderer.</summary>
+    public static Node PreviewNode<TScreen>(TState state)
+        where TScreen : AggregateScreenBase<TState>, new()
+        => Activator.CreateInstance<TScreen>().PreviewNode(state);
+
     private sealed record CandidateInvocation(MethodInfo Method, object?[] Args, string Label);
 
     private static MethodInfo[] DiscoverCommandMethods()
@@ -584,6 +600,7 @@ public static class AggregateExplorer<TState> where TState : class, new()
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            Trace.TraceWarning("AggregateExplorer render failed for screen '{0}': {1}", current.Id, ex);
             violations.Add(new ExplorerViolation(
                 current.Id,
                 current.Label,
@@ -601,6 +618,7 @@ public static class AggregateExplorer<TState> where TState : class, new()
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            Trace.TraceWarning("AggregateExplorer wire serialization failed for screen '{0}': {1}", current.Id, ex);
             violations.Add(new ExplorerViolation(
                 current.Id,
                 current.Label,

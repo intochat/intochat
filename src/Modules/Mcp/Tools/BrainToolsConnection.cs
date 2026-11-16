@@ -5,23 +5,31 @@ using DigitalBrain.Capabilities.Tools;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.Tools;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Mcp;
 
 [GenerateSerializer, Alias("brain.tools-connection-state")]
-public sealed record BrainToolsConnectionState : ConnectionState
+internal sealed record BrainToolsConnectionState : ConnectionState
 {
     [Id(0)] public string[] RegisteredToolNames { get; set; } = [];
 }
 
 // Brain-scoped aggregator connection for all tool@1 capabilities in the brain.
 [Neuron(IBrainToolsConnection.TypeName, State = "brain.tools")]
-public sealed class BrainToolsConnection(
+internal sealed class BrainToolsConnection(
     IServiceProvider? services = null,
-    IEnumerable<IToolSource>? staticSources = null)
+    IEnumerable<IToolSource>? staticSources = null,
+    ILogger<BrainToolsConnection>? logger = null)
     : ConnectionNeuron<BrainToolsConnectionState>, IBrainToolsConnection
 {
     private readonly List<IToolSource> _sources = staticSources?.ToList() ?? [];
+    private readonly ILogger _log = logger
+        ?? (services?.GetService(typeof(ILogger<BrainToolsConnection>)) as ILogger)
+        ?? (services?.GetService(typeof(ILoggerFactory)) as ILoggerFactory)?.CreateLogger<BrainToolsConnection>()
+        ?? McpConsoleLog.For<BrainToolsConnection>();
+
+    private ILogger Log => _log;
 
     public void RegisterSource(IToolSource source)
     {
@@ -55,7 +63,7 @@ public sealed class BrainToolsConnection(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // One failing source should not crash tool discovery
+                Log.LogSwallowed(ex, "Skipping failing tool source during discovery.");
             }
         }
 
@@ -117,7 +125,7 @@ public sealed class BrainToolsConnection(
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(error, "Skipping faulty tool source during lookup.");
+                Log.LogSwallowed(error, "Skipping faulty tool source during lookup.");
             }
         }
 
@@ -149,7 +157,7 @@ public sealed class BrainToolsConnection(
         }
         catch (JsonException error)
         {
-            global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(error, "Wrapping non-JSON tool result text.");
+            Log.LogSwallowed(error, "Wrapping non-JSON tool result text.");
             return JsonSerializer.SerializeToElement(new { result = result.Text });
         }
     }
@@ -197,7 +205,7 @@ public sealed class BrainToolsConnection(
                             }
                             catch (Exception innerError) when (innerError is not OperationCanceledException)
                             {
-                                global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(innerError, "Skipping unavailable live tool source.");
+                                Log.LogSwallowed(innerError, "Skipping unavailable live tool source.");
                             }
                         }
                     }
@@ -205,7 +213,7 @@ public sealed class BrainToolsConnection(
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                global::Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance.LogSwallowed(error, "Falling back to local tool sources.");
+                Log.LogSwallowed(error, "Falling back to local tool sources.");
             }
         }
 

@@ -26,7 +26,6 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
         new Journey[]
         {
             new("settings", "open", "{}", "open.json"),
-            new("workspace", "open", "{}", "open.json"),
             new("gallery", "open", "{}", "open.json"),
             new("creator", "open", "{}", "open.json"),
             new("ino", "open", "{}", "open.json"),
@@ -40,7 +39,6 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
     public static TheoryData<string> Apps =>
     [
         "settings",
-        "workspace",
         "gallery",
         "creator",
         "ino",
@@ -130,14 +128,14 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
 
         var diff = ViewComparison.Diff(driftedExpected, actualView);
         Assert.NotNull(diff);
-        Assert.Contains("/root/children/0/children/1/children/2/value", diff, StringComparison.Ordinal);
+        Assert.Contains("/root/trailing/children/0/children/0/children/0/value", diff, StringComparison.Ordinal);
         Assert.Contains("DRIFTED_TEXT_NODE", diff, StringComparison.Ordinal);
     }
 
     private static View MutateFirstTextNode(View source, string newText)
     {
         var (mutatedRoot, changed) = MutateNode(source.Root, newText);
-        Assert.True(changed, "Expected to find and mutate a Text node in the view.");
+        Assert.True(changed, "Expected to find and mutate a Text or Heading node in the view.");
         return source with { Root = mutatedRoot };
     }
 
@@ -148,17 +146,27 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
             case Text text:
                 return (text with { Value = newText }, true);
 
+            case Heading heading:
+                return (heading with { Value = newText }, true);
+
+            case SplitPane split:
+                {
+                    var (nextLeading, leadingChanged) = MutateNode(split.Leading, newText);
+                    if (leadingChanged)
+                    {
+                        return (split with { Leading = nextLeading }, true);
+                    }
+
+                    var (nextTrailing, trailingChanged) = MutateNode(split.Trailing, newText);
+                    return trailingChanged ? (split with { Trailing = nextTrailing }, true) : (split, false);
+                }
+
             case Column col:
                 {
                     var children = col.Children.ToArray();
-                    for (var i = 0; i < children.Length; i++)
+                    if (MutateChildren(children, newText))
                     {
-                        var (next, changed) = MutateNode(children[i], newText);
-                        if (changed)
-                        {
-                            children[i] = next;
-                            return (col with { Children = children }, true);
-                        }
+                        return (col with { Children = children }, true);
                     }
                     return (col, false);
                 }
@@ -166,14 +174,9 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
             case Row row:
                 {
                     var children = row.Children.ToArray();
-                    for (var i = 0; i < children.Length; i++)
+                    if (MutateChildren(children, newText))
                     {
-                        var (next, changed) = MutateNode(children[i], newText);
-                        if (changed)
-                        {
-                            children[i] = next;
-                            return (row with { Children = children }, true);
-                        }
+                        return (row with { Children = children }, true);
                     }
                     return (row, false);
                 }
@@ -181,21 +184,50 @@ public sealed class ShellAppJourneys(OsAppHostFixture host)
             case Surface surface:
                 {
                     var children = surface.Children.ToArray();
-                    for (var i = 0; i < children.Length; i++)
+                    if (MutateChildren(children, newText))
                     {
-                        var (next, changed) = MutateNode(children[i], newText);
-                        if (changed)
-                        {
-                            children[i] = next;
-                            return (surface with { Children = children }, true);
-                        }
+                        return (surface with { Children = children }, true);
                     }
                     return (surface, false);
+                }
+
+            case Card card:
+                {
+                    var children = card.Children.ToArray();
+                    if (MutateChildren(children, newText))
+                    {
+                        return (card with { Children = children }, true);
+                    }
+                    return (card, false);
+                }
+
+            case Grid grid:
+                {
+                    var children = grid.Children.ToArray();
+                    if (MutateChildren(children, newText))
+                    {
+                        return (grid with { Children = children }, true);
+                    }
+                    return (grid, false);
                 }
 
             default:
                 return (node, false);
         }
+    }
+
+    private static bool MutateChildren(Node[] children, string newText)
+    {
+        for (var i = 0; i < children.Length; i++)
+        {
+            var (next, changed) = MutateNode(children[i], newText);
+            if (changed)
+            {
+                children[i] = next;
+                return true;
+            }
+        }
+        return false;
     }
 
     private async Task<long> ReadGenerationAsync(string app, CancellationToken ct)

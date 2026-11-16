@@ -11,6 +11,7 @@ using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.SystemOne;
 using IntoChat.OS.Modules.Apps;
@@ -18,14 +19,16 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Modules.AI.Routing;
+
+namespace IntoChat.OS.Modules.Apps.Routing;
 
 // The Jev router. It reads the deployed contract catalog, asks a System One model which contract
 // and method fit the request, gates on confidence, then fills the call and invokes it. The catalog
 // is the menu; confidence is the trust knob; a language model only fills key and arguments.
 // It keeps its own decisions and shows them to the model, so each request is judged against state.
 [Neuron("ai.router", State = "router")]
-internal sealed class RouterNeuron(IServiceProvider services) : AiNeuron<RouterStorage>, IRouter
+internal sealed class RouterNeuron(IServiceProvider services) : Neuron<RouterStorage>, IRouter
 {
     private const int MaxOptions = 255;
     private const int MaxRecent = 16;
@@ -33,7 +36,8 @@ internal sealed class RouterNeuron(IServiceProvider services) : AiNeuron<RouterS
     // Never routed to: the legacy observer path (Watch/Unwatch, until 06-08 deletes it) and a plain neuron's admission hook
     // (AdmitSynapse, R4-03), which only the runtime calls before it creates a synapse (T-06-14).
     internal static readonly HashSet<string> NotCallable = ["Watch", "Unwatch", "AdmitSynapse"];
-    private string Key => FullKey;
+    private RouterStorage Snapshot => State;
+    private string Key => $"{Id.Brain.Value}/{Id.Key}";
     private string Scope => Id.Brain.Value;
     private NeuronTypeSearch Capabilities() => services.GetRequiredService<NeuronTypeSearch>();
 
@@ -124,16 +128,27 @@ internal sealed class RouterNeuron(IServiceProvider services) : AiNeuron<RouterS
             var kernel = services.GetRequiredService<IKernel>();
             await foreach (var instance in kernel.InstancesIn(Scope, kernel.TypeOf(typeof(IApp))))
             {
-                if (IApp.NameOf(Scope, instance.Key) is not { } name) { continue; }
+                if (!IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, instance.Key, out var appRef)) { continue; }
+                var name = appRef.Name;
                 AppSnapshot snapshot;
                 try { snapshot = await App(instance.Key).Read(); }
-                catch (Exception error) when (error is not OperationCanceledException) { return []; }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    (services.GetService<ILoggerFactory>()?.CreateLogger<RouterNeuron>() ?? OsConsoleLog.For<RouterNeuron>())
+                        .LogSwallowed(error, "reading app menu snapshot");
+                    return [];
+                }
                 if (snapshot.Manifest is null) { continue; }
                 var entry = CatalogEntry.FromSnapshot(name, snapshot, Scope);
                 loaded.Add((name, entry.ToMenuOperations().ToArray()));
             }
         }
-        catch (Exception error) when (error is not OperationCanceledException) { return []; }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            (services.GetService<ILoggerFactory>()?.CreateLogger<RouterNeuron>() ?? OsConsoleLog.For<RouterNeuron>())
+                .LogSwallowed(error, "loading app menu operations");
+            return [];
+        }
         catalog.Replace(Scope, loaded);
         return loaded.SelectMany(item => item.Operations).ToArray();
     }
@@ -146,10 +161,10 @@ internal sealed class RouterNeuron(IServiceProvider services) : AiNeuron<RouterS
             var kernel = services.GetRequiredService<IKernel>();
             List<string> names = [];
             await foreach (var instance in kernel.InstancesIn(Scope, kernel.TypeOf(typeof(IApp))))
-            { if (IApp.NameOf(Scope, instance.Key) is { } name) { names.Add(name); } }
+            { if (IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, instance.Key, out var appRef)) { names.Add(appRef.Name); } }
             foreach (var name in catalog.Unknown(Scope, names))
             {
-                var snapshot = await App(IApp.Key(Scope, name)).Read();
+                var snapshot = await App(IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).Key).Read();
                 var entry = CatalogEntry.FromSnapshot(name, snapshot, Scope);
                 catalog.Upsert(Scope, name, entry.ToMenuOperations().ToArray());
             }
@@ -175,7 +190,7 @@ internal sealed class RouterNeuron(IServiceProvider services) : AiNeuron<RouterS
     private static bool AppsAllowed(string[]? allowed) => allowed is null || allowed.Contains(typeof(IApp).FullName!, StringComparer.Ordinal);
 
     // The asking app, from the kernel-stamped caller (an app's behaviors call as their app's key).
-    private string? Asker() => RuntimeCallerContext.TryGet(out var caller) && caller.AppId is { } app ? IApp.NameOf(Scope, app) : null;
+    private string? Asker() => RuntimeCallerContext.TryGet(out var caller) && IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, caller.AppId, out var app) ? app.Name : null;
 
     // The router's own state: what it decided before, shown to the model so a follow-up is judged
     // in context. Its memory is its grain state, never a process.

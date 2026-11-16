@@ -14,11 +14,13 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 using IntoChat.OS.Kernel.Composition;
+using IntoChat.OS.Kernel.Composition.Kernel;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Routing;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.AI.Testing;
 using IntoChat.OS.Modules.Apps.Signals;
+using IntoChat.OS.Primitives;
 using IntoChat.OS.ServiceDefaults;
 using AppRequirements = IntoChat.OS.Modules.Apps.AppRequirements;
 
@@ -103,9 +105,9 @@ public sealed class Tier1_FeatureCoverageFacts
     [Fact]
     [Trait("Category", "Tier1_FeatureCoverage")]
     [Trait("Feature", "F2")]
-    public void F2_01_IApp_KeyFormatting_ConformsToCanonicalPattern()
+    public void F2_01_AppRef_KeyFormatting_ConformsToCanonicalPattern()
     {
-        var key = IApp.Key("brain-alpha", "summarizer");
+        var key = IntoChat.OS.Primitives.AppRef.Of(new BrainId("brain-alpha"), "summarizer").Key;
         Assert.Equal("brain-alpha/apps/summarizer", key);
     }
 
@@ -355,7 +357,7 @@ public sealed class Tier1_FeatureCoverageFacts
         var caller = CapabilityCallers.Of("usr_9", "acc_1", "brain_1", CallerKind.User);
         var request = new CallRequest
         {
-            Caller = caller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(caller),
             TargetNeuron = "brain_1/apps/calc",
             Operation = "execute"
         };

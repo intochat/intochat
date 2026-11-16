@@ -10,6 +10,7 @@ using DigitalBrain.Runtime.Synapses;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter;
@@ -26,11 +27,10 @@ internal sealed class Creator(
     IServiceProvider plain,
     IOptions<AppsOptions> options,
     ILogger<Creator> logger,
-    ICreatorModel? model = null,
+    ICreatorModel model,
     SynapseCompiler? compiler = null) : IDrafter
 {
-    private readonly ICreatorModel models = model ?? new SiloCreatorModel(plain);
-    private readonly bool fallbackOnMalformedExhaustion = model is null;
+    private readonly ICreatorModel models = model;
     private const int MaxAuthorRetries = 2;
     private const int MaxBuilderRounds = 12;
     private const int MaxRequestLength = 4000;
@@ -47,7 +47,7 @@ internal sealed class Creator(
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentException.ThrowIfNullOrWhiteSpace(request);
         if (request.Length > MaxRequestLength) { throw new ArgumentException($"Describe the app in at most {MaxRequestLength} characters."); }
-        var target = name is null ? null : brain.Get<IApp>(IApp.Key(brainId, name));
+        var target = name is null ? null : brain.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brainId), name).Key);
         var existing = target is null ? null : await target.Read();
         var exists = existing is { Manifest.Title.Length: > 0 };
         IApp? reporting = null;
@@ -69,7 +69,7 @@ internal sealed class Creator(
                         Capabilities = Merged(requires.Capabilities, (authored.Slots ?? []).Select(slot => slot.Capability).OfType<string>()),
                     }
                     : null);
-            var app = brain.Get<IApp>(IApp.Key(brainId, name ?? authored.Name));
+            var app = brain.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brainId), name ?? authored.Name).Key);
             if (name is null)
             {
                 ValidateName(authored.Name);
@@ -145,16 +145,7 @@ internal sealed class Creator(
                     continue;
                 }
 
-                if (!fallbackOnMalformedExhaustion)
-                {
-                    throw;
-                }
-
-                logger.LogWarning(error, "Author exhausted {Retries} retries for '{Request}'; falling back to OfflineUnitSynthesizer.", MaxAuthorRetries, request);
-                var fallbackUnit = OfflineUnitSynthesizer.SynthesizeAuthoredUnit(builder.ToString());
-                Validate(fallbackUnit);
-                _ = KeptScenarios.Merge(existing, fallbackUnit.Scenarios, request);
-                return fallbackUnit;
+                throw;
             }
         }
     }
@@ -189,7 +180,7 @@ internal sealed class Creator(
         }
         catch (Exception failure)
         {
-            if (failureIsVisibleElsewhere) { logger.LogSwallowed(failure, "attention report failed"); }
+            if (failureIsVisibleElsewhere) { logger.LogDebug(failure, "attention report failed"); }
             else { logger.LogWarning(failure, "attention report failed for an app."); }
         }
     }
@@ -211,13 +202,7 @@ internal sealed class Creator(
                     continue;
                 }
 
-                if (!fallbackOnMalformedExhaustion)
-                {
-                    throw;
-                }
-
-                logger.LogWarning(error, "App Author exhausted {Retries} retries; falling back to OfflineUnitSynthesizer.", MaxAuthorRetries);
-                return Parse<AuthoredApp>(await OfflineUnitSynthesizer.CompleteAsync(AgentPrompts.Author, prompt, cancellationToken));
+                throw;
             }
         }
     }
@@ -267,16 +252,6 @@ internal sealed class Creator(
             foreach (var call in calls) { results.Add(new AiToolResult(call.CallId, await ExecuteBuilderTool(call, alias, needs, scenarios, cancellationToken))); }
             messages.Add(new AiMessage("tool", results.ToArray()));
         }
-        if (fallbackOnMalformedExhaustion)
-        {
-            logger.LogWarning("Builder exhausted {Rounds} rounds for unit '{Alias}'; falling back to OfflineUnitSynthesizer.", MaxBuilderRounds, alias);
-            var synthesized = OfflineUnitSynthesizer.SynthesizeUnitFiles(task);
-            var check = await BuilderTools.Check(Compiler, alias, synthesized, needs, scenarios, cancellationToken);
-            if (check.Passed)
-            {
-                return synthesized;
-            }
-        }
 
         throw new InvalidDataException($"The Builder used {MaxBuilderRounds} rounds without producing a unit that passes check_unit.");
     }
@@ -299,6 +274,7 @@ internal sealed class Creator(
         // A failed tool call is the model's problem to correct, not the build's end.
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<Creator>().LogSwallowed(error, $"Creator builder tool '{call.Name}' failed for unit '{alias}'.");
             return JsonSerializer.Serialize(new { error = error.Message }, Json);
         }
     }

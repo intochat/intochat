@@ -8,6 +8,7 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Kernel.Composition;
 using IntoChat.OS.Kernel.Composition.Machine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -15,7 +16,7 @@ using Orleans.Configuration;
 using Orleans.Versions.Compatibility;
 using Orleans.Versions.Selector;
 
-namespace IntoChat.OS.Kernel.Composition;
+namespace IntoChat.OS.Kernel.Composition.Kernel;
 
 public static class BrainHosting
 {
@@ -43,7 +44,7 @@ public static class BrainHosting
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());
         silo.Services.TryAddSingleton<Kernel>();
         silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<Kernel>());
-        silo.Services.TryAddSingleton<IntoChat.OS.Kernel.OsRegistry.IRegistryBroker, IntoChat.OS.Kernel.OsRegistry.RegistryBroker>();
+        silo.Services.TryAddSingleton<IntoChat.OS.Kernel.Composition.Registry.IRegistryBroker, IntoChat.OS.Kernel.Composition.Registry.RegistryBroker>();
         // AddDigitalBrainRuntime registers ClusterBrainObserver first. The product kernel replaces it: it sees
         // feature types and connection contracts, which the runtime-only observer does not.
         silo.Services.Replace(ServiceDescriptor.Singleton<DigitalBrain.Kernel.IBrainObserver>(sp => sp.GetRequiredService<Kernel>()));

@@ -14,6 +14,7 @@ using DigitalBrain.Testing.Conformance.Host;
 using IntoChat.OS.Authority;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Kernel.Composition;
+using IntoChat.OS.Kernel.Composition.Kernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Serialization.Cloning;
@@ -64,11 +65,6 @@ public sealed class IntoChatOsTarget : OrleansFrameworkTarget
     public override async Task<RunningTarget> StartHost(FrameworkHostOptions options, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(options);
-        if (options.HistoryWindowSignals is not null)
-        {
-            Assert.Skip("Pre-existing DigitalBrain master failure: HostConformanceFacts.Gap_a_stale_cursor_behind_the_checkpoint_floor_gets_Gap_then_the_later_signals (deferred to 0.13 cleanup).");
-        }
-
         var clock = new OffsetClock();
         var host = await StartInProcessAsync(
             new InProcessHostOptions
@@ -78,37 +74,7 @@ public sealed class IntoChatOsTarget : OrleansFrameworkTarget
             },
             clock,
             ct);
-        return new IntoChatOsRunningTarget(OrleansRun.Started(host, options, clock));
-    }
-
-    private sealed class IntoChatOsRunningTarget(RunningTarget inner) : RunningTarget
-    {
-        public override T Get<T>(NeuronId id) => inner.Get<T>(id);
-
-        public override Task Deactivate(NeuronId id) => inner.Deactivate(id);
-
-        public override Task Restart(CancellationToken ct) => inner.Restart(ct);
-
-        public override void FailNextPublishAfterAppend(NeuronId publisher)
-        {
-            if (string.Equals(publisher.Key, "s", StringComparison.Ordinal))
-            {
-                Assert.Skip("Pre-existing DigitalBrain master failure: HostConformanceFacts.KillBetweenWriteAndPublish_loses_nothing_after_resume (deferred to 0.13 cleanup).");
-            }
-
-            inner.FailNextPublishAfterAppend(publisher);
-        }
-
-        public override void Advance(TimeSpan by) => inner.Advance(by);
-
-        public override Task ForceCheckpoint(BrainId brain, CancellationToken ct) => inner.ForceCheckpoint(brain, ct);
-
-        public override Task Idle() => inner.Idle();
-
-        public override Task<int> SubscriptionCount(NeuronId subscriber, NeuronId source, Type signal)
-            => inner.SubscriptionCount(subscriber, source, signal);
-
-        public override ValueTask DisposeAsync() => inner.DisposeAsync();
+        return OrleansRun.Started(host, options, clock);
     }
 
     private static async Task<IInProcessHost> StartInProcessAsync(InProcessHostOptions options, OffsetClock clock, CancellationToken ct)

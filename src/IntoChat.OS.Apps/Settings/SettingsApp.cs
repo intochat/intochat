@@ -11,15 +11,20 @@ Owns the 13 settings sections, master-detail subpages (`AppPage`, `MemoryPage`, 
 */
 using System.Globalization;
 using DigitalBrain;
-using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Framework.Visuals;
+using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Modules.AI.Models;
+using IntoChat.OS.Modules.AI.Models.Anthropic;
+using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Settings;
 
@@ -77,6 +82,13 @@ public sealed record SettingsSearchEntry(
     string Icon = "settings",
     string Group = "Preferences");
 
+public sealed record SettingsModelOption(
+    string Id,
+    string Label,
+    bool Available = true,
+    string? ProviderLabel = null,
+    string? Reason = null);
+
 /// <summary>
 /// Rich DDD Aggregate owning all Settings navigation, preferences, and projected external state
 /// (compute spend/cap, pending approvals, and redacted secret statuses) without transient grain fields.
@@ -127,13 +139,15 @@ public sealed record SettingsAppState(
     public bool ShowOsBarNotifications { get; init; } = true;
     public bool ShowOsBarComputeMeter { get; init; } = true;
     public bool ShowOsBarClock { get; init; } = true;
+    public IReadOnlyList<SettingsModelOption> AvailableModels { get; init; } = [];
+    public string LocalOllamaEndpoint { get; init; } = IntoChatOSNames.LocalOllamaEndpoint;
 
     public SettingsAppState() : this(
         "Settings",
         "Settings",
         "User",
         "dark",
-        "qwen3.5:4b",
+        ModelCatalog.DefaultChatModelId,
         "general",
         null,
         null,
@@ -168,17 +182,20 @@ public sealed record SettingsAppState(
 
     public Rule CanReturnRule => Decision.Require(
         "can_go_back",
-        CanGoBack,
+        this,
+        static s => s.CanGoBack,
         "No previous settings page or sheet to return to.");
 
     public static Rule ValidateBudget(long monthlyBudgetMicros) => Decision.Rule(
         "valid_monthly_budget",
-        monthlyBudgetMicros < MinMonthlyBudgetMicros || monthlyBudgetMicros > MaxMonthlyBudgetMicros,
-        $"Monthly compute cap must be between $1.00 and $10,000.00 (received {monthlyBudgetMicros} micro-credits).");
+        monthlyBudgetMicros,
+        static b => b < MinMonthlyBudgetMicros || b > MaxMonthlyBudgetMicros,
+        static b => $"Monthly compute cap must be between $1.00 and $10,000.00 (received {b} micro-credits).");
 
     public static Rule ValidateVariableKey(string? key) => Decision.Rule(
         "variable_key_required",
-        string.IsNullOrWhiteSpace(key),
+        key,
+        static k => string.IsNullOrWhiteSpace(k),
         "Variable key cannot be empty.");
 
     public SettingsAppState Navigate(
@@ -202,7 +219,7 @@ public sealed record SettingsAppState(
     public Decision<SettingsAppState> ApplyPreferences(
         [Sample("Ada")] string? displayName = null,
         [Sample("dark", "light")] string? theme = null,
-        [Sample("qwen3.5:4b", "claude-sonnet-4-5")] string? defaultModel = null,
+        [Sample(nameof(IQwen35), nameof(ISonnet46))] string? defaultModel = null,
         [Sample("fluent-acrylic")] string? stylePreset = null,
         [Sample("floating-glass")] string? barLayout = null,
         [Sample("auto")] string? themeMode = null,
@@ -272,8 +289,16 @@ public sealed record SettingsAppState(
 [Screen("app.settings", Title = "Settings", Icon = Icons.Sliders)]
 public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
 {
+    protected override Task OnActivate(CancellationToken cancellationToken)
+    {
+        AppActivationScope.Notify(this);
+        return base.OnActivate(cancellationToken);
+    }
+
     public ISecretVault? SecretVault { get; set; }
     public BrainPreferenceStore? PreferenceStore { get; set; }
+
+    private ILogger Log => GetLogger();
 
     public static IReadOnlyList<SettingsSearchEntry> SearchIndex { get; } =
     [
@@ -368,6 +393,13 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         var deployedUnits = await TryReadDeployedUnitsAsync();
         var teamFriends = await TryReadTeamFriendsAsync();
         var secrets = await InspectSecretStatusesAsync(user.Variables ?? State.Variables ?? []);
+        var modelInfo = await TryReadModelCatalogAsync(user.DefaultModel);
+        var displayModel = string.IsNullOrWhiteSpace(user.DefaultModel)
+            ? (modelInfo.AutomaticModel ?? ModelCatalog.DefaultChatModelId)
+            : user.DefaultModel.Trim();
+        var effectiveUser = string.Equals(displayModel, user.DefaultModel, StringComparison.Ordinal)
+            ? user
+            : user with { DefaultModel = displayModel };
         var targetSection = string.IsNullOrWhiteSpace(requestedSection) ? State.Section : NormalizeSection(requestedSection);
 
         var next = SettingsDecisions.DecideApplyUserSettings(
@@ -375,14 +407,72 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
             {
                 PendingApprovals = approvals,
                 SecretStatuses = secrets,
+                AvailableModels = modelInfo.Options,
+                LocalOllamaEndpoint = modelInfo.LocalEndpoint,
             },
-            user,
-            $"Settings ({user.DisplayName} · {user.Theme} · {user.DefaultModel})",
+            effectiveUser,
+            $"Settings ({effectiveUser.DisplayName} · {effectiveUser.Theme} · {effectiveUser.DefaultModel})",
             deployedUnits,
             teamFriends,
             section: targetSection);
 
         await UpdateAsync(next);
+    }
+
+    internal static IReadOnlyList<SettingsModelOption> CatalogFallbackOptions() =>
+    [
+        .. LLMModel.All
+            .Where(static m => m.SupportsTools && (m.Provider != AiProvider.Ollama || string.Equals(m.Id, ModelCatalog.DefaultChatModelId, StringComparison.Ordinal)))
+            .Select(static m =>
+            {
+                var visual = VisualCatalog.ForModel(m.Id, m.Provider.ToString());
+                return new SettingsModelOption(m.Id, visual.Label, true, visual.Category);
+            }),
+    ];
+
+    private async Task<(IReadOnlyList<SettingsModelOption> Options, string? AutomaticModel, string LocalEndpoint)> TryReadModelCatalogAsync(string? personModel)
+    {
+        BrainId brain = default;
+        try
+        {
+            brain = Id.Brain;
+        }
+        catch (InvalidOperationException error)
+        {
+            Log.LogDebug(error, "Settings brain id is unavailable during standalone test activation.");
+            return (State.AvailableModels is { Count: > 0 } ? State.AvailableModels : CatalogFallbackOptions(), null, State.LocalOllamaEndpoint);
+        }
+
+        if (string.IsNullOrWhiteSpace(brain.Value))
+        {
+            return (State.AvailableModels is { Count: > 0 } ? State.AvailableModels : CatalogFallbackOptions(), null, State.LocalOllamaEndpoint);
+        }
+
+        try
+        {
+            var catalog = Get<IModelCatalog>(IModelCatalog.Key(brain.Value));
+            var choices = await catalog.List(string.IsNullOrWhiteSpace(personModel) ? null : personModel.Trim());
+            var deduped = new Dictionary<string, SettingsModelOption>(StringComparer.OrdinalIgnoreCase);
+            foreach (var choice in choices.Models)
+            {
+                if (string.IsNullOrWhiteSpace(choice.Model)) { continue; }
+                var id = choice.Model.Trim();
+                var option = new SettingsModelOption(id, choice.Label, choice.Available, choice.ProviderLabel, choice.Reason);
+                if (!deduped.TryGetValue(id, out var existing) || (!existing.Available && option.Available))
+                {
+                    deduped[id] = option;
+                }
+            }
+
+            var autoModel = string.IsNullOrWhiteSpace(choices.Automatic.Model) ? null : choices.Automatic.Model.Trim();
+            IReadOnlyList<SettingsModelOption> resolvedOptions = deduped.Count > 0 ? [.. deduped.Values] : CatalogFallbackOptions();
+            return (resolvedOptions, autoModel, IntoChatOSNames.LocalOllamaEndpoint);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Log.LogDebug(error, "IModelCatalog is optional when SettingsApp runs in standalone tests.");
+            return (State.AvailableModels is { Count: > 0 } ? State.AvailableModels : CatalogFallbackOptions(), null, State.LocalOllamaEndpoint);
+        }
     }
 
     private async Task<IReadOnlyDictionary<string, bool>> InspectSecretStatusesAsync(IReadOnlyList<UserVariableEntry> variables)
@@ -401,7 +491,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
-                    NullLogger.Instance.LogSwallowed(error, "Failed probing secret vault; falling back to local variable/connection check.");
+                    Log.LogDebug(error, "Failed probing secret vault for {Key}; falling back to local variable check.", key);
                 }
             }
 
@@ -430,7 +520,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "SynapseStudio is optional when SettingsApp runs in standalone tests.");
+            Log.LogDebug(error, "SynapseStudio is optional when SettingsApp runs in standalone tests.");
             return State.DeployedUnits ?? [];
         }
     }
@@ -443,7 +533,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "ProfileNeuron is optional when SettingsApp runs in standalone tests.");
+            Log.LogDebug(error, "ProfileNeuron is optional when SettingsApp runs in standalone tests.");
             return State.TeamFriends ?? [];
         }
     }
@@ -456,7 +546,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "ApprovalsNeuron is optional when SettingsApp runs in standalone tests.");
+            Log.LogDebug(error, "ApprovalsNeuron is optional when SettingsApp runs in standalone tests.");
             return State.PendingApprovals;
         }
     }
@@ -480,16 +570,26 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "ComputeNeuron is optional when SettingsApp runs in standalone tests.");
+            Log.LogDebug(error, "ComputeNeuron is optional when SettingsApp runs in standalone tests.");
             return baseline;
         }
     }
 
     [On]
-    public Task Navigate(SettingsNavigate request)
+    public async Task Navigate(SettingsNavigate request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return UpdateAsync(State.Navigate(request.Section, request.SubPage, request.Sheet, request.SearchQuery));
+        var next = State.Navigate(request.Section, request.SubPage, request.Sheet, request.SearchQuery);
+        if (string.Equals(next.Section, "models", StringComparison.Ordinal))
+        {
+            var modelInfo = await TryReadModelCatalogAsync(next.DefaultModel);
+            next = next with
+            {
+                AvailableModels = modelInfo.Options,
+                LocalOllamaEndpoint = modelInfo.LocalEndpoint,
+            };
+        }
+        await UpdateAsync(next);
     }
 
     [On]
@@ -520,7 +620,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
             return;
         }
 
-        var store = PreferenceStore ?? new BrainPreferenceStore(Get<IUserSettings>("settings"));
+        var store = ResolvePreferenceStore();
         var updated = await store.SaveAsync(request, State);
         await ApplyUserSettingsAsync(updated, $"Saved: {updated.DisplayName} ({updated.Theme}, {updated.DefaultModel}, {updated.StylePreset}, {updated.BarLayout})");
     }
@@ -565,7 +665,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "ComputeNeuron is optional when SettingsApp runs in standalone tests.");
+            Log.LogDebug(error, "ComputeNeuron is optional when SettingsApp runs in standalone tests.");
         }
 
         await UpdateAsync(SettingsDecisions.DecideSetBudget(next, next.ComputeBudgetUsd));
@@ -575,8 +675,22 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
     public async Task ExportBrain(SettingsExportBrain request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var snapshot = await PortableBrainArchive.ExportAsync("local", Get<IUserSettings>("settings"), Get<IProfile>("profile"), Get<ISynapseStudio>("ino/synapses"));
+        var brainId = TryCurrentBrainId();
+        var snapshot = await PortableBrainArchive.ExportAsync(brainId, Get<IUserSettings>("settings"), Get<IProfile>("profile"), Get<ISynapseStudio>("ino/synapses"));
         await UpdateAsync(SettingsDecisions.DecideExportBrain(State, PortableBrainArchive.ToJson(snapshot), snapshot.Units.Count));
+    }
+
+    private BrainPreferenceStore ResolvePreferenceStore()
+        => PreferenceStore is { } configured ? configured : new BrainPreferenceStore(Get<IUserSettings>("settings"));
+
+    private string TryCurrentBrainId()
+    {
+        try { return Id.Brain.Value; }
+        catch (InvalidOperationException error)
+        {
+            Log.LogDebug(error, "Settings brain id is unavailable during standalone test activation.");
+            return string.Empty;
+        }
     }
 
     [On]
@@ -628,7 +742,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         try { return Get<T>(key); }
         catch (InvalidOperationException error)
         {
-            NullLogger.Instance.LogSwallowed(error, $"{typeof(T).Name} is optional when running in isolated unit tests.");
+            Log.LogDebug(error, "{Contract} is optional when running in isolated unit tests.", typeof(T).Name);
             return null;
         }
     }

@@ -38,8 +38,8 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
 
     public async Task<WorkspaceState> Apply(WorkspaceUpdate next, string operationId, long expectedRevision)
     {
-        if (!await ShippedCaller("workspace", "desktop"))
-        { throw new UnauthorizedAccessException("Only the shipped workspace and desktop apps may apply navigation state."); }
+        if (!await ShippedCaller("desktop"))
+        { throw new UnauthorizedAccessException("Only the shipped desktop app may apply navigation state."); }
         ArgumentNullException.ThrowIfNull(next);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
         if (operationId.Length > 256) { throw new ArgumentException("An operation id has at most 256 characters."); }
@@ -81,13 +81,39 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
         return await Read();
     }
 
-    // The caller is one of the named apps of this brain, and that app is the one the OS ships, not one
-    // that merely bears its name.
+    // The caller is one of the named apps of this brain (either calling directly as that app or
+    // hopping from its hosted screen neuron), and that app is the one the OS ships, not one that
+    // merely bears its name. Foreign app callers cannot escalate through a screen hop.
     private async Task<bool> ShippedCaller(params string[] names)
     {
-        if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind != CallerKind.App || caller.AppId is not { } app) { return false; }
-        if (names.FirstOrDefault(name => app == IApp.Key(Brain, name)) is not { } named) { return false; }
-        return ShippedApps.Is(await (proxies is not null ? proxies.Get<IApp>(app) : Get<IApp>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), app))).Read(), named);
+        var contextCaller = Context.Caller;
+        string? matchedName = null;
+
+        if (contextCaller is { Actor: DigitalBrain.Access.Actor.App appActor }
+            && contextCaller.Brain == Id.Brain)
+        {
+            matchedName = names.FirstOrDefault(name => appActor.Key == IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).Key);
+        }
+        else if (RuntimeCallerContext.TryGet(out var caller)
+            && caller.Kind == CallerKind.App
+            && caller.BrainId == Id.Brain.Value
+            && caller.AppId is { } app)
+        {
+            matchedName = names.FirstOrDefault(name => app == IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).Key);
+        }
+        else if (contextCaller is { Inside: true, Via: { } via }
+            && via.Brain == Id.Brain
+            && contextCaller.Brain == Id.Brain
+            && contextCaller.Actor is not DigitalBrain.Access.Actor.App
+            && (!RuntimeCallerContext.TryGet(out var stamped) || stamped.Kind != CallerKind.App))
+        {
+            matchedName = names.FirstOrDefault(name => via == IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).ScreenNeuron);
+        }
+
+        if (matchedName is null) { return false; }
+
+        var appKey = IntoChat.OS.Primitives.AppRef.Of(Id.Brain, matchedName).Key;
+        return ShippedApps.Is(await (proxies is not null ? proxies.Get<IApp>(appKey) : Get<IApp>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), appKey))).Read(), matchedName);
     }
 
     [GeneratedRegex("^[A-Za-z0-9_.-]{1,64}$")]
@@ -127,7 +153,7 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
         { throw new ArgumentException("Provide at most 64 uniquely identified views of apps in this brain."); }
     }
     private WorkspaceStorage Seed(WorkspaceStorage state) => state.Path.Length == 0
-        ? state with { Path = [Brain, Brain + "/apps/ino"], Open = [Brain + "/apps/ino"] } : state;
+        ? state with { Path = [Brain, IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "ino").Key], Open = [IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "ino").Key] } : state;
 
     public Task<WorkspaceState> Show(string app, string operationId, long expectedRevision)
     {
@@ -142,7 +168,9 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
 
             if (IsApp(app))
             {
-                var existing = openViews.FirstOrDefault(v => v.App == app || v.App.EndsWith("/apps/" + app, StringComparison.Ordinal) || v.App == Brain + "/apps/" + app);
+                var existing = openViews.FirstOrDefault(v => v.App == app
+                    || (IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, v.App, out var existingRef) && existingRef.Name == app)
+                    || (IntoChat.OS.Primitives.AppRef.TryOf(Id.Brain, app, out var matched) && v.App == matched.Key));
                 if (existing is not null)
                 {
                     focusedViewId = existing.Id;
@@ -150,11 +178,9 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
                 }
                 else
                 {
-                    var appName = app.StartsWith(Brain + "/apps/", StringComparison.Ordinal)
-                        ? app[(Brain.Length + 6)..]
-                        : (app.StartsWith(Brain + "/units/", StringComparison.Ordinal)
-                            ? app[(Brain.Length + 7)..]
-                            : (AppUiEndpoints.UnitAlias(Brain, app) ?? app));
+                    var appName = IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, app, out var appRef)
+                        ? appRef.Name
+                        : (AppUiEndpoints.UnitAlias(Brain, app) ?? app);
                     var viewId = appName;
                     var takenIds = openViews.Select(v => v.Id).ToHashSet(StringComparer.Ordinal);
                     for (var n = 2; !takenIds.Add(viewId); n++) { viewId = $"{appName}-{n}"; }
@@ -249,10 +275,9 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
     }
 
     private bool IsApp(string key) =>
-        (key.StartsWith(Brain + "/apps/", StringComparison.Ordinal) && key.Length > Brain.Length + 6 && !key[(Brain.Length + 6)..].Contains('/'))
-        || (key.StartsWith(Brain + "/units/", StringComparison.Ordinal) && key.Length > Brain.Length + 7 && !key[(Brain.Length + 7)..].Contains('/'))
-        || AppUiEndpoints.UnitAlias(Brain, key) is not null
-            and not ("units" or "profile" or "posts" or "main" or "confirmations");
+        IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, key, out _)
+        || (IntoChat.OS.Primitives.UnitAlias.TryFromAddress(Id.Brain, key, out var unit) && key.StartsWith(Brain + "/", StringComparison.Ordinal)
+            && unit.Value is not ("units" or "profile" or "posts" or "main" or "confirmations"));
 
     private void ValidateKey(string key)
     {

@@ -123,9 +123,11 @@ public sealed class SettingsAppFacts
     }
 
     [Fact]
-    public void SettingsInitialStateIncludesDefaultThemeAndAppearance()
+    public async Task SettingsInitialStateIncludesDefaultThemeAndAppearance()
     {
-        var app = new SettingsApp();
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var installed = await os.Install<SettingsApp>();
+        var app = installed.App;
         Assert.Equal("auto", app.State.ThemeMode);
         Assert.Equal("cream", app.State.DesktopTone);
         Assert.Equal("English", app.State.Language);
@@ -339,9 +341,17 @@ public sealed class SettingsAppFacts
             await settings.Request("open", new SettingsOpen());
             await settings.App.Navigate(new SettingsNavigate("notifications"));
 
-            var notificationsJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
-            Assert.Contains("plan-99", notificationsJson, StringComparison.Ordinal);
-            Assert.Contains("Delete /work/budget.csv?", notificationsJson, StringComparison.Ordinal);
+            var wireJson = System.Text.Json.JsonSerializer.Serialize(
+                settings.App.Render(),
+                DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
+            Assert.Contains("plan-99", wireJson, StringComparison.Ordinal);
+            Assert.Contains("Delete /work/budget.csv?", wireJson, StringComparison.Ordinal);
+            Assert.Contains("\"resolve\":null", wireJson, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"planId\"", wireJson, StringComparison.OrdinalIgnoreCase);
+
+            await settings.App.Navigate(new SettingsNavigate("keyboard"));
+            var keyboardJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
+            Assert.DoesNotContain("Ctrl+N", keyboardJson, StringComparison.Ordinal);
         }
         finally
         {
@@ -359,18 +369,18 @@ public sealed class SettingsAppFacts
 
         View[] initialViews =
         [
-            new IntoChat.OS.Apps.Ino.InoApp().Render(),
-            new IntoChat.OS.Apps.Ino.InoApp().RenderSide(),
-            new IntoChat.OS.Apps.Desktop.DesktopApp().Render(),
-            new SettingsApp().Render(),
-            new IntoChat.OS.Apps.Usage.UsageApp().Render(),
-            new IntoChat.OS.Apps.Friends.FriendsApp().Render(),
-            new IntoChat.OS.Apps.Data.DataStudioApp().Render(),
-            new IntoChat.OS.Apps.Markdraw.MarkdrawApp().Render(),
-            new IntoChat.OS.Apps.FilmCraft.FilmCraftApp().Render(),
-            new IntoChat.OS.Apps.Tasks.TasksApp().Render(),
-            new IntoChat.OS.Apps.Creator.CreatorApp().Render(),
-            new IntoChat.OS.Apps.Gallery.GalleryApp().Render(),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Ino.InoApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Ino.InoApp, View>(app => app.RenderSide()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Desktop.DesktopApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<SettingsApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Usage.UsageApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Friends.FriendsApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Data.DataStudioApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Markdraw.MarkdrawApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.FilmCraft.FilmCraftApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Tasks.TasksApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Creator.CreatorApp, View>(app => app.Render()),
+            IntoChat.OS.UI.ScreenPreview.With<IntoChat.OS.Apps.Gallery.GalleryApp, View>(app => app.Render()),
         ];
 
         Assert.DoesNotContain("Nordlys", IntoChat.OS.Apps.Markdraw.MarkdrawApp.DefaultPipelineScene, StringComparison.OrdinalIgnoreCase);
@@ -433,7 +443,7 @@ public sealed class SettingsAppFacts
         await settings.Request("save-preferences", new SettingsSavePreferences(
             DisplayName: "Ada Lovelace",
             Theme: "dark",
-            DefaultModel: "claude-sonnet-4-5",
+            DefaultModel: "claude-sonnet-4-6",
             StylePreset: "cyber-synaptic",
             BarLayout: "compact-pill",
             ThemeMode: "dark",
@@ -444,7 +454,7 @@ public sealed class SettingsAppFacts
 
         Assert.Equal("Ada Lovelace", settings.App.State.DisplayName);
         Assert.Equal("dark", settings.App.State.Theme);
-        Assert.Equal("claude-sonnet-4-5", settings.App.State.DefaultModel);
+        Assert.Equal("claude-sonnet-4-6", settings.App.State.DefaultModel);
         Assert.Equal("cyber-synaptic", settings.App.State.StylePreset);
         Assert.Equal("compact-pill", settings.App.State.BarLayout);
 
@@ -452,9 +462,74 @@ public sealed class SettingsAppFacts
         var loaded = await store.LoadAsync(TestContext.Current.CancellationToken);
         Assert.Equal("Ada Lovelace", loaded.DisplayName);
         Assert.Equal("dark", loaded.Theme);
-        Assert.Equal("claude-sonnet-4-5", loaded.DefaultModel);
+        Assert.Equal("claude-sonnet-4-6", loaded.DefaultModel);
         Assert.Equal("cyber-synaptic", loaded.StylePreset);
         Assert.Equal("compact-pill", loaded.BarLayout);
         Assert.Equal("Europe/Oslo", loaded.TimeZone);
+    }
+
+    [Fact]
+    public async Task EveryIdOfferedToAUserIsInTheCatalogue()
+    {
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var settings = await os.Install<SettingsApp>();
+        await settings.App.Navigate(new SettingsNavigate("models"));
+
+        var json = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+
+        var offeredModels = new List<string>();
+        CollectOptionValues(doc.RootElement, offeredModels);
+
+        Assert.NotEmpty(offeredModels);
+        var catalogIds = IntoChat.OS.Modules.AI.Models.LLMModel.All.Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
+        Assert.All(offeredModels, id => Assert.True(catalogIds.Contains(id), $"Uncatalogued model '{id}' offered in Settings."));
+        Assert.DoesNotContain("claude-sonnet-4-5", offeredModels);
+        Assert.DoesNotContain("gpt-5", offeredModels);
+
+        static void CollectOptionValues(System.Text.Json.JsonElement element, List<string> values)
+        {
+            if (element.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                if (TryGetPropertyIgnoreCase(element, "options", out var options)
+                    && options.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var opt in options.EnumerateArray())
+                    {
+                        if (opt.ValueKind == System.Text.Json.JsonValueKind.Object
+                            && TryGetPropertyIgnoreCase(opt, "id", out var idProp)
+                            && idProp.GetString() is { Length: > 0 } id)
+                        {
+                            values.Add(id);
+                        }
+                    }
+                }
+                foreach (var prop in element.EnumerateObject())
+                {
+                    CollectOptionValues(prop.Value, values);
+                }
+            }
+            else if (element.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray())
+                {
+                    CollectOptionValues(item, values);
+                }
+            }
+        }
+
+        static bool TryGetPropertyIgnoreCase(System.Text.Json.JsonElement obj, string name, out System.Text.Json.JsonElement value)
+        {
+            foreach (var prop in obj.EnumerateObject())
+            {
+                if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = prop.Value;
+                    return true;
+                }
+            }
+            value = default;
+            return false;
+        }
     }
 }

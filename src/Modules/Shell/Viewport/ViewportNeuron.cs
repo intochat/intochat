@@ -1,5 +1,7 @@
 using DigitalBrain;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.State;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -16,16 +18,18 @@ internal sealed class ViewportNeuron
     public async Task Set(WorkspaceViewRef? target, long expectedRevision)
     {
         var name = FullKey;
-        var marker = name.IndexOf("/apps/", StringComparison.Ordinal);
-        if (marker <= 0) { throw new ArgumentException("A viewport belongs to an app."); }
-        var brain = name[..marker];
-        var prefix = name[..(marker + 6)];
-        var slash = name.IndexOf('/', prefix.Length);
-        var owner = slash < 0 ? name : name[..slash];
+        if (!Id.Key.StartsWith("apps/", StringComparison.Ordinal)) { throw new ArgumentException("A viewport belongs to an app."); }
+        var afterApps = Id.Key["apps/".Length..];
+        var appSegmentEnd = afterApps.IndexOf('/');
+        var appSegment = appSegmentEnd < 0 ? afterApps : afterApps[..appSegmentEnd];
+        if (!IntoChat.OS.Primitives.AppRef.TryOf(Id.Brain, appSegment, out var ownerRef))
+        { throw new ArgumentException("A viewport belongs to an app."); }
+        var owner = ownerRef.Key;
+        RequireOwner(ownerRef);
         if (target is not null && (string.IsNullOrWhiteSpace(target.Id) || target.Id.Length > 128
             || string.IsNullOrWhiteSpace(target.Variant) || target.Variant.Length > 64 || target.Context != ""
             || string.IsNullOrWhiteSpace(target.App) || target.App.Length > 512
-            || !IsSupportedTarget(brain, prefix, target.App)
+            || !IsSupportedTarget(Id.Brain, target.App)
             // Never its own app: that app's view may contain this viewport and recurse.
             || target.App == owner))
         { throw new ArgumentException("This viewport supports local app views without an external context."); }
@@ -36,20 +40,59 @@ internal sealed class ViewportNeuron
         await Save(next, new ViewportChanged(name, next.Revision));
     }
 
-    private static bool IsSupportedTarget(string brain, string appPrefix, string app)
+    private void RequireOwner(IntoChat.OS.Primitives.AppRef ownerRef)
     {
-        if (app.StartsWith(appPrefix, StringComparison.Ordinal))
+        var contextCaller = Context.Caller;
+        if (contextCaller is not null)
         {
-            var slug = app[appPrefix.Length..];
-            return slug.Length > 0 && !slug.Contains('/') && slug is not ("." or "..");
+            if (contextCaller.Brain != Id.Brain)
+            {
+                throw new UnauthorizedAccessException("Only callers in the owning brain may change this viewport.");
+            }
+
+            if (contextCaller.Actor is DigitalBrain.Access.Actor.App appActor
+                && appActor.Key != ownerRef.Key
+                && !(contextCaller.Inside && contextCaller.Via == ownerRef.ScreenNeuron))
+            {
+                throw new UnauthorizedAccessException("Only the owning app may change this viewport.");
+            }
+
+            if (contextCaller.Inside
+                && contextCaller.Via is { } via
+                && via.Type.StartsWith("app.", StringComparison.Ordinal)
+                && (via.Brain != Id.Brain || via != ownerRef.ScreenNeuron))
+            {
+                throw new UnauthorizedAccessException("Only the owning screen may change this viewport.");
+            }
         }
-        var unitPrefix = brain + "/units/";
-        if (app.StartsWith(unitPrefix, StringComparison.Ordinal))
+
+        if (RuntimeCallerContext.TryGet(out var caller))
         {
-            var slug = app[unitPrefix.Length..];
-            return slug.Length > 0 && !slug.Contains('/') && slug is not ("." or "..");
+            if (!string.Equals(caller.BrainId, Id.Brain.Value, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException("Only callers in the owning brain may change this viewport.");
+            }
+
+            if (caller.Kind == CallerKind.App
+                && caller.AppId != ownerRef.Key
+                && !(contextCaller is { Inside: true, Via: { } hoppedVia }
+                    && contextCaller.Brain == Id.Brain
+                    && hoppedVia == ownerRef.ScreenNeuron
+                    && contextCaller.Actor is not DigitalBrain.Access.Actor.App))
+            {
+                throw new UnauthorizedAccessException("Only the owning app may change this viewport.");
+            }
         }
-        return AppUiEndpoints.UnitAlias(brain, app) is { } alias
+    }
+
+    private static bool IsSupportedTarget(BrainId brainId, string app)
+    {
+        if (IntoChat.OS.Primitives.AppRef.TryParse(brainId, app, out _)) { return true; }
+        if (app.StartsWith(brainId.Value + "/units/", StringComparison.Ordinal))
+        {
+            return IntoChat.OS.Primitives.UnitAlias.TryFromAddress(brainId, app, out _);
+        }
+        return AppUiEndpoints.UnitAlias(brainId.Value, app) is { } alias
             && alias is not ("." or ".." or "units" or "profile" or "posts" or "main" or "confirmations");
     }
 }

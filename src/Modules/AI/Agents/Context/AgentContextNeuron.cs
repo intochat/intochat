@@ -12,7 +12,7 @@ namespace IntoChat.OS.Modules.AI.Agents.Context;
 
 [GenerateSerializer, Alias("agent-context.state")]
 [ExportableState]
-public sealed record AgentContextState
+internal sealed record AgentContextState
 {
     [Id(0)] public long Revision { get; init; }
     [Id(1)] public ContextEntry[] Entries { get; init; } = [];
@@ -34,7 +34,7 @@ internal sealed class AgentContextNeuron
         var caller = RuntimeCallerContext.Current;
         var trust = ContextTrust.Of(caller);
         await Check("Set", HeldInterrupt(entry.Name, caller));
-        var provenance = new EntryProvenance(caller?.AppId is { Length: > 0 } app ? app : caller?.PrincipalId ?? "", DateTimeOffset.UtcNow, trust);
+        var provenance = new EntryProvenance(caller?.AppId is { Length: > 0 } app ? app : caller?.PrincipalId ?? "", Context.Time.GetUtcNow(), trust);
         var kept = entry with { Contracts = entry.Contracts.ToArray(), Tags = tags?.ToArray(), Provenance = provenance };
         // An interrupt is the user's or the platform's to raise; a model or app still gets its entry stored, just not acted on.
         var ignored = kept.EffectiveTags.Contains(ContextTags.Interrupt) && trust is not (ContextTrust.User or ContextTrust.Platform);
@@ -58,25 +58,24 @@ internal sealed class AgentContextNeuron
     {
         ArgumentNullException.ThrowIfNull(entry);
         // The same rule as Set, applied as for an app whatever the caller: a producer's entry never clears an interrupt.
-        if (new InterruptClearedByTrust(HoldsTrustedInterrupt(entry.Name), ContextTrust.App).Broken) { return false; }
+        if (new InterruptClearedByTrust(HeldEntry(entry.Name), ContextTrust.App).Broken) { return false; }
         await Set(entry);
         return true;
     }
 
     public async Task<bool> Withdraw(string name)
     {
-        if (new InterruptClearedByTrust(HoldsTrustedInterrupt(name), ContextTrust.App).Broken) { return false; }
+        if (new InterruptClearedByTrust(HeldEntry(name), ContextTrust.App).Broken) { return false; }
         await Remove(name);
         return true;
     }
 
-    private bool HoldsTrustedInterrupt(string name)
-        => Snapshot.Entries.FirstOrDefault(item => item.Name == name) is { } held
-            && held.EffectiveTags.Contains(ContextTags.Interrupt) && held.Provenance?.Trust is ContextTrust.User or ContextTrust.Platform;
+    private ContextEntry? HeldEntry(string name)
+        => Snapshot.Entries.FirstOrDefault(item => item.Name == name);
 
     // Refused for a model or an app caller, and for a call with no caller (which reads as app).
     private InterruptClearedByTrust HeldInterrupt(string name, DigitalBrain.Capabilities.CapabilityCaller? caller)
-        => new(HoldsTrustedInterrupt(name), ContextTrust.Of(caller));
+        => new(HeldEntry(name), ContextTrust.Of(caller));
 
     public Task<ContextSnapshot> Read() => Task.FromResult(new ContextSnapshot(Snapshot.Revision, Snapshot.Entries.ToArray()));
 }

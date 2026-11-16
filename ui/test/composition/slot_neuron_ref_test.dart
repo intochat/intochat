@@ -105,7 +105,10 @@ void main() {
                   'generation': 6,
                   'view': {
                     'title': 'Metrics',
-                    'root': {'kind': 'text', 'value': 'Metrics empty-kind live'},
+                    'root': {
+                      'kind': 'text',
+                      'value': 'Metrics empty-kind live',
+                    },
                   },
                 },
                 _ => throw StateError('Unexpected load $kind:$name'),

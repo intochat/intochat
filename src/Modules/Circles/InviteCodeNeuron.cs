@@ -38,7 +38,7 @@ internal sealed class InviteCodeNeuron(IServiceProvider services) : DigitalBrain
     public async Task Bind(string circleBrainId, string inviteId, DateTimeOffset expiresAt)
     {
         // 60 random bits: a collision is refused rather than overwritten.
-        await Check("Bind", new InviteCodeIsAvailable(Record is null));
+        await Check("Bind", new InviteCodeIsAvailable(Record));
         var next = new InviteCodeRecord { CircleBrainId = circleBrainId, InviteId = inviteId, ExpiresAt = expiresAt };
         await Store(next);
     }
@@ -99,7 +99,8 @@ internal sealed class CircleInviteRedeemer(IServiceProvider plain) : ICircleInvi
     public async Task<RedeemOutcome> Redeem(string code, string machineId, string machineKeyThumbprint, string machineName)
     {
         if (!InviteCode.TryNormalize(code, out var normalized)) { return RedeemOutcome.Rejected; }
-        using (IntoChat.OS.Framework.InProcessCallerScope.EnterKernel("system"))
+        var edge = plain.GetService<EdgeAuthority>();
+        using (edge?.Enter(edge.Module("circles", new DigitalBrain.BrainId("system"))))
         {
             var hash = InviteCode.Hash(normalized, await SiloNeurons.Get<IInviteKey>(plain, IInviteKey.Key).Get());
             return await SiloNeurons.Get<IInviteCode>(plain, IInviteCode.Key(hash)).Redeem(new RedeemInvite(hash, machineId, machineKeyThumbprint, machineName));

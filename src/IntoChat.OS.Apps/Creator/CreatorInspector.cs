@@ -1,6 +1,7 @@
 using System.Globalization;
 using DigitalBrain.Flows;
 using DigitalBrain.UI;
+using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
@@ -45,7 +46,8 @@ public static class CreatorInspector
                 foreach (var approval in approvals)
                 {
                     children.Add(StatusPill(StatusKind.NeedsYou, "Needs Approval"));
-                    children.Add(new ApprovalCardNode($"approval:{approval.PlanId}", approval.PlanId, approval.Title, approval.Detail, []));
+                    var visual = VisualCatalog.ForApproval(approval.Subject);
+                    children.Add(new ApprovalCardNode($"approval:{approval.PlanId}", approval.PlanId, approval.Title, approval.Detail, [], Icon: visual.IconKey, CapabilityLabel: visual.Label));
                     children.Add(HStack(6)[
                         PrimaryButton("Approve & Promote", Icons.Check)
                             .Key($"approve:{approval.PlanId}")
@@ -81,9 +83,11 @@ public static class CreatorInspector
     {
         if (inspection.Alias is not { } alias)
         {
-            yield return Card(inspection.Id, inspection.Id.Contains("/apps/", StringComparison.Ordinal) ? "Compiled OS Application" : "Kernel System Neuron");
-            if (inspection.Id.Split("/apps/") is [_, var app] && app.Length > 0)
+            var isApp = IntoChat.OS.Primitives.AppRef.TryParse(inspection.Id, out var appRef);
+            yield return Card(inspection.Id, isApp ? "Compiled OS Application" : "Kernel System Neuron");
+            if (isApp)
             {
+                var app = appRef.Name;
                 yield return HStack(Space.Xs)[
                     PrimaryButton($"Preview {app} in Studio", "eye")
                         .Key("preview-compiled-app")
@@ -134,14 +138,16 @@ public static class CreatorInspector
             yield return new Button("open-flow", $"Build flow: {flow.Status.ToString().ToLowerInvariant()}", Intent: AppSignals.OpenApp("tasks", flow.FlowId)) { Small = true, Icon = "tasks" };
             if (CreatorView.Consent(flow, approvals) is { } consent)
             {
-                yield return new ApprovalCardNode("consent", consent.PlanId, consent.Title, consent.Detail, []);
+                var consentVisual = VisualCatalog.ForApproval(consent.Subject);
+                yield return new ApprovalCardNode("consent", consent.PlanId, consent.Title, consent.Detail, [], Icon: consentVisual.IconKey, CapabilityLabel: consentVisual.Label);
                 yield return MutedText("Approve or deny in the inbox.");
             }
         }
 
         foreach (var staged in approvals.Where(a => a.Kind == ApprovalKind.SynapseStaged && a.Subject == alias && a.PlanId != flow?.ConfirmationPlanId))
         {
-            yield return new ApprovalCardNode($"needs:{staged.PlanId}", staged.PlanId, staged.Title, staged.Detail, []);
+            var stagedVisual = VisualCatalog.ForApproval(staged.Subject);
+            yield return new ApprovalCardNode($"needs:{staged.PlanId}", staged.PlanId, staged.Title, staged.Detail, [], Icon: stagedVisual.IconKey, CapabilityLabel: stagedVisual.Label);
         }
 
         // Prompt / refine change input
@@ -178,7 +184,8 @@ public static class CreatorInspector
             foreach (var apprv in relevantApprovals)
             {
                 yield return StatusPill(StatusKind.NeedsYou, "Needs Your Approval");
-                yield return new ApprovalCardNode($"gate:{apprv.PlanId}", apprv.PlanId, apprv.Title, apprv.Detail, []);
+                var gateVisual = VisualCatalog.ForApproval(apprv.Subject);
+                yield return new ApprovalCardNode($"gate:{apprv.PlanId}", apprv.PlanId, apprv.Title, apprv.Detail, [], Icon: gateVisual.IconKey, CapabilityLabel: gateVisual.Label);
                 yield return HStack(6)[
                     PrimaryButton("Approve & Promote", Icons.Check)
                         .Key($"approve:{apprv.PlanId}")

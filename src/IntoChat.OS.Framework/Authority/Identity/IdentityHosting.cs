@@ -70,7 +70,7 @@ public static class IdentityHosting
     }
 
     // Brain access from the directory under the configured posture. A hosted deployment wraps the directory instead.
-    internal static IBrainAccess LocalBrainAccess(IServiceProvider provider)
+    public static IBrainAccess LocalBrainAccess(IServiceProvider provider)
     {
         var directory = new DirectoryBrainAccess(provider.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>());
         return provider.GetRequiredService<IOptions<AuthOptions>>().Value.Posture == IdentityPosture.Open

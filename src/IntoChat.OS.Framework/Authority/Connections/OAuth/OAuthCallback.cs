@@ -226,7 +226,14 @@ public sealed class OAuthCallback : IHttpSurface
             }
             catch (Exception error) when (error is ArgumentException or InvalidOperationException)
             {
-                _ = error.Message;
+                if (context.RequestServices?.GetService<ILoggerFactory>()?.CreateLogger(nameof(OAuthCallback)) is { } logger)
+                {
+                    logger.LogWarning(error, "Unable to enqueue inbound connection signal for {ConnectionKey} on provider {Provider}.", connectionKey, provider);
+                }
+                else
+                {
+                    System.Diagnostics.Trace.TraceWarning("Unable to enqueue inbound connection signal for '{0}': {1}", connectionKey, error.Message);
+                }
             }
         }
 

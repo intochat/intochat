@@ -2,7 +2,11 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Framework.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub.Webhook;
 
@@ -76,6 +80,8 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
+                    (plain.GetService<ILoggerFactory>()?.CreateLogger<GitHubWebhookIngress>() ?? OsConsoleLog.For<GitHubWebhookIngress>())
+                        .LogSwallowed(error, "delivering GitHub webhook event");
                     GitHubTelemetry.Failed(activity, error);
                     results.Add(GitHubWebhookAcceptance.Unavailable);
                 }
@@ -94,6 +100,8 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
         }
         catch (Exception error) when (error is JsonException or InvalidOperationException or FormatException)
         {
+            (plain.GetService<ILoggerFactory>()?.CreateLogger<GitHubWebhookIngress>() ?? OsConsoleLog.For<GitHubWebhookIngress>())
+                .LogSwallowed(error, "parsing GitHub webhook payload");
             return GitHubWebhookAcceptance.BadRequest;
         }
     }

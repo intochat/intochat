@@ -34,7 +34,6 @@
     <EmbeddedResource Include="Mail/Templates/**" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="IntoChat.OS.Kernel" />
     <InternalsVisibleTo Include="IntoChat.Cloud.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />

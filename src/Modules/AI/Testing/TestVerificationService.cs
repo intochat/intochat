@@ -9,7 +9,7 @@ using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Modules.AI.Testing;
 
-public sealed class TestVerificationService : ITestVerificationService
+internal sealed class TestVerificationService : ITestVerificationService
 {
     private readonly Func<string, ITestVerificationNeuron>? _neuronResolver;
     private readonly IServiceProvider? _services;
@@ -39,7 +39,7 @@ public sealed class TestVerificationService : ITestVerificationService
             return new BrainId(stampedBrain);
         }
 
-        return new BrainId("local");
+        throw new InvalidOperationException("No BrainId is present in RuntimeCallerContext.");
     }
 
     private ITestVerificationNeuron GetNeuron(string suiteId)

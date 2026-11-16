@@ -1,9 +1,11 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Log;
 using DigitalBrain.Flows;
 using DigitalBrain.Neurons;
 using DigitalBrain.Units;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps.Flows;
 
 namespace IntoChat.OS.Modules.Apps.Approvals;
@@ -53,7 +55,11 @@ public sealed class ApprovalsNeuron : Neuron, IApprovals
     {
         if (!NeuronId.TryParse(flowId, out var id)) { return null; }
         try { return JsonSerializer.Deserialize<BuildInner>((await Context.Get<IFlowStarter>(id).Head()).InnerJson, BuildFlow.Json); }
-        catch (Exception error) when (error is JsonException or InvalidOperationException) { return null; }
+        catch (Exception error) when (error is JsonException or InvalidOperationException)
+        {
+            OsConsoleLog.For<ApprovalsNeuron>().LogSwallowed(error, "reading optional build flow inner state");
+            return null;
+        }
     }
 
     // DigitalBrain.InstallsNeuron names each install ask's plan "install:{alias}:{id}".
@@ -122,7 +128,11 @@ public sealed class ApprovalsNeuron : Neuron, IApprovals
         var sentence = string.IsNullOrWhiteSpace(inner.Sentence) ? body : inner.Sentence;
         string[] hosts;
         try { hosts = [.. BuildFlow.UnitOf(inner).Needs.Slots.SelectMany(slot => slot.Hosts).Distinct(StringComparer.OrdinalIgnoreCase)]; }
-        catch (Exception error) when (error is JsonException or FlowFailed) { hosts = []; }
+        catch (Exception error) when (error is JsonException or FlowFailed)
+        {
+            OsConsoleLog.For<ApprovalsNeuron>().LogSwallowed(error, "reading build unit needs hosts");
+            hosts = [];
+        }
         return hosts.Length == 0 ? sentence : $"{sentence} Reads {string.Join(", ", hosts)}.";
     }
 }

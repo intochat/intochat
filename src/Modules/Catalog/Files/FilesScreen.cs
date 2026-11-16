@@ -113,8 +113,8 @@ internal static class FilesScreen
             Button("apply-filter", "Filter", "filter", true, FilesUi.Ghost, icon: "filter"));
 
         var toolbar = Toolbar(
-            Button("upload", FilesCopy.Upload, "upload", writable, FilesUi.Primary, icon: "upload", guard: FilesPathRules.CanWriteFolder(writable)),
-            Button("mkdir", FilesCopy.NewFolder, "mkdir", create, icon: "folder-plus", guard: FilesPathRules.CanCreateSubfolder(create)),
+            Button("upload", FilesCopy.Upload, "upload", writable, FilesUi.Primary, icon: "upload", guard: FilesPathRules.CanWriteFolder(folder)),
+            Button("mkdir", FilesCopy.NewFolder, "mkdir", create, icon: "folder-plus", guard: FilesPathRules.CanCreateSubfolder(folder)),
             Button("rename", FilesCopy.Rename, "rename", one && selected!.Item.Flags.HasFlag(ItemFlags.Rename), icon: "pencil"),
             Button("move", FilesCopy.Move, "move", one && selected!.Item.Flags.HasFlag(ItemFlags.Move)),
             Button("copy", FilesCopy.Copy, "copy", one && selected!.Item.Flags.HasFlag(ItemFlags.Copy), icon: "copy"),

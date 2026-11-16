@@ -5,17 +5,17 @@ using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.Units;
 using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps.Trace;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Debugger;
 
 // The Creator's reads, run inside the brain. State and View forward to the unit's state neuron; Signals finds the journal's head
 // and reads back a window of it; Topology is the loaded synapse catalog plus the compiled apps.
 [Neuron("creator.reads"), StatelessNeuron]
-public sealed class DebuggerReadsNeuron(
+internal sealed class DebuggerReadsNeuron(
     ISignalHistory history,
     ISynapseCatalogSource? catalogSource = null,
     IEnumerable<CompiledAppsRegistration>? appRegistrations = null,
@@ -26,7 +26,7 @@ public sealed class DebuggerReadsNeuron(
     private readonly ISynapseCatalogSource? _catalogSource = catalogSource;
     private readonly IEnumerable<CompiledAppsRegistration> _appRegistrations = appRegistrations ?? [];
     private readonly UnitResolver? _unitResolver = unitResolver;
-    private readonly ILogger _logger = (ILogger?)logger ?? NullLogger.Instance;
+    private readonly ILogger _logger = (ILogger?)logger ?? OsConsoleLog.For<DebuggerReadsNeuron>();
 
     public async Task<string?> State(string alias)
     {
@@ -146,7 +146,7 @@ public sealed class DebuggerReadsNeuron(
             {
                 var name = compiled.Bundle.Name;
                 if (ShippedApps.Services.Contains(name)) { continue; }
-                nodes.Add(new BrainTopologyNode(IApp.Key(brain, name), compiled.Bundle.Manifest.Title is { Length: > 0 } title ? title : name, BrainGraph.App));
+                nodes.Add(new BrainTopologyNode(IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), name).Key, compiled.Bundle.Manifest.Title is { Length: > 0 } title ? title : name, BrainGraph.App));
             }
         }
         return Task.FromResult(new BrainTopology(nodes, [.. edges.Distinct()]));

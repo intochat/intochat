@@ -7,7 +7,7 @@ namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
 public sealed class InoToolNeuronFacts
 {
-    private static readonly BrainId Brain = new("local");
+    private static readonly BrainId Brain = new("owner");
 
     private static TestOS NewOs(IServiceProvider? services = null)
     {
@@ -32,7 +32,7 @@ public sealed class InoToolNeuronFacts
         var result = await Settings(os).Navigate("models", "local-server");
         Assert.True(result.Card is not null, result.Text);
         Assert.Equal("settings", result.Card.Kind);
-        Assert.Equal("neuron://local/apps/settings", result.Card.SourceNeuronUri);
+        Assert.Equal("neuron://owner/apps/settings", result.Card.SourceNeuronUri);
         Assert.Equal("Settings · models / local-server", result.Card.Title);
     }
 
@@ -63,9 +63,7 @@ public sealed class InoToolNeuronFacts
         Assert.Contains("Czech", text);
         Assert.Contains("Europe/Prague", text);
         Assert.Contains("2026-10-17", text);
-        var inference = Assert.Single(entries, entry => entry.Name == "inference");
-        Assert.Contains(ContextTags.Inference, inference.Tags!);
-        Assert.Equal("""{"model":"model-a"}""", inference.Text);
+        Assert.DoesNotContain(entries, entry => entry.Name == "inference");
     }
 
     [Fact]
@@ -79,26 +77,26 @@ public sealed class InoToolNeuronFacts
     }
 
     [Fact]
-    public async Task SettingsChangedSynchronizesConversationInferenceModelWhileKeepingTemperature()
+    public async Task SettingsChangedDoesNotOverwriteConversationInferenceModel()
     {
         await using var os = NewOs();
         var profile = os.Get<IAgentContext>(new NeuronId(Brain, "agent-context", "context/user.profile"));
         await os.Get<IProfileContextWriter>(new NeuronId(Brain, "ino.profile-writer", "ino/profile-writer")).Ensure();
         var userSettings = os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings"));
 
-        // 1. Set model & temperature via IInoSettings (writes to context/conversation.inference)
+        // 1. Set explicit turn model & temperature via IInoSettings (writes to context/conversation.inference)
         await Settings(os).SetModel("qwen3.5:4b");
         await Settings(os).SetTemperature(0.4f);
         await os.Idle();
         Assert.Equal("""{"model":"qwen3.5:4b","temperature":0.4}""", Assert.Single((await Inference(os).Read()).Entries).Text);
 
-        // 2. Switch model via IUserSettings.SetProfile (e.g. from Settings UI or /model command)
-        await userSettings.SetProfile("Ada", "dark", "claude-sonnet-4-5");
+        // 2. Switch user profile model via IUserSettings.SetProfile (e.g. from Settings UI or /model command)
+        await userSettings.SetProfile("Ada", "dark", "claude-sonnet-4-6");
         await os.Idle();
 
-        // Both user.profile and conversation.inference reflect the new model without losing temperature
-        Assert.Equal("""{"model":"claude-sonnet-4-5"}""", Assert.Single((await profile.Read()).Entries, e => e.Name == "inference").Text);
-        Assert.Equal("""{"model":"claude-sonnet-4-5","temperature":0.4}""", Assert.Single((await Inference(os).Read()).Entries).Text);
+        // ProfileContextWriter no longer writes inference entries into user.profile and never overwrites conversation.inference.
+        Assert.DoesNotContain(await profile.Read() is var p ? p.Entries : [], e => e.Name == "inference");
+        Assert.Equal("""{"model":"qwen3.5:4b","temperature":0.4}""", Assert.Single((await Inference(os).Read()).Entries).Text);
     }
 
     [Fact]
@@ -150,19 +148,19 @@ public sealed class InoToolNeuronFacts
     }
     private static IInoData Data(TestOS os) => os.Get<IInoData>(new NeuronId(Brain, "ino.data", "ino/data"));
 
-    // Make starts the unit flow and hands back a card that names it on the Tasks board; the build itself is BuildFlowFacts'.
+    // Without a configured model/provider, Make must fail honestly with a Settings setup card rather than synthesizing a fake unit.
     [Fact]
-    public async Task MakeReturnsACardForItsUnitFlow()
+    public async Task MakeWithoutModelFailsHonestlyWithSettingsSetupCard()
     {
         await using var os = NewOs();
 
         var result = await os.Get<IInoStudio>(new NeuronId(Brain, "ino.studio", "ino/studio")).Make("Draft the Q4 plan");
 
-        Assert.True(result.Card is not null, result.Text);
-        Assert.Equal("flow", result.Card.Kind);
-        Assert.Equal($"neuron://local/apps/tasks#{result.Card.Id}", result.Card.SourceNeuronUri);
-        Assert.StartsWith("local/flow.build/", result.Card.Id, StringComparison.Ordinal);
-        Assert.Contains(result.Card.Id, result.Text, StringComparison.Ordinal);
+        Assert.False(result.Ok);
+        Assert.NotNull(result.Card);
+        Assert.Equal("settings", result.Card!.Kind);
+        Assert.Equal("setup-model", result.Card.Id);
+        Assert.Equal("neuron://owner/apps/settings", result.Card.SourceNeuronUri);
     }
 
     [Fact]
@@ -193,21 +191,39 @@ Subsea cabling condition,Trondheim Subsea,Won,95000
     }
 
     [Fact]
-    public async Task ConnectThenQueryReturnsRows()
+    public async Task ConnectRefusesFakePostgresPretense()
     {
         var storage = CreateOpportunitiesStorage();
         await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
+
         var connected = await Data(os).Connect("Host=db.example;Database=sales");
-        Assert.Equal("db-connection", connected.Card!.Kind);
+
+        Assert.False(connected.Ok);
+        Assert.Null(connected.Card);
+        Assert.DoesNotContain("PostgreSQL Connected", connected.Text, StringComparison.OrdinalIgnoreCase);
+
+        var state = await Data(os).Read();
+        Assert.Null(state.ConnectedDatabase);
+    }
+
+    [Fact]
+    public async Task QueryWorkspaceFileReturnsRowsAndRefusesUnknownTable()
+    {
+        var storage = CreateOpportunitiesStorage();
+        await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
 
         var queried = await Data(os).Query("SELECT opportunity, account, stage, amount FROM opportunities ORDER BY amount DESC LIMIT 5");
+        Assert.True(queried.Ok);
         Assert.Equal("table", queried.Card!.Kind);
         Assert.Equal(5, queried.Card.Rows!.Length);
         Assert.Equal("Opportunity", queried.Card.Columns![0]);
-        Assert.Contains("sales", queried.Card.Title);
+
+        var missing = await Data(os).Query("SELECT account, stage FROM unbacked_postgres_table");
+        Assert.False(missing.Ok);
+        Assert.Null(missing.Card);
 
         var state = await Data(os).Read();
-        Assert.Equal("main:db.example/sales", state.ConnectedDatabase);
+        Assert.Null(state.ConnectedDatabase);
         Assert.Single(state.Charts);
     }
 

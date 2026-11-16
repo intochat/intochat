@@ -1,6 +1,6 @@
 using System.Reflection;
-using IntoChat.OS.Aspire.Server;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Kernel.AspireServer;
 using IntoChat.OS.Kernel.Http;
 using Microsoft.Extensions.DependencyModel;
 
@@ -40,7 +40,7 @@ public static class OperatingSystemModules
     {
         if (!typeof(DigitalBrain.Modules.Module).IsAssignableFrom(type) || type.GetCustomAttribute<DigitalBrain.Modules.ModuleAttribute>() is null) { return false; }
         // The kernel composition carries two product modules of its own: Orleans and the http@1 connector.
-        if (type == typeof(IntoChat.OS.Modules.Microsoft.Orleans.OrleansModule)) { return true; }
+        if (type == typeof(IntoChat.OS.Kernel.Composition.OrleansModule)) { return true; }
         if (type == typeof(IntoChat.OS.Kernel.Composition.Capabilities.HttpModule)) { return true; }
         if (type == typeof(IntoChat.OS.Authority.IdentityModule)) { return true; }
         var name = type.Assembly.GetName().Name ?? "";
@@ -105,10 +105,6 @@ public static class OperatingSystemModules
         server.AddNeuronModule(typeof(IntoChat.OS.Apps.ShippedShellAppsModule));
         server.ConfigureServices(services =>
         {
-            services.AddSingleton<IntoChat.OS.Modules.Postgres.Tables.ITablesSlot, IntoChat.OS.Modules.Postgres.AppTablesSlot>();
-            Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddEnumerable(
-                services,
-                ServiceDescriptor.Singleton<IntoChat.OS.Modules.Apps.IAppStorageHook, IntoChat.OS.Modules.Postgres.Tables.TableStorageHook>());
             services.AddMeteredHttpPipelines(selected);
             services.AddOperatingSystemApps();
         });

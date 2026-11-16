@@ -23,26 +23,22 @@ public sealed class McpPolicyFacts
 
     private static Task Adopt(TestOS os, string brain, PolicyRule rule) => os.AdoptPolicy(brain, rule, Ct);
 
-    private static async Task<(TestOS Os, McpServerNeuron Neuron, string Brain)> CreateHarnessAsync(Uri endpoint)
+    private static Task<(TestOS Os, IMcpServer Neuron, string Brain)> CreateHarnessAsync(Uri endpoint)
     {
         var brain = Guid.NewGuid().ToString("N");
-        var policiesId = NeuronId.Parse(IPolicies.Key(brain));
         var os = TestOS.Local().Register(typeof(McpModule).Assembly);
         var id = new NeuronId(new BrainId(brain), "mcp.server", $"mcp/{Guid.NewGuid():N}");
-        var context = new FakeNeuronContext(id);
-        context.Proxies.Register(policiesId, os.Get<IPolicies>(policiesId));
         var tool = new ToolDescriptor("echo", "Echo", "", "{\"type\":\"object\"}", false);
-        await context.MemoryState.Save(
-            new McpServerStore
-            {
-                State = new McpServerState("Fixture", endpoint.AbsoluteUri, true, [tool], null, DateTimeOffset.UtcNow),
-            },
-            []);
+        os.SeedStoredState(
+            id,
+            JsonSerializer.Serialize(
+                new McpServerStore
+                {
+                    State = new McpServerState("Fixture", endpoint.AbsoluteUri, true, [tool], null, DateTimeOffset.UtcNow),
+                },
+                DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(McpServerStore))));
 
-        var neuron = new McpServerNeuron();
-        NeuronAttachment.Attach(neuron, context);
-        await NeuronAttachment.Activate(neuron, CancellationToken.None);
-        return (os, neuron, brain);
+        return Task.FromResult((os, os.Get<IMcpServer>(id), brain));
     }
 
     [Fact]

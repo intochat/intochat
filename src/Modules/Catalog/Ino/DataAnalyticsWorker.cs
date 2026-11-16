@@ -8,7 +8,7 @@ namespace IntoChat.OS.Modules.Apps;
 /// Pools across CPU cores without blocking stateful grain turns.
 /// </summary>
 [StatelessWorker]
-public sealed class DataAnalyticsWorker : Grain, IDataAnalyticsWorker
+internal sealed class DataAnalyticsWorker : Grain, IDataAnalyticsWorker
 {
     public Task<DataQueryResult> ExecuteAsync(
         string queryOrPrompt,

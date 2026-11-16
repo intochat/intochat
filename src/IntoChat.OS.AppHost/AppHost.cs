@@ -1,4 +1,4 @@
-using IntoChat.OS.AppHost;
+using IntoChat.OS.LocalSetup;
 using IntoChat.OS.Aspire.Hosting;
 using IntoChat.OS.ServiceDefaults;
 

@@ -18,6 +18,8 @@ using DigitalBrain.UI;
 using IntoChat.OS.Apps.ArtCraft;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.FilmCraft;
@@ -46,13 +48,13 @@ public sealed record FilmCraftAppState(
     string LastCliInvocation,
     string Status,
     string[] Tracks,
-    string? WebUrl = "http://localhost:18083",
+    string? WebUrl = null,
     string McpEndpointUri = "neuron://local/mcp/filmcraft")
 {
     public FilmCraftAppState() : this(
         "mcp", "/work/launch-trailer.fcproj", "/work/launch-trailer.cut.mp4", "timeline.razor", "Ready · FilmCraft Studio",
-        "filmcraft-cli exec /work/launch-trailer.fcproj --cmd timeline.razor --params '{\"timecode\":\"00:00:03:12\",\"track\":\"V1\"}' --out /work/launch-trailer.cut.mp4",
-        "FilmCraft tools connected.",
+        string.Empty,
+        "FilmCraft MCP server not connected.",
         ["V2 · Title Overlay (00:00:00:00 -> 00:00:05:00)", "V1 · A-Roll Main Camera (00:00:00:00 -> 00:00:14:00)", "A1 · Master Dialogue Bus (-14 LUFS)"])
     { }
 
@@ -62,8 +64,11 @@ public sealed record FilmCraftAppState(
     [Invariant("ActiveSequence and Tracks are non-empty."), JsonIgnore]
     public bool HasTimeline => !string.IsNullOrWhiteSpace(ActiveSequence) && Tracks is { Length: > 0 };
 
-    public Rule SupportedExecutionMode(string? mode) =>
-        Decision.Rule("invalid_execution_mode", string.IsNullOrWhiteSpace(mode) || mode.Trim().ToLowerInvariant() is not ("wasm-ui" or "mcp" or "native-linux"), "Execution mode must be wasm-ui, mcp, or native-linux.");
+    public Rule SupportedExecutionMode(string? mode) => Decision.Rule(
+        "invalid_execution_mode",
+        mode,
+        static m => string.IsNullOrWhiteSpace(m) || m.Trim().ToLowerInvariant() is not ("wasm-ui" or "mcp" or "native-linux"),
+        "Execution mode must be wasm-ui, mcp, or native-linux.");
 
     public Decision<FilmCraftAppState> SwitchExecutionMode([Sample("wasm-ui", "mcp", "native-linux", "invalid")] string mode)
     {
@@ -89,8 +94,13 @@ public sealed record FilmCraftAppState(
 }
 
 [Neuron("app.filmcraft")]
-public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("filmcraft")
+public sealed class FilmCraftApp : ArtCraftStudioAppCore<FilmCraftAppState>
 {
+    public FilmCraftApp() : this(null) { }
+
+    [ActivatorUtilitiesConstructor]
+    public FilmCraftApp(ILogger<FilmCraftApp>? logger = null) : base("filmcraft", logger) { }
+
     protected override string ActiveDocumentLabel => "Sequence";
     public const string AppName = ShippedApps.FilmCraft;
 
@@ -116,6 +126,7 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
+        AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
         if (IsLegacyUnhostedWasmState(State.ExecutionMode, State.WebUrl))
         {
@@ -123,7 +134,7 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
             {
                 ExecutionMode = "mcp",
                 WebUrl = Descriptor.StaticWebPath,
-                Status = $"FilmCraft tools connected ({FormatModeLabel("mcp")}) · Sequence: {State.ActiveSequence}",
+                Status = $"FilmCraft studio ({FormatModeLabel("mcp")}) · Sequence: {State.ActiveSequence}",
             });
         }
     }
@@ -185,9 +196,13 @@ public sealed class FilmCraftApp() : ArtCraftStudioAppCore<FilmCraftAppState>("f
                 Button("Ripple Trim (-24f)").Key("tool-trim").Small().OnClick(() => RippleTrimAsync()),
                 Button("Lumetri Grade").Key("tool-lumetri").Small().OnClick(() => LumetriAutoGradeAsync())
             ),
-            ImageView(ArtCraftEngineRunner.WarmPresetPngDataUrl, $"Program Monitor · {state.ActiveSequence} -> {state.OutputFile}", height: 240),
+            Surface(SurfaceKind.Elevated, "Program Monitor", "Connect FilmCraft MCP in Settings to render preview frames.")[
+                MutedText($"No monitor frame rendered ({state.ActiveSequence} -> {state.OutputFile}).")
+            ],
             Table("Non-Linear Sequence Tracks", ["Track", "Timeline Span & Routing"], [.. tracks.Select((t, idx) => (IReadOnlyList<string>)[$"T{idx + 1}", t])]),
-            CodeBlock($"filmcraft-cli · {FormatModeLabel(state.ExecutionMode)}", state.LastCliInvocation, "bash", maxHeight: 140)
+            !string.IsNullOrWhiteSpace(state.LastCliInvocation)
+                ? CodeBlock($"Execution Log · {FormatModeLabel(state.ExecutionMode)}", state.LastCliInvocation, "bash", maxHeight: 140)
+                : null
         ];
 
         return RenderStudioShell(

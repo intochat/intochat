@@ -99,17 +99,23 @@ public static class TestOsAppExtensions
             ?? typeof(TApp).GetCustomAttribute<NeuronAttribute>()?.Type
             ?? typeof(TApp).Name;
         var id = new NeuronId(new BrainId("local"), alias, "default");
-        await os.Activate(id);
+        TApp? app = null;
+        using (IntoChat.OS.Apps.AppActivationScope.Capture(neuron =>
+        {
+            if (neuron is TApp typed)
+            {
+                app = typed;
+            }
+        }))
+        {
+            await os.Activate(id);
+        }
         await os.Idle();
         var screen = os.Get<IScreen>(id);
-
-        var hostMethod = typeof(TestOS).GetMethod("Host", BindingFlags.NonPublic | BindingFlags.Instance)
-            ?? throw new InvalidOperationException("Host method not found on TestOS.");
-        var host = hostMethod.Invoke(os, [id])
-            ?? throw new InvalidOperationException("Host returned null for " + id);
-        var neuronField = host.GetType().GetField("_neuron", BindingFlags.NonPublic | BindingFlags.Instance)
-            ?? throw new InvalidOperationException("_neuron field not found on TestNeuronHost.");
-        var app = (TApp)neuronField.GetValue(host)!;
+        if (app is null)
+        {
+            throw new InvalidOperationException($"App instance was not captured during activation of {id}.");
+        }
 
         return new InstalledApp<TApp>(os, screen, app);
     }

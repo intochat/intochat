@@ -3,6 +3,8 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 
 namespace IntoChat.OS.Modules.Microsoft.GitHub;
 
@@ -23,7 +25,7 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
     {
         _tokens = tokens;
         _time = time ?? TimeProvider.System;
-        _http = new Octokit.Internal.HttpClientAdapter(() => new BoundedResponseHandler(handler ?? new HttpClientHandler { AllowAutoRedirect = false }));
+        _http = new Octokit.Internal.HttpClientAdapter(() => new BoundedResponseHandler(handler ?? GitHubInstallationTokens.CreateDefaultHandler()));
         _http.SetRequestTimeout(TimeSpan.FromSeconds(20));
     }
 
@@ -77,6 +79,7 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
             catch (Exception error) when (error is GitHubUnavailableException or GitHubAccessDeniedException)
             {
                 // A pending/unavailable merge revision cannot establish complete current evidence.
+                OsConsoleLog.For<GitHubRepositorySource>().LogSwallowed(error, "reading GitHub pull request merge commit checks");
                 complete = false;
             }
         }
@@ -187,6 +190,7 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         }
         catch (Exception error) when (error is Octokit.ApiException or GitHubUnavailableException or JsonException or InvalidOperationException)
         {
+            OsConsoleLog.For<GitHubRepositorySource>().LogSwallowed(error, "reading GitHub required CI protection policy");
             return new([], false, "Required CI configuration could not be read. Verify branch/ruleset access or select an explicit nonempty required-check set.");
         }
     }

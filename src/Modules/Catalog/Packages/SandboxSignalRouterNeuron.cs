@@ -13,7 +13,7 @@ namespace IntoChat.OS.Modules.Apps;
 /// </summary>
 [Shared]
 [NeuronAlias(TypeName), DefaultNeuronType(TypeName)]
-public interface ISandboxSignalRouter
+internal interface ISandboxSignalRouter
 {
     const string TypeName = "apps.sandbox-router";
     const string DefaultKey = "default";

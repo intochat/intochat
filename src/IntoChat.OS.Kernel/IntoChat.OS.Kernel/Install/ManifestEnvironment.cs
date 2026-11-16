@@ -3,8 +3,9 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Contracts.Configuration;
+using IntoChat.OS.Modules.Microsoft.Azure;
 
-namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
+namespace IntoChat.OS.Kernel.Install;
 
 // R4-03 (09-10): the container environment of the OS app for the modules a deployment composes comes from their static
 // ModuleManifest, not from a hand-written list. A Setting yields the variable of its configuration key

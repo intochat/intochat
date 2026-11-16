@@ -1,15 +1,14 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Security;
+using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Win32;
 
 namespace IntoChat.OS.Kernel.Composition.Operations;
 
 internal sealed class SystemLocalProcessProbe(ILogger<SystemLocalProcessProbe>? logger = null) : ILocalProcessProbe
 {
-    private readonly ILogger<SystemLocalProcessProbe> _logger = logger ?? NullLogger<SystemLocalProcessProbe>.Instance;
+    private readonly ILogger<SystemLocalProcessProbe> _logger = logger ?? OsConsoleLog.For<SystemLocalProcessProbe>();
 
     public int CurrentProcessId => Environment.ProcessId;
 
@@ -23,7 +22,7 @@ internal sealed class SystemLocalProcessProbe(ILogger<SystemLocalProcessProbe>? 
             { return null; }
             try
             {
-                using var control = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control", writable: false);
+                using var control = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control", writable: false);
                 return control is not null && control.GetValue("ContainerType") is null ? "windows-host" : null;
             }
             catch (Exception error) when (error is SecurityException or UnauthorizedAccessException or IOException)

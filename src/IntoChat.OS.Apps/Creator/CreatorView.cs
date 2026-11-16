@@ -1,5 +1,6 @@
 using DigitalBrain.Flows;
 using DigitalBrain.UI;
+using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
@@ -11,7 +12,7 @@ namespace IntoChat.OS.Apps.Creator;
 /// <summary>
 /// 3-pane Creator screen view built on <see cref="Kit"/>:
 /// Left pane: Catalog units + active change runs list + Describe/Make + Starter templates.
-/// Center pane: BrainScene topology (or Accordant StateGraphView when toggled) + active unit source/state-space + 7-stage ChangeFlow pipeline + unified diff + build/test summary.
+/// Center pane: BrainScene topology (or Accordant StateGraphView when toggled) + active unit source/state-space + 7-stage FeatureToPrFlow pipeline + unified diff + build/test summary.
 /// Right pane: Inspector for selected node/edge/pulse + refine change input + interactive approve/reject gate.
 /// </summary>
 public static class CreatorView
@@ -77,8 +78,8 @@ public static class CreatorView
         }
 
         var appNodes = topology.Nodes
-            .Where(n => n.Role == BrainGraph.App || n.Id.Contains("/apps/", StringComparison.Ordinal))
-            .Where(n => !n.Id.EndsWith("/apps/creator", StringComparison.Ordinal))
+            .Where(n => n.Role == BrainGraph.App || IntoChat.OS.Primitives.AppRef.TryParse(n.Id, out _))
+            .Where(n => !IntoChat.OS.Primitives.AppRef.TryParse(n.Id, out var a) || a.Name != App)
             .Take(12)
             .ToArray();
 
@@ -87,7 +88,9 @@ public static class CreatorView
             children.Add(SectionHeader("Installed Apps"));
             var appButtons = appNodes.Select(node =>
             {
-                var label = node.Label.Length > 0 ? node.Label : node.Id.Split("/apps/").Last();
+                var label = node.Label.Length > 0
+                    ? node.Label
+                    : IntoChat.OS.Primitives.AppRef.TryParse(node.Id, out var nodeRef) ? nodeRef.Name : node.Id;
                 var isSelected = state.Selected is { Kind: Selection.Node } sel && sel.Id == node.Id;
                 return (Node)(isSelected ? PrimaryButton(label) : GhostButton(label))
                     .Key($"app:{node.Id}")
@@ -100,7 +103,7 @@ public static class CreatorView
         // 2. Active Change Runs List
         children.Add(SectionHeader("Active Change Runs"));
         var activeFlows = flows
-            .Where(f => f.Type is ChangeFlow.Alias or BuildFlow.Alias)
+            .Where(f => f.Type is FeatureToPrFlow.Alias or BuildFlow.Alias)
             .OrderByDescending(f => f.Started)
             .Take(10)
             .ToArray();
@@ -255,8 +258,8 @@ public static class CreatorView
             }
         }
 
-        // 3. Active ChangeFlow / BuildFlow Pipeline (ONLY rendered when an actual run exists — zero fake placeholder diffs!)
-        var activeRun = flows.FirstOrDefault(f => f.FlowId == state.ActiveRunId || f.Type == ChangeFlow.Alias);
+        // 3. Active FeatureToPrFlow / BuildFlow Pipeline (ONLY rendered when an actual run exists — zero fake placeholder diffs!)
+        var activeRun = flows.FirstOrDefault(f => f.FlowId == state.ActiveRunId || f.Type == FeatureToPrFlow.Alias);
         if (activeRun is not null)
         {
             children.Add(SectionHeader("Change Pipeline (7 Stages)"));
@@ -290,19 +293,20 @@ public static class CreatorView
             return false;
         }
 
-        if (nodeId.Split("/apps/") is [var brain, var appName] && appName.Length > 0 && appName != App)
+        if (IntoChat.OS.Primitives.AppRef.TryParse(nodeId, out var appRef) && appRef.Name != App)
         {
-            slotUri = $"{brain}/apps/{appName}/view";
+            slotUri = appRef.ChildKey("view");
             slotKind = "app";
-            openAppId = appName;
-            displayTitle = appName;
+            openAppId = appRef.Name;
+            displayTitle = appRef.Name;
             return true;
         }
 
         if (!nodeId.StartsWith("draft:", StringComparison.Ordinal) && inspection.Alias is { Length: > 0 } unitAlias)
         {
             var slash = nodeId.IndexOf('/', StringComparison.Ordinal);
-            var unitBrain = slash > 0 ? nodeId[..slash] : "local";
+            if (slash <= 0) { return false; }
+            var unitBrain = nodeId[..slash];
             slotUri = $"{unitBrain}/units/{unitAlias}/view";
             slotKind = "unit";
             openAppId = unitAlias;
@@ -364,7 +368,7 @@ public static class CreatorView
             public sealed record PomodoroState(int Minutes = 25, bool Running = false)
             {
                 public Rule ValidDuration(int mins) =>
-                    Decision.Rule("duration_bounds", mins is < 1 or > 120, "Choose 1–120 minutes.");
+                    Decision.Rule("duration_bounds", mins, static m => m is < 1 or > 120, "Choose 1–120 minutes.");
 
                 public Decision<PomodoroState> SetDuration(int mins) =>
                     Decision.Check("set-duration", ValidDuration(mins))
@@ -455,16 +459,39 @@ public static class CreatorView
 
     private static Node RenderBuildAndTestSummary(FlowView flow)
     {
-        var buildDone = flow.Done.Contains("build") || flow.Status == FlowStatus.Completed;
-        var testDone = flow.Done.Contains("test") || flow.Status == FlowStatus.Completed;
+        var completedCount = flow.Done.Length;
+        var totalCount = Math.Max(completedCount, flow.Steps.Length);
         var failed = flow.Status == FlowStatus.Failed;
+        var cancelled = flow.Status == FlowStatus.Cancelled;
+        var completed = flow.Status == FlowStatus.Completed;
+        var summaryText = !string.IsNullOrWhiteSpace(flow.Detail)
+            ? flow.Detail
+            : flow.Status switch
+            {
+                FlowStatus.Completed => $"Run {flow.FlowId}: Completed ({completedCount}/{totalCount} steps).",
+                FlowStatus.Waiting => $"Run {flow.FlowId}: Waiting on {flow.WaitingStep ?? "approval"} ({completedCount}/{totalCount} steps).",
+                FlowStatus.Failed => $"Run {flow.FlowId}: Failed.",
+                FlowStatus.Cancelled => $"Run {flow.FlowId}: Cancelled.",
+                _ => $"Run {flow.FlowId}: {flow.Current ?? "Running"} ({completedCount}/{totalCount} steps).",
+            };
+
+        var buildRecorded = flow.Done.Contains("build");
+        var testRecorded = flow.Done.Contains("test");
+        var stagePillKind = failed || cancelled ? StatusKind.Error : (completed ? StatusKind.Done : StatusKind.Idle);
+        var stageLabel = flow.Status.ToString();
 
         return HStack(Space.Sm)[
-            Card("Build Verification", failed ? (flow.Detail ?? "Build failed.") : (buildDone ? $"Run {flow.FlowId}: Roslyn synapse compile passed." : $"Run {flow.FlowId}: Pending build stage."))[
-                StatusPill(failed ? StatusKind.Error : (buildDone ? StatusKind.Done : StatusKind.Idle), failed ? "Failed" : (buildDone ? "Compiled" : "Pending"))
+            Card("Flow Status", summaryText)[
+                StatusPill(stagePillKind, stageLabel)
             ],
-            Card("Test Verification", failed ? "Blocked by build/scenario failure." : (testDone ? $"Run {flow.FlowId}: Scenario verification passed." : $"Run {flow.FlowId}: Pending scenario verification."))[
-                StatusPill(failed ? StatusKind.Error : (testDone ? StatusKind.Done : StatusKind.Idle), failed ? "Failed" : (testDone ? "Verified" : "Pending"))
+            Card(
+                "Recorded Stages",
+                flow.Done.Length > 0
+                    ? $"Completed: {string.Join(", ", flow.Done)}"
+                    : $"Pending first stage ({flow.Current ?? "initializing"}).")[
+                StatusPill(
+                    buildRecorded && testRecorded ? StatusKind.Done : stagePillKind,
+                    $"{completedCount}/{totalCount} done")
             ]
         ];
     }
@@ -494,7 +521,8 @@ public static class CreatorView
         ];
         if (Consent(flow, approvals) is { } consent)
         {
-            children.Add(new ApprovalCardNode($"consent:{flow.FlowId}", consent.PlanId, consent.Title, consent.Detail, []));
+            var visual = VisualCatalog.ForApproval(consent.Subject);
+            children.Add(new ApprovalCardNode($"consent:{flow.FlowId}", consent.PlanId, consent.Title, consent.Detail, [], Icon: visual.IconKey, CapabilityLabel: visual.Label));
             children.Add(MutedText("Approve or deny in the inbox."));
         }
 

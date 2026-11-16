@@ -1,13 +1,17 @@
 using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Mcp;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -58,6 +62,8 @@ internal sealed class ArtCraftEngineNeuron(IServiceProvider? services = null, II
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            var logger = services?.GetService<ILoggerFactory>()?.CreateLogger<ArtCraftEngineNeuron>() ?? OsConsoleLog.For<ArtCraftEngineNeuron>();
+            logger.LogSwallowed(error, "resolving optional ArtCraft studio neuron");
             return null;
         }
     }
@@ -73,6 +79,8 @@ internal sealed class ArtCraftEngineNeuron(IServiceProvider? services = null, II
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            var logger = services?.GetService<ILoggerFactory>()?.CreateLogger<ArtCraftEngineNeuron>() ?? OsConsoleLog.For<ArtCraftEngineNeuron>();
+            logger.LogSwallowed(error, "resolving optional ArtCraft MCP server neuron");
             return null;
         }
     }
@@ -107,8 +115,9 @@ internal sealed class ArtCraftEngineNeuron(IServiceProvider? services = null, II
 
     private async Task<bool> IsAppGrantedAsync(string brain, string appId)
     {
-        var shortAppId = appId.StartsWith(brain + "/apps/", StringComparison.Ordinal)
-            ? appId[(brain.Length + "/apps/".Length)..]
+        var brainId = new DigitalBrain.BrainId(brain);
+        var shortAppId = IntoChat.OS.Primitives.AppRef.TryParse(brainId, appId, out var parsedApp)
+            ? parsedApp.Name
             : appId;
         var isShippedStudio = string.Equals(shortAppId, ShippedApps.Ino, StringComparison.Ordinal)
             || ArtCraftCatalog.IsArtCraftApp(shortAppId);
@@ -125,12 +134,16 @@ internal sealed class ArtCraftEngineNeuron(IServiceProvider? services = null, II
 
         var targetPrefix = $"apps.artcraft-engine/{brain}/";
         var fullTarget = $"apps.artcraft-engine/{brain}/{Id.Key}";
+        var fullAppKey = IntoChat.OS.Primitives.AppRef.TryOf(brainId, shortAppId, out var appRef) ? appRef.Key : null;
         var appGrantees = new HashSet<string>(StringComparer.Ordinal)
         {
             $"app:{appId}",
-            $"app:{brain}/apps/{appId}",
             $"app:{shortAppId}",
         };
+        if (fullAppKey is not null)
+        {
+            appGrantees.Add($"app:{fullAppKey}");
+        }
 
         foreach (var raw in grants)
         {

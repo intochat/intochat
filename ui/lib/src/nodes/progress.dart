@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../components/progress/ui_progress.dart';
@@ -24,10 +24,7 @@ Widget renderProgress(ProgressNode node, NodeContext ctx) => Builder(
         ),
         if (node.detail case final detail? when detail.isNotEmpty) ...[
           const SizedBox(height: 4),
-          Text(
-            detail,
-            style: UiType.tabularStyle(12.5, color: c.muted),
-          ),
+          Text(detail, style: UiType.tabularStyle(12.5, color: c.muted)),
         ],
       ],
     );

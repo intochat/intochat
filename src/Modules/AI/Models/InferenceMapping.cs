@@ -206,7 +206,7 @@ internal static class InferenceMapping
 }
 
 // A per-turn override read from a context entry; every field is optional and only set fields apply.
-public sealed record InferenceOverride(string? Model, float? Temperature, float? TopP, string? Reasoning, int? MaxOutputTokens, string? Persona)
+internal sealed record InferenceOverride(string? Model, float? Temperature, float? TopP, string? Reasoning, int? MaxOutputTokens, string? Persona)
 {
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 

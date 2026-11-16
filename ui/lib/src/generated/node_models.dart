@@ -604,6 +604,7 @@ final class ComposerNode {
     required this.enabled,
     required this.activeModelLabel,
     required this.activeProviderIcon,
+    required this.dictation,
   });
 
   final String key;
@@ -612,6 +613,7 @@ final class ComposerNode {
   final bool enabled;
   final String? activeModelLabel;
   final String? activeProviderIcon;
+  final bool dictation;
 
   factory ComposerNode.fromJson(Map<String, dynamic> json) => ComposerNode(
     key: _string(json['key']),
@@ -620,6 +622,7 @@ final class ComposerNode {
     enabled: _bool(json['enabled'], true),
     activeModelLabel: _stringOrNull(json['activeModelLabel']),
     activeProviderIcon: _stringOrNull(json['activeProviderIcon']),
+    dictation: _bool(json['dictation']),
   );
 }
 

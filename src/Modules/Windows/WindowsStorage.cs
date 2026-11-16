@@ -10,10 +10,10 @@ namespace IntoChat.OS.Modules.Microsoft.Windows;
 // storage@1 of a Windows PC (05-08, D-03): the allowed roots, read fresh on every call. An ItemId is "w:" plus the base64url of
 // the normalised full path; it is decoded only here and always resolved through PathConfinement, so an id outside the roots (an
 // escape, a system file, a revoked root) is Denied. Streams stage on the destination volume and publish only on commit.
-internal sealed partial class WindowsStorage(IReadOnlyList<string> roots, IVolumeProbe? volumes = null,
-    IOperations? operations = null, Func<IReadOnlyList<string>>? currentRoots = null, WindowsStorageCoordinator? coordinator = null) : IStorage
+internal sealed partial class WindowsStorage(IReadOnlyList<string> roots, WindowsStorageCoordinator coordinator,
+    IVolumeProbe? volumes = null, IOperations? operations = null, Func<IReadOnlyList<string>>? currentRoots = null) : IStorage
 {
-    private readonly WindowsStorageCoordinator _coordinator = coordinator ?? new();
+    private readonly WindowsStorageCoordinator _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
     internal const string IdPrefix = "w:";
     private const string Label = "This PC";
     private const string Kind = "windows";

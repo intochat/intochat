@@ -24,6 +24,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 | `admin-connection` | yes |
 | `connection-string` | yes |
 
-Contracts: assembly `IntoChat.OS.Modules.Postgres` (`IConnectionPostgresProviderFactory`, `IPostgresProvider`, `IPostgresServer`, `IPostgresSourceRegistry`, `ITableDescriptor`, `ITableIndex`, `ITableLifetime`, `ITableStore`, `ITable`, `ITablesSlot`).
+Contracts: assembly `IntoChat.OS.Modules.Postgres` (`IPostgresServer`, `ITable`).
 Hosting: needs a container.
 <!-- END GENERATED -->

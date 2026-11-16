@@ -16,7 +16,7 @@ namespace IntoChat.OS.Modules.Apps;
 /// ArtCraft WASM release cache, the compiled <c>.wasm</c>/<c>.js</c>/<c>.html</c> files are served.
 /// Otherwise, serves a minimal studio host page configured from <see cref="ArtCraftCatalog"/>.
 /// </summary>
-public static class ArtCraftWebEndpoints
+internal static class ArtCraftWebEndpoints
 {
     private static readonly FileExtensionContentTypeProvider ContentTypes = CreateContentTypeProvider();
 

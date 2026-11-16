@@ -517,54 +517,43 @@ class IcAppIcon extends StatelessWidget {
     return '$origin/artcraft/${craftSpec.appId}/index.html';
   }
 
+  static const Map<String, String> _appIdAliases = {
+    'assistant': 'ino',
+    'ino studio': 'ino',
+    'ino.studio': 'ino',
+    'brain graph': 'brain',
+    'home': 'desktop',
+    'token usage': 'usage',
+    'file': 'files',
+    'file vault': 'files',
+    'task': 'tasks',
+    'trace': 'trace',
+    'system traces': 'trace',
+    'excalidraw': 'markdraw',
+    'videocraft': 'filmcraft',
+    'studio': 'creator',
+    'ui gallery': 'gallery',
+    'friend': 'friends',
+    'publish': 'post',
+    'setting': 'settings',
+    'circle': 'circles',
+    'circleroom': 'circles',
+    'spaces': 'circles',
+    'marketplace': 'circles',
+    'calc': 'calculator',
+    'data visualizer': 'datavisualizer',
+    'data studio': 'data',
+  };
+
   static String normalizeAppId(String raw) {
     final lower = raw.trim().toLowerCase();
     if (builtInSpecs.containsKey(lower)) return lower;
-    if (lower == 'assistant' ||
-        lower == 'ino' ||
-        lower.startsWith('ino ') ||
-        lower == 'ino.studio') {
-      return 'ino';
+    final aliased = _appIdAliases[lower];
+    if (aliased != null) return aliased;
+    if (lower.startsWith('artcraft:')) {
+      final candidate = lower.substring('artcraft:'.length);
+      if (builtInSpecs.containsKey(candidate)) return candidate;
     }
-    if (lower.contains('aspire')) return 'aspire';
-    if (lower == 'brain' || lower == 'brain graph') return 'brain';
-    if (lower == 'workspace') return 'workspace';
-    if (lower == 'desktop' || lower == 'home') return 'desktop';
-    if (lower == 'usage' || lower == 'token usage') return 'usage';
-    if (lower == 'file' || lower == 'files' || lower == 'file vault') {
-      return 'files';
-    }
-    if (lower == 'task' || lower == 'tasks') return 'tasks';
-    if (lower == 'trace' || lower == 'traces' || lower == 'system traces') {
-      return 'trace';
-    }
-    if (lower.contains('markdraw') || lower.contains('excalidraw')) {
-      return 'markdraw';
-    }
-    if (lower.contains('photocraft')) return 'photocraft';
-    if (lower.contains('filmcraft') || lower.contains('videocraft')) {
-      return 'filmcraft';
-    }
-    for (final key in builtInSpecs.keys) {
-      if (key.endsWith('craft') && lower.contains(key)) return key;
-    }
-    if (lower == 'creator' || lower == 'studio') return 'creator';
-    if (lower == 'gallery' || lower == 'ui gallery') return 'gallery';
-    if (lower == 'friends' || lower == 'friend') return 'friends';
-    if (lower == 'post' || lower == 'publish') return 'post';
-    if (lower == 'setting' || lower == 'settings') return 'settings';
-    if (lower == 'circle' ||
-        lower == 'circles' ||
-        lower == 'circleroom' ||
-        lower == 'spaces' ||
-        lower == 'marketplace') {
-      return 'circles';
-    }
-    if (lower == 'calc' || lower == 'calculator') return 'calculator';
-    if (lower == 'datavisualizer' || lower == 'data visualizer') {
-      return 'datavisualizer';
-    }
-    if (lower == 'data' || lower == 'data studio') return 'data';
     return lower;
   }
 
@@ -582,19 +571,27 @@ class IcAppIcon extends StatelessWidget {
   static String humanizeAppTitle(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return 'App';
+    final known =
+        builtInSpecs[_appIdAliases[trimmed.toLowerCase()] ??
+            trimmed.toLowerCase()];
+    if (known != null) return known.title;
     if (trimmed.contains(' ') || trimmed.toLowerCase() != trimmed) {
       return trimmed;
     }
     if (trimmed == 'helloworld') return 'Hello World';
     if (trimmed == 'btcalert') return 'BTC Alert';
-    if (trimmed.startsWith('btc') && trimmed.length > 3) {
-      return 'BTC ${_capitalize(trimmed.substring(3))}';
+    final words = <String>[];
+    var start = 0;
+    for (var i = 0; i < trimmed.length; i++) {
+      final code = trimmed.codeUnitAt(i);
+      if (code == 45 || code == 95 || code == 46) {
+        if (i > start) words.add(_capitalize(trimmed.substring(start, i)));
+        start = i + 1;
+      }
     }
-    final words = trimmed
-        .split(RegExp(r'[-_.]+'))
-        .where((s) => s.isNotEmpty)
-        .map(_capitalize)
-        .toList();
+    if (start < trimmed.length) {
+      words.add(_capitalize(trimmed.substring(start)));
+    }
     return words.isEmpty ? _capitalize(trimmed) : words.join(' ');
   }
 

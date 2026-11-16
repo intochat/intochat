@@ -11,7 +11,7 @@ public static class IntoChatOSNames
     public const string GrainState = "grainstate";
     public const string ClusterGrainStorage = "cluster";
     public const string PlatformGrainStorage = "platform";
-    // Pinned equal to IntoChat.OS.Kernel.Composition.OsRuntimeOptions.Value (and Topology.ToConfigValue()) by TopologyKeysMatchRuntimeFacts.
+    // Pinned equal to IntoChat.OS.Kernel.Composition.Kernel.OsRuntimeOptions.Value (and Topology.ToConfigValue()) by TopologyKeysMatchRuntimeFacts.
     // Kept because their consumers (ServiceDefaults, AppHost, Aspire hosting, module installers) stay Orleans-free (03-13).
     // Where local state lives (<Home>/state, <Home>/secrets); unset means ~/.intochat.
     public const string HomeKey = "IntoChatOS:Home";
@@ -25,7 +25,7 @@ public static class IntoChatOSNames
     // interface). Unset means loopback only.
     public const string BindKey = "IntoChatOS:Bind";
     // Topology=cloud: the one storage account (tables, blobs, queues) and the Key Vault the cloud topology reads
-    // (the same strings as IntoChat.OS.Kernel.Composition.OsRuntimeOptions.Value.CloudStorageKey and CloudKeyVaultKey, P2-D-22).
+    // (the same strings as IntoChat.OS.Kernel.Composition.Kernel.OsRuntimeOptions.Value.CloudStorageKey and CloudKeyVaultKey, P2-D-22).
     public const string CloudStorageConfigurationKey = "IntoChatOS:Cloud:Storage";
     public const string CloudKeyVaultConfigurationKey = "IntoChatOS:Cloud:KeyVault";
     public const string MasterKeyConfigurationKey = "IntoChatOS:MasterKey";
@@ -46,6 +46,7 @@ public static class IntoChatOSNames
     public const string FrontEnabledKey = "IntoChatOS:Http:Front";
     public const string LocalGpuKey = "IntoChatOS:Local:Gpu";
     public const string LocalModelKey = "IntoChatOS:Local:Model";
+    public const string LocalDefaultChatModel = "qwen3.5:4b";
     public const string LocalOllamaEndpoint = "http://localhost:11434";
 
     // The modules switched off by default in local and local+cloud runs: the one list every host and the kernel read.

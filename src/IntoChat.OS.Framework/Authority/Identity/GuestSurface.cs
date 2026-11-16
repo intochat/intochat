@@ -11,7 +11,7 @@ public static class GuestSurface
     // how the guest itself is made.
     public const string BrainPrefix = "try-";
 
-    // A guest is never a person: its session is stamped as this app, as unproved loopback traffic is stamped LocalAppId.
+    // A guest is never a person: its session is stamped as this app, and never inherits Actor.Person.
     public const string AppId = "guest";
 
     public static IReadOnlyList<string> Tools { get; } = ["screen_list", "screen_read", "screen_act"];
@@ -30,7 +30,7 @@ public static class GuestSurface
     public static bool MayOpen(string? appId) => appId is not null && Screens.Contains(appId, StringComparer.Ordinal);
 
     // Marks an endpoint a guest may be admitted on. A guest is anonymous on every endpoint without it.
-    internal sealed class Door
+    public sealed class Door
     {
         public static readonly Door Instance = new();
     }

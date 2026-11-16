@@ -16,9 +16,9 @@ using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.Markdraw;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Apps.Data;
 
@@ -66,26 +66,35 @@ public sealed record DataStudioAppState(
     [Invariant("Dataset collections are never null."), JsonIgnore]
     public bool CollectionsNonNull => Columns is not null && Rows is not null && ChartPoints is not null && WorkspaceDatasets is not null;
 
-    public Rule HasDatasetRows() => Decision.Rule("dataset_empty", Rows.Length == 0, "Load a dataset before exporting.");
+    public Rule HasDatasetRows() => Decision.Rule("dataset_empty", Rows, static r => r.Length == 0, "Load a dataset before exporting.");
 
-    public Rule SupportedChartKind(string? kind) =>
-        Decision.Rule("invalid_chart_kind", string.IsNullOrWhiteSpace(kind) || kind.Trim().ToLowerInvariant() is not ("bar" or "line" or "pie"), "Chart kind must be bar, line, or pie.");
+    public Rule SupportedChartKind(string? kind) => Decision.Rule(
+        "invalid_chart_kind",
+        kind,
+        static k => string.IsNullOrWhiteSpace(k) || k.Trim().ToLowerInvariant() is not ("bar" or "line" or "pie"),
+        "Chart kind must be bar, line, or pie.");
 
     public Decision<DataStudioAppState> SwitchChart([Sample("bar", "line", "pie", "radar")] string kind) =>
         Decision.Check("switch-chart", SupportedChartKind(kind)) ?? Decision.Accept(DataStudioDecisions.DecideSwitchChart(this, kind));
 
     public Decision<DataStudioAppState> RecordCsvExport([Sample("/work/analytics-export.csv")] string targetPath) =>
-        Decision.Check("export-csv", HasDatasetRows(), Decision.Rule("empty_export_path", string.IsNullOrWhiteSpace(targetPath), "Target CSV path is required."))
+        Decision.Check("export-csv", HasDatasetRows(), Decision.Rule("empty_export_path", targetPath, static p => string.IsNullOrWhiteSpace(p), "Target CSV path is required."))
         ?? Decision.Accept(DataStudioDecisions.DecideExportCsv(this, targetPath.Trim(), WorkspaceDatasets));
 
     public Decision<DataStudioAppState> RecordMarkdrawLineage([Sample("/work/data-lineage.markdraw")] string docPath) =>
-        Decision.Check("to-markdraw", HasDatasetRows(), Decision.Rule("empty_markdraw_path", string.IsNullOrWhiteSpace(docPath), "Target Markdraw path is required."))
+        Decision.Check("to-markdraw", HasDatasetRows(), Decision.Rule("empty_markdraw_path", docPath, static p => string.IsNullOrWhiteSpace(p), "Target Markdraw path is required."))
         ?? Decision.Accept(DataStudioDecisions.DecideToMarkdraw(this, docPath.Trim()));
 }
 
 [Neuron("app.data"), Screen("app.data", Title = "Data Studio")]
 public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFilesVfs
 {
+    protected override Task OnActivate(CancellationToken cancellationToken)
+    {
+        AppActivationScope.Notify(this);
+        return base.OnActivate(cancellationToken);
+    }
+
     public IFilesVfsService? FilesVfs { get; set; }
     public const string AppName = "data";
 
@@ -127,11 +136,11 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFi
     {
         get
         {
-            try { return Id.Brain.Value is { Length: > 0 } b ? b : "local"; }
+            try { return Id.Brain.Value; }
             catch (InvalidOperationException error)
             {
-                NullLogger.Instance.LogSwallowed(error, "Unattached neuron uses default local brain id in isolated tests.");
-                return "local";
+                OsConsoleLog.For<DataStudioApp>().LogSwallowed(error, "Unattached neuron has no assigned brain id in isolated tests.");
+                return string.Empty;
             }
         }
     }
@@ -205,7 +214,7 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFi
     {
         if (FilesVfs is null) { return path; }
         try { return (await FilesVfs.WriteTextAsync(path, content)).VfsPath; }
-        catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Failed to write text to VFS path."); return path; }
+        catch (Exception ex) { OsConsoleLog.For<DataStudioApp>().LogSwallowed(ex, "Failed to write text to VFS path."); return path; }
     }
 
     private async Task RunAndSetQueryResultAsync(string source, string queryText, string preferredChartKind)
@@ -231,7 +240,7 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFi
                     .Where(f => Path.GetExtension(f.Name).ToLowerInvariant() is ".csv" or ".tsv" or ".json")
                     .Select(f => f.VfsPath));
             }
-            catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Failed to list VFS files for data sources."); }
+            catch (Exception ex) { OsConsoleLog.For<DataStudioApp>().LogSwallowed(ex, "Failed to list VFS files for data sources."); }
         }
         return [.. list.Distinct(StringComparer.OrdinalIgnoreCase)];
     }

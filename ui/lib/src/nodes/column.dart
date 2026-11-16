@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
@@ -45,7 +45,10 @@ Widget renderColumn(ColumnNode node, NodeContext ctx) {
             }
             if (ext > 0 && ext <= 1) {
               return boundedHeight
-                  ? Expanded(flex: math.max(1, (ext * 100).round()), child: child)
+                  ? Expanded(
+                      flex: math.max(1, (ext * 100).round()),
+                      child: child,
+                    )
                   : child;
             }
             if (ext == -1) {
@@ -55,10 +58,16 @@ Widget renderColumn(ColumnNode node, NodeContext ctx) {
               return Align(alignment: Alignment.center, child: child);
             }
             if (ext == -3) {
-              return Align(alignment: AlignmentDirectional.centerEnd, child: child);
+              return Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: child,
+              );
             }
             if (ext == -4) {
-              return Align(alignment: AlignmentDirectional.centerStart, child: child);
+              return Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: child,
+              );
             }
           }
 
@@ -76,9 +85,7 @@ Widget renderColumn(ColumnNode node, NodeContext ctx) {
           mainAxisSize: hasVerticalFlex ? MainAxisSize.max : MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: gap,
-          children: [
-            for (var i = 0; i < children.length; i++) wrapChild(i),
-          ],
+          children: [for (var i = 0; i < children.length; i++) wrapChild(i)],
         );
       },
     ),

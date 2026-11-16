@@ -1,12 +1,15 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using System.Runtime.Serialization;
 using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Invocation;
 using DigitalBrain.UI;
+using DigitalBrain.Units;
 using IntoChat.Sdk;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Sandbox;
 
@@ -74,6 +77,7 @@ public sealed class AppSandboxHost
     private readonly HttpClient _httpClient;
     private readonly Uri _defaultKernelUri;
     private readonly ILogger<AppSandboxHost> _logger;
+    private readonly string? _contractsDirectory;
 
     [ActivatorUtilitiesConstructor]
     public AppSandboxHost(
@@ -83,19 +87,23 @@ public sealed class AppSandboxHost
         : this(
             httpClient,
             ResolveConfiguredKernelUri(configuration),
-            logger)
+            logger,
+            contractsDirectory: null)
     {
     }
 
     public AppSandboxHost(
         HttpClient httpClient,
         Uri? defaultKernelUri = null,
-        ILogger<AppSandboxHost>? logger = null)
+        ILogger<AppSandboxHost>? logger = null,
+        string? contractsDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
         _httpClient = httpClient;
         _defaultKernelUri = defaultKernelUri ?? FallbackKernelUri;
-        _logger = logger ?? NullLogger<AppSandboxHost>.Instance;
+        _logger = logger ?? SandboxConsoleLog.For<AppSandboxHost>();
+        _contractsDirectory = string.IsNullOrWhiteSpace(contractsDirectory) ? null : contractsDirectory;
+        AppLoadContext.ConfigureContractsDirectory(_contractsDirectory);
     }
 
     public int LoadedAppCount => _apps.Count;
@@ -110,7 +118,7 @@ public sealed class AppSandboxHost
 
         var key = DeploymentKey(request.BrainId, request.AppKey);
         var assemblyBytes = Convert.FromBase64String(request.AssemblyBase64);
-        var loadContext = new AppLoadContext($"{key}@{request.Version}");
+        var loadContext = new AppLoadContext($"{key}@{request.Version}", _contractsDirectory);
 
         LoadedApp loaded;
         try
@@ -121,6 +129,7 @@ public sealed class AppSandboxHost
         }
         catch
         {
+            RuntimeProtocol.Forget(loadContext);
             loadContext.Unload();
             throw;
         }
@@ -155,8 +164,8 @@ public sealed class AppSandboxHost
                 loaded.Title,
                 loaded.Summary,
                 [.. loaded.Commands.Values.Select(c => new SandboxCommandDescriptor(c.Name, c.Description))],
-                [.. loaded.SignalHandlers.Keys],
-                [.. loaded.ScheduleHandlers.Keys],
+                [.. loaded.SignalHandlers.Keys.Concat(loaded.SynapseSignals.Keys).Distinct(StringComparer.OrdinalIgnoreCase)],
+                [.. loaded.ScheduleHandlers.Keys.Concat(loaded.SynapseSchedules.Keys).Distinct(StringComparer.OrdinalIgnoreCase)],
                 initialViewJson,
                 initialStateJson);
         }
@@ -203,6 +212,24 @@ public sealed class AppSandboxHost
                             break;
                         }
 
+                        if (loaded.IsSynapseUnit)
+                        {
+                            if (string.IsNullOrWhiteSpace(request.Name)
+                                || !loaded.SynapseSignals.TryGetValue(request.Name, out var synapseSignalHandlers))
+                            {
+                                handled = false;
+                                break;
+                            }
+
+                            handled = true;
+                            foreach (var descriptor in synapseSignalHandlers)
+                            {
+                                await InvokeSynapseAsync(loaded, descriptor, request.Name, request.PayloadJson, cancellationToken)
+                                    .ConfigureAwait(false);
+                            }
+                            break;
+                        }
+
                         if (string.IsNullOrWhiteSpace(request.Name)
                             || !loaded.SignalHandlers.TryGetValue(request.Name, out var signalMethods))
                         {
@@ -213,12 +240,30 @@ public sealed class AppSandboxHost
                         handled = true;
                         foreach (var method in signalMethods)
                         {
-                            invocationResult = await InvokeHandlerAsync(loaded.Instance, method, request.PayloadJson, cancellationToken)
+                            invocationResult = await InvokeHandlerAsync(loaded.Instance!, method, request.PayloadJson, cancellationToken)
                                 .ConfigureAwait(false);
                         }
                         break;
 
                     case "schedule":
+                        if (loaded.IsSynapseUnit)
+                        {
+                            if (string.IsNullOrWhiteSpace(request.Name)
+                                || !loaded.SynapseSchedules.TryGetValue(request.Name, out var synapseScheduleHandlers))
+                            {
+                                handled = false;
+                                break;
+                            }
+
+                            handled = true;
+                            foreach (var descriptor in synapseScheduleHandlers)
+                            {
+                                await InvokeSynapseAsync(loaded, descriptor, request.Name, request.PayloadJson, cancellationToken)
+                                    .ConfigureAwait(false);
+                            }
+                            break;
+                        }
+
                         if (string.IsNullOrWhiteSpace(request.Name)
                             || !loaded.ScheduleHandlers.TryGetValue(request.Name, out var scheduleMethods))
                         {
@@ -229,7 +274,7 @@ public sealed class AppSandboxHost
                         handled = true;
                         foreach (var method in scheduleMethods)
                         {
-                            invocationResult = await InvokeHandlerAsync(loaded.Instance, method, request.PayloadJson, cancellationToken)
+                            invocationResult = await InvokeHandlerAsync(loaded.Instance!, method, request.PayloadJson, cancellationToken)
                                 .ConfigureAwait(false);
                         }
                         break;
@@ -243,7 +288,8 @@ public sealed class AppSandboxHost
                         }
 
                         if (string.IsNullOrWhiteSpace(request.Name)
-                            || !loaded.Commands.TryGetValue(request.Name, out var command))
+                            || !loaded.Commands.TryGetValue(request.Name, out var command)
+                            || loaded.Instance is null)
                         {
                             handled = false;
                             break;
@@ -308,7 +354,12 @@ public sealed class AppSandboxHost
 
     private LoadedApp CreateLoadedApp(DeployAppRequest request, Assembly assembly, AppLoadContext loadContext)
     {
-        var (appType, appAttribute, brainAppBaseType) = DiscoverAppType(assembly, request.AppKey);
+        if (!TryDiscoverAppType(assembly, request.AppKey, out var discovered))
+        {
+            return CreateLoadedSynapseUnit(request, assembly, loadContext);
+        }
+
+        var (appType, appAttribute, brainAppBaseType) = discovered;
         var typeArgs = brainAppBaseType.GetGenericArguments();
         var stateType = typeArgs[0];
         var settingsType = typeArgs[1];
@@ -389,10 +440,95 @@ public sealed class AppSandboxHost
             appToken,
             signalHandlers,
             scheduleHandlers,
-            commands);
+            commands,
+            isSynapseUnit: false,
+            synapseState: null,
+            slotBindings: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            synapseSignals: new Dictionary<string, List<SynapseDescriptor>>(StringComparer.OrdinalIgnoreCase),
+            synapseSchedules: new Dictionary<string, List<SynapseDescriptor>>(StringComparer.OrdinalIgnoreCase));
     }
 
-    private (Type AppType, AppAttribute Attribute, Type BrainAppBaseType) DiscoverAppType(Assembly assembly, string requestedAppKey)
+    private LoadedApp CreateLoadedSynapseUnit(DeployAppRequest request, Assembly assembly, AppLoadContext loadContext)
+    {
+        var catalog = SynapseCatalog.Scan(assembly);
+        if (catalog.Synapses.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Assembly '{assembly.GetName().Name}' contains no [App] type inheriting BrainApp<TState, TSettings> and no [Synapse] methods.");
+        }
+
+        var stateType = catalog.States.Values.FirstOrDefault()
+            ?? catalog.Synapses[0].State;
+        var initialState = DeserializeOrCreate(request.StateJson, stateType);
+        var kernelUri = ResolveKernelUri(request.KernelUrl, _defaultKernelUri);
+        var appToken = request.AppToken ?? string.Empty;
+        var slotBindings = ParseSlotBindings(request.SettingsJson);
+
+        MethodInfo? renderMethod = null;
+        var synapseSignals = new Dictionary<string, List<SynapseDescriptor>>(StringComparer.OrdinalIgnoreCase);
+        var synapseSchedules = new Dictionary<string, List<SynapseDescriptor>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var descriptor in catalog.Synapses)
+        {
+            if (descriptor.Kind == SynapseKind.View)
+            {
+                renderMethod ??= descriptor.Function;
+                continue;
+            }
+
+            if (descriptor.Every is { Text.Length: > 0 } every)
+            {
+                if (!synapseSchedules.TryGetValue(every.Text, out var schedList))
+                {
+                    schedList = [];
+                    synapseSchedules[every.Text] = schedList;
+                }
+                schedList.Add(descriptor);
+            }
+
+            var signalAlias = descriptor.SignalAlias
+                ?? descriptor.Signal?.GetCustomAttribute<SignalAttribute>(inherit: false)?.Alias
+                ?? descriptor.Signal?.Name;
+            if (!string.IsNullOrWhiteSpace(signalAlias))
+            {
+                if (!synapseSignals.TryGetValue(signalAlias, out var sigList))
+                {
+                    sigList = [];
+                    synapseSignals[signalAlias] = sigList;
+                }
+                sigList.Add(descriptor);
+            }
+        }
+
+        return new LoadedApp(
+            loadContext,
+            instance: null,
+            stateType,
+            settingsType: typeof(Dictionary<string, string>),
+            bindMethod: null,
+            renderMethod,
+            stateProperty: null,
+            settingsProperty: null,
+            request.BrainId,
+            request.AppKey,
+            title: request.AppKey,
+            summary: string.Empty,
+            kernelUri,
+            appToken,
+            signalHandlers: new Dictionary<string, List<MethodInfo>>(StringComparer.OrdinalIgnoreCase),
+            scheduleHandlers: new Dictionary<string, List<MethodInfo>>(StringComparer.OrdinalIgnoreCase),
+            commands: new Dictionary<string, CommandEntry>(StringComparer.OrdinalIgnoreCase),
+            isSynapseUnit: true,
+            synapseState: initialState,
+            slotBindings,
+            synapseSignals,
+            synapseSchedules);
+    }
+
+    private bool TryDiscoverAppType(
+        Assembly assembly,
+        string requestedAppKey,
+        out (Type AppType, AppAttribute Attribute, Type BrainAppBaseType) discovered)
     {
         Type[] types;
         try
@@ -436,19 +572,21 @@ public sealed class AppSandboxHost
 
         if (candidates.Count == 0)
         {
-            throw new InvalidOperationException(
-                $"Assembly '{assembly.GetName().Name}' contains no [App] type inheriting BrainApp<TState, TSettings>.");
+            discovered = default;
+            return false;
         }
 
         var exact = candidates.FirstOrDefault(c => string.Equals(c.Attribute.Key, requestedAppKey, StringComparison.OrdinalIgnoreCase));
         if (exact.AppType is not null)
         {
-            return exact;
+            discovered = exact;
+            return true;
         }
 
         if (candidates.Count == 1)
         {
-            return candidates[0];
+            discovered = candidates[0];
+            return true;
         }
 
         throw new InvalidOperationException(
@@ -487,18 +625,154 @@ public sealed class AppSandboxHost
             needsRebind = true;
         }
 
+        if (loaded.IsSynapseUnit)
+        {
+            if (!string.IsNullOrWhiteSpace(request.StateJson))
+            {
+                loaded.SynapseState = DeserializeOrCreate(request.StateJson, loaded.StateType);
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.SettingsJson))
+            {
+                loaded.SlotBindings = ParseSlotBindings(request.SettingsJson);
+            }
+
+            return;
+        }
+
         var state = !string.IsNullOrWhiteSpace(request.StateJson)
             ? DeserializeOrCreate(request.StateJson, loaded.StateType)
-            : loaded.StateProperty.GetValue(loaded.Instance) ?? Activator.CreateInstance(loaded.StateType)!;
+            : loaded.StateProperty!.GetValue(loaded.Instance) ?? Activator.CreateInstance(loaded.StateType)!;
 
         var settings = !string.IsNullOrWhiteSpace(request.SettingsJson)
             ? DeserializeOrCreate(request.SettingsJson, loaded.SettingsType)
-            : loaded.SettingsProperty.GetValue(loaded.Instance) ?? Activator.CreateInstance(loaded.SettingsType)!;
+            : loaded.SettingsProperty!.GetValue(loaded.Instance) ?? Activator.CreateInstance(loaded.SettingsType)!;
 
         if (needsRebind || !string.IsNullOrWhiteSpace(request.StateJson) || !string.IsNullOrWhiteSpace(request.SettingsJson))
         {
             var client = new IntoChatClient(loaded.BrainId, loaded.AppKey, loaded.KernelUri, loaded.AppToken, _httpClient, _logger);
-            loaded.BindMethod.Invoke(loaded.Instance, [client, state, settings]);
+            loaded.BindMethod!.Invoke(loaded.Instance, [client, state, settings]);
+        }
+    }
+
+    private async Task InvokeSynapseAsync(
+        LoadedApp loaded,
+        SynapseDescriptor descriptor,
+        string signalAlias,
+        string? payloadJson,
+        CancellationToken cancellationToken)
+    {
+        var client = new IntoChatClient(loaded.BrainId, loaded.AppKey, loaded.KernelUri, loaded.AppToken, _httpClient, _logger);
+        var currentState = loaded.SynapseState ?? DeserializeOrCreate(null, loaded.StateType);
+        var parameters = descriptor.Function.GetParameters();
+        var args = new object?[parameters.Length];
+
+        using var payloadDoc = TryParseJson(payloadJson);
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            var param = parameters[i];
+            var paramType = param.ParameterType;
+            if (param.GetCustomAttribute<DigitalBrain.SlotAttribute>(inherit: false) is { } slotAttr)
+            {
+                if (paramType.IsGenericType && paramType.GetGenericTypeDefinition() == typeof(Asks<>))
+                {
+                    throw new NotSupportedException(
+                        $"Synapse '{descriptor.Name}' uses legacy Asks<T>; declare the typed capability contract directly with [Slot].");
+                }
+
+                var logicalName = slotAttr.Name ?? param.Name ?? string.Empty;
+                var targetSlot = loaded.SlotBindings.TryGetValue(logicalName, out var mapped) ? mapped : logicalName;
+                args[i] = client.Slot(paramType, string.IsNullOrWhiteSpace(targetSlot) ? null : targetSlot);
+                continue;
+            }
+
+            if (paramType == loaded.StateType)
+            {
+                args[i] = currentState;
+                continue;
+            }
+
+            if (paramType == typeof(CancellationToken))
+            {
+                args[i] = cancellationToken;
+                continue;
+            }
+
+            if (paramType == typeof(SignalEnvelope))
+            {
+                var element = payloadDoc?.RootElement.Clone() ?? JsonDocument.Parse("{}").RootElement.Clone();
+                args[i] = new SignalEnvelope(signalAlias, element, null, null);
+                continue;
+            }
+
+            if (typeof(Signal).IsAssignableFrom(paramType))
+            {
+                var raw = string.IsNullOrWhiteSpace(payloadJson) ? "{}" : payloadJson;
+                args[i] = JsonSerializer.Deserialize(raw, paramType, RuntimeProtocol.OptionsFor(paramType))
+                    ?? DeserializeOrCreate(null, paramType);
+                continue;
+            }
+
+            args[i] = FallbackValue(param);
+        }
+
+        var rawResult = descriptor.Function.Invoke(null, args);
+        object? outcome = rawResult;
+        if (rawResult is Task task)
+        {
+            await task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            outcome = descriptor.Function.ReturnType.IsGenericType
+                ? task.GetType().GetProperty("Result", BindingFlags.Instance | BindingFlags.Public)?.GetValue(task)
+                : null;
+        }
+        else if (rawResult is ValueTask valueTask)
+        {
+            await valueTask.ConfigureAwait(false);
+            outcome = null;
+        }
+        else if (rawResult is not null && rawResult.GetType() is { IsGenericType: true } vtType && vtType.GetGenericTypeDefinition() == typeof(ValueTask<>))
+        {
+            var asTask = (Task)vtType.GetMethod("AsTask", BindingFlags.Instance | BindingFlags.Public)!.Invoke(rawResult, null)!;
+            await asTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            outcome = asTask.GetType().GetProperty("Result", BindingFlags.Instance | BindingFlags.Public)?.GetValue(asTask);
+        }
+
+        if (outcome is null)
+        {
+            return;
+        }
+
+        if (loaded.StateType.IsInstanceOfType(outcome))
+        {
+            loaded.SynapseState = outcome;
+            return;
+        }
+
+        var outcomeType = outcome.GetType();
+        if (outcomeType.IsGenericType && outcomeType.GetGenericTypeDefinition() == typeof(Reaction<>))
+        {
+            if (outcomeType.GetProperty("Next", BindingFlags.Instance | BindingFlags.Public)?.GetValue(outcome) is { } nextState)
+            {
+                loaded.SynapseState = nextState;
+            }
+
+            if (outcomeType.GetProperty("Signals", BindingFlags.Instance | BindingFlags.Public)?.GetValue(outcome) is IReadOnlyList<Signal> signals)
+            {
+                var publishGeneric = typeof(IntoChatClient).GetMethod(nameof(IntoChatClient.PublishAsync), BindingFlags.Instance | BindingFlags.Public)!;
+                foreach (var sig in signals)
+                {
+                    if (sig is null)
+                    {
+                        continue;
+                    }
+
+                    var taskObj = publishGeneric.MakeGenericMethod(sig.GetType()).Invoke(client, [sig, cancellationToken]);
+                    if (taskObj is Task publishTask)
+                    {
+                        await publishTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    }
+                }
+            }
         }
     }
 
@@ -695,6 +969,11 @@ public sealed class AppSandboxHost
             return null;
         }
 
+        if (loaded.IsSynapseUnit || loaded.Instance is null || loaded.StateProperty is null || loaded.SettingsProperty is null || loaded.BindMethod is null)
+        {
+            return null;
+        }
+
         var currentState = loaded.StateProperty.GetValue(loaded.Instance)
             ?? Activator.CreateInstance(loaded.StateType)!;
         var method = loaded.StateType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
@@ -779,8 +1058,15 @@ public sealed class AppSandboxHost
 
     private static string? RenderViewJson(LoadedApp loaded)
     {
+        if (loaded.RenderMethod is null)
+        {
+            return null;
+        }
+
         using var scope = IntoChat.OS.UI.CommandBinding.PushOwner(loaded.AppKey);
-        var view = (View?)loaded.RenderMethod.Invoke(loaded.Instance, null);
+        var view = loaded.IsSynapseUnit
+            ? (View?)loaded.RenderMethod.Invoke(null, [loaded.SynapseState ?? DeserializeOrCreate(null, loaded.StateType)])
+            : (View?)loaded.RenderMethod.Invoke(loaded.Instance, null);
         if (view is null)
         {
             return null;
@@ -792,7 +1078,9 @@ public sealed class AppSandboxHost
 
     private static string SerializeState(LoadedApp loaded)
     {
-        var state = loaded.StateProperty.GetValue(loaded.Instance);
+        var state = loaded.IsSynapseUnit
+            ? loaded.SynapseState
+            : loaded.StateProperty?.GetValue(loaded.Instance);
         return JsonSerializer.Serialize(state, loaded.StateType, IntoChatClient.JsonOptions);
     }
 
@@ -807,8 +1095,56 @@ public sealed class AppSandboxHost
             }
         }
 
-        return Activator.CreateInstance(targetType)
-            ?? throw new InvalidOperationException($"Could not instantiate '{targetType.FullName}'.");
+        if (targetType.GetConstructor(Type.EmptyTypes) is not null)
+        {
+            return Activator.CreateInstance(targetType)!;
+        }
+
+        var fromEmptyJson = JsonSerializer.Deserialize("{}", targetType, IntoChatClient.JsonOptions);
+        if (fromEmptyJson is not null)
+        {
+            return fromEmptyJson;
+        }
+
+#pragma warning disable SYSLIB0050
+        return FormatterServices.GetUninitializedObject(targetType);
+#pragma warning restore SYSLIB0050
+    }
+
+    private static Dictionary<string, string> ParseSlotBindings(string? settingsJson)
+    {
+        var bindings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        using var doc = TryParseJson(settingsJson);
+        if (doc is null || doc.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            return bindings;
+        }
+
+        if (doc.RootElement.TryGetProperty("slots", out var slotsElement) && slotsElement.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in slotsElement.EnumerateObject())
+            {
+                if (prop.Value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(prop.Value.GetString()))
+                {
+                    bindings[prop.Name] = prop.Value.GetString()!;
+                }
+            }
+        }
+
+        foreach (var prop in doc.RootElement.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, "slots", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (prop.Value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(prop.Value.GetString()))
+            {
+                bindings.TryAdd(prop.Name, prop.Value.GetString()!);
+            }
+        }
+
+        return bindings;
     }
 
     private static async Task UnloadInstanceAsync(LoadedApp loaded, CancellationToken cancellationToken)
@@ -816,6 +1152,7 @@ public sealed class AppSandboxHost
         await loaded.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            RuntimeProtocol.Forget(loaded.LoadContext);
             loaded.LoadContext.Unload();
         }
         finally
@@ -849,13 +1186,13 @@ public sealed class AppSandboxHost
 
     private sealed class LoadedApp(
         AppLoadContext loadContext,
-        object instance,
+        object? instance,
         Type stateType,
         Type settingsType,
-        MethodInfo bindMethod,
-        MethodInfo renderMethod,
-        PropertyInfo stateProperty,
-        PropertyInfo settingsProperty,
+        MethodInfo? bindMethod,
+        MethodInfo? renderMethod,
+        PropertyInfo? stateProperty,
+        PropertyInfo? settingsProperty,
         string brainId,
         string appKey,
         string title,
@@ -864,17 +1201,22 @@ public sealed class AppSandboxHost
         string appToken,
         Dictionary<string, List<MethodInfo>> signalHandlers,
         Dictionary<string, List<MethodInfo>> scheduleHandlers,
-        Dictionary<string, CommandEntry> commands)
+        Dictionary<string, CommandEntry> commands,
+        bool isSynapseUnit,
+        object? synapseState,
+        Dictionary<string, string> slotBindings,
+        Dictionary<string, List<SynapseDescriptor>> synapseSignals,
+        Dictionary<string, List<SynapseDescriptor>> synapseSchedules)
     {
         public SemaphoreSlim Gate { get; } = new(1, 1);
         public AppLoadContext LoadContext { get; } = loadContext;
-        public object Instance { get; } = instance;
+        public object? Instance { get; } = instance;
         public Type StateType { get; } = stateType;
         public Type SettingsType { get; } = settingsType;
-        public MethodInfo BindMethod { get; } = bindMethod;
-        public MethodInfo RenderMethod { get; } = renderMethod;
-        public PropertyInfo StateProperty { get; } = stateProperty;
-        public PropertyInfo SettingsProperty { get; } = settingsProperty;
+        public MethodInfo? BindMethod { get; } = bindMethod;
+        public MethodInfo? RenderMethod { get; } = renderMethod;
+        public PropertyInfo? StateProperty { get; } = stateProperty;
+        public PropertyInfo? SettingsProperty { get; } = settingsProperty;
         public string BrainId { get; } = brainId;
         public string AppKey { get; } = appKey;
         public string Title { get; } = title;
@@ -884,5 +1226,10 @@ public sealed class AppSandboxHost
         public Dictionary<string, List<MethodInfo>> SignalHandlers { get; } = signalHandlers;
         public Dictionary<string, List<MethodInfo>> ScheduleHandlers { get; } = scheduleHandlers;
         public Dictionary<string, CommandEntry> Commands { get; } = commands;
+        public bool IsSynapseUnit { get; } = isSynapseUnit;
+        public object? SynapseState { get; set; } = synapseState;
+        public Dictionary<string, string> SlotBindings { get; set; } = slotBindings;
+        public Dictionary<string, List<SynapseDescriptor>> SynapseSignals { get; } = synapseSignals;
+        public Dictionary<string, List<SynapseDescriptor>> SynapseSchedules { get; } = synapseSchedules;
     }
 }

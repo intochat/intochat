@@ -162,155 +162,224 @@
       "kind": "column",
       "children": [
         {
-          "kind": "surface",
+          "kind": "row",
           "children": [
             {
-              "kind": "row",
-              "children": [
-                {
-                  "kind": "tagPill",
-                  "label": "Data Studio · Live Analytics",
-                  "tone": "accent",
-                  "icon": "bar-chart-2"
-                },
-                {
-                  "kind": "tagPill",
-                  "label": "",
-                  "tone": "info",
-                  "icon": "database"
-                },
-                {
-                  "kind": "tagPill",
-                  "label": "Total €0",
-                  "tone": "ok",
-                  "icon": null
-                },
-                {
-                  "kind": "tagPill",
-                  "label": "Avg €0 · Max €0",
-                  "tone": "neutral",
-                  "icon": null
-                }
-              ],
-              "gap": 8,
-              "padding": 0
+              "kind": "heading",
+              "value": "No Data ()",
+              "level": 2,
+              "subtitle": "SQL · CSV · JSON Analytics"
             },
             {
-              "kind": "text",
-              "value": "No dataset found matching query or file reference in database ''.",
+              "kind": "spacer",
+              "size": 0
+            },
+            {
+              "kind": "tagPill",
+              "label": "No dataset",
               "tone": "neutral",
-              "tabular": true,
-              "mono": false
+              "icon": null
             },
             {
-              "kind": "text",
-              "value": "SELECT * FROM ",
-              "tone": "muted",
-              "tabular": false,
-              "mono": true
+              "kind": "button",
+              "key": "export-csv",
+              "label": "Export CSV",
+              "emit": {
+                "owner": "app.data",
+                "signal": "ui.command",
+                "args": {
+                  "target": "screen",
+                  "method": "ExportCsvDefaultAsync",
+                  "args": null,
+                  "valueIndex": null,
+                  "value": null,
+                  "guardReason": "Load a dataset before exporting.",
+                  "tooltip": null
+                }
+              },
+              "intent": null,
+              "enabled": false,
+              "tone": "neutral",
+              "style": "secondary",
+              "icon": "download",
+              "small": true
             },
             {
-              "kind": "row",
+              "kind": "button",
+              "key": "diagram-in-markdraw",
+              "label": "Diagram in Markdraw",
+              "emit": {
+                "owner": "app.data",
+                "signal": "ui.command",
+                "args": {
+                  "target": "screen",
+                  "method": "DiagramInMarkdrawDefaultAsync",
+                  "args": null,
+                  "valueIndex": null,
+                  "value": null,
+                  "guardReason": "Load a dataset before exporting.",
+                  "tooltip": null
+                }
+              },
+              "intent": null,
+              "enabled": false,
+              "tone": "accent",
+              "style": "primary",
+              "icon": "pen-tool",
+              "small": true
+            }
+          ],
+          "gap": 8,
+          "padding": 0
+        },
+        {
+          "kind": "grid",
+          "columns": 4,
+          "children": [
+            {
+              "kind": "statCard",
+              "key": "kpi-data-total",
+              "label": "Total",
+              "value": "€0",
+              "delta": "Idle",
+              "tone": 1,
+              "icon": "bar-chart-2"
+            },
+            {
+              "kind": "statCard",
+              "key": "kpi-data-avg",
+              "label": "Average",
+              "value": "€0",
+              "delta": "Mean",
+              "tone": 2,
+              "icon": "trending-up"
+            },
+            {
+              "kind": "statCard",
+              "key": "kpi-data-min",
+              "label": "Minimum",
+              "value": "€0",
+              "delta": "Floor",
+              "tone": 0,
+              "icon": "arrow-down"
+            },
+            {
+              "kind": "statCard",
+              "key": "kpi-data-max",
+              "label": "Maximum",
+              "value": "€0",
+              "delta": "Peak",
+              "tone": 0,
+              "icon": "arrow-up"
+            }
+          ],
+          "gap": 8
+        },
+        {
+          "kind": "card",
+          "title": "Query & Visualization",
+          "body": "No dataset found matching query or file reference in database ''.",
+          "children": [
+            {
+              "kind": "column",
               "children": [
                 {
-                  "kind": "button",
-                  "key": "bar",
-                  "label": "Bar",
-                  "emit": {
-                    "owner": "app.data",
-                    "signal": "data.switch-chart",
-                    "args": {
-                      "Kind": "bar"
-                    }
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "accent",
-                  "style": "secondary",
-                  "icon": "bar-chart-2",
-                  "small": true
+                  "kind": "text",
+                  "value": "SELECT * FROM ",
+                  "tone": "muted",
+                  "tabular": true,
+                  "mono": false
                 },
                 {
-                  "kind": "button",
-                  "key": "line",
-                  "label": "Line",
-                  "emit": {
-                    "owner": "app.data",
-                    "signal": "data.switch-chart",
-                    "args": {
-                      "Kind": "line"
+                  "kind": "row",
+                  "children": [
+                    {
+                      "kind": "button",
+                      "key": "bar",
+                      "label": "Bar",
+                      "emit": {
+                        "owner": "app.data",
+                        "signal": "ui.command",
+                        "args": {
+                          "target": "state",
+                          "method": "SwitchChart",
+                          "args": [
+                            "bar"
+                          ],
+                          "valueIndex": null,
+                          "value": null,
+                          "guardReason": null,
+                          "tooltip": null
+                        }
+                      },
+                      "intent": null,
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "bar-chart-2",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "line",
+                      "label": "Line",
+                      "emit": {
+                        "owner": "app.data",
+                        "signal": "ui.command",
+                        "args": {
+                          "target": "state",
+                          "method": "SwitchChart",
+                          "args": [
+                            "line"
+                          ],
+                          "valueIndex": null,
+                          "value": null,
+                          "guardReason": null,
+                          "tooltip": null
+                        }
+                      },
+                      "intent": null,
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "trending-up",
+                      "small": true
+                    },
+                    {
+                      "kind": "button",
+                      "key": "pie",
+                      "label": "Pie",
+                      "emit": {
+                        "owner": "app.data",
+                        "signal": "ui.command",
+                        "args": {
+                          "target": "state",
+                          "method": "SwitchChart",
+                          "args": [
+                            "pie"
+                          ],
+                          "valueIndex": null,
+                          "value": null,
+                          "guardReason": null,
+                          "tooltip": null
+                        }
+                      },
+                      "intent": null,
+                      "enabled": true,
+                      "tone": "neutral",
+                      "style": "secondary",
+                      "icon": "pie-chart",
+                      "small": true
                     }
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "trending-up",
-                  "small": true
-                },
-                {
-                  "kind": "button",
-                  "key": "pie",
-                  "label": "Pie",
-                  "emit": {
-                    "owner": "app.data",
-                    "signal": "data.switch-chart",
-                    "args": {
-                      "Kind": "pie"
-                    }
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "pie-chart",
-                  "small": true
-                },
-                {
-                  "kind": "button",
-                  "key": "export-csv",
-                  "label": "Export CSV",
-                  "emit": {
-                    "owner": "app.data",
-                    "signal": "data.export-csv",
-                    "args": {
-                      "TargetPath": null
-                    }
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "download",
-                  "small": true
-                },
-                {
-                  "kind": "button",
-                  "key": "diagram-in-markdraw",
-                  "label": "Diagram in Markdraw",
-                  "emit": {
-                    "owner": "app.data",
-                    "signal": "data.to-markdraw",
-                    "args": {
-                      "Document": "/work/data-lineage.markdraw"
-                    }
-                  },
-                  "intent": null,
-                  "enabled": true,
-                  "tone": "neutral",
-                  "style": "secondary",
-                  "icon": "pen-tool",
-                  "small": true
+                  ],
+                  "gap": 8,
+                  "padding": 0
                 }
               ],
               "gap": 8,
               "padding": 0
             }
-          ],
-          "surfaceKind": "acrylic",
-          "title": "No Data ()",
-          "subtitle": null,
-          "padding": 18
+          ]
         },
         {
           "kind": "chart",
@@ -320,7 +389,7 @@
           "comparePoints": null,
           "seriesName": "Current",
           "compareName": "",
-          "sourceNeuronUri": "neuron://local/data//empty",
+          "sourceNeuronUri": "neuron://owner/data//empty",
           "from": "",
           "prefix": "€"
         },
@@ -329,7 +398,7 @@
           "title": "No Data () (0 row(s))",
           "columns": [],
           "rows": [],
-          "sourceNeuronUri": "neuron://local/data//empty",
+          "sourceNeuronUri": "neuron://owner/data//empty",
           "from": ""
         }
       ],

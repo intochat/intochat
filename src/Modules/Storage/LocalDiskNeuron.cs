@@ -7,27 +7,18 @@ using IntoChat.OS.Primitives;
 
 namespace IntoChat.OS.Modules.LocalDisk;
 
-public sealed class LocalDiskState
+internal sealed class LocalDiskState
 {
     public string[] RootIds { get; set; } = [];
     public string[] RootPaths { get; set; } = [];
 }
 
 [DigitalBrain.Signal("local-disk.roots")]
-public sealed record LocalDiskRootsChanged(string Action) : DigitalBrain.Signal;
-
-public interface ILocalDisk
-{
-    Task<string[]> Roots();
-
-    Task AllowRoot(string path);
-
-    Task RevokeRoot(string path);
-}
+internal sealed record LocalDiskRootsChanged(string Action) : DigitalBrain.Signal;
 
 // Local disks on this computer. Every call is confined; the filesystem work is LocalDiskStorage.
 [DigitalBrain.Neurons.Neuron("local-disk", State = "local-disk")]
-public sealed class LocalDiskNeuron(
+internal sealed class LocalDiskNeuron(
     IOperations operations,
     IConfirmations? confirmations = null,
     IStorageWriteAuthorizer? authorizer = null) : DigitalBrain.Neurons.Neuron<LocalDiskState>, ILocalDisk, IStorage

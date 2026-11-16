@@ -9,9 +9,11 @@ using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.State;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Kernel.Composition.Kernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
+using KernelHost = IntoChat.OS.Kernel.Composition.Kernel.Kernel;
 
 namespace IntoChat.OS.Kernel.Composition;
 
@@ -65,8 +67,10 @@ internal sealed class InstanceDirectoryGrain(
     // registered, so awaiting it would deadlock; no caller travels because the kernel is the author.
     private void Announce(Func<IBrainAnnouncer, Task> announce)
     {
-        using var cleared = InProcessCallerScope.ClearCaller();
-        _ = announce(SiloNeurons.Get<IBrainAnnouncer>(ServiceProvider, IBrain.Key(Brain)));
+        if (ServiceProvider is not { } services) { return; }
+        var edge = services.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
+        using var cleared = edge?.ClearCaller();
+        _ = announce(SiloNeurons.Get<IBrainAnnouncer>(services, IBrain.Key(Brain)));
     }
 }
 
@@ -94,7 +98,7 @@ internal sealed class InstanceTypesGrain(
 [GrainType("kernel.compiledtypes")]
 internal sealed class CompiledTypeTableGrain(CompiledTypes compiled) : Grain, ICompiledTypeTable, DigitalBrain.Runtime.Orleans.Hosting.INeuronHostCatalog
 {
-    public Task<BrainType[]> List() => Task.FromResult(compiled.Addressed(contract => Kernel.StillGrainType(GrainFactory, contract)));
+    public Task<BrainType[]> List() => Task.FromResult(compiled.Addressed(contract => KernelHost.StillGrainType(GrainFactory, contract)));
 
     // A contracts-only client asks the composed kernel for the host policy, then calls that host directly. Resolving metadata
     // never forwards an invocation or turns an external caller into a trusted call from a kernel grain.
@@ -103,6 +107,15 @@ internal sealed class CompiledTypeTableGrain(CompiledTypes compiled) : Grain, IC
             (entry.Kind == TypeKind.Neuron && DigitalBrain.Contracts.PlainNeuronContracts.TypeOf(compiled.Contract(entry.Name)) == type)
             || (entry.Kind == TypeKind.Connector && entry.Alias == type))
             ? KernelInvocationSink.HostTypeOfLoaded(type) : null);
+}
+
+[Alias("kernel.type-table")]
+internal interface ITypeTable : IGrainWithStringKey
+{
+    Task<BrainType[]> List();
+    Task<Feature[]> Features();
+    Task Load(Feature feature, BrainType[] types);
+    Task Unload(string name);
 }
 
 [GrainType("kernel.typetable")]
@@ -120,7 +133,7 @@ internal sealed class TypeTableGrain(
     }
 
     // Two features may bring the same type; it is listed once, and stays while any of them is loaded.
-    public Task<BrainType[]> List() => Task.FromResult<BrainType[]>([.. compiled.Addressed(contract => Kernel.StillGrainType(GrainFactory, contract)), .. store.State.Features.DistinctBy(entry => entry.Name)]);
+    public Task<BrainType[]> List() => Task.FromResult<BrainType[]>([.. compiled.Addressed(contract => KernelHost.StillGrainType(GrainFactory, contract)), .. store.State.Features.DistinctBy(entry => entry.Name)]);
 
     public Task<Feature[]> Features() => Task.FromResult(store.State.Loaded);
 
@@ -138,10 +151,11 @@ internal sealed class TypeTableGrain(
         store.State.Loaded = [.. store.State.Loaded.Where(each => each.Name != feature.Name), feature];
         store.State.Features = [.. store.State.Features.Where(entry => entry.Origin != provider), .. stamped];
         await store.WriteStateAsync();
-        if (this.GetPrimaryKeyString() is var brain && brain != TypeTableKey.NoBrain)
+        if (this.GetPrimaryKeyString() is var brain && brain != TypeTableKey.NoBrain && ServiceProvider is { } services)
         {
-            using var cleared = InProcessCallerScope.ClearCaller();
-            var announcer = SiloNeurons.Get<IBrainAnnouncer>(ServiceProvider, IBrain.Key(brain));
+            var edge = services.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
+            using var cleared = edge?.ClearCaller();
+            var announcer = SiloNeurons.Get<IBrainAnnouncer>(services, IBrain.Key(brain));
             foreach (var added in stamped.Where(type => !known.Contains(type.Name)))
             { _ = announcer.TypeAdded(added.Name); }
         }

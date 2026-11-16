@@ -26,7 +26,7 @@ public sealed class GrantRulesAgentFacts
     };
 
     private static CallRequest Req(CapabilityCaller caller, string target, params string[] types)
-        => new() { Caller = caller.ToCaller(), TargetNeuron = target, Operation = "read", SemanticTypeIds = types };
+        => new() { Caller = IntoChat.OS.Tests.TestEdge.From(caller), TargetNeuron = target, Operation = "read", SemanticTypeIds = types };
 
     private static Grant AgentGrant(string target, string relation)
         => Grant.Tuple("brain:test-brain", "app:" + AssistantApp, target, relation);

@@ -1,6 +1,6 @@
+using System.Diagnostics;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
-using DigitalBrain.Log;
 using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
@@ -58,8 +58,14 @@ internal sealed class AccountSessionIssuer(IServiceProvider services) : DigitalB
             }
             catch (UnauthorizedAccessException exception)
             {
-                services.GetService<ILoggerFactory>()?.CreateLogger(typeof(AccountSessionIssuer))
-                    .LogSwallowed(exception, "session end");
+                if (services.GetService<ILoggerFactory>()?.CreateLogger(typeof(AccountSessionIssuer)) is { } logger)
+                {
+                    logger.LogWarning(exception, "Failed to revoke identity session {SessionId} during sign-out.", sid);
+                }
+                else
+                {
+                    Trace.TraceWarning("Failed to revoke identity session '{0}' during sign-out: {1}", sid, exception.Message);
+                }
             }
         }
         await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme).ConfigureAwait(false);

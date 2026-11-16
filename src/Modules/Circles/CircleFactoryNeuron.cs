@@ -81,7 +81,8 @@ internal sealed class CircleFactoryNeuron(
         List<AppPublication> items = [];
         HashSet<string> unavailable = new(StringComparer.Ordinal);
         MarketplaceListing[] listings;
-        using (InProcessCallerScope.EnterKernel("system"))
+        var edge = plain.GetService<EdgeAuthority>();
+        using (edge?.Enter(edge.Module("circles", new DigitalBrain.BrainId("system"))))
         {
             listings = await SiloNeurons.Get<IMarketplace>(plain, IMarketplace.Key).List();
         }
@@ -90,7 +91,7 @@ internal sealed class CircleFactoryNeuron(
             if (listing.Source is not AppSource.Brain source || publisher is { Length: > 0 } && listing.Publisher != publisher) { continue; }
             try
             {
-                var releases = await SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, IApp.Key(BrainScope.Create(source.AccountId, source.BrainId).Id, listing.Name)).PublishedReleases();
+                var releases = await SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(BrainScope.Create(source.AccountId, source.BrainId).Id), listing.Name).Key).PublishedReleases();
                 items.AddRange(releases.Where(release => release.Reference.Publisher == listing.Publisher
                     && release.Reference.Source == source && release.Reference.Name == listing.Name));
             }

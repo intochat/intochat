@@ -8,27 +8,27 @@ internal sealed record CircleNameIsValid(string CircleName) : Rule("circles.name
     public override string Message => "A circle name is 1 to 40 of a-z, 0-9 and '-'.";
 }
 
-internal sealed record AccountIsNotYetInvitedOrMember(string CircleName, string AccountId, bool AlreadyPresent) : Rule("circles.account-not-yet-invited-or-member")
+internal sealed record AccountIsNotYetInvitedOrMember(string CircleName, string AccountId, CircleRecord Circle) : Rule("circles.account-not-yet-invited-or-member")
 {
-    public override bool Broken => AlreadyPresent;
+    public override bool Broken => Circle.Members.Contains(AccountId) || Circle.Invited.Contains(AccountId);
     public override string Message => $"{AccountId} is already in {CircleName} or invited to it.";
 }
 
-internal sealed record AccountIsCircleMember(string CircleName, string AccountId, bool IsMember) : Rule("circles.account-is-member")
+internal sealed record AccountIsCircleMember(string CircleName, string AccountId, IReadOnlyList<string> Candidates) : Rule("circles.account-is-member")
 {
-    public override bool Broken => !IsMember;
+    public override bool Broken => !Candidates.Contains(AccountId);
     public override string Message => $"{AccountId} is not in {CircleName}.";
 }
 
-internal sealed record CallerHasCircleInvitation(string CircleName, string AccountId, bool HasInvitation) : Rule("circles.caller-has-invitation")
+internal sealed record CallerHasCircleInvitation(string CircleName, string AccountId, CircleRecord Circle, string CallerBrain, string CircleBrain) : Rule("circles.caller-has-invitation")
 {
-    public override bool Broken => !HasInvitation;
+    public override bool Broken => !string.Equals(CallerBrain, CircleBrain, StringComparison.Ordinal) || !Circle.Invited.Contains(AccountId);
     public override string Message => $"{AccountId} has no invitation to {CircleName}.";
 }
 
-internal sealed record CircleCreatorCannotBeRemoved(string CircleName, bool IsCreatorRemovingSelf) : Rule("circles.creator-not-removed")
+internal sealed record CircleCreatorCannotBeRemoved(string CircleName, string CallerAccount, string OwnerAccount) : Rule("circles.creator-not-removed")
 {
-    public override bool Broken => !IsCreatorRemovingSelf;
+    public override bool Broken => CallerAccount != OwnerAccount;
     public override string Message => $"The creator of {CircleName} cannot be removed.";
 }
 
@@ -52,15 +52,15 @@ internal sealed record InviteRoleIsValid(string? Role) : Rule("circles.invite-ro
     public override string Message => "An invite role is member or admin.";
 }
 
-internal sealed record MachineIsUnbound(bool IsUnbound) : Rule("circles.machine-unbound")
+internal sealed record MachineIsUnbound(string? BoundAccountId) : Rule("circles.machine-unbound")
 {
-    public override bool Broken => !IsUnbound;
+    public override bool Broken => BoundAccountId is not null;
     public override string Message => "This machine is already bound to an account.";
 }
 
-internal sealed record InviteCodeIsAvailable(bool IsAvailable) : Rule("circles.invite-code-available")
+internal sealed record InviteCodeIsAvailable(InviteCodeRecord? Held) : Rule("circles.invite-code-available")
 {
-    public override bool Broken => !IsAvailable;
+    public override bool Broken => Held is not null;
     public override string Message => "This invite code is already in use.";
 }
 

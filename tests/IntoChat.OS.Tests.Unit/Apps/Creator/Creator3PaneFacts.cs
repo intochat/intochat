@@ -11,6 +11,7 @@ using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter.Screens;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Flutter.Workspace;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Creator;
 
@@ -64,7 +65,7 @@ public sealed class Creator3PaneFacts
 
         FlowView[] flows =
         [
-            new FlowView("cf-run-99", ChangeFlow.Alias, "Update Unit1", "admin", "trace-99", FlowStatus.Waiting, ["clone", "branch", "synthesize-patch", "build", "test", "diff-review", "approval-gate"], ["clone", "branch", "synthesize-patch", "build", "test", "diff-review"], "approval-gate", null, "approval-gate", "plan-cf-99", 6.0 / 7.0, [], [], null, T0, null, "Waiting for approval", Subject: "unit1")
+            new FlowView("cf-run-99", FeatureToPrFlow.Alias, "Update Unit1", "admin", "trace-99", FlowStatus.Waiting, ["clone", "branch", "synthesize-patch", "build", "test", "diff-review", "approval-gate"], ["clone", "branch", "synthesize-patch", "build", "test", "diff-review"], "approval-gate", null, "approval-gate", "plan-cf-99", 6.0 / 7.0, [], [], null, T0, null, "Waiting for approval", Subject: "unit1")
         ];
 
         Approval[] approvals =
@@ -137,7 +138,7 @@ public sealed class Creator3PaneFacts
         var idleSubSplit = Assert.IsType<SplitPane>(idleSplit.Trailing);
         var idleCenter = Assert.IsType<Column>(idleSubSplit.Leading);
 
-        // When no ChangeFlow is running, Creator must NOT render fake spec.md diffs or fake 100% pass cards!
+        // When no FeatureToPrFlow is running, Creator must NOT render fake spec.md diffs or fake 100% pass cards!
         Assert.DoesNotContain(idleCenter.Children.OfType<Heading>(), h => h.Value == "Unified Diff Review");
         Assert.DoesNotContain(idleCenter.Children.OfType<Heading>(), h => h.Value == "Build & Test Summary");
         Assert.DoesNotContain(idleCenter.Children.OfType<Card>(), c => c.Title == "spec.md");
@@ -174,7 +175,12 @@ public sealed class Creator3PaneFacts
         using var person = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(
             DigitalBrain.Capabilities.CapabilityCallers.Of("alice", "alice", "test-brain"));
         var proxies = new MockProxies();
-        var screenDirectory = new ScreenDirectoryNeuron(proxies, "test-brain");
+        var services = new ServiceCollection()
+            .AddSingleton<INeuronProxies>(proxies)
+            .BuildServiceProvider();
+        await using var os = DigitalBrain.Testing.TestOS.Local(o => o.Services = services)
+            .Register(typeof(IntoChat.OS.Modules.Flutter.FlutterModule).Assembly);
+        var screenDirectory = os.Get<IScreenDirectory>(new NeuronId(new BrainId("test-brain"), IScreenDirectory.TypeName, IScreenDirectory.Key("test-brain")));
 
         var summaries = await screenDirectory.List();
         var creatorSummary = Assert.Single(summaries, s => s.AppId == "creator");
@@ -203,6 +209,10 @@ public sealed class Creator3PaneFacts
                 return (T)(object)Approvals;
             }
             if (typeof(T) == typeof(IConfirmationInbox))
+            {
+                return (T)(object)Inbox;
+            }
+            if (typeof(T) == typeof(IConfirmationRequests))
             {
                 return (T)(object)Inbox;
             }
@@ -249,16 +259,41 @@ public sealed class Creator3PaneFacts
         }
     }
 
-    private sealed class MockInbox : IConfirmationInbox
+    private sealed class MockInbox : IConfirmationInbox, IConfirmationRequests
     {
+        private readonly HashSet<string> _pending = new(["plan-cf-77"], StringComparer.Ordinal);
+        private readonly Dictionary<string, ConfirmationResult> _outcomes = new(StringComparer.Ordinal);
         public List<(string PlanId, bool Approved)> Resolved { get; } = [];
 
-        public Task<ConfirmationInbox> Read()
-            => Task.FromResult(new ConfirmationInbox(0L, []));
+        public Task<ConfirmationInbox> Read() => Task.FromResult(new ConfirmationInbox(
+            0L,
+            [.. _pending.Select(planId => new ConfirmationRequested(
+                planId,
+                new ConfirmationPlan(planId, ConfirmationAction.Other, false, planId, planId, "Approve", "Deny", planId),
+                ConfirmationPrincipal.App("creator"),
+                default,
+                DateTimeOffset.UtcNow.AddHours(1)))]));
 
         public Task Resolve(string planId, bool approved)
         {
             Resolved.Add((planId, approved));
+            _pending.Remove(planId);
+            _outcomes[planId] = new ConfirmationResult(
+                planId,
+                approved ? ConfirmationOutcome.Approved : ConfirmationOutcome.Denied,
+                approved ? ConfirmationDenyReason.None : ConfirmationDenyReason.ByPerson,
+                Skipped: false);
+            return Task.CompletedTask;
+        }
+
+        public Task<ConfirmationResult?> Request(ConfirmationPlan plan) => Task.FromResult<ConfirmationResult?>(null);
+
+        public Task<ConfirmationResult?> Outcome(string planId)
+            => Task.FromResult(_outcomes.TryGetValue(planId, out var outcome) ? outcome : null);
+
+        public Task Withdraw(string planId)
+        {
+            _pending.Remove(planId);
             return Task.CompletedTask;
         }
     }
@@ -271,5 +306,41 @@ public sealed class Creator3PaneFacts
         public Task<IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState> Home(string operationId, long expectedRevision) => Task.FromResult(new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState(1L, ["owner"], []));
         public Task<IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState> Close(string app, string operationId, long expectedRevision) => Task.FromResult(new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState(1L, ["owner"], []));
         public Task<IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState> Read() => Task.FromResult(new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState(1L, ["owner"], []));
+    }
+
+    [Fact]
+    public void CreatorViewDoesNotFabricateRoslynOrScenarioVerificationOnCompletedF2prFlow()
+    {
+        var state = new CreatorState();
+        var topology = new BrainTopology([], []);
+        FlowView[] flows =
+        [
+            new FlowView(
+                "cf-run-100",
+                FeatureToPrFlow.Alias,
+                "Update Unit1",
+                "admin",
+                "trace-100",
+                FlowStatus.Completed,
+                FeatureToPrFlow.Names,
+                FeatureToPrFlow.Names,
+                null,
+                null,
+                null,
+                "plan-cf-100",
+                1.0,
+                [],
+                [],
+                null,
+                T0,
+                T0,
+                "Published draft PR",
+                Subject: "unit1")
+        ];
+
+        var view = CreatorView.Render(state, topology, flows, [], new Inspection("", ""));
+        var viewJson = System.Text.Json.JsonSerializer.Serialize(view);
+        Assert.DoesNotContain("Roslyn synapse compile passed", viewJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Scenario verification passed", viewJson, StringComparison.OrdinalIgnoreCase);
     }
 }

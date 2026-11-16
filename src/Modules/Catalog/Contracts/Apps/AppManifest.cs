@@ -122,12 +122,30 @@ public sealed record AppManifest(
     // The dock renders only what the app can answer: every entry names a declared operation with one of the four kinds.
     public AppManifest Validated()
     {
+        var title = Title ?? string.Empty;
+        var description = Description ?? string.Empty;
+        var operations = Operations ?? [];
+        var settings = Settings ?? [];
+        var slots = Slots ?? [];
+
+        foreach (var operation in operations)
+        {
+            if (operation is null || string.IsNullOrWhiteSpace(operation.Name))
+            { throw new InvalidDataException("Every declared operation must have a name."); }
+        }
+        foreach (var setting in settings)
+        {
+            if (setting is null || string.IsNullOrWhiteSpace(setting.Name))
+            { throw new InvalidDataException("Every declared setting must have a name."); }
+        }
         foreach (var entry in Toolbar ?? [])
         {
-            if (!Operations.Any(operation => operation.Name == entry.Operation))
+            if (entry is null)
+            { throw new InvalidDataException("Toolbar entries cannot be null."); }
+            if (!operations.Any(operation => operation.Name == entry.Operation))
             {
                 throw new InvalidDataException($"Toolbar entry '{entry.Operation}' is not an operation of this app. It offers: "
-                    + string.Join(", ", Operations.Select(operation => operation.Name)) + ".");
+                    + string.Join(", ", operations.Select(operation => operation.Name)) + ".");
             }
             if (entry.Kind is not (AppToolbarKinds.Button or AppToolbarKinds.Toggle or AppToolbarKinds.Slider or AppToolbarKinds.Text))
             { throw new InvalidDataException($"Toolbar entry '{entry.Operation}' has kind '{entry.Kind}'; a kind is button, toggle, slider or text."); }
@@ -135,20 +153,36 @@ public sealed record AppManifest(
             { throw new InvalidDataException($"Toolbar slider '{entry.Operation}' needs min below max."); }
         }
         Requires?.Validated();
-        foreach (var slot in Slots)
+        foreach (var slot in slots)
         {
+            if (slot is null || string.IsNullOrWhiteSpace(slot.Name))
+            { throw new InvalidDataException("Every declared slot must have a name."); }
+            var connector = slot.Connector ?? string.Empty;
             if (slot.Capability is { } capability)
             {
-                if (slot.Connector.Length > 0)
-                { throw new InvalidDataException($"Slot '{slot.Name}' binds both capability '{capability}' and module '{slot.Connector}'; bind one."); }
+                if (connector.Length > 0)
+                { throw new InvalidDataException($"Slot '{slot.Name}' binds both capability '{capability}' and module '{connector}'; bind one."); }
                 if (!(Requires?.Capabilities ?? []).Contains(capability, StringComparer.Ordinal))
                 { throw new InvalidDataException($"Slot '{slot.Name}' binds capability '{capability}', which Requires.Capabilities does not list."); }
             }
-            else if (slot.Connector.Length == 0)
+            else if (connector.Length == 0)
             { throw new InvalidDataException($"Slot '{slot.Name}' binds nothing; give it a capability such as storage@1."); }
-            else if (Requires is { } requires && !(requires.Connectors ?? []).Contains(slot.Connector, StringComparer.Ordinal))
-            { throw new InvalidDataException($"Slot '{slot.Name}' binds module '{slot.Connector}', which Requires does not list."); }
+            else if (Requires is { } requires && !(requires.Connectors ?? []).Contains(connector, StringComparer.Ordinal))
+            { throw new InvalidDataException($"Slot '{slot.Name}' binds module '{connector}', which Requires does not list."); }
         }
-        return this;
+        return ReferenceEquals(title, Title)
+            && ReferenceEquals(description, Description)
+            && ReferenceEquals(operations, Operations)
+            && ReferenceEquals(settings, Settings)
+            && ReferenceEquals(slots, Slots)
+            ? this
+            : this with
+            {
+                Title = title,
+                Description = description,
+                Operations = operations,
+                Settings = settings,
+                Slots = slots,
+            };
     }
 }

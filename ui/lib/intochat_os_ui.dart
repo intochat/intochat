@@ -1,7 +1,6 @@
 library;
 
 export 'src/chat/conversation_view.dart';
-export 'src/chat/ui_chat.dart';
 export 'src/chat/ui_copyable_message.dart';
 export 'src/components/browser/ui_web_browser.dart';
 export 'src/components/kit/kit_toast.dart';
@@ -13,13 +12,9 @@ export 'src/components/kit/ui_kit_surface.dart';
 export 'src/components/kit/ui_kit_switch.dart';
 export 'src/components/kit/ui_kit_tabs.dart';
 export 'src/composition/value_nodes/view_badge.dart' show ViewBadge;
-export 'src/components/chart/ui_chart.dart';
-export 'src/components/expander/ui_expander.dart';
 export 'src/components/image/ui_image.dart';
 export 'src/components/infobar/ui_info_bar.dart';
 export 'src/components/progress/ui_progress.dart';
-export 'src/components/table/ui_data_table.dart';
-export 'src/components/table/ui_table_controller.dart';
 export 'src/components/toggle/ui_toggle.dart';
 export 'src/entries/entries_client.dart';
 export 'src/entries/ui_entry_control.dart';
@@ -56,7 +51,6 @@ export 'src/flame/primitive_nodes.dart' hide TextNode;
 export 'src/flame/scene_game.dart';
 export 'src/flame/scene_view.dart';
 export 'src/focus_registry.dart';
-export 'src/composition/ui_collection_view.dart';
 
 export 'src/composition/application_surface.dart';
 
@@ -69,15 +63,10 @@ export 'src/shell_icon.dart';
 export 'src/design/tokens.dart';
 export 'src/design/keys.dart';
 export 'src/design/controls.dart';
-export 'src/controls/ic_breadcrumb_bar.dart';
-export 'src/controls/ic_files_finder_view.dart';
 
 export 'package:lucide_icons_flutter/lucide_icons.dart';
 
 export 'src/design/app_tile.dart';
 export 'src/design/brain_scene_3d.dart';
-export 'src/design/graph/brain_scene_adapter.dart';
-export 'src/design/graph/graph_records.dart';
 
-export 'src/design/copy/ino_copy.dart';
 export 'src/design/cards/cards.dart';

@@ -39,14 +39,9 @@
     <Protobuf Include="Authority/Neurons/neurons.proto" GrpcServices="Both" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="IntoChat.OS.Kernel" />
-    <InternalsVisibleTo Include="IntoChat.OS.AppHost" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.E2E" />
     <InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" />
-    <InternalsVisibleTo Include="IntoChat.OS.Modules.Shell" />
-    <InternalsVisibleTo Include="IntoChat.OS.Modules.Catalog" />
-    <InternalsVisibleTo Include="IntoChat.OS.Modules.AI" />
   </ItemGroup>
 </Project>

@@ -21,11 +21,7 @@ public sealed partial class UnitsAllTheWayFacts
         "Authoring/SynapseCheck.cs",
         "Flows/BuildFlow.cs",
         "Ino/SynapseStudioNeuron.cs",
-    ];
-
-    private static readonly string[] SandboxPackageAssemblies =
-    [
-        "IntoChat.OS.Modules.Catalog",
+        "Packages/AppPackageCompiler.cs",
     ];
 
     [Fact]
@@ -35,7 +31,6 @@ public sealed partial class UnitsAllTheWayFacts
         var sources = NoProgramLanesFacts.ProductionSources().ToArray();
         Assert.NotEmpty(sources);
         var roslynDir = Repository.ProjectNamed(RoslynModule).Directory + Path.DirectorySeparatorChar;
-        var catalogCompiler = Path.Combine(Repository.ProjectNamed("IntoChat.OS.Modules.Catalog").Directory, "Packages", "AppPackageCompiler.cs");
         var sandboxLoadContext = Path.Combine(Repository.ProjectNamed("IntoChat.OS.Sandbox").Directory, "AppLoadContext.cs");
         var pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         Assert.Contains(sources, path => Path.GetFullPath(path).StartsWith(roslynDir, pathComparison));
@@ -44,11 +39,10 @@ public sealed partial class UnitsAllTheWayFacts
         {
             var relative = Repository.Relative(path);
             var text = File.ReadAllText(path);
-            var isCatalogCompiler = Path.GetFullPath(path).Equals(Path.GetFullPath(catalogCompiler), pathComparison);
             var isSandboxLoadContext = Path.GetFullPath(path).Equals(Path.GetFullPath(sandboxLoadContext), pathComparison);
-            if (!Path.GetFullPath(path).StartsWith(roslynDir, pathComparison) && !isCatalogCompiler && text.Contains("Microsoft.CodeAnalysis", StringComparison.Ordinal))
+            if (!Path.GetFullPath(path).StartsWith(roslynDir, pathComparison) && text.Contains("Microsoft.CodeAnalysis", StringComparison.Ordinal))
             { offenders.Add(relative + ": Microsoft.CodeAnalysis"); }
-            if (!isCatalogCompiler && !isSandboxLoadContext)
+            if (!isSandboxLoadContext)
             {
                 foreach (Match match in RuntimeCompilation().Matches(text)) { offenders.Add(relative + ": " + match.Value); }
             }
@@ -67,8 +61,7 @@ public sealed partial class UnitsAllTheWayFacts
         Assert.True(Repository.Projects.ContainsKey(RoslynModule), RoslynModule + " is not in the solution; update this fact.");
         var offenders = Repository.Projects.Values
             .Where(project => !project.Name.Contains(".Tests", StringComparison.Ordinal)
-                && project.Name != RoslynModule
-                && !SandboxPackageAssemblies.Contains(project.Name, StringComparer.Ordinal))
+                && project.Name != RoslynModule)
             .Where(project => Repository.PackageReferences(project.Path).Any(package => package.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal)))
             .Select(project => project.Name)
             .Order(StringComparer.Ordinal);
@@ -78,7 +71,7 @@ public sealed partial class UnitsAllTheWayFacts
     // The shell's own apps: the desktop and the workspace are the host's surfaces and ino is the shell's agent, not apps a person installs,
     // so the host may name them.
     // Any other app is reached through its manifest, its signals and the registry, never by name.
-    private static readonly string[] ShellApps = ["desktop", "workspace", "ino", "friends"];
+    private static readonly string[] ShellApps = ["desktop", "ino", "friends"];
 
     [Fact]
     public void NoAppNameSwitchboard()
@@ -92,9 +85,9 @@ public sealed partial class UnitsAllTheWayFacts
     public void TheOwnerScopedScanFlagsALiteralOutsideItsOwnerAndNotAnAppNameReference()
     {
         HashSet<string> keys = new(["photocraft", "settings"], StringComparer.Ordinal);
-        Assert.Equal(["photocraft"], Violations("var k = IApp.Key(brain, \"photocraft\");", "Mod/Hosting/Host.cs", keys));
-        Assert.Empty(Violations("var k = IApp.Key(brain, PhotoCraftApp.AppName);", "Mod/Hosting/Host.cs", keys));
-        Assert.Empty(Violations("var k = IApp.Key(brain, \"photocraft\");", "IntoChat.OS.Apps/PhotoCraft/PhotoCraftApp.cs", keys));
+        Assert.Equal(["photocraft"], Violations("var k = AppRef.Of(brain, \"photocraft\");", "Mod/Hosting/Host.cs", keys));
+        Assert.Empty(Violations("var k = AppRef.Of(brain, PhotoCraftApp.AppName);", "Mod/Hosting/Host.cs", keys));
+        Assert.Empty(Violations("var k = AppRef.Of(brain, \"photocraft\");", "IntoChat.OS.Apps/PhotoCraft/PhotoCraftApp.cs", keys));
         Assert.Empty(Violations("var k = Open(\"desktop\", \"ino\");", "Mod/Hosting/Host.cs", keys));
         var verbs = WithoutOperationPositions("DesktopButton(\"more\", \"Settings\", \"settings\", null); AppSignals.Emit(App, \"settings\"); X = Open(\"settings\");");
         Assert.Equal(["settings"], Violations(verbs, "Mod/Hosting/Host.cs", keys));

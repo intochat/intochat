@@ -1,77 +1,25 @@
-using System.Security;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Primitives;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
 /// <summary>
-/// Durable state for <see cref="FeatureToPrFlow"/>. Contains zero caller-settable approval bypass flags:
-/// pushing and PR creation require a verified Person-approved <see cref="ConfirmationResult"/> from <see cref="IConfirmationRequests"/>
-/// bound to the exact <see cref="CommitSha"/>.
-/// </summary>
-public sealed class FeatureToPrInner
-{
-    public string RunId { get; set; } = "";
-    public string Repository { get; set; } = "";
-    public string Goal { get; set; } = "";
-    public string? RequestedBaseBranch { get; set; }
-
-    // Populated by prepare-worktree
-    public WorkTreeLease? Lease { get; set; }
-
-    // Populated by edit
-    public string? CoderSummary { get; set; }
-    public string? CoderModel { get; set; }
-    public string[]? CoderTouchedFiles { get; set; }
-
-    // Populated by verify-and-commit
-    public string? CommitSha { get; set; }
-    public string[] ChangedFiles { get; set; } = [];
-    public string? HostRenderedDiff { get; set; }
-    public int Additions { get; set; }
-    public int Deletions { get; set; }
-
-    // Populated by approval-gate
-    public string? ConfirmationPlanId { get; set; }
-    public DateTimeOffset? ApprovalExpires { get; set; }
-
-    // Populated by publish (after Person approval)
-    public string? ApprovedBy { get; set; }
-    public string? PushedRef { get; set; }
-    public string? PullRequestUrl { get; set; }
-}
-
-/// <summary>
-/// Compatibility alias constant preserved for read-only shell views referencing <c>ChangeFlow.Alias</c>.
-/// </summary>
-public static class ChangeFlow
-{
-    public const string Alias = FeatureToPrFlow.Alias;
-}
-
-/// <summary>
-/// Hardened Feature-to-PR durable flow (<c>flow.change</c>) replacing the legacy fake <c>ChangeFlow</c>, <c>PrFlow</c>, and <c>VerifyFlow</c>:
-/// <list type="number">
-/// <item><description><c>prepare-worktree</c>: Creates an external detached worktree via <see cref="IWorkTree.PrepareAsync"/> and records the Triple Git Lock (R10) anchor.</description></item>
-/// <item><description><c>edit</c>: Runs <see cref="ICoder.EditAsync"/> inside the confined worktree.</description></item>
-/// <item><description><c>verify-and-commit</c>: Enforces Triple Git Lock + deterministic C# path gate, creates 1 commit as <c>Ino &lt;ino@intochat.ai&gt;</c>, and captures <c>CommitSha</c> + unified diff.</description></item>
-/// <item><description><c>approval-gate</c>: Raises a SHA-bound <see cref="ConfirmationPlan"/> (<c>Id = $"app:change:{runId}:{sha}"</c>, <c>Subject = sha</c>, <c>RequiresPerson = true</c>, <c>Expiry = 48h</c>) and parks waiting for human Person approval.</description></item>
-/// <item><description><c>publish</c>: Performs Doer Defense-in-Depth (<c>IConfirmationRequests.Outcome</c> verified <c>Approved &amp;&amp; !Skipped &amp;&amp; Approver.IsHuman</c> + <c>HEAD == sha</c> + <c>1</c> commit ahead), pushes <c>&lt;sha&gt;:refs/heads/ino/&lt;branch&gt;</c>, opens a Draft PR from an empty temp directory, and cleans up the worktree.</description></item>
-/// </list>
+/// Hardened Feature-to-PR durable flow (<c>flow.change</c>) using immutable <see cref="Change"/> transitions
+/// and checkpointed idempotent publish stages (<c>push</c> -&gt; <c>pr</c> -&gt; <c>clean</c>).
 /// </summary>
 [DigitalBrain.Neurons.Neuron(Alias)]
 public sealed class FeatureToPrFlow(
     IWorkTree? workTree = null,
     ICoder? coder = null,
     IConfirmationRequests? confirmationRequests = null,
-    IServiceProvider? services = null) : Flow<FeatureToPrInner>, IFlowStarter
+    IServiceProvider? services = null) : Flow<Change>, IFlowStarter
 {
     public const string Alias = "flow.change";
     public const string ConfirmationKind = "f2pr.publish";
@@ -84,7 +32,9 @@ public sealed class FeatureToPrFlow(
         "edit",
         "verify-and-commit",
         "approval-gate",
-        "publish",
+        "push",
+        "pr",
+        "clean",
     ];
 
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -93,11 +43,11 @@ public sealed class FeatureToPrFlow(
 
     private IWorkTree WorkTree => workTree
         ?? services?.GetService(typeof(IWorkTree)) as IWorkTree
-        ?? new WorkTreeService();
+        ?? throw new InvalidOperationException("IWorkTree service is not registered.");
 
     private ICoder Coder => coder
         ?? services?.GetService(typeof(ICoder)) as ICoder
-        ?? new LocalLlmCoder(services);
+        ?? throw new InvalidOperationException("ICoder service is not registered.");
 
     private IConfirmationRequests ConfirmationRequests =>
         confirmationRequests
@@ -106,15 +56,7 @@ public sealed class FeatureToPrFlow(
 
     public Task StartFromJson(string title, string owner, string? parentFlowId, string innerJson)
     {
-        var parsed = JsonSerializer.Deserialize<FeatureToPrInner>(innerJson, Json) ?? new FeatureToPrInner();
-        // Sanitize any untrusted caller fields so StartFromJson can never pre-populate approval/commit/publish state
-        var sanitized = new FeatureToPrInner
-        {
-            RunId = parsed.RunId,
-            Repository = parsed.Repository,
-            Goal = parsed.Goal,
-            RequestedBaseBranch = parsed.RequestedBaseBranch,
-        };
+        var sanitized = Change.FromUntrustedJson(innerJson, Json);
         return Start(title, owner, parentFlowId, sanitized);
     }
 
@@ -131,7 +73,7 @@ public sealed class FeatureToPrFlow(
         State.Ended,
         null));
 
-    protected override async Task<StepResult<FeatureToPrInner>> Run(string step, FeatureToPrInner inner, CancellationToken ct)
+    protected override async Task<StepResult<Change>> Run(string step, Change inner, CancellationToken ct)
     {
         try
         {
@@ -141,32 +83,43 @@ public sealed class FeatureToPrFlow(
                 "edit" => await EditStepAsync(inner, ct).ConfigureAwait(true),
                 "verify-and-commit" => await VerifyAndCommitStepAsync(inner, ct).ConfigureAwait(true),
                 "approval-gate" => ApprovalGateStep(step, inner),
-                "publish" => await PublishStepAsync(inner, ct).ConfigureAwait(true),
+                "push" => await PushStepAsync(inner, ct).ConfigureAwait(true),
+                "pr" => await PullRequestStepAsync(inner, ct).ConfigureAwait(true),
+                "clean" => await CleanStepAsync(inner, ct).ConfigureAwait(true),
                 _ => throw new FlowFailed(step, $"Unknown FeatureToPrFlow step '{step}'."),
             };
         }
         catch (Exception ex) when (ex is not OperationCanceledException && !Context.Interrupts(ex))
         {
-            // Clean up isolated worktree on terminal step failure so no orphan worktree remains on disk
-            if (inner.Lease is { } lease)
+            if (inner.Tree is { } lease && inner.Publication?.Cleaned != true)
             {
-                try { await WorkTree.CleanupAsync(lease, CancellationToken.None).ConfigureAwait(true); }
-                catch (Exception cleanupEx) { NullLogger.Instance.LogSwallowed(cleanupEx, "Best-effort worktree cleanup after failed step."); }
+                try
+                {
+                    await WorkTree.CleanupAsync(lease, CancellationToken.None).ConfigureAwait(true);
+                }
+                catch (Exception cleanupEx) when (cleanupEx is not OperationCanceledException)
+                {
+                    OsConsoleLog.For<FeatureToPrFlow>().LogSwallowed(cleanupEx, "Best-effort worktree cleanup after failed step.");
+                }
             }
 
-            if (ex is FlowFailed) { throw; }
+            if (ex is FlowFailed)
+            {
+                throw;
+            }
+
             throw new FlowFailed(step, ex.Message);
         }
     }
 
-    protected override ConfirmationPlan PlanFor(string step, FeatureToPrInner inner)
+    protected override ConfirmationPlan PlanFor(string step, Change inner)
     {
         var runId = EffectiveRunId(inner);
-        var sha = inner.CommitSha ?? throw new InvalidOperationException("Cannot raise Feature-to-PR confirmation plan without a verified CommitSha.");
+        var sha = inner.Commit?.Commit.Value
+            ?? throw new InvalidOperationException("Cannot raise Feature-to-PR confirmation plan without a verified CommitSha.");
         var planId = BuildPlanId(runId, sha);
-        var repoLabel = inner.Lease?.GitHubRepo ?? inner.Lease?.RepositoryId ?? inner.Repository;
+        var repoLabel = inner.Tree?.GitHubRepo ?? inner.Tree?.RepositoryId ?? inner.Repository?.Value ?? string.Empty;
 
-        // The body is drawn, never cut and never refused here: the steps refuse what the card cannot show.
         return new ConfirmationPlan(
             Id: planId,
             Action: ConfirmationAction.Other,
@@ -187,176 +140,191 @@ public sealed class FeatureToPrFlow(
     public static string BuildPlanId(string runId, string commitSha)
     {
         var cleanRun = string.IsNullOrWhiteSpace(runId) ? "run" : runId.Trim();
-        if (cleanRun.Length > 48) { cleanRun = cleanRun[..48]; }
+        if (cleanRun.Length > 48)
+        {
+            cleanRun = cleanRun[..48];
+        }
+
         return $"app:change:{cleanRun}:{commitSha.Trim()}";
     }
 
-    private async Task<StepResult<FeatureToPrInner>> PrepareWorktreeStepAsync(FeatureToPrInner inner, CancellationToken ct)
+    private async Task<StepResult<Change>> PrepareWorktreeStepAsync(Change inner, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(inner.Repository))
+        if (inner.Repository is null)
         {
             throw new FlowFailed("prepare-worktree", "Repository id is required.");
         }
+
         if (string.IsNullOrWhiteSpace(inner.Goal))
         {
             throw new FlowFailed("prepare-worktree", "Goal description is required.");
         }
 
         var runId = EffectiveRunId(inner);
-        inner.RunId = runId;
 
-        if (inner.Lease is not null && Directory.Exists(inner.Lease.TreePath))
+        if (inner.Tree is not null && Directory.Exists(inner.Tree.TreePath))
         {
-            await WorkTreeService.VerifyTripleGitLockAsync(inner.Lease, ct).ConfigureAwait(true);
-            return inner.Advance(new FlowSubject(Id.ToString(), $"{inner.Repository}:{inner.Lease.BranchName}"));
+            await WorkTreeService.VerifyTripleGitLockAsync(inner.Tree, ct).ConfigureAwait(true);
+            return inner.WithWorkTree(runId, inner.Tree)
+                .Advance(new FlowSubject(Id.ToString(), $"{inner.Repository.Value}:{inner.Tree.BranchName}"));
         }
 
         var wt = WorkTree;
         var lease = await Task.Run(
             () => wt.PrepareAsync(inner.Repository, runId, inner.Goal, inner.RequestedBaseBranch, ct),
             ct).ConfigureAwait(true);
-        inner.Lease = lease;
-        return inner.Advance(new FlowSubject(Id.ToString(), $"{lease.RepositoryId}:{lease.BranchName}"));
+        return inner.WithWorkTree(runId, lease)
+            .Advance(new FlowSubject(Id.ToString(), $"{lease.RepositoryId}:{lease.BranchName}"));
     }
 
-    private async Task<StepResult<FeatureToPrInner>> EditStepAsync(FeatureToPrInner inner, CancellationToken ct)
+    private async Task<StepResult<Change>> EditStepAsync(Change inner, CancellationToken ct)
     {
-        var lease = inner.Lease ?? throw new FlowFailed("edit", "Worktree lease is missing.");
+        var lease = inner.Tree ?? throw new FlowFailed("edit", "Worktree lease is missing.");
         await WorkTreeService.VerifyTripleGitLockAsync(lease, ct).ConfigureAwait(true);
+
+        if (inner.Commit is not null)
+        {
+            return inner.Advance();
+        }
 
         var activeCoder = Coder;
         var editResult = await Task.Run(() => activeCoder.EditAsync(lease, inner.Goal, ct), ct).ConfigureAwait(true);
-        inner.CoderSummary = editResult.Summary;
-        inner.CoderModel = editResult.ModelId;
-        inner.CoderTouchedFiles = [.. editResult.TouchedFiles];
-        return inner.Advance();
+        return inner.WithCoderEdit(editResult).Advance();
     }
 
-    private async Task<StepResult<FeatureToPrInner>> VerifyAndCommitStepAsync(FeatureToPrInner inner, CancellationToken ct)
+    private async Task<StepResult<Change>> VerifyAndCommitStepAsync(Change inner, CancellationToken ct)
     {
-        var lease = inner.Lease ?? throw new FlowFailed("verify-and-commit", "Worktree lease is missing.");
-        var commitTitle = BuildCommitMessage(inner.Goal, inner.CoderSummary);
+        var lease = inner.Tree ?? throw new FlowFailed("verify-and-commit", "Worktree lease is missing.");
+        var commitTitle = ChangePolicy.BuildCommitMessage(inner.Goal, inner.Edit?.Summary);
         var wt = WorkTree;
         var committed = await Task.Run(() => wt.VerifyAndCommitAsync(lease, commitTitle, ct), ct).ConfigureAwait(true);
 
-        inner.CommitSha = committed.CommitSha;
-        inner.ChangedFiles = [.. committed.ChangedFiles];
-        inner.Additions = committed.Additions;
-        inner.Deletions = committed.Deletions;
-
-        // Asked before the diff is stored: a failed run saves this same state, and a diff no card can show stays out of it.
-        if (ChangeCard.Refusal(inner, committed.HostRenderedDiff) is { } refusal)
+        // Ask before storing the diff on state: a refused diff stays out of persisted state.
+        var metadataWithoutDiff = ChangeSet.Create(
+            committed.Commit,
+            committed.ChangedFiles,
+            string.Empty,
+            committed.Additions,
+            committed.Deletions);
+        var preview = inner.WithCommit(metadataWithoutDiff);
+        if (ChangeCard.Refusal(preview, committed.HostRenderedDiff) is { } refusal)
         {
             throw new FlowFailed("verify-and-commit", refusal);
         }
 
-        inner.HostRenderedDiff = committed.HostRenderedDiff;
-        return inner.Advance();
+        return inner.WithCommit(committed).Advance();
     }
 
-    private StepResult<FeatureToPrInner> ApprovalGateStep(string step, FeatureToPrInner inner)
+    private StepResult<Change> ApprovalGateStep(string step, Change inner)
     {
-        var sha = inner.CommitSha ?? throw new FlowFailed(step, "Cannot enter approval-gate without a verified CommitSha.");
+        var commit = inner.Commit ?? throw new FlowFailed(step, "Cannot enter approval-gate without a verified CommitSha.");
 
-        // Asked again here for a run that committed before the limit existed: no plan is raised for a change the card cannot show.
-        if (ChangeCard.Refusal(inner, inner.HostRenderedDiff) is { } refusal)
+        if (ChangeCard.Refusal(inner, commit.HostRenderedDiff) is { } refusal)
         {
             throw new FlowFailed(step, refusal);
         }
 
         var runId = EffectiveRunId(inner);
-        var planId = BuildPlanId(runId, sha);
+        var planId = BuildPlanId(runId, commit.Commit.Value);
         var expires = Context.Time.GetUtcNow().Add(ApprovalWindow);
 
-        inner.ConfirmationPlanId = planId;
-        inner.ApprovalExpires = expires;
-
-        return inner.WaitApproval(step, expires);
+        return inner.WithApprovalPending(planId, expires).WaitApproval(step, expires);
     }
 
-    private async Task<StepResult<FeatureToPrInner>> PublishStepAsync(FeatureToPrInner inner, CancellationToken ct)
+    private async Task<StepResult<Change>> PushStepAsync(Change inner, CancellationToken ct)
     {
-        var lease = inner.Lease ?? throw new FlowFailed("publish", "Worktree lease is missing.");
-        var sha = inner.CommitSha ?? throw new FlowFailed("publish", "Verified CommitSha is missing.");
-        var planId = inner.ConfirmationPlanId ?? BuildPlanId(EffectiveRunId(inner), sha);
-
-        // Idempotent guard if already published
-        if (!string.IsNullOrWhiteSpace(inner.PushedRef))
+        if (!string.IsNullOrWhiteSpace(inner.Publication?.PushedRef))
         {
             return inner.Advance();
         }
 
-        // DOER DEFENSE-IN-DEPTH (R7): Re-query ConfirmationsNeuron / IConfirmationRequests directly!
-        // Refuse if skipped by policy, denied/expired, or approved by any non-Person principal!
+        var lease = inner.Tree ?? throw new FlowFailed("push", "Worktree lease is missing.");
+        var commit = inner.Commit ?? throw new FlowFailed("push", "Verified CommitSha is missing.");
+        var planId = inner.Approval?.PlanId ?? BuildPlanId(EffectiveRunId(inner), commit.Commit.Value);
+
         var outcome = await ConfirmationRequests.Outcome(planId).ConfigureAwait(true);
-        if (outcome is null)
-        {
-            throw new SecurityException($"Refusing to publish: no authoritative confirmation outcome exists for '{planId}'.");
-        }
-        if (outcome.Outcome != ConfirmationOutcome.Approved || outcome.Skipped)
-        {
-            throw new SecurityException(
-                $"Refusing to publish: confirmation '{planId}' is not explicitly human-approved (Outcome={outcome.Outcome}, Skipped={outcome.Skipped}).");
-        }
-        if (outcome.Approver is not { IsHuman: true } humanApprover)
-        {
-            throw new SecurityException(
-                $"Refusing to publish: confirmation '{planId}' approver '{outcome.Approver?.Id ?? "none"}' ({outcome.Approver?.Kind}) is not a human Person.");
-        }
+        var humanApprover = inner.EnsureCanPublish(outcome, commit.Commit);
 
-        var prTitle = BuildPrTitle(inner.Goal);
-        var prBody = BuildPrBody(inner, sha, humanApprover.Id);
         var wt = WorkTree;
-        var published = await Task.Run(
-            () => wt.PublishAsync(lease, sha, prTitle, prBody, ct),
-            ct).ConfigureAwait(true);
+        var pushedRef = await Task.Run(() => wt.PushAsync(lease, commit.Commit, ct), ct).ConfigureAwait(true);
 
-        inner.ApprovedBy = humanApprover.Id;
-        inner.PushedRef = published.PushedRef;
-        inner.PullRequestUrl = published.PullRequestUrl;
-        return inner.Advance();
+        return inner.WithPushed(humanApprover, commit.Commit, pushedRef).Advance();
     }
 
-    private string EffectiveRunId(FeatureToPrInner inner)
+    private async Task<StepResult<Change>> PullRequestStepAsync(Change inner, CancellationToken ct)
+    {
+        if (inner.Publication?.PullRequestCompleted == true)
+        {
+            return inner.Advance();
+        }
+
+        var lease = inner.Tree ?? throw new FlowFailed("pr", "Worktree lease is missing.");
+        var commit = inner.Commit ?? throw new FlowFailed("pr", "Verified CommitSha is missing.");
+        var approverId = inner.Approval?.ApprovedBy
+            ?? throw new FlowFailed("pr", "Human approver is missing.");
+
+        var prTitle = ChangePolicy.BuildPrTitle(inner.Goal);
+        var prBody = BuildPrBody(inner, commit.Commit.Value, approverId);
+
+        var wt = WorkTree;
+        var prUrl = await Task.Run(
+            () => wt.CreateDraftPullRequestAsync(lease, prTitle, prBody, ct),
+            ct).ConfigureAwait(true);
+
+        return inner.WithPullRequest(prUrl).Advance();
+    }
+
+    private async Task<StepResult<Change>> CleanStepAsync(Change inner, CancellationToken ct)
+    {
+        if (inner.Publication?.Cleaned == true)
+        {
+            return inner.Advance();
+        }
+
+        if (inner.Tree is { } lease)
+        {
+            var wt = WorkTree;
+            await Task.Run(() => wt.CleanupAsync(lease, ct), ct).ConfigureAwait(true);
+        }
+
+        return inner.WithCleaned().Advance();
+    }
+
+    private string EffectiveRunId(Change inner)
     {
         if (!string.IsNullOrWhiteSpace(inner.RunId))
         {
             return inner.RunId.Trim();
         }
 
-        try { return Id.Key; }
-        catch (InvalidOperationException) { return Guid.NewGuid().ToString("N")[..12]; }
+        try
+        {
+            return Id.Key;
+        }
+        catch (InvalidOperationException)
+        {
+            return Guid.NewGuid().ToString("N")[..12];
+        }
     }
 
-    private static string BuildCommitMessage(string goal, string? summary)
-    {
-        var firstLine = goal.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? "Automated change";
-        if (firstLine.Length > 72) { firstLine = firstLine[..72].TrimEnd() + "..."; }
-        var title = firstLine.Contains(':', StringComparison.Ordinal) ? firstLine : $"feat(ino): {firstLine}";
-        return string.IsNullOrWhiteSpace(summary) ? title : $"{title}\n\n{summary.Trim()}";
-    }
-
-    private static string BuildPrTitle(string goal)
-    {
-        var firstLine = goal.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? "Automated change";
-        return firstLine.Length <= 80 ? firstLine : firstLine[..80].TrimEnd() + "...";
-    }
-
-    private static string BuildPrBody(FeatureToPrInner inner, string sha, string approverId)
+    private static string BuildPrBody(Change inner, string sha, string approverId)
     {
         var sb = new StringBuilder();
         sb.AppendLine("## Summary");
-        sb.AppendLine(string.IsNullOrWhiteSpace(inner.CoderSummary) ? inner.Goal : inner.CoderSummary);
+        var cleanSummary = ChangePolicy.SanitizeCommitText(inner.Edit?.Summary);
+        sb.AppendLine(string.IsNullOrWhiteSpace(cleanSummary) ? ChangePolicy.SanitizeCommitText(inner.Goal) : cleanSummary);
         sb.AppendLine();
         sb.AppendLine("## Verification & Provenance");
-        sb.AppendLine($"- **Goal:** {inner.Goal}");
+        sb.AppendLine($"- **Goal:** {ChangePolicy.SanitizeCommitText(inner.Goal)}");
         sb.AppendLine($"- **Commit:** `{sha}`");
-        sb.AppendLine($"- **Files ({inner.ChangedFiles.Length}):** {string.Join(", ", inner.ChangedFiles.Select(f => $"`{f}`"))}");
-        sb.AppendLine($"- **Approved by Person:** `{approverId}` (plan `{inner.ConfirmationPlanId}`)");
-        if (!string.IsNullOrWhiteSpace(inner.CoderModel))
+        var files = inner.Commit?.ChangedFiles ?? [];
+        sb.AppendLine($"- **Files ({files.Length}):** {string.Join(", ", files.Select(static f => $"`{f.Value}`"))}");
+        sb.AppendLine($"- **Approved by Person:** `{approverId}` (plan `{inner.Approval?.PlanId}`)");
+        if (!string.IsNullOrWhiteSpace(inner.Edit?.ModelId))
         {
-            sb.AppendLine($"- **Model:** `{inner.CoderModel}`");
+            sb.AppendLine($"- **Model:** `{inner.Edit.ModelId}`");
         }
+
         return sb.ToString().Trim();
     }
 }

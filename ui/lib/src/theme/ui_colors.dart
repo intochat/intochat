@@ -248,8 +248,7 @@ final class UiColors extends ThemeExtension<UiColors> {
   Color get accentOnInk => const Color(0xFF8FB0FF);
   Color get bubbleMine => userBubble;
   Color get onBubbleMine => userText;
-  Color get scrim =>
-      isDark ? const Color(0x80110F0B) : const Color(0x4717140F);
+  Color get scrim => isDark ? const Color(0x80110F0B) : const Color(0x4717140F);
 
   /// Overlay hover & selection fills (`DESIGN.md` §2.8).
   Color get hoverOverlay =>

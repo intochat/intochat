@@ -2,8 +2,9 @@ using System.Globalization;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Microsoft.Azure;
 
-namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
+namespace IntoChat.OS.Kernel.Install;
 
 // The ordered specs of the OS foundation (the OS silo, its storage, vault and identity):
 // resource group, identity, logs, storage, vault, environment, grants, secret, then the OS app.

@@ -10,7 +10,7 @@ using IntoChat.OS.Modules.AI.Testing.Signals;
 namespace IntoChat.OS.Modules.AI.Testing;
 
 [Neuron("testing.verification", State = "test-runs")]
-public sealed class TestVerificationNeuron : Neuron<TestVerificationState>, ITestVerificationNeuron
+internal sealed class TestVerificationNeuron : Neuron<TestVerificationState>, ITestVerificationNeuron
 {
     public async Task<TestExecutionResult> RunTargetedSuiteAsync(TestExecutionRequest request, CancellationToken cancellationToken = default)
     {
@@ -23,7 +23,7 @@ public sealed class TestVerificationNeuron : Neuron<TestVerificationState>, ITes
         var summary = new TestResultSummary(
             runId,
             request.SuiteName,
-            DateTimeOffset.UtcNow,
+            Context.Time.GetUtcNow(),
             result.Success,
             result.Total,
             result.Passed,

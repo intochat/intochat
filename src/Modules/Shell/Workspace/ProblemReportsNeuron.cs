@@ -23,7 +23,7 @@ internal sealed class ProblemReportsNeuron
             throw new ArgumentException($"A problem report is limited to {MaxMessageLength} characters.", nameof(message));
         }
 
-        var report = new ProblemReport(intentId, workspaceId, message, DateTimeOffset.UtcNow);
+        var report = new ProblemReport(intentId, workspaceId, message, Context.Time.GetUtcNow());
         await Save(State with { Reports = [.. State.Reports, report] }, new ProblemReported(workspaceId, intentId));
         return report;
     }
@@ -33,4 +33,4 @@ internal sealed class ProblemReportsNeuron
 
 // A report was filed: the saved change says which intent it came from (never the message itself).
 [Signal("ui.problem-reported")]
-public sealed record ProblemReported(string WorkspaceId, string IntentId) : DigitalBrain.Signal;
+internal sealed record ProblemReported(string WorkspaceId, string IntentId) : DigitalBrain.Signal;

@@ -1,10 +1,11 @@
 using System.Text.Json;
-using DigitalBrain.Capabilities;
-using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain;
+using DigitalBrain.Access;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Tests;
 
 namespace IntoChat.OS.Modules.Catalog.Tests;
 
@@ -60,36 +61,40 @@ public sealed class AppsEndpointsRequestForwardingFacts
     }
 
     [Fact]
-    public void EnterKernelStampsRuntimeCallerContextAndDisposeRestoresClearedState()
+    public void EnterKernelSetsKernelActorAndDisposeRestoresOuterCaller()
     {
-        using var cleared = InProcessCallerScope.ClearCaller();
-        Assert.False(RuntimeCallerContext.TryGet(out _));
+        var edge = TestEdge.Authority;
+        using var outer = edge.Enter(edge.Person("ada", "ada", new BrainId("owner")));
+        Assert.False(edge.IsKernelActive);
 
-        using (var _ = InProcessCallerScope.EnterKernel("owner"))
+        using (edge.EnterKernel(new BrainId("owner")))
         {
-            Assert.True(RuntimeCallerContext.TryGet(out var stamped));
-            Assert.Equal("owner", stamped.BrainId);
-            Assert.Equal(CallerKind.Platform, stamped.Kind);
+            Assert.True(edge.IsKernelActive);
+            Assert.IsType<Actor.Kernel>(edge.Current?.Actor);
+            Assert.Equal("owner", edge.Current!.Brain.Value);
         }
 
-        Assert.False(RuntimeCallerContext.TryGet(out _));
+        Assert.False(edge.IsKernelActive);
+        Assert.IsType<Actor.Person>(edge.Current?.Actor);
     }
 
     [Fact]
-    public void EnterAppStampsRuntimeAndAmbientAppCaller()
+    public void EnterAppSetsAppActorAndDisposeRestoresEmptyCaller()
     {
-        using var cleared = InProcessCallerScope.ClearCaller();
-        Assert.False(RuntimeCallerContext.TryGet(out _));
+        var edge = TestEdge.Authority;
+        using var cleared = edge.ClearCaller();
+        Assert.Null(edge.Current);
 
-        using (var _ = InProcessCallerScope.EnterApp("owner", "owner/apps/files"))
+        var caller = edge.App("owner/apps/files", new Actor.Person("owner", "owner"), new BrainId("owner"));
+        using (edge.Enter(caller))
         {
-            Assert.True(RuntimeCallerContext.TryGet(out var stamped));
-            Assert.Equal(CallerKind.App, stamped.Kind);
-            Assert.Equal("owner/apps/files", stamped.AppId);
-            Assert.Equal("app:owner/apps/files", stamped.PrincipalId);
-            Assert.Equal("owner", stamped.BrainId);
+            Assert.False(edge.IsKernelActive);
+            var app = Assert.IsType<Actor.App>(edge.Current?.Actor);
+            Assert.Equal("owner/apps/files", app.Key);
+            Assert.Equal("owner", app.For.Principal);
+            Assert.Equal("owner", edge.Current!.Brain.Value);
         }
 
-        Assert.False(RuntimeCallerContext.TryGet(out _));
+        Assert.Null(edge.Current);
     }
 }

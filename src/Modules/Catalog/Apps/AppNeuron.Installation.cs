@@ -1,12 +1,15 @@
+using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Log;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.Apps.Rules;
 using IntoChat.OS.Modules.Apps.Signals;
@@ -22,8 +25,11 @@ internal sealed partial class AppNeuron
     public async Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null, AppInstallReceipt? installation = null)
     {
         ArgumentNullException.ThrowIfNull(bundle);
+        if (bundle.Manifest is null) { throw new InvalidDataException("App manifest is required."); }
         RequireOriginWriter(origin);
         await RequireBundleFor("Import", bundle);
+        var files = bundle.Files ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        var spec = bundle.Spec ?? string.Empty;
         if (installation is not null)
         {
             await ValidateInstallation("Import", bundle, origin, installation);
@@ -31,22 +37,22 @@ internal sealed partial class AppNeuron
             {
                 if (State.Edited || State.Status == AppStatus.Live) { return Describe(State); }
                 var held = new AppBundle(Name(), State.Version, State.Manifest, State.Spec, new(State.Files, StringComparer.Ordinal));
-                var changed = held.Version != installation.Publication.Version || AppPublicationDigest.Of(held) != installation.Publication.Digest;
-                await Check("Import", new InstalledCopyIsUnchanged(changed));
+                await Check("Import", new InstalledCopyIsUnchanged(held, installation));
                 return await Land(State.Clone());
             }
         }
-        await Check("Import", new AppNameIsFree(Name(), State.Manifest is not null));
+        await Check("Import", new AppNameIsFree(Name(), State.Manifest));
+        var manifest = bundle.Manifest.Validated();
         var next = State.Clone();
         next.BrainScopeId = BrainId();
-        next.Principal = Context.Caller.ToCapabilityCaller() ?? CapabilityCallers.Of(BrainId(), BrainId(), BrainId());
-        next.Manifest = bundle.Manifest.Validated();
-        next.Spec = bundle.Spec;
-        next.Files = bundle.Files;
-        next.Settings = bundle.Manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
+        next.Principal = CapturePrincipal();
+        next.Manifest = manifest;
+        next.Spec = spec;
+        next.Files = files;
+        next.Settings = manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default ?? string.Empty, StringComparer.Ordinal);
         if (!string.IsNullOrWhiteSpace(bundle.CompiledType))
         {
-            next.PutSetting(InProcessAppRuntime.CompiledTypeKey, bundle.CompiledType);
+            next.PutSetting(AppTrust.CompiledTypeSetting, bundle.CompiledType);
         }
         next.Connections = new Dictionary<string, string>();
         next.Version = bundle.Version;
@@ -59,15 +65,18 @@ internal sealed partial class AppNeuron
     public async Task<AppSnapshot> Replace(AppBundle bundle, AppOrigin? origin = null)
     {
         ArgumentNullException.ThrowIfNull(bundle);
+        if (bundle.Manifest is null) { throw new InvalidDataException("App manifest is required."); }
         RequireOriginWriter(origin);
         await Check("Replace",
-            new AppExists(Name(), State.Manifest is not null),
+            new AppExists(Name(), State.Manifest),
             new BundleNameIsValid(bundle.Name, Name()),
             new BundleVersionIsSemantic(bundle.Version));
+        var files = bundle.Files ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        var spec = bundle.Spec ?? string.Empty;
         // A retried update at the version already held, with the same program, changes nothing.
-        if (bundle.Version == State.Version && bundle.Spec == State.Spec
-            && bundle.Files.Count == State.Files.Count
-            && bundle.Files.All(file => State.Files.TryGetValue(file.Key, out var held) && held == file.Value)
+        if (bundle.Version == State.Version && spec == State.Spec
+            && files.Count == State.Files.Count
+            && files.All(file => State.Files.TryGetValue(file.Key, out var held) && held == file.Value)
             && State.Status == AppStatus.Live)
         {
             if (origin is null || (origin with { Version = bundle.Version } == State.Origin && !State.Edited)) { return Describe(State); }
@@ -80,15 +89,16 @@ internal sealed partial class AppNeuron
             if (repackaged) { await Deploy(); }
             return Describe(State);
         }
+        var manifest = bundle.Manifest.Validated();
         var next = State.Clone();
-        next.Manifest = bundle.Manifest.Validated();
-        next.Spec = bundle.Spec;
-        next.Files = bundle.Files;
-        foreach (var setting in bundle.Manifest.Settings)
-        { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default); } }
+        next.Manifest = manifest;
+        next.Spec = spec;
+        next.Files = files;
+        foreach (var setting in manifest.Settings)
+        { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default ?? string.Empty); } }
         if (!string.IsNullOrWhiteSpace(bundle.CompiledType))
         {
-            next.PutSetting(InProcessAppRuntime.CompiledTypeKey, bundle.CompiledType);
+            next.PutSetting(AppTrust.CompiledTypeSetting, bundle.CompiledType);
         }
         next.Version = bundle.Version;
         Adopt(next, origin);
@@ -117,7 +127,7 @@ internal sealed partial class AppNeuron
     // only the runtime's answer makes it Live. Landing again is cheap: Assign is idempotent per program.
     private async Task<AppSnapshot> Land(AppState next)
     {
-        next.Principal ??= Context.Caller.ToCapabilityCaller() ?? CapabilityCallers.Of(BrainId(), BrainId(), BrainId());
+        next.Principal ??= CapturePrincipal();
         next.Status = AppStatus.Deploying;
         next.Refused = null;
         AdvanceProgram(next);
@@ -177,21 +187,12 @@ internal sealed partial class AppNeuron
             await DeploySandboxPackageAsync(package, CancellationToken.None).ConfigureAwait(false);
             return;
         }
-        if (!HasProgram(State)) { return; }
-        var configuration = Configuration(State);
-        using (InProcessCallerScope.Enter())
-        {
-            // Reassign the source on activation so a new host's contracts replace old calls, even when the app's version did not change.
-            await Runtime.Deploy(Key, configuration, CancellationToken.None);
-        }
+        VerifyCompiledProgramType();
     }
-
-    // The in-process host is the only runtime; it holds nothing, so each call takes a fresh one.
-    private InProcessAppRuntime Runtime => new(services ?? throw new InvalidOperationException("No services"));
 
     // An app runs only when it names a compiled module type; anything else is data.
     private static bool HasProgram(AppState state)
-        => state.Settings.TryGetValue(InProcessAppRuntime.CompiledTypeKey, out var ct) && !string.IsNullOrWhiteSpace(ct);
+        => state.Settings.TryGetValue(AppTrust.CompiledTypeSetting, out var ct) && !string.IsNullOrWhiteSpace(ct);
 
     // The whole program, every time: the runtime decides what changed. No program means nothing runs.
     private async Task Deploy()
@@ -202,10 +203,24 @@ internal sealed partial class AppNeuron
             await DeploySandboxPackageAsync(package, CancellationToken.None).ConfigureAwait(false);
             return;
         }
-        if (!HasProgram(State)) { await Runtime.Retire(Key, CancellationToken.None); return; }
-        using (InProcessCallerScope.Enter())
+        VerifyCompiledProgramType();
+    }
+
+    private void VerifyCompiledProgramType()
+    {
+        if (!State.Settings.TryGetValue(AppTrust.CompiledTypeSetting, out var typeName)
+            || string.IsNullOrWhiteSpace(typeName))
         {
-            await Runtime.Deploy(Key, Configuration(State), CancellationToken.None);
+            return;
+        }
+
+        var resolved = Type.GetType(typeName, throwOnError: false)
+            ?? AppDomain.CurrentDomain.GetAssemblies()
+                .Select(assembly => assembly.GetType(typeName, throwOnError: false))
+                .FirstOrDefault(type => type is not null);
+        if (resolved is null)
+        {
+            throw new InvalidOperationException($"Compiled app type '{typeName}' could not be resolved.");
         }
     }
 
@@ -248,7 +263,7 @@ internal sealed partial class AppNeuron
         {
             try
             {
-                using (InProcessCallerScope.EnterKernel(BrainId()))
+                using (Edge?.Enter(Edge.Module("apps.catalog", Id.Brain)))
                 {
                     await SiloNeurons.Get<ISandboxSignalRouter>(ServiceProvider, ISandboxSignalRouter.Key(BrainId()))
                         .BindSignalsAsync(compiledPackage.Needs.Signals, cancellationToken)
@@ -305,8 +320,7 @@ internal sealed partial class AppNeuron
         if (!RuntimeCallerContext.TryGet(out var caller) || caller.AccountId != installation.AccountId
             || BrainScope.CurrentId() != BrainId())
         { throw new UnauthorizedAccessException("An installation belongs to its initiating account and destination brain."); }
-        var matches = PublishedRelease.IsReceiptMatching(installation, origin, bundle, Name(), caller.AccountId);
-        return Check(operation, new ReceiptMatchesPublication(matches));
+        return Check(operation, new ReceiptMatchesPublication(installation, origin, bundle, Name(), caller.AccountId));
     }
 
     // Phase F: an installed app is a principal of its brain. Its membership (role App, under the brain owner's account)
@@ -321,11 +335,18 @@ internal sealed partial class AppNeuron
             var directory = await broker.Identity();
             var account = await directory.OwnerOfBrain(brain);
             if (account is null) { return; }
-            using (InProcessCallerScope.Enter())
+            var principalId = AppPrincipal.Id(Key);
+            if (await directory.Membership(brain, principalId) is { Role: MemberRole.App }) { return; }
+            if (Edge?.Current is { Actor: Actor.App or Actor.Module or Actor.Scheduler }
+                || (RuntimeCallerContext.TryGet(out var caller) && caller.AppId is not null))
+            {
+                return;
+            }
+            using (Edge?.EnterInProcess())
             {
                 await directory.EnsureMember(new Member
                 {
-                    PrincipalId = AppPrincipal.Id(Key),
+                    PrincipalId = principalId,
                     AccountId = account.AccountId,
                     BrainId = brain,
                     Role = MemberRole.App,
@@ -336,6 +357,8 @@ internal sealed partial class AppNeuron
         }
         catch (Exception error) when (error is InvalidOperationException or UnauthorizedAccessException)
         {
+            var logger = services?.GetService<ILoggerFactory>()?.CreateLogger<AppNeuron>() ?? OsConsoleLog.For<AppNeuron>();
+            logger.LogSwallowed(error, "ensuring optional app principal");
             return;
         }
     }
@@ -351,13 +374,15 @@ internal sealed partial class AppNeuron
             var account = await directory.OwnerOfBrain(brain);
             if (account is null) { return; }
             if (await directory.Membership(brain, principal) is not { Role: MemberRole.App }) { return; }
-            using (InProcessCallerScope.Enter())
+            using (Edge?.EnterInProcess())
             {
                 await directory.RemovePrincipalMember(brain, principal);
             }
         }
         catch (Exception error) when (error is InvalidOperationException or UnauthorizedAccessException)
         {
+            var logger = services?.GetService<ILoggerFactory>()?.CreateLogger<AppNeuron>() ?? OsConsoleLog.For<AppNeuron>();
+            logger.LogSwallowed(error, "removing optional app principal");
             return;
         }
     }

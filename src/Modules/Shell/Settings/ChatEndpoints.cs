@@ -35,7 +35,7 @@ internal static class ChatEndpoints
     {
         ArgumentNullException.ThrowIfNull(ino);
         var data = ino.Settings.GetValueOrDefault("ChatDataApp");
-        return (data is { Length: > 0 } ? data : IApp.Key(brain, "ino")) + "/chats";
+        return (data is { Length: > 0 } ? data : IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), "ino").Key) + "/chats";
     }
 
     internal static async Task<IResult> List(INeuronProxies brain, CancellationToken ct, bool archived = true, int skip = 0, int take = ChatIndex.MaxPage)
@@ -62,7 +62,7 @@ internal static class ChatEndpoints
     private static async Task<IChatIndex> Index(INeuronProxies brain, CancellationToken ct)
     {
         var brainId = BrainScope.CurrentId();
-        var ino = await brain.Get<IApp>(IApp.Key(brainId, "ino")).Read().WaitAsync(ct);
+        var ino = await brain.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brainId), "ino").Key).Read().WaitAsync(ct);
         return brain.Get<IChatIndex>(IndexKey(brainId, ino));
     }
 }

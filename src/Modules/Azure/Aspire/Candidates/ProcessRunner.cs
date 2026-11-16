@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using IntoChat.OS.Framework.Execution;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 
@@ -40,6 +41,7 @@ internal sealed class SystemProcessRunner : IProcessRunner
     private static ProcessStartInfo Info(string file, string[] args, string workingDirectory, IReadOnlyDictionary<string, string>? environment, bool redirect)
     {
         var info = new ProcessStartInfo(file) { WorkingDirectory = workingDirectory, RedirectStandardOutput = redirect, RedirectStandardError = redirect, UseShellExecute = false };
+        ChildEnvironmentPolicy.Scrub(info);
         foreach (var argument in args) { info.ArgumentList.Add(argument); }
         foreach (var (name, value) in environment ?? new Dictionary<string, string>()) { info.Environment[name] = value; }
         return info;

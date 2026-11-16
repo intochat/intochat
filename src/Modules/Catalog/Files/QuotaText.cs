@@ -4,7 +4,7 @@ using DigitalBrain.Capabilities.Storage;
 namespace IntoChat.Files;
 
 // Tri-state quota. Unknown and a known total of 0 never render as 0.
-public static class QuotaText
+internal static class QuotaText
 {
     public static string For(Quota quota, string kind)
     {

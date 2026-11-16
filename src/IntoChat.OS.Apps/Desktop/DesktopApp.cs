@@ -15,11 +15,13 @@ using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.ArtCraft;
+using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Modules.Flutter.Workspace.Signals;
+using IntoChat.OS.Primitives;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Desktop;
@@ -75,6 +77,16 @@ public sealed record DesktopSettings : Signal;
 [Neuron("app.desktop")]
 public sealed class DesktopApp : Screen<DesktopAppState>
 {
+    private static readonly ILogger ConsoleLog = IntoChat.OS.Framework.Logging.OsConsoleLog.For<DesktopApp>();
+    private readonly ILogger<DesktopApp>? _logger;
+
+    public DesktopApp() : this(null) { }
+
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+    public DesktopApp(ILogger<DesktopApp>? logger = null) => _logger = logger;
+
+    private ILogger Log => _logger ?? ConsoleLog;
+
     public const string AppName = "desktop";
 
     public static readonly HashSet<string> DesktopWindowVerbs = new(StringComparer.Ordinal)
@@ -123,7 +135,6 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     [
         ("ino", "Ino Assistant", "neuron://local/apps/ino", "sparkles", "Intelligence", "orleans-grain"),
         ("files", "Files", "neuron://local/apps/files", "folder", "Workspace", "orleans-grain"),
-        ("workspace", "Workspace", "neuron://local/apps/workspace", "compass", "Workspace", "orleans-grain"),
         ("tasks", "Tasks", "neuron://local/apps/tasks", "tasks", "Workspace", "orleans-grain"),
         ("calculator", "Calculator", "neuron://local/apps/calculator", "calculator", "Workspace", "orleans-grain"),
         ("data", "Data Studio", "neuron://local/apps/data", "bar-chart-2", "Studio", "orleans-grain"),
@@ -142,9 +153,11 @@ public sealed class DesktopApp : Screen<DesktopAppState>
 
     public IReadOnlyList<(string Id, string Title, string Uri, string Icon, string Category, string RuntimeMode)> EffectiveCatalog()
     {
-        var brain = CurrentBrainOrLocal();
+        var brain = TryCurrentBrain();
         var items = Catalog
-            .Select(entry => entry with { Uri = entry.Uri.Replace("neuron://local/", $"neuron://{brain}/", StringComparison.Ordinal) })
+            .Select(entry => brain is { Length: > 0 } b
+                ? entry with { Uri = entry.Uri.Replace("neuron://local/", $"neuron://{b}/", StringComparison.Ordinal) }
+                : entry)
             .ToList();
         var knownIds = items.Select(i => i.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -154,23 +167,26 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             {
                 continue;
             }
-            items.Add((unitAlias, FormatAppTitle(unitAlias), $"neuron://{brain}/units/{unitAlias}", "zap", "Micro-App", "synapse-unit"));
+            var unitUri = brain is { Length: > 0 } b
+                ? $"neuron://{b}/units/{unitAlias}"
+                : $"neuron:///units/{unitAlias}";
+            items.Add((unitAlias, FormatAppTitle(unitAlias), unitUri, "zap", "Micro-App", "synapse-unit"));
         }
 
         return items;
     }
 
-    private string CurrentBrainOrLocal()
+    private string? TryCurrentBrain()
     {
         try
         {
             var val = Id.Brain.Value;
-            return string.IsNullOrEmpty(val) ? "local" : val;
+            return string.IsNullOrEmpty(val) ? null : val;
         }
         catch (InvalidOperationException ex)
         {
-            NullLogger.Instance.LogSwallowed(ex, "Id.Brain is unassigned in standalone tests; defaulting to local.");
-            return "local";
+            Log.LogSwallowed(ex, "Id.Brain is unassigned in standalone tests; keeping unattached state.");
+            return null;
         }
     }
 
@@ -189,13 +205,14 @@ public sealed class DesktopApp : Screen<DesktopAppState>
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
+        AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
         try { await Follow<IWorkspace, WorkspaceChanged>("main"); }
-        catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Workspace follow is optional when running in standalone mode."); }
+        catch (Exception ex) { Log.LogSwallowed(ex, "Workspace follow is optional when running in standalone mode."); }
         try { await Follow<ISynapseStudio, SynapseStudioChanged>("ino/synapses"); }
-        catch (Exception ex) when (ex is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(ex, "SynapseStudio follow is optional when running in standalone mode."); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { Log.LogSwallowed(ex, "SynapseStudio follow is optional when running in standalone mode."); }
         try { await Context.Synapses.EnsureBrainWide([typeof(DigitalBrain.Confirmation.ConfirmationResolved)]); }
-        catch (Exception ex) when (ex is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(ex, "ConfirmationResolved follow is optional when running in standalone mode."); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { Log.LogSwallowed(ex, "ConfirmationResolved follow is optional when running in standalone mode."); }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
 
@@ -228,15 +245,19 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 try
                 {
                     try { await Get<IApp>("apps/ino").Request("open", "greet"); }
-                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException) { await Get<IScreen>("app.ino").Request("open", JsonSerializer.SerializeToElement("greet")); }
+                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException)
+                    {
+                        Log.LogSwallowed(fallbackEx, "Falling back to app.ino screen for desktop greet.");
+                        await Get<IScreen>("app.ino").Request("open", JsonSerializer.SerializeToElement("greet"));
+                    }
                 }
-                catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Ino was not there to greet; the desktop starts without it."); }
+                catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Ino was not there to greet; the desktop starts without it."); }
                 await Records.Write(records with { Greeted = true });
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
         }
         await SyncSmartDesktopAsync(layout, State.IsNarrow);
     }
@@ -255,7 +276,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
         }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
@@ -274,7 +295,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
         }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
@@ -292,7 +313,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
+            Log.LogSwallowed(error, "DesktopRecords is optional when DesktopApp runs in standalone tests.");
         }
         await SyncSmartDesktopAsync(nextLayout, State.IsNarrow);
     }
@@ -311,11 +332,15 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 try
                 {
                     try { await Get<IApp>($"apps/{app}").Request("open", view.Trim()); }
-                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException) { await Get<IScreen>("app." + app).Request("open", JsonSerializer.SerializeToElement(new DesktopOpenViewArgs(view.Trim(), view.Trim(), view.Trim()))); }
+                    catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException)
+                    {
+                        Log.LogSwallowed(fallbackEx, $"Falling back to app.{app} screen for open view.");
+                        await Get<IScreen>("app." + app).Request("open", JsonSerializer.SerializeToElement(new DesktopOpenViewArgs(view.Trim(), view.Trim(), view.Trim())));
+                    }
                 }
-                catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The app was not there to receive its open view."); }
+                catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "The app was not there to receive its open view."); }
             }
-            var brain = CurrentBrainOrLocal();
+            var brain = TryCurrentBrain();
             await ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.OpenWorkspaceApp(s, app, brain: brain));
         }
         else
@@ -347,12 +372,12 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         if (!decision.IsAccepted) { return; }
 
         await Show(decision.Next);
+        if (TryCurrentBrain() is not { Length: > 0 } brain) { return; }
         var isPin = request.Pinned;
-        var brain = CurrentBrainOrLocal();
         await ApplyDesktopWorkspaceChangeAsync(s =>
         {
             if (s.Pins.Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase)) == isPin) { return (null, []); }
-            var appKey = IApp.Key(brain, appId);
+            var appKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), appId).Key;
             WorkspaceViewRef[] nextPins = isPin
                 ? [.. s.Pins, new WorkspaceViewRef(appId, appKey, "full", string.Empty)]
                 : [.. s.Pins.Where(p => !string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase))];
@@ -383,7 +408,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.App)) { return Task.CompletedTask; }
-        var brain = CurrentBrainOrLocal();
+        var brain = TryCurrentBrain();
         return ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.CloseWorkspaceApp(s, request.App, brain));
     }
 
@@ -412,7 +437,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     public Task NewTab(DesktopNewTab request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var brain = CurrentBrainOrLocal();
+        var brain = TryCurrentBrain();
         return ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.OpenWorkspaceApp(s, "ino", request.WindowId, asNewTab: true, brain: brain));
     }
 
@@ -421,7 +446,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.WindowId)) { return Task.CompletedTask; }
-        var brain = CurrentBrainOrLocal();
+        var brain = TryCurrentBrain();
         return ApplyDesktopWorkspaceChangeAsync(s => DesktopAppState.ToggleWorkspaceFavourite(s, request.WindowId, brain));
     }
 
@@ -445,7 +470,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
 
     protected override View Render(DesktopAppState state)
     {
-        var brain = CurrentBrainOrLocal();
+        var brain = TryCurrentBrain();
         var activeWindows = (state.Windows ?? []).Where(w => w.Tabs is { Length: > 0 }).ToArray();
 
         Node BuildWindowFrame(WorkspaceWindow window)
@@ -453,7 +478,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             var winId = window.Id;
             var activeIndex = Math.Max(0, Array.FindIndex(window.Tabs, t => t.Id == window.ActiveTabId));
             var activeTab = window.Tabs[activeIndex];
-            var appId = IApp.NameOf(brain, activeTab.App) ?? activeTab.Id;
+            var appId = brain is { Length: > 0 } b ? IApp.NameOf(b, activeTab.App) ?? activeTab.Id : activeTab.Id;
             var title = char.ToUpperInvariant(appId[0]) + appId[1..];
             var isPinned = (state.Pins ?? []).Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase));
             var isFav = (state.Favourites ?? []).Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));
@@ -480,7 +505,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             return VStack(0, [
                 new Row(chromeButtons) { Gap = 4, Extents = [0, .. chromeButtons.Skip(1).Select(_ => 32.0)] },
                 Tabs($"{winId}/{activeIndex}", tabItems),
-                Slot($"{brain}/apps/desktop/window/{winId}", "viewport"),
+                Slot(brain is { Length: > 0 } ? IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildKey($"window/{winId}") : $"apps/desktop/window/{winId}", "viewport"),
             ]).Extents(40, 38, 0);
         }
 
@@ -563,7 +588,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 preset = current.StylePreset;
                 barLayout = current.BarLayout;
             }
-            catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "UserSettings is optional."); }
+            catch (Exception ex) { Log.LogSwallowed(ex, "UserSettings is optional."); }
         }
 
         var activeNeurons = 10;
@@ -572,7 +597,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             var topology = await Get<IntoChat.OS.Modules.Apps.Debugger.IDebuggerReads>("creator/reads").Topology();
             if (topology.Nodes.Count > 0) { activeNeurons = topology.Nodes.Count; }
         }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "DebuggerReads is optional."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "DebuggerReads is optional."); }
 
         string[] deployedUnits = State.DeployedUnits ?? [];
         try
@@ -586,7 +611,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 .ToArray();
             if (units.Length > 0 && activeNeurons == 10) { activeNeurons += units.Length; }
         }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "SynapseStudio is optional."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "SynapseStudio is optional."); }
 
         var windows = State.Windows ?? [];
         var pins = State.Pins ?? [];
@@ -594,13 +619,15 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         var focusedViewId = State.FocusedViewId;
         try
         {
-            var ws = await Get<IWorkspace>("workspace").Read();
+            var ws = await Get<IWorkspace>("main").Read();
             windows = ws.Windows;
             pins = ws.Pins;
             favs = ws.Favourites;
             focusedViewId = ws.FocusedViewId;
         }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Workspace is optional."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Workspace is optional."); }
+
+        await SyncWindowViewportsAsync(windows);
 
         var widgetsText = "";
         try
@@ -608,7 +635,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             var records = await Records.Read();
             widgetsText = string.Join(" · ", records.Widgets);
         }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Records is optional."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Records is optional."); }
 
         var pinnedApps = pins.Length > 0
             ? pins.Select(p => p.Id).Where(id => id is not ("ino" or "desktop")).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
@@ -638,7 +665,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         IReadOnlyList<string> closedWindowIds = [];
         try
         {
-            var workspace = Get<IWorkspace>("workspace");
+            var workspace = Get<IWorkspace>("main");
             for (var attempt = 0; attempt < 2; attempt++)
             {
                 var wsState = await workspace.Read();
@@ -652,37 +679,65 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                 }
                 catch (RevisionConflictException ex) when (attempt == 0)
                 {
-                    NullLogger.Instance.LogSwallowed(ex, "Workspace revision conflict on initial attempt; retrying.");
+                    Log.LogSwallowed(ex, "Workspace revision conflict on initial attempt; retrying.");
                 }
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "Workspace is optional.");
+            Log.LogSwallowed(error, "Workspace is optional.");
         }
 
         await ClearViewportsAsync(closedWindowIds);
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
 
+    private async Task SyncWindowViewportsAsync(IReadOnlyList<WorkspaceWindow> windows)
+    {
+        if (TryCurrentBrain() is not { Length: > 0 } brain) { return; }
+        foreach (var win in windows)
+        {
+            if (win is null || string.IsNullOrWhiteSpace(win.Id) || win.Tabs is not { Length: > 0 }) { continue; }
+            var activeTab = win.Tabs.FirstOrDefault(t => string.Equals(t.Id, win.ActiveTabId, StringComparison.Ordinal))
+                ?? win.Tabs[0];
+            await SetViewportTargetAsync(brain, win.Id, activeTab, "Failed to sync viewport for open window.");
+        }
+    }
+
     private async Task ClearViewportsAsync(IReadOnlyList<string> closedWindowIds)
     {
-        var brain = CurrentBrainOrLocal();
+        if (TryCurrentBrain() is not { Length: > 0 } brain) { return; }
         foreach (var winId in closedWindowIds)
         {
-            try
+            await SetViewportTargetAsync(brain, winId, target: null, "Failed to clear viewport for closed window.");
+        }
+    }
+
+    private async Task SetViewportTargetAsync(string brain, string winId, WorkspaceViewRef? target, string failureContext)
+    {
+        if (string.IsNullOrWhiteSpace(winId)) { return; }
+        try
+        {
+            var viewport = Get<IViewport>(
+                IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildNeuron(UIVocabulary.ViewportType, $"window/{winId}"));
+            for (var attempt = 0; attempt < 2; attempt++)
             {
-                var viewport = Get<IViewport>($"{brain}/apps/desktop/window/{winId}");
                 var currentVp = await viewport.Read();
-                if (currentVp.Target is not null)
+                if (currentVp.Target == target) { return; }
+                try
                 {
-                    await viewport.Set(null, currentVp.Revision);
+                    await viewport.Set(target, currentVp.Revision);
+                    return;
+                }
+                catch (RevisionConflictException ex) when (attempt == 0)
+                {
+                    Log.LogSwallowed(ex, "Viewport revision conflict on initial attempt; retrying.");
                 }
             }
-            catch (Exception ex)
-            {
-                NullLogger.Instance.LogSwallowed(ex, "Failed to clear viewport for closed window.");
-            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.LogSwallowed(ex, failureContext);
         }
     }
 
@@ -691,7 +746,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         try { return Get<T>(key); }
         catch (InvalidOperationException error)
         {
-            NullLogger.Instance.LogSwallowed(error, $"{typeof(T).Name} is optional when DesktopApp runs in baseline tests.");
+            Log.LogSwallowed(error, $"{typeof(T).Name} is optional when DesktopApp runs in baseline tests.");
             return null;
         }
     }

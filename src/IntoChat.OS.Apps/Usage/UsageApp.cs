@@ -14,10 +14,10 @@ using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Compute;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Usage;
@@ -51,7 +51,7 @@ public sealed record UsageAppState(
     public bool ConsistentBudgetFlag => BudgetExceeded == (SpentMicros > MonthlyBudgetMicros);
 
     public Rule ValidBudgetCap(long budgetMicros) =>
-        Decision.Rule("non_positive_budget", budgetMicros <= 0, "Monthly compute cap must be greater than $0.00.");
+        Decision.Rule("non_positive_budget", budgetMicros, static b => b <= 0, "Monthly compute cap must be greater than $0.00.");
 
     public Decision<UsageAppState> ApplyBudgetCap([Sample(10_000_000L, 50_000_000L, 200_000_000L, 0L)] long monthlyBudgetMicros)
     {
@@ -104,9 +104,10 @@ public sealed class UsageApp : AggregateScreen<UsageAppState>
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
+        AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken).ConfigureAwait(true);
         try { await Follow<ICompute, ComputeChanged>("compute").ConfigureAwait(true); }
-        catch (Exception ex) { NullLogger.Instance.LogSwallowed(ex, "Compute follow is optional when running in standalone mode."); }
+        catch (Exception ex) { OsConsoleLog.For<UsageApp>().LogSwallowed(ex, "Compute follow is optional when running in standalone mode."); }
     }
 
     [On]
@@ -145,7 +146,7 @@ public sealed class UsageApp : AggregateScreen<UsageAppState>
         }
         catch (Exception ex)
         {
-            NullLogger.Instance.LogSwallowed(ex, "Failed to set compute budget; falling back to local state.");
+            OsConsoleLog.For<UsageApp>().LogSwallowed(ex, "Failed to set compute budget; falling back to local state.");
             await ApplyDecisionAsync(State.ApplyBudgetCap(cap));
         }
     }
@@ -160,7 +161,7 @@ public sealed class UsageApp : AggregateScreen<UsageAppState>
         }
         catch (Exception ex)
         {
-            NullLogger.Instance.LogSwallowed(ex, "Failed to read compute state; falling back to local state.");
+            OsConsoleLog.For<UsageApp>().LogSwallowed(ex, "Failed to read compute state; falling back to local state.");
             var usd = FormatUsd(State.SpentMicros);
             await Show(State with { FormattedUsd = usd, Status = $"{statusPrefix} Total: {usd}." });
         }

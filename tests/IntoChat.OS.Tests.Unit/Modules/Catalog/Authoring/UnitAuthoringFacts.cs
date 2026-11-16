@@ -503,21 +503,16 @@ public sealed class UnitAuthoringFacts
     }
 
     [Fact]
-    public async Task SiloCreatorModelFallsBackOfflineWhenNoProviderAvailable()
+    public async Task SiloCreatorModelThrowsWhenNoProviderAvailable()
     {
         var services = new ServiceCollection().BuildServiceProvider();
         var siloModel = new SiloCreatorModel(services);
 
-        var completed = await siloModel.Complete("brain1", "missing-model", AgentPrompts.AuthorUnit, "track daily budget expenses", Ct);
-        Assert.Contains("budget.app", completed, StringComparison.Ordinal);
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            siloModel.Complete("brain1", "missing-model", AgentPrompts.AuthorUnit, "track daily budget expenses", Ct));
 
-        var unit = JsonSerializer.Deserialize<AuthoredUnit>(completed, JsonSerializerOptions.Web)!;
-        Assert.Equal("budget.app", unit.Alias);
-
-        var generated = await siloModel.Generate("brain1", "missing-model", new InferenceRequest(
-            [new AiMessage("system", [new AiText(AgentPrompts.BuildUnit)]), new AiMessage("user", [new AiText(completed)])]), Ct);
-
-        var replyText = generated.Messages[0].Content.OfType<AiText>().Single().Text;
-        Assert.Contains("UnitApp.cs", replyText, StringComparison.Ordinal);
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            siloModel.Generate("brain1", "missing-model", new InferenceRequest(
+                [new AiMessage("system", [new AiText(AgentPrompts.BuildUnit)]), new AiMessage("user", [new AiText("{}")])]), Ct));
     }
 }

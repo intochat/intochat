@@ -3,8 +3,11 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Runtime.Synapses;
 using DigitalBrain.UI;
+using DigitalBrain.Units;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Google.Gmail;
 using IntoChat.OS.Sandbox;
 using IntoChat.Sdk;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -78,6 +81,7 @@ public sealed class IntoChatClientFacts
             Assert.Same(typeof(IBrain).Assembly, osAssembly);
 
             Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS"));
+            Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.Google"));
             Assert.True(AppLoadContext.IsAssemblyAllowed("DigitalBrain"));
             Assert.True(AppLoadContext.IsAssemblyAllowed("DigitalBrain.UI"));
             Assert.True(AppLoadContext.IsAssemblyAllowed("Microsoft.Extensions.Logging.Abstractions"));
@@ -223,6 +227,172 @@ public sealed class IntoChatClientFacts
         var signalPayload = JsonSerializer.Deserialize<SandboxSignalRequest>(signalCall.Body, JsonSerializerOptions.Web)!;
         Assert.Equal("sample.signal", signalPayload.SignalName);
         Assert.Contains("ok", signalPayload.PayloadJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SlotReturnsNeuronProxyAndMapsForbiddenToUnauthorized()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        Assert.Null(typeof(IntoChatClient).Assembly.GetType("IntoChat.OS.Sandbox.ContractDispatchProxy"));
+
+        var denyReads = false;
+        var handler = new StubHttpMessageHandler(request =>
+        {
+            if (request.Uri.AbsolutePath == "/edge/sandbox/invoke")
+            {
+                if (denyReads)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.Forbidden)
+                    {
+                        Content = new StringContent(
+                            JsonSerializer.Serialize(new SandboxInvokeResponse(null, "Missing grant for gmail."), JsonSerializerOptions.Web),
+                            Encoding.UTF8,
+                            "application/json"),
+                    };
+                }
+
+                var result = GmailInboxResult.FromFailure(new GmailFailure("not_connected", "Connect Gmail.", []));
+                return JsonResponse(new SandboxInvokeResponse(JsonSerializer.Serialize(result, JsonSerializerOptions.Web)));
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+
+        using var httpClient = new HttpClient(handler);
+        var client = new IntoChatClient("brain-1", "triage-app", KernelUri, "secret-token", httpClient, NullLogger.Instance);
+
+        var gmail = client.Slot<IGmail>("connection/gmail/inbox");
+        Assert.IsAssignableFrom<DispatchProxy>(gmail);
+
+        var ok = await gmail.ReadInbox(new GmailInboxRequest(5), ct);
+        Assert.NotNull(ok.Failure);
+        Assert.Equal("not_connected", ok.Failure!.Code);
+
+        var invoke = JsonSerializer.Deserialize<SandboxInvokeRequest>(Assert.Single(handler.Requests).Body, JsonSerializerOptions.Web)!;
+        Assert.Equal("gmail", invoke.Contract);
+        Assert.Equal("connection/gmail/inbox", invoke.Slot);
+        Assert.Equal(nameof(IGmail.ReadInbox), invoke.Method);
+
+        denyReads = true;
+        var error = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => gmail.ReadInbox(new GmailInboxRequest(5), ct));
+        Assert.Contains("Missing grant", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AppSandboxHostLoadsExecutesAndRendersRuntimeSynapseUnit()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var notified = new List<string>();
+        var handler = new StubHttpMessageHandler(request =>
+        {
+            if (request.Uri.AbsolutePath == "/edge/sandbox/invoke")
+            {
+                var invoke = JsonSerializer.Deserialize<SandboxInvokeRequest>(request.Body, JsonSerializerOptions.Web)!;
+                if (invoke.Contract == "notifications.slot" && invoke.Slot == "inbox" && invoke.Method == "Notify")
+                {
+                    notified.Add(invoke.ArgsJson);
+                    var receipt = JsonDocument.Parse("{\"id\":\"notif-syn-1\",\"deduplicated\":false}").RootElement;
+                    return JsonResponse(new SandboxInvokeResponse(JsonSerializer.Serialize(receipt, JsonSerializerOptions.Web)));
+                }
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+
+        using var httpClient = new HttpClient(handler);
+        var host = new AppSandboxHost(httpClient, KernelUri, NullLogger<AppSandboxHost>.Instance);
+
+        const string unitCode = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using DigitalBrain;
+            using DigitalBrain.UI;
+            using INotifySlot = IntoChat.OS.Modules.Apps.Notifications.INotifications;
+
+            namespace SampleSynapse;
+
+            [Signal("triage.requested")]
+            public sealed record TriageRequested(string Tag) : Signal;
+
+            [State("inbox.triage")]
+            public sealed record TriageState(int Count = 0, string LatestReceipt = "")
+            {
+                public TriageState() : this(0, "") { }
+            }
+
+            public static class TriageSynapse
+            {
+                [Synapse(typeof(TriageRequested), "inbox.triage")]
+                public static async Task<Reaction<TriageState>> OnRequested(
+                    TriageRequested sig,
+                    TriageState state,
+                    [DigitalBrain.Slot(Name = "inbox")] INotifySlot notifications,
+                    CancellationToken ct)
+                {
+                    var receipt = await notifications.Notify("Triaged", sig.Tag, "normal", ct);
+                    var id = receipt.GetProperty("id").GetString() ?? "none";
+                    return Reaction<TriageState>.Of(state with { Count = state.Count + 1, LatestReceipt = $"{sig.Tag}:{id}" });
+                }
+
+                [Synapse("inbox.triage")]
+                public static View Render(TriageState state)
+                    => new("Inbox Triage", new Text($"{state.Count}:{state.LatestReceipt}"));
+            }
+            """;
+
+        var compiler = new SynapseCompiler(ReferenceSet.FromDefaultContext());
+        var build = compiler.Compile(new SynapseSource("inbox-triage", new Dictionary<string, string> { ["Triage.cs"] = unitCode }, null));
+        Assert.True(build.Success, string.Join("\n", build.Diagnostics.Select(d => $"{d.File}({d.Line}) {d.Id}: {d.Message}")));
+
+        try
+        {
+            var deploy = await host.DeployAsync(
+                new DeployAppRequest(
+                    BrainId: "brain-99",
+                    AppKey: "inbox.triage",
+                    Version: "1.0.0",
+                    Digest: build.Hash,
+                    AssemblyBase64: Convert.ToBase64String(build.Assembly),
+                    KernelUrl: KernelUri.ToString(),
+                    AppToken: "tok-99"),
+                ct);
+
+            Assert.Contains("triage.requested", deploy.Signals);
+            Assert.NotNull(deploy.InitialViewJson);
+
+            var dispatch = await host.DispatchAsync(
+                new DispatchAppRequest(
+                    BrainId: "brain-99",
+                    AppKey: "inbox.triage",
+                    Kind: "signal",
+                    Name: "triage.requested",
+                    PayloadJson: "{\"tag\":\"vip\"}",
+                    StateJson: deploy.StateJson),
+                ct);
+
+            Assert.True(dispatch.Handled, dispatch.Error);
+            Assert.Null(dispatch.Error);
+            Assert.Single(notified);
+            Assert.Contains("1:vip:notif-syn-1", dispatch.UpdatedViewJson!, StringComparison.Ordinal);
+
+            var render = await host.DispatchAsync(
+                new DispatchAppRequest(
+                    BrainId: "brain-99",
+                    AppKey: "inbox.triage",
+                    Kind: "render",
+                    StateJson: dispatch.UpdatedStateJson),
+                ct);
+
+            Assert.True(render.Handled, render.Error);
+            Assert.Contains("1:vip:notif-syn-1", render.UpdatedViewJson!, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (host.LoadedAppCount > 0)
+            {
+                await host.UnloadAsync("brain-99", "inbox.triage", ct);
+            }
+        }
     }
 
     [Fact]

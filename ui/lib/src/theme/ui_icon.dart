@@ -27,8 +27,9 @@ IconData? uiIcon(String name) => switch (_normalizeIconName(name)) {
   'check-circle' || 'circle-check' => LucideIcons.circleCheck,
   'check-check' => LucideIcons.checkCheck,
   'alert' || 'alert-circle' || 'circle-alert' => LucideIcons.circleAlert,
-  'triangle-alert' || 'alert-triangle' || 'warning' =>
-    LucideIcons.triangleAlert,
+  'triangle-alert' ||
+  'alert-triangle' ||
+  'warning' => LucideIcons.triangleAlert,
   'x-circle' || 'circle-x' => LucideIcons.circleX,
   'help-circle' || 'circle-help' => LucideIcons.circleHelp,
   'chevron' || 'chevron-right' => LucideIcons.chevronRight,

@@ -22,7 +22,6 @@ namespace IntoChat.OS.Authority.Identity;
 public static class AccountSession
 {
     public const string DefaultLogin = Authority.DefaultOwner.Login;
-    public const string LocalAppId = "local";
     public const string CheckPath = "/auth/check";
 
     private const string BasicScheme = "Basic";
@@ -89,7 +88,7 @@ public static class AccountSession
     internal const string LocalSessionScheme = "IntoChatOS.LocalCaller";
 
     // The user a cookie session would have been for this caller: the same claim names the framework's membership check reads.
-    internal static ClaimsPrincipal SessionUser(CapabilityCaller caller)
+    public static ClaimsPrincipal SessionUser(CapabilityCaller caller)
         => new(new ClaimsIdentity(
         [
             new Claim(DigitalBrain.Capabilities.Identity.SessionClaims.Principal, caller.PrincipalId),
@@ -176,8 +175,7 @@ public static class AccountSession
             return null;
         }
 
-        // Unproved Open loopback traffic never inherits Actor.Person; stamp a non-person local app caller.
-        return Build(DefaultLogin, DefaultLogin, context) with { AppId = LocalAppId };
+        return null;
     }
 
     private static CapabilityCaller Build(string principalId, string accountId, HttpContext context, string? claimBrain = null)

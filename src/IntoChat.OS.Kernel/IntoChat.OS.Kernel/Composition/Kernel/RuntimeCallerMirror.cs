@@ -4,7 +4,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Kernel.Composition;
+namespace IntoChat.OS.Kernel.Composition.Kernel;
 
 // Transitional (06-05b, until 06-08 moves stamping to the runtime): every outgoing grain call carries the runtime's caller stamp
 // (RuntimeCallerContext, R4-20) exactly as the os stamp stands at that call: the trusted os caller as principal, account, brain

@@ -104,6 +104,7 @@ internal sealed class WebBrowserNeuron(
         }
         catch (Exception error)
         {
+            logger.LogWarning(error, "Browser failed showing '{Uri}'.", uri);
             await Observe(BrowserConnection.Failed,
                 uri.Length == 0 ? error.Message : $"Browser could not load {uri}: {error.Message}");
             await Review();

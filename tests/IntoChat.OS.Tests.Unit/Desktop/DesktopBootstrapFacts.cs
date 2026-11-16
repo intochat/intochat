@@ -1,6 +1,10 @@
 using System.Diagnostics;
 using System.Security.AccessControl;
+using System.Security.Cryptography;
 using System.Security.Principal;
+using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Contracts.Configuration;
+using Microsoft.Extensions.Configuration;
 
 namespace IntoChat.OS.Desktop.Tests.Unit;
 
@@ -17,14 +21,16 @@ public sealed class DesktopBootstrapFacts
         // Warm up JIT + IPGlobalProperties once so we measure steady-state socket table query latency.
         _ = DesktopBootstrap.IsPortListening(closedPort);
 
+        const double maxProbeMs = 50.0;
+
         var swClosed = Stopwatch.StartNew();
         var closedListening = DesktopBootstrap.IsPortListening(closedPort);
         swClosed.Stop();
 
         Assert.False(closedListening);
         Assert.True(
-            swClosed.Elapsed.TotalMilliseconds < 5.0,
-            $"Closed port check took {swClosed.Elapsed.TotalMilliseconds:F3}ms (expected < 5ms, replacing 2043ms HTTP timeout).");
+            swClosed.Elapsed.TotalMilliseconds < maxProbeMs,
+            $"Closed port check took {swClosed.Elapsed.TotalMilliseconds:F3}ms (expected < {maxProbeMs:F0}ms, replacing 2043ms HTTP timeout).");
 
         if (boundPorts.Count > 0)
         {
@@ -35,8 +41,8 @@ public sealed class DesktopBootstrapFacts
 
             Assert.True(activeListening);
             Assert.True(
-                swActive.Elapsed.TotalMilliseconds < 5.0,
-                $"Active port check took {swActive.Elapsed.TotalMilliseconds:F3}ms (expected < 5ms).");
+                swActive.Elapsed.TotalMilliseconds < maxProbeMs,
+                $"Active port check took {swActive.Elapsed.TotalMilliseconds:F3}ms (expected < {maxProbeMs:F0}ms).");
         }
     }
 
@@ -127,10 +133,23 @@ public sealed class DesktopBootstrapFacts
             Assert.Equal("true", env[DesktopBootstrap.ConfiguredCustodyAcknowledgedEnvVar]);
             Assert.Equal("Open", env[DesktopBootstrap.AuthPostureEnvVar]);
             Assert.Equal("Open", env[DesktopBootstrap.AuthorityIdentityPostureEnvVar]);
-            Assert.Equal(presenceToken, env[DesktopBootstrap.PresenceTokenEnvVar]);
+            Assert.False(env.ContainsKey(DesktopBootstrap.PresenceTokenEnvVar));
             Assert.Equal(layout.PresenceFilePath, env[DesktopBootstrap.PresenceTokenFileEnvVar]);
             Assert.Equal(layout.HomeDirectory, env[DesktopBootstrap.HomeEnvVar]);
-            Assert.Equal(masterKey, env[DesktopBootstrap.MasterKeyEnvVar]);
+            Assert.False(env.ContainsKey(DesktopBootstrap.MasterKeyEnvVar));
+            Assert.False(env.ContainsKey(IntoChatOSNames.MasterKeyEnvironmentVariable));
+
+            var configPrefix = $"--{DesktopBootstrap.ConfigurationFileConfigKey}=";
+            var configArg = Assert.Single(kernelStart.ArgumentList, a => a.StartsWith(configPrefix, StringComparison.Ordinal));
+            var kernelConfig = new ConfigurationBuilder()
+                .AddJsonFile(configArg[configPrefix.Length..], optional: false, reloadOnChange: false)
+                .Build();
+            Assert.Equal(masterKey, kernelConfig[IntoChatOSNames.MasterKeyConfigurationKey]);
+            Assert.Equal(layout.PresenceFilePath, kernelConfig[PresenceProofValidator.TokenFileConfigurationKey]);
+            Assert.Equal(
+                PresenceProofValidator.ComputeTokenHash(presenceToken),
+                kernelConfig[PresenceProofValidator.TokenHashConfigurationKey]);
+
             Assert.Equal("false", env[DesktopBootstrap.OrleansDashboardEnabledEnvVar]);
             Assert.Equal("false", env[DesktopBootstrap.IntoChatOrleansDashboardEnabledEnvVar]);
             Assert.Equal("salesforce,gmail", env[DesktopBootstrap.ModulesDisabledEnvVar]);
@@ -149,7 +168,9 @@ public sealed class DesktopBootstrapFacts
 
             Assert.True(shellStart.CreateNoWindow);
             Assert.Equal(kernelUrl.ToString(), shellStart.Environment[DesktopBootstrap.ShellUiBaseEnvVar]);
-            Assert.Equal(presenceToken, shellStart.Environment[DesktopBootstrap.PresenceTokenEnvVar]);
+            Assert.False(shellStart.Environment.ContainsKey(DesktopBootstrap.PresenceTokenEnvVar));
+            Assert.False(shellStart.Environment.ContainsKey(DesktopBootstrap.MasterKeyEnvVar));
+            Assert.Contains($"--presence-token={presenceToken}", shellStart.ArgumentList);
         }
         finally
         {

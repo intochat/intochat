@@ -8,7 +8,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace IntoChat.OS.Modules.Postgres;
 
-public static class PostgresHosting
+internal static class PostgresHosting
 {
     public const string DataSourceKey = "IntoChat.OS.Modules.Postgres";
 
@@ -29,7 +29,8 @@ public static class PostgresHosting
         // Tables
         services.TryAddSingleton<ITableStore, TableStore>();
         services.TryAddSingleton(provider => new BrainDatabases(provider.GetRequiredService<IModuleIntegrations<PostgresModule>>().Get("postgres")));
-        services.TryAddSingleton<ITablesSlot, NullTablesSlot>();
+        services.TryAddSingleton<ITablesSlot, AppTablesSlot>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IntoChat.OS.Modules.Apps.IAppStorageHook, TableStorageHook>());
         services.TryAddSingleton<ITablePlacements, TablePlacements>();
         services.TryAddSingleton<IConnectionTableStores, ConnectionTableStores>();
         services.AddSingleton<IIncomingGrainCallFilter, TableLifecycleGuard>();

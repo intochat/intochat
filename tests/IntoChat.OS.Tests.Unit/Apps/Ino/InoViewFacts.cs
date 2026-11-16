@@ -9,6 +9,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Microsoft.Aspire;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 
@@ -186,7 +187,12 @@ public sealed class InoViewFacts
             })
             .Build();
 
-        var neuron = new AspireNeuron(config);
+        var services = new ServiceCollection()
+            .AddSingleton<IConfiguration>(config)
+            .BuildServiceProvider();
+        await using var os = TestOS.Local(o => o.Services = services)
+            .Register(typeof(AspireModule).Assembly);
+        var neuron = os.Get<IAspire>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("owner"), "aspire", "default"));
         var resources = await neuron.GetResourcesAsync();
         Assert.Contains(resources, r => r.Name == "ollama" && r.Endpoint == "http://127.0.0.1:11434" && !r.Endpoint.Contains("pw123", StringComparison.Ordinal));
 
@@ -221,7 +227,7 @@ public sealed class InoViewFacts
                 At,
                 At.AddDays(7),
                 "trace-99")));
-        Assert.Equal(new Resolve("plan-99"), inboxApproval.Resolve);
+        Assert.Null(inboxApproval.Resolve);
         Assert.Equal("brand:github", inboxApproval.Icon);
         Assert.Equal("GitHub", inboxApproval.CapabilityLabel);
     }
@@ -270,7 +276,17 @@ public sealed class InoViewFacts
             .Where(card => card.Resolve?.PlanId == "plan-42")
             .ToArray();
 
-        Assert.Same(conversation.Waiting, Assert.Single(resolving));
+        Assert.Empty(resolving);
+        var waiting = Assert.IsType<ApprovalCardNode>(conversation.Waiting);
+        Assert.Equal("plan-42", waiting.Id);
+        Assert.Null(waiting.Resolve);
+    }
+
+    [Fact]
+    public void ManifestHasNoVoiceOperationAndNoToolbar()
+    {
+        Assert.DoesNotContain(InoApp.Bundle.Manifest.Operations, static op => op.Name == "voice");
+        Assert.Null(InoApp.Bundle.Manifest.Toolbar);
     }
 
     [Fact]
@@ -308,13 +324,22 @@ public sealed class InoViewFacts
         Assert.NotNull(assistant.Activities);
         Assert.Equal(
             [
-                "Aspire · Resources",
+                "Aspire",
                 "Aspire",
                 "Ino Studio",
                 "GitHub",
-                "CodeGraph · Search Symbols",
+                "CodeGraph",
             ],
             assistant.Activities!.Select(static a => a.Title).ToArray());
+        Assert.Equal(
+            [
+                "Resources · 3 healthy",
+                null,
+                null,
+                null,
+                "Search Symbols · 4 matches",
+            ],
+            assistant.Activities!.Select(static a => a.Detail).ToArray());
         Assert.Equal(
             [
                 "brand:aspire",
@@ -335,10 +360,10 @@ public sealed class InoViewFacts
             assistant.Activities!.Select(static a => a.Category).ToArray());
 
         var aspireVisual = InoView.ResolveActivityVisual(new InoActivity("a1", "IAspire.GetResourcesAsync"));
-        Assert.Equal(("Aspire · Resources", "brand:aspire"), (aspireVisual.Label, aspireVisual.IconKey));
+        Assert.Equal(("Aspire", "brand:aspire", "#512BD4"), (aspireVisual.Label, aspireVisual.IconKey, aspireVisual.AccentHex));
 
         var codeGraphVisual = InoView.ResolveActivityVisual(new InoActivity("a5", "ICodeGraph.SearchSymbols"));
-        Assert.Equal(("CodeGraph · Search Symbols", "capability:codegraph"), (codeGraphVisual.Label, codeGraphVisual.IconKey));
+        Assert.Equal(("CodeGraph", "capability:codegraph", "#10B981"), (codeGraphVisual.Label, codeGraphVisual.IconKey, codeGraphVisual.AccentHex));
 
         var modelVisual = InoView.ResolveModelVisual("claude-sonnet-4-6");
         Assert.NotNull(modelVisual);
@@ -393,11 +418,40 @@ public sealed class InoViewFacts
         Assert.Equal("Qwen 2.5 Coder 14B", assistant.ModelLabel);
         Assert.Equal("provider:ollama", assistant.ProviderIcon);
         Assert.Equal(
-            ["Aspire · Resources", "PhotoCraft · Execute Command"],
+            ["Aspire", "PhotoCraft"],
             assistant.Activities!.Select(static a => a.Title).ToArray());
+        Assert.Equal(
+            ["Resources · ok", "Execute Command · done"],
+            assistant.Activities!.Select(static a => a.Detail).ToArray());
         Assert.Equal(
             ["brand:aspire", "artcraft:photocraft"],
             assistant.Activities!.Select(static a => a.Icon).ToArray());
+    }
+
+    [Fact]
+    public void ComposerDictationDefaultsToFalseWhenOmitted()
+    {
+        var state = new InoAppState();
+
+        var conversation = InoView.Conversation(state);
+        Assert.False(conversation.Composer.Dictation);
+
+        var screen = InoView.Screen(state);
+        var rootConversation = Assert.IsType<Conversation>(screen.Root);
+        Assert.False(rootConversation.Composer.Dictation);
+    }
+
+    [Fact]
+    public void ComposerDictationReflectsTrueWhenEnabled()
+    {
+        var state = new InoAppState();
+
+        var conversation = InoView.Conversation(state, dictation: true);
+        Assert.True(conversation.Composer.Dictation);
+
+        var screen = InoView.Screen(state, dictation: true);
+        var rootConversation = Assert.IsType<Conversation>(screen.Root);
+        Assert.True(rootConversation.Composer.Dictation);
     }
 
     private static IReadOnlyList<string> Texts(View view)

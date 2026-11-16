@@ -20,12 +20,7 @@ internal sealed class TablePlacements(IOptions<PostgresModuleOptions> options, B
 }
 
 // The connection key an app's reserved tables slot is bound to, if it declares and binds one.
-public interface ITablesSlot
+internal interface ITablesSlot
 {
     Task<string?> BoundConnection(TableOwner owner);
-}
-
-internal sealed class NullTablesSlot : ITablesSlot
-{
-    public Task<string?> BoundConnection(TableOwner owner) => Task.FromResult<string?>(null);
 }

@@ -16,7 +16,7 @@ public sealed class AppRestoreFacts
         services.AddOptions<AppsOptions>();
         services.AddSingleton(TimeProvider.System);
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<AppNeuron>();
-        var id = new NeuronId(new BrainId("owner"), IntoChat.OS.Connections.AppGrainType.Name, "apps/notes");
+        var id = new NeuronId(new BrainId("owner"), IntoChat.OS.Connections.AppGrainType.Name, IntoChat.OS.Primitives.AppRef.Of(new BrainId("owner"), "notes").Key);
         var app = os.Get<IApp>(id);
         var bundle = new AppBundle("notes", "1.0.0", new AppManifest("Notes", "Keep notes", [], [], []), "spec", [], "Missing.Notes, Missing");
         try { await app.Import(bundle); }

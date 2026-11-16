@@ -1,13 +1,13 @@
 using System.Text;
 using DigitalBrain.Log;
-using global::Microsoft.Extensions.Logging.Abstractions;
+using IntoChat.OS.Framework.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 
 /// <summary>
 /// Metadata discovered from an installed or workspace micro-app's <c>SKILL.md</c> sidecar (<c>F-SKL-03</c>).
 /// </summary>
-public sealed record DiscoveredAppSkill(
+internal sealed record DiscoveredAppSkill(
     string Alias,
     string Name,
     string Title,
@@ -21,7 +21,7 @@ public sealed record DiscoveredAppSkill(
 /// Discovers <c>SKILL.md</c> sidecars across deployed Synapse runtime units (<see cref="ISynapseStudio.Sidecars"/>)
 /// and workspace/repository <c>apps/*/SKILL.md</c> folders so Ino automatically discovers micro-app capabilities.
 /// </summary>
-public static class SkillDiscovery
+internal static class SkillDiscovery
 {
     public const string FileName = "SKILL.md";
 
@@ -41,7 +41,7 @@ public static class SkillDiscovery
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(ex, "SkillDiscovery could not list deployed units.");
+                OsConsoleLog.For(typeof(SkillDiscovery)).LogSwallowed(ex, "SkillDiscovery could not list deployed units.");
             }
 
             foreach (var unit in deployed)
@@ -60,7 +60,7 @@ public static class SkillDiscovery
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    NullLogger.Instance.LogSwallowed(ex, $"SkillDiscovery could not read sidecars for '{alias}'.");
+                    OsConsoleLog.For(typeof(SkillDiscovery)).LogSwallowed(ex, $"SkillDiscovery could not read sidecars for '{alias}'.");
                 }
             }
         }
@@ -250,7 +250,7 @@ public static class SkillDiscovery
         }
         catch (Exception ex)
         {
-            NullLogger.Instance.LogSwallowed(ex, "SkillDiscovery could not probe default apps directory.");
+            OsConsoleLog.For(typeof(SkillDiscovery)).LogSwallowed(ex, "SkillDiscovery could not probe default apps directory.");
         }
 
         return null;

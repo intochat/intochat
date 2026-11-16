@@ -1,7 +1,10 @@
 using DigitalBrain;
 using DigitalBrain.Neurons;
+using global::Microsoft.Extensions.DependencyInjection;
+using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter.Viewport;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Runtime;
 using TestOS = DigitalBrain.Testing.TestOS;
@@ -144,5 +147,86 @@ public sealed class WorkspaceWindowsFacts
         Assert.Contains("owner/apps/creator", state.Open);
         Assert.Contains(state.OpenViews, v => v.App == "owner/apps/creator");
         Assert.Equal("creator", state.FocusedViewId);
+    }
+
+    [Fact]
+    public async Task DesktopApp_UiActivation_AppliesWorkspaceStateToRealWorkspaceNeuron_AndRefusesDirectOrUnshippedCalls()
+    {
+        using var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection()
+            .AddOptions<AppsOptions>()
+            .Services
+            .AddSingleton(TimeProvider.System)
+            .BuildServiceProvider();
+        await using var os = TestOS.Local(options => options.Services = services);
+        os.Register<DesktopRecordsNeuron>();
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(FlutterModule).Assembly);
+        os.Register(typeof(DesktopApp).Assembly);
+
+        var brain = new BrainId("owner");
+        var desktopAppRef = IntoChat.OS.Primitives.AppRef.Of(brain, "desktop");
+        var desktopAppNeuron = os.Get<IApp>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), desktopAppRef.Key));
+        await desktopAppNeuron.Import(
+            DesktopApp.Bundle,
+            new AppOrigin(ShippedApps.Publisher, new AppSource.Shipped(), "desktop", DesktopApp.Bundle.Version));
+
+        var desktopScreen = os.Get<IScreen>(desktopAppRef.ScreenNeuron);
+        var published = await desktopScreen.Read();
+        Assert.NotNull(published);
+
+        var ws = os.Get<IWorkspace>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IWorkspace), IWorkspace.Key("owner")));
+
+        using (os.Edge.Enter(os.Edge.Person("alice", "acct", brain)))
+        {
+            await desktopScreen.Activate("app.desktop", published!.Generation, "dock-files", by: "alice");
+            await os.Idle();
+
+            var updated = await ws.Read();
+            Assert.Contains(updated.OpenViews, v => v.App == IntoChat.OS.Primitives.AppRef.Of(brain, "files").Key);
+            Assert.Equal("files", updated.FocusedViewId);
+
+            var filesWin = Assert.Single(updated.Windows, w => w.ActiveTabId == "files");
+            var vp = os.Get<IViewport>(desktopAppRef.ChildNeuron(UIVocabulary.ViewportType, $"window/{filesWin.Id}"));
+            var vpState = await vp.Read();
+            Assert.NotNull(vpState.Target);
+            Assert.Equal(IntoChat.OS.Primitives.AppRef.Of(brain, "files").Key, vpState.Target!.App);
+
+            // Direct person call to IWorkspace.Apply is still refused.
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+                ws.Apply(new WorkspaceUpdate([], null, []), "direct-person", updated.Revision));
+        }
+
+        // Foreign app caller is still refused for both WorkspaceNeuron and ViewportNeuron.
+        var foreignKey = IntoChat.OS.Primitives.AppRef.Of(brain, "other").Key;
+        using (os.Edge.Enter(os.Edge.App(foreignKey, new DigitalBrain.Access.Actor.Person("alice", "acct"), brain)))
+        {
+            var current = await ws.Read();
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+                ws.Apply(new WorkspaceUpdate([], null, []), "foreign-app", current.Revision));
+            var win = Assert.Single(current.Windows, w => w.ActiveTabId == "files");
+            var vp = os.Get<IViewport>(desktopAppRef.ChildNeuron(UIVocabulary.ViewportType, $"window/{win.Id}"));
+            var vpState = await vp.Read();
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+                vp.Set(new WorkspaceViewRef("hijack", foreignKey, "full", ""), vpState.Revision));
+        }
+
+        // Edited (non-shipped) desktop app is refused even through DesktopApp.
+        await desktopAppNeuron.SaveManifest(DesktopApp.Bundle.Manifest, Guid.NewGuid());
+        var latestDesktopView = await desktopScreen.Read();
+        Assert.NotNull(latestDesktopView);
+        using (os.Edge.Enter(os.Edge.Person("alice", "acct", brain)))
+        {
+            await desktopScreen.Activate("app.desktop", latestDesktopView!.Generation, "dock-settings", by: "alice");
+            await os.Idle();
+            var afterEditedActivate = await ws.Read();
+            Assert.DoesNotContain(afterEditedActivate.OpenViews, v => v.App == IntoChat.OS.Primitives.AppRef.Of(brain, "settings").Key);
+        }
+
+        using (os.Edge.Enter(os.Edge.App(desktopAppRef.Key, new DigitalBrain.Access.Actor.Person("alice", "acct"), brain)))
+        {
+            var current = await ws.Read();
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+                ws.Apply(new WorkspaceUpdate([], null, []), "edited-desktop", current.Revision));
+        }
     }
 }

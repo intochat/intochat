@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 
-public sealed class PolicyWriter(
+internal sealed class PolicyWriter(
     IPolicyModel model,
     INeuronProxies brain,
     TimeProvider clock,

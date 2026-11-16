@@ -100,8 +100,7 @@ internal sealed class HttpReadConnection(
     {
         string[] hosts = [];
         await UseCredentialAsync((credential, _) => { hosts = IConnectionHosts.Parse(credential.Value); return Task.FromResult(hosts.Length); }, CancellationToken.None);
-        Snapshot.AllowedHosts = hosts;
-        await SaveQuietly(Snapshot);
+        await SaveQuietly(Snapshot with { AllowedHosts = hosts });
     }
 
     protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)

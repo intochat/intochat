@@ -1,19 +1,15 @@
-using System.Text.RegularExpressions;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Authority.Identity.Rules;
 
 namespace IntoChat.OS.Authority.Identity.Contacts;
 
 [Neuron(IContactsNeuron.TypeName)]
-public sealed partial class ContactsNeuron : Neuron<ContactsState>, IContactsNeuron
+public sealed class ContactsNeuron : Neuron<ContactsState>, IContactsNeuron
 {
-    [GeneratedRegex("^[a-z0-9][a-z0-9-]{0,39}$")]
-    private static partial Regex ListNameRegex();
-
     public async Task Add(string list, ContactEntry entry)
     {
         list ??= "";
-        await Check("Add", new ContactListNameIsValid(list, list.Length > 0 && ListNameRegex().IsMatch(list)));
+        await Check("Add", new ContactListNameIsValid(list));
 
         ArgumentNullException.ThrowIfNull(entry);
         await Check("Add", new ContactPrincipalIsNotEmpty(entry.Principal));

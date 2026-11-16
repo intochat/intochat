@@ -73,19 +73,21 @@ public sealed record BankAccount(bool IsOpen = false, string Holder = "", decima
     [Invariant]
     public Rule OpenAccountHasHolder => Decision.Require(
         "holder_present_when_open",
-        !IsOpen || !string.IsNullOrWhiteSpace(Holder),
+        this,
+        static a => !a.IsOpen || !string.IsNullOrWhiteSpace(a.Holder),
         "An open bank account must have a holder.");
 
-    public Rule MustNotBeOpen => Decision.Rule("account_open", IsOpen, "Account is already open.");
-    public Rule MustBeOpen => Decision.Rule("not_open", !IsOpen, "Open the account first.");
-    public Rule PositiveAmount(decimal amount) => Decision.Rule("positive_amount", amount <= 0m, "Amount must be positive.");
+    public Rule MustNotBeOpen => Decision.Rule("account_open", this, static a => a.IsOpen, "Account is already open.");
+    public Rule MustBeOpen => Decision.Rule("not_open", this, static a => !a.IsOpen, "Open the account first.");
+    public Rule PositiveAmount(decimal amount) => Decision.Rule("positive_amount", amount, static a => a <= 0m, "Amount must be positive.");
     public Rule SufficientFunds(decimal amount) => Decision.Rule(
         "sufficient_funds",
-        !IsOpen || Balance < amount,
-        $"Insufficient funds (balance {Balance:C0}, requested {amount:C0}).");
+        (Account: this, Amount: amount),
+        static x => !x.Account.IsOpen || x.Account.Balance < x.Amount,
+        static x => $"Insufficient funds (balance {x.Account.Balance:C0}, requested {x.Amount:C0}).");
 
     public Decision<BankAccount> Open([Sample("alice")] string holder) =>
-        Decision.Check("open", MustNotBeOpen, Decision.Rule("holder_required", string.IsNullOrWhiteSpace(holder), "Holder is required."))
+        Decision.Check("open", MustNotBeOpen, Decision.Rule("holder_required", holder, static h => string.IsNullOrWhiteSpace(h), "Holder is required."))
         ?? Decision.Accept(new BankAccount(true, holder, 0m), new AccountOpened(holder));
 
     public Decision<BankAccount> Deposit([Sample(50)] decimal amount) =>
@@ -156,7 +158,7 @@ public sealed record WorkspaceFilterState(
     public WorkspaceFilterState SetQuery(string query) => this with { Query = query.Trim() };
 
     public Decision<WorkspaceFilterState> ApplyRate(decimal rate) =>
-        Decision.Check(Decision.Rule("positive_rate", rate <= 0m, "Exchange rate must be positive."))
+        Decision.Check(Decision.Rule("positive_rate", rate, static r => r <= 0m, "Exchange rate must be positive."))
         ?? Decision.Accept(this with { SyncedRate = rate }, new RateSynced(rate));
 }
 
@@ -253,12 +255,11 @@ public sealed class DddReactorAndExplorerFacts
     [Fact]
     public void BankAccountExplorerUnfoldsAccordantStateGraphVerifiesInvariantsAndChecksGuardParity()
     {
-        var screen = new BankScreen();
         var choices = new ChoiceSet()
             .ForParameter("holder", "alice")
             .ForParameter("amount", 50m, 30m, 70m);
 
-        var graph = AggregateExplorer<BankAccount>.ExploreScreen(screen, choices, maxStates: 16);
+        var graph = AggregateExplorer<BankAccount>.ExploreScreen<BankScreen>(choices, maxStates: 16);
         graph.EnsureHealthy();
 
         Assert.True(graph.IsHealthy);
@@ -503,7 +504,7 @@ public sealed class DddReactorAndExplorerFacts
                 {
                     public CounterState() : this(0) { }
 
-                    public Rule MaxFive => Decision.Rule("max_five", Value >= 5, "Cannot exceed 5.");
+                    public Rule MaxFive => Decision.Rule("max_five", this, static s => s.Value >= 5, "Cannot exceed 5.");
 
                     public Decision<CounterState> Increment(int step) =>
                         Decision.Check("increment", MaxFive)
@@ -581,6 +582,32 @@ public sealed class DddReactorAndExplorerFacts
         var unloaded = await sandbox.UnloadAsync("b1", "reactor-counter", Ct);
         Assert.True(unloaded.Unloaded);
         _ = r2;
+    }
+
+    [Fact]
+    public void DecisionRulesJudgeDomainValuesAndNoRuleRecordCarriesABoolConstructorParameter()
+    {
+        var ruleRecords = typeof(Decision).Assembly
+            .GetTypes()
+            .Where(t => typeof(DigitalBrain.Rules.Rule).IsAssignableFrom(t) && !t.IsAbstract)
+            .ToArray();
+
+        Assert.NotEmpty(ruleRecords);
+        foreach (var ruleType in ruleRecords)
+        {
+            var nonCopyCtors = ruleType
+                .GetConstructors(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .Where(c => !(c.GetParameters() is { Length: 1 } p && p[0].ParameterType == ruleType));
+            Assert.All(nonCopyCtors, c => Assert.DoesNotContain(c.GetParameters(), p => p.ParameterType == typeof(bool)));
+        }
+
+        var rule = Decision.Rule(
+            "positive_budget",
+            0m,
+            static budget => budget <= 0m,
+            static budget => $"Budget {budget} must be positive.");
+        Assert.True(rule.Broken);
+        Assert.Equal("Budget 0 must be positive.", rule.Message);
     }
 
     private static JsonElement FindNodeByKey(JsonElement root, string key)

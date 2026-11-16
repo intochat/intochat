@@ -12,7 +12,7 @@ public sealed class MachineRootsFacts
         var root = Directory.CreateTempSubdirectory("windows-confine").FullName;
         try
         {
-            var storage = new WindowsStorage([PathConfinement.Normalize(root)]);
+            var storage = new WindowsStorage([PathConfinement.Normalize(root)], new WindowsStorageCoordinator());
             var outside = Path.Combine(Directory.GetParent(root)!.FullName, "escape.txt");
             var error = await Assert.ThrowsAsync<Denied>(() => storage.List(WindowsStorage.IdOf(outside), new ListQuery(null, 10), TestContext.Current.CancellationToken));
             Assert.IsType<ConfinementDenied>(error.InnerException);

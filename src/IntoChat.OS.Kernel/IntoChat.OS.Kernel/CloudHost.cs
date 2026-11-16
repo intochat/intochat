@@ -41,9 +41,9 @@ public static class CloudHost
     {
         ArgumentNullException.ThrowIfNull(services);
         services.AddForwardedHeadersSetup();
-        services.TryAddSingleton<IAuthHostSeam, KernelAuthHost>();
-        services.TryAddSingleton<IOrganisationHost, KernelOrganisationHost>();
-        services.TryAddSingleton<IMailHost, KernelMailHost>();
+        services.TryAddSingleton<IAuthHostSeam>(sp => new KernelAuthHost(sp.GetService<DigitalBrain.Access.EdgeAuthority>()));
+        services.TryAddSingleton<IOrganisationHost>(sp => new KernelOrganisationHost(sp.GetService<DigitalBrain.Access.EdgeAuthority>()));
+        services.TryAddSingleton<IMailHost>(sp => new KernelMailHost(sp.GetService<DigitalBrain.Access.EdgeAuthority>()));
         // Cloud sign-in is the auth module's. The built-in password routes would give any visitor an owner account.
         services.PostConfigure<IdentityHostOptions>(identity => identity.BuiltInPasswordEndpoints = false);
         services.AddIdentitySessions<AuthIdentityProvider>();
@@ -72,7 +72,7 @@ public static class CloudHost
             if (context.User.Identity?.IsAuthenticated != true
                 && context.GetEndpoint()?.Metadata.GetMetadata<GuestSurface.Door>() is not null
                 && TryMatchGuestBrainPath(context.Request.Path, out var targetBrainId)
-                && GuestTryHttpSurface.ExtractToken(context.Request) is { Length: > 0 } rawToken
+                && GuestTrySessionService.ExtractToken(context.Request) is { Length: > 0 } rawToken
                 && context.RequestServices.GetService<GuestTrySessionService>() is { } trySessions
                 && context.RequestServices.GetService<ILobbyTokenKey>() is { } keys)
             {
@@ -205,7 +205,7 @@ public static class CloudHost
             try
             {
                 Member? member;
-                using (ModuleScope.EnterCapability(KernelAuthHost.Module))
+                using (ModuleScope.EnterCapability(provider.GetService<DigitalBrain.Access.EdgeAuthority>(), KernelAuthHost.Module))
                 {
                     member = await sessions.Validate(sid, context.HttpContext.RequestAborted).ConfigureAwait(false);
                 }
@@ -237,55 +237,55 @@ public sealed class CloudLicenseCheck : ILicenseCheck
     }
 }
 
-internal sealed class KernelAuthHost : IAuthHostSeam
+internal sealed class KernelAuthHost(DigitalBrain.Access.EdgeAuthority? edge = null) : IAuthHostSeam
 {
     internal static readonly CapabilityCaller Module = CapabilityCallers.Of(AuthModule.Id, AuthModule.Id, "system", CallerKind.App, AuthModule.Id);
 
     public CapabilityCaller? CurrentCaller => RuntimeCallerContext.Current;
 
-    public IDisposable StampModuleCaller(CapabilityCaller module) => ModuleScope.EnterCapability(module);
+    public IDisposable StampModuleCaller(CapabilityCaller module) => ModuleScope.EnterCapability(edge, module);
 
     public async Task<T> InModuleCall<T>(Func<Task<T>> call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        using var scope = ModuleScope.EnterKernelCall();
+        using var scope = ModuleScope.EnterKernelCall(edge);
         return await call().ConfigureAwait(false);
     }
 }
 
-internal sealed class KernelOrganisationHost : IOrganisationHost
+internal sealed class KernelOrganisationHost(DigitalBrain.Access.EdgeAuthority? edge = null) : IOrganisationHost
 {
     internal static readonly CapabilityCaller Module = CapabilityCallers.Of(OrganisationsModule.Id, OrganisationsModule.Id, "system", CallerKind.App, OrganisationsModule.Id);
 
     public CapabilityCaller? CurrentCaller => RuntimeCallerContext.Current;
 
-    public IDisposable StampModule() => ModuleScope.EnterCapability(Module);
+    public IDisposable StampModule() => ModuleScope.EnterCapability(edge, Module);
 
     public async Task InModuleCall(Func<Task> call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        using var scope = ModuleScope.EnterKernelCall();
+        using var scope = ModuleScope.EnterKernelCall(edge);
         await call().ConfigureAwait(false);
     }
 
     public async Task<T> InModuleCall<T>(Func<Task<T>> call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        using var scope = ModuleScope.EnterKernelCall();
+        using var scope = ModuleScope.EnterKernelCall(edge);
         return await call().ConfigureAwait(false);
     }
 }
 
-internal sealed class KernelMailHost : IMailHost
+internal sealed class KernelMailHost(DigitalBrain.Access.EdgeAuthority? edge = null) : IMailHost
 {
     internal static readonly CapabilityCaller Module = CapabilityCallers.Of(MailModule.Id, MailModule.Id, "system", CallerKind.App, MailModule.Id);
 
-    public IDisposable StampModule() => ModuleScope.EnterCapability(Module);
+    public IDisposable StampModule() => ModuleScope.EnterCapability(edge, Module);
 
     public async Task<T> InModuleCall<T>(Func<Task<T>> call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        using var scope = ModuleScope.EnterKernelCall();
+        using var scope = ModuleScope.EnterKernelCall(edge);
         return await call().ConfigureAwait(false);
     }
 }
@@ -303,15 +303,21 @@ internal sealed class ModuleScope : IDisposable
         Orleans.Runtime.RequestContext.Set(RuntimeCallerContext.ModuleCallKey, true);
     }
 
-    public static IDisposable EnterCapability(CapabilityCaller module)
+    public static IDisposable EnterCapability(DigitalBrain.Access.EdgeAuthority? edge, CapabilityCaller module)
     {
-        var inProcess = InProcessCallerScope.Enter();
+        var inProcess = edge?.EnterInProcess();
         var stamped = RuntimeCallerContext.Stamp(module);
-        return new ModuleScope(new CompositeScope(stamped, inProcess));
+        return new ModuleScope(inProcess is null ? stamped : new CompositeScope(stamped, inProcess));
     }
 
-    public static IDisposable EnterKernelCall()
-        => new ModuleScope(InProcessCallerScope.EnterKernel("system"));
+    public static IDisposable EnterKernelCall(DigitalBrain.Access.EdgeAuthority? edge)
+        => new ModuleScope(edge?.EnterKernel(new DigitalBrain.BrainId("system")) ?? NoOpDisposable.Instance);
+
+    private sealed class NoOpDisposable : IDisposable
+    {
+        public static readonly NoOpDisposable Instance = new();
+        public void Dispose() { }
+    }
 
     public void Dispose()
     {
@@ -358,7 +364,7 @@ internal sealed class SecretLobbyTokenKey(IServiceProvider services) : ILobbyTok
     private byte[] Read()
     {
         var secrets = services.GetRequiredKeyedService<ISecrets>(Capability.Secrets.V1Id);
-        using var scope = ModuleScope.EnterCapability(Module);
+        using var scope = ModuleScope.EnterCapability(services.GetService<DigitalBrain.Access.EdgeAuthority>(), Module);
         var reference = secrets.Named(LobbyModule.TokenSecret).GetAwaiter().GetResult();
         if (reference.Status != SecretStatus.Set)
         {

@@ -11,7 +11,7 @@ namespace IntoChat.OS.Modules.Microsoft.Windows;
 // Keys are per user (no CngKeyCreationOptions.MachineKey): a host run under another account, such as a service
 // account, sees none of them, so its part opens fail with the R74 "not unwrappable on this machine" error.
 [SupportedOSPlatform("windows")]
-public sealed class TpmMasterKeyCustody(string prefix = TpmMasterKeyCustody.DefaultPrefix) : IMasterKeyCustody
+internal sealed class TpmMasterKeyCustody(string prefix = TpmMasterKeyCustody.DefaultPrefix) : IMasterKeyCustody
 {
     public const string DefaultPrefix = "intochat-os-";
 

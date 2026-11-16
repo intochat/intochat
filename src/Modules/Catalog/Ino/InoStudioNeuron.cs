@@ -2,19 +2,23 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Brains;
+using DigitalBrain.Log;
 using DigitalBrain.Flows;
 using DigitalBrain.Units;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.ArtCraft;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Apps;
 
 [DigitalBrain.Neurons.Neuron("ino.studio")]
-public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Neurons.Neuron, IInoStudio
+internal sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Neurons.Neuron, IInoStudio
 {
-    private static readonly TimeSpan MakePollBudget = TimeSpan.FromSeconds(25);
+    // Bounded well below Orleans' default 30s grain RPC ResponseTimeout so contention still returns a tracking card cleanly.
+    private static readonly TimeSpan MakePollBudget = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan MakePollInterval = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan ProposePollBudget = TimeSpan.FromSeconds(18);
     private static readonly TimeSpan ProposePollInterval = TimeSpan.FromMilliseconds(250);
@@ -49,21 +53,43 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(error, $"starting unit build flow '{title}'");
             return new InoToolResult($"Could not start '{title}': {error.Message}");
         }
 
-        var tasks = $"neuron://{brainId}/apps/tasks#{flowId}";
-        if (services.GetService<IDrafter>() is not null && NeuronId.TryParse(flowId, out var flowNeuronId))
+        var tasks = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "tasks").Key}#{flowId}";
+        if (NeuronId.TryParse(flowId, out var flowNeuronId))
         {
-            var deadline = DateTimeOffset.UtcNow + MakePollBudget;
+            var deadline = Context.Time.GetUtcNow() + MakePollBudget;
+            DateTimeOffset? nullDetailGraceDeadline = null;
             FlowView? settled = null;
-            while (DateTimeOffset.UtcNow < deadline)
+            while (Context.Time.GetUtcNow() < deadline)
             {
                 var current = await Get<IFlows>(IFlows.Key(brainId)).Read(flowId).ConfigureAwait(true);
-                if (current is not null && current.Status is FlowStatus.Waiting or FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled)
+                if (current is not null)
                 {
-                    settled = current;
-                    break;
+                    if (current.Status is FlowStatus.Waiting or FlowStatus.Completed)
+                    {
+                        settled = current;
+                        break;
+                    }
+
+                    if (current.Status is FlowStatus.Failed or FlowStatus.Cancelled)
+                    {
+                        if (!string.IsNullOrWhiteSpace(current.Detail))
+                        {
+                            settled = current;
+                            break;
+                        }
+
+                        // FlowsNeuron.WithHead can observe terminal status from FlowHead before OnFlowDone folds Detail.
+                        nullDetailGraceDeadline ??= Context.Time.GetUtcNow() + TimeSpan.FromSeconds(2);
+                        settled = current;
+                        if (Context.Time.GetUtcNow() >= nullDetailGraceDeadline.Value)
+                        {
+                            break;
+                        }
+                    }
                 }
 
                 await Task.Delay(MakePollInterval).ConfigureAwait(true);
@@ -79,6 +105,7 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
+                    services.GetService<ILogger<InoStudioNeuron>>()?.LogDebug(ex, "Could not deserialize BuildInner head for flow {FlowId}.", flowId);
                     built = null;
                 }
 
@@ -118,7 +145,28 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
 
                 if (settled.Status is FlowStatus.Failed or FlowStatus.Cancelled)
                 {
-                    var detail = settled.Detail ?? settled.Status.ToString();
+                    var detail = !string.IsNullOrWhiteSpace(settled.Detail)
+                        ? settled.Detail
+                        : services.GetService<IDrafter>() is null
+                            ? "No drafter/model provider is configured on this OS brain."
+                            : settled.Status.ToString();
+                    if (IsMissingModelFailure(detail))
+                    {
+                        var settingsUri = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "settings").Key}";
+                        var setupCard = new InoCard(
+                            "setup-model",
+                            "settings",
+                            "Model setup required",
+                            detail,
+                            settingsUri,
+                            "setup-required",
+                            settingsUri);
+                        return new InoToolResult(
+                            $"Cannot author '{title}' because no model provider is configured: {detail} Configure a model in Settings ({settingsUri}).",
+                            setupCard,
+                            Ok: false);
+                    }
+
                     var failedCard = new InoCard(
                         flowId,
                         "flow",
@@ -135,16 +183,33 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
             }
         }
 
+        if (services.GetService<IDrafter>() is null)
+        {
+            var settingsUri = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "settings").Key}";
+            var setupCard = new InoCard(
+                "setup-model",
+                "settings",
+                "Model setup required",
+                "No drafter/model provider is configured on this OS brain.",
+                settingsUri,
+                "setup-required",
+                settingsUri);
+            return new InoToolResult(
+                $"Cannot author '{title}' because no model provider is configured. Configure a model in Settings ({settingsUri}).",
+                setupCard,
+                Ok: false);
+        }
+
         var card = new InoCard(
             flowId,
             "flow",
             $"Building: {title}",
-            "The unit is authored, verified against its scenarios and deployed; it then waits for your consent to its needs.",
+            "Build flow started; track progress on the Tasks board.",
             tasks,
             "running",
             tasks);
         return new InoToolResult(
-            $"Started building {title} ({flowId}). The verify transcript and the consent to the unit's needs will appear on the Tasks board ({tasks}).", card);
+            $"Started building {title} ({flowId}). Track authoring, verification, and consent progress on the Tasks board ({tasks}).", card);
     }
 
     public Task<InoToolResult> CreateInteractiveApp(string? alias, string? title, string goal, CancellationToken ct = default)
@@ -169,6 +234,7 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(error, $"opening app '{app}'");
             return new InoToolResult($"Could not open {app}: {error.Message}");
         }
 
@@ -183,7 +249,11 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         var studio = Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
         DigitalBrain.Units.DeployedSource[] units;
         try { units = await studio.List(); }
-        catch (Exception error) when (error is not OperationCanceledException) { return new InoToolResult(text + $"\nUnits are not available: {error.Message}"); }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(error, "listing synapse units");
+            return new InoToolResult(text + $"\nUnits are not available: {error.Message}");
+        }
         if (units.Length == 0)
         {
             var workspaceSkills = await SkillDiscovery.DiscoverAsync(studio).ConfigureAwait(true);
@@ -198,7 +268,13 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
             var alias = unit.Aliases.FirstOrDefault() ?? unit.SourceKey;
             Dictionary<string, string> sidecars;
             try { sidecars = await studio.Sidecars(alias); }
-            catch (Exception error) when (error is not OperationCanceledException) { lines.Add($"- {alias} ({unit.Status}): sidecars unavailable"); continue; }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                (services.GetService<ILoggerFactory>()?.CreateLogger<InoStudioNeuron>() ?? OsConsoleLog.For<InoStudioNeuron>())
+                    .LogSwallowed(error, "reading synapse unit sidecars");
+                lines.Add($"- {alias} ({unit.Status}): sidecars unavailable");
+                continue;
+            }
             lines.Add($"- {alias} ({unit.Status}): spec.md {Kept(sidecars, "spec.md")}, scenarios.json {Kept(sidecars, "scenarios.json")}");
         }
         var discovered = await SkillDiscovery.DiscoverAsync(studio).ConfigureAwait(true);
@@ -225,7 +301,7 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
     public Task<InoToolResult> Repositories(CancellationToken ct = default)
     {
         _ = CurrentBrainId;
-        var wt = services.GetService<IWorkTree>() ?? new WorkTreeService();
+        var wt = services.GetRequiredService<IWorkTree>();
         var repos = wt.ListRepositories();
         if (repos.Count == 0)
         {
@@ -256,28 +332,27 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         var runKey = Guid.NewGuid().ToString("N")[..12];
 
         // Fail fast with clear guidance if repository is not in the allowlist
-        var wt = services.GetService<IWorkTree>() ?? new WorkTreeService();
+        var wt = services.GetRequiredService<IWorkTree>();
+        RepositoryId parsedRepo;
+        BranchName? parsedBase;
         try
         {
-            _ = (wt as WorkTreeService)?.ResolveRepository(cleanRepo)
-                ?? wt.ListRepositories().FirstOrDefault(r => string.Equals(r.Id, cleanRepo, StringComparison.OrdinalIgnoreCase))
-                ?? throw new UnauthorizedAccessException($"Repository '{cleanRepo}' is not registered in the allowlist.");
+            parsedRepo = RepositoryId.Parse(cleanRepo);
+            parsedBase = string.IsNullOrWhiteSpace(baseBranch) ? null : BranchName.FromRequestedBase(baseBranch);
+            _ = wt.ResolveRepository(parsedRepo);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(ex, $"resolving repository '{cleanRepo}' for Feature-to-PR");
             return new InoToolResult($"Could not start Feature-to-PR on '{cleanRepo}': {ex.Message}", Ok: false);
         }
 
         string flowId;
         try
         {
-            var innerJson = JsonSerializer.Serialize(new FeatureToPrInner
-            {
-                RunId = runKey,
-                Repository = cleanRepo,
-                Goal = cleanGoal,
-                RequestedBaseBranch = string.IsNullOrWhiteSpace(baseBranch) ? null : baseBranch.Trim(),
-            }, FeatureToPrFlow.Json);
+            var innerJson = JsonSerializer.Serialize(
+                Change.Start(runKey, parsedRepo, cleanGoal, parsedBase),
+                FeatureToPrFlow.Json);
 
             flowId = await Get<IFlows>(IFlows.Key(brainId))
                 .Start(FeatureToPrFlow.Alias, title, null, innerJson, ct, flowId: runKey)
@@ -285,12 +360,13 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(error, $"starting Feature-to-PR flow '{title}'");
             return new InoToolResult($"Could not start Feature-to-PR '{title}': {error.Message}", Ok: false);
         }
 
         // Poll briefly (within 18s grain-safe budget) so fast local runs immediately return the SHA-bound confirmation card & diff!
-        var deadline = DateTimeOffset.UtcNow + ProposePollBudget;
-        while (DateTimeOffset.UtcNow < deadline && !ct.IsCancellationRequested)
+        var deadline = Context.Time.GetUtcNow() + ProposePollBudget;
+        while (Context.Time.GetUtcNow() < deadline && !ct.IsCancellationRequested)
         {
             var view = await Get<IFlows>(IFlows.Key(brainId)).Read(flowId, ct).ConfigureAwait(true);
             if (view is not null && view.Status is FlowStatus.Waiting or FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled)
@@ -320,33 +396,34 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoStudioNeuron>().LogSwallowed(ex, $"reading Feature-to-PR flow '{flowId}'");
             return new InoToolResult($"Could not read Feature-to-PR flow '{flowId}': {ex.Message}", Ok: false);
         }
 
-        var inner = JsonSerializer.Deserialize<FeatureToPrInner>(head.InnerJson, FeatureToPrFlow.Json) ?? new FeatureToPrInner();
+        var change = JsonSerializer.Deserialize<Change>(head.InnerJson, FeatureToPrFlow.Json) ?? new Change();
         var status = view?.Status ?? head.Status;
-        var tasksUri = $"neuron://{brainId}/apps/tasks#{flowId}";
+        var tasksUri = $"neuron://{IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), "tasks").Key}#{flowId}";
 
-        if (status == FlowStatus.Waiting && !string.IsNullOrWhiteSpace(inner.ConfirmationPlanId) && !string.IsNullOrWhiteSpace(inner.CommitSha))
+        if (status == FlowStatus.Waiting && change.Approval is { PlanId.Length: > 0 } approval && change.Commit is { } commit)
         {
-            var shortSha = inner.CommitSha[..Math.Min(8, inner.CommitSha.Length)];
-            var branch = inner.Lease?.BranchName ?? "ino/change";
+            var shortSha = commit.Commit.Short;
+            var branch = change.Tree?.BranchName ?? "ino/change";
             // The model gets the facts of the change, not the diff: the whole change is on the approval the person answers.
             var summary = new StringBuilder();
             summary.Append($"Feature-to-PR waits for the person's approval ({flowId}).\n");
-            summary.Append(ChangeCard.Header(inner)).Append('\n');
-            summary.Append($"Approval plan: `{inner.ConfirmationPlanId}`. Only the person can approve it, below the conversation, where the whole change is shown.");
-            if (!string.IsNullOrWhiteSpace(inner.CoderSummary))
+            summary.Append(ChangeCard.Header(change)).Append('\n');
+            summary.Append($"Approval plan: `{approval.PlanId}`. Only the person can approve it, below the conversation, where the whole change is shown.");
+            if (!string.IsNullOrWhiteSpace(change.Edit?.Summary))
             {
-                summary.Append($"\nSummary: {inner.CoderSummary.Trim()}");
+                summary.Append($"\nSummary: {change.Edit.Summary.Trim()}");
             }
 
             // A status, not a place to approve: the one Approve for this plan is the inbox approval Ino shows below the conversation.
             var card = new InoCard(
-                Id: inner.ConfirmationPlanId,
+                Id: approval.PlanId,
                 Kind: "approval",
                 Title: $"Waiting for your approval: {head.Title} ({shortSha})",
-                Summary: $"{inner.ChangedFiles.Length} file(s) on {branch} (+{inner.Additions} / -{inner.Deletions}). The whole change and Approve are below the conversation.",
+                Summary: $"{commit.ChangedFiles.Length} file(s) on {branch} (+{commit.Additions} / -{commit.Deletions}). The whole change and Approve are below the conversation.",
                 SourceNeuronUri: $"neuron://{brainId}/runtime.confirmations/confirmations",
                 Status: "pending",
                 SurfaceScopeUri: tasksUri);
@@ -355,9 +432,11 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
 
         if (status == FlowStatus.Completed)
         {
-            var prLine = !string.IsNullOrWhiteSpace(inner.PullRequestUrl)
-                ? $"Draft PR: {inner.PullRequestUrl}"
-                : $"Pushed ref: {inner.PushedRef}";
+            var prUrl = change.Publication?.PullRequestUrl;
+            var pushedRef = change.Publication?.PushedRef;
+            var prLine = !string.IsNullOrWhiteSpace(prUrl)
+                ? $"Draft PR: {prUrl}"
+                : $"Pushed ref: {pushedRef}";
             var card = new InoCard(
                 Id: flowId,
                 Kind: "flow",
@@ -365,9 +444,9 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
                 Summary: prLine,
                 SourceNeuronUri: tasksUri,
                 Status: "completed",
-                SurfaceScopeUri: inner.PullRequestUrl ?? tasksUri);
+                SurfaceScopeUri: prUrl ?? tasksUri);
             return new InoToolResult(
-                $"Feature-to-PR completed ({flowId}). Commit `{inner.CommitSha}` pushed to `{inner.PushedRef}`. {prLine}",
+                $"Feature-to-PR completed ({flowId}). Commit `{change.Commit?.Commit.Value}` pushed to `{pushedRef}`. {prLine}",
                 card,
                 Ok: true);
         }
@@ -403,4 +482,15 @@ public sealed class InoStudioNeuron(IServiceProvider services) : DigitalBrain.Ne
     }
 
     private static string Kept(Dictionary<string, string> sidecars, string file) => sidecars.ContainsKey(file) ? "kept" : "missing";
+
+    private static bool IsMissingModelFailure(string detail) =>
+        detail.Contains("no drafter", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("no model", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("no creator model", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("provider", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("ollama", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("api key", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("settings", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("unavailable", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("configured", StringComparison.OrdinalIgnoreCase);
 }

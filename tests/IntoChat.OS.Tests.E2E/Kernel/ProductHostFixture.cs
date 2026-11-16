@@ -21,8 +21,10 @@ using IntoChat.OS.Authority;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Kernel.Composition;
+using IntoChat.OS.Kernel.Composition.Kernel;
 using IntoChat.OS.Kernel.Tests.E2E.Policies;
 using IntoChat.OS.Modules.AI;
+using IntoChat.OS.Primitives;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter;
@@ -98,6 +100,7 @@ public sealed class ProductHostFixture : IAsyncLifetime
                 services.AddNeuronProxies();
                 services.AddSingleton<IPolicyModel>(_policyModel);
                 services.TryAddSingleton<PolicyWriter>();
+                services.TryAddSingleton<IMemoryEmbedder>(new HybridMemoryEmbedder());
             });
 
         _host = await factory.Start(
@@ -171,6 +174,9 @@ public sealed class ProductHostFixture : IAsyncLifetime
         }
     }
 
+    public TApp AttachSilo<TApp>(string brain) where TApp : class
+        => AttachSilo(Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance<TApp>(Services), brain);
+
     public TApp AttachSilo<TApp>(TApp app, string brain) where TApp : class
     {
         ArgumentNullException.ThrowIfNull(app);
@@ -226,7 +232,7 @@ public sealed class ProductHostFixture : IAsyncLifetime
     public async Task PublishAppViewToSiloAsync(string brain, string appName, View? side, View main)
     {
         ArgumentNullException.ThrowIfNull(main);
-        var appKey = IApp.Key(brain, appName);
+        var appKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), appName).Key;
         if (side is not null)
         {
             var sideNeuron = SiloNeurons.Get<IView>(Services, appKey + "/side");

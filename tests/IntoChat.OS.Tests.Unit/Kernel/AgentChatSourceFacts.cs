@@ -30,6 +30,22 @@ public sealed class AgentChatSourceFacts
         Assert.Null(AgentChatSource.Entries(run with { Model = null }).Last().Model);
     }
 
+    [Theory]
+    [InlineData(AgentFailure.NoProvider, "no-provider")]
+    [InlineData(AgentFailure.ProviderRejectedKey, "provider-rejected-key")]
+    [InlineData(AgentFailure.ProviderUnavailable, "provider-unavailable")]
+    [InlineData(AgentFailure.ToolFailed, "tool-failed")]
+    [InlineData(AgentFailure.TimedOut, "timed-out")]
+    [InlineData(AgentFailure.Unknown, "unknown")]
+    public void AFailedRunCarriesItsCode(AgentFailure failure, string expectedCode)
+    {
+        var failed = new AgentRun("r1", AgentRunStatus.Failed, "hi", DateTimeOffset.UtcNow, Error: "opaque failure") { Failure = failure };
+        Assert.Equal(expectedCode, AgentChatSource.Entries(failed).Last().Failure);
+
+        var completed = new AgentRun("r2", AgentRunStatus.Completed, "hi", DateTimeOffset.UtcNow, Reply: "ok") { Failure = failure };
+        Assert.Null(AgentChatSource.Entries(completed).Last().Failure);
+    }
+
     [Fact]
     public void OpeningAnAppAddsAnAppCard()
     {

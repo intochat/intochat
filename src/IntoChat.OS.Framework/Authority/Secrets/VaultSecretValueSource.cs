@@ -1,14 +1,15 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections.Platform.Secrets;
-using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Authority.Secrets;
 
 // The redactor's value source: the stamped caller's own vault, nobody else's.
 // Zero-token auth enforcement: app/sandbox principals can never read raw vault secret values directly.
-internal sealed class VaultSecretValueSource(AuthorityNeurons neurons) : ISecretValueSource
+internal sealed class VaultSecretValueSource(AuthorityNeurons neurons, EdgeAuthority? edge = null) : ISecretValueSource
 {
     public async ValueTask<IReadOnlyList<string>> CurrentValues(CancellationToken cancellationToken)
     {
@@ -17,7 +18,7 @@ internal sealed class VaultSecretValueSource(AuthorityNeurons neurons) : ISecret
         {
             throw new UnauthorizedAccessException("Zero-token auth enforcement: sandbox and app principals cannot read raw vault secret values directly.");
         }
-        using (InProcessCallerScope.EnterKernel("system"))
+        using (edge?.Enter(edge.Module("identity.secrets", new BrainId("system"))))
         {
             return await neurons.Vault(caller.PrincipalId).Values(caller);
         }

@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
@@ -25,7 +26,7 @@ internal sealed class MeteringEmbeddingGenerator(
             catch (Exception exception)
             {
                 // Metering is an observer: a ledger fault must never fail the embedding call.
-                logger?.LogSwallowed(exception, "embedding call metering failed");
+                (logger ?? OsConsoleLog.For<MeteringEmbeddingGenerator>()).LogSwallowed(exception, "embedding call metering failed");
             }
         }
         return embeddings;

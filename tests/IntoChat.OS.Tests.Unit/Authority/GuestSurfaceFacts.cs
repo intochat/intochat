@@ -9,7 +9,7 @@ using IntoChat.OS.Authority.Identity.Rules;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Mcp;
+using IntoChat.OS.Kernel.Mcp;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -54,9 +54,9 @@ public sealed class GuestSurfaceFacts
         var stamped = CapabilityCallers.Of(Guest, Guest, Guest) with { AppId = GuestSurface.AppId };
 
         Assert.Equal(CallerKind.App, stamped.Kind);
-        Assert.IsNotType<Actor.Person>(stamped.ToCaller().Actor);
+        Assert.IsNotType<Actor.Person>(IntoChat.OS.Tests.TestEdge.From(stamped).Actor);
         Assert.DoesNotContain(GuestSurface.AppId,
-            new[] { CapabilityCallers.PlatformApp, CapabilityCallers.SchedulerApp, CapabilityCallers.AssistantApp, AccountSession.LocalAppId });
+            new[] { CapabilityCallers.PlatformApp, CapabilityCallers.SchedulerApp, CapabilityCallers.AssistantApp });
         Assert.DoesNotContain('/', GuestSurface.AppId);
     }
 
@@ -121,7 +121,7 @@ public sealed class GuestSurfaceFacts
     [InlineData("try-")]
     [InlineData("try-alice")]
     public void ATryPrincipal_IsNeverAvailableToRegister(string principalId)
-        => Assert.True(new PrincipalIdIsAvailable(principalId, AlreadyTaken: false).Broken);
+        => Assert.True(new PrincipalIdIsAvailable(principalId, ExistingPrincipal: null).Broken);
 
     [Theory]
     [InlineData("alice")]
@@ -129,7 +129,7 @@ public sealed class GuestSurfaceFacts
     [InlineData("retry-1")]
     [InlineData("u-0a1b2c3d4e5f")]
     public void OtherPrincipals_StayAvailable(string principalId)
-        => Assert.False(new PrincipalIdIsAvailable(principalId, AlreadyTaken: false).Broken);
+        => Assert.False(new PrincipalIdIsAvailable(principalId, ExistingPrincipal: null).Broken);
 
     [Fact]
     public async Task PasswordRegistration_RefusesATryUsername_BeforeItStoresACredential()
@@ -153,7 +153,7 @@ public sealed class GuestSurfaceFacts
         Assert.Equal(Guest, caller.PrincipalId);
         Assert.NotEqual(CallerKind.User, caller.Kind);
         Assert.Equal(GuestSurface.AppId, caller.AppId);
-        Assert.IsNotType<Actor.Person>(caller.ToCaller().Actor);
+        Assert.IsNotType<Actor.Person>(IntoChat.OS.Tests.TestEdge.From(caller).Actor);
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public sealed class GuestSurfaceFacts
         Assert.NotNull(caller);
         Assert.Equal(CallerKind.User, caller.Kind);
         Assert.Null(caller.AppId);
-        Assert.IsType<Actor.Person>(caller.ToCaller().Actor);
+        Assert.IsType<Actor.Person>(IntoChat.OS.Tests.TestEdge.From(caller).Actor);
     }
 
     [Fact]
@@ -253,7 +253,7 @@ public sealed class GuestSurfaceFacts
     private static IResult Probe()
     {
         var caller = RuntimeCallerContext.Require();
-        return Results.Ok(new CallerProbe(caller.PrincipalId, caller.BrainId, caller.Kind.ToString(), caller.AppId, caller.ToCaller().Actor is Actor.Person));
+        return Results.Ok(new CallerProbe(caller.PrincipalId, caller.BrainId, caller.Kind.ToString(), caller.AppId, IntoChat.OS.Tests.TestEdge.From(caller).Actor is Actor.Person));
     }
 
     private sealed record CallerProbe(string PrincipalId, string BrainId, string Kind, string? AppId, bool IsActorPerson);

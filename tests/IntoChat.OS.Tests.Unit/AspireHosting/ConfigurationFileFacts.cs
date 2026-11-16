@@ -1,4 +1,4 @@
-using IntoChat.OS.Aspire.Server;
+using IntoChat.OS.Kernel.AspireServer;
 using IntoChat.OS.Contracts.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;

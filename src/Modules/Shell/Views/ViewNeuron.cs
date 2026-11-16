@@ -188,8 +188,6 @@ internal static class ViewValidation
             : Text(node, "kind") == "intent" ? node : (JsonElement?)null;
         if (intent is { } found && Text(found, "intentKind") is { } kind && Enum.TryParse<IntentKind>(kind, ignoreCase: true, out var parsed))
         { return new(ViewActivationKind.Intent, Intent: new Intent(parsed, Text(found, "arg"))); }
-        if (node.TryGetProperty("resolve", out var resolve) && resolve.ValueKind == JsonValueKind.Object && Text(resolve, "planId") is { Length: > 0 } plan)
-        { return new(ViewActivationKind.Resolve, Resolve: new Resolve(plan)); }
         return ViewActivation.None;
     }
 

@@ -13,6 +13,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Primitives;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -368,7 +369,7 @@ public sealed class BuildFlowFacts
         var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/xwatch"));
         await app.Create(new AppManifest("X watch", "Watches X", [], [], [], Headless: true), "Count the mentions of elonmusk.");
 
-        await runtime.Services.GetRequiredService<Creator>().Implement(runtime.Services.GetRequiredService<INeuronProxies>(), IApp.Key(runtime.Brain.Value, "xwatch"), null, Ct);
+        await runtime.Services.GetRequiredService<Creator>().Implement(runtime.Services.GetRequiredService<INeuronProxies>(), IntoChat.OS.Primitives.AppRef.Of(runtime.Brain, "xwatch").Key, null, Ct);
         var id = Assert.IsType<string>(await app.BuildFlow());
         await Eventually(() => Flows(runtime).Read(id, Ct), v => v.WaitingStep == "install");
         var building = await app.Read();
@@ -617,7 +618,7 @@ public sealed class BuildFlowFacts
         var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/doomed"));
         await app.Create(new AppManifest("Doomed", "Never drafts", [], [], []), "spec");
 
-        await runtime.Services.GetRequiredService<Creator>().Implement(runtime.Services.GetRequiredService<INeuronProxies>(), IApp.Key(runtime.Brain.Value, "doomed"), null, Ct);
+        await runtime.Services.GetRequiredService<Creator>().Implement(runtime.Services.GetRequiredService<INeuronProxies>(), IntoChat.OS.Primitives.AppRef.Of(runtime.Brain, "doomed").Key, null, Ct);
 
         var snapshot = await SettledApp(app);
         Assert.Equal(AppStatus.Failed, snapshot.Status);

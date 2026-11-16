@@ -15,7 +15,7 @@ using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 
-namespace IntoChat.OS.Mcp;
+namespace IntoChat.OS.Kernel.Mcp;
 
 [McpServerToolType]
 internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions> auth, IBrainObserver kernel)

@@ -1,13 +1,13 @@
 using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.Sdk;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps;
 
 /// <summary>Result of resolving an <see cref="AppPackage"/>'s folder and connector slots against a brain.</summary>
-public sealed record SlotResolutionResult(
+internal sealed record SlotResolutionResult(
     bool Ready,
     bool NeedsApproval,
     MissingConnectorProposal[] MissingConnectors,
@@ -17,7 +17,7 @@ public sealed record SlotResolutionResult(
 /// Resolves <see cref="AppPackage.Needs"/> slots on a target brain: proposes enabling the Windows
 /// connector when absent and suggests explicit folder consent (e.g. <c>%USERPROFILE%\Downloads</c>) when present.
 /// </summary>
-public sealed class SlotResolver(INeuronProxies? proxies = null)
+internal sealed class SlotResolver(INeuronProxies? proxies = null)
 {
     public async Task<SlotResolutionResult> ResolveAsync(
         string brainId,
@@ -105,7 +105,7 @@ public sealed class SlotResolver(INeuronProxies? proxies = null)
         }
         catch (Exception error)
         {
-            NullLogger.Instance.LogSwallowed(error, "Could not query connections for Windows slot resolution; falling back to host OS check.");
+            OsConsoleLog.For<SlotResolver>().LogSwallowed(error, "Could not query connections for Windows slot resolution; falling back to host OS check.");
             return OperatingSystem.IsWindows();
         }
     }

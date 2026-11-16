@@ -4,15 +4,18 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Orleans;
 
-namespace IntoChat.OS.Kernel.OsRegistry;
+namespace IntoChat.OS.Kernel.Composition.Registry;
 
 /// <summary>
 /// Production implementation of <see cref="IRegistryBroker"/> providing unified 3-tier OS registry access:
@@ -22,13 +25,13 @@ namespace IntoChat.OS.Kernel.OsRegistry;
 /// </summary>
 public sealed class RegistryBroker : IRegistryBroker
 {
-    private readonly IServiceProvider _services;
+    private readonly IServiceProvider? _services;
     private readonly ICapabilityBroker? _capabilityBroker;
     private readonly ConcurrentDictionary<string, string> _memoryFallback = new(StringComparer.OrdinalIgnoreCase);
 
     public RegistryBroker(IServiceProvider? services = null, ICapabilityBroker? capabilityBroker = null)
     {
-        _services = services ?? new ServiceCollection().BuildServiceProvider();
+        _services = services;
         _capabilityBroker = capabilityBroker;
     }
 
@@ -77,22 +80,23 @@ public sealed class RegistryBroker : IRegistryBroker
     public async Task<RegistryEntryDescriptor?> DescribeAsync(string uri, CancellationToken ct = default)
     {
         var (tier, key) = ParseUri(uri);
-        var brainId = ResolveCurrentBrainId();
         RuntimeCallerContext.TryGet(out var caller);
         var isPlatform = IsPlatformCaller(caller);
 
-        if (_services.GetService<IGrainFactory>() is null)
+        if (_services?.GetService<IGrainFactory>() is null)
         {
             return _memoryFallback.TryGetValue(uri, out var storedVal)
                 ? BuildMemoryDescriptor(uri, key, tier, storedVal, isPlatform)
                 : null;
         }
 
+        var brainId = ResolveCurrentBrainId();
+
         switch (tier)
         {
             case RegistryTier.Settings:
                 {
-                    var state = await SiloNeurons.Get<IUserSettings>(_services, $"{brainId}/settings").Read().ConfigureAwait(false);
+                    var state = await SiloNeurons.Get<IUserSettings>(_services, IUserSettings.Key(new BrainId(brainId))).Read().ConfigureAwait(false);
                     var val = ResolveSettingProperty(state, key);
                     return val is null ? null : new RegistryEntryDescriptor(uri, key, RegistryTier.Settings, val, null, true, null);
                 }
@@ -126,16 +130,17 @@ public sealed class RegistryBroker : IRegistryBroker
     {
         ArgumentNullException.ThrowIfNull(value);
         var (tier, key) = ParseUri(uri);
-        var brainId = ResolveCurrentBrainId();
 
         _memoryFallback[uri] = value;
-        if (_services.GetService<IGrainFactory>() is null) { return; }
+        if (_services?.GetService<IGrainFactory>() is null) { return; }
+
+        var brainId = ResolveCurrentBrainId();
 
         switch (tier)
         {
             case RegistryTier.Settings:
                 {
-                    var settings = SiloNeurons.Get<IUserSettings>(_services, $"{brainId}/settings");
+                    var settings = SiloNeurons.Get<IUserSettings>(_services, IUserSettings.Key(new BrainId(brainId)));
                     if (IsKnownProfileSetting(key)) { await UpdateProfileSettingAsync(settings, key, value).ConfigureAwait(false); }
                     else { await settings.SetVariable(key, value).ConfigureAwait(false); }
                     break;
@@ -152,15 +157,16 @@ public sealed class RegistryBroker : IRegistryBroker
     public async Task RemoveAsync(string uri, CancellationToken ct = default)
     {
         var (tier, key) = ParseUri(uri);
-        var brainId = ResolveCurrentBrainId();
 
         _memoryFallback.TryRemove(uri, out _);
-        if (_services.GetService<IGrainFactory>() is null) { return; }
+        if (_services?.GetService<IGrainFactory>() is null) { return; }
+
+        var brainId = ResolveCurrentBrainId();
 
         switch (tier)
         {
             case RegistryTier.Settings:
-                await SiloNeurons.Get<IUserSettings>(_services, $"{brainId}/settings").SetVariable(key, string.Empty).ConfigureAwait(false);
+                await SiloNeurons.Get<IUserSettings>(_services, IUserSettings.Key(new BrainId(brainId))).SetVariable(key, string.Empty).ConfigureAwait(false);
                 break;
             case RegistryTier.Environment:
             case RegistryTier.Vault:
@@ -174,12 +180,11 @@ public sealed class RegistryBroker : IRegistryBroker
 
     public async Task<IReadOnlyList<RegistryEntryDescriptor>> ListAsync(string? schemeOrPrefix = null, CancellationToken ct = default)
     {
-        var brainId = ResolveCurrentBrainId();
         RuntimeCallerContext.TryGet(out var caller);
         var isPlatform = IsPlatformCaller(caller);
         var normalized = schemeOrPrefix?.Trim().TrimEnd('/', ':').ToLowerInvariant();
 
-        if (_services.GetService<IGrainFactory>() is null)
+        if (_services?.GetService<IGrainFactory>() is null)
         {
             var fallbackResults = new List<RegistryEntryDescriptor>();
             foreach (var (storedUri, storedVal) in _memoryFallback)
@@ -201,6 +206,8 @@ public sealed class RegistryBroker : IRegistryBroker
             return fallbackResults;
         }
 
+        var brainId = ResolveCurrentBrainId();
+
         var results = new List<RegistryEntryDescriptor>();
         var includeSettings = string.IsNullOrWhiteSpace(normalized) || normalized == "settings";
         var includeEnv = string.IsNullOrWhiteSpace(normalized) || normalized == "env";
@@ -210,7 +217,7 @@ public sealed class RegistryBroker : IRegistryBroker
         {
             try
             {
-                var state = await SiloNeurons.Get<IUserSettings>(_services, $"{brainId}/settings").Read().ConfigureAwait(false);
+                var state = await SiloNeurons.Get<IUserSettings>(_services, IUserSettings.Key(new BrainId(brainId))).Read().ConfigureAwait(false);
                 if (state is not null)
                 {
                     foreach (var (k, v) in new (string, string)[]
@@ -231,7 +238,7 @@ public sealed class RegistryBroker : IRegistryBroker
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _ = ex.Message;
+                Logger().LogSwallowed(ex, $"Failed reading user settings registry entries for brain '{brainId}'.");
             }
         }
 
@@ -255,7 +262,7 @@ public sealed class RegistryBroker : IRegistryBroker
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _ = ex.Message;
+                Logger().LogSwallowed(ex, $"Failed reading env/vault registry entries for brain '{brainId}'.");
             }
         }
 
@@ -294,10 +301,13 @@ public sealed class RegistryBroker : IRegistryBroker
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _ = error.Message;
+            OsConsoleLog.For<RegistryBroker>().LogSwallowed(error, "Could not resolve current BrainScope id.");
         }
-        return "local";
+        throw new InvalidOperationException("No BrainId is present in RuntimeCallerContext or BrainScope.");
     }
+
+    private ILogger Logger() =>
+        _services?.GetService<ILoggerFactory>()?.CreateLogger<RegistryBroker>() ?? OsConsoleLog.For<RegistryBroker>();
 
     private static string? ResolveSettingProperty(UserSettingsState state, string key) => state is null ? null : key.ToLowerInvariant() switch
     {

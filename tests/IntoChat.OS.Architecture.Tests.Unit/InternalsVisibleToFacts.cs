@@ -48,16 +48,6 @@ public sealed partial class InternalsVisibleToFacts
         {
             return true;
         }
-        // Ring 0 and Framework allow the Kernel and AppHost compositions to wire and initialize internal services
-        if (grantee is "IntoChat.OS.Kernel" or "IntoChat.OS.AppHost" or "IntoChat.OS.Framework")
-        {
-            return true;
-        }
-        // Host and composition modules that need friend access to Framework / Ring
-        if (grantee is "IntoChat.OS.Modules.Shell" or "IntoChat.OS.Modules.Catalog" or "IntoChat.OS.Modules.AI")
-        {
-            return true;
-        }
         const string hosting = ".Aspire.Hosting";
         return grantor.EndsWith(hosting, StringComparison.Ordinal) && grantee == grantor[..^hosting.Length] + ".Tests.Hosting";
     }

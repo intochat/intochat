@@ -8,9 +8,7 @@ using IntoChat.OS.Apps.Friends;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Apps.PhotoCraft;
-using IntoChat.OS.Apps.Workspace;
 using IntoChat.OS.Modules.Apps;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
 
@@ -39,25 +37,11 @@ public sealed class AppDefinitionAndRuntimeChallengerFacts
     [InlineData(typeof(GalleryApp), "app.gallery")]
     [InlineData(typeof(InoApp), "app.ino")]
     [InlineData(typeof(FriendsApp), "app.friends")]
-    [InlineData(typeof(WorkspaceApp), "app.workspace")]
     public void ShellAppScreenNeuronsMatchNeuronAliasContract(Type screenType, string expectedNeuronType)
     {
         Assert.True(typeof(IScreen).IsAssignableFrom(screenType), $"{screenType.Name} must implement IScreen.");
         var attr = screenType.GetCustomAttribute<NeuronAttribute>(inherit: false);
         Assert.NotNull(attr);
         Assert.Equal(expectedNeuronType, attr!.Type);
-    }
-
-    [Fact]
-    public async Task InProcessAppRuntimeValidatesInputFailClosed()
-    {
-        var services = new ServiceCollection().BuildServiceProvider();
-        var runtime = new InProcessAppRuntime(services);
-
-        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Deploy("invalid-key", [], CancellationToken.None));
-        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Deploy("/invalid-key", [], CancellationToken.None));
-
-        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Retire("invalid-key", CancellationToken.None));
-        await Assert.ThrowsAsync<ArgumentException>(() => runtime.Retire("/invalid-key", CancellationToken.None));
     }
 }

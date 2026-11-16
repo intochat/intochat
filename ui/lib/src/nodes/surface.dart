@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +11,7 @@ import '../theme/ui_colors.dart';
 import '../theme/ui_shadows.dart';
 import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
+import '../theme/wire_node_values.dart';
 import 'node_common.dart';
 import 'node_context.dart';
 
@@ -31,10 +32,10 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
     final theme = Theme.of(context);
     final c = UiColors.of(context);
     final tokens = UiTokens.of(context);
-    final kind = node.surfaceKind.trim().toLowerCase();
+    final variant = parseSurfaceVariant(node.surfaceKind);
 
     // 1. CommandBar / Toolbar surface (`kind: "toolbar"`)
-    if (kind == 'toolbar') {
+    if (variant.kind == SurfaceVariantKind.toolbar) {
       final items = renderAll(node.children, ctx);
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -53,7 +54,7 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
     }
 
     // 2. Breadcrumb bar (`kind: "breadcrumb"`)
-    if (kind == 'breadcrumb') {
+    if (variant.kind == SurfaceVariantKind.breadcrumb) {
       final items = renderAll(node.children, ctx);
       return SingleChildScrollView(
         primary: false,
@@ -79,12 +80,13 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
     }
 
     // 3. Inline raster / SVG / network Image canvas (`kind: "image"` | `"image:contain"` | `"image:cover"`)
-    if (kind == 'image' || kind.startsWith('image:')) {
-      final fitMode = kind.contains(':') ? kind.split(':').last : 'contain';
-      final boxFit = fitMode == 'cover' ? BoxFit.cover : BoxFit.contain;
+    if (variant.kind == SurfaceVariantKind.image) {
+      final boxFit = variant.boxFit;
       final src = (node.subtitle ?? '').trim();
       final caption = (node.title ?? '').trim();
-      final height = node.padding > 0 ? node.padding.clamp(80.0, 1200.0) : 320.0;
+      final height = node.padding > 0
+          ? node.padding.clamp(80.0, 1200.0)
+          : 320.0;
       final bytes = _tryDecodeDataUrl(src);
 
       Widget content;
@@ -96,8 +98,12 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
             width: double.infinity,
             child: CustomPaint(
               painter: _StudioCheckerboardPainter(
-                cellA: c.isDark ? const Color(0xFF181A20) : const Color(0xFFE8E6E1),
-                cellB: c.isDark ? const Color(0xFF22252E) : const Color(0xFFF3F1EC),
+                cellA: c.isDark
+                    ? const Color(0xFF181A20)
+                    : const Color(0xFFE8E6E1),
+                cellB: c.isDark
+                    ? const Color(0xFF22252E)
+                    : const Color(0xFFF3F1EC),
               ),
               child: Image.memory(
                 bytes,
@@ -163,12 +169,13 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
     }
 
     // 4. IDE Code viewer (`kind: "code"` | `"code:<lang>"`)
-    if (kind == 'code' || kind.startsWith('code:')) {
-      final lang = kind.contains(':') ? kind.split(':').last : 'code';
+    if (variant.kind == SurfaceVariantKind.code) {
+      final lang = variant.language;
       final title = (node.title ?? '').trim();
       final source = node.subtitle ?? '';
-      final maxHeight =
-          node.padding > 0 ? node.padding.clamp(120.0, 1200.0) : 360.0;
+      final maxHeight = node.padding > 0
+          ? node.padding.clamp(120.0, 1200.0)
+          : 360.0;
       return _CodeSurfaceView(
         title: title.isEmpty ? 'Source' : title,
         language: lang,
@@ -178,20 +185,20 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
     }
 
     // 5. Interactive collapsible Expander (`kind: "expander"` | `"expander:open"` | `"expander:closed"`)
-    if (kind == 'expander' || kind.startsWith('expander:')) {
-      final initiallyOpen = kind.endsWith(':open');
+    if (variant.kind == SurfaceVariantKind.expander) {
       return _ExpanderSurfaceView(
         title: node.title ?? 'Details',
         subtitle: node.subtitle,
-        initiallyExpanded: initiallyOpen,
+        initiallyExpanded: variant.initiallyOpen,
         children: renderAll(node.children, ctx),
       );
     }
 
     // 6. Bounded vertical ScrollBox (`kind: "scroll"`)
-    if (kind == 'scroll') {
-      final maxHeight =
-          node.padding > 0 ? node.padding.clamp(100.0, 1400.0) : 360.0;
+    if (variant.kind == SurfaceVariantKind.scroll) {
+      final maxHeight = node.padding > 0
+          ? node.padding.clamp(100.0, 1400.0)
+          : 360.0;
       return ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxHeight),
         child: SingleChildScrollView(
@@ -207,9 +214,8 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
     }
 
     // 7. Live App Studio device/viewport frame (`kind: "studio-frame"` | `"studio-frame:<width>"`)
-    if (kind == 'studio-frame' || kind.startsWith('studio-frame:')) {
-      final widthSpec = kind.contains(':') ? kind.split(':').last : 'fill';
-      final targetWidth = double.tryParse(widthSpec);
+    if (variant.kind == SurfaceVariantKind.studioFrame) {
+      final targetWidth = variant.targetWidth;
       final frameBody = Container(
         padding: EdgeInsets.all(node.padding.clamp(8.0, 32.0)),
         decoration: BoxDecoration(
@@ -282,15 +288,20 @@ Widget renderSurface(SurfaceNode node, NodeContext ctx) => Builder(
     }
 
     // Standard material surfaces (`recessed`, `elevated`, `acrylic`, `subtle`)
-    final (color, borderColor, shadows, blurSigma) = switch (kind) {
-      'recessed' => (c.recessed, c.hairline, const <BoxShadow>[], 0.0),
-      'elevated' => (
+    final (color, borderColor, shadows, blurSigma) = switch (variant.kind) {
+      SurfaceVariantKind.recessed => (
+        c.recessed,
+        c.hairline,
+        const <BoxShadow>[],
+        0.0,
+      ),
+      SurfaceVariantKind.elevated => (
         c.elevated,
         c.isGlass ? c.specularBorder : c.hairline,
         UiShadows.md(c),
         c.blurSigma,
       ),
-      'acrylic' => (
+      SurfaceVariantKind.acrylic => (
         c.chrome,
         c.chromeBorder,
         UiShadows.sm(c),
@@ -357,7 +368,7 @@ class _CodeSurfaceViewState extends State<_CodeSurfaceView> {
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
     final tokens = UiTokens.of(context);
-    final lines = widget.source.replaceAll('\r\n', '\n').split('\n');
+    final lines = splitSourceLines(widget.source);
 
     return Container(
       decoration: BoxDecoration(
@@ -393,7 +404,10 @@ class _CodeSurfaceViewState extends State<_CodeSurfaceView> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: c.surfaceSunk,
                     borderRadius: BorderRadius.circular(4),
@@ -413,7 +427,10 @@ class _CodeSurfaceViewState extends State<_CodeSurfaceView> {
                   onTap: _copy,
                   borderRadius: BorderRadius.circular(6),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 4,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -577,10 +594,7 @@ class _ExpanderSurfaceViewState extends State<_ExpanderSurfaceView> {
 }
 
 class _StudioCheckerboardPainter extends CustomPainter {
-  const _StudioCheckerboardPainter({
-    required this.cellA,
-    required this.cellB,
-  });
+  const _StudioCheckerboardPainter({required this.cellA, required this.cellB});
 
   final Color cellA;
   final Color cellB;

@@ -1,5 +1,5 @@
 using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Modules.Apps.Routing;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -376,8 +376,8 @@ internal sealed record CatalogEntry
         ArgumentNullException.ThrowIfNull(listing);
         if (listing.Source is AppSource.Brain brain && string.IsNullOrWhiteSpace(brain.AccountId))
         {
-            return string.IsNullOrWhiteSpace(brain.BrainId) ? null : IApp.Key(brain.BrainId, listing.Name);
+            return string.IsNullOrWhiteSpace(brain.BrainId) ? null : IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain.BrainId), listing.Name).Key;
         }
-        return listing.Source.Scope() is { } scope ? IApp.Key(scope, listing.Name) : null;
+        return listing.Source.Scope() is { } scope ? IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(scope), listing.Name).Key : null;
     }
 }

@@ -97,7 +97,7 @@ internal sealed class ChatIndexNeuron
     // Strictly increasing, so entries written in one tick still order newest first.
     private DateTimeOffset Now()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Context.Time.GetUtcNow();
         var latest = Snapshot.Entries.Length == 0 ? DateTimeOffset.MinValue : Snapshot.Entries.Max(entry => entry.UpdatedAt);
         return now > latest ? now : latest.AddTicks(1);
     }

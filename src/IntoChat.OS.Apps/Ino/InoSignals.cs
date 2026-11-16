@@ -1,0 +1,23 @@
+using DigitalBrain;
+
+namespace IntoChat.OS.Apps.Ino;
+
+[Signal("ino.open")] public sealed record InoOpen(string? Mode = null) : Signal;
+[Signal("ino.retry")] public sealed record InoRetry : Signal;
+[Signal("ino.use-local")] public sealed record InoUseLocalModel(string? Model = null, string? Value = null) : Signal;
+[Signal("ino.save-provider")] public sealed record InoSaveProvider(string? Value = null, string? Provider = null) : Signal;
+[Signal("ino.link")] public sealed record InoPasteLink(Guid Request = default, string? App = null, string? Input = null, string? Text = null) : Signal;
+[Signal("ino.new")] public sealed record InoNew : Signal;
+[Signal("ino.new-conversation")] public sealed record InoNewConversation : Signal;
+[Signal("ino.make")] public sealed record InoMake(string? Sentence = null, string[]? Focus = null) : Signal;
+[Signal("ino.stop")] public sealed record InoStop : Signal;
+[Signal("ino.smart")] public sealed record InoSmart(bool On = true) : Signal;
+[Signal("ino.connect-db")] public sealed record InoConnectDb(string? ConnectionString = null, string? Alias = null) : Signal;
+[Signal("ino.query-db")] public sealed record InoQueryDb(string? Sql = null) : Signal;
+
+[Signal("ino.send")]
+public sealed record InoSend(string? Message = null, string? Text = null, string? Value = null) : Signal
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? EffectiveMessage => !string.IsNullOrWhiteSpace(Message) ? Message : !string.IsNullOrWhiteSpace(Text) ? Text : Value;
+}

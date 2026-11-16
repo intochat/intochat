@@ -1,6 +1,6 @@
 namespace IntoChat.OS.Modules.Postgres.Tables;
 
-public interface ITableStore
+internal interface ITableStore
 {
     Task DefineAsync(TablePlacement placement, string table, TableDefinition definition, CancellationToken ct);
     Task DropAsync(TablePlacement placement, string table, CancellationToken ct);

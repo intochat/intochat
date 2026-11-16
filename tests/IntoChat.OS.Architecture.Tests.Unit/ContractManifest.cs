@@ -47,6 +47,8 @@ internal sealed record ContractManifest(
         ("IntoChat.OS.StaleActionException", typeof(DigitalBrain.Errors.StaleActionException), "ui.stale-action"),
         ("IntoChat.OS.State", typeof(DigitalBrain.Brains.BrainState), null),
         ("IntoChat.OS.Trace", typeof(DigitalBrain.Capabilities.Compute.Trace), null),
+        ("IntoChat.OS.Modules.AI.Routing.RouteRecord", typeof(IntoChat.OS.Modules.Apps.Routing.RouteRecord), "ai.router.record"),
+        ("IntoChat.OS.Modules.AI.Routing.RouterStorage", typeof(IntoChat.OS.Modules.Apps.Routing.RouterStorage), "ai.router.storage"),
     ];
 
     private static readonly (string Old, Type Current)[] MovedSignals =
@@ -63,6 +65,7 @@ internal sealed record ContractManifest(
         ("IntoChat.OS.Integrations.ConnectionRequested", typeof(DigitalBrain.Capabilities.Connections.Requests.ConnectionRequested)),
         ("IntoChat.OS.Integrations.ConnectionsChanged", typeof(DigitalBrain.Capabilities.Connections.Requests.ConnectionsChanged)),
         ("IntoChat.OS.TypeAdded", typeof(DigitalBrain.Signals.TypeAdded)),
+        ("IntoChat.OS.Modules.AI.Routing.RouterDecided", typeof(IntoChat.OS.Modules.Apps.Routing.RouterDecided)),
     ];
 
     internal static string BaselinePath => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, FileName);

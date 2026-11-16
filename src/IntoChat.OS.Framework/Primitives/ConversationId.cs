@@ -6,8 +6,12 @@ namespace IntoChat.OS.Primitives;
 /// Typed identifier for a conversation. Canonical ids follow <c>c-{32hex}</c>.
 /// </summary>
 [GenerateSerializer, Alias("os.conversation-id")]
-public readonly partial record struct ConversationId([property: Id(0)] string Value)
+public readonly partial record struct ConversationId
 {
+    [Id(0)]
+    public string Value { get; init; }
+
+    private ConversationId(string value) => Value = value;
     public static ConversationId New() => new("c-" + Guid.NewGuid().ToString("N"));
 
     public bool IsCanonical => IsCanonicalValue(Value);

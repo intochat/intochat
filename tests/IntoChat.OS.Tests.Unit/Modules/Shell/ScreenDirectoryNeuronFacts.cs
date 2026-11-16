@@ -12,6 +12,8 @@ using IntoChat.OS.Modules.Flutter.Screens;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Flutter.Workspace;
 using IntoChat.OS.Runtime;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using TestOS = DigitalBrain.Testing.TestOS;
 using Xunit;
 
@@ -27,34 +29,30 @@ public sealed class ScreenDirectoryNeuronFacts
 
     private sealed class MockNeuronProxies : INeuronProxies
     {
-        private readonly Dictionary<string, object> _byKey = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<(Type Type, string Key), object> _byKey = new();
 
         public void Register<T>(string key, T instance) where T : class
         {
-            _byKey[key] = instance;
+            _byKey[(typeof(T), key)] = instance;
         }
 
         public void Register<T>(NeuronId id, T instance) where T : class
         {
-            _byKey[$"{id.Type}:{id.Brain.Value}/{id.Key}"] = instance;
-            _byKey[id.Key] = instance;
+            _byKey[(typeof(T), $"{id.Brain.Value}/{id.Key}")] = instance;
+            _byKey[(typeof(T), id.Key)] = instance;
         }
 
         public T Get<T>(NeuronId id) where T : class
         {
-            if (_byKey.TryGetValue($"{id.Brain.Value}/{id.Key}", out var val))
+            if (_byKey.TryGetValue((typeof(T), $"{id.Brain.Value}/{id.Key}"), out var val))
             {
                 return (T)val;
             }
-            if (_byKey.TryGetValue($"{id.Type}:{id.Brain.Value}/{id.Key}", out val))
+            if (_byKey.TryGetValue((typeof(T), id.Key), out val))
             {
                 return (T)val;
             }
-            if (_byKey.TryGetValue(id.Key, out val))
-            {
-                return (T)val;
-            }
-            throw new KeyNotFoundException($"No mock neuron for {id.Type}:{id.Key}");
+            throw new KeyNotFoundException($"No mock neuron for {typeof(T).Name}:{id.Type}:{id.Key}");
         }
     }
 
@@ -88,16 +86,41 @@ public sealed class ScreenDirectoryNeuronFacts
             => Task.FromResult<IReadOnlyList<Approval>>(Approvals);
     }
 
-    private sealed class MockConfirmationInbox : IConfirmationInbox
+    private sealed class MockConfirmationInbox(params string[] pendingPlanIds) : IConfirmationInbox, IConfirmationRequests
     {
+        private readonly HashSet<string> _pending = new(pendingPlanIds, StringComparer.Ordinal);
+        private readonly Dictionary<string, ConfirmationResult> _outcomes = new(StringComparer.Ordinal);
         public List<(string PlanId, bool Approved)> Resolved { get; } = [];
 
-        public Task<ConfirmationInbox> Read()
-            => Task.FromResult(new ConfirmationInbox(0L, []));
+        public Task<ConfirmationInbox> Read() => Task.FromResult(new ConfirmationInbox(
+            0L,
+            [.. _pending.Select(planId => new ConfirmationRequested(
+                planId,
+                new ConfirmationPlan(planId, ConfirmationAction.Other, false, planId, planId, "Approve", "Deny", planId),
+                ConfirmationPrincipal.App("creator"),
+                default,
+                DateTimeOffset.UtcNow.AddHours(1)))]));
 
         public Task Resolve(string planId, bool approved)
         {
             Resolved.Add((planId, approved));
+            _pending.Remove(planId);
+            _outcomes[planId] = new ConfirmationResult(
+                planId,
+                approved ? ConfirmationOutcome.Approved : ConfirmationOutcome.Denied,
+                approved ? ConfirmationDenyReason.None : ConfirmationDenyReason.ByPerson,
+                Skipped: false);
+            return Task.CompletedTask;
+        }
+
+        public Task<ConfirmationResult?> Request(ConfirmationPlan plan) => Task.FromResult<ConfirmationResult?>(null);
+
+        public Task<ConfirmationResult?> Outcome(string planId)
+            => Task.FromResult(_outcomes.TryGetValue(planId, out var outcome) ? outcome : null);
+
+        public Task Withdraw(string planId)
+        {
+            _pending.Remove(planId);
             return Task.CompletedTask;
         }
     }
@@ -105,6 +128,7 @@ public sealed class ScreenDirectoryNeuronFacts
     private sealed class MockView : IView
     {
         public PublishedView? Published { get; set; }
+        public ViewActivation? ActivationResult { get; set; }
         public List<(long Generation, string Key, string? Value)> Activations { get; } = [];
 
         public Task Publish(long generation, View view) => Task.CompletedTask;
@@ -114,7 +138,9 @@ public sealed class ScreenDirectoryNeuronFacts
         public Task<ViewActivation> Activate(long generation, string key, string? fieldValue)
         {
             Activations.Add((generation, key, fieldValue));
-            return Task.FromResult(new ViewActivation(ViewActivationKind.Intent, Intent: new Intent(default, "noop"), Value: fieldValue));
+            return Task.FromResult(ActivationResult is { } res
+                ? res with { Value = fieldValue }
+                : new ViewActivation(ViewActivationKind.Intent, Intent: new Intent(default, "noop"), Value: fieldValue));
         }
     }
 
@@ -130,7 +156,12 @@ public sealed class ScreenDirectoryNeuronFacts
         proxies.Register<IWorkspace>(IWorkspace.Key(Scope), ws);
         proxies.Register<IApprovals>(IApprovals.Key(Scope), approvals);
 
-        var neuron = new ScreenDirectoryNeuron(proxies, Scope);
+        var services = new ServiceCollection()
+            .AddSingleton<INeuronProxies>(proxies)
+            .BuildServiceProvider();
+        await using var osWithProxies = TestOS.Local(o => o.Services = services).Register(typeof(FlutterModule).Assembly);
+
+        var neuron = osWithProxies.Get<IScreenDirectory>(new NeuronId(new BrainId(Scope), IScreenDirectory.TypeName, IScreenDirectory.Key(Scope)));
 
         var list = await neuron.List();
 
@@ -169,7 +200,11 @@ public sealed class ScreenDirectoryNeuronFacts
         proxies.Register<IWorkspace>(IWorkspace.Key(Scope), new MockWorkspace());
         proxies.Register<IApprovals>(IApprovals.Key(Scope), new MockApprovals());
 
-        var neuron = new ScreenDirectoryNeuron(proxies, Scope);
+        var services = new ServiceCollection()
+            .AddSingleton<INeuronProxies>(proxies)
+            .BuildServiceProvider();
+        await using var os = TestOS.Local(o => o.Services = services).Register(typeof(FlutterModule).Assembly);
+        var neuron = os.Get<IScreenDirectory>(new NeuronId(new BrainId(Scope), IScreenDirectory.TypeName, IScreenDirectory.Key(Scope)));
         var snapshot = await neuron.Read("calculator");
 
         Assert.NotNull(snapshot);
@@ -199,7 +234,11 @@ public sealed class ScreenDirectoryNeuronFacts
         proxies.Register<IWorkspace>(IWorkspace.Key(Scope), new MockWorkspace());
         proxies.Register<IApprovals>(IApprovals.Key(Scope), new MockApprovals());
 
-        var neuron = new ScreenDirectoryNeuron(proxies, Scope);
+        var services = new ServiceCollection()
+            .AddSingleton<INeuronProxies>(proxies)
+            .BuildServiceProvider();
+        await using var os = TestOS.Local(o => o.Services = services).Register(typeof(FlutterModule).Assembly);
+        var neuron = os.Get<IScreenDirectory>(new NeuronId(new BrainId(Scope), IScreenDirectory.TypeName, IScreenDirectory.Key(Scope)));
 
         // Act with generation = null should pick current generation 1L
         var result = await neuron.Act("calculator", "btn-1", "value", generation: null);
@@ -213,16 +252,50 @@ public sealed class ScreenDirectoryNeuronFacts
     }
 
     [Fact]
+    public async Task ScreenDirectory_Act_RefusesResolveOnAppView()
+    {
+        using var person = AsPerson();
+        var proxies = new MockNeuronProxies();
+        var view = new View("Calculator", new Column([new ApprovalCardNode("card-1", "plan-99", "Approve", "Summary", [], Resolve: new Resolve("plan-99"))]));
+        var json = JsonSerializer.SerializeToElement(view, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
+
+        var mockView = new MockView
+        {
+            Published = new PublishedView("owner/apps/calculator/view", 1L, json),
+            ActivationResult = new ViewActivation(ViewActivationKind.Resolve, Resolve: new Resolve("plan-99")),
+        };
+        var inbox = new MockConfirmationInbox();
+        proxies.Register<IView>("owner/apps/calculator/view", mockView);
+        proxies.Register<IConfirmationInbox>(IConfirmationInbox.Key(Scope), inbox);
+        proxies.Register<IWorkspace>(IWorkspace.Key(Scope), new MockWorkspace());
+        proxies.Register<IApprovals>(IApprovals.Key(Scope), new MockApprovals());
+
+        var services = new ServiceCollection()
+            .AddSingleton<INeuronProxies>(proxies)
+            .BuildServiceProvider();
+        await using var os = TestOS.Local(o => o.Services = services).Register(typeof(FlutterModule).Assembly);
+        var neuron = os.Get<IScreenDirectory>(new NeuronId(new BrainId(Scope), IScreenDirectory.TypeName, IScreenDirectory.Key(Scope)));
+        var result = await neuron.Act("calculator", "card-1", "approve", generation: 1L);
+
+        Assert.False(result.Accepted);
+        Assert.Empty(inbox.Resolved);
+    }
+
+    [Fact]
     public async Task ScreenDirectory_Approve_ResolvesApproval_AndRefusesDoubleResolution()
     {
         using var person = AsPerson();
-        await using var os = TestOS.Local().Register(typeof(FlutterModule).Assembly);
-
         var proxies = new MockNeuronProxies();
-        var inbox = new MockConfirmationInbox();
+        var inbox = new MockConfirmationInbox("plan-42");
         proxies.Register<IConfirmationInbox>(IConfirmationInbox.Key(Scope), inbox);
+        proxies.Register<IConfirmationRequests>(IConfirmationRequests.Of(new BrainId(Scope)), inbox);
 
-        var neuron = new ScreenDirectoryNeuron(proxies, Scope);
+        var services = new ServiceCollection()
+            .AddSingleton<INeuronProxies>(proxies)
+            .BuildServiceProvider();
+        await using var osWithProxies = TestOS.Local(o => o.Services = services).Register(typeof(FlutterModule).Assembly);
+
+        var neuron = osWithProxies.Get<IScreenDirectory>(new NeuronId(new BrainId(Scope), IScreenDirectory.TypeName, IScreenDirectory.Key(Scope)));
 
         // First approval: accepted
         var first = await neuron.Approve("plan-42", approved: true);
@@ -233,5 +306,39 @@ public sealed class ScreenDirectoryNeuronFacts
         var second = await neuron.Approve("plan-42", approved: true);
         Assert.False(second.Accepted);
         Assert.Contains("already been resolved", second.Message);
+    }
+
+    [Fact]
+    public async Task ScreenDirectory_List_LogsSwallowedWorkspaceFailureToInjectedLogger()
+    {
+        var proxies = new MockNeuronProxies();
+        var logger = new RecordingLogger<ScreenDirectoryNeuron>();
+        var services = new ServiceCollection()
+            .AddSingleton<INeuronProxies>(proxies)
+            .AddSingleton<ILogger<ScreenDirectoryNeuron>>(logger)
+            .BuildServiceProvider();
+        await using var os = TestOS.Local(o => o.Services = services).Register(typeof(FlutterModule).Assembly);
+        var neuron = os.Get<IScreenDirectory>(new NeuronId(new BrainId(Scope), IScreenDirectory.TypeName, IScreenDirectory.Key(Scope)));
+
+        await neuron.List();
+
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Warning
+            && e.Message.Contains("Workspace could not be read for screen directory.", StringComparison.Ordinal));
+    }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<(LogLevel Level, string Message, Exception? Error)> Entries { get; } = [];
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Entries.Add((logLevel, formatter(state, exception), exception));
+
+        private sealed class NullScope : IDisposable
+        {
+            public static readonly NullScope Instance = new();
+            public void Dispose() { }
+        }
     }
 }

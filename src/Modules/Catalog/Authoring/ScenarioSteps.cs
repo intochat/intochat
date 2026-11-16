@@ -30,7 +30,7 @@ internal static class ScenarioSteps
     // UnitScenario's TestOS clock starts here; a tick is an offset from it.
     public static readonly DateTimeOffset Start = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
-    public sealed record Parsed(FakeSlots Fakes, IReadOnlyList<ScenarioStep> Steps);
+    internal sealed record Parsed(FakeSlots Fakes, IReadOnlyList<ScenarioStep> Steps);
 
     private sealed class HttpAnswers(Func<string>[] answers)
     {

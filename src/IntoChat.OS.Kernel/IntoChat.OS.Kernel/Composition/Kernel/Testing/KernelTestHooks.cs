@@ -2,10 +2,11 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Kernel.Composition.Kernel;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
 
-namespace IntoChat.OS.Kernel.Composition;
+namespace IntoChat.OS.Kernel.Composition.Kernel.Testing;
 
 // The kernel composition's own test helper (06-09): facts that drive a runtime host grain directly (fire a durable reminder as
 // the reminder service would, force activation collection, wait for an activation, deactivate a plain neuron) reach Orleans

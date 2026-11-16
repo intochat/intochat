@@ -11,8 +11,6 @@
     <PackageReference Include="DigitalBrain.UI" PrivateAssets="none" />
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Core.Abstractions" />
-    <InternalsVisibleTo Include="IntoChat.OS.Framework" />
-    <InternalsVisibleTo Include="IntoChat.OS.Kernel" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
     <InternalsVisibleTo Include="IntoChat.OS.Architecture.Tests.Unit" />

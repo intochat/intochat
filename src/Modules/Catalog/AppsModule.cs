@@ -16,7 +16,7 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Agents;
-using IntoChat.OS.Modules.AI.Routing;
+using IntoChat.OS.Modules.Apps.Routing;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using Microsoft.AspNetCore.Builder;
@@ -60,6 +60,7 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<AppInstaller>();
 
         services.TryAddSingleton<IDrafter>(sp => sp.GetRequiredService<Creator>());
+        services.TryAddSingleton<ICreatorModel, SiloCreatorModel>();
         services.TryAddSingleton<Creator>();
         services.TryAddSingleton<IWorkTree, WorkTreeService>();
         services.TryAddSingleton<ICoder, LocalLlmCoder>();

@@ -157,3 +157,6 @@ public sealed record DeadLetterEntry(
     [property: Id(2)] string SignalType,
     [property: Id(3)] string ErrorMessage,
     [property: Id(4)] DateTimeOffset At);
+
+[GenerateSerializer, Alias("apps.retained-request")]
+public sealed record RetainedRequest([property: Id(0)] long Sequence, [property: Id(1)] Signals.AppRequested Request);

@@ -69,7 +69,7 @@ public sealed class EdgeGrantsCacheAdversarialFacts
         var callBindings = new ConnectionCallBindings(new NoConnectionBindings());
         var boundCall = new CallRequest
         {
-            Caller = caller.ToCaller(),
+            Caller = IntoChat.OS.Tests.TestEdge.From(caller),
             TargetNeuron = "github/" + connectionKey,
             Operation = "Read",
         };

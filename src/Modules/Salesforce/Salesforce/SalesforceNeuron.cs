@@ -2,7 +2,9 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Limits;
+using DigitalBrain.Log;
 using IntoChat.OS.Modules.Salesforce.Signals;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Salesforce;
 
@@ -10,6 +12,7 @@ namespace IntoChat.OS.Modules.Salesforce;
 internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISalesforce
 {
     private const int MaxWriteArgumentsBytes = 24 * 1024;
+    private ILogger Log => GetLogger();
     private static readonly JsonSerializerOptions ArgumentJson = new(JsonSerializerDefaults.Web);
 
     // Salesforce's web-server flow omits expires_in. Without an expiry the base would never refresh
@@ -107,8 +110,7 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
 
         var preview = new SalesforceWritePreview(
             Guid.NewGuid().ToString("n"), command.Tool, schema.SchemaHash!, command.Arguments, _time.GetUtcNow().AddMinutes(10));
-        Snapshot.PendingWrite = preview;
-        await Commit(Snapshot, new SalesforceWritePrepared(preview));
+        await Commit(Snapshot with { PendingWrite = preview }, new SalesforceWritePrepared(preview));
         return preview;
     }
 
@@ -126,8 +128,7 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
         var schema = await ReadWriteSchemaAsync(preview.Tool, CancellationToken.None);
         if (schema.Reason is not null)
         {
-            Snapshot.PendingWrite = null;
-            await SaveQuietly(Snapshot);
+            await SaveQuietly(Snapshot with { PendingWrite = null });
             await PublishAsync(new SalesforceWriteUncertain(preview.PreviewId));
             return preview;
         }
@@ -144,9 +145,7 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
         }, CancellationToken.None);
         PolicyGuard.Require(decision);
 
-        Snapshot.PendingWrite = null;
-        Snapshot.SubmittingWrite = preview;
-        await SaveQuietly(Snapshot);
+        await SaveQuietly(Snapshot with { PendingWrite = null, SubmittingWrite = preview });
         // A throw before any response is read as not dispatched; an uncertain write keeps its reservation.
         var outcome = SalesforceWriteOutcome.Failed;
         try
@@ -161,8 +160,7 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
             {
                 await Policies.Release(decision.DecisionId, CancellationToken.None);
             }
-            Snapshot.SubmittingWrite = null;
-            await SaveQuietly(Snapshot);
+            await SaveQuietly(Snapshot with { SubmittingWrite = null });
         }
     }
 
@@ -226,6 +224,7 @@ internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISal
         }
         catch (Exception error) when (error is SalesforceNotConnectedException or SalesforceUnavailableException)
         {
+            Log.LogSwallowed(error, "submitting Salesforce write preview");
             await PublishAsync(new SalesforceWriteUncertain(preview.PreviewId));
             return (null, SalesforceWriteOutcome.Uncertain);
         }

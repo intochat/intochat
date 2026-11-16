@@ -3,31 +3,16 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart'
     hide TableColumn;
 
 import '../design/cards/table_card.dart';
+import '../theme/wire_node_values.dart';
 import 'node_common.dart';
 import 'node_context.dart';
-
-final _numericPattern = RegExp(
-  r'^\s*[$€£¥+\-−]?\s*\d[\d,.\s]*[%KMBkmb]?\s*$',
-);
-
-bool _isNumericColumn(List<List<String>> rows, int columnIndex) {
-  var nonEmpty = 0;
-  for (final row in rows) {
-    if (columnIndex >= row.length) continue;
-    final cell = row[columnIndex].trim();
-    if (cell.isEmpty || cell == '—' || cell == '-') continue;
-    nonEmpty++;
-    if (!_numericPattern.hasMatch(cell)) return false;
-  }
-  return nonEmpty > 0;
-}
 
 Widget renderDataTable(DataTableNode node, NodeContext ctx) {
   final actionKey = ctx.nodeKeys['dataTable:${node.title}'];
   final isChatCard =
       ctx.view.contains('/apps/ino') &&
       node.from.trim().isNotEmpty &&
-      node.from.trim() != 'DigitalBrain';
+      !isDigitalBrainSourceName(node.from);
   return TablePreviewCard(
     source: cardSource(node.from),
     width: isChatCard ? 560 : double.infinity,
@@ -36,7 +21,7 @@ Widget renderDataTable(DataTableNode node, NodeContext ctx) {
       title: node.title,
       columns: [
         for (final (i, column) in node.columns.indexed)
-          TableColumn(column, numeric: _isNumericColumn(node.rows, i)),
+          TableColumn(column, numeric: isNumericTableColumn(node.rows, i)),
       ],
       rows: node.rows,
       from: node.from,

@@ -17,6 +17,7 @@ public sealed class AiFixture : IAsyncDisposable
     {
         var services = new ServiceCollection();
         services.AddSingleton<IntoChat.OS.Modules.AI.Models.IModelInference>(Inference);
+        services.AddSingleton<IntoChat.OS.Modules.AI.Memory.IMemoryEmbedder>(new IntoChat.OS.Modules.AI.Memory.HybridMemoryEmbedder());
         var os = TestOS.Local(options => options.Services = services.BuildServiceProvider());
         os.Register(typeof(AIModule).Assembly);
         return os;

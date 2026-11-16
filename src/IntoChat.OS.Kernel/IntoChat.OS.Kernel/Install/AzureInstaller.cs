@@ -2,9 +2,12 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Azure;
 using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Modules.Microsoft.Azure;
 
-namespace IntoChat.OS.Modules.Microsoft.Azure.Install;
+namespace IntoChat.OS.Kernel.Install;
 
 // dotnet run --project IntoChat.OS.Kernel -- install --env test --config deployment/test.json [--manifest release-manifest.json] [--promote-from <id>] [--dry-run] [--print-env] [--secrets-from file]
 // Runs before any cluster exists: the specs are ensured straight against ARM, in dependency order, and the
@@ -209,6 +212,7 @@ public static class AzureInstaller
         }
         catch (Exception ex) when (ex is RequestFailedException or InvalidOperationException or NotSupportedException or ArgumentException or FormatException or HttpRequestException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
         {
+            OsConsoleLog.For(typeof(AzureInstaller)).LogSwallowed(ex, $"Azure install step '{current}' failed.");
             await error.WriteLineAsync($"install: {current} failed: {ex.Message}", ct);
             return 1;
         }

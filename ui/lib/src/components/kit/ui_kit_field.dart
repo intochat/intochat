@@ -234,7 +234,9 @@ class _UiKitFieldState extends State<UiKitField> {
 
     if (canClear) {
       textField = CallbackShortcuts(
-        bindings: {const SingleActivator(LogicalKeyboardKey.escape): _clearText},
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): _clearText,
+        },
         child: textField,
       );
     }

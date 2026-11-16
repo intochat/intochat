@@ -19,7 +19,7 @@ using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter.Fields;
 using DigitalBrain.Log;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Tasks;
 
@@ -59,6 +59,22 @@ public sealed class TasksApp : Screen<TasksState>
     private const string FlowsKey = "flows/index";
     private const string ApprovalsKey = "approvals/index";
     private const string SynapsesKey = "ino/synapses";
+
+    private static readonly ILogger ConsoleLog = IntoChat.OS.Framework.Logging.OsConsoleLog.For<TasksApp>();
+    private readonly ILogger<TasksApp>? _logger;
+
+    public TasksApp() : this(null) { }
+
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+    public TasksApp(ILogger<TasksApp>? logger = null) => _logger = logger;
+
+    protected override Task OnActivate(CancellationToken cancellationToken)
+    {
+        AppActivationScope.Notify(this);
+        return base.OnActivate(cancellationToken);
+    }
+
+    private ILogger Log => _logger ?? ConsoleLog;
 
     // Render cannot await: the last flows and approvals read, refreshed on open, after each command and on each change signal.
     private FlowView[] _flows = [];
@@ -145,7 +161,7 @@ public sealed class TasksApp : Screen<TasksState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "The flow could not start; the status line reports why.");
+            Log.LogSwallowed(error, "The flow could not start; the status line reports why.");
             await Show(State.WithStatus($"Could not start: {error.Message}"));
         }
         await RefreshAsync();
@@ -162,7 +178,7 @@ public sealed class TasksApp : Screen<TasksState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "The cancel was refused; the status line reports why.");
+            Log.LogSwallowed(error, "The cancel was refused; the status line reports why.");
             await Show(State with { Status = $"Could not cancel: {error.Message}" });
         }
         await RefreshAsync();
@@ -190,7 +206,7 @@ public sealed class TasksApp : Screen<TasksState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "The relation was refused; the status line reports why.");
+            Log.LogSwallowed(error, "The relation was refused; the status line reports why.");
             await Show(State with { Status = $"Could not relate: {error.Message}" });
         }
         await RefreshAsync();
@@ -240,9 +256,9 @@ public sealed class TasksApp : Screen<TasksState>
     private async Task RefreshAsync()
     {
         try { _flows = await Get<IFlows>(FlowsKey).List(State.Query); }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "The flows index is optional; the board shows the last read."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "The flows index is optional; the board shows the last read."); }
         try { _approvals = [.. await Get<IApprovals>(ApprovalsKey).Pending()]; }
-        catch (Exception error) when (error is not OperationCanceledException) { NullLogger.Instance.LogSwallowed(error, "Approvals are optional when the inbox is not reachable."); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Approvals are optional when the inbox is not reachable."); }
         await Show(State with { Status = State.Status });
     }
 
@@ -257,7 +273,7 @@ public sealed class TasksApp : Screen<TasksState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "The synapse studio is optional; the alias falls back to the flow key.");
+            Log.LogSwallowed(error, "The synapse studio is optional; the alias falls back to the flow key.");
             return null;
         }
     }
@@ -299,7 +315,7 @@ public sealed class TasksApp : Screen<TasksState>
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(error, "The unit's files are optional; the source shows what was read.");
+            Log.LogSwallowed(error, "The unit's files are optional; the source shows what was read.");
             unavailable = true;
         }
         var ordered = files.Where(file => file.Key == "spec.md")

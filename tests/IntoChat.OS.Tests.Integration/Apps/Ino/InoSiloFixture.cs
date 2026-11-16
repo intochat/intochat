@@ -138,7 +138,7 @@ public sealed class SwappableChatModel : IChatClient
 
 public sealed record HeldTurn(Task Entered, Action Release);
 
-public sealed class ControllableLocalOllamaProbe : ILocalOllamaProbe
+internal sealed class ControllableLocalOllamaProbe : ILocalOllamaProbe
 {
     public LocalOllamaDetection? Current { get; set; }
 
@@ -149,12 +149,12 @@ public sealed class ControllableLocalOllamaProbe : ILocalOllamaProbe
 public sealed class InoSiloFixture : IAsyncLifetime
 {
     private readonly FakeStorage _storage = new("Workspace Disk");
-    private readonly string _tempHome = Path.Combine(Path.GetTempPath(), "intochat-ino-silo-" + Guid.NewGuid().ToString("N"));
+    private readonly IntoChat.OS.Tests.Support.TestHome _home = new("intochat-ino-silo-");
     private IInProcessHost? _host;
     private int _brainCounter;
 
     public SwappableChatModel Model { get; } = new();
-    public ControllableLocalOllamaProbe LocalOllama { get; } = new();
+    internal ControllableLocalOllamaProbe LocalOllama { get; } = new();
 
     public IServiceProvider Services => (_host ?? throw new InvalidOperationException("Silo host is not started.")).Services;
 
@@ -212,11 +212,10 @@ public sealed class InoSiloFixture : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        Directory.CreateDirectory(_tempHome);
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                [IntoChatOSNames.HomeKey] = _tempHome,
+                [IntoChatOSNames.HomeKey] = _home.Path,
                 ["MasterKey:MasterKey"] = "0123456789abcdef0123456789abcdef",
             })
             .Build();
@@ -262,9 +261,6 @@ public sealed class InoSiloFixture : IAsyncLifetime
                 {
                     services.Remove(d);
                 }
-
-                services.RemoveAll<IMemoryDiskStore>();
-                services.AddSingleton<IMemoryDiskStore>(new FileMemoryDiskStore(Path.Combine(_tempHome, "brains")));
 
                 services.RemoveAll<IChatClient>();
                 services.AddSingleton<IChatClient>(Model);
@@ -312,16 +308,7 @@ public sealed class InoSiloFixture : IAsyncLifetime
             await _host.DisposeAsync();
         }
 
-        try
-        {
-            if (Directory.Exists(_tempHome))
-            {
-                Directory.Delete(_tempHome, recursive: true);
-            }
-        }
-        catch (IOException)
-        {
-        }
+        _home.Dispose();
     }
 
     private sealed class NoOpSecretRedactor : ISecretRedactor

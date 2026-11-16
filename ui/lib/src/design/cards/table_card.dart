@@ -413,9 +413,7 @@ class _TablePreviewCardState extends State<TablePreviewCard> {
                     ),
                     decoration: BoxDecoration(
                       color: _hoverRow == origIdx ? c.hoverOverlay : null,
-                      border: Border(
-                        top: BorderSide(color: c.borderHairline),
-                      ),
+                      border: Border(top: BorderSide(color: c.borderHairline)),
                     ),
                     child: Row(
                       children: [

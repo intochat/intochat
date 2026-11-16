@@ -11,7 +11,7 @@ using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace IntoChat.OS.Mcp;
+namespace IntoChat.OS.Kernel.Mcp;
 
 public static class McpHosting
 {
@@ -32,19 +32,23 @@ public static class McpHosting
             if (GuestSurface.Is(caller)) { throw new UnauthorizedAccessException($"A guest session cannot use {SignalWatch}."); }
             return provider.GetRequiredService<IIntoChatOSBrains>().Open(caller.BrainId);
         });
-        services.TryAddSingleton<IBrainObserver>(IntoChat.OS.Kernel.Composition.Kernel.For);
+        services.TryAddSingleton<IBrainObserver>(IntoChat.OS.Kernel.Composition.Kernel.Kernel.For);
         services.AddHttpContextAccessor();
         services.TryAddSingleton<McpCaller>();
         services.TryAddScoped<NeuronSurface>();
         services.AddMcpServer().WithHttpTransport(options => options.Stateless = true)
-            .WithTools<NeuronTools>().WithTools<ScreenTools>().WithTools<McpCaller>();
+            .WithTools<Tools.NeuronTools>().WithTools<Tools.ScreenTools>().WithTools<McpCaller>();
     }
 
     public static void MapIntoChatOSMcp(this WebApplication app)
     {
         app.MapMcp("/mcp").AddEndpointFilter(async (context, next) =>
         {
-            var caller = RuntimeCallerContext.Require();
+            if (!RuntimeCallerContext.TryGet(out var caller))
+            {
+                return Results.Unauthorized();
+            }
+
             if (await BrainAccessFilter.Decide(context.HttpContext, caller.BrainId) is { } denied)
             {
                 return denied;
@@ -58,7 +62,11 @@ public static class McpHosting
         // The one door a /try guest has. The root /mcp map above is not one.
         BrainRoutes.Group(app).MapMcp("/mcp").WithMetadata(GuestSurface.Door.Instance).AddEndpointFilter(async (context, next) =>
         {
-            var caller = RuntimeCallerContext.Require();
+            if (!RuntimeCallerContext.TryGet(out var caller))
+            {
+                return Results.Unauthorized();
+            }
+
             using (RuntimeCallerContext.Stamp(McpCaller.AsAgent(caller)))
             {
                 return await next(context);

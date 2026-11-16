@@ -14,7 +14,7 @@ public sealed class KernelBoundaryFacts
     private static readonly string[] PlatformNeurons =
     [
         "IntoChat.OS.Connections.Platform.Connections.IConnection",
-        "IntoChat.OS.Modules.Microsoft.Orleans.Cluster.IClusterMembershipReceiver",
+        "IntoChat.OS.Kernel.Composition.Cluster.IClusterMembershipReceiver",
     ];
 
     [Fact]

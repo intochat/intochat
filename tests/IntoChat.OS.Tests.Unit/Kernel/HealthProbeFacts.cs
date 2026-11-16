@@ -45,10 +45,10 @@ public sealed class HealthProbeFacts
         var drain = TimeSpan.FromSeconds(8);
         var deactivation = TimeSpan.FromSeconds(30);
 
-        Assert.Equal(drain + HealthProbes.ServerStop + deactivation + IntoChat.OS.Aspire.Server.ServerHostingExtensions.ShutdownMargin,
-            IntoChat.OS.Aspire.Server.ServerHostingExtensions.ShutdownTimeout(drain, deactivation));
-        Assert.Equal(deactivation + IntoChat.OS.Aspire.Server.ServerHostingExtensions.ShutdownMargin,
-            IntoChat.OS.Aspire.Server.ServerHostingExtensions.ShutdownTimeout(null, deactivation));
+        Assert.Equal(drain + HealthProbes.ServerStop + deactivation + IntoChat.OS.Kernel.AspireServer.ServerHostingExtensions.ShutdownMargin,
+            IntoChat.OS.Kernel.AspireServer.ServerHostingExtensions.ShutdownTimeout(drain, deactivation));
+        Assert.Equal(deactivation + IntoChat.OS.Kernel.AspireServer.ServerHostingExtensions.ShutdownMargin,
+            IntoChat.OS.Kernel.AspireServer.ServerHostingExtensions.ShutdownTimeout(null, deactivation));
     }
 
     private static HealthCheckRegistration Registration(string name, params string[] tags)

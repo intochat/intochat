@@ -1,15 +1,19 @@
 using System.ComponentModel;
 using System.Text.Json;
 using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Log;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
-namespace IntoChat.OS.Mcp;
+using IntoChat.OS.Kernel.Mcp;
+
+namespace IntoChat.OS.Kernel.Mcp.Tools;
 
 [McpServerToolType]
 internal sealed class NeuronTools(NeuronSurface surface, McpCaller caller)
@@ -39,7 +43,11 @@ internal sealed class NeuronTools(NeuronSurface surface, McpCaller caller)
             caller.Stamp(NeuronSurfaceTools.GetName);
             return Text(await surface.Get(contract, key, cancellationToken));
         }
-        catch (Exception error) when (Mapped(error)) { return Failure(error); }
+        catch (Exception error) when (Mapped(error))
+        {
+            OsConsoleLog.For<NeuronTools>().LogSwallowed(error, "MCP neuron tool invocation failed.");
+            return Failure(error);
+        }
     }
 
     [McpServerTool(Name = NeuronSurfaceTools.CallName), Description(NeuronSurfaceTools.CallDescription)]
@@ -51,7 +59,11 @@ internal sealed class NeuronTools(NeuronSurface surface, McpCaller caller)
             var result = await surface.Call(contract, key, method, arguments, cancellationToken);
             return result is { } element ? Text(element.GetRawText()) : new CallToolResult { Content = [] };
         }
-        catch (Exception error) when (Mapped(error)) { return Failure(error); }
+        catch (Exception error) when (Mapped(error))
+        {
+            OsConsoleLog.For<NeuronTools>().LogSwallowed(error, "MCP neuron tool invocation failed.");
+            return Failure(error);
+        }
     }
 
     private static CallToolResult Text(string text) => new() { Content = [new TextContentBlock { Text = text }] };

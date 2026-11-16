@@ -1,3 +1,4 @@
+using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,7 +21,8 @@ public sealed class AccessPolicyValidation(IServiceProvider services) : IStartup
 
     private Task ValidateAsync()
     {
-        // 1. IBrainAccess check if registered
+        // 1. Eagerly initialize presence proof (so local Open hosts mint run/presence on boot) and IBrainAccess check
+        _ = services.GetService<IPresenceProof>();
         _ = services.GetService<DigitalBrain.Runtime.Http.Surface.IBrainAccess>();
 
         // 2. Required call filter stage verification (fail closed)

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -6,6 +6,7 @@ import '../design/tokens.dart';
 import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
+import '../theme/wire_node_values.dart';
 import 'node_context.dart';
 
 /// Maximum nested `Slot` (`NeuronRef`) composition depth before halting recursion.
@@ -14,10 +15,7 @@ const int maxSlotDepth = 4;
 /// Returns true when [refKind] denotes an embeddable live `ViewHost` slot
 /// (`"view"`, `"slot"`, `"app"`, `"unit"`, or `""`), excluding `"browser"`,
 /// `"webbrowser"`, `"viewport"`, and `"confirmation"`.
-bool isSlotRefKind(String refKind) => switch (refKind.trim().toLowerCase()) {
-  'view' || 'slot' || 'app' || 'unit' || '' => true,
-  _ => false,
-};
+bool isSlotRefKind(String refKind) => isSlotNeuronRefKind(refKind);
 
 /// Normalizes a `NeuronRef` [neuronUri] into the target `view` neuron name
 /// relative to [parentView]'s brain scope when needed.
@@ -45,8 +43,7 @@ String resolveSlotTargetName({
     return uri;
   }
 
-  final kind = refKind.trim().toLowerCase();
-  if (kind == 'app' && !uri.contains('/')) {
+  if (isAppNeuronRefKind(refKind) && !uri.contains('/')) {
     return '$brain/apps/$uri/view';
   }
   if (!uri.contains('/') ||
@@ -218,10 +215,8 @@ class _SlotSkeletonState extends State<SlotSkeleton>
       label: 'Loading view',
       child: AnimatedBuilder(
         animation: _controller,
-        builder: (context, child) => Opacity(
-          opacity: 0.45 + (_controller.value * 0.55),
-          child: child,
-        ),
+        builder: (context, child) =>
+            Opacity(opacity: 0.45 + (_controller.value * 0.55), child: child),
         child: Container(
           key: const ValueKey('slot-skeleton'),
           padding: EdgeInsets.symmetric(

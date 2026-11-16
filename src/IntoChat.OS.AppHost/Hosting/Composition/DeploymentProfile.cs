@@ -104,8 +104,8 @@ public sealed record DeploymentProfile
         return os;
     }
 
-    // Local: Ollama on the host (endpoint only, no container) serving qwen3.5:4b unless the launcher passed IntoChatOS:Local:Model.
-    private static AIOptions LocalAi(string? model)
+    // Local: Ollama on the host (endpoint only, no container) serving default chat model IQwen35 unless IntoChatOS:Local:Model was passed.
+    internal static AIOptions LocalAi(string? model)
     {
         var ai = new AIOptions().WithModelEndpoint(AiProvider.Ollama, new Uri(IntoChatOSNames.LocalOllamaEndpoint)).WithoutWebSearch();
         ai.Default.Model = nameof(IQwen35);

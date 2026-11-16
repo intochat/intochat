@@ -42,7 +42,7 @@ internal sealed partial class AppNeuron
             || !string.Equals(app.Key, Key, StringComparison.Ordinal))
         { throw new UnauthorizedAccessException("Only this app's executing assignment may publish its presentation."); }
         return Check(operation,
-            new AppExists(Name(), State.Manifest is not null),
-            new AssignmentIsCurrent(expectedProgramRevision != State.ProgramRevision));
+            new AppExists(Name(), State.Manifest),
+            new AssignmentIsCurrent(expectedProgramRevision, State.ProgramRevision));
     }
 }

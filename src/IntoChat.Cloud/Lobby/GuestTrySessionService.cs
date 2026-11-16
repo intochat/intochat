@@ -188,26 +188,33 @@ public sealed class GuestTrySessionService
             Kind: "studio"),
     ];
 
+    private static readonly GuestTryOptions DefaultOptions = new();
     private readonly GuestTryOptions _options;
-    private readonly Dictionary<string, GuestTrySession> _activeSessions = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, List<DateTimeOffset>> _ipIssuanceHistory = new(StringComparer.Ordinal);
-    private readonly Lock _gate = new();
+    private readonly GuestTrySessionStore _store;
 
     public GuestTrySessionService(GuestTryOptions? options = null)
     {
-        _options = options ?? new GuestTryOptions();
+        _options = options ?? DefaultOptions;
+        _store = new GuestTrySessionStore(_options);
     }
 
-    public int ActiveSessionCount
+    public static string? ExtractToken(HttpRequest request)
     {
-        get
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Cookies.TryGetValue(GuestTryToken.CookieName, out var cookieVal) && !string.IsNullOrWhiteSpace(cookieVal))
         {
-            lock (_gate)
-            {
-                return _activeSessions.Count;
-            }
+            return cookieVal;
         }
+
+        if (request.Headers.TryGetValue(GuestTryToken.HeaderName, out var headerVal) && headerVal.Count == 1)
+        {
+            return headerVal[0]?.Trim();
+        }
+
+        return null;
     }
+
+    public int ActiveSessionCount => _store.ActiveSessionCount;
 
     public GuestTryProvisionResult ProvisionOrResume(
         string? remoteIp,
@@ -218,9 +225,9 @@ public sealed class GuestTrySessionService
         ArgumentNullException.ThrowIfNull(signingKey);
         var callerPrefix = LobbyToken.PrefixOf(remoteIp);
 
-        lock (_gate)
+        return _store.WithLock(registry =>
         {
-            SweepExpiredLocked(now);
+            registry.SweepExpired(now);
 
             if (!string.IsNullOrWhiteSpace(existingToken))
             {
@@ -230,17 +237,13 @@ public sealed class GuestTrySessionService
                     return new GuestTryProvisionResult(GuestTryProvisionOutcome.UnauthorizedToken, null, null);
                 }
 
-                if (_activeSessions.TryGetValue(sid, out var active) && active.ExpiresAt > now)
+                if (registry.TryGetSession(sid, out var active) && active is not null && active.ExpiresAt > now)
                 {
                     return new GuestTryProvisionResult(GuestTryProvisionOutcome.Resumed, active, existingToken);
                 }
             }
 
-            if (!_ipIssuanceHistory.TryGetValue(callerPrefix, out var issuedTimestamps))
-            {
-                issuedTimestamps = [];
-                _ipIssuanceHistory[callerPrefix] = issuedTimestamps;
-            }
+            var issuedTimestamps = registry.GetOrAddIpHistory(callerPrefix);
 
             if (issuedTimestamps.Count >= _options.MaxSessionsPerIpPrefixPerWindow)
             {
@@ -249,7 +252,7 @@ public sealed class GuestTrySessionService
                 return new GuestTryProvisionResult(GuestTryProvisionOutcome.RateLimited, null, null, retryAfter);
             }
 
-            if (_activeSessions.Count >= _options.MaxActiveSessions)
+            if (registry.ActiveCount >= _options.MaxActiveSessions)
             {
                 return new GuestTryProvisionResult(GuestTryProvisionOutcome.CapacityReached, null, null, RetryAfterSeconds: 60);
             }
@@ -270,12 +273,12 @@ public sealed class GuestTrySessionService
                 ExpiresAt: expiresAt,
                 SeedApps: DefaultSeedDemoApps);
 
-            _activeSessions[sessionId] = session;
+            registry.SaveSession(session);
             issuedTimestamps.Add(now);
 
             var signedToken = GuestTryToken.Issue(signingKey, session);
             return new GuestTryProvisionResult(GuestTryProvisionOutcome.Provisioned, session, signedToken);
-        }
+        });
     }
 
     public bool TryGetActive(
@@ -286,27 +289,23 @@ public sealed class GuestTrySessionService
         out GuestTrySession? session)
     {
         ArgumentNullException.ThrowIfNull(signingKey);
-        session = null;
 
         var callerPrefix = LobbyToken.PrefixOf(remoteIp);
 
-        lock (_gate)
+        var result = _store.WithLock(registry =>
         {
-            SweepExpiredLocked(now);
+            registry.SweepExpired(now);
             if (!GuestTryToken.TryValidate(signingKey, token, now, out var sessionId, out _, out var boundPrefix, out _)
                 || !string.Equals(callerPrefix, boundPrefix, StringComparison.Ordinal))
             {
-                return false;
+                return null;
             }
 
-            if (_activeSessions.TryGetValue(sessionId, out var found) && found.ExpiresAt > now)
-            {
-                session = found;
-                return true;
-            }
+            return registry.TryGetSession(sessionId, out var found) && found is not null && found.ExpiresAt > now ? found : null;
+        });
 
-            return false;
-        }
+        session = result;
+        return result is not null;
     }
 
     public bool IsActiveSession(string sessionId, string brainId, DateTimeOffset now)
@@ -316,12 +315,11 @@ public sealed class GuestTrySessionService
             return false;
         }
 
-        lock (_gate)
-        {
-            return _activeSessions.TryGetValue(sessionId, out var found)
-                && found.ExpiresAt > now
-                && string.Equals(found.BrainId, brainId, StringComparison.Ordinal);
-        }
+        return _store.WithLock(registry =>
+            registry.TryGetSession(sessionId, out var found)
+            && found is not null
+            && found.ExpiresAt > now
+            && string.Equals(found.BrainId, brainId, StringComparison.Ordinal));
     }
 
     public bool Expire(string sessionId)
@@ -331,44 +329,11 @@ public sealed class GuestTrySessionService
             return false;
         }
 
-        lock (_gate)
-        {
-            return _activeSessions.Remove(sessionId);
-        }
+        return _store.WithLock(registry => registry.RemoveSession(sessionId));
     }
 
     public int SweepExpired(DateTimeOffset now)
-    {
-        lock (_gate)
-        {
-            return SweepExpiredLocked(now);
-        }
-    }
-
-    private int SweepExpiredLocked(DateTimeOffset now)
-    {
-        var removed = 0;
-        foreach (var (id, session) in _activeSessions.ToArray())
-        {
-            if (session.ExpiresAt <= now)
-            {
-                _activeSessions.Remove(id);
-                removed++;
-            }
-        }
-
-        var window = _options.RateLimitWindow;
-        foreach (var (prefix, timestamps) in _ipIssuanceHistory.ToArray())
-        {
-            timestamps.RemoveAll(ts => now - ts >= window);
-            if (timestamps.Count == 0)
-            {
-                _ipIssuanceHistory.Remove(prefix);
-            }
-        }
-
-        return removed;
-    }
+        => _store.WithLock(registry => registry.SweepExpired(now));
 
     private static string GenerateSessionId()
     {
@@ -488,21 +453,7 @@ internal sealed class GuestTryHttpSurface : IModuleHttpSurface
     private static Task<IResult> EndAsync(HttpContext http, GuestTrySessionService service, ILobbyTokenKey keys, TimeProvider clock)
         => Task.FromResult(End(http, service, keys, clock));
 
-    public static string? ExtractToken(HttpRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        if (request.Cookies.TryGetValue(GuestTryToken.CookieName, out var cookieVal) && !string.IsNullOrWhiteSpace(cookieVal))
-        {
-            return cookieVal;
-        }
-
-        if (request.Headers.TryGetValue(GuestTryToken.HeaderName, out var headerVal) && headerVal.Count == 1)
-        {
-            return headerVal[0]?.Trim();
-        }
-
-        return null;
-    }
+    public static string? ExtractToken(HttpRequest request) => GuestTrySessionService.ExtractToken(request);
 
     private static object FormatSessionPayload(GuestTrySession session, DateTimeOffset now, bool resumed)
         => new

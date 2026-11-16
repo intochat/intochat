@@ -9,6 +9,7 @@ using DigitalBrain.Runtime.Orleans;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Tests.Support;
 using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
 
 namespace IntoChat.OS.Kernel.Tests.E2E.Aspire;
@@ -64,11 +65,6 @@ public sealed class OsAppHostFixture : IAsyncLifetime
     {
         InitializeConfigurationRoot();
         var started = DateTimeOffset.UtcNow;
-        var presenceBytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(PresenceProofValidator.SecretByteCount);
-        PresenceToken = System.Buffers.Text.Base64Url.EncodeToString(presenceBytes);
-        var presenceDir = Path.Combine(Home, "run");
-        Directory.CreateDirectory(presenceDir);
-        await File.WriteAllBytesAsync(Path.Combine(presenceDir, "presence"), presenceBytes);
 
         var args = new List<string>
         {
@@ -89,7 +85,9 @@ public sealed class OsAppHostFixture : IAsyncLifetime
             App = await _builder.BuildAsync();
             using var startTimeout = new CancellationTokenSource(_startTimeout);
             await App.StartAsync(startTimeout.Token);
+            PresenceToken = await TestHome.ReadPresenceTokenAsync(_home.PresenceFilePath, startTimeout.Token, _startTimeout);
             Os = App.CreateHttpClient("OperatingSystem-a", "http");
+            Os.DefaultRequestHeaders.TryAddWithoutValidation(PresenceProofValidator.HeaderName, PresenceToken);
             await Healthy(startTimeout.Token);
             StartupDuration = DateTimeOffset.UtcNow - started;
         }
@@ -193,15 +191,5 @@ public sealed class OsAppHostFixture : IAsyncLifetime
         _home.Dispose();
     }
 
-    internal static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "Intochat.OS.slnx")))
-            {
-                return dir.FullName;
-            }
-        }
-        throw new InvalidOperationException("Repository root containing Intochat.OS.slnx was not found.");
-    }
+    internal static string RepoRoot() => TestHome.RepoRoot();
 }

@@ -4,8 +4,10 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Log;
 using DigitalBrain.Limits;
 using DigitalBrain.Neurons;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Tools;
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
@@ -15,7 +17,7 @@ namespace IntoChat.OS.Modules.Mcp;
 // The persisted shape keeps its state name "mcp.server"; plain state is JSON (06-06d, clean break under SAFE-01: a server
 // connects again on its next Connect).
 [DigitalBrain.State.ExportableState]
-public sealed class McpServerStore
+internal sealed class McpServerStore
 {
     public McpServerState? State { get; set; }
 }
@@ -43,10 +45,10 @@ internal sealed class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpServerSto
         try { tools = await Session(endpoint, async (client, token) => Describe(await client.ListToolsAsync(cancellationToken: token)), ct); }
         catch (Exception error) when (error is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            await Save(new McpServerState(spec.Title, spec.Url, false, [], error.Message, DateTimeOffset.UtcNow));
+            await Save(new McpServerState(spec.Title, spec.Url, false, [], error.Message, Context.Time.GetUtcNow()));
             throw new InvalidOperationException($"MCP server {spec.Url} is unreachable: {error.Message}", error);
         }
-        var state = new McpServerState(spec.Title, spec.Url, true, tools, null, DateTimeOffset.UtcNow);
+        var state = new McpServerState(spec.Title, spec.Url, true, tools, null, Context.Time.GetUtcNow());
         await Save(state);
         return state;
     }
@@ -94,6 +96,7 @@ internal sealed class McpServerNeuron : DigitalBrain.Neurons.Neuron<McpServerSto
         try { return await operation(await Client(endpoint, budget.Token), budget.Token); }
         catch (Exception error) when (reused && error is not OperationCanceledException && error is not McpException)
         {
+            OsConsoleLog.For<McpServerNeuron>().LogSwallowed(error, "retrying reused MCP client session");
             await Drop();
             return await operation(await Client(endpoint, budget.Token), budget.Token);
         }

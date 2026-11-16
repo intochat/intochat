@@ -1,10 +1,11 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../components/kit/kit_toast.dart';
+import '../theme/wire_node_values.dart';
 
 /// Reads one node of the brain: `GET /apps/node?kind=…&name=…`.
 typedef NeuronLoader = Future<Map<String, dynamic>> Function(
@@ -14,6 +15,12 @@ typedef NeuronLoader = Future<Map<String, dynamic>> Function(
 
 /// Posts one UI event (`POST /apps/event`) and returns the response body, if any.
 typedef NeuronAction = Future<Object?> Function(Map<String, dynamic> event);
+
+/// Transcribes recorded audio bytes and returns the recognized text.
+typedef VoiceTranscriber = Future<String> Function(
+  Uint8List audio,
+  String fileName,
+);
 
 /// One ordered event channel for a rendered view. An activation is sent only
 /// after the field edits before it, regardless of network latency or focus.
@@ -68,6 +75,7 @@ class NodeContext {
     this.slotAncestors = const {},
     this.buttonHints = const {},
     this.nodeKeys = const {},
+    this.transcribe,
   });
 
   /// The view neuron's name, which every activation names.
@@ -114,6 +122,9 @@ class NodeContext {
   /// such as `chart` or `dataTable` (indexed by `'chart:<title>'` / `'dataTable:<title>'`).
   final Map<String, String> nodeKeys;
 
+  /// Transcribes recorded voice drafts into text without submitting them.
+  final VoiceTranscriber? transcribe;
+
   bool get interactive => enabled && send != null;
 
   NodeContext deeper() => NodeContext(
@@ -134,6 +145,7 @@ class NodeContext {
     slotAncestors: slotAncestors,
     buttonHints: buttonHints,
     nodeKeys: nodeKeys,
+    transcribe: transcribe,
   );
 
   /// The brain scope the view lives under: `{scope}/apps/{app}/…` or `{scope}/{alias}`.
@@ -183,7 +195,7 @@ class NodeContext {
         'value': ?value,
       });
     } on UiRequestException catch (error) {
-      if (error.statusCode == 409 && error.status == 'stale') {
+      if (isStaleConflictError(error.statusCode, error.status ?? '')) {
         return ActivationOutcome.stale;
       }
       return ActivationOutcome.refused;
@@ -250,20 +262,13 @@ class NodeContext {
   }
 
   /// The intent kind a response names; null for one this client does not know.
-  static IntentKind? intentKindOf(Object? value) {
-    final name = '$value'.toLowerCase();
-    return IntentKind.values
-        .where((kind) => kind.name.toLowerCase() == name)
-        .firstOrNull;
-  }
+  static IntentKind? intentKindOf(Object? value) => parseIntentKind(value);
 }
 
 /// The client's gate on server-named intents: copy text, open a window of an
 /// app the shell knows (`os://window/open?app=…`), or open the settings.
 /// Never an external URL.
 abstract final class IntentGate {
-  static final _appKey = RegExp(r'^[a-z][a-z0-9-]*$');
-
   /// The activation the shell performs, or null when the intent is refused.
   static Map<String, dynamic>? check(
     IntentNode intent, {
@@ -274,7 +279,7 @@ abstract final class IntentGate {
         return {'kind': 'copy', 'text': intent.arg ?? ''};
       case IntentKind.openSettings:
         final page = intent.arg ?? '';
-        if (page.isNotEmpty && !_appKey.hasMatch(page)) return null;
+        if (page.isNotEmpty && !isValidIntentAppKey(page)) return null;
         return {
           'kind': 'os_uri',
           'uri': Uri(
@@ -290,18 +295,12 @@ abstract final class IntentGate {
         };
       case IntentKind.openWindow:
         final uri = Uri.tryParse(intent.arg ?? '');
-        if (uri == null ||
-            uri.scheme != 'os' ||
-            uri.host != 'window' ||
-            uri.path != '/open' ||
-            uri.userInfo.isNotEmpty ||
-            uri.hasPort ||
-            uri.hasFragment) {
+        if (!isAllowedOpenWindowUri(uri)) {
           return null;
         }
-        final app = uri.queryParameters['app'] ?? '';
+        final app = uri!.queryParameters['app'] ?? '';
         // Without the shell's known-app set nothing opens.
-        if (!_appKey.hasMatch(app) || !(knowsApp?.call(app) ?? false)) {
+        if (!isValidIntentAppKey(app) || !(knowsApp?.call(app) ?? false)) {
           return null;
         }
         // Rebuilt from the allowed keys only: the app, and an opaque input the shell hands to the app's open

@@ -3,6 +3,7 @@ using DigitalBrain;
 using DigitalBrain.Rules;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Primitives;
 using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Apps.Desktop;
@@ -53,11 +54,16 @@ public sealed record DesktopAppState(
     [Invariant]
     public bool DesktopNeverPinned => !(PinnedApps ?? []).Contains("desktop", StringComparer.OrdinalIgnoreCase);
 
-    public Rule WindowLimitRule => Decision.Rule("max_windows", (Windows ?? []).Length >= MaxWindows, $"At most {MaxWindows} windows can be open simultaneously.");
+    public Rule WindowLimitRule => Decision.Rule(
+        "max_windows",
+        Windows,
+        static windows => (windows ?? []).Length >= MaxWindows,
+        $"At most {MaxWindows} windows can be open simultaneously.");
 
     public static Rule UnpinnableAppRule(string? appId) => Decision.Rule(
         "core_dock_app",
-        string.Equals(appId, "ino", StringComparison.OrdinalIgnoreCase) || string.Equals(appId, "desktop", StringComparison.OrdinalIgnoreCase),
+        appId,
+        static id => string.Equals(id, "ino", StringComparison.OrdinalIgnoreCase) || string.Equals(id, "desktop", StringComparison.OrdinalIgnoreCase),
         "Core shell surfaces ('ino', 'desktop') cannot be pinned or unpinned.");
 
     public DesktopAppState ToggleLayoutMode() => this with
@@ -109,11 +115,11 @@ public sealed record DesktopAppState(
         string rawAppName,
         string? targetWindowId = null,
         bool asNewTab = false,
-        string brain = "local")
+        string? brain = null)
     {
         var appName = rawAppName.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(appName) || appName == "desktop") { return (null, []); }
-        var appKey = IApp.Key(brain, appName);
+        if (!BrainId.IsValid(brain) || appName == "desktop" || !IntoChat.OS.Primitives.AppRef.TryOf(new BrainId(brain), appName, out var appRef)) { return (null, []); }
+        var appKey = appRef.Key;
         var windows = s.Windows.Where(w => w.Tabs is { Length: > 0 }).ToList();
 
         if (!asNewTab)
@@ -183,11 +189,12 @@ public sealed record DesktopAppState(
         return (BuildUpdate(s, updatedWindows, s.FocusedViewId == closedTabId ? nextActive : s.FocusedViewId), []);
     }
 
-    public static (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) CloseWorkspaceApp(WorkspaceState s, string rawAppName, string brain = "local")
+    public static (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) CloseWorkspaceApp(WorkspaceState s, string rawAppName, string? brain = null)
     {
+        if (!BrainId.IsValid(brain)) { return (null, []); }
         var normalized = rawAppName.Trim().ToLowerInvariant();
-        var appKey = IApp.Key(brain, normalized);
-        var fallbackKey = IApp.Key("local", normalized);
+        if (!IntoChat.OS.Primitives.AppRef.TryOf(new BrainId(brain), normalized, out var appRef)) { return (null, []); }
+        var appKey = appRef.Key;
         var closedIds = new List<string>();
         var nextWindows = new List<WorkspaceWindow>();
         var changed = false;
@@ -195,8 +202,7 @@ public sealed record DesktopAppState(
         foreach (var w in s.Windows.Where(w => w.Tabs is { Length: > 0 }))
         {
             var keptTabs = w.Tabs.Where(t =>
-                !string.Equals(t.App, appKey, StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(t.App, fallbackKey, StringComparison.OrdinalIgnoreCase)).ToArray();
+                !string.Equals(t.App, appKey, StringComparison.OrdinalIgnoreCase)).ToArray();
             if (keptTabs.Length != w.Tabs.Length) { changed = true; }
             if (keptTabs.Length == 0) { closedIds.Add(w.Id); }
             else { nextWindows.Add(new WorkspaceWindow(w.Id, keptTabs, keptTabs.Any(t => t.Id == w.ActiveTabId) ? w.ActiveTabId : keptTabs[^1].Id)); }
@@ -229,14 +235,14 @@ public sealed record DesktopAppState(
         return (BuildUpdate(s, updatedWins, chosen.Id), []);
     }
 
-    public static (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) ToggleWorkspaceFavourite(WorkspaceState s, string windowId, string brain = "local")
+    public static (WorkspaceUpdate? Update, IReadOnlyList<string> ClosedWindowIds) ToggleWorkspaceFavourite(WorkspaceState s, string windowId, string? brain = null)
     {
+        if (string.IsNullOrWhiteSpace(brain)) { return (null, []); }
         var w = s.Windows.FirstOrDefault(win => win.Id == windowId);
         var activeTab = w?.Tabs.FirstOrDefault(t => t.Id == w.ActiveTabId) ?? w?.Tabs.LastOrDefault();
         if (activeTab is null) { return (null, []); }
 
         var appId = IApp.NameOf(brain, activeTab.App)
-            ?? IApp.NameOf("local", activeTab.App)
             ?? activeTab.Id;
         var exists = s.Favourites.Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));
         WorkspaceViewRef[] nextFavs = exists

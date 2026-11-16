@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
@@ -74,7 +75,7 @@ internal sealed class MeteringChatClient(
         catch (Exception exception)
         {
             // Metering is an observer: a ledger fault must never fail the model call.
-            logger?.LogSwallowed(exception, "model call metering failed");
+            (logger ?? OsConsoleLog.For<MeteringChatClient>()).LogSwallowed(exception, "model call metering failed");
         }
     }
 

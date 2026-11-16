@@ -13,9 +13,9 @@ using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.Calculator;
@@ -42,8 +42,8 @@ public sealed record CalculatorAppState(string Expression = "", string LastSum =
     [Invariant("LastSum is never empty."), JsonIgnore]
     public bool LastSumNonEmpty => !string.IsNullOrWhiteSpace(LastSum);
 
-    public Rule HasClearableDisplay() => Decision.Rule("display_already_empty", Expression.Length == 0, "Display is already clear.");
-    public Rule NonEmptyKey(string? key) => Decision.Rule("empty_key", string.IsNullOrWhiteSpace(key), "Keypad key is required.");
+    public Rule HasClearableDisplay() => Decision.Rule("display_already_empty", Expression, static e => e.Length == 0, "Display is already clear.");
+    public Rule NonEmptyKey(string? key) => Decision.Rule("empty_key", key, static k => string.IsNullOrWhiteSpace(k), "Keypad key is required.");
 
     public Decision<CalculatorAppState> PressKey([Sample("7", "+", "3", "=", "C", "0")] string key)
     {
@@ -61,7 +61,7 @@ public sealed record CalculatorAppState(string Expression = "", string LastSum =
 
     public Decision<CalculatorAppState> AddSum([Sample("2+3", "42")] string expression)
     {
-        if (Decision.Check("add-sum", Decision.Rule("empty_sum", string.IsNullOrWhiteSpace(expression), "Sum expression is required.")) is { } refusal)
+        if (Decision.Check("add-sum", Decision.Rule("empty_sum", expression, static e => string.IsNullOrWhiteSpace(e), "Sum expression is required.")) is { } refusal)
         {
             return refusal;
         }
@@ -80,6 +80,12 @@ public sealed record CalculatorAppState(string Expression = "", string LastSum =
 [Neuron("app.calculator"), Screen("app.calculator", Title = "Calculator")]
 public sealed class CalculatorApp : AggregateScreen<CalculatorAppState>
 {
+    protected override Task OnActivate(CancellationToken cancellationToken)
+    {
+        AppActivationScope.Notify(this);
+        return base.OnActivate(cancellationToken);
+    }
+
     public static readonly string[] Keys = ["7", "8", "9", "/", "4", "5", "6", "*", "1", "2", "3", "-", "C", "0", "=", "+"];
     public static readonly string[] Labels = ["7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "−", "C", "0", "=", "+"];
 
@@ -153,7 +159,7 @@ public sealed class CalculatorApp : AggregateScreen<CalculatorAppState>
         try { return values.Sum(v => v!.Value).ToString(CultureInfo.InvariantCulture); }
         catch (OverflowException error)
         {
-            NullLogger.Instance.LogSwallowed(error, "Overflow in EvaluateSum returns Error.");
+            OsConsoleLog.For<CalculatorApp>().LogSwallowed(error, "Overflow in EvaluateSum returns Error.");
             return "Error";
         }
     }
@@ -169,7 +175,7 @@ public sealed class CalculatorApp : AggregateScreen<CalculatorAppState>
         }
         catch (Exception error)
         {
-            NullLogger.Instance.LogSwallowed(error, "Malformed arithmetic expression evaluates to Error.");
+            OsConsoleLog.For<CalculatorApp>().LogSwallowed(error, "Malformed arithmetic expression evaluates to Error.");
             return "Error";
         }
     }

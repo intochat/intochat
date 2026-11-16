@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Security;
 using System.Text;
 
-namespace IntoChat.OS.AppHost;
+namespace IntoChat.OS.LocalSetup;
 
 public static class MsixPackager
 {

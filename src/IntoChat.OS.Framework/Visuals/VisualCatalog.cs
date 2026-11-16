@@ -20,6 +20,13 @@ public readonly record struct VisualDescriptor(
 /// </summary>
 public static class VisualCatalog
 {
+    /// <summary>Resolves the canonical capability descriptor (<c>IconKey</c>, <c>Label</c>, <c>AccentHex</c>) for an approval card subject.</summary>
+    public static VisualDescriptor ForApproval(string? sourceOrSubject)
+        => TryForContract(sourceOrSubject, out var found) ? found
+            : !string.IsNullOrWhiteSpace(sourceOrSubject) && sourceOrSubject.Trim().StartsWith("change-", StringComparison.OrdinalIgnoreCase)
+                ? ForContract("IGitHub")
+                : ForContract("IConfirmations");
+
     public static readonly FrozenSet<string> AllIconKeys = new[]
     {
         // Brands
@@ -548,7 +555,7 @@ public static class VisualCatalog
             "IAspire", "aspire", "diagnostics.aspire", "diagnostics/aspire", "brand:aspire");
 
         Add(new("GitHub", "brand:github", "#24292F", "Developer"),
-            "IGitHub", "IWorkTree", "IGitHubRepository", "IFeatureToPr", "github", "worktree", "f2pr", "brand:github");
+            "IGitHub", "IWorkTree", "IGitHubRepository", "github", "worktree", "f2pr", "brand:github");
 
         Add(new("Gmail", "brand:gmail", "#EA4335", "Connector"),
             "IGmail", "gmail", "google.gmail", "brand:gmail");
@@ -591,6 +598,16 @@ public static class VisualCatalog
 
         Add(new("Bitcoin", "brand:bitcoin", "#F7931A", "Finance"),
             "bitcoin", "btcalert", "btc", "brand:bitcoin");
+
+        // AI Providers
+        Add(AnthropicProvider, "provider:anthropic");
+        Add(OpenAIProvider, "provider:openai");
+        Add(GoogleProvider, "provider:google");
+        Add(OllamaProvider, "provider:ollama");
+        Add(QwenProvider, "provider:qwen");
+        Add(XaiProvider, "provider:xai");
+        Add(OpenRouterProvider, "provider:openrouter");
+        Add(FoundryProvider, "provider:foundry");
 
         // All 17 ArtCraft Studios + IArtCraftStudio contract
         Add(new("ArtCraft", "artcraft:artcraft", "#6366F1", "ArtCraft Studio"),
@@ -697,7 +714,7 @@ public static class VisualCatalog
         Add(new("Qwen 3 14B", "provider:ollama", "#6366F1", "Ollama (Local GPU)"),
             "qwen3:14b");
         Add(new("Qwen 3.5 4B", "provider:ollama", "#6366F1", "Ollama (Local GPU)"),
-            "qwen3.5:4b", "qwen35", "IQwen35");
+            IntoChat.OS.Contracts.Configuration.IntoChatOSNames.LocalDefaultChatModel, "qwen35", "IQwen35");
         Add(new("Gemma 4 E2B", "provider:ollama", "#6366F1", "Ollama (Local GPU)"),
             "gemma4:e2b", "gemma4", "IGemma4");
 

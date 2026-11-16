@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
@@ -8,10 +8,7 @@ import 'node_context.dart';
 import 'node_renderer.dart';
 
 bool _isInlineControl(Node n) =>
-    n is BadgeNode ||
-    n is TagPillNode ||
-    n is ButtonNode ||
-    n is SwitchNode;
+    n is BadgeNode || n is TagPillNode || n is ButtonNode || n is SwitchNode;
 
 bool _isCenterAlignedRowChild(Node n) =>
     _isInlineControl(n) ||
@@ -69,8 +66,10 @@ Widget renderRow(RowNode node, NodeContext ctx) {
   };
 
   int? flexWeight(int i) => switch (extents.elementAtOrNull(i)) {
-    final extent? when extent > 0 && extent <= 1 =>
-      math.max(1, (extent * 100).round()),
+    final extent? when extent > 0 && extent <= 1 => math.max(
+      1,
+      (extent * 100).round(),
+    ),
     _ => null,
   };
 
@@ -93,9 +92,8 @@ Widget renderRow(RowNode node, NodeContext ctx) {
         final hasAnyExpanded =
             boundedWidth &&
             (hasFlexSpacer ||
-                [
-                  for (var i = 0; i < node.children.length; i++) flexWeight(i),
-                ].any((f) => f != null));
+                [for (var i = 0; i < node.children.length; i++) flexWeight(i)]
+                    .any((f) => f != null));
 
         // When every child in a bounded Row is a card/surface/stat without
         // explicit extents (e.g. side-by-side equal cards `HStack(CardA, CardB)`),
@@ -160,7 +158,9 @@ Widget renderRow(RowNode node, NodeContext ctx) {
           } else if (boundedWidth &&
               (childNode is HeadingNode || childNode is TextNode)) {
             rowChildren.add(Flexible(fit: FlexFit.loose, child: w));
-          } else if (boundedWidth && childNode is FieldNode && !hasAnyExpanded) {
+          } else if (boundedWidth &&
+              childNode is FieldNode &&
+              !hasAnyExpanded) {
             rowChildren.add(Expanded(child: w));
           } else {
             rowChildren.add(w);
@@ -168,8 +168,9 @@ Widget renderRow(RowNode node, NodeContext ctx) {
         }
 
         final builtRow = Row(
-          mainAxisSize:
-              boundedWidth && hasAnyExpanded ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisSize: boundedWidth && hasAnyExpanded
+              ? MainAxisSize.max
+              : MainAxisSize.min,
           crossAxisAlignment: stretchHeight
               ? CrossAxisAlignment.stretch
               : (centerCross

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
@@ -12,53 +13,52 @@ using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 namespace IntoChat.OS.Modules.Google.Gmail.Tests.Unit;
 
 public sealed class GmailPolicyFacts
 {
-    private static readonly NeuronId PoliciesId = NeuronId.Parse(IPolicies.Key("b"));
-
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static Task Adopt(TestOS os, PolicyRule rule) => os.AdoptPolicy("b", rule, Ct);
 
-    private static async Task<(TestOS Os, GmailNeuron Neuron, FakeNeuronContext Context, FakeGmailApi Api)> CreateHarnessAsync()
+    private static Task<(TestOS Os, IGmail Neuron, NeuronId Id, FakeGmailApi Api)> CreateHarnessAsync()
     {
-        var os = TestOS.Local().Register(typeof(GmailModule).Assembly);
         var api = new FakeGmailApi();
         var services = new ServiceCollection()
             .AddSingleton(TimeProvider.System)
             .AddKeyedSingleton(GmailModule.ClockKey, TimeProvider.System)
             .AddSingleton<IGmailApi>(api)
             .AddSingleton<ISecretSealer>(new PassthroughSealer())
+            .AddSingleton<DigitalBrain.Capabilities.Connections.Integrations.IModuleIntegrations<GmailModule>>(new FakeIntegrations())
             .AddSingleton(typeof(ILogger<>), typeof(NullLogger<>))
             .BuildServiceProvider();
+        var os = TestOS.Local(o => o.Services = services).Register(typeof(GmailModule).Assembly);
 
         var id = new NeuronId(new BrainId("b"), "gmail", "connection/gmail/c1");
-        var context = new FakeNeuronContext(id, services);
-        context.Proxies.Register(PoliciesId, os.Get<IPolicies>(PoliciesId));
+        os.SeedStoredState(
+            id,
+            JsonSerializer.Serialize(
+                new GmailState
+                {
+                    Status = ConnectionStatus.Connected,
+                    Account = "owner@example.test",
+                    Scopes = $"{GmailScopes.Read} https://www.googleapis.com/auth/gmail.compose",
+                    Secrets = new Dictionary<string, SealedSecret>(StringComparer.Ordinal)
+                    {
+                        ["access"] = new SealedSecret { KeyId = "mk", Cipher = "token-1" },
+                    },
+                },
+                DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(GmailState))));
 
-        var neuron = new GmailNeuron();
-        NeuronAttachment.Attach(neuron, context);
-        await NeuronAttachment.Activate(neuron, CancellationToken.None);
-        await neuron.SaveGmailStateAsync(next => next with
-        {
-            Status = ConnectionStatus.Connected,
-            Account = "owner@example.test",
-            Scopes = $"{GmailScopes.Read} https://www.googleapis.com/auth/gmail.compose",
-            Secrets = new Dictionary<string, SealedSecret>(StringComparer.Ordinal)
-            {
-                ["access"] = new SealedSecret { KeyId = "mk", Cipher = "token-1" },
-            },
-        });
-        return (os, neuron, context, api);
+        return Task.FromResult((os, os.Get<IGmail>(id), id, api));
     }
 
     [Fact]
     public async Task ARefusingPolicyStopsTheDraftBeforeTheApiCall()
     {
-        var (os, neuron, context, api) = await CreateHarnessAsync();
+        var (os, neuron, id, api) = await CreateHarnessAsync();
         await using var _ = os;
         var rule = new PolicyRule(
             "r1",
@@ -79,7 +79,9 @@ public sealed class GmailPolicyFacts
             () => neuron.CreateDraft(new GmailCreateDraftRequest(preview.Value.PreviewId, "req-1"), Ct));
 
         Assert.Equal(0, api.CreateDraftCalls);
-        var state = await context.MemoryState.Load<GmailState>();
+        var stateJson = await ((DigitalBrain.Kernel.IBrainObserver)os).State(id, Ct);
+        Assert.NotNull(stateJson);
+        var state = stateJson.Value.Deserialize<GmailState>(DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(GmailState)));
         Assert.NotNull(state);
         Assert.Empty(state.DraftOperations);
     }
@@ -214,6 +216,50 @@ public sealed class GmailPolicyFacts
         Assert.Null(action.AmountUnit);
     }
 
+    [Fact]
+    public async Task PreviewDraftSucceedsAndUsesContextTimeWhenServiceProviderIsNotKeyed()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 5, 0, 0, TimeSpan.Zero));
+        var api = new FakeGmailApi();
+        var inner = new ServiceCollection()
+            .AddSingleton<TimeProvider>(clock)
+            .AddKeyedSingleton<TimeProvider>(GmailModule.ClockKey, clock)
+            .AddSingleton<IGmailApi>(api)
+            .AddSingleton<ISecretSealer>(new PassthroughSealer())
+            .AddSingleton<DigitalBrain.Capabilities.Connections.Integrations.IModuleIntegrations<GmailModule>>(new FakeIntegrations())
+            .AddSingleton(typeof(ILogger<>), typeof(NullLogger<>))
+            .BuildServiceProvider();
+        var nonKeyed = new NonKeyedServiceProvider(inner);
+
+        await using var os = TestOS.Local(o => o.Services = nonKeyed).Register(typeof(GmailModule).Assembly);
+        var id = new NeuronId(new BrainId("b"), "gmail", "connection/gmail/c1");
+        os.SeedStoredState(
+            id,
+            JsonSerializer.Serialize(
+                new GmailState
+                {
+                    Status = ConnectionStatus.Connected,
+                    Account = "owner@example.test",
+                    Scopes = $"{GmailScopes.Read} https://www.googleapis.com/auth/gmail.compose",
+                    Secrets = new Dictionary<string, SealedSecret>(StringComparer.Ordinal)
+                    {
+                        ["access"] = new SealedSecret { KeyId = "mk", Cipher = "token-1" },
+                    },
+                },
+                DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(GmailState))));
+
+        var neuron = os.Get<IGmail>(id);
+        using var caller = RuntimeCallerContext.StampScope(CapabilityCallers.Of("user-1", "acc-1", "b", CallerKind.User));
+        var preview = await neuron.PreviewDraft(new GmailDraftRequest(["alice@example.test"], [], [], "Hello", "Body"), Ct);
+        Assert.NotNull(preview.Value);
+        Assert.Equal(clock.GetUtcNow().UtcDateTime.Date, preview.Value.ExpiresAt.UtcDateTime.Date);
+    }
+
+    private sealed class NonKeyedServiceProvider(IServiceProvider inner) : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => inner.GetService(serviceType);
+    }
+
     private sealed class FakeGmailApi : IGmailApi
     {
         public int CreateDraftCalls { get; private set; }
@@ -262,5 +308,19 @@ public sealed class GmailPolicyFacts
     {
         public SealedSecret Seal(string name, string plaintext) => new() { KeyId = "mk", Cipher = plaintext };
         public string Open(SealedSecret secret) => secret.Cipher;
+    }
+
+    private sealed class FakeIntegrations : DigitalBrain.Capabilities.Connections.Integrations.IModuleIntegrations<GmailModule>
+    {
+        public DigitalBrain.Capabilities.Connections.Integrations.IIntegrationHandle Get(string integrationId) => new FakeHandle(integrationId);
+
+        private sealed class FakeHandle(string integrationId) : DigitalBrain.Capabilities.Connections.Integrations.IIntegrationHandle
+        {
+            public string IntegrationId => integrationId;
+            public Task<DigitalBrain.Capabilities.Connections.Integrations.IntegrationSnapshot> ReadAsync(CancellationToken cancellationToken = default)
+                => Task.FromResult(new DigitalBrain.Capabilities.Connections.Integrations.IntegrationSnapshot { IntegrationId = integrationId, Status = DigitalBrain.Capabilities.Connections.Integrations.IntegrationStatus.Unconfigured });
+            public Task<string> ReadSecretAsync(string field, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            public Task<DigitalBrain.Capabilities.Connections.Integrations.ReleasedIntegration> ReleaseAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        }
     }
 }

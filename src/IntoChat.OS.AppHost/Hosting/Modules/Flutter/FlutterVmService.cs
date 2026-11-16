@@ -1,8 +1,8 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using IntoChat.OS.Framework.Logging;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Flutter.Aspire.Hosting;
 
@@ -20,7 +20,7 @@ internal static class FlutterVmService
         }
         catch (Exception error) when (!cancellationToken.IsCancellationRequested)
         {
-            (logger ?? NullLogger.Instance).LogDebug(error, "Flutter VM service on 127.0.0.1:{Port} is not ready yet.", ddsPort);
+            (logger ?? OsConsoleLog.For(typeof(FlutterVmService))).LogDebug(error, "Flutter VM service on 127.0.0.1:{Port} is not ready yet.", ddsPort);
             return false;
         }
     }
@@ -41,6 +41,7 @@ internal static class FlutterVmService
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 last = ex;
+                OsConsoleLog.For(typeof(FlutterVmService)).LogDebug(ex, "Waiting for Flutter VM service on 127.0.0.1:{Port}.", ddsPort);
                 await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken).ConfigureAwait(false);
             }
         }
@@ -56,11 +57,11 @@ internal static class FlutterVmService
         var isolateId = await session.GetMainIsolateIdAsync(cancellationToken).ConfigureAwait(false);
         var result = await session.CallAsync(
             "reloadSources",
-            new Dictionary<string, object?>
+            new
             {
-                ["isolateId"] = isolateId,
-                ["force"] = false,
-                ["pause"] = false,
+                isolateId,
+                force = false,
+                pause = false,
             },
             cancellationToken).ConfigureAwait(false);
 
@@ -122,22 +123,13 @@ internal static class FlutterVmService
 
         public async Task<JsonElement> CallAsync(
             string method,
-            IReadOnlyDictionary<string, object?>? parameters,
+            object? parameters,
             CancellationToken cancellationToken)
         {
             var id = Interlocked.Increment(ref _nextId).ToString();
-            var payload = new Dictionary<string, object?>
-            {
-                ["jsonrpc"] = "2.0",
-                ["id"] = id,
-                ["method"] = method,
-            };
-            if (parameters is not null)
-            {
-                payload["params"] = parameters;
-            }
-
-            var bytes = JsonSerializer.SerializeToUtf8Bytes(payload);
+            byte[] bytes = parameters is null
+                ? JsonSerializer.SerializeToUtf8Bytes(new { jsonrpc = "2.0", id, method })
+                : JsonSerializer.SerializeToUtf8Bytes(new { jsonrpc = "2.0", id, method, @params = parameters });
             await _socket.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, cancellationToken)
                 .ConfigureAwait(false);
 

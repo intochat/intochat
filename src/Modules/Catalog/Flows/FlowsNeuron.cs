@@ -1,8 +1,10 @@
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Flows;
 using DigitalBrain.Operations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
@@ -10,7 +12,6 @@ using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.Apps.Flows.Rules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -20,10 +21,11 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 // the FlowDone of a flow whose head is still unknown). Signals are folded idempotently: a repeated
 // or stale one does not move an entry back. The commands find the flow neuron by id and call it, so they interleave.
 [DigitalBrain.Neurons.Neuron("flows")]
-public sealed class FlowsNeuron(
+internal sealed class FlowsNeuron(
     IOperations operations,
     IOperationsQuery operationsQuery,
-    ILogger<FlowsNeuron>? logger = null) : DigitalBrain.Neurons.Neuron<FlowsState>, IFlows
+    ILogger<FlowsNeuron>? logger = null,
+    IServiceProvider? services = null) : DigitalBrain.Neurons.Neuron<FlowsState>, IFlows
 {
     private const string SystemOwner = "system";
 
@@ -77,7 +79,7 @@ public sealed class FlowsNeuron(
             try
             {
                 var starter = Flow(flow.FlowId);
-                await Stop(starter, await starter.Head(), "security interrupt");
+                await StopElevated(starter, flow.FlowId, await starter.Head(), "security interrupt");
             }
             catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { FlowsLog.InterruptCancelFailed(Logger(), error, flow.FlowId); }
         }
@@ -145,9 +147,9 @@ public sealed class FlowsNeuron(
         ArgumentNullException.ThrowIfNull(innerJson);
         var blocker = parentFlowId is not null && State.Flows.TryGetValue(parentFlowId, out var parent) ? BlockersOf(parent, State.Flows).FirstOrDefault() : null;
         var id = new NeuronId(Id.Brain, type, flowId ?? Guid.NewGuid().ToString("N"));
-        var exists = flowId is not null && (State.Flows.ContainsKey(id.ToString())
-            || (await Context.Get<IFlowStarter>(id).Head()).Status != DigitalBrain.Flows.FlowStatus.Pending);
-        await Check("Start", new ParentNotBlocked(blocker), new FlowIsNew(id.ToString(), exists));
+        var held = flowId is not null && State.Flows.TryGetValue(id.ToString(), out var existingEntry) ? existingEntry : null;
+        var headStatus = flowId is not null && held is null ? (await Context.Get<IFlowStarter>(id).Head()).Status : (DigitalBrain.Flows.FlowStatus?)null;
+        await Check("Start", new ParentNotBlocked(blocker), new FlowIsNew(id.ToString(), flowId, held, headStatus));
         if (RuntimeCallerContext.TryGet(out var caller) && (caller.AppId is { Length: > 0 } || caller.ConversationId is { Length: > 0 }))
         {
             await Fold(id.ToString(), entry => entry.App == caller.AppId && entry.Conversation == caller.ConversationId ? entry
@@ -180,7 +182,27 @@ public sealed class FlowsNeuron(
         var flow = Flow(flowId);
         var head = await flow.Head();
         await Check("Cancel", new PersonCancelsApprovalWait(flowId, PersonWaitStep(flowId, head), Context.Caller));
-        await Stop(flow, head, reason, ct);
+        if (Context.Caller is { Actor: Actor.Person, Conversation: null } or { Actor: Actor.Kernel })
+        {
+            await Stop(flow, head, reason, ct);
+            return;
+        }
+        // PersonCancelsApprovalWait above verified the flow is not waiting for a person; Flow.Cancel requires Person or Kernel.
+        await StopElevated(flow, flowId, head, reason, ct);
+    }
+
+    private async Task StopElevated(IFlowStarter flow, string flowId, FlowHead head, string reason, CancellationToken ct = default)
+    {
+        if (services?.GetService<IKernel>() is { } kernel && NeuronId.TryParse(flowId, out var neuronId))
+        {
+            await kernel.CancelFlow(Id.Brain, neuronId, head.OperationId, reason, ct);
+            return;
+        }
+        var edge = services?.GetService<EdgeAuthority>();
+        using (edge?.ClearCaller())
+        {
+            await Stop(flow, head, reason, ct);
+        }
     }
 
     // The cancel itself, past the rule: the running step's leaf operation, then the flow.
@@ -388,7 +410,7 @@ public sealed class FlowsNeuron(
                 .Select(relation => relation.TargetFlowId).Distinct(StringComparer.Ordinal)
             : [];
 
-    private ILogger Logger() => (ILogger?)logger ?? NullLogger.Instance;
+    private ILogger Logger() => (ILogger?)logger ?? OsConsoleLog.For<FlowsNeuron>();
 
     private string Caller()
         => Context.Caller?.For?.Principal ?? SystemOwner;

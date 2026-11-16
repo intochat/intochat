@@ -1,9 +1,9 @@
+using System.Diagnostics;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Broker;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using DigitalBrain.Runtime.Orleans.Capabilities.Storage;
 using DigitalBrain.Testing;
 using DigitalBrain.Testing.Conformance.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,8 +18,8 @@ public sealed class StorageBrokerAccessFacts
     [Fact]
     public async Task DriveCallIsLogged()
     {
-        var row = await Stat("google-drive");
-        Assert.Equal("google-drive", row.ModuleKind);
+        var row = await Stat("google-drive", "app.files.drive");
+        Assert.Equal("app.files.drive", row.App);
         Assert.Equal("Stat", row.Op);
         Assert.Equal("Ok", row.Outcome);
     }
@@ -27,67 +27,70 @@ public sealed class StorageBrokerAccessFacts
     [Fact]
     public async Task BlobCallIsLogged()
     {
-        var row = await Stat("azure-blob");
-        Assert.Equal("azure-blob", row.ModuleKind);
+        var row = await Stat("azure-blob", "app.files.blob");
+        Assert.Equal("app.files.blob", row.App);
         Assert.Equal("Ok", row.Outcome);
     }
 
     [Fact]
     public async Task FakeStorageCallIsLogged()
     {
-        var log = CreateAccessLog();
+        var appName = "app.files.fake";
+        var rows = new List<(string App, string Op, string Outcome)>();
+        using var listener = Listen(rows, appName);
         var fake = new FakeStorage();
         var connections = new Binder("fake", fake);
-        var broker = new CapabilityBroker(new CapabilityRegistry(), connections, WithAccessLog(log), []).ForApp("app.files");
+        var broker = new CapabilityBroker(new CapabilityRegistry(), connections, new ServiceCollection().BuildServiceProvider(), []).ForApp(appName);
         var storage = (await broker.Storages(Brain, TestContext.Current.CancellationToken)).Single().Capability;
         fake.Seed(StorageSeed.Canonical);
-        ClearAccessLog(log);
+        rows.Clear();
 
         await storage.List(fake.Root, new ListQuery(), TestContext.Current.CancellationToken);
 
-        var row = Assert.Single(ReadRows(log));
-        Assert.Equal("app.files", row.App);
-        Assert.Equal("fake", row.ModuleKind);
+        var row = Assert.Single(rows);
+        Assert.Equal(appName, row.App);
         Assert.Equal("List", row.Op);
+        Assert.Equal("Ok", row.Outcome);
     }
 
-    private static async Task<(string App, string ModuleKind, string Op, string Outcome)> Stat(string kind)
+    private static async Task<(string App, string Op, string Outcome)> Stat(string kind, string appName)
     {
-        var log = CreateAccessLog();
+        var rows = new List<(string App, string Op, string Outcome)>();
+        using var listener = Listen(rows, appName);
         var connections = new Binder(kind, new InMemoryStorage(kind));
-        var broker = new CapabilityBroker(new CapabilityRegistry(), connections, WithAccessLog(log), []).ForApp("app.files");
+        var broker = new CapabilityBroker(new CapabilityRegistry(), connections, new ServiceCollection().BuildServiceProvider(), []).ForApp(appName);
         var storage = (await broker.Storages(Brain, TestContext.Current.CancellationToken)).Single().Capability;
         await storage.Stat(((InMemoryStorage)connections.Bound).Root, TestContext.Current.CancellationToken);
-        return Assert.Single(ReadRows(log));
+        return Assert.Single(rows);
     }
 
-    private static readonly Type AccessLogType = typeof(CapabilityBroker).Assembly
-        .GetType("DigitalBrain.Runtime.Orleans.Capabilities.Storage.StorageAccessLog", throwOnError: true)!;
-
-    private static object CreateAccessLog() => Activator.CreateInstance(AccessLogType)!;
-
-    private static IServiceProvider WithAccessLog(object log)
-        => new ServiceCollection().AddSingleton(AccessLogType, log).BuildServiceProvider();
-
-    private static void ClearAccessLog(object log)
-        => AccessLogType.GetMethod("Clear", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)!.Invoke(log, null);
-
-    private static List<(string App, string ModuleKind, string Op, string Outcome)> ReadRows(object log)
+    private static ActivityListener Listen(List<(string App, string Op, string Outcome)> rows, string appName)
     {
-        var rows = (System.Collections.IEnumerable)AccessLogType
-            .GetProperty("Rows", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)!
-            .GetValue(log)!;
-        var result = new List<(string, string, string, string)>();
-        foreach (var row in rows)
+        var listener = new ActivityListener
         {
-            var t = row.GetType();
-            result.Add((
-                (string)t.GetProperty("App")!.GetValue(row)!,
-                (string)t.GetProperty("ModuleKind")!.GetValue(row)!,
-                (string)t.GetProperty("Op")!.GetValue(row)!,
-                (string)t.GetProperty("Outcome")!.GetValue(row)!));
-        }
-        return result;
+            ShouldListenTo = source => source.Name == "DigitalBrain.Storage",
+            Sample = static (ref _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activity =>
+            {
+                if (activity.OperationName != "storage.access")
+                {
+                    return;
+                }
+                var app = activity.GetTagItem("storage.app") as string ?? "";
+                if (!string.Equals(app, appName, StringComparison.Ordinal))
+                {
+                    return;
+                }
+                var op = activity.GetTagItem("storage.op") as string ?? "";
+                var outcome = activity.GetTagItem("storage.outcome") as string ?? "";
+                lock (rows)
+                {
+                    rows.Add((app, op, outcome));
+                }
+            },
+        };
+        ActivitySource.AddActivityListener(listener);
+        return listener;
     }
 
     private sealed class Binder : ICapabilityConnections

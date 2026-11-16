@@ -4,7 +4,7 @@ using IntoChat.OS.Primitives;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
-public sealed class NoteInner
+internal sealed class NoteInner
 {
     public string Text { get; set; } = "";
 }
@@ -13,7 +13,7 @@ public sealed class NoteInner
 // "note" (External, no expiry), since the base resumes only a waiting flow and advances, and so completes, a running one with no
 // steps; Resume("note", Arrived) completes it, Cancel cancels it.
 [DigitalBrain.Neurons.Neuron(Alias)]
-public sealed class NoteFlow : Flow<NoteInner>, IFlowStarter
+internal sealed class NoteFlow : Flow<NoteInner>, IFlowStarter
 {
     public const string Alias = "flow.note";
 

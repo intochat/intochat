@@ -8,7 +8,10 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Trace;
 using IntoChat.OS.Modules.Flutter.Fields;
 using IntoChat.OS.Modules.Flutter.Views;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using TestOS = DigitalBrain.Testing.TestOS;
 
 namespace IntoChat.OS.Modules.Flutter;
@@ -75,23 +78,22 @@ public sealed class AppUiEventFacts
     }
 
     [Fact]
-    public async Task AHostLoadedAppsApprovalReachesTheConfirmationsInbox()
-    {
-        var brain = new RecordingBrain(new(ViewActivationKind.Resolve, Resolve: new Resolve("plan-1")));
-
-        await AppUiEndpoints.Deliver(View("owner/apps/tasks/side", "approval", "approve"), brain, Scope, Hosted, Ct);
-        await AppUiEndpoints.Deliver(View("owner/apps/ino/view", "approval", "deny"), brain, Scope, Hosted, Ct);
-
-        Assert.Equal([("owner/confirmations", "plan-1", true), ("owner/confirmations", "plan-1", false)], brain.Inbox.Resolved);
-    }
-
-    [Fact]
     public async Task ActivateRefusesResolveFromANonHostLoadedOwner()
     {
         var brain = new RecordingBrain(new(ViewActivationKind.Resolve, Resolve: new Resolve("plan-1")));
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/dismisser/view", "approval", "approve"), brain, Scope, Hosted, Ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/spoof/view", "approval", "approve"), brain, Scope, null, Ct));
+        Assert.Empty(brain.Inbox.Resolved);
+    }
+
+    [Fact]
+    public async Task HostLoadedAppViewCannotResolveConfirmationViaViewEvent()
+    {
+        var brain = new RecordingBrain(new(ViewActivationKind.Resolve, Resolve: new Resolve("plan-1")));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/ino/view", "approval", "approve"), brain, Scope, Hosted, Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/tasks/side", "approval", "deny"), brain, Scope, Hosted, Ct));
         Assert.Empty(brain.Inbox.Resolved);
     }
 
@@ -225,10 +227,6 @@ public sealed class AppUiEventFacts
         var merged = ViewArgs.WithValue(JsonSerializer.SerializeToElement(new { Message = (string?)null, Value = (string?)null }), "Hello Ino");
         Assert.Equal("Hello Ino", merged.GetProperty("value").GetString());
         Assert.False(merged.TryGetProperty("Value", out _));
-
-        var brain = new RecordingBrain(new(ViewActivationKind.Resolve, Resolve: new Resolve("plan-bare")));
-        await AppUiEndpoints.Deliver(View("owner/apps/ino", "approval", "approve"), brain, Scope, Hosted, Ct);
-        Assert.Equal(("owner/confirmations", "plan-bare", true), Assert.Single(brain.Inbox.Resolved));
     }
 
     [Fact]
@@ -286,6 +284,30 @@ public sealed class AppUiEventFacts
         Assert.Null(AppUiEndpoints.UnitError(view, null));
         Assert.Equal("This unit has not published a view.", AppUiEndpoints.UnitError(null, failing));
         Assert.Equal("The last reaction failed.", AppUiEndpoints.UnitError(view, failing with { Payload = "SynapseFailed" }));
+    }
+
+    [Fact]
+    public async Task AppUiEndpoints_Map_UsesServiceProviderLoggerFactoryForSwallowedViewErrors()
+    {
+        var provider = new CapturingLoggerProvider();
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders();
+        builder.Logging.SetMinimumLevel(LogLevel.Debug);
+        builder.Logging.AddProvider(provider);
+        await using var app = builder.Build();
+
+        // Map resolves ILoggerFactory from endpoints.ServiceProvider and captures ReadNode/Deliver log events
+        AppUiEndpoints.Map(app);
+        var resolvedFactory = app.Services.GetRequiredService<ILoggerFactory>();
+        var brain = new RecordingBrain(ViewActivation.None);
+        var logger = resolvedFactory.CreateLogger(typeof(AppUiEndpoints).FullName!);
+
+        await Assert.ThrowsAsync<NotSupportedException>(() =>
+            AppUiEndpoints.ReadNode(UIVocabulary.ViewType, "owner/apps/missing/view", brain, Scope, Ct, logger));
+
+        Assert.Contains(provider.Entries, e =>
+            e.Level == LogLevel.Warning
+            && e.Message.Contains("Screen view could not be read.", StringComparison.Ordinal));
     }
 
     private static Task<string> Body(IResult result)
@@ -373,6 +395,27 @@ public sealed class AppUiEventFacts
             }
             if (method?.Name != nameof(IApp.Read)) { throw new NotSupportedException(method?.Name); }
             return Task.FromResult(new AppSnapshot("app", new("", "", [], [], []), "", [], [], [], "1.0", AppStatus.Live, [], []));
+        }
+    }
+
+    private sealed class CapturingLoggerProvider : ILoggerProvider
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+        public ILogger CreateLogger(string categoryName) => new Sink(Entries);
+        public void Dispose() { }
+
+        private sealed class Sink(List<(LogLevel Level, string Message)> entries) : ILogger
+        {
+            public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
+            public bool IsEnabled(LogLevel logLevel) => true;
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+                => entries.Add((logLevel, formatter(state, exception)));
+
+            private sealed class NullScope : IDisposable
+            {
+                public static readonly NullScope Instance = new();
+                public void Dispose() { }
+            }
         }
     }
 }

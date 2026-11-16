@@ -13,7 +13,7 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire.Tests.Unit;
 // when a step fails, and the deployment folding both flows' signals into its state.
 public sealed class DeployFlowFacts
 {
-    private static readonly BrainId Brain = new("local");
+    private static readonly BrainId Brain = new("owner");
 
     private sealed class Host : IClusterHost
     {
@@ -295,8 +295,6 @@ public sealed class DeployFlowFacts
         Assert.Equal("the roll was interrupted", read.Failure);
     }
 
-    // TestOS offers no public seed of a neuron's state; its journal's internal Save is the store the neuron loads from.
     private static void Seed(TestOS os, DeploymentState state)
-        => typeof(TestJournal).GetMethod("Save", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-            .MakeGenericMethod(typeof(DeploymentState)).Invoke(os.Journal(Brain), [DeploymentId, state, Array.Empty<Signal>()]);
+        => os.SeedStoredState(DeploymentId, JsonSerializer.Serialize(state, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(DeploymentState))));
 }

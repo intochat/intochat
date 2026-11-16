@@ -1,18 +1,20 @@
 using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 
 namespace IntoChat.OS.Modules.LocalDisk;
 
 /// <summary>One volume row. Tests supply fakes; the host reads <see cref="DriveInfo"/>.</summary>
-public sealed record VolumeRow(string Name, string DriveFormat, bool IsReady, DriveType DriveType, long AvailableFreeSpace, long TotalSize);
+internal sealed record VolumeRow(string Name, string DriveFormat, bool IsReady, DriveType DriveType, long AvailableFreeSpace, long TotalSize);
 
-public interface IVolumeSource
+internal interface IVolumeSource
 {
     IReadOnlyList<VolumeRow> Drives();
 
     VolumeRow? ForPath(string path);
 }
 
-public static class LocalVolumes
+internal static class LocalVolumes
 {
     public static readonly IReadOnlyList<string> ExcludedFormats =
     [
@@ -86,7 +88,11 @@ internal sealed class DriveVolumeSource : IVolumeSource
     {
         string full;
         try { full = Path.GetFullPath(path); }
-        catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException) { return null; }
+        catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            OsConsoleLog.For(typeof(LocalVolumes)).LogSwallowed(error, "resolving local volume path");
+            return null;
+        }
         VolumeRow? best = null;
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         foreach (var drive in Drives().Where(LocalVolumes.Include))

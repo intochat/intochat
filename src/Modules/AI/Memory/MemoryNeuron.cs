@@ -7,7 +7,7 @@ using DigitalBrain.State;
 namespace IntoChat.OS.Modules.AI.Memory;
 
 [ExportableState]
-public sealed record MemoryState(
+internal sealed record MemoryState(
     long Revision,
     MemoryEpisode[] Episodes,
     MemoryFact[] Facts,
@@ -20,7 +20,7 @@ public sealed record MemoryState(
 }
 
 [Neuron("ai.memory", State = "memory")]
-public sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
+internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
 {
     private const int MaxEpisodes = 256;
     private const int MaxFacts = 512;
@@ -28,31 +28,25 @@ public sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
     private const int MaxEdges = 1024;
     private const double MinSemanticThreshold = 0.22;
 
-    private readonly IMemoryDiskStore? _disk;
     private readonly IMemoryEmbedder _embedder;
-    private bool _hydratedFromDisk;
 
-    public MemoryNeuron(IMemoryDiskStore? disk = null, IMemoryEmbedder? embedder = null)
+    public MemoryNeuron(IMemoryEmbedder embedder)
     {
-        _disk = disk;
-        _embedder = embedder ?? new HybridMemoryEmbedder();
+        ArgumentNullException.ThrowIfNull(embedder);
+        _embedder = embedder;
     }
 
-    public async Task<MemorySnapshot> Read()
-    {
-        await EnsureHydratedAsync().ConfigureAwait(false);
-        return new MemorySnapshot(State.Revision, State.Episodes, State.Facts)
+    public Task<MemorySnapshot> Read()
+        => Task.FromResult(new MemorySnapshot(State.Revision, State.Episodes, State.Facts)
         {
             Notes = State.Notes,
             Edges = State.Edges,
-        };
-    }
+        });
 
     public async Task<MemoryEpisode> CaptureEpisode(string agent, string summary, int importance = 5)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(agent);
         ArgumentException.ThrowIfNullOrWhiteSpace(summary);
-        await EnsureHydratedAsync().ConfigureAwait(false);
 
         var clamped = Math.Clamp(importance, 1, 10);
         var episode = new MemoryEpisode(
@@ -71,7 +65,6 @@ public sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(subject);
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
-        await EnsureHydratedAsync().ConfigureAwait(false);
 
         var clamped = Math.Clamp(importance, 1, 10);
         var fact = new MemoryFact(
@@ -100,7 +93,6 @@ public sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(subject);
         ArgumentException.ThrowIfNullOrWhiteSpace(body);
-        await EnsureHydratedAsync().ConfigureAwait(false);
 
         var normalizedScope = string.IsNullOrWhiteSpace(scope) ? "owner" : scope.Trim();
         var clamped = Math.Clamp(importance, 1, 10);
@@ -150,7 +142,6 @@ public sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
                 new DigitalBrain.Rules.Rejected("PromoteNote", ["owner-only"], ["Only a person may promote a memory note to owner rule trust."]));
         }
 
-        await EnsureHydratedAsync().ConfigureAwait(false);
         var target = State.Notes.FirstOrDefault(n => string.Equals(n.Id, noteId.Trim(), StringComparison.Ordinal))
             ?? throw new KeyNotFoundException($"Memory note '{noteId}' was not found.");
 
@@ -166,7 +157,6 @@ public sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceEntity);
         ArgumentException.ThrowIfNullOrWhiteSpace(relation);
         ArgumentException.ThrowIfNullOrWhiteSpace(targetEntity);
-        await EnsureHydratedAsync().ConfigureAwait(false);
 
         var edge = new MemoryGraphEdge(
             sourceEntity.Trim(),
@@ -208,7 +198,6 @@ public sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
 
     public async Task<MemoryRecallPack> RecallPack(string query, string? activeScope = null, int limit = 5)
     {
-        await EnsureHydratedAsync().ConfigureAwait(false);
         await SyncAsync().ConfigureAwait(false);
 
         var inferredScope = string.IsNullOrWhiteSpace(activeScope) ? InferRepoScope(query) : activeScope.Trim();
@@ -329,46 +318,10 @@ public sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
         return new MemoryRecallPack(ownerRules, ordered);
     }
 
-    private async Task EnsureHydratedAsync()
+    private Task PersistStateAsync(MemoryState next) => Save(next, new MemoryChanged(next.Revision, next.Episodes.Length, next.Facts.Length)
     {
-        if (_hydratedFromDisk)
-        {
-            return;
-        }
-        _hydratedFromDisk = true;
-
-        if (_disk is null)
-        {
-            return;
-        }
-
-        var loaded = await _disk.LoadAsync(Id.Brain.Value).ConfigureAwait(false);
-        if (loaded is not null && loaded.Revision > State.Revision)
-        {
-            var restored = loaded with { Synced = false };
-            await Save(restored, new MemoryChanged(restored.Revision, restored.Episodes.Length, restored.Facts.Length)
-            {
-                NoteCount = restored.Notes.Length,
-            }).ConfigureAwait(false);
-        }
-        else if (loaded is null && State.Revision > 0)
-        {
-            await _disk.SaveAsync(Id.Brain.Value, State).ConfigureAwait(false);
-        }
-    }
-
-    private async Task PersistStateAsync(MemoryState next)
-    {
-        await Save(next, new MemoryChanged(next.Revision, next.Episodes.Length, next.Facts.Length)
-        {
-            NoteCount = next.Notes.Length,
-        }).ConfigureAwait(false);
-
-        if (_disk is not null)
-        {
-            await _disk.SaveAsync(Id.Brain.Value, next).ConfigureAwait(false);
-        }
-    }
+        NoteCount = next.Notes.Length,
+    });
 
     private IKnowledgeStore? TryGetStore()
     {

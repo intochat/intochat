@@ -12,9 +12,9 @@ using Microsoft.AspNetCore.Routing;
 
 namespace IntoChat.OS.Modules.Apps;
 
-public static class PoliciesEndpoints
+internal static class PoliciesEndpoints
 {
-    public sealed record TextRequest(string? Text);
+    internal sealed record TextRequest(string? Text);
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {

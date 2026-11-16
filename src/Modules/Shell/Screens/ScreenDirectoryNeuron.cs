@@ -15,7 +15,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Flutter.Workspace;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Modules.Flutter.Screens;
 
@@ -23,13 +23,18 @@ namespace IntoChat.OS.Modules.Flutter.Screens;
 /// Unified screen gateway neuron for listing, reading, acting on, and approving UI across built-in apps and runtime units.
 /// </summary>
 [Neuron(IScreenDirectory.TypeName, State = "screens")]
-internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = null)
+internal sealed partial class ScreenDirectoryNeuron(
+    INeuronProxies? proxies = null,
+    ILogger<ScreenDirectoryNeuron>? logger = null)
     : UiNeuron<ScreenDirectoryState>, IScreenDirectory
 {
     private readonly string? _brainOverride;
     private ScreenDirectoryState? _inMemoryState;
 
-    internal ScreenDirectoryNeuron(INeuronProxies? proxies, string? brainId) : this(proxies)
+    private ILogger Log => logger ?? ShellConsoleLog.For<ScreenDirectoryNeuron>();
+
+    internal ScreenDirectoryNeuron(INeuronProxies? proxies, string? brainId, ILogger<ScreenDirectoryNeuron>? logger = null)
+        : this(proxies, logger)
         => _brainOverride = brainId;
 
     private string Brain => _brainOverride ?? Id.Brain.Value;
@@ -63,7 +68,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(ex, "Workspace could not be read for screen directory.");
+            Log.LogSwallowed(ex, "Workspace could not be read for screen directory.");
         }
 
         // 2. Read Pending Approvals count by app / subject
@@ -80,7 +85,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(ex, "IApprovals could not be read for screen directory.");
+            Log.LogSwallowed(ex, "IApprovals could not be read for screen directory.");
             try
             {
                 var inbox = await ResolveNeuron<IConfirmationInbox>(IConfirmationInbox.Key(brainId)).Read();
@@ -91,7 +96,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             }
             catch (Exception inboxEx) when (inboxEx is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(inboxEx, "IConfirmationInbox could not be read for screen directory.");
+                Log.LogSwallowed(inboxEx, "IConfirmationInbox could not be read for screen directory.");
             }
         }
 
@@ -173,7 +178,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(ex, "ConfirmationView render failed.");
+                Log.LogSwallowed(ex, "ConfirmationView render failed.");
             }
         }
 
@@ -200,7 +205,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(ex, "IScreen read failed.");
+                Log.LogSwallowed(ex, "IScreen read failed.");
             }
         }
 
@@ -209,7 +214,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             // Try IView: {brainId}/apps/{normalizedApp}/view or appId
             try
             {
-                var viewName = appId.Contains('/') ? appId : $"{brainId}/apps/{normalizedApp}/view";
+                var viewName = appId.Contains('/') ? appId : IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), normalizedApp).ViewKey;
                 var pub = await ResolveNeuron<IView>(viewName).Read();
                 if (pub is not null)
                 {
@@ -219,7 +224,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(ex, "IView read failed.");
+                Log.LogSwallowed(ex, "IView read failed.");
             }
         }
 
@@ -239,7 +244,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(ex, "IViewReader read failed.");
+                Log.LogSwallowed(ex, "IViewReader read failed.");
             }
         }
 
@@ -266,7 +271,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(ex, "IInstalls check for runtime unit failed.");
+                Log.LogSwallowed(ex, "IInstalls check for runtime unit failed.");
             }
         }
 
@@ -279,7 +284,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(ex, "View serialization failed.");
+                Log.LogSwallowed(ex, "View serialization failed.");
             }
         }
 
@@ -288,7 +293,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             // Fallback: check if IApp exists and auto-open it on first screen read
             try
             {
-                var appKey = IApp.Key(brainId, normalizedApp);
+                var appKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), normalizedApp).Key;
                 var appNeuron = ResolveNeuron<IApp>(appKey);
                 var app = await appNeuron.Read();
                 if (app is not null && !string.IsNullOrWhiteSpace(app.Manifest.Title))
@@ -296,7 +301,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
                     try
                     {
                         await appNeuron.Request("open", "{}");
-                        var viewName = appId.Contains('/') ? appId : $"{brainId}/apps/{normalizedApp}/view";
+                        var viewName = appId.Contains('/') ? appId : IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), normalizedApp).ViewKey;
                         var pub = await ResolveNeuron<IView>(viewName).Read();
                         if (pub is not null)
                         {
@@ -306,7 +311,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        NullLogger.Instance.LogSwallowed(ex, "IApp auto-open failed.");
+                        Log.LogSwallowed(ex, "IApp auto-open failed.");
                     }
 
                     if (viewJson is null)
@@ -325,7 +330,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(ex, "IApp read failed.");
+                Log.LogSwallowed(ex, "IApp read failed.");
             }
             if (viewJson is null)
             {
@@ -341,7 +346,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(ex, "View deserialization failed.");
+                Log.LogSwallowed(ex, "View deserialization failed.");
             }
         }
 
@@ -403,10 +408,14 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
                         key,
                         value,
                         callerPersonId,
-                        resolveApproval: async (planId, ok) => { await Approve(planId, ok); });
+                        logger: Log);
                     var updated = await Read(appId, instanceId);
                     return new ScreenActionResult(true, "Action accepted.", updated);
                 }
+            }
+            catch (UnauthorizedAccessException unauth)
+            {
+                return new ScreenActionResult(false, unauth.Message);
             }
             catch (ActivationRefusedException refused)
             {
@@ -418,7 +427,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(ex, "IScreen activation fallback.");
+                Log.LogSwallowed(ex, "IScreen activation fallback.");
             }
         }
 
@@ -427,7 +436,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
         {
             try
             {
-                var viewName = appId.Contains('/') ? appId : $"{brainId}/apps/{normalizedApp}/view";
+                var viewName = appId.Contains('/') ? appId : IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), normalizedApp).ViewKey;
                 var viewNeuron = ResolveNeuron<IView>(viewName);
                 if (await viewNeuron.Read() is not null)
                 {
@@ -437,13 +446,14 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
                     {
                         case ViewActivationKind.Emit:
                             var emit = activation.Emit!;
-                            var appKey = IApp.Key(brainId, emit.Owner.StartsWith("apps/") ? emit.Owner[5..] : emit.Owner);
+                            var appKey = IntoChat.OS.Primitives.AppRef.TryParse(new BrainId(brainId), emit.Owner, out var emitRef)
+                                ? emitRef.Key
+                                : IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), emit.Owner).Key;
                             var args = value is null ? emit.Args : ViewArgs.WithValue(emit.Args, value);
                             await ResolveNeuron<IApp>(appKey).Emit(emit.Signal, args?.GetRawText() ?? "");
                             break;
                         case ViewActivationKind.Resolve:
-                            await Approve(activation.Resolve!.PlanId, value == "approve");
-                            break;
+                            throw new UnauthorizedAccessException("Only the OS confirmation inbox can answer a confirmation.");
                         case ViewActivationKind.Intent:
                             break;
                     }
@@ -452,13 +462,17 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
                     return new ScreenActionResult(true, "Action accepted.", updated);
                 }
             }
+            catch (UnauthorizedAccessException unauth)
+            {
+                return new ScreenActionResult(false, unauth.Message);
+            }
             catch (StaleActionException stale)
             {
                 return new ScreenActionResult(false, stale.Message);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(ex, "IView activation fallback.");
+                Log.LogSwallowed(ex, "IView activation fallback.");
             }
         }
 
@@ -482,6 +496,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            Log.LogSwallowed(ex, $"runtime unit view activation failed for '{appId}' control '{key}'");
             return new ScreenActionResult(false, ex.Message);
         }
     }
@@ -506,7 +521,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(ex, "IConfirmationInbox.Resolve failed in ScreenDirectoryNeuron.");
+                Log.LogSwallowed(ex, "IConfirmationInbox.Resolve failed in ScreenDirectoryNeuron.");
             }
         }
         else
@@ -527,7 +542,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(ex, "Approval resolution or outcome verification failed in ScreenDirectoryNeuron.");
+                Log.LogSwallowed(ex, "Approval resolution or outcome verification failed in ScreenDirectoryNeuron.");
                 return new ScreenActionResult(false, $"Approval '{approvalId}' could not be resolved: {ex.Message}");
             }
 
@@ -639,7 +654,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            NullLogger.Instance.LogSwallowed(ex, "IApprovals could not be read for approval extraction.");
+            Log.LogSwallowed(ex, "IApprovals could not be read for approval extraction.");
             try
             {
                 var inbox = await ResolveNeuron<IConfirmationInbox>(IConfirmationInbox.Key(brainId)).Read();
@@ -653,7 +668,7 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
             }
             catch (Exception inboxEx) when (inboxEx is not OperationCanceledException)
             {
-                NullLogger.Instance.LogSwallowed(inboxEx, "IConfirmationInbox could not be read for approval extraction.");
+                Log.LogSwallowed(inboxEx, "IConfirmationInbox could not be read for approval extraction.");
             }
         }
 
@@ -697,12 +712,11 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
 
     private static string NormalizeAppId(string brainId, string app)
     {
-        var prefix = brainId + "/apps/";
-        if (app.StartsWith(prefix, StringComparison.Ordinal))
+        if (BrainId.IsValid(brainId) && IntoChat.OS.Primitives.AppRef.TryParse(new BrainId(brainId), app, out var appRef))
         {
-            return app[prefix.Length..];
+            return appRef.Name;
         }
-        prefix = brainId + "/units/";
+        var prefix = brainId + "/units/";
         if (app.StartsWith(prefix, StringComparison.Ordinal))
         {
             return app[prefix.Length..];
@@ -732,10 +746,10 @@ internal sealed partial class ScreenDirectoryNeuron(INeuronProxies? proxies = nu
 
 [GenerateSerializer, Alias("ui.screen-directory-state")]
 [ExportableState]
-public sealed record ScreenDirectoryState
+internal sealed record ScreenDirectoryState
 {
     [Id(0)] public string[] ResolvedApprovals { get; init; } = [];
 }
 
 [Signal("ui.screens.approval-resolved")]
-public sealed record ApprovalResolved(string BrainId, string ApprovalId, bool Approved) : DigitalBrain.Signal;
+internal sealed record ApprovalResolved(string BrainId, string ApprovalId, bool Approved) : DigitalBrain.Signal;

@@ -24,13 +24,13 @@ public sealed class PackageRestoreFacts : E2ETestBase
         Assert.NotEmpty(dbPackages);
         Assert.True(dbPackages.Count >= 17, $"Expected at least 17 DigitalBrain packages, found {dbPackages.Count}.");
 
-        var non0220Offenders = dbPackages
-            .Where(x => x.Attribute("Version")?.Value != "0.22.0")
+        var non0223Offenders = dbPackages
+            .Where(x => x.Attribute("Version")?.Value != "0.22.3")
             .Select(x => $"{x.Attribute("Include")?.Value}: {x.Attribute("Version")?.Value}")
             .ToList();
 
-        Assert.True(non0220Offenders.Count == 0,
-            "All DigitalBrain packages must be pinned to 0.22.0 in Directory.Packages.props:\n" + string.Join("\n", non0220Offenders));
+        Assert.True(non0223Offenders.Count == 0,
+            "All DigitalBrain packages must be pinned to 0.22.3 in Directory.Packages.props:\n" + string.Join("\n", non0223Offenders));
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public sealed class PackageRestoreFacts : E2ETestBase
             .FirstOrDefault(p => p.Attribute("Include")?.Value == "DigitalBrain.Simulation");
 
         Assert.NotNull(simPackage);
-        Assert.Equal("0.22.0", simPackage.Attribute("Version")?.Value);
+        Assert.Equal("0.22.3", simPackage.Attribute("Version")?.Value);
     }
 
     [Fact]

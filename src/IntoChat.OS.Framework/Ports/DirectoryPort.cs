@@ -10,7 +10,10 @@ using OsGrantMode = IntoChat.OS.Connections.Identity.GrantMode;
 namespace IntoChat.OS.Authority;
 
 // identity@1's directory port over the local directory. Membership changes need the brain's owner as the stamped caller.
-public sealed class DirectoryPort(IIdentityClient identity, Identity.IBrainBirths? births = null) : IIdentityDirectoryPort
+public sealed class DirectoryPort(
+    IIdentityClient identity,
+    Identity.IBrainBirths? births = null,
+    DigitalBrain.Access.EdgeAuthority? edge = null) : IIdentityDirectoryPort
 {
     public async Task<Account?> ReadAccount(string accountId, CancellationToken cancellationToken)
         => ToAccount(await identity.ReadAccount(accountId).WaitAsync(cancellationToken).ConfigureAwait(false));
@@ -97,9 +100,10 @@ public sealed class DirectoryPort(IIdentityClient identity, Identity.IBrainBirth
     {
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentNullException.ThrowIfNull(request);
+        var authority = edge ?? throw new InvalidOperationException("EdgeAuthority is not registered.");
         var decision = await identity.Authorize(new OsCall.CallRequest
         {
-            Caller = OsCall.CallerExtensions.ToCaller(caller),
+            Caller = authority.From(caller),
             TargetNeuron = request.TargetNeuron,
             Operation = request.Operation,
             SemanticTypeIds = [.. request.SemanticTypeIds],
@@ -128,7 +132,9 @@ public sealed class DirectoryPort(IIdentityClient identity, Identity.IBrainBirth
         try
         {
             var owner = grant.WorkspaceId.Length > 0 ? grant.WorkspaceId : caller.BrainId;
-            var target = string.IsNullOrEmpty(grant.TargetNeuronKey) ? $"{caller.BrainId}/apps/{grant.AppId}" : grant.TargetNeuronKey;
+            var target = string.IsNullOrEmpty(grant.TargetNeuronKey)
+                ? IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(caller.BrainId), grant.AppId).Key
+                : grant.TargetNeuronKey;
             var osGrant = OsGrant.Tuple($"brain:{owner}", $"app:{grant.AppId}", target, grant.SemanticTypeId);
             return ToGrant(await identity.GrantAsOwner(User(caller), osGrant).WaitAsync(cancellationToken).ConfigureAwait(false));
         }

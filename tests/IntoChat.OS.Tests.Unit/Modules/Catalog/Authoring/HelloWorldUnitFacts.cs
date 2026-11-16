@@ -166,7 +166,7 @@ public sealed class HelloWorldUnitFacts
             sp,
             Options.Create(new AppsOptions { AuthorModel = null, BuilderModel = null }),
             NullLogger<Creator>.Instance,
-            model: null,
+            model: new SiloCreatorModel(sp),
             compiler: HostCompiler);
 
         var drafter = (IDrafter)creator;

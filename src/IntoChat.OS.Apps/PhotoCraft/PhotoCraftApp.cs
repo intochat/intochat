@@ -18,6 +18,8 @@ using DigitalBrain.UI;
 using IntoChat.OS.Apps.ArtCraft;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
 
 namespace IntoChat.OS.Apps.PhotoCraft;
@@ -56,15 +58,15 @@ public sealed record PhotoCraftAppState(
     string Status,
     string[] Layers,
     PhotoCraftHistoryEntry[] History,
-    string? WebUrl = "http://localhost:18082",
+    string? WebUrl = null,
     string McpEndpointUri = "neuron://local/mcp/photocraft",
     int[]? HiddenLayerIndices = null,
     string? ActivePreset = null)
 {
     public PhotoCraftAppState() : this(
         "mcp", "/work/portrait.png", "/work/portrait.nobg.png", "layer.removeBackground", "Ready · PhotoCraft Studio",
-        "photocraft-cli run /work/portrait.png --cmd layer.removeBackground --params '{\"featherPx\":1,\"output\":\"layer-mask\"}' --out /work/portrait.nobg.png --format png",
-        ArtCraftEngineRunner.CyanPreviewPngDataUrl, "PhotoCraft tools connected.",
+        string.Empty,
+        string.Empty, "PhotoCraft MCP server not connected.",
         ["Subject Layer (100% · Normal)", "Background Layer (Locked · 100%)"], [])
     { }
 
@@ -74,14 +76,20 @@ public sealed record PhotoCraftAppState(
     [Invariant("Edit history is bounded at 10 entries."), JsonIgnore]
     public bool HistoryBounded => (History?.Length ?? 0) <= 10;
 
-    [Invariant("PreviewDataUrl is an inline PNG data URL."), JsonIgnore]
-    public bool ValidPngPreview => PreviewDataUrl.StartsWith("data:image/png;base64,", StringComparison.Ordinal);
+    [Invariant("PreviewDataUrl is empty or an inline PNG data URL."), JsonIgnore]
+    public bool ValidPngPreview => string.IsNullOrEmpty(PreviewDataUrl) || PreviewDataUrl.StartsWith("data:image/png;base64,", StringComparison.Ordinal);
 
-    public Rule SupportedExecutionMode(string? mode) =>
-        Decision.Rule("invalid_execution_mode", string.IsNullOrWhiteSpace(mode) || mode.Trim().ToLowerInvariant() is not ("wasm-ui" or "mcp" or "native-linux"), "Execution mode must be wasm-ui, mcp, or native-linux.");
+    public Rule SupportedExecutionMode(string? mode) => Decision.Rule(
+        "invalid_execution_mode",
+        mode,
+        static m => string.IsNullOrWhiteSpace(m) || m.Trim().ToLowerInvariant() is not ("wasm-ui" or "mcp" or "native-linux"),
+        "Execution mode must be wasm-ui, mcp, or native-linux.");
 
-    public Rule ValidLayerIndex(int index) =>
-        Decision.Rule("layer_out_of_range", index < 0 || index >= EffectiveLayers.Length, $"Layer index {index} is outside 0..{EffectiveLayers.Length - 1}.");
+    public Rule ValidLayerIndex(int index) => Decision.Rule(
+        "layer_out_of_range",
+        (Index: index, Count: EffectiveLayers.Length),
+        static x => x.Index < 0 || x.Index >= x.Count,
+        static x => $"Layer index {x.Index} is outside 0..{x.Count - 1}.");
 
     private string[] EffectiveLayers => Layers is { Length: > 0 } ? Layers : ["Subject Layer (100% · Normal)", "Background Layer (Locked · 100%)"];
 
@@ -107,22 +115,20 @@ public sealed record PhotoCraftAppState(
             return hiddenSet.Contains(idx) ? $"[Hidden] {clean}" : clean;
         }).ToArray();
 
-        var cliParams = JsonSerializer.Serialize(new { layerIndex = index, visible = !nowHidden });
         var currentHistory = History ?? [];
         var entry = new PhotoCraftHistoryEntry(
             $"edit-{currentHistory.Length + 1}", "layer.toggleVisibility", $"{(nowHidden ? "Hide" : "Show")} Layer {index + 1}",
             ExecutionMode, OutputDocument,
-            $"photocraft-cli run {ActiveDocument} --cmd layer.toggleVisibility --params '{cliParams}' --out {OutputDocument} --format png");
+            string.Empty);
 
         return Decision.Accept(this with
         {
             Layers = updatedLayers,
             HiddenLayerIndices = [.. hiddenSet.Order()],
-            PreviewDataUrl = hiddenSet.Count > 0 ? ArtCraftEngineRunner.CutoutPreviewPngDataUrl : ArtCraftEngineRunner.SelectPreviewPngDataUrl(LastCommandId),
             LastCommandId = entry.CommandId,
             LastCommandTitle = entry.Title,
-            LastCliInvocation = entry.CliInvocation,
-            Status = $"{(nowHidden ? "Hid" : "Revealed")} layer {index + 1} ({updatedLayers[index]}) · Local preview updated",
+            LastCliInvocation = string.Empty,
+            Status = $"{(nowHidden ? "Hid" : "Revealed")} layer {index + 1} ({updatedLayers[index]})",
             History = [.. currentHistory.TakeLast(9), entry],
         });
     }
@@ -145,7 +151,7 @@ public sealed record PhotoCraftAppState(
             LastCommandId = result.CommandId,
             LastCommandTitle = result.CommandTitle,
             LastCliInvocation = result.CliInvocation,
-            PreviewDataUrl = string.IsNullOrWhiteSpace(result.PreviewDataUrl) ? ArtCraftEngineRunner.SelectPreviewPngDataUrl(result.CommandId) : result.PreviewDataUrl,
+            PreviewDataUrl = result.PreviewDataUrl ?? string.Empty,
             Status = result.Summary,
             Layers = result.LayersOrTracks,
             HiddenLayerIndices = [],
@@ -156,8 +162,13 @@ public sealed record PhotoCraftAppState(
 }
 
 [Neuron("app.photocraft")]
-public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>("photocraft")
+public sealed class PhotoCraftApp : ArtCraftStudioAppCore<PhotoCraftAppState>
 {
+    public PhotoCraftApp() : this(null) { }
+
+    [ActivatorUtilitiesConstructor]
+    public PhotoCraftApp(ILogger<PhotoCraftApp>? logger = null) : base("photocraft", logger) { }
+
     public const string AppName = ShippedApps.PhotoCraft;
 
     public static AppBundle Bundle { get; } = new(
@@ -184,6 +195,7 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
+        AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
         if (IsLegacyUnhostedWasmState(State.ExecutionMode, State.WebUrl))
         {
@@ -191,7 +203,7 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
             {
                 ExecutionMode = "mcp",
                 WebUrl = Descriptor.StaticWebPath,
-                Status = $"PhotoCraft tools connected ({FormatModeLabel("mcp")}) · Active: {State.ActiveDocument}",
+                Status = $"PhotoCraft studio ({FormatModeLabel("mcp")}) · Active: {State.ActiveDocument}",
             });
         }
     }
@@ -289,11 +301,17 @@ public sealed class PhotoCraftApp() : ArtCraftStudioAppCore<PhotoCraftAppState>(
 
         var studioCanvas = VStack(Space.Md)[
             presetBar,
-            ImageView(
-                state.PreviewDataUrl,
-                $"Canvas Preview · {state.LastCommandTitle} ({state.ActiveDocument} -> {state.OutputDocument})",
-                height: 300),
-            CodeBlock($"photocraft-cli · {FormatModeLabel(state.ExecutionMode)}", state.LastCliInvocation, "bash", maxHeight: 140),
+            !string.IsNullOrWhiteSpace(state.PreviewDataUrl)
+                ? ImageView(
+                    state.PreviewDataUrl,
+                    $"Canvas Preview · {state.LastCommandTitle} ({state.ActiveDocument} -> {state.OutputDocument})",
+                    height: 300)
+                : Surface(SurfaceKind.Elevated, "Canvas Preview", "Connect PhotoCraft MCP in Settings to render live previews.")[
+                    MutedText($"No raster preview rendered ({state.ActiveDocument} -> {state.OutputDocument}).")
+                ],
+            !string.IsNullOrWhiteSpace(state.LastCliInvocation)
+                ? CodeBlock($"Execution Log · {FormatModeLabel(state.ExecutionMode)}", state.LastCliInvocation, "bash", maxHeight: 140)
+                : null,
             history.Length > 0
                 ? Table(
                     $"Edit History ({history.Length}/10)",

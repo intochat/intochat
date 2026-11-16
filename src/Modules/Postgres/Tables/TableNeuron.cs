@@ -88,7 +88,7 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
         // A revoked or deleted connection holds the user's own database: nothing here can reach it,
         // and an uninstall must still retire the app's other tables.
         catch (Exception error) when (Pinned.Kind == TablePlacementKind.Connection && error is ServiceUnavailableException or UnauthorizedAccessException)
-        { logger?.LogSwallowed(error, "dropping a table on an unreachable connection while uninstalling"); }
+        { (logger ?? GetLogger()).LogSwallowed(error, "dropping a table on an unreachable connection while uninstalling"); }
         await Save(new(), new TableRetired(table));
     }
 

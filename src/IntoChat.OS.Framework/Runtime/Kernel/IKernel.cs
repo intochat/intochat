@@ -28,4 +28,7 @@ public interface IKernel : DigitalBrain.Kernel.IBrainObserver
     Task LoadFeature(string brain, Feature feature, BrainType[] types, CancellationToken cancellationToken = default);
 
     Task UnloadFeature(string brain, string name, CancellationToken cancellationToken = default);
+
+    // Interrupt or non-person flow cancellation delegated to Kernel composition.
+    Task CancelFlow(BrainId brain, NeuronId flowId, string? operationId, string reason, CancellationToken cancellationToken = default);
 }

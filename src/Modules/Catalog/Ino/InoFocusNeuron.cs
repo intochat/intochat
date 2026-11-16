@@ -1,11 +1,13 @@
 using System.Text.Json;
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Capabilities;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Agents.Context;
 
 namespace IntoChat.OS.Modules.Apps;
 
 [DigitalBrain.Neurons.Neuron("ino.focus"), DigitalBrain.Neurons.StatelessNeuron]
-public sealed class InoFocusNeuron : DigitalBrain.Neurons.Neuron, IInoFocus
+internal sealed class InoFocusNeuron : DigitalBrain.Neurons.Neuron, IInoFocus
 {
     private IAgentContext Focus => Get<IAgentContext>(new DigitalBrain.NeuronId(Id.Brain, "agent-context", IInoFocus.ContextKey));
 
@@ -23,6 +25,7 @@ public sealed class InoFocusNeuron : DigitalBrain.Neurons.Neuron, IInoFocus
         try { await Focus.Set(new ContextEntry(IInoFocus.EntryName, text, [], [ContextTags.UiFocus])); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoFocusNeuron>().LogSwallowed(error, "pointing Ino focus");
             return new InoToolResult($"Could not point at {target}: {error.Message}", Ok: false);
         }
         return new InoToolResult($"Pointing at {target}.");
@@ -33,6 +36,7 @@ public sealed class InoFocusNeuron : DigitalBrain.Neurons.Neuron, IInoFocus
         try { await Focus.Remove(IInoFocus.EntryName); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            OsConsoleLog.For<InoFocusNeuron>().LogSwallowed(error, "clearing Ino focus");
             return new InoToolResult($"Could not clear the focus: {error.Message}", Ok: false);
         }
         return new InoToolResult("Cleared the focus.");

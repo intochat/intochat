@@ -37,11 +37,13 @@ class UiVoiceInput extends StatefulWidget {
 
 class _UiVoiceInputState extends State<UiVoiceInput>
     with WidgetsBindingObserver {
-  final _recorder = AudioRecorder();
+  AudioRecorder? _recorder;
   bool _recording = false, _busy = false;
   String? _path;
   Timer? _timer;
   int _seconds = 0, _generation = 0;
+
+  AudioRecorder _ensureRecorder() => _recorder ??= AudioRecorder();
 
   @override
   void initState() {
@@ -69,7 +71,7 @@ class _UiVoiceInputState extends State<UiVoiceInput>
     _path = null;
     Object? failure;
     try {
-      await _recorder.cancel();
+      await _recorder?.cancel();
       await widget.onCancel?.call();
     } catch (error) {
       failure = error;
@@ -105,9 +107,10 @@ class _UiVoiceInputState extends State<UiVoiceInput>
     final onAudio = widget.onAudio;
     setState(() => _busy = true);
     try {
+      final recorder = _ensureRecorder();
       if (_recording) {
         _timer?.cancel();
-        final path = await _recorder.stop();
+        final path = await recorder.stop();
         if (mounted) setState(() => _recording = false);
         if (path == null) {
           throw StateError('The recording did not produce audio.');
@@ -142,10 +145,10 @@ class _UiVoiceInputState extends State<UiVoiceInput>
           if (_path == path) _path = null;
         }
       } else {
-        if (!await _recorder.hasPermission()) {
+        if (!await recorder.hasPermission()) {
           throw StateError('Microphone permission was denied.');
         }
-        if (!await _recorder.isEncoderSupported(AudioEncoder.wav)) {
+        if (!await recorder.isEncoderSupported(AudioEncoder.wav)) {
           throw StateError('WAV recording is unavailable on this device.');
         }
         final directory = kIsWeb ? '' : (await getTemporaryDirectory()).path;
@@ -156,7 +159,7 @@ class _UiVoiceInputState extends State<UiVoiceInput>
           directory,
           'workspace_voice_${DateTime.now().microsecondsSinceEpoch}.wav',
         );
-        await _recorder.start(
+        await recorder.start(
           const RecordConfig(
             encoder: AudioEncoder.wav,
             sampleRate: 16000,
@@ -165,7 +168,7 @@ class _UiVoiceInputState extends State<UiVoiceInput>
           path: _path!,
         );
         if (!mounted || generation != _generation) {
-          await _recorder.cancel();
+          await recorder.cancel();
           return;
         }
         setState(() {
@@ -198,11 +201,19 @@ class _UiVoiceInputState extends State<UiVoiceInput>
     _generation++;
     _timer?.cancel();
     final path = _path;
-    unawaited(
-      _recorder.dispose().whenComplete(() async {
-        if (path != null) await voice_file.deleteVoiceFile(path);
-      }),
-    );
+    final recorder = _recorder;
+    _recorder = null;
+    if (recorder != null || path != null) {
+      unawaited(() async {
+        try {
+          await recorder?.dispose();
+        } catch (_) {
+          // Ignore platform disposal failures during teardown.
+        } finally {
+          if (path != null) await voice_file.deleteVoiceFile(path);
+        }
+      }());
+    }
     super.dispose();
   }
 

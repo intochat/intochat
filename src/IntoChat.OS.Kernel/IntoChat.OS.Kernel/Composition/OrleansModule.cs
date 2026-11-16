@@ -4,10 +4,12 @@ using DigitalBrain.Modules.Configuration;
 using IntoChat.OS.Connections.Platform.Integrations;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
+using IntoChat.OS.Kernel.Composition.Kernel;
+using IntoChat.OS.Modules.Microsoft.Orleans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Modules.Microsoft.Orleans;
+namespace IntoChat.OS.Kernel.Composition;
 
 [Module(OrleansIntegrationNames.Id)]
 public sealed class OrleansModule : Module, ITopologyModule
@@ -33,11 +35,11 @@ public sealed class OrleansModule : Module, ITopologyModule
     };
 
     // The wiring lives in the kernel composition (06-02).
-    public IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> TopologyProfiles => IntoChat.OS.Kernel.Composition.OrleansHostWiring.TopologyProfiles;
+    public IReadOnlyList<DigitalBrain.Runtime.Orleans.ITopologyProfile> TopologyProfiles => OrleansHostWiring.TopologyProfiles;
 
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-        IntoChat.OS.Kernel.Composition.OrleansHostWiring.ConfigureServices(services);
+        OrleansHostWiring.ConfigureServices(services);
     }
 }

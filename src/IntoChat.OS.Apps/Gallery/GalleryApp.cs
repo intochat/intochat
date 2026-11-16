@@ -12,13 +12,13 @@ Showcases all 7 canonical UI Kit component families across interactive tabs, an 
 */
 using System.Globalization;
 using DigitalBrain;
-using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.UI;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Gallery;
 
@@ -48,20 +48,22 @@ public sealed record BankAccount(bool IsOpen = false, string Holder = "", decima
     [Invariant]
     public Rule OpenAccountHasHolder => Decision.Require(
         "holder_present_when_open",
-        !IsOpen || !string.IsNullOrWhiteSpace(Holder),
+        this,
+        static a => !a.IsOpen || !string.IsNullOrWhiteSpace(a.Holder),
         "An open bank account must have a holder.");
 
-    public Rule MustNotBeOpen => Decision.Rule("account_open", IsOpen, "Account is already open.");
-    public Rule MustBeOpen => Decision.Rule("not_open", !IsOpen, "Open the account first.");
-    public Rule PositiveAmount(decimal amount) => Decision.Rule("positive_amount", amount <= 0m, "Amount must be positive.");
+    public Rule MustNotBeOpen => Decision.Rule("account_open", this, static a => a.IsOpen, "Account is already open.");
+    public Rule MustBeOpen => Decision.Rule("not_open", this, static a => !a.IsOpen, "Open the account first.");
+    public Rule PositiveAmount(decimal amount) => Decision.Rule("positive_amount", amount, static a => a <= 0m, "Amount must be positive.");
 
     public Rule SufficientFunds(decimal amount) => Decision.Rule(
         "sufficient_funds",
-        !IsOpen || Balance < amount,
-        string.Create(CultureInfo.InvariantCulture, $"Insufficient funds: balance ${Balance:0}, requested ${amount:0}."));
+        (Account: this, Amount: amount),
+        static x => !x.Account.IsOpen || x.Account.Balance < x.Amount,
+        static x => string.Create(CultureInfo.InvariantCulture, $"Insufficient funds: balance ${x.Account.Balance:0}, requested ${x.Amount:0}."));
 
     public Decision<BankAccount> Open([Sample("alice")] string holder) =>
-        Decision.Check("open", MustNotBeOpen, Decision.Rule("holder_required", string.IsNullOrWhiteSpace(holder), "Account holder name is required."))
+        Decision.Check("open", MustNotBeOpen, Decision.Rule("holder_required", holder, static h => string.IsNullOrWhiteSpace(h), "Account holder name is required."))
         ?? Decision.Accept(new BankAccount(true, holder.Trim(), 0m));
 
     public Decision<BankAccount> Deposit([Sample(50)] decimal amount) =>
@@ -370,6 +372,18 @@ public sealed record GalleryAppState(
 [Screen("app.gallery", Title = "UI Gallery", Icon = Icons.Sparkles)]
 public sealed class GalleryApp : AggregateScreen<GalleryAppState>
 {
+    private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<GalleryApp>();
+
+    private readonly ILogger _logger;
+
+    public GalleryApp() : this(null) { }
+
+    [ActivatorUtilitiesConstructor]
+    public GalleryApp(ILogger<GalleryApp>? logger = null)
+    {
+        _logger = (ILogger?)logger ?? ConsoleLogger;
+    }
+
     public const string AppName = "gallery";
 
     public static AppBundle Bundle { get; } = new(
@@ -599,12 +613,14 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     protected override Node Render(GalleryAppState state)
         => GalleryRendering.RenderRoot(state, LastRejection);
 
+    private ILogger Log => _logger;
+
     private T? TryGetOptional<T>(string key) where T : class
     {
         try { return Get<T>(key); }
         catch (Exception ex)
         {
-            NullLogger.Instance.LogSwallowed(ex, $"{typeof(T).Name} is optional when GalleryApp runs in tests.");
+            Log.LogDebug(ex, "{Service} is optional when GalleryApp runs in tests.", typeof(T).Name);
             return null;
         }
     }

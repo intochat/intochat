@@ -1,56 +1,20 @@
 using System.Diagnostics;
-using DigitalBrain.UI;
+using System.Net.Http;
+using System.Text.Json;
 using IntoChat.OS.Framework.Execution;
-using IntoChat.OS.Sandbox;
-using IntoChat.Sdk;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
+using IntoChat.OS.Kernel.Sandbox;
+using IntoChat.OS.Modules.Apps;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Tests.Unit.Sandbox;
 
 public sealed class ConfinedProcessAndUnitHostFacts
 {
-    private const string SampleUnitSource = """
-        using System.Threading;
-        using DigitalBrain.UI;
-        using IntoChat.Sdk;
-
-        namespace SampleUnitHostTest;
-
-        public sealed class CounterState
-        {
-            public int Value { get; set; }
-        }
-
-        public sealed class CounterSettings
-        {
-            public string Label { get; set; } = "Count";
-        }
-
-        [App("unit-counter", Title = "Unit Counter", Summary = "Out-of-process UnitHost test app")]
-        public sealed class UnitCounterApp : BrainApp<CounterState, CounterSettings>
-        {
-            [OnCommand("add", Description = "Adds delta")]
-            public int Add(int delta = 1)
-            {
-                State.Value += delta;
-                return State.Value;
-            }
-
-            [OnCommand("spin-forever", Description = "Infinite CPU loop for watchdog test")]
-            public int SpinForever()
-            {
-                while (true)
-                {
-                    Thread.SpinWait(10_000);
-                }
-            }
-
-            public override View Render()
-                => new("Counter", new Text($"{Settings.Label}: {State.Value}"));
-        }
-        """;
-
     [Fact]
     public void PosixBuildersEnforceCleanEnvironmentGitReadOnlyGuardAndNetworkConfinement()
     {
@@ -86,10 +50,7 @@ public sealed class ConfinedProcessAndUnitHostFacts
     [Fact]
     public async Task ConfinedProcessRunnerStripsHostSecretsAndExecutesCleanlyWithZeroWindows()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        if (!OperatingSystem.IsWindows()) { Assert.Skip("AppContainer isolation requires Windows."); return; }
 
         var ct = TestContext.Current.CancellationToken;
         var tempDir = Directory.CreateTempSubdirectory("intochat-confined-env-");
@@ -132,10 +93,7 @@ public sealed class ConfinedProcessAndUnitHostFacts
     [Fact]
     public async Task ConfinedProcessRunnerJobObjectKillsInfiniteLoopChildAtTimeoutWithZeroLingeringProcesses()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        if (!OperatingSystem.IsWindows()) { Assert.Skip("Job object timeout enforcement requires Windows."); return; }
 
         var ct = TestContext.Current.CancellationToken;
         var tempDir = Directory.CreateTempSubdirectory("intochat-confined-timeout-");
@@ -177,81 +135,6 @@ public sealed class ConfinedProcessAndUnitHostFacts
         }
     }
 
-    [Fact]
-    public async Task UnitHostRunnerExecutesTurnsWithoutHostSecretsAndKillsInfiniteLoopTurnAtWatchdogTimeout()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var tempDir = Directory.CreateTempSubdirectory("intochat-unithost-test-");
-        var secretEnvName = "FAKE_HOST_MASTER_KEY";
-        Environment.SetEnvironmentVariable(secretEnvName, "top-secret-master-key-value");
-
-        try
-        {
-            var assemblyBase64 = CompileUnitAssemblyBase64();
-            await using var runner = new UnitHostRunner(
-                workingDirectory: tempDir.FullName,
-                turnTimeout: TimeSpan.FromSeconds(5));
-
-            var workerPid = await runner.PingAsync(ct);
-            Assert.True(workerPid > 0);
-
-            var workerEnv = await runner.GetWorkerEnvironmentAsync(ct);
-            Assert.False(workerEnv.ContainsKey(secretEnvName));
-            Assert.DoesNotContain(workerEnv.Values, v => v.Contains("top-secret-master-key-value", StringComparison.Ordinal));
-            Assert.All(workerEnv.Keys, key => Assert.False(UnitHostRunner.IsSecretVariableName(key), $"Unexpected secret variable '{key}' in worker environment."));
-
-            var deployed = await runner.DeployAsync(
-                new DeployAppRequest(
-                    BrainId: "local",
-                    AppKey: "unit-counter",
-                    Version: "1.0.0",
-                    Digest: "sha256:test",
-                    AssemblyBase64: assemblyBase64,
-                    StateJson: "{\"value\":10}"),
-                cancellationToken: ct);
-
-            Assert.Equal("Unit Counter", deployed.Title);
-            Assert.Contains(deployed.Commands, c => c.Name == "add");
-
-            var dispatched = await runner.DispatchAsync(
-                new DispatchAppRequest(
-                    BrainId: "local",
-                    AppKey: "unit-counter",
-                    Kind: "command",
-                    Name: "add",
-                    PayloadJson: "{\"delta\":5}"),
-                cancellationToken: ct);
-
-            Assert.True(dispatched.Handled);
-            Assert.Equal("15", dispatched.ResultJson);
-            Assert.Contains("Count: 15", dispatched.UpdatedViewJson, StringComparison.Ordinal);
-
-            // Now trigger an infinite `while (true)` turn with a 400ms watchdog override and verify clean kill!
-            var spinningPid = runner.ActiveWorkerProcessId ?? workerPid;
-            await Assert.ThrowsAsync<TimeoutException>(() => runner.DispatchAsync(
-                new DispatchAppRequest(
-                    BrainId: "local",
-                    AppKey: "unit-counter",
-                    Kind: "command",
-                    Name: "spin-forever"),
-                timeoutOverride: TimeSpan.FromMilliseconds(400),
-                cancellationToken: ct));
-
-            Assert.Null(runner.ActiveWorkerProcessId);
-            AssertProcessExited(spinningPid);
-
-            // Verify runner transparently recovers by spawning a fresh clean worker on the next turn.
-            var recoveredPid = await runner.PingAsync(ct);
-            Assert.True(recoveredPid > 0);
-            Assert.NotEqual(spinningPid, recoveredPid);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(secretEnvName, null);
-            tempDir.Delete(recursive: true);
-        }
-    }
-
     private static void AssertProcessExited(int pid)
     {
         try
@@ -265,54 +148,176 @@ public sealed class ConfinedProcessAndUnitHostFacts
         }
     }
 
-    private static string CompileUnitAssemblyBase64()
+    [Fact]
+    public async Task HttpSandboxRuntimeBridgeWithoutUrlExecutesOutOfProcessInUnitHost()
     {
-        var syntaxTree = CSharpSyntaxTree.ParseText(SampleUnitSource);
-        var trustedAssemblies = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+        var ct = TestContext.Current.CancellationToken;
+        const string sourceCode = """
+            using System;
+            using DigitalBrain.UI;
+            using IntoChat.Sdk;
 
-        string[] neededSimpleNames =
-        [
-            "System.Private.CoreLib",
-            "System.Runtime",
-            "netstandard",
-            "IntoChat.OS",
-            "DigitalBrain",
-            "DigitalBrain.UI",
-        ];
+            namespace ProbeAppNs;
 
-        var references = new List<MetadataReference>();
-        foreach (var path in trustedAssemblies)
-        {
-            var name = Path.GetFileNameWithoutExtension(path);
-            if (neededSimpleNames.Contains(name, StringComparer.OrdinalIgnoreCase))
+            public sealed class ProbeState
             {
-                references.Add(MetadataReference.CreateFromFile(path));
+                public int LastPid { get; set; }
+                public int Invocations { get; set; }
             }
+
+            public sealed class ProbeSettings
+            {
+                public string Tag { get; set; } = "unit-host";
+            }
+
+            [App("probe-outofproc", Title = "Probe Out Of Proc", Summary = "Proves unit-host execution")]
+            public sealed class ProbeApp : BrainApp<ProbeState, ProbeSettings>
+            {
+                [OnCommand("probe", Description = "Returns child PID")]
+                public int Probe(int delta = 1)
+                {
+                    State.LastPid = Environment.ProcessId;
+                    State.Invocations += delta;
+                    return State.LastPid;
+                }
+
+                public override View Render()
+                    => new("Probe", new Text($"pid={State.LastPid};calls={State.Invocations};tag={Settings.Tag}"));
+            }
+            """;
+
+        var compiler = new AppPackageCompiler();
+        var package = new AppPackage(
+            Key: "probe-outofproc",
+            Version: "1.0.0",
+            Title: "Probe Out Of Proc",
+            Summary: "Proves unit-host execution",
+            Icon: "apps",
+            Category: "Test",
+            Author: "test",
+            SourceFiles: [new AppSourceFile("ProbeApp.cs", sourceCode)],
+            Needs: new AppPackageNeeds([], [], [], []),
+            DefaultSettingsJson: "{}",
+            Digest: string.Empty);
+
+        var compiled = compiler.Compile(package);
+        Assert.True(compiled.Succeeded, string.Join("\n", compiled.Errors));
+
+        var services = new ServiceCollection()
+            .AddHttpClient()
+            .AddLogging()
+            .AddSingleton<SdkAiAdapter>()
+            .AddSingleton<SdkTablesAdapter>()
+            .BuildServiceProvider();
+        var options = Options.Create(new SandboxOptions
+        {
+            Url = string.Empty,
+            TokenSigningMaterial = "unit-host-test-signing-material-0123456789abcdef",
+        });
+        var bridge = new HttpSandboxRuntimeBridge(
+            services.GetRequiredService<IHttpClientFactory>(),
+            options,
+            new AppTokenService(options),
+            services,
+            services.GetRequiredService<ILogger<HttpSandboxRuntimeBridge>>());
+
+        try
+        {
+            Assert.IsAssignableFrom<IAsyncDisposable>(bridge);
+            var deploy = await bridge.DeployPackageAsync(
+                "brain-probe",
+                compiled.EnrichedPackage!,
+                compiled.AssemblyBytes!,
+                stateJson: null,
+                settingsJson: null,
+                cancellationToken: ct);
+
+            Assert.True(deploy.Succeeded, deploy.Error);
+            var dispatch = await bridge.DispatchCommandAsync("brain-probe", "probe-outofproc", "probe", "{\"delta\":2}", ct);
+            Assert.True(dispatch.Handled, dispatch.Error);
+            Assert.NotNull(dispatch.ResultJson);
+
+            var childPid = JsonSerializer.Deserialize<int>(dispatch.ResultJson!, JsonSerializerOptions.Web);
+            Assert.True(childPid > 0);
+            Assert.NotEqual(Environment.ProcessId, childPid);
+
+            var rendered = await bridge.RenderAsync("brain-probe", "probe-outofproc", ct);
+            Assert.NotNull(rendered);
+            var viewJson = JsonSerializer.Serialize(rendered, JsonSerializerOptions.Web);
+            Assert.Contains($"pid={childPid};calls=2;tag=unit-host", viewJson, StringComparison.Ordinal);
+
+            await bridge.UnloadAsync("brain-probe", "probe-outofproc", ct);
+        }
+        finally
+        {
+            if ((object)bridge is IAsyncDisposable asyncDisposable)
+            {
+                await asyncDisposable.DisposeAsync();
+            }
+            else if ((object)bridge is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+
+            await services.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ResolveKernelCallbackUrlPreservesContainerUrlUnlessExplicitlyConfigured()
+    {
+        await using var services = new ServiceCollection()
+            .AddHttpClient()
+            .AddLogging()
+            .AddSingleton<IServer>(new StubServer("http://localhost:17990"))
+            .BuildServiceProvider();
+
+        HttpSandboxRuntimeBridge CreateBridge(string url, string? callbackUrl = null)
+        {
+            var options = Options.Create(new SandboxOptions
+            {
+                Url = url,
+                KernelCallbackUrl = callbackUrl,
+                TokenSigningMaterial = "unit-host-test-signing-material-0123456789abcdef",
+            });
+            return new HttpSandboxRuntimeBridge(
+                services.GetRequiredService<IHttpClientFactory>(),
+                options,
+                new AppTokenService(options),
+                services,
+                services.GetRequiredService<ILogger<HttpSandboxRuntimeBridge>>());
         }
 
-        // Ensure IntoChat.OS, DigitalBrain, and DigitalBrain.UI are present even if loaded outside TPA.
-        foreach (var type in (Type[])[typeof(IBrain), typeof(View), typeof(DigitalBrain.Signal)])
+        await using var remoteDefault = CreateBridge("http://localhost:18080");
+        await using var remoteOverride = CreateBridge("http://localhost:18080", "http://127.0.0.1:5080");
+        await using var localUnitHost = CreateBridge(string.Empty);
+
+        Assert.Null(remoteDefault.ResolveKernelCallbackUrl());
+        Assert.Equal("http://127.0.0.1:5080", remoteOverride.ResolveKernelCallbackUrl());
+        Assert.Equal("http://localhost:17990", localUnitHost.ResolveKernelCallbackUrl());
+    }
+
+    private sealed class StubServer : IServer
+    {
+        public StubServer(params string[] addresses)
         {
-            var location = type.Assembly.Location;
-            if (!string.IsNullOrEmpty(location) && references.All(r => !string.Equals(r.Display, location, StringComparison.OrdinalIgnoreCase)))
+            var feature = new ServerAddressesFeature();
+            foreach (var address in addresses)
             {
-                references.Add(MetadataReference.CreateFromFile(location));
+                feature.Addresses.Add(address);
             }
+            Features.Set<IServerAddressesFeature>(feature);
         }
 
-        var compilation = CSharpCompilation.Create(
-            "SampleUnitHostTest_" + Guid.NewGuid().ToString("N")[..8],
-            [syntaxTree],
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, optimizationLevel: OptimizationLevel.Release));
+        public IFeatureCollection Features { get; } = new FeatureCollection();
 
-        using var peStream = new MemoryStream();
-        var emitResult = compilation.Emit(peStream);
-        Assert.True(
-            emitResult.Success,
-            "Failed to compile test unit assembly: " + string.Join(Environment.NewLine, emitResult.Diagnostics));
+        public Task StartAsync<TContext>(IHttpApplication<TContext> application, CancellationToken cancellationToken) where TContext : notnull
+            => Task.CompletedTask;
 
-        return Convert.ToBase64String(peStream.ToArray());
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void Dispose()
+        {
+        }
     }
 }

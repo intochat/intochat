@@ -8,13 +8,13 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Units;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -27,12 +27,12 @@ internal static class AppsEndpoints
         MaxDepth = 128,
     };
 
-    public sealed record TextRequest(string? Text);
-    public sealed record SettingsRequest(Dictionary<string, string>? Settings, Dictionary<string, string>? Connections);
-    public sealed record RollbackRequest(string Version);
-    public sealed record RequestBody(string? Operation, string? Input);
-    public sealed record UpdateBody(string? Consent);
-    public sealed record SignalDispatchRequest(string Signal, string? PayloadJson);
+    internal sealed record TextRequest(string? Text);
+    internal sealed record SettingsRequest(Dictionary<string, string>? Settings, Dictionary<string, string>? Connections);
+    internal sealed record RollbackRequest(string Version);
+    internal sealed record RequestBody(string? Operation, string? Input);
+    internal sealed record UpdateBody(string? Consent);
+    internal sealed record SignalDispatchRequest(string Signal, string? PayloadJson);
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
@@ -263,6 +263,7 @@ internal static class AppsEndpoints
         {
             ArgumentNullException.ThrowIfNull(bundle);
             ArgumentException.ThrowIfNullOrWhiteSpace(bundle.Name);
+            if (bundle.Manifest is null) { throw new InvalidDataException("App manifest is required."); }
             return Results.Ok(View(await App(brain, bundle.Name).Import(bundle)));
         }));
 
@@ -307,7 +308,7 @@ internal static class AppsEndpoints
         ? Results.Json(new { status = "refused", error = outcome.Message }, statusCode: 403)
         : Results.Conflict(new { status = "refused", error = outcome.Message });
 
-    private static string AppKey(string name) => IApp.Key(BrainScope.CurrentId(), name);
+    private static string AppKey(string name) => IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(BrainScope.CurrentId()), name).Key;
 
     private static IApp App(INeuronProxies brain, string name) => brain.Get<IApp>(AppKey(name));
 
@@ -333,7 +334,7 @@ internal static class AppsEndpoints
         }
         catch (System.Text.Json.JsonException error)
         {
-            NullLogger.Instance.LogSwallowed(error, "Screen request input is not JSON; forwarding raw scalar.");
+            OsConsoleLog.For(typeof(AppsEndpoints)).LogSwallowed(error, "Screen request input is not JSON; forwarding raw scalar.");
         }
 
         var op = operation.Contains('.', StringComparison.Ordinal)
@@ -362,25 +363,29 @@ internal static class AppsEndpoints
         CancellationToken ct)
     {
         var brainId = new DigitalBrain.BrainId(scope);
-        try
+        if (IntoChat.OS.Primitives.UnitAlias.TryParse(name, out var unit))
         {
-            var unitStateId = new DigitalBrain.NeuronId(brainId, name, "default");
-            var unitView = await brain.Get<IViewReader>(unitStateId).Read(name).WaitAsync(ct).ConfigureAwait(false);
-            if (unitView is not null)
+            try
             {
-                return unitView;
+                var unitView = await brain.Get<IViewReader>(unit.StateNeuron(brainId)).Read(name).WaitAsync(ct).ConfigureAwait(false);
+                if (unitView is not null)
+                {
+                    return unitView;
+                }
             }
-        }
-        catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
-        {
-            NullLogger.Instance.LogSwallowed(error, "Unit view reader was not available for live view lookup.");
+            catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
+            {
+                OsConsoleLog.For(typeof(AppsEndpoints)).LogSwallowed(error, "Unit view reader was not available for live view lookup.");
+            }
         }
 
         foreach (var candidateType in new[] { "app." + name, name })
         {
             try
             {
-                var screenId = new DigitalBrain.NeuronId(brainId, candidateType, "default");
+                var screenId = candidateType.StartsWith("app.", StringComparison.Ordinal) && IntoChat.OS.Primitives.UnitAlias.TryParse(name, out var screenUnit)
+                    ? screenUnit.ScreenNeuron(brainId)
+                    : new DigitalBrain.NeuronId(brainId, candidateType, "default");
                 var screenView = await brain.Get<DigitalBrain.IScreen>(screenId).Read().WaitAsync(ct).ConfigureAwait(false);
                 if (screenView is not null)
                 {
@@ -389,13 +394,13 @@ internal static class AppsEndpoints
             }
             catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
             {
-                NullLogger.Instance.LogSwallowed(error, "Screen view reader was not available for live view lookup.");
+                OsConsoleLog.For(typeof(AppsEndpoints)).LogSwallowed(error, "Screen view reader was not available for live view lookup.");
             }
         }
 
         try
         {
-            var published = await brain.Get<IntoChat.OS.Modules.Flutter.Views.IView>($"{scope}/apps/{name}/view").Read().WaitAsync(ct).ConfigureAwait(false);
+            var published = await brain.Get<IntoChat.OS.Modules.Flutter.Views.IView>(IntoChat.OS.Primitives.AppRef.Of(brainId, name).ViewKey).Read().WaitAsync(ct).ConfigureAwait(false);
             if (published is not null)
             {
                 return published;
@@ -403,7 +408,7 @@ internal static class AppsEndpoints
         }
         catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
         {
-            NullLogger.Instance.LogSwallowed(error, "IView lookup was not available for live view lookup.");
+            OsConsoleLog.For(typeof(AppsEndpoints)).LogSwallowed(error, "IView lookup was not available for live view lookup.");
         }
 
         return null;
@@ -424,7 +429,7 @@ internal static class AppsEndpoints
         }
         catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException or System.Text.Json.JsonException)
         {
-            NullLogger.Instance.LogSwallowed(error, "Screen request forwarding failed.");
+            OsConsoleLog.For(typeof(AppsEndpoints)).LogSwallowed(error, "Screen request forwarding failed.");
             return false;
         }
     }

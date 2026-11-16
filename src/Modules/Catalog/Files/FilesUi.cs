@@ -1,8 +1,10 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using IntoChat.Files;
 using IntoChat.OS.Primitives;
 using IntoChat.OS.UI;
 using static IntoChat.OS.UI.Kit;
@@ -17,34 +19,30 @@ internal static class FilesPathRules
 {
     public const int MaxInlineTextBytes = 256 * 1024;
 
-    public static Rule ValidateSingleSegmentName(string? name)
-    {
-        var invalid = string.IsNullOrWhiteSpace(name)
-            || !SafeRelativePath.TryParse(name, out var safe)
-            || safe.Value.Contains('/', StringComparison.Ordinal);
-        return Decision.Rule(
-            "single_segment_name",
-            invalid,
-            "A valid single-segment file or folder name is required.");
-    }
+    public static Rule ValidateSingleSegmentName(string? name) => Decision.Require(
+        "single_segment_name",
+        name,
+        static candidate => !string.IsNullOrWhiteSpace(candidate)
+            && SafeRelativePath.TryParse(candidate, out var safe)
+            && !safe.Value.Contains('/', StringComparison.Ordinal),
+        "A valid single-segment file or folder name is required.");
 
-    public static Rule ValidateInlineTextSize(string? text)
-    {
-        var byteCount = string.IsNullOrEmpty(text) ? 0 : Encoding.UTF8.GetByteCount(text);
-        return Decision.Rule(
-            "inline_text_limit",
-            byteCount > MaxInlineTextBytes,
-            "Text files entered here are limited to 256 KiB.");
-    }
+    public static Rule ValidateInlineTextSize(string? text) => Decision.Rule(
+        "inline_text_limit",
+        text,
+        static content => !string.IsNullOrEmpty(content) && Encoding.UTF8.GetByteCount(content) > MaxInlineTextBytes,
+        "Text files entered here are limited to 256 KiB.");
 
-    public static Rule CanWriteFolder(bool writable) => Decision.Require(
+    public static Rule CanWriteFolder(ItemFlags folder) => Decision.Require(
         "folder_writable",
-        writable,
+        folder,
+        static flags => flags.HasFlag(ItemFlags.Write),
         "Current storage location is read-only.");
 
-    public static Rule CanCreateSubfolder(bool canCreate) => Decision.Require(
+    public static Rule CanCreateSubfolder(ItemFlags folder) => Decision.Require(
         "folder_create_allowed",
-        canCreate,
+        folder,
+        static flags => flags.HasFlag(ItemFlags.CreateFolder),
         "Open a writable folder before creating a subfolder.");
 }
 

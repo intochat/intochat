@@ -56,8 +56,11 @@ public static class ReplayScript
         ArgumentNullException.ThrowIfNull(steps);
         if (index < 0 || index >= steps.Count || steps[(int)index] is not { Alias: StateChangedAlias } step) { return null; }
         var after = Properties(step.Payload);
-        var before = steps.Take((int)index).Where(s => s.Alias == StateChangedAlias && s.Publisher == step.Publisher).Select(s => Properties(s.Payload)).LastOrDefault()
-            ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        var before = steps.Take((int)index).Where(s => s.Alias == StateChangedAlias && s.Publisher == step.Publisher).Select(s => Properties(s.Payload)).LastOrDefault();
+        if (before is null)
+        {
+            return [.. after.Keys.Order(StringComparer.Ordinal).Select(k => new[] { k, "", after[k] })];
+        }
         return [.. after.Keys.Concat(before.Keys).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
             .Where(k => before.GetValueOrDefault(k) != after.GetValueOrDefault(k))
             .Select(k => new[] { k, before.GetValueOrDefault(k, ""), after.GetValueOrDefault(k, "") })];

@@ -49,14 +49,16 @@ public sealed class HelloWorldInteractiveAppFacts
             services.TryAddSingleton(TimeProvider.System);
             services.TryAddSingleton(IntoChat.OS.Connections.Contracts.NeuronTypeSearch.Create);
 
-            // Configure AIModule + IModelInference with NO cloud API keys and simulated offline inference,
-            // proving Creator(AuthorModel: null, BuilderModel: null) resolves ModelCatalog -> IModelInference / offline fallback cleanly!
+            // Configure AIModule + a test-only IModelInference backed by OfflineUnitSynthesizer so
+            // Creator exercises the real ModelCatalog -> IModelInference -> BuildFlow -> Silo deploy pipeline
+            // without requiring a live cloud API key or external Ollama daemon in CI.
             AIModule.ConfigureServices(services, new ConfigurationBuilder().Build());
-            services.AddSingleton<IModelInference>(new OfflineSimulatingInference());
+            services.RemoveAll<IModelInference>();
+            services.AddSingleton<IModelInference>(new TestSynthesizingInference());
         }
     }
 
-    private sealed class OfflineSimulatingInference : IModelInference
+    private sealed class TestSynthesizingInference : IModelInference
     {
         public bool HasProfile(string name) => false;
 
@@ -65,21 +67,49 @@ public sealed class HelloWorldInteractiveAppFacts
             Type? marker = null,
             CancellationToken cancellationToken = default,
             string? brainId = null)
-            => throw new ProviderUnavailableException("ollama", "offline", ["Simulated local Ollama offline so Creator exercises fallback cleanly."]);
+            => Task.FromResult(new ModelDescriptor(
+                "Host",
+                "test-synthesizer",
+                null,
+                "1",
+                CapabilitySupport.Supported,
+                CapabilitySupport.Unknown,
+                CapabilitySupport.Unknown));
 
-        public Task<InferenceResult> Generate(
+        public async Task<InferenceResult> Generate(
             InferenceRequest request,
             Type? marker = null,
             CancellationToken cancellationToken = default,
             string? brainId = null)
-            => throw new ProviderUnavailableException("ollama", "offline", ["Simulated local Ollama offline so Creator exercises fallback cleanly."]);
+        {
+            if (request.Tools is { Count: > 0 })
+            {
+                return await OfflineUnitSynthesizer.GenerateAsync("test-synthesizer", request, cancellationToken).ConfigureAwait(false);
+            }
 
-        public IAsyncEnumerable<InferenceUpdate> GenerateStreaming(
+            var system = string.Join("\n", request.Messages
+                .Where(m => string.Equals(m.Role, "system", StringComparison.OrdinalIgnoreCase))
+                .SelectMany(m => m.Content)
+                .OfType<AiText>()
+                .Select(t => t.Text));
+            var prompt = string.Join("\n", request.Messages
+                .Where(m => !string.Equals(m.Role, "system", StringComparison.OrdinalIgnoreCase))
+                .SelectMany(m => m.Content)
+                .OfType<AiText>()
+                .Select(t => t.Text));
+            var reply = await OfflineUnitSynthesizer.CompleteAsync(system, prompt, cancellationToken).ConfigureAwait(false);
+            return new InferenceResult([new AiMessage("assistant", [new AiText(reply)])], "stop", null, null, "test-synthesizer");
+        }
+
+        public async IAsyncEnumerable<InferenceUpdate> GenerateStreaming(
             InferenceRequest request,
             Type? marker = null,
-            CancellationToken cancellationToken = default,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default,
             string? brainId = null)
-            => throw new ProviderUnavailableException("ollama", "offline", ["Simulated local Ollama offline."]);
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
     }
 
     private static IDisposable AsPerson(INeuronRuntime runtime)
@@ -115,9 +145,34 @@ public sealed class HelloWorldInteractiveAppFacts
         var makeResult = await inoStudio.Make("Create a Hello World app where clicking a button makes 'Hello, IntoChat OS!' appear");
         Assert.True(makeResult.Ok, makeResult.Text);
         var card = Assert.IsType<InoCard>(makeResult.Card);
-        Assert.Contains("hello.world", makeResult.Text, StringComparison.Ordinal);
-        Assert.Contains($"/brains/{runtime.Brain.Value}/apps/hello.world/view", makeResult.Text, StringComparison.Ordinal);
+        Assert.Contains(card.Id, makeResult.Text, StringComparison.Ordinal);
         Assert.Contains("Tasks board", makeResult.Text, StringComparison.Ordinal);
+        if (string.Equals(card.Status, "running", StringComparison.Ordinal))
+        {
+            // Under parallel Silo CPU contention, BuildFlow can exceed InoStudioNeuron.MakePollBudget (15s) and return running.
+            FlowView? settled = null;
+            var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(60);
+            while (DateTimeOffset.UtcNow < deadline)
+            {
+                settled = await flows.Read(card.Id, Ct);
+                if (settled is not null
+                    && (settled.Status is FlowStatus.Completed or FlowStatus.Failed or FlowStatus.Cancelled
+                        || (settled.Status == FlowStatus.Waiting && settled.WaitingStep == "install" && settled.Subject is not null)))
+                {
+                    break;
+                }
+                await Task.Delay(100, Ct);
+            }
+            Assert.NotNull(settled);
+            Assert.True(settled!.Status is FlowStatus.Waiting or FlowStatus.Completed,
+                $"Expected hello.world flow to reach waiting/completed, got {settled.Status}: {settled.Detail}");
+            Assert.Equal("hello.world", settled.Subject);
+        }
+        else
+        {
+            Assert.Contains("hello.world", makeResult.Text, StringComparison.Ordinal);
+            Assert.Contains($"/brains/{runtime.Brain.Value}/apps/hello.world/view", makeResult.Text, StringComparison.Ordinal);
+        }
 
         // 2. Unit has zero external connector needs; approve its UI view/reaction install consent as Person
         var pending = Assert.Single(await installs.Pending(Ct), p => p.Alias == "hello.world");

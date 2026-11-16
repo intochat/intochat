@@ -2,10 +2,10 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Flows;
 using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Primitives;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
@@ -65,7 +65,7 @@ public abstract class AgentFlow<T>(AgentStepOptions? options = null) : Flow<T> w
             try { await agent.Configure(FlowAgent, 0); }
             catch (InvalidOperationException error) when (error.Message.Contains("revision conflict", StringComparison.OrdinalIgnoreCase))
             {
-                NullLogger.Instance.LogSwallowed(error, "Flow agent already configured by a concurrent turn.");
+                OsConsoleLog.For(GetType()).LogSwallowed(error, "Flow agent already configured by a concurrent turn.");
             }
         }
         inner.AgentStep = step;

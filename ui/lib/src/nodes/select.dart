@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'node_context.dart';
@@ -84,11 +84,7 @@ class _SegmentedSelectBar extends StatelessWidget {
       children: [
         Text(
           caption,
-          style: UiType.textStyle(
-            12,
-            weight: FontWeight.w600,
-            color: c.muted,
-          ),
+          style: UiType.textStyle(12, weight: FontWeight.w600, color: c.muted),
         ),
         const SizedBox(width: 8),
         Flexible(child: track),
@@ -125,7 +121,9 @@ class _SegmentItemState extends State<_SegmentItem> {
     final selected = widget.selected;
 
     return MouseRegion(
-      cursor: widget.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      cursor: widget.enabled
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
@@ -140,7 +138,9 @@ class _SegmentItemState extends State<_SegmentItem> {
                 : (_hover && widget.enabled
                       ? c.surfaceCard.withValues(alpha: 0.45)
                       : Colors.transparent),
-            borderRadius: BorderRadius.circular((tokens.button - 2).clamp(4, 16)),
+            borderRadius: BorderRadius.circular(
+              (tokens.button - 2).clamp(4, 16),
+            ),
             border: selected ? Border.all(color: c.borderInput) : null,
           ),
           child: Text(

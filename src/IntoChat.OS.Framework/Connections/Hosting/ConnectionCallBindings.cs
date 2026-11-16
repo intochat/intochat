@@ -19,18 +19,33 @@ internal sealed class ConnectionCallBindings(IConnectionBindings bindings, Autho
         string brain;
         try { brain = ConnectionKeys.Parse(key).BrainId; }
         catch (ArgumentException) { return false; }
-        var capCaller = request.Caller.ToCapabilityCaller();
-        if (capCaller is null) { return false; }
-        if (await _edgeCache.IsConnectionBoundAsync(brain, capCaller, key, cancellationToken).ConfigureAwait(false))
+        if (request.Caller is null) { return false; }
+        var caller = CallerIdentity.From(request.Caller);
+        if (_edgeCache is Authority.Identity.Grants.EdgeGrantsCache concrete
+            && await concrete.IsConnectionBoundAsync(brain, caller, key, cancellationToken).ConfigureAwait(false))
+        {
+            return true;
+        }
+        var capCaller = caller.ToCapabilityCaller();
+        if (_edgeCache is not Authority.Identity.Grants.EdgeGrantsCache
+            && await _edgeCache.IsConnectionBoundAsync(brain, capCaller, key, cancellationToken).ConfigureAwait(false))
         {
             return true;
         }
         var callerBrain = request.Caller.Brain.Value;
         if (!string.IsNullOrWhiteSpace(callerBrain)
-            && !string.Equals(callerBrain, brain, StringComparison.OrdinalIgnoreCase)
-            && await _edgeCache.IsConnectionBoundAsync(callerBrain, capCaller, key, cancellationToken).ConfigureAwait(false))
+            && !string.Equals(callerBrain, brain, StringComparison.OrdinalIgnoreCase))
         {
-            return true;
+            if (_edgeCache is Authority.Identity.Grants.EdgeGrantsCache concrete2
+                && await concrete2.IsConnectionBoundAsync(callerBrain, caller, key, cancellationToken).ConfigureAwait(false))
+            {
+                return true;
+            }
+            if (_edgeCache is not Authority.Identity.Grants.EdgeGrantsCache
+                && await _edgeCache.IsConnectionBoundAsync(callerBrain, capCaller, key, cancellationToken).ConfigureAwait(false))
+            {
+                return true;
+            }
         }
         return brain != callerScope && await bindings.IsBound(capCaller, key, cancellationToken).ConfigureAwait(false);
     }

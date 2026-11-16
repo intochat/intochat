@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -103,18 +105,36 @@ internal sealed partial class AppNeuron(
     internal const int MaxFocus = 16;
     internal const int MaxFocusKeyLength = 512;
 
+    private EdgeAuthority? Edge => services?.GetService<EdgeAuthority>();
+
+    private CapabilityCaller CapturePrincipal()
+    {
+        var caller = Context.Caller;
+        var brain = BrainId();
+        if (caller is null) { return CapabilityCallers.Of(brain, brain, brain); }
+        return caller.Actor switch
+        {
+            Actor.Person person => CapabilityCallers.Of(person.Principal, person.Account, brain, CallerKind.User, conversationId: caller.Conversation),
+            Actor.Agent agent => CapabilityCallers.Of(agent.For.Principal, agent.For.Account, brain, CallerKind.Agent, conversationId: caller.Conversation),
+            Actor.App app => CapabilityCallers.Of(app.For.Principal, app.For.Account, brain, CallerKind.App, app.Key, caller.Conversation),
+            Actor.Scheduler => CapabilityCallers.Of(brain, brain, brain, CallerKind.Scheduler, conversationId: caller.Conversation),
+            _ => CapabilityCallers.Of(brain, brain, brain, conversationId: caller.Conversation),
+        };
+    }
+
     public Task<AppSnapshot> Read() => Task.FromResult(Describe(State));
 
     public async Task<AppSnapshot> Create(AppManifest manifest, string spec)
     {
         ArgumentNullException.ThrowIfNull(manifest);
-        await Check("Create", new AppNameIsFree(Name(), State.Manifest is not null));
+        await Check("Create", new AppNameIsFree(Name(), State.Manifest));
+        var validated = manifest.Validated();
         var next = State.Clone();
-        next.Manifest = manifest.Validated();
+        next.Manifest = validated;
         next.BrainScopeId = BrainId();
-        next.Principal = Context.Caller.ToCapabilityCaller() ?? CapabilityCallers.Of(BrainId(), BrainId(), BrainId());
+        next.Principal = CapturePrincipal();
         next.Spec = spec ?? "";
-        next.Settings = manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
+        next.Settings = validated.Settings.ToDictionary(setting => setting.Name, setting => setting.Default ?? string.Empty, StringComparer.Ordinal);
         next.Version = "0.1.0";
         next.Status = AppStatus.Drafted;
         await Reopen();
@@ -144,12 +164,13 @@ internal sealed partial class AppNeuron(
         await RequireCreated("SaveManifest");
         ArgumentNullException.ThrowIfNull(manifest);
         if (Replayed(operationId)) { return Describe(State); }
+        var validated = manifest.Validated();
         var next = State.Clone();
         next.Edited = true;
-        next.Manifest = manifest.Validated();
+        next.Manifest = validated;
         // Newly declared settings get their defaults; chosen values survive.
-        foreach (var setting in manifest.Settings)
-        { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default); } }
+        foreach (var setting in validated.Settings)
+        { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default ?? string.Empty); } }
         next.Version = Bump(next.Version, minor: false);
         Record(next);
         Receipt(next, operationId);
@@ -160,7 +181,7 @@ internal sealed partial class AppNeuron(
     public async Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections)
     {
         await Check("Configure",
-            new AppExists(Name(), State.Manifest is not null),
+            new AppExists(Name(), State.Manifest),
             new AppRecordIsUsable(Name(), State.Refused),
             new SettingsAreNotReserved(settings?.Keys ?? (IReadOnlyCollection<string>)[]));
         // A storage hook vetoes a binding change its data depends on, before anything changes.
@@ -185,7 +206,7 @@ internal sealed partial class AppNeuron(
     {
         string[] known = [.. State.History.Select(item => item.Version)];
         await Check("Rollback",
-            new AppExists(Name(), State.Manifest is not null),
+            new AppExists(Name(), State.Manifest),
             new AppRecordIsUsable(Name(), State.Refused),
             new VersionExists(version, known));
         var record = State.History.First(item => item.Version == version);
@@ -205,11 +226,9 @@ internal sealed partial class AppNeuron(
 
     public async Task<AppSnapshot> BeginBuild(string? instruction)
     {
-        var building = State.Status == AppStatus.Building
-            && clock.GetUtcNow() - State.BuildStartedAt < TimeSpan.FromSeconds(options.Value.BuildFreshForSeconds);
         await Check("BeginBuild",
-            new AppExists(Name(), State.Manifest is not null),
-            new BuilderIsIdle(building));
+            new AppExists(Name(), State.Manifest),
+            new BuilderIsIdle(State.Status, State.BuildStartedAt, TimeSpan.FromSeconds(options.Value.BuildFreshForSeconds), clock.GetUtcNow()));
         var next = State.Clone();
         next.Status = AppStatus.Building;
         next.BuildAttempt = Guid.NewGuid();
@@ -256,14 +275,15 @@ internal sealed partial class AppNeuron(
         if (State.Manifest is null) { return; }
         await Check("Progress", new ActivityStateIsKnown(state ?? ""));
         detail = (detail ?? "").Trim();
-        // In-memory update without State.Clone() or Save() disk flushes
-        var building = State.Status == AppStatus.Building && detail.Length > 0
-            && State.Activity.LastOrDefault() != detail;
-        if (building) { State.Activity = [.. State.Activity.TakeLast(MaxActivity - 1), detail]; }
+        var next = State.Clone();
+        var building = next.Status == AppStatus.Building && detail.Length > 0
+            && next.Activity.LastOrDefault() != detail;
+        if (building) { next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), detail]; }
         var activity = new AppActivity(Name(), state!, detail);
-        State.ActivitySequence++;
-        State.LastActivity = activity;
-        var presentation = PresentationCollaborator.ApplyActivity(State, Key, state!);
+        next.ActivitySequence++;
+        next.LastActivity = activity;
+        var presentation = PresentationCollaborator.ApplyActivity(next, Key, state!);
+        await Store(next);
         await PublishEphemeral(activity);
         if (presentation is not null)
         { await PublishEphemeral(presentation); }
@@ -308,7 +328,7 @@ internal sealed partial class AppNeuron(
         // Only this app's own listing comes down with it.
         if (State.Publisher is { } publisher)
         {
-            using (InProcessCallerScope.EnterKernel("system"))
+            using (Edge?.Enter(Edge.Module("apps.catalog", new BrainId("system"))))
             {
                 if (await Marketplace.Read(publisher, Name()) is { } listed
                     && listed.Source.Scope() == BrainId())
@@ -320,7 +340,6 @@ internal sealed partial class AppNeuron(
         {
             await bridge.UnloadAsync(BrainId(), Name(), CancellationToken.None).ConfigureAwait(false);
         }
-        await Runtime.Retire(key, CancellationToken.None);
         if (ServiceProvider?.GetService<IKernel>() is { } kernel) { await kernel.UnloadFeature(BrainId(), Name()); }
         foreach (var hook in storageHooks) { await hook.OnRetired(State.BrainScopeId ?? "", key, CancellationToken.None); }
         await RemoveAppPrincipal();
@@ -372,22 +391,17 @@ internal sealed partial class AppNeuron(
     }
 
     private Task RequireCreated(string operation)
-        => Check(operation, new AppExists(Name(), State.Manifest is not null));
+        => Check(operation, new AppExists(Name(), State.Manifest));
 
     private string Name()
-    {
-        var key = Key;
-        var marker = key.LastIndexOf("/apps/", StringComparison.Ordinal);
-        return marker >= 0 ? key[(marker + "/apps/".Length)..] : key;
-    }
+        => IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, Key, out var app)
+            ? app.Name
+            : IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, Id.Key, out var alt)
+                ? alt.Name
+                : Id.Key;
 
     // The key is {brain}/apps/{name}; the brain scope is ambient in the address.
-    private string BrainId()
-    {
-        var key = Key;
-        var marker = key.LastIndexOf("/apps/", StringComparison.Ordinal);
-        return marker >= 0 ? key[..marker] : "";
-    }
+    private string BrainId() => Id.Brain.Value;
 
     private static string Bump(string version, bool minor)
     {

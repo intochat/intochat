@@ -25,10 +25,12 @@ internal sealed class GitHubInstallationTokens : IGitHubInstallationVerifier, ID
         ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 1);
         _registration = registration;
         _capacity = capacity;
-        _http = new HttpClient(handler ?? new HttpClientHandler { AllowAutoRedirect = false })
+        _http = new HttpClient(handler ?? CreateDefaultHandler())
         { Timeout = TimeSpan.FromSeconds(20), MaxResponseContentBufferSize = 65536 };
         _time = time ?? TimeProvider.System;
     }
+
+    internal static HttpMessageHandler CreateDefaultHandler() => new HttpClientHandler { AllowAutoRedirect = false };
 
     internal int CachedConnections => _slots.Count;
 
