@@ -1,4 +1,6 @@
+using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
+using IntoChat.OS.Framework.Logging;
 using DigitalBrain.State;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -26,6 +28,30 @@ internal sealed class SharedWithMeNeuron(IServiceProvider services) : Neuron<Sha
         var pointer = new SharedPointer(ownerBrain, owner, share.Id, share.Path, share.IsFolder, share.Role);
         await Store(new SharedWithMeRecord { Pointers = [.. Others(ownerBrain, shareId), pointer] });
         return pointer;
+    }
+
+    public async Task<SharedPointer[]> Refresh()
+    {
+        await Person();
+        var profile = await Get<IProfile>(new DigitalBrain.NeuronId(Id.Brain, "os.profile", "profile")).Read();
+        var pointers = new List<SharedPointer>();
+        foreach (var friend in (profile.Friends ?? []).Where(friend => friend.Confirmed))
+        {
+            // A friend whose door refuses shares nothing; one that cannot be reached keeps the pointers it had.
+            try
+            {
+                var shares = await Door(friend.BrainId).SharedWithCaller();
+                pointers.AddRange(shares.Select(share => new SharedPointer(friend.BrainId, friend.Account, share.Id, share.Path, share.IsFolder, share.Role)));
+            }
+            catch (UnauthorizedAccessException refused) { OsConsoleLog.For<SharedWithMeNeuron>().LogSwallowed(refused, "a friend's door shares nothing with this brain"); }
+            catch (Exception error) when (error is TimeoutException or IOException)
+            {
+                pointers.AddRange(State.Pointers.Where(pointer => pointer.OwnerBrain == friend.BrainId));
+            }
+        }
+
+        await Store(new SharedWithMeRecord { Pointers = [.. pointers] });
+        return State.Pointers;
     }
 
     public async Task Forget(string ownerBrain, string shareId)

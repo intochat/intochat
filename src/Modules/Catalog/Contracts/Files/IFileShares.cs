@@ -39,7 +39,11 @@ public interface IFileShares
     Task UnshareAccount(string account);
     [ReadOnlyCall] Task<FileShare[]> Shares();
 
+    // This brain's friend links, when a friend is removed: every share made for that account goes.
+    [Internal] Task DropAccount(string account);
+
     // The person a share names, acting as a person from the brain they own.
+    [Shared] Task<FileShare[]> SharedWithCaller();
     [Shared] Task<FileShare> Describe(string shareId);
     [Shared] Task<SharedEntry[]> List(string shareId, string? relativePath);
     [Shared] Task<byte[]?> Read(string shareId, string? relativePath);
@@ -53,6 +57,7 @@ public static class SharedWithMeDefaults
     public const string TypeName = "files.shared-with-me";
     public const string KeyPart = "files/shared-with-me";
     public static string Key(string brain) => $"{brain}/{KeyPart}";
+    public static DigitalBrain.NeuronId Id(string brain) => new(new DigitalBrain.BrainId(brain), TypeName, KeyPart);
 }
 
 // A person's side of the shares others made for them: the pointers, and the route their requests take to an owner's door.
@@ -60,6 +65,10 @@ public static class SharedWithMeDefaults
 [NeuronAlias(SharedWithMeDefaults.TypeName), DefaultNeuronType(SharedWithMeDefaults.TypeName)]
 public interface ISharedWithMe
 {
+    // Asks the door of every confirmed friend what it shares with this brain's owner, and replaces the pointers with the
+    // answers. The doors are never the ones to call: a door and this neuron calling each other could wait on each other.
+    Task<SharedPointer[]> Refresh();
+
     Task<SharedPointer> Add(string ownerBrain, string shareId);
     Task Forget(string ownerBrain, string shareId);
     [ReadOnlyCall] Task<SharedPointer[]> Pointers();

@@ -21,7 +21,6 @@ internal sealed record FileShareSave(string Path, string Account, DateTimeOffset
 internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileSharesRecord>, IFileShares
 {
     private const int KeptSaves = 500;
-    private const string FilesModule = "apps.files";
 
     private IBrainOwners Owners => services.GetRequiredService<IBrainOwners>();
     private TimeProvider Clock => Context.Time;
@@ -33,6 +32,7 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
         if (!Enum.IsDefined(role)) { throw new ArgumentException("The role is Viewer or Editor.", nameof(role)); }
         if (string.Equals(account, owner, StringComparison.Ordinal)) { throw new ArgumentException("A share names another person.", nameof(account)); }
 
+        _ = await Friend(account) ?? throw new UnauthorizedAccessException("Share only with a confirmed friend.");
         var canonical = SharePath.Normalize(path);
         var item = await Files(vfs => vfs.Stat(canonical))
             ?? throw new ArgumentException("There is no file or folder at that path.", nameof(path));
@@ -46,21 +46,44 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
     public async Task Unshare(string shareId)
     {
         await Owner();
-        var kept = State.Shares.Where(share => share.Id != shareId).ToArray();
-        if (kept.Length != State.Shares.Length) { await Commit(kept, State.Saves); }
+        if (State.Shares.All(share => share.Id != shareId)) { return; }
+        await Commit([.. State.Shares.Where(share => share.Id != shareId)], State.Saves);
     }
 
     public async Task UnshareAccount(string account)
     {
         await Owner();
-        var kept = State.Shares.Where(share => share.Account != account).ToArray();
-        if (kept.Length != State.Shares.Length) { await Commit(kept, State.Saves); }
+        await Remove(account);
+    }
+
+    public async Task DropAccount(string account)
+    {
+        if (Context.Caller?.Via is not { Type: FriendLinksDefaults.TypeName } via || via.Brain != Id.Brain) { throw PersonActs.Refused(); }
+        await Remove(account);
+    }
+
+    private async Task Remove(string account)
+    {
+        if (State.Shares.All(share => share.Account != account)) { return; }
+        await Commit([.. State.Shares.Where(share => share.Account != account)], State.Saves);
+    }
+
+    private async Task<ProfileFriend?> Friend(string account)
+    {
+        var profile = await Get<IProfile>(new DigitalBrain.NeuronId(Id.Brain, "os.profile", "profile")).Read();
+        return (profile.Friends ?? []).FirstOrDefault(friend => friend.Confirmed && friend.Account == account);
     }
 
     public async Task<FileShare[]> Shares()
     {
         await Owner();
         return State.Shares;
+    }
+
+    public async Task<FileShare[]> SharedWithCaller()
+    {
+        var (account, _) = await PersonActs.Require(Context.Caller, Owners);
+        return [.. State.Shares.Where(share => share.Account == account)];
     }
 
     public async Task<FileShare> Describe(string shareId) => (await Admit(shareId)).Share;
@@ -134,8 +157,7 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
     // Storage is reached as the files module of this brain, never as the person of another brain who asked.
     private async Task<T> Files<T>(Func<IStorageVfs, Task<T>> work)
     {
-        var edge = services.GetService<EdgeAuthority>();
-        using var module = edge?.Enter(edge.Module(FilesModule, Id.Brain));
+        using var module = PersonActs.AsFilesModule(services, Id.Brain);
         return await WorkspaceFilesService.ForBrain(services, Id.Brain.Value).WithVfs(work);
     }
 

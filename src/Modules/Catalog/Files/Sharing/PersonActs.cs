@@ -23,6 +23,16 @@ internal static class PersonActs
         return string.Equals(owner, person.Account, StringComparison.Ordinal) ? (person.Account, caller.Brain) : throw Refused();
     }
 
+    // The files module acting in its own brain: how a neuron reaches its brain's other neurons and storage while the
+    // call it is serving was made by a person of another brain.
+    public static IDisposable? AsFilesModule(IServiceProvider services, BrainId brain)
+    {
+        var edge = (EdgeAuthority?)services.GetService(typeof(EdgeAuthority));
+        return edge?.Enter(edge.Module(FilesModule, brain));
+    }
+
+    public const string FilesModule = "apps.files";
+
     // One message for every refusal: it tells a caller nothing about which shares exist.
     public static UnauthorizedAccessException Refused() => new("Sharing is refused for this caller.");
 }

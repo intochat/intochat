@@ -24,9 +24,9 @@ public sealed class FileSharesDoorFacts
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private const string Ada = "ada";
-    private const string Ben = "ben";
-    private const string Eve = "eve";
+    internal const string Ada = "ada";
+    internal const string Ben = "ben";
+    internal const string Eve = "eve";
 
     [Fact]
     public async Task A_viewer_reads_and_lists_through_the_relay()
@@ -175,9 +175,9 @@ public sealed class FileSharesDoorFacts
     {
         await using var world = await World.Start();
 
-        using (As(Ada, kind: CallerKind.App)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Share(Eve, "/work/trip", ShareRole.Viewer)); }
-        using (As(Ada, kind: CallerKind.Agent)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Share(Eve, "/work/trip", ShareRole.Viewer)); }
-        using (As(Ben, brain: Ada)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Share(Eve, "/work/trip", ShareRole.Viewer)); }
+        using (As(Ada, kind: CallerKind.App)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Share(Ben, "/work/trip", ShareRole.Viewer)); }
+        using (As(Ada, kind: CallerKind.Agent)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Share(Ben, "/work/trip", ShareRole.Viewer)); }
+        using (As(Ben, brain: Ada)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Share(Ben, "/work/trip", ShareRole.Viewer)); }
         using (As(Ben, brain: Ada)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Shares()); }
         using (As(Ada)) { Assert.Empty(await world.Door(Ada).Shares()); }
     }
@@ -206,7 +206,7 @@ public sealed class FileSharesDoorFacts
         Assert.Equal(new FileShareServed(id, Ben, "/work/trip/day1/a.txt", Write: false), served);
     }
 
-    private static IDisposable As(string account, string? brain = null, CallerKind kind = CallerKind.User)
+    internal static IDisposable As(string account, string? brain = null, CallerKind kind = CallerKind.User)
         => RuntimeCallerContext.Stamp(kind switch
         {
             CallerKind.App => CapabilityCallers.Of(account, account, brain ?? account, CallerKind.App, $"{brain ?? account}/apps/calculator"),
@@ -214,18 +214,30 @@ public sealed class FileSharesDoorFacts
             _ => CapabilityCallers.Of(account, account, brain ?? account),
         });
 
-    private sealed class World(DoorFixture fixture, INeuronRuntime runtime) : IAsyncDisposable
+    internal sealed class World(DoorFixture fixture, INeuronRuntime runtime) : IAsyncDisposable
     {
         public static async Task<World> Start()
         {
             var fixture = new DoorFixture();
             var world = new World(fixture, await fixture.Start(NeuronRuntimeKind.Silo, Ct));
             await world.Seed();
+            await world.Befriend(Ada, Ben);
             return world;
         }
 
         public IFileShares Door(string brain) => SiloNeurons.Get<IFileShares>(runtime.Services, FileSharesDefaults.Id(brain));
         public ISharedWithMe Mine(string brain) => SiloNeurons.Get<ISharedWithMe>(runtime.Services, SharedWithMeDefaults.Key(brain));
+        public IFriendLinks Links(string brain) => SiloNeurons.Get<IFriendLinks>(runtime.Services, FriendLinksDefaults.Id(brain));
+        public IProfile Profile(string brain) => SiloNeurons.Get<IProfile>(runtime.Services, new NeuronId(new BrainId(brain), "os.profile", "profile"));
+
+        // One makes a code, the other redeems it.
+        public async Task Befriend(string minter, string redeemer)
+        {
+            FriendCode code;
+            using (As(minter)) { code = await Links(minter).Mint(); }
+            using (As(redeemer)) { await Links(redeemer).Redeem(code.Code); }
+        }
+
         public IProber Prober(string brain) => SiloNeurons.Get<IProber>(runtime.Services, $"{brain}/outer");
 
         public async Task<string> ShareTrip(ShareRole role)
@@ -283,7 +295,7 @@ public sealed class FileSharesDoorFacts
             => Task.CompletedTask;
     }
 
-    private sealed class DoorFixture : BothRuntimesFixture
+    internal sealed class DoorFixture : BothRuntimesFixture
     {
         public override BrainId Brain { get; } = new(Ada);
 
