@@ -13,9 +13,11 @@ public static partial class DataAnalyticsEngine
         string queryOrPrompt,
         string database,
         string? fileDatasetText = null,
-        string? fileDatasetPath = null)
+        string? fileDatasetPath = null,
+        DigitalBrain.BrainId brain = default)
     {
         var chartKind = InferChartKind(queryOrPrompt);
+        var resolvedBrain = ResolveBrain(brain);
 
         if (!string.IsNullOrWhiteSpace(fileDatasetText))
         {
@@ -23,25 +25,27 @@ public static partial class DataAnalyticsEngine
             var parsedDataset = ParseFileDataset(vfsPath, fileDatasetText);
             if (parsedDataset.Rows.Count > 0)
             {
-                return RunRelationalPipeline(parsedDataset, queryOrPrompt, chartKind, vfsPath, $"neuron://local/files{vfsPath}#dataset");
+                return RunRelationalPipeline(parsedDataset, queryOrPrompt, chartKind, vfsPath, BuildDatasetUri(resolvedBrain, vfsPath));
             }
         }
 
         if (!queryOrPrompt.StartsWith("SELECT ", StringComparison.OrdinalIgnoreCase)
             && TryParseInlinePromptDataset(queryOrPrompt) is { } inlineDataset)
         {
-            return RunRelationalPipeline(inlineDataset, queryOrPrompt, chartKind, "inline prompt data", "neuron://local/apps/ino/chart#inline");
+            return RunRelationalPipeline(inlineDataset, queryOrPrompt, chartKind, "inline prompt data", BuildInlineChartUri(resolvedBrain));
         }
 
-        return CreateEmptyResult(database, chartKind);
+        return CreateEmptyResult(resolvedBrain, database, chartKind);
     }
 
     public static async Task<DataQueryResult> ExecuteAsync(
         string queryOrPrompt,
         string database,
-        IFilesVfsService? filesVfs = null)
+        IFilesVfsService? filesVfs = null,
+        DigitalBrain.BrainId brain = default)
     {
         var chartKind = InferChartKind(queryOrPrompt);
+        var resolvedBrain = ResolveBrain(brain);
 
         if (filesVfs is not null && TryExtractDatasetFileToken(queryOrPrompt) is { } fileToken)
         {
@@ -62,7 +66,7 @@ public static partial class DataAnalyticsEngine
                         queryOrPrompt,
                         chartKind,
                         vfsPath,
-                        resolved?.NeuronUri ?? $"neuron://local/files{vfsPath}#dataset");
+                        resolved?.NeuronUri ?? BuildDatasetUri(resolvedBrain, vfsPath));
                 }
             }
         }
@@ -70,24 +74,46 @@ public static partial class DataAnalyticsEngine
         if (!queryOrPrompt.StartsWith("SELECT ", StringComparison.OrdinalIgnoreCase)
             && TryParseInlinePromptDataset(queryOrPrompt) is { } inlineDataset)
         {
-            return RunRelationalPipeline(inlineDataset, queryOrPrompt, chartKind, "inline prompt data", "neuron://local/apps/ino/chart#inline");
+            return RunRelationalPipeline(inlineDataset, queryOrPrompt, chartKind, "inline prompt data", BuildInlineChartUri(resolvedBrain));
         }
 
-        return CreateEmptyResult(database, chartKind);
+        return CreateEmptyResult(resolvedBrain, database, chartKind);
     }
 
-    private static DataQueryResult CreateEmptyResult(string database, string chartKind) => new(
+    private static DataQueryResult CreateEmptyResult(DigitalBrain.BrainId? brain, string database, string chartKind) => new(
         ChartTitle: $"No Data ({database})",
         Columns: [],
         Rows: [],
         ChartKind: chartKind,
         ChartPoints: [],
         Summary: $"No dataset found matching query or file reference in database '{database}'.",
-        SourceUri: $"neuron://local/data/{database}/empty",
+        SourceUri: brain is { } scoped ? $"neuron://{scoped.Value}/data/{database}/empty" : $"neuron:///data/{database}/empty",
         TotalValue: 0.0,
         AverageValue: 0.0,
         MinValue: 0.0,
         MaxValue: 0.0);
+
+    private static DigitalBrain.BrainId? ResolveBrain(DigitalBrain.BrainId brain)
+    {
+        if (!string.IsNullOrEmpty(brain.Value))
+        {
+            return brain;
+        }
+
+        if (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.TryGet(out var caller)
+            && DigitalBrain.BrainId.IsValid(caller?.BrainId))
+        {
+            return new DigitalBrain.BrainId(caller.BrainId);
+        }
+
+        return null;
+    }
+
+    private static string BuildDatasetUri(DigitalBrain.BrainId? brain, string vfsPath)
+        => brain is { } scoped ? $"neuron://{scoped.Value}/files{vfsPath}#dataset" : $"neuron:///files{vfsPath}#dataset";
+
+    private static string BuildInlineChartUri(DigitalBrain.BrainId? brain)
+        => brain is { } scoped ? $"neuron://{IntoChat.OS.Primitives.AppRef.Of(scoped, "ino").Key}/chart#inline" : "neuron:///apps/ino/chart#inline";
 
     private static DatasetRecord? TryParseInlinePromptDataset(string prompt)
     {

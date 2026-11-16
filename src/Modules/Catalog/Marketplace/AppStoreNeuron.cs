@@ -88,7 +88,7 @@ internal sealed class AppStoreNeuron(
         var caller = Context.Caller;
         if (caller is null) { return false; }
         if (caller.Actor is Actor.Person) { return true; }
-        return caller.Actor is Actor.App app && app.Key == IApp.Key(Scope, "desktop")
+        return caller.Actor is Actor.App app && app.Key == IntoChat.OS.Primitives.AppRef.Of(Id.Brain, "desktop").Key
             && ShippedApps.Is(await proxies.Get<IApp>(app.Key).Read(), "desktop");
     }
 
@@ -137,7 +137,7 @@ internal sealed class AppStoreNeuron(
                 || caller.Kind != CallerKind.User || caller.StampedBy == TrustedEdge.AppProxy)
             { return InstallOutcome.Refused("Only you can remove apps."); }
             if (ShippedApps.Roots.Contains(name)) { return InstallOutcome.Refused($"{name} is part of IntoChat and stays installed."); }
-            var app = App(IApp.Key(Scope, name));
+            var app = App(IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).Key);
             if ((await app.Read()).Manifest.Title.Length == 0) { return InstallOutcome.Refused($"No app named {name} exists in this brain."); }
             await app.Delete();
             return InstallOutcome.Installed(name);
@@ -158,12 +158,12 @@ internal sealed class AppStoreNeuron(
         {
             if (exact && listing?.Source is AppSource.Brain published)
             {
-                var release = await App(IApp.Key(published.Scope()!, reference.App)).ExportRelease(reference.Version!, reference.Digest!);
+                var release = await App(IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(published.Scope()!), reference.App).Key).ExportRelease(reference.Version!, reference.Digest!);
                 return release.Version == reference.Version && AppPublicationDigest.Of(release) == reference.Digest ? release : null;
             }
             return !exact && listing is not null ? await installer.Bundle(listing.Source, listing.Publisher, reference.App, default) : null;
         });
-        var local = await App(IApp.Key(Scope, reference.App)).Read();
+        var local = await App(IntoChat.OS.Primitives.AppRef.Of(Id.Brain, reference.App).Key).Read();
         var installed = local.Manifest.Title.Length > 0 && local.Origin is { } origin
             && origin.Publisher == reference.Publisher && origin.Name == reference.App ? local : null;
         if (bundle is null && installed is null) { return null; }

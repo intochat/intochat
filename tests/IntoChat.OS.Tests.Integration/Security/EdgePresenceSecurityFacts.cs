@@ -22,7 +22,7 @@ using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
-using IntoChat.OS.Mcp;
+using IntoChat.OS.Kernel.Mcp;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;

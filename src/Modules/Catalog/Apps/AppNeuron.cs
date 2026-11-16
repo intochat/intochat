@@ -376,6 +376,7 @@ internal sealed partial class AppNeuron(
     private string Name()
     {
         var key = Key;
+        if (IntoChat.OS.Primitives.AppRef.TryParse(key, out var app)) { return app.Name; }
         var marker = key.LastIndexOf("/apps/", StringComparison.Ordinal);
         return marker >= 0 ? key[(marker + "/apps/".Length)..] : key;
     }
@@ -383,6 +384,7 @@ internal sealed partial class AppNeuron(
     // The key is {brain}/apps/{name}; the brain scope is ambient in the address.
     private string BrainId()
     {
+        if (IntoChat.OS.Primitives.AppRef.TryParse(Key, out var app)) { return app.Brain.Value; }
         var key = Key;
         var marker = key.LastIndexOf("/apps/", StringComparison.Ordinal);
         return marker >= 0 ? key[..marker] : "";

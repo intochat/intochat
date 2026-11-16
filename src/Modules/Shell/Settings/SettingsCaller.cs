@@ -21,7 +21,8 @@ internal static class SettingsCaller
     public static async Task<bool> IsShipped(INeuronProxies brain, string? scope, string app)
     {
         if (scope is null || !RuntimeCallerContext.TryGet(out var caller) || caller.Kind != CallerKind.App
-            || caller.StampedBy != TrustedEdge.AppProxy || caller.AppId != IApp.Key(scope, app)) { return false; }
+            || caller.StampedBy != TrustedEdge.AppProxy
+            || caller.AppId != IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(scope), app).Key) { return false; }
         // Only ShippedApps.Publisher ("os"), as WorkspaceNeuron and AppStoreNeuron check: OsAppsOptions.TrustedPublishers
         // lives in the Kernel, which this module cannot reference; a host-trusted extra publisher does not get this authority.
         return ShippedApps.Is(await brain.Get<IApp>(caller.AppId).Read(), app);

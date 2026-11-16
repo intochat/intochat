@@ -1,7 +1,7 @@
 using System.Text.Json;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Kernel.OsRegistry;
+using IntoChat.OS.Kernel.Composition.Registry;
 using Xunit;
 
 namespace IntoChat.OS.Kernel.Composition.Tests.Integration;

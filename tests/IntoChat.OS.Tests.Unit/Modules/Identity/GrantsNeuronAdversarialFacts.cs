@@ -225,7 +225,7 @@ public sealed class GrantsNeuronAdversarialFacts
         var id = new NeuronId(new BrainId(brain), IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey);
         var grantsNeuron = os.Get<IGrantsNeuron>(id);
 
-        var now = DateTimeOffset.UtcNow;
+        var now = os.Clock.GetUtcNow();
 
         // Grant 1: Active, null expiration
         await grantsNeuron.Grant(new Grant

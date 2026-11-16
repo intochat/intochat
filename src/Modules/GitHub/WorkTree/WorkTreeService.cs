@@ -44,6 +44,7 @@ public sealed partial class WorkTreeService : IWorkTree
     public const string AuthorName = "Ino";
     public const string AuthorEmail = "ino@intochat.ai";
 
+    private static readonly WorkTreeOptions DefaultOptions = new();
     private readonly WorkTreeOptions _options;
     private readonly ILogger<WorkTreeService> _logger;
     private readonly RepositoryAllowlist _allowlist;
@@ -54,7 +55,7 @@ public sealed partial class WorkTreeService : IWorkTree
         WorkTreeOptions? options = null,
         ILogger<WorkTreeService>? logger = null)
     {
-        _options = options ?? new WorkTreeOptions();
+        _options = options ?? DefaultOptions;
         _logger = logger ?? OsConsoleLog.For<WorkTreeService>();
         _allowlist = new RepositoryAllowlist(configuration, _options, _logger);
         _git = new GitCommandRunner(_options, _logger);

@@ -17,7 +17,7 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Configuration;
 using IntoChat.OS.Kernel;
-using IntoChat.OS.Mcp;
+using IntoChat.OS.Kernel.Mcp;
 using IntoChat.OS.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

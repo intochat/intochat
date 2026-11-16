@@ -214,6 +214,48 @@ public sealed class GmailPolicyFacts
         Assert.Null(action.AmountUnit);
     }
 
+    [Fact]
+    public async Task PreviewDraftSucceedsAndUsesContextTimeWhenServiceProviderIsNotKeyed()
+    {
+        await using var os = TestOS.Local().Register(typeof(GmailModule).Assembly);
+        var api = new FakeGmailApi();
+        var inner = new ServiceCollection()
+            .AddSingleton<IGmailApi>(api)
+            .AddSingleton<ISecretSealer>(new PassthroughSealer())
+            .AddSingleton(typeof(ILogger<>), typeof(NullLogger<>))
+            .BuildServiceProvider();
+        var nonKeyed = new NonKeyedServiceProvider(inner);
+
+        var id = new NeuronId(new BrainId("b"), "gmail", "connection/gmail/c1");
+        var context = new FakeNeuronContext(id, nonKeyed);
+        context.Clock.Advance(TimeSpan.FromHours(5));
+        context.Proxies.Register(PoliciesId, os.Get<IPolicies>(PoliciesId));
+
+        var neuron = new GmailNeuron();
+        NeuronAttachment.Attach(neuron, context);
+        await NeuronAttachment.Activate(neuron, Ct);
+        await neuron.SaveGmailStateAsync(next => next with
+        {
+            Status = ConnectionStatus.Connected,
+            Account = "owner@example.test",
+            Scopes = $"{GmailScopes.Read} https://www.googleapis.com/auth/gmail.compose",
+            Secrets = new Dictionary<string, SealedSecret>(StringComparer.Ordinal)
+            {
+                ["access"] = new SealedSecret { KeyId = "mk", Cipher = "token-1" },
+            },
+        });
+
+        using var caller = RuntimeCallerContext.StampScope(CapabilityCallers.Of("user-1", "acc-1", "b", CallerKind.User));
+        var preview = await neuron.PreviewDraft(new GmailDraftRequest(["alice@example.test"], [], [], "Hello", "Body"), Ct);
+        Assert.NotNull(preview.Value);
+        Assert.Equal(context.Clock.GetUtcNow().UtcDateTime.Date, preview.Value.ExpiresAt.UtcDateTime.Date);
+    }
+
+    private sealed class NonKeyedServiceProvider(IServiceProvider inner) : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => inner.GetService(serviceType);
+    }
+
     private sealed class FakeGmailApi : IGmailApi
     {
         public int CreateDraftCalls { get; private set; }

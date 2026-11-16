@@ -11,7 +11,7 @@ public sealed class HandleDirectoryNeuron : Neuron<HandleState>, IHandleDirector
     {
         if (string.IsNullOrEmpty(State.BrainId))
         {
-            await Save(new HandleState { BrainId = brainId, ClaimedAt = DateTimeOffset.UtcNow });
+            await Save(new HandleState { BrainId = brainId, ClaimedAt = Context.Time.GetUtcNow() });
             return true;
         }
 

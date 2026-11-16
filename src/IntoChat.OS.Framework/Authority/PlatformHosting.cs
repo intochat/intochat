@@ -43,7 +43,7 @@ public static class PlatformHosting
         services.TryAddSingleton<DigitalBrain.Capabilities.Compute.ModulePriceListRegistry>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddOptions<Storage.BrainStoreOptions>().BindConfiguration(Storage.BrainStoreOptions.Key)
-            .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration, IServiceProvider>((options, configuration, sp) => options.Directory = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, sp.GetService<DigitalBrain.Runtime.Orleans.RuntimeOptions>() ?? new() { HomeKey = "IntoChatOS:Home", DefaultHomeDirectoryName = ".intochat" }).State);
+            .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration, IServiceProvider>((options, configuration, sp) => options.Directory = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, sp.GetService<DigitalBrain.Runtime.Orleans.RuntimeOptions>() ?? Identity.PresenceProofValidator.DefaultRuntimeOptions).State);
         services.AddSiloDiagnostics();
         services.TryAddSingleton<DigitalBrain.Identity.Local.Custody.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));

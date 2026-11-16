@@ -17,7 +17,7 @@ using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
-using IntoChat.OS.Mcp;
+using IntoChat.OS.Kernel.Mcp;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;

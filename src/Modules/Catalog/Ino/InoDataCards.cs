@@ -7,9 +7,14 @@ public static class InoDataCards
 
     public const string DefaultDatabase = "supabase:supabase/postgres";
 
-    public static (InoCard Table, InoCard Chart) Build(DataQueryResult result, string database, string tableId, string chartId)
+    public static (InoCard Table, InoCard Chart) Build(DataQueryResult result, string database, string tableId, string chartId, DigitalBrain.BrainId brain = default)
     {
         ArgumentNullException.ThrowIfNull(result);
+        var scope = ResolveScope(brain);
+        var inoKey = scope is not null
+            ? IntoChat.OS.Primitives.AppRef.Of(scope.Value, "ino").Key
+            : "apps/ino";
+        var uriPrefix = $"neuron://{inoKey}";
         var table = new InoCard(
             tableId,
             "table",
@@ -17,7 +22,7 @@ public static class InoDataCards
             result.Summary,
             result.SourceUri,
             "ready",
-            $"neuron://local/apps/ino#{tableId}",
+            $"{uriPrefix}#{tableId}",
             result.Columns,
             result.Rows);
         var chart = new InoCard(
@@ -25,11 +30,27 @@ public static class InoDataCards
             "chart",
             result.ChartTitle,
             $"Live {result.ChartKind} chart ({result.ChartPoints.Length} series points) from {database}.",
-            "neuron://local/apps/ino/chart",
+            $"{uriPrefix}/chart",
             "ready",
-            $"neuron://local/apps/ino#{chartId}",
+            $"{uriPrefix}#{chartId}",
             ChartKind: result.ChartKind,
             ChartPoints: result.ChartPoints);
         return (table, chart);
+    }
+
+    private static DigitalBrain.BrainId? ResolveScope(DigitalBrain.BrainId brain)
+    {
+        if (!string.IsNullOrEmpty(brain.Value))
+        {
+            return brain;
+        }
+
+        if (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.TryGet(out var caller)
+            && DigitalBrain.BrainId.IsValid(caller?.BrainId))
+        {
+            return new DigitalBrain.BrainId(caller.BrainId);
+        }
+
+        return null;
     }
 }

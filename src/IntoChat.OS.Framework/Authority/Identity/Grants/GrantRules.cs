@@ -264,7 +264,10 @@ public static class GrantRules
             }
 
             // Owner-declared: only the target brain's owner can grant access to its neurons.
-            if (!string.Equals(grant.Owner, "brain:" + (string.IsNullOrWhiteSpace(targetBrain) ? EdgeGrantsCache.ExtractBrain(cleanTarget) : targetBrain), StringComparison.Ordinal))
+            var resolvedTargetBrain = !string.IsNullOrWhiteSpace(targetBrain)
+                ? targetBrain
+                : (EdgeGrantsCache.TryExtractBrain(cleanTarget, out var parsedBrain) ? parsedBrain.Value : string.Empty);
+            if (string.IsNullOrEmpty(resolvedTargetBrain) || !string.Equals(grant.Owner, "brain:" + resolvedTargetBrain, StringComparison.Ordinal))
             {
                 continue;
             }

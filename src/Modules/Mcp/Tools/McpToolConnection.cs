@@ -145,7 +145,7 @@ public sealed class McpToolConnection(
         Snapshot.Title = string.IsNullOrWhiteSpace(title) ? (Uri.TryCreate(url, UriKind.Absolute, out var parsed) ? parsed.Host : "MCP Server") : title;
         Snapshot.Connected = true;
         Snapshot.LastError = null;
-        Snapshot.ProbedAt = DateTimeOffset.UtcNow;
+        Snapshot.ProbedAt = (Context?.Time ?? TimeProvider.System).GetUtcNow();
 
         try
         {

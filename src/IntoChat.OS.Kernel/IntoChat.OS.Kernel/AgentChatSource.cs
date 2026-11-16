@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Log;
@@ -8,6 +9,7 @@ using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Workspace;
+using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -55,7 +57,7 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
     // Each card is named from its app's manifest at read time: an app without a title is not installed.
     private async Task<ChatEntry[]> Named(string key, ChatEntry[] entries)
     {
-        var scope = key.IndexOf("/apps/", StringComparison.Ordinal) is var cut and > 0 ? key[..cut] : DigitalBrain.Brains.BrainKey.BrainOf(key);
+        var scope = IntoChat.OS.Primitives.AppRef.TryParse(key, out var keyApp) ? keyApp.Brain.Value : DigitalBrain.Brains.BrainKey.BrainOf(key);
         var manifests = new Dictionary<string, AppManifest?>(StringComparer.Ordinal);
         IReadOnlyList<(string Publisher, string Name)>? listed = null;
         for (var i = 0; i < entries.Length; i++)
@@ -63,7 +65,7 @@ internal sealed class AgentChatSource(IServiceProvider services) : IChatAgentSou
             if (entries[i].App is not { } card) { continue; }
             if (!manifests.TryGetValue(card.App, out var manifest))
             {
-                try { manifest = (await SiloNeurons.Get<IApp>(services, IApp.Key(scope, card.App)).Read()).Manifest; }
+                try { manifest = (await SiloNeurons.Get<IApp>(services, IntoChat.OS.Primitives.AppRef.Of(new BrainId(scope), card.App).Key).Read()).Manifest; }
                 catch (Exception error) when (error is not OperationCanceledException) { _logger.LogSwallowed(error, "App manifest unreadable"); manifest = null; }
                 manifests[card.App] = manifest;
             }

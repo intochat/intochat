@@ -61,7 +61,7 @@ internal sealed class CircleChatNeuron(ICapabilityBroker broker)
         var caller = RuntimeCallerContext.Require();
         var brain = BrainScope.Create(caller.AccountId, caller.BrainId).Id;
         var prefix = brain + "/posts/";
-        if (caller.Kind != CallerKind.App || caller.AppId != IApp.Key(brain, "friends")
+        if (caller.Kind != CallerKind.App || caller.AppId != IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), "friends").Key
             || !postKey.StartsWith(prefix, StringComparison.Ordinal)
             || postKey.Length == prefix.Length
             || !postKey[prefix.Length..].All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))

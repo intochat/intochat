@@ -9,7 +9,9 @@ using IntoChat.OS.Framework.Modules;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
-namespace IntoChat.OS.Mcp;
+using IntoChat.OS.Kernel.Mcp;
+
+namespace IntoChat.OS.Kernel.Mcp.Tools;
 
 [McpServerToolType]
 internal sealed class NeuronTools(NeuronSurface surface, McpCaller caller)

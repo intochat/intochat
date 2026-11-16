@@ -254,7 +254,7 @@ public sealed class LocalLlmCoder : ICoder
                 throw new NoProviderConfiguredException("No configured tool-capable AI model or local Ollama server is available for Feature-to-PR coding.");
             }
 
-            var effectiveInference = inference ?? new InferenceService(catalog);
+            var effectiveInference = inference ?? throw new InvalidOperationException("IModelInference must be registered alongside ModelCatalog.");
             var selection = ToSelection(resolved);
             var desc = await effectiveInference.Describe(selection, marker: null, cancellationToken: ct, brainId: null).ConfigureAwait(false);
             return new InferenceServiceRunner(effectiveInference, selection, resolved.Model, desc.Temperature == CapabilitySupport.Supported);

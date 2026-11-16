@@ -47,8 +47,7 @@ internal static class BrainAuthorityDecisions
         if (!string.IsNullOrWhiteSpace(request.TargetScope)) { return request.TargetScope; }
         var callerBrain = request.Caller?.Brain.Value ?? "";
         if (string.IsNullOrWhiteSpace(request.TargetNeuron)) { return callerBrain; }
-        var brain = EdgeGrantsCache.ExtractBrain(request.TargetNeuron);
-        return string.Equals(brain, "local", StringComparison.Ordinal) && callerBrain.Length > 0 ? callerBrain : brain;
+        return EdgeGrantsCache.TryExtractBrain(request.TargetNeuron, out var brain) ? brain.Value : callerBrain;
     }
 
     private static Member? Member(BrainRow state, string principalId)

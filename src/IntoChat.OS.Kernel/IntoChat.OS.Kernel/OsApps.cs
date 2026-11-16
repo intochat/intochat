@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Neurons;
@@ -6,6 +7,7 @@ using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Primitives;
 using IntoChat.OS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -75,7 +77,7 @@ internal sealed class OsDefaults(
             return;
         }
         await ShippedInstall.Missing(catalog, loader, brainId,
-            async name => await brains.Get<IApp>($"{brainId}/apps/{name}").Read().WaitAsync(cancellationToken),
+            async name => await brains.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), name).Key).Read().WaitAsync(cancellationToken),
             (error, app) => logger.LogWarning(error, "Default app {App} did not install in brain {Brain}.", app, brainId),
             cancellationToken);
         var shipped = await catalog.BootSet();
@@ -84,7 +86,7 @@ internal sealed class OsDefaults(
             if (shipped.Any(item => item.Publisher == app.Publisher && item.Name == app.Name)) { continue; }
             try
             {
-                if ((await brains.Get<IApp>($"{brainId}/apps/{app.Name}").Read().WaitAsync(cancellationToken)).Manifest.Title.Length == 0)
+                if ((await brains.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), app.Name).Key).Read().WaitAsync(cancellationToken)).Manifest.Title.Length == 0)
                 { await InstallDefault(app, cancellationToken); }
             }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -107,7 +109,7 @@ internal sealed class OsDefaults(
         {
             try
             {
-                var result = await IntoChat.OS.Apps.ShippedUnits.Deploy(studio, proxies.Get<IApp>(IApp.Key(brainId, alias)), alias, IntoChat.OS.Apps.ShippedUnits.Title(alias));
+                var result = await IntoChat.OS.Apps.ShippedUnits.Deploy(studio, proxies.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainId), alias).Key), alias, IntoChat.OS.Apps.ShippedUnits.Title(alias));
                 if (!result.Ok) { logger.LogWarning("Circle unit {Unit} did not deploy in {Brain}: {Reason}", alias, brainId, result.Text); }
             }
             catch (Exception error) when (error is not OperationCanceledException)

@@ -63,7 +63,7 @@ internal static class CreatorModel
             var resolved = await ResolveCatalogModelAsync(neurons, catalog, brainId, explicitModel, requiresTools, ct).ConfigureAwait(false);
             if (resolved is not null)
             {
-                var effectiveInference = inference ?? new InferenceService(catalog);
+                var effectiveInference = inference ?? throw new InvalidOperationException("IModelInference must be registered alongside ModelCatalog.");
                 var selection = ToSelection(resolved);
                 try
                 {

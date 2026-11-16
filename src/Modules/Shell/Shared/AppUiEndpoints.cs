@@ -133,14 +133,17 @@ internal static class AppUiEndpoints
                 return Results.Ok(new { viewport.Revision, Root = (ViewRef?)null, Error = (string?)null });
             }
             if (!OwnsUi(scope, target.App)) { throw new UnauthorizedAccessException(); }
-            var appName = target.App.StartsWith(scope + "/apps/", StringComparison.Ordinal)
-                ? target.App[(scope.Length + "/apps/".Length)..]
+            var brainId = new BrainId(scope);
+            var appName = IntoChat.OS.Primitives.AppRef.TryParse(brainId, target.App, out var appRef)
+                ? appRef.Name
                 : target.App;
             if (!appName.Contains('/'))
             {
                 try
                 {
-                    var screenId = new NeuronId(new BrainId(scope), "app." + appName, "default");
+                    var screenId = IntoChat.OS.Primitives.UnitAlias.TryParse(appName, out var screenUnit)
+                        ? screenUnit.ScreenNeuron(brainId)
+                        : new NeuronId(brainId, "app." + appName, "default");
                     var published = await brain.Get<IScreen>(screenId).Read().WaitAsync(ct);
                     if (published is not null)
                     {
@@ -148,7 +151,7 @@ internal static class AppUiEndpoints
                         {
                             viewport.Revision,
                             viewport.Target,
-                            Root = new ViewRef(UIVocabulary.ViewType, $"{scope}/apps/{appName}/view"),
+                            Root = new ViewRef(UIVocabulary.ViewType, IntoChat.OS.Primitives.AppRef.Of(brainId, appName).ViewKey),
                             Error = (string?)null,
                         });
                     }
@@ -379,7 +382,7 @@ internal static class AppUiEndpoints
         {
             case ViewActivationKind.Emit:
                 var emit = activation.Emit!;
-                if (appKey is null || IApp.Key(scope, emit.Owner) != appKey)
+                if (appKey is null || !BrainId.IsValid(scope) || IntoChat.OS.Primitives.AppRef.Of(new BrainId(scope), emit.Owner).Key != appKey)
                 { throw new UnauthorizedAccessException($"A view of {appKey ?? name} cannot emit to {emit.Owner}."); }
                 var args = input.Value is null ? emit.Args : ViewArgs.WithValue(emit.Args, input.Value);
                 await brain.Get<IApp>(appKey).Emit(emit.Signal, args?.GetRawText() ?? "").WaitAsync(ct);
@@ -476,43 +479,41 @@ internal static class AppUiEndpoints
     // The view's owning app, {scope}/apps/{name}.
     private static string? AppOf(string scope, string view)
     {
+        if (!BrainId.IsValid(scope)) { return null; }
+        var brainId = new BrainId(scope);
+        if (IntoChat.OS.Primitives.AppRef.TryParse(brainId, view, out var direct)) { return direct.Key; }
         var prefix = scope + "/apps/";
         if (!view.StartsWith(prefix, StringComparison.Ordinal)) { return null; }
         var end = view.IndexOf('/', prefix.Length);
-        return end > prefix.Length ? view[..end] : view.Length > prefix.Length ? view : null;
+        return end > prefix.Length && IntoChat.OS.Primitives.AppRef.TryParse(brainId, view[..end], out var owning)
+            ? owning.Key
+            : null;
     }
 
     internal static string? ScreenAlias(string scope, string name)
     {
-        var prefix = scope + "/apps/";
-        if (!name.StartsWith(prefix, StringComparison.Ordinal)) { return null; }
-        var remainder = name[prefix.Length..];
-        if (remainder.EndsWith("/view", StringComparison.Ordinal))
-        {
-            remainder = remainder[..^5];
-        }
-        return remainder.Length > 0 && !remainder.Contains('/') ? "app." + remainder : null;
+        if (!BrainId.IsValid(scope)) { return null; }
+        var brainId = new BrainId(scope);
+        var withoutView = name.EndsWith("/view", StringComparison.Ordinal) ? name[..^5] : name;
+        return IntoChat.OS.Primitives.AppRef.TryParse(brainId, withoutView, out var app)
+            ? "app." + app.Name
+            : null;
     }
 
     // A unit's view is named {scope}/{alias}: one segment, a state alias rather than an app area,
     // or {scope}/units/{alias}, optionally ending in /view.
-    internal static string? UnitAlias(string scope, string name)
-    {
-        if (!name.StartsWith(scope + "/", StringComparison.Ordinal)) { return null; }
-        var alias = name[(scope.Length + 1)..];
-        if (alias.StartsWith("units/", StringComparison.Ordinal))
-        {
-            alias = alias[6..];
-        }
-        if (alias.EndsWith("/view", StringComparison.Ordinal))
-        {
-            alias = alias[..^5];
-        }
-        return alias.Length > 0 && !alias.Contains('/') && alias is not ("apps" or "images" or "applications" or "units") ? alias : null;
-    }
+    internal static string? UnitAlias(string scope, string name) =>
+        name.StartsWith(scope + "/", StringComparison.Ordinal)
+        && BrainId.IsValid(scope)
+        && IntoChat.OS.Primitives.UnitAlias.TryFromAddress(new BrainId(scope), name, out var alias)
+            ? alias.Value
+            : null;
 
     // The alias's state neuron, {scope}/{alias}/default.
-    private static NeuronId UnitState(string scope, string alias) => new(new BrainId(scope), alias, "default");
+    private static NeuronId UnitState(string scope, string alias) =>
+        IntoChat.OS.Primitives.UnitAlias.TryParse(alias, out var unit)
+            ? unit.StateNeuron(new BrainId(scope))
+            : new(new BrainId(scope), alias, "default");
 
     internal static string? UnitError(PublishedView? view, TraceEntry? failing)
     {

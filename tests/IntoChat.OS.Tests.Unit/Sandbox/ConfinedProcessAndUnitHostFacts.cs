@@ -209,6 +209,8 @@ public sealed class ConfinedProcessAndUnitHostFacts
         var services = new ServiceCollection()
             .AddHttpClient()
             .AddLogging()
+            .AddSingleton<SdkAiAdapter>()
+            .AddSingleton<SdkTablesAdapter>()
             .BuildServiceProvider();
         var options = Options.Create(new SandboxOptions
         {

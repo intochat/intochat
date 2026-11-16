@@ -24,11 +24,11 @@ internal sealed class AppStudioNeuron(Creator creator, INeuronProxies proxies) :
     public async Task<AppSnapshot> Build(string request, CancellationToken ct)
     {
         var authored = await Author(request, ct);
-        var key = IApp.Key(Scope, authored.Name);
-        await creator.Implement(proxies, key, null, ct);
-        var app = Get<IApp>(new DigitalBrain.NeuronId(Id.Brain, IntoChat.OS.Connections.AppGrainType.Name, key[(Scope.Length + 1)..]));
-        var deadline = DateTimeOffset.UtcNow + BuildTimeout;
-        while (DateTimeOffset.UtcNow < deadline)
+        var appRef = IntoChat.OS.Primitives.AppRef.Of(Id.Brain, authored.Name);
+        await creator.Implement(proxies, appRef.Key, null, ct);
+        var app = Get<IApp>(appRef.Neuron);
+        var deadline = Context.Time.GetUtcNow() + BuildTimeout;
+        while (Context.Time.GetUtcNow() < deadline)
         {
             ct.ThrowIfCancellationRequested();
             var snapshot = await AppBuildStatus.Of(await app.Read(), app, Get<Flows.IFlows>(Flows.IFlows.Key(Scope)), ct);

@@ -19,11 +19,11 @@ public sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServicePro
         var files = await vfs.ListFilesAsync(string.IsNullOrWhiteSpace(pattern) ? null : pattern);
         if (files.Count == 0)
         {
-            return new InoToolResult($"No files match '{pattern}'.", FilesCard("Files Workspace (0 item(s))", "Connected to storage.files", vfs.BrainId));
+            return new InoToolResult($"No files match '{pattern}'.", FilesCard("Files Workspace (0 item(s))", "Connected to storage.files", Id.Brain));
         }
 
         var lines = string.Join("\n", files.Take(12).Select(f => $"- {f.Name} ({f.NeuronUri} · {f.Kind}{(f.Size is { } size ? $" · {size:N0} bytes" : string.Empty)})"));
-        var card = FilesCard($"Files Workspace ({files.Count} item(s))", string.Join(", ", files.Take(5).Select(f => f.Name)), vfs.BrainId);
+        var card = FilesCard($"Files Workspace ({files.Count} item(s))", string.Join(", ", files.Take(5).Select(f => f.Name)), Id.Brain);
         return new InoToolResult($"Found {files.Count} file(s):\n{lines}", card);
     }
 
@@ -38,7 +38,7 @@ public sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServicePro
 
         var text = await vfs.ReadTextAsync(file.Name);
         var summary = Excerpt(text) ?? $"Workspace file resource attached from Files ({file.NeuronUri})";
-        return new InoToolResult($"Opened {file.Name} ({file.NeuronUri}).", FileCard(file, summary));
+        return new InoToolResult($"Opened {file.Name} ({file.NeuronUri}).", FileCard(file, summary, Id.Brain));
     }
 
     public async Task<InoToolResult> Summarize(string path)
@@ -53,15 +53,15 @@ public sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServicePro
 
         var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var excerpt = string.Join("\n", lines.Take(6).Select(l => $"> {l}"));
-        return new InoToolResult($"{file.Name} ({file.NeuronUri}): {lines.Length} non-empty line(s), {text.Length} chars.\n{excerpt}", FileCard(file, Excerpt(text)!));
+        return new InoToolResult($"{file.Name} ({file.NeuronUri}): {lines.Length} non-empty line(s), {text.Length} chars.\n{excerpt}", FileCard(file, Excerpt(text)!, Id.Brain));
     }
 
     private static string? Excerpt(string? text)
         => string.IsNullOrWhiteSpace(text) ? null : text.Length <= 180 ? text : text[..180] + "…";
 
-    private static InoCard FileCard(WorkspaceFileEntry file, string summary)
-        => new($"file-{file.Name}", "file", file.Name, summary, file.NeuronUri, "ready", $"neuron://local/apps/ino#file-{file.Name}");
+    private static InoCard FileCard(WorkspaceFileEntry file, string summary, DigitalBrain.BrainId brain)
+        => new($"file-{file.Name}", "file", file.Name, summary, file.NeuronUri, "ready", $"neuron://{IntoChat.OS.Primitives.AppRef.Of(brain, "ino").Key}#file-{file.Name}");
 
-    private static InoCard FilesCard(string title, string summary, string brain)
-        => new("files-find", "file", title, summary, $"neuron://{brain}/apps/files", "ready", "neuron://local/apps/ino#files-find");
+    private static InoCard FilesCard(string title, string summary, DigitalBrain.BrainId brain)
+        => new("files-find", "file", title, summary, $"neuron://{IntoChat.OS.Primitives.AppRef.Of(brain, "files").Key}", "ready", $"neuron://{IntoChat.OS.Primitives.AppRef.Of(brain, "ino").Key}#files-find");
 }

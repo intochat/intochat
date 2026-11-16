@@ -83,14 +83,34 @@ public sealed class LocalCloudNeuron : Neuron<LocalCloudState>, IStorage
     ];
 
     private readonly LocalCloudState _standaloneState = new();
+    private readonly TimeProvider? _time;
 
     public LocalCloudNeuron()
     {
     }
 
-    public LocalCloudNeuron(string? rootDirectory)
+    public LocalCloudNeuron(string? rootDirectory, TimeProvider? time = null)
     {
+        _time = time;
         ConfigureRootDirectory(rootDirectory);
+    }
+
+    private DateTimeOffset UtcNow()
+    {
+        if (_time is not null)
+        {
+            return _time.GetUtcNow();
+        }
+
+        try
+        {
+            return Context.Time.GetUtcNow();
+        }
+        catch (InvalidOperationException error)
+        {
+            OsConsoleLog.For<LocalCloudNeuron>().LogSwallowed(error, "LocalCloudNeuron is detached; using system clock.");
+            return TimeProvider.System.GetUtcNow();
+        }
     }
 
     public long MaxStorageBytes
@@ -409,7 +429,7 @@ public sealed class LocalCloudNeuron : Neuron<LocalCloudState>, IStorage
                     var name = ValidateSafeName(plan.Name, plan.TargetFolder);
                     var dest = JoinPath(folder, name);
                     if (plan.Conflict != ConflictPolicy.Overwrite && EntryExists(dest)) { throw new Conflict(plan.TargetFolder); }
-                    await StoreEntryAsync(new LocalCloudEntry(dest, name, ItemKind.Folder, [], DateTimeOffset.UtcNow), ct).ConfigureAwait(false);
+                    await StoreEntryAsync(new LocalCloudEntry(dest, name, ItemKind.Folder, [], UtcNow()), ct).ConfigureAwait(false);
                     break;
                 }
             case WriteKind.WriteFile:
@@ -419,7 +439,7 @@ public sealed class LocalCloudNeuron : Neuron<LocalCloudState>, IStorage
                     var dest = JoinPath(folder, name);
                     if (plan.Conflict != ConflictPolicy.Overwrite && EntryExists(dest)) { throw new Conflict(plan.TargetFolder); }
                     var bytes = plan.Inline?.ToArray() ?? [];
-                    await StoreEntryAsync(new LocalCloudEntry(dest, name, ItemKind.File, bytes, DateTimeOffset.UtcNow, GuessContentType(name)), ct).ConfigureAwait(false);
+                    await StoreEntryAsync(new LocalCloudEntry(dest, name, ItemKind.File, bytes, UtcNow(), GuessContentType(name)), ct).ConfigureAwait(false);
                     break;
                 }
             case WriteKind.Delete:
@@ -438,7 +458,7 @@ public sealed class LocalCloudNeuron : Neuron<LocalCloudState>, IStorage
                     if (!ActiveState.Entries.TryGetValue(source, out var existing)) { throw new NotFound(sourceId); }
                     var folder = NormalizeAndAuthorizeFolder(plan.TargetFolder ?? new ItemId(RootIdValue));
                     var dest = JoinPath(folder, existing.Name);
-                    await StoreEntryAsync(existing with { Path = dest, Modified = DateTimeOffset.UtcNow }, ct).ConfigureAwait(false);
+                    await StoreEntryAsync(existing with { Path = dest, Modified = UtcNow() }, ct).ConfigureAwait(false);
                     if (plan.Kind == WriteKind.Move) { RemoveEntry(source); }
                     break;
                 }
@@ -450,7 +470,7 @@ public sealed class LocalCloudNeuron : Neuron<LocalCloudState>, IStorage
                     var name = ValidateSafeName(plan.Name, sourceId);
                     var parent = ParentOf(source);
                     var dest = JoinPath(parent, name);
-                    await StoreEntryAsync(existing with { Path = dest, Name = name, Modified = DateTimeOffset.UtcNow }, ct).ConfigureAwait(false);
+                    await StoreEntryAsync(existing with { Path = dest, Name = name, Modified = UtcNow() }, ct).ConfigureAwait(false);
                     RemoveEntry(source);
                     break;
                 }
@@ -670,7 +690,7 @@ public sealed class LocalCloudNeuron : Neuron<LocalCloudState>, IStorage
         protected override async Task<ItemId> CommitCore(CancellationToken ct)
         {
             var bytes = ((MemoryStream)Content).ToArray();
-            var entry = new LocalCloudEntry(destination, name, ItemKind.File, bytes, DateTimeOffset.UtcNow, GuessContentType(name));
+            var entry = new LocalCloudEntry(destination, name, ItemKind.File, bytes, owner.UtcNow(), GuessContentType(name));
             await owner.StoreEntryAsync(entry, ct).ConfigureAwait(false);
             return new ItemId(destination);
         }

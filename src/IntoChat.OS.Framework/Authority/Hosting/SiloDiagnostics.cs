@@ -107,7 +107,7 @@ public static class SiloDiagnostics
             Environment.MachineName,
             // The runtime BrainLog writes one format (DBLG 0x02, JSON payloads) since 06-02.
             new SiloStorage("local", "Json"),
-            (provider.GetService<IBrainOwnershipCounters>() ?? new NoBrainOwnershipCounters()).Snapshot());
+            provider.GetRequiredService<IBrainOwnershipCounters>().Snapshot());
     }
 
     private static string? Revision(IConfiguration configuration) => configuration[RevisionVariable] is { Length: > 0 } revision ? revision : null;

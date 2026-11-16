@@ -188,6 +188,7 @@ public sealed class GuestTrySessionService
             Kind: "studio"),
     ];
 
+    private static readonly GuestTryOptions DefaultOptions = new();
     private readonly GuestTryOptions _options;
     private readonly Dictionary<string, GuestTrySession> _activeSessions = new(StringComparer.Ordinal);
     private readonly Dictionary<string, List<DateTimeOffset>> _ipIssuanceHistory = new(StringComparer.Ordinal);
@@ -195,7 +196,7 @@ public sealed class GuestTrySessionService
 
     public GuestTrySessionService(GuestTryOptions? options = null)
     {
-        _options = options ?? new GuestTryOptions();
+        _options = options ?? DefaultOptions;
     }
 
     public int ActiveSessionCount

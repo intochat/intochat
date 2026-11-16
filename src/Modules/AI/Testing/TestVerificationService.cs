@@ -39,7 +39,7 @@ public sealed class TestVerificationService : ITestVerificationService
             return new BrainId(stampedBrain);
         }
 
-        return new BrainId("local");
+        throw new InvalidOperationException("No BrainId is present in RuntimeCallerContext.");
     }
 
     private ITestVerificationNeuron GetNeuron(string suiteId)

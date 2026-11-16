@@ -43,7 +43,7 @@ public static class BrainHosting
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());
         silo.Services.TryAddSingleton<Kernel>();
         silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<Kernel>());
-        silo.Services.TryAddSingleton<IntoChat.OS.Kernel.OsRegistry.IRegistryBroker, IntoChat.OS.Kernel.OsRegistry.RegistryBroker>();
+        silo.Services.TryAddSingleton<IntoChat.OS.Kernel.Composition.Registry.IRegistryBroker, IntoChat.OS.Kernel.Composition.Registry.RegistryBroker>();
         // AddDigitalBrainRuntime registers ClusterBrainObserver first. The product kernel replaces it: it sees
         // feature types and connection contracts, which the runtime-only observer does not.
         silo.Services.Replace(ServiceDescriptor.Singleton<DigitalBrain.Kernel.IBrainObserver>(sp => sp.GetRequiredService<Kernel>()));

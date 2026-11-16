@@ -86,4 +86,16 @@ public sealed class CircleServerModuleFacts
         Assert.False(limits.TryCircle("a"));
         Assert.True(limits.TryCircle("b"));
     }
+
+    [Fact]
+    public void ClockDoesNotThrowWhenProviderIsNotKeyed()
+    {
+        var nonKeyed = new NonKeyedServiceProvider();
+        Assert.Same(TimeProvider.System, CircleServerModule.Clock(nonKeyed));
+    }
+
+    private sealed class NonKeyedServiceProvider : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => null;
+    }
 }

@@ -413,9 +413,9 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
     internal static bool InBrain(string target, string brainId)
     {
         if (string.Equals(target, "*", StringComparison.Ordinal)) { return true; }
-        if (string.Equals(EdgeGrantsCache.ExtractBrain(target), brainId, StringComparison.Ordinal)) { return true; }
+        if (EdgeGrantsCache.TryExtractBrain(target, out var extracted) && string.Equals(extracted.Value, brainId, StringComparison.Ordinal)) { return true; }
         var slash = target.IndexOf('/', StringComparison.Ordinal);
-        return slash > 0 && string.Equals(EdgeGrantsCache.ExtractBrain(target[(slash + 1)..]), brainId, StringComparison.Ordinal);
+        return slash > 0 && EdgeGrantsCache.TryExtractBrain(target[(slash + 1)..], out extracted) && string.Equals(extracted.Value, brainId, StringComparison.Ordinal);
     }
 
     public async Task RevokeAsOwner(CapabilityCaller caller, string grantId)

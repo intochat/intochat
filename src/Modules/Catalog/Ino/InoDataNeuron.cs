@@ -28,14 +28,14 @@ public sealed class InoDataNeuron(ICapabilityBroker? broker = null, IServiceProv
         InoCard table;
         try
         {
-            result = await DataAnalyticsEngine.ExecuteAsync(statement, database, Vfs);
+            result = await DataAnalyticsEngine.ExecuteAsync(statement, database, Vfs, Id.Brain);
             if (result.Columns.Length == 0 && result.Rows.Length == 0)
             {
                 return new InoToolResult(result.Summary, Ok: false);
             }
 
             var index = State.Charts.Length + 1;
-            var cards = InoDataCards.Build(result, database, $"table-{index}", $"chart-{index}");
+            var cards = InoDataCards.Build(result, database, $"table-{index}", $"chart-{index}", Id.Brain);
             table = cards.Table;
             await Save(State with { Charts = [.. State.Charts, cards.Chart] }, new InoDataChanged(++_revision));
         }
@@ -54,14 +54,14 @@ public sealed class InoDataNeuron(ICapabilityBroker? broker = null, IServiceProv
         DataQueryResult result;
         try
         {
-            result = await DataAnalyticsEngine.ExecuteAsync(string.IsNullOrWhiteSpace(spec) ? "chart" : spec.Trim(), database, Vfs);
+            result = await DataAnalyticsEngine.ExecuteAsync(string.IsNullOrWhiteSpace(spec) ? "chart" : spec.Trim(), database, Vfs, Id.Brain);
             if (result.Columns.Length == 0 && result.ChartPoints.Length == 0)
             {
                 return new InoToolResult(result.Summary, Ok: false);
             }
 
             var index = State.Charts.Length + 1;
-            var chart = InoDataCards.Build(result, database, $"table-{index}", $"chart-{index}").Chart;
+            var chart = InoDataCards.Build(result, database, $"table-{index}", $"chart-{index}", Id.Brain).Chart;
             await Save(State with { Charts = [.. State.Charts, chart] }, new InoDataChanged(++_revision));
         }
         catch (Exception error) when (error is not OperationCanceledException)

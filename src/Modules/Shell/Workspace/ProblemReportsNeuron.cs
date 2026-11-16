@@ -23,7 +23,7 @@ internal sealed class ProblemReportsNeuron
             throw new ArgumentException($"A problem report is limited to {MaxMessageLength} characters.", nameof(message));
         }
 
-        var report = new ProblemReport(intentId, workspaceId, message, DateTimeOffset.UtcNow);
+        var report = new ProblemReport(intentId, workspaceId, message, Context.Time.GetUtcNow());
         await Save(State with { Reports = [.. State.Reports, report] }, new ProblemReported(workspaceId, intentId));
         return report;
     }

@@ -25,10 +25,10 @@ internal static class ShippedGrants
     };
 
     private static string Workspace(string brain) => $"ui.workspace/{brain}/main";
-    private static string Apps(string brain) => $"{IntoChat.OS.Connections.AppGrainType.Name}/{brain}/apps/*";
+    private static string Apps(string brain) => IntoChat.OS.Primitives.AppRef.WildcardTarget(new DigitalBrain.BrainId(brain));
     private static string Person(string brain) => $"person/{brain}/profile";
     private static string Compute(string brain) => $"ui.compute/{brain}/compute";
 
     private static Grant[] Tuples(string brain, string app, string[] targets)
-        => [.. targets.Select(target => Grant.Tuple($"brain:{brain}", $"app:{brain}/apps/{app}", target, GrantRelations.Run))];
+        => [.. targets.Select(target => Grant.Tuple($"brain:{brain}", $"app:{IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), app).Key}", target, GrantRelations.Run))];
 }

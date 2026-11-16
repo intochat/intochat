@@ -25,7 +25,7 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
     {
         _tokens = tokens;
         _time = time ?? TimeProvider.System;
-        _http = new Octokit.Internal.HttpClientAdapter(() => new BoundedResponseHandler(handler ?? new HttpClientHandler { AllowAutoRedirect = false }));
+        _http = new Octokit.Internal.HttpClientAdapter(() => new BoundedResponseHandler(handler ?? GitHubInstallationTokens.CreateDefaultHandler()));
         _http.SetRequestTimeout(TimeSpan.FromSeconds(20));
     }
 

@@ -450,8 +450,8 @@ internal sealed class HttpSandboxRuntimeBridge(
                     Error: "Invoke payload is required.");
             }
 
-            var ai = services.GetService<SdkAiAdapter>() ?? new SdkAiAdapter(services);
-            var tables = services.GetService<SdkTablesAdapter>() ?? new SdkTablesAdapter(services);
+            var ai = services.GetRequiredService<SdkAiAdapter>();
+            var tables = services.GetRequiredService<SdkTablesAdapter>();
             var outcome = await SandboxEdgeEndpoints.InvokeEdgeAsync(identity, frame.Invoke, ai, tables, services, cancellationToken)
                 .ConfigureAwait(false);
             return new UnitHostFrameRequest(

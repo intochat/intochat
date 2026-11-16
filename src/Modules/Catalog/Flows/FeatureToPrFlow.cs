@@ -43,11 +43,11 @@ public sealed class FeatureToPrFlow(
 
     private IWorkTree WorkTree => workTree
         ?? services?.GetService(typeof(IWorkTree)) as IWorkTree
-        ?? new WorkTreeService();
+        ?? throw new InvalidOperationException("IWorkTree service is not registered.");
 
     private ICoder Coder => coder
         ?? services?.GetService(typeof(ICoder)) as ICoder
-        ?? new LocalLlmCoder(services);
+        ?? throw new InvalidOperationException("ICoder service is not registered.");
 
     private IConfirmationRequests ConfirmationRequests =>
         confirmationRequests

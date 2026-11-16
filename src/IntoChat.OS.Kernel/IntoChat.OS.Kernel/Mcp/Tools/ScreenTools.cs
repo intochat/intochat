@@ -9,7 +9,9 @@ using IntoChat.OS.Runtime;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
-namespace IntoChat.OS.Mcp;
+using IntoChat.OS.Kernel.Mcp;
+
+namespace IntoChat.OS.Kernel.Mcp.Tools;
 
 /// <summary>
 /// First-class MCP screen tools backed by <see cref="IScreenDirectory"/> so any MCP client

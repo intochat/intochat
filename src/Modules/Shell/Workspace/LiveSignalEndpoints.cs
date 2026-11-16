@@ -96,8 +96,8 @@ internal static class LiveSignalEndpoints
         {
             if (key is not null) { lock (queued) { queued.Remove(key); } }
             if (key is null) { listed(); }
-            else if (IApp.NameOf(brainId, key) is not null && seen.Add(key))
-            { yield return new(new DigitalBrain.BrainId(brainId), IntoChat.OS.Connections.AppGrainType.Name, key[(brainId.Length + 1)..]); }
+            else if (IntoChat.OS.Primitives.AppRef.TryParse(new DigitalBrain.BrainId(brainId), key, out var appRef) && seen.Add(key))
+            { yield return appRef.Neuron; }
         }
     }
 

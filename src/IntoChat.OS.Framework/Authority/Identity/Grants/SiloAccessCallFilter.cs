@@ -103,7 +103,7 @@ public sealed class SiloAccessCallFilter(
         else
         {
             targetNeuron = rawKey;
-            targetBrain = EdgeGrantsCache.ExtractBrain(rawKey);
+            targetBrain = EdgeGrantsCache.TryExtractBrain(rawKey, out var parsedBrain) ? parsedBrain.Value : string.Empty;
         }
 
         var caller = ResolveCurrentCaller();
