@@ -189,8 +189,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
 
     public Task<bool> IsInterleaved(RuntimeInvocation call)
     {
-        var (neuron, bound) = Prepare(call);
-        RefuseAnotherBrain(bound);
+        var (neuron, bound) = PrepareFor(call);
         return Task.FromResult(CallPolicy.MayInterleave(neuron.GetType(), bound, call));
     }
 
@@ -200,26 +199,48 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
     // those marks without checking who calls. It holds whether or not the access gate is auditing internal contracts.
     private void RefuseAnotherBrain(BoundCall bound)
     {
-        if (bound.Access is OperationAccess.Public or OperationAccess.Shared
-            && bound.Contract.IsDefined(typeof(ShareableAttribute), inherit: false))
+        if (ForeignCaller() is not { } caller) { return; }
+
+        var shareable = typeof(ShareableAttribute);
+        var crosses = bound.Access is OperationAccess.Public or OperationAccess.Shared
+            && bound.Contract.IsDefined(shareable, inherit: false)
+            // A method the contract inherits crosses only when the interface that declares it opted in as well: Shared on
+            // a derived contract must not open the methods of a base contract written for its own brain.
+            && (bound.Method.DeclaringType == bound.Contract || bound.Method.DeclaringType?.IsDefined(shareable, inherit: false) == true)
+            // The wall judges the legacy stamp; the access gate admits by the caller ambient. They must name the same
+            // brain, or a call could pass here as another brain and be admitted there as this brain's own kernel.
+            && _callers.Current is { } ambient && string.Equals(ambient.Brain.Value, caller.BrainId, StringComparison.Ordinal);
+        if (!crosses) { throw DigitalBrainCallFilter.Violation(caller.BrainId, _id.Brain.Value); }
+    }
+
+    // The stamped caller when it acts in another brain and is not the platform; null for this brain's own callers and
+    // for an unstamped call, which the access gate judges as before.
+    private DigitalBrain.Capabilities.CapabilityCaller? ForeignCaller()
+        => Capabilities.RuntimeCallerContext.TryGet(out var caller) && caller is not null
+            && !string.Equals(caller.BrainId, _id.Brain.Value, StringComparison.Ordinal)
+            && caller.Kind != DigitalBrain.Capabilities.CallerKind.Platform
+                ? caller
+                : null;
+
+    // Binds the call and applies the cross-brain wall. A caller of another brain learns nothing from a call that does
+    // not bind: it gets the same refusal as for an operation that exists and is closed to it.
+    private (Neuron Neuron, BoundCall Call) PrepareFor(RuntimeInvocation call)
+    {
+        Neuron neuron;
+        BoundCall bound;
+        try { (neuron, bound) = Prepare(call); }
+        catch (BindingException) when (ForeignCaller() is { } foreign)
         {
-            return;
-        }
-        if (!Capabilities.RuntimeCallerContext.TryGet(out var caller) || caller is null) { return; }
-        if (string.Equals(caller.BrainId, _id.Brain.Value, StringComparison.Ordinal)
-            || caller.Kind == DigitalBrain.Capabilities.CallerKind.Platform
-            || _id.Brain.IsSystem)
-        {
-            return;
+            throw DigitalBrainCallFilter.Violation(foreign.BrainId, _id.Brain.Value);
         }
 
-        throw DigitalBrainCallFilter.Violation(caller.BrainId, _id.Brain.Value);
+        RefuseAnotherBrain(bound);
+        return (neuron, bound);
     }
 
     private (Neuron Neuron, BoundCall Call, Caller As) Admitted(RuntimeInvocation call)
     {
-        var (neuron, bound) = Prepare(call);
-        RefuseAnotherBrain(bound);
+        var (neuron, bound) = PrepareFor(call);
         return (neuron, bound, _access.Admit(_id, bound));
     }
 
@@ -280,7 +301,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
 
     private void RequireInterleaving(RuntimeInvocation call)
     {
-        var (neuron, bound) = Prepare(call);
+        var (neuron, bound) = PrepareFor(call);
         if (!CallPolicy.MayInterleave(neuron.GetType(), bound, call))
         { throw new BindingException($"{bound.Contract.FullName}.{bound.Method.Name} does not permit interleaving."); }
     }

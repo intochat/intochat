@@ -28,6 +28,19 @@ public interface ICrossingUnmarked
     [Public] Task<string> PublicUnmarked();
 }
 
+// A base contract that did not opt in, and a contract that did and inherits from it. Shared on the derived contract must
+// not open the base's methods to another brain.
+public interface ICrossingBase
+{
+    Task<string> Inherited();
+}
+
+[Shareable, Shared, DefaultNeuronType("test.crossing")]
+public interface ICrossingDerived : ICrossingBase
+{
+    Task<string> Own();
+}
+
 // A contract that is not visible: Internal by default, and admitted without denial while internal contracts are only audited.
 [DefaultNeuronType("test.crossing")]
 internal interface ICrossingHidden
@@ -36,7 +49,7 @@ internal interface ICrossingHidden
 }
 
 [Neuron("test.crossing")]
-public sealed class CrossingNeuron : Neuron, ICrossing, ICrossingUnmarked, ICrossingHidden
+public sealed class CrossingNeuron : Neuron, ICrossing, ICrossingUnmarked, ICrossingHidden, ICrossingDerived
 {
     private string Seen => $"{Id.Brain.Value}<-{Context.Caller?.Brain.Value}";
 
@@ -45,6 +58,8 @@ public sealed class CrossingNeuron : Neuron, ICrossing, ICrossingUnmarked, ICros
     public Task<string> PublicOp() => Task.FromResult(Seen);
     public Task<string> InternalOp() => Task.FromResult(Seen);
     public Task<string> Hidden() => Task.FromResult(Seen);
+    public Task<string> Inherited() => Task.FromResult(Seen);
+    public Task<string> Own() => Task.FromResult(Seen);
     public Task<string> SharedUnmarked() => Task.FromResult(Seen);
     public Task<string> PublicUnmarked() => Task.FromResult(Seen);
 }
@@ -107,6 +122,39 @@ public sealed class CrossBrainAccessFacts(PlainNeuronCallFilterFacts.FilterSiloF
         var shared = await Assert.ThrowsAsync<UnauthorizedAccessException>(unmarked.SharedUnmarked);
         var open = await Assert.ThrowsAsync<UnauthorizedAccessException>(unmarked.PublicUnmarked);
         Assert.All(new[] { shared, open }, error => Assert.Contains("Cross-brain security violation", error.Message, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_method_inherited_from_a_contract_that_did_not_opt_in_is_refused_through_the_one_that_did()
+    {
+        var (_, _, victim, attacker) = Scene();
+        var derived = SiloNeurons.Get<ICrossingDerived>(fixture.Services, $"{victim}/main");
+        using var stamp = As(attacker);
+
+        Assert.Equal($"{victim}<-{attacker}", await derived.Own());
+        var error = await Assert.ThrowsAsync<UnauthorizedAccessException>(derived.Inherited);
+        Assert.Contains("Cross-brain security violation", error.Message, StringComparison.Ordinal);
+    }
+
+    // The wall reads the legacy stamp; the access gate reads the caller ambient. A call that carries only the legacy
+    // stamp of another brain must not pass the wall and then be admitted by the gate as this brain's own kernel.
+    [Fact]
+    public async Task A_legacy_only_stamp_of_another_brain_does_not_cross()
+    {
+        var (open, _, _, attacker) = Scene();
+        global::Orleans.Runtime.RequestContext.Set("db.cap.principal", attacker);
+        global::Orleans.Runtime.RequestContext.Set("db.cap.account", attacker);
+        global::Orleans.Runtime.RequestContext.Set("db.cap.brain", attacker);
+        try
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(open.SharedOp);
+        }
+        finally
+        {
+            global::Orleans.Runtime.RequestContext.Remove("db.cap.principal");
+            global::Orleans.Runtime.RequestContext.Remove("db.cap.account");
+            global::Orleans.Runtime.RequestContext.Remove("db.cap.brain");
+        }
     }
 
     [Fact]
