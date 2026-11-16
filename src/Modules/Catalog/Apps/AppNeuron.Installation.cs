@@ -25,8 +25,11 @@ internal sealed partial class AppNeuron
     public async Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null, AppInstallReceipt? installation = null)
     {
         ArgumentNullException.ThrowIfNull(bundle);
+        if (bundle.Manifest is null) { throw new InvalidDataException("App manifest is required."); }
         RequireOriginWriter(origin);
         await RequireBundleFor("Import", bundle);
+        var files = bundle.Files ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        var spec = bundle.Spec ?? string.Empty;
         if (installation is not null)
         {
             await ValidateInstallation("Import", bundle, origin, installation);
@@ -39,13 +42,14 @@ internal sealed partial class AppNeuron
             }
         }
         await Check("Import", new AppNameIsFree(Name(), State.Manifest));
+        var manifest = bundle.Manifest.Validated();
         var next = State.Clone();
         next.BrainScopeId = BrainId();
         next.Principal = CapturePrincipal();
-        next.Manifest = bundle.Manifest.Validated();
-        next.Spec = bundle.Spec;
-        next.Files = bundle.Files;
-        next.Settings = bundle.Manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
+        next.Manifest = manifest;
+        next.Spec = spec;
+        next.Files = files;
+        next.Settings = manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default ?? string.Empty, StringComparer.Ordinal);
         if (!string.IsNullOrWhiteSpace(bundle.CompiledType))
         {
             next.PutSetting(AppTrust.CompiledTypeSetting, bundle.CompiledType);
@@ -61,15 +65,18 @@ internal sealed partial class AppNeuron
     public async Task<AppSnapshot> Replace(AppBundle bundle, AppOrigin? origin = null)
     {
         ArgumentNullException.ThrowIfNull(bundle);
+        if (bundle.Manifest is null) { throw new InvalidDataException("App manifest is required."); }
         RequireOriginWriter(origin);
         await Check("Replace",
             new AppExists(Name(), State.Manifest),
             new BundleNameIsValid(bundle.Name, Name()),
             new BundleVersionIsSemantic(bundle.Version));
+        var files = bundle.Files ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        var spec = bundle.Spec ?? string.Empty;
         // A retried update at the version already held, with the same program, changes nothing.
-        if (bundle.Version == State.Version && bundle.Spec == State.Spec
-            && bundle.Files.Count == State.Files.Count
-            && bundle.Files.All(file => State.Files.TryGetValue(file.Key, out var held) && held == file.Value)
+        if (bundle.Version == State.Version && spec == State.Spec
+            && files.Count == State.Files.Count
+            && files.All(file => State.Files.TryGetValue(file.Key, out var held) && held == file.Value)
             && State.Status == AppStatus.Live)
         {
             if (origin is null || (origin with { Version = bundle.Version } == State.Origin && !State.Edited)) { return Describe(State); }
@@ -82,12 +89,13 @@ internal sealed partial class AppNeuron
             if (repackaged) { await Deploy(); }
             return Describe(State);
         }
+        var manifest = bundle.Manifest.Validated();
         var next = State.Clone();
-        next.Manifest = bundle.Manifest.Validated();
-        next.Spec = bundle.Spec;
-        next.Files = bundle.Files;
-        foreach (var setting in bundle.Manifest.Settings)
-        { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default); } }
+        next.Manifest = manifest;
+        next.Spec = spec;
+        next.Files = files;
+        foreach (var setting in manifest.Settings)
+        { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default ?? string.Empty); } }
         if (!string.IsNullOrWhiteSpace(bundle.CompiledType))
         {
             next.PutSetting(AppTrust.CompiledTypeSetting, bundle.CompiledType);

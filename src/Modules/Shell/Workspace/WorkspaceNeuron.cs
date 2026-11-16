@@ -81,13 +81,39 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
         return await Read();
     }
 
-    // The caller is one of the named apps of this brain, and that app is the one the OS ships, not one
-    // that merely bears its name.
+    // The caller is one of the named apps of this brain (either calling directly as that app or
+    // hopping from its hosted screen neuron), and that app is the one the OS ships, not one that
+    // merely bears its name. Foreign app callers cannot escalate through a screen hop.
     private async Task<bool> ShippedCaller(params string[] names)
     {
-        if (!RuntimeCallerContext.TryGet(out var caller) || caller.Kind != CallerKind.App || caller.AppId is not { } app) { return false; }
-        if (names.FirstOrDefault(name => app == IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).Key) is not { } named) { return false; }
-        return ShippedApps.Is(await (proxies is not null ? proxies.Get<IApp>(app) : Get<IApp>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), app))).Read(), named);
+        var contextCaller = Context.Caller;
+        string? matchedName = null;
+
+        if (contextCaller is { Actor: DigitalBrain.Access.Actor.App appActor }
+            && contextCaller.Brain == Id.Brain)
+        {
+            matchedName = names.FirstOrDefault(name => appActor.Key == IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).Key);
+        }
+        else if (RuntimeCallerContext.TryGet(out var caller)
+            && caller.Kind == CallerKind.App
+            && caller.BrainId == Id.Brain.Value
+            && caller.AppId is { } app)
+        {
+            matchedName = names.FirstOrDefault(name => app == IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).Key);
+        }
+        else if (contextCaller is { Inside: true, Via: { } via }
+            && via.Brain == Id.Brain
+            && contextCaller.Brain == Id.Brain
+            && contextCaller.Actor is not DigitalBrain.Access.Actor.App
+            && (!RuntimeCallerContext.TryGet(out var stamped) || stamped.Kind != CallerKind.App))
+        {
+            matchedName = names.FirstOrDefault(name => via == IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).ScreenNeuron);
+        }
+
+        if (matchedName is null) { return false; }
+
+        var appKey = IntoChat.OS.Primitives.AppRef.Of(Id.Brain, matchedName).Key;
+        return ShippedApps.Is(await (proxies is not null ? proxies.Get<IApp>(appKey) : Get<IApp>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(IApp), appKey))).Read(), matchedName);
     }
 
     [GeneratedRegex("^[A-Za-z0-9_.-]{1,64}$")]

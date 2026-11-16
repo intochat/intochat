@@ -136,6 +136,7 @@ public sealed class ViewNeuronFacts
     [InlineData("person", true)]
     [InlineData("platform", true)]
     [InlineData("owning-app", true)]
+    [InlineData("other-app", false)]
     [InlineData("platform-of-another-brain", false)]
     [InlineData("other-brain", false)]
     [InlineData("none", false)]
@@ -147,6 +148,7 @@ public sealed class ViewNeuronFacts
             "person" => new("p1", "a1", "owner"),
             "platform" => DigitalBrain.Capabilities.CapabilityCallers.Platform("p1", "a1", "owner"),
             "owning-app" => new("p1", "a1", "owner", AppId: "owner/apps/tasks"),
+            "other-app" => new("p1", "a1", "owner", AppId: "owner/apps/other"),
             "platform-of-another-brain" => DigitalBrain.Capabilities.CapabilityCallers.Platform("p1", "a1", "elsewhere"),
             "other-brain" => new("p1", "a1", "elsewhere"),
             _ => null,

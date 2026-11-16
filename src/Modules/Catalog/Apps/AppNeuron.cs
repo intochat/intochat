@@ -128,12 +128,13 @@ internal sealed partial class AppNeuron(
     {
         ArgumentNullException.ThrowIfNull(manifest);
         await Check("Create", new AppNameIsFree(Name(), State.Manifest));
+        var validated = manifest.Validated();
         var next = State.Clone();
-        next.Manifest = manifest.Validated();
+        next.Manifest = validated;
         next.BrainScopeId = BrainId();
         next.Principal = CapturePrincipal();
         next.Spec = spec ?? "";
-        next.Settings = manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
+        next.Settings = validated.Settings.ToDictionary(setting => setting.Name, setting => setting.Default ?? string.Empty, StringComparer.Ordinal);
         next.Version = "0.1.0";
         next.Status = AppStatus.Drafted;
         await Reopen();
@@ -163,12 +164,13 @@ internal sealed partial class AppNeuron(
         await RequireCreated("SaveManifest");
         ArgumentNullException.ThrowIfNull(manifest);
         if (Replayed(operationId)) { return Describe(State); }
+        var validated = manifest.Validated();
         var next = State.Clone();
         next.Edited = true;
-        next.Manifest = manifest.Validated();
+        next.Manifest = validated;
         // Newly declared settings get their defaults; chosen values survive.
-        foreach (var setting in manifest.Settings)
-        { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default); } }
+        foreach (var setting in validated.Settings)
+        { if (!next.Settings.ContainsKey(setting.Name)) { next.PutSetting(setting.Name, setting.Default ?? string.Empty); } }
         next.Version = Bump(next.Version, minor: false);
         Record(next);
         Receipt(next, operationId);

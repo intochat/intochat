@@ -618,7 +618,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         var focusedViewId = State.FocusedViewId;
         try
         {
-            var ws = await Get<IWorkspace>("workspace").Read();
+            var ws = await Get<IWorkspace>("main").Read();
             windows = ws.Windows;
             pins = ws.Pins;
             favs = ws.Favourites;
@@ -662,7 +662,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         IReadOnlyList<string> closedWindowIds = [];
         try
         {
-            var workspace = Get<IWorkspace>("workspace");
+            var workspace = Get<IWorkspace>("main");
             for (var attempt = 0; attempt < 2; attempt++)
             {
                 var wsState = await workspace.Read();

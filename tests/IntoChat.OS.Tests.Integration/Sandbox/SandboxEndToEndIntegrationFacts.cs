@@ -5,13 +5,16 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Brains;
+using DigitalBrain.Capabilities;
 using DigitalBrain.Modules.Configuration;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Runtime.Synapses;
+using DigitalBrain.UI;
 using DigitalBrain.Units;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Authority.Identity.Grants;
@@ -26,6 +29,8 @@ using IntoChat.OS.Kernel.AspireServer;
 using IntoChat.OS.Kernel.Sandbox;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.Flutter;
+using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Microsoft.Windows;
 using IntoChat.OS.Sandbox;
 using IntoChat.Sdk;
@@ -438,6 +443,158 @@ public sealed class SandboxEndToEndIntegrationFacts
             await bridge.UnloadAsync(harness.Scope, "synapse.alert", Ct);
             await bridge.UnloadAsync(harness.Scope, "memory.guard", Ct);
         }
+    }
+
+    [Fact]
+    public async Task OutOfProcUnitHostPublishesLiveViewToViewNeuronAndRefusesUnauthorizedApps()
+    {
+        await using var harness = await DualServerHarness.StartAsync(Ct, withExternalSandboxUrl: false);
+        var bridge = harness.KernelServices.GetRequiredService<ISandboxRuntimeBridge>();
+        var appCompiler = new AppPackageCompiler();
+
+        const string viewAppCode = """
+            using System;
+            using System.Threading;
+            using System.Threading.Tasks;
+            using DigitalBrain.UI;
+            using IntoChat.Sdk;
+
+            namespace RuntimeViewGuard;
+
+            public sealed class ViewGuardState
+            {
+                public int Count { get; set; }
+                public string LastLabel { get; set; } = "initial";
+            }
+
+            public sealed class ViewGuardSettings { }
+
+            [App("view.guard", Title = "View Guard", Summary = "Publishes live ViewNeuron state via --unit-host")]
+            public sealed class ViewGuardApp : BrainApp<ViewGuardState, ViewGuardSettings>
+            {
+                [OnSignal("view.guard.ping")]
+                public Task OnPing(string? label, CancellationToken ct)
+                {
+                    State.Count++;
+                    State.LastLabel = string.IsNullOrWhiteSpace(label) ? "ping" : label;
+                    return Task.CompletedTask;
+                }
+
+                public override View Render()
+                    => new("View Guard", new Column([
+                        new Text($"count={State.Count};label={State.LastLabel}"),
+                        new Field("note", "apps/view.guard/note", FieldKind.Text),
+                    ]));
+            }
+            """;
+
+        var compiled = appCompiler.Compile(new AppPackage(
+            Key: "view.guard",
+            Version: "1.0.0",
+            Title: "View Guard",
+            Summary: "Publishes live ViewNeuron state via --unit-host",
+            Icon: "eye",
+            Category: "Synapses",
+            Author: "test",
+            SourceFiles: [new AppSourceFile("ViewGuard.cs", viewAppCode)],
+            Needs: AppPackageNeeds.Empty,
+            DefaultSettingsJson: "{}",
+            Digest: string.Empty));
+        Assert.True(compiled.Succeeded, string.Join("\n", compiled.Errors));
+
+        var deployment = await bridge.DeployPackageAsync(harness.Scope, compiled.EnrichedPackage!, compiled.AssemblyBytes, null, null, Ct);
+        Assert.True(deployment.Succeeded, deployment.Error);
+
+        try
+        {
+            using (var initialViewResponse = await harness.KernelClient.GetAsync($"/brains/{harness.Scope}/apps/view.guard/view", Ct))
+            {
+                Assert.Equal(HttpStatusCode.OK, initialViewResponse.StatusCode);
+                var initialBody = await initialViewResponse.Content.ReadAsStringAsync(Ct);
+                Assert.Contains("count=0;label=initial", initialBody, StringComparison.Ordinal);
+            }
+
+            var dispatched = await bridge.DispatchSignalAsync(harness.Scope, "view.guard", "view.guard.ping", "\"alpha\"", Ct);
+            Assert.True(dispatched.Handled, dispatched.Error);
+            Assert.Null(dispatched.Error);
+
+            using (var updatedViewResponse = await harness.KernelClient.GetAsync($"/brains/{harness.Scope}/apps/view.guard/view", Ct))
+            {
+                Assert.Equal(HttpStatusCode.OK, updatedViewResponse.StatusCode);
+                var updatedBody = await updatedViewResponse.Content.ReadAsStringAsync(Ct);
+                Assert.Contains("count=1;label=alpha", updatedBody, StringComparison.Ordinal);
+            }
+
+            // Unauthorized app cannot publish over view.guard's ViewNeuron even inside the same brain.
+            var brainId = new BrainId(harness.Scope);
+            var edge = harness.KernelServices.GetRequiredService<EdgeAuthority>();
+            var otherAppKey = IntoChat.OS.Primitives.AppRef.Of(brainId, "other-app").Key;
+            var viewId = new NeuronId(brainId, UIVocabulary.ViewType, IntoChat.OS.Primitives.AppRef.Of(brainId, "view.guard").ViewPath);
+            using (edge.Enter(edge.App(otherAppKey, new Actor.Person(AppPrincipal.Id(otherAppKey), AccountSession.DefaultLogin), brainId)))
+            {
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+                    SiloNeurons.Get<IView>(harness.KernelServices, viewId)
+                        .Publish(99, new View("Hijacked", new Text("spoof"))));
+            }
+        }
+        finally
+        {
+            await bridge.UnloadAsync(harness.Scope, "view.guard", Ct);
+        }
+    }
+
+    [Fact]
+    public async Task AppsImportEndpoint_HandlesOmittedCollectionsAndMissingFieldsWithoutInternalError()
+    {
+        await using var harness = await DualServerHarness.StartAsync(Ct, withExternalSandboxUrl: false);
+
+        const string minimalBundleJson = """
+            {
+              "name": "minimal-import-app",
+              "version": "1.0.0",
+              "manifest": {
+                "title": "Minimal Import",
+                "description": "Omitted operations, settings, and slots"
+              },
+              "spec": "Minimal spec"
+            }
+            """;
+
+        using var minimalRequest = new HttpRequestMessage(HttpMethod.Post, $"/brains/{harness.Scope}/apps/import")
+        {
+            Content = new StringContent(minimalBundleJson, Encoding.UTF8, "application/json"),
+        };
+        using var minimalResponse = await harness.KernelClient.SendAsync(minimalRequest, Ct);
+        Assert.Equal(HttpStatusCode.OK, minimalResponse.StatusCode);
+
+        const string missingManifestJson = """
+            {
+              "name": "broken-missing-manifest",
+              "version": "1.0.0"
+            }
+            """;
+        using var missingManifestRequest = new HttpRequestMessage(HttpMethod.Post, $"/brains/{harness.Scope}/apps/import")
+        {
+            Content = new StringContent(missingManifestJson, Encoding.UTF8, "application/json"),
+        };
+        using var missingManifestResponse = await harness.KernelClient.SendAsync(missingManifestRequest, Ct);
+        Assert.True((int)missingManifestResponse.StatusCode is >= 400 and < 500, $"Expected 4xx for missing manifest, got {missingManifestResponse.StatusCode}");
+
+        const string missingVersionJson = """
+            {
+              "name": "broken-missing-version",
+              "manifest": {
+                "title": "No Version",
+                "description": "Missing version"
+              }
+            }
+            """;
+        using var missingVersionRequest = new HttpRequestMessage(HttpMethod.Post, $"/brains/{harness.Scope}/apps/import")
+        {
+            Content = new StringContent(missingVersionJson, Encoding.UTF8, "application/json"),
+        };
+        using var missingVersionResponse = await harness.KernelClient.SendAsync(missingVersionRequest, Ct);
+        Assert.True((int)missingVersionResponse.StatusCode is >= 400 and < 500, $"Expected 4xx for missing version, got {missingVersionResponse.StatusCode}");
     }
 
     private sealed record NotificationInboxPayload(NotificationItem[] Items, int UnreadCount);

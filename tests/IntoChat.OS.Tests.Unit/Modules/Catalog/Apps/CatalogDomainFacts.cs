@@ -379,4 +379,39 @@ public sealed class CatalogDomainFacts
         // Cleaned state now has 0 legacy markers
         Assert.Empty(LegacyAppRecord.DetectMarkers(state));
     }
+
+    [Fact]
+    public void AppManifestValidatedNormalizesOmittedCollectionsAndRejectsNullEntries()
+    {
+        const string minimalJson = """
+            {
+              "title": "Minimal App",
+              "description": "Missing optional collections"
+            }
+            """;
+
+        var deserialized = System.Text.Json.JsonSerializer.Deserialize<AppManifest>(minimalJson, System.Text.Json.JsonSerializerOptions.Web);
+        Assert.NotNull(deserialized);
+        Assert.Null(deserialized.Operations);
+        Assert.Null(deserialized.Settings);
+        Assert.Null(deserialized.Slots);
+
+        var validated = deserialized.Validated();
+        Assert.NotNull(validated.Operations);
+        Assert.NotNull(validated.Settings);
+        Assert.NotNull(validated.Slots);
+        Assert.Empty(validated.Operations);
+        Assert.Empty(validated.Settings);
+        Assert.Empty(validated.Slots);
+
+        const string nullSlotJson = """
+            {
+              "title": "Bad Slot App",
+              "description": "Null slot entry",
+              "slots": [null]
+            }
+            """;
+        var withNullSlot = System.Text.Json.JsonSerializer.Deserialize<AppManifest>(nullSlotJson, System.Text.Json.JsonSerializerOptions.Web)!;
+        Assert.Throws<InvalidDataException>(withNullSlot.Validated);
+    }
 }

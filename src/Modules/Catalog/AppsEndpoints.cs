@@ -263,6 +263,7 @@ internal static class AppsEndpoints
         {
             ArgumentNullException.ThrowIfNull(bundle);
             ArgumentException.ThrowIfNullOrWhiteSpace(bundle.Name);
+            if (bundle.Manifest is null) { throw new InvalidDataException("App manifest is required."); }
             return Results.Ok(View(await App(brain, bundle.Name).Import(bundle)));
         }));
 

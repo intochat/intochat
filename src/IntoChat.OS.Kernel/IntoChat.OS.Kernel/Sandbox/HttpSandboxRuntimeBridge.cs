@@ -612,10 +612,21 @@ internal sealed class HttpSandboxRuntimeBridge(
         try
         {
             var generation = entry.NextViewGeneration();
+            var brainId = new BrainId(entry.BrainId);
+            var appRef = IntoChat.OS.Primitives.AppRef.TryParse(brainId, entry.AppKey, out var parsed)
+                ? parsed
+                : IntoChat.OS.Primitives.AppRef.Of(brainId, entry.AppKey);
+            var identityClient = services.GetService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>();
+            var owner = identityClient is not null
+                ? await identityClient.OwnerOfBrain(brainId.Value).ConfigureAwait(false)
+                : null;
+            var resolvedAccount = string.IsNullOrWhiteSpace(owner?.AccountId) ? brainId.Value : owner.AccountId;
+            var appPrincipal = DigitalBrain.Capabilities.AppPrincipal.Id(appRef.Key);
             var edge = services.GetService<DigitalBrain.Access.EdgeAuthority>();
-            using (edge?.Enter(edge.Module("sandbox.views", new BrainId(entry.BrainId))))
+            using (edge?.EnterInProcess())
+            using (edge?.Enter(edge.App(appRef.Key, new DigitalBrain.Access.Actor.Person(appPrincipal, resolvedAccount), brainId)))
             {
-                var viewId = new NeuronId(new BrainId(entry.BrainId), IntoChat.OS.Modules.Flutter.UIVocabulary.ViewType, $"apps/{entry.AppKey}/view");
+                var viewId = new NeuronId(brainId, IntoChat.OS.Modules.Flutter.UIVocabulary.ViewType, appRef.ViewPath);
                 await SiloNeurons.Get<IView>(services, viewId).Publish(generation, view).WaitAsync(cancellationToken).ConfigureAwait(false);
             }
         }
