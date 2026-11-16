@@ -149,7 +149,7 @@ public sealed class ControllableLocalOllamaProbe : ILocalOllamaProbe
 public sealed class InoSiloFixture : IAsyncLifetime
 {
     private readonly FakeStorage _storage = new("Workspace Disk");
-    private readonly string _tempHome = Path.Combine(Path.GetTempPath(), "intochat-ino-silo-" + Guid.NewGuid().ToString("N"));
+    private readonly IntoChat.OS.Tests.Support.TestHome _home = new("intochat-ino-silo-");
     private IInProcessHost? _host;
     private int _brainCounter;
 
@@ -212,11 +212,10 @@ public sealed class InoSiloFixture : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        Directory.CreateDirectory(_tempHome);
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                [IntoChatOSNames.HomeKey] = _tempHome,
+                [IntoChatOSNames.HomeKey] = _home.Path,
                 ["MasterKey:MasterKey"] = "0123456789abcdef0123456789abcdef",
             })
             .Build();
@@ -309,16 +308,7 @@ public sealed class InoSiloFixture : IAsyncLifetime
             await _host.DisposeAsync();
         }
 
-        try
-        {
-            if (Directory.Exists(_tempHome))
-            {
-                Directory.Delete(_tempHome, recursive: true);
-            }
-        }
-        catch (IOException)
-        {
-        }
+        _home.Dispose();
     }
 
     private sealed class NoOpSecretRedactor : ISecretRedactor
