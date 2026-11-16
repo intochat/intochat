@@ -12,6 +12,12 @@ namespace DigitalBrain.Runtime.Orleans.Hosting;
 /// Automatically propagates and extracts distributed tracing activities across grain hops,
 /// and enforces cross-brain grain boundary invariants.
 /// </summary>
+/// <remarks>
+/// A grain of another brain is refused here, with one exception: the methods of <see cref="INeuronHost"/> that carry a
+/// <c>RuntimeInvocation</c>. Only the host grain knows the access of the operation that call names, so it makes the same
+/// refusal there (<c>NeuronHostGrainBase</c>) for every operation that is not Shared or Public on a contract marked
+/// <see cref="DigitalBrain.Access.ShareableAttribute"/>.
+/// </remarks>
 public sealed class DigitalBrainCallFilter : IIncomingGrainCallFilter, IOutgoingGrainCallFilter
 {
     private const string ActivityIdKey = "intochatos.activity-id";
@@ -39,10 +45,10 @@ public sealed class DigitalBrainCallFilter : IIncomingGrainCallFilter, IOutgoing
                 {
                     if (!string.Equals(compound.Brain.Value, caller.BrainId, StringComparison.Ordinal)
                         && caller.Kind != CallerKind.Platform
-                        && !compound.Brain.IsSystem)
+                        && !compound.Brain.IsSystem
+                        && !HostJudges(context, targetType))
                     {
-                        throw new UnauthorizedAccessException(
-                            $"Cross-brain security violation: Caller in brain '{caller.BrainId}' cannot invoke grain in brain '{compound.Brain.Value}'.");
+                        throw Violation(caller.BrainId, compound.Brain.Value);
                     }
                 }
             }
@@ -51,6 +57,23 @@ public sealed class DigitalBrainCallFilter : IIncomingGrainCallFilter, IOutgoing
         // 3. Invoke grain turn
         await context.Invoke();
     }
+
+    private static readonly string[] CallMethods =
+    [
+        nameof(INeuronHost.IsInterleaved), nameof(INeuronHost.Invoke), nameof(INeuronHost.InvokeInterleaved),
+        nameof(INeuronHost.Post), nameof(INeuronHost.PostInterleaved),
+    ];
+
+    // Streams stay refused between brains: Orleans enumerates them outside the host's admission.
+    private static bool HostJudges(IIncomingGrainCallContext context, string targetType)
+        => targetType.StartsWith("neuron.host", StringComparison.Ordinal)
+            && context.InterfaceMethod is { } method
+            && method.DeclaringType == typeof(INeuronHost)
+            && Array.IndexOf(CallMethods, method.Name) >= 0;
+
+    /// <summary>The refusal of a caller stamped in one brain reaching a grain of another.</summary>
+    internal static UnauthorizedAccessException Violation(string callerBrain, string targetBrain)
+        => new($"Cross-brain security violation: Caller in brain '{callerBrain}' cannot invoke grain in brain '{targetBrain}'.");
 
     public async Task Invoke(IOutgoingGrainCallContext context)
     {

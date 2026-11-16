@@ -190,12 +190,36 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
     public Task<bool> IsInterleaved(RuntimeInvocation call)
     {
         var (neuron, bound) = Prepare(call);
+        RefuseAnotherBrain(bound);
         return Task.FromResult(CallPolicy.MayInterleave(neuron.GetType(), bound, call));
+    }
+
+    // The cross-brain wall for a call (DigitalBrainCallFilter leaves the call-carrying methods to this grain): a caller
+    // stamped in another brain reaches only an operation whose access is Shared or Public on a contract that opted in
+    // with [Shareable]. Shared or Public alone opens nothing between brains: contracts written before this rule carry
+    // those marks without checking who calls. It holds whether or not the access gate is auditing internal contracts.
+    private void RefuseAnotherBrain(BoundCall bound)
+    {
+        if (bound.Access is OperationAccess.Public or OperationAccess.Shared
+            && bound.Contract.IsDefined(typeof(ShareableAttribute), inherit: false))
+        {
+            return;
+        }
+        if (!Capabilities.RuntimeCallerContext.TryGet(out var caller) || caller is null) { return; }
+        if (string.Equals(caller.BrainId, _id.Brain.Value, StringComparison.Ordinal)
+            || caller.Kind == DigitalBrain.Capabilities.CallerKind.Platform
+            || _id.Brain.IsSystem)
+        {
+            return;
+        }
+
+        throw DigitalBrainCallFilter.Violation(caller.BrainId, _id.Brain.Value);
     }
 
     private (Neuron Neuron, BoundCall Call, Caller As) Admitted(RuntimeInvocation call)
     {
         var (neuron, bound) = Prepare(call);
+        RefuseAnotherBrain(bound);
         return (neuron, bound, _access.Admit(_id, bound));
     }
 
