@@ -237,7 +237,7 @@ public sealed class SettingsAppFacts
 
             await settings.Request("save-preferences", new SettingsSavePreferences(DisplayName: "Linus", Theme: "dark", DefaultModel: "claude-opus-4-6"));
             await settings.Request("set-variable", new SettingsSetVariable("ANTHROPIC_API_KEY", "vault://ANTHROPIC_API_KEY"));
-            await friends.Request("add-friend", new IntoChat.OS.Apps.Friends.FriendsAddFriend("alan-brain", "alan", "Alan Turing", "friends"));
+            await os.Get<IProfile>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("local"), "os.profile", "profile")).AddFriend("alan-brain", "alan", "Alan Turing", "friends");
 
             await settings.Request("export-brain", new SettingsExportBrain());
             var archiveJson = settings.App.State.ExportedArchiveJson;
@@ -281,7 +281,7 @@ public sealed class SettingsAppFacts
         var varJson = System.Text.Json.JsonSerializer.Serialize(settings.App.Render());
         Assert.Contains("OLLAMA_HOST", varJson, StringComparison.Ordinal);
 
-        await friends.Request("add-friend", new IntoChat.OS.Apps.Friends.FriendsAddFriend("grace-brain", "grace", "Grace Hopper", "friends"));
+        await os.Get<IProfile>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("local"), "os.profile", "profile")).AddFriend("grace-brain", "grace", "Grace Hopper", "friends");
 
         var archive = new PortableBrainSnapshot(
             BrainId: "local",

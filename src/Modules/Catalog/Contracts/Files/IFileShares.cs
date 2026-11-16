@@ -10,7 +10,7 @@ public enum ShareRole
 }
 
 // One folder or file of the workspace, shared with one person. Path is canonical ("/work/..."); a shared file has nothing beneath it.
-public sealed record FileShare(string Id, string Account, string Path, bool IsFolder, ShareRole Role, DateTimeOffset SharedAt);
+public sealed record WorkspaceShare(string Id, string Account, string Path, bool IsFolder, ShareRole Role, DateTimeOffset SharedAt);
 
 // An entry under a share. Path is relative to the share; ModifiedBy is the account whose save through the share was last, or empty.
 public sealed record SharedEntry(string Path, string Name, bool IsFolder, long? Size, DateTimeOffset? Modified, string ModifiedBy);
@@ -34,17 +34,17 @@ public static class FileSharesDefaults
 public interface IFileShares
 {
     // The brain's owner, acting as a person. An app, an agent or a unit is refused.
-    Task<FileShare> Share(string account, string path, ShareRole role);
+    Task<WorkspaceShare> Share(string account, string path, ShareRole role);
     Task Unshare(string shareId);
     Task UnshareAccount(string account);
-    [ReadOnlyCall] Task<FileShare[]> Shares();
+    [ReadOnlyCall] Task<WorkspaceShare[]> Shares();
 
     // This brain's friend links, when a friend is removed: every share made for that account goes.
     [Internal] Task DropAccount(string account);
 
     // The person a share names, acting as a person from the brain they own.
-    [Shared] Task<FileShare[]> SharedWithCaller();
-    [Shared] Task<FileShare> Describe(string shareId);
+    [Shared] Task<WorkspaceShare[]> SharedWithCaller();
+    [Shared] Task<WorkspaceShare> Describe(string shareId);
     [Shared] Task<SharedEntry[]> List(string shareId, string? relativePath);
     [Shared] Task<byte[]?> Read(string shareId, string? relativePath);
     [Shared] Task<SharedEntry> Write(string shareId, string relativePath, byte[] content);

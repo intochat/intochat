@@ -7,7 +7,7 @@ You have a brain: one person's or team's workspace, with its data, apps and conn
 ## Pages
 
 - [Getting started](getting-started.md): run the product from a clone.
-- [Concepts](concepts.md): brain, where it runs, connection, capability, circle, app, Ino.
+- [Concepts](concepts.md): brain, where it runs, connection, capability, friends and groups, app, Ino.
 - [Architecture](architecture.md): how the parts fit together.
 - [Modules](modules.md): connectors and capabilities.
 - [Ino and memory](ino-and-memory.md): the agent and what it remembers.

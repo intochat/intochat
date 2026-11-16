@@ -30,15 +30,26 @@ A capability is something a brain can do that a connection provides, for example
 
 Modules bring connections and capabilities. See [modules](modules.md).
 
-## Circle
+## Friends and groups
 
-A circle is a brain that several accounts share. Its members share apps, a chat and a share of the owner's compute. The contract is `ICircle`; the module is in `src/Modules/Circles`.
+A friend is a link two people confirmed. One makes a friend code, the other redeems it, and each brain records the other's account. The contract is `IFriendLinks`. A friend added without a code is listed as not confirmed, and nothing can be shared with them.
+
+A folder or file of the workspace can be shared with a confirmed friend as Viewer or Editor. The file stays in its owner's brain.
+
+- The owner's side is `IFileShares`: the list of shares, and the only contract a person of another brain can reach. It decides every request from the caller the kernel stamped and from its own list, so removing a share takes effect at once.
+- The friend's side is `ISharedWithMe`: what friends shared with this person, and the route their requests take.
+- Only a person can share or open a share. An app, an agent or a unit is refused.
+- Removing a friend removes every share between the two.
+
+Limits today: both brains must run on the same kernel; a share names a path, so renaming the folder ends it; when two people save the same file, the last save wins; only the workspace's own storage can be shared.
+
+A group is a brain that several accounts share. Its members share apps, a chat and a share of the owner's compute. In code a group is still called a circle: the contract is `ICircle` and the module is in `src/Modules/Circles`.
 
 - The creator invites accounts. An invited account accepts and becomes a member.
 - Owners and admins can make invite codes.
-- When a member shares an app, the connections that app uses are bound for the circle. They are withdrawn when the sharer leaves.
+- When a member shares an app, the connections that app uses are bound for the group. They are withdrawn when the sharer leaves.
 
-The circle server is in `src/IntoChat.Cloud/Circle/Server`. It loads only in the `cloud` topology.
+The group server is in `src/IntoChat.Cloud/Circle/Server`. It loads only in the `cloud` topology.
 
 ## App
 

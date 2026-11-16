@@ -47,6 +47,83 @@ public sealed class FriendsAppFacts
         Assert.Contains("local/apps/data", json, StringComparison.Ordinal);
     }
 
+    private static Node Preview(FriendsAppState state) => IntoChat.OS.UI.ScreenPreview.With<FriendsApp, Node>(app => app.PreviewNode(state));
+
+    private static FriendsAppState WithFriends() => new FriendsAppState() with
+    {
+        Friends =
+        [
+            new ProfileFriend("ben", "ben", "Ben", "friends", default, Account: "ben-account", Confirmed: true),
+            new ProfileFriend("eve", "eve", "Eve"),
+        ],
+    };
+
+    [Fact]
+    public void Sharing_and_removing_are_offered_only_for_a_confirmed_friend()
+    {
+        var view = Preview(WithFriends());
+
+        var keys = Nodes(view).OfType<Button>().Select(button => button.Key).ToArray();
+        Assert.Contains("share-viewer:ben-account", keys);
+        Assert.Contains("share-editor:ben-account", keys);
+        Assert.Contains("unfriend:ben-account", keys);
+        Assert.DoesNotContain(keys, key => key is not null && key.EndsWith(":", StringComparison.Ordinal));
+        Assert.Contains("Not confirmed", System.Text.Json.JsonSerializer.Serialize(view), StringComparison.Ordinal);
+        Assert.Contains("make-code", keys);
+        Assert.Contains("redeem-code", keys);
+        Assert.DoesNotContain("add-friend", keys);
+    }
+
+    [Fact]
+    public void Shares_made_and_received_are_listed_with_what_can_be_done_to_them()
+    {
+        var state = WithFriends() with
+        {
+            SharedByMe = [new WorkspaceShare("s1", "ben-account", "/work/trip", IsFolder: true, ShareRole.Viewer, default)],
+            SharedWithMe = [new SharedPointer("ben", "ben-account", "s2", "/work/notes.md", IsFolder: false, ShareRole.Editor)],
+            Opened = new FriendsOpenedShare("ben", "s2", "", CanEdit: true, [], "hello", "ben-account"),
+        };
+
+        var view = Preview(state);
+        var keys = Nodes(view).OfType<Button>().Select(button => button.Key).ToArray();
+        var json = System.Text.Json.JsonSerializer.Serialize(view);
+
+        Assert.Contains("unshare:s1", keys);
+        Assert.Contains("open-shared:s2", keys);
+        Assert.Contains("save-shared:s2", keys);
+        Assert.Contains("/work/trip", json, StringComparison.Ordinal);
+        Assert.Contains("last saved by ben-account", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_viewer_sees_the_text_and_no_save()
+    {
+        var state = new FriendsAppState() with
+        {
+            SharedWithMe = [new SharedPointer("ben", "ben-account", "s2", "/work/notes.md", IsFolder: false, ShareRole.Viewer)],
+            Opened = new FriendsOpenedShare("ben", "s2", "", CanEdit: false, [], "hello"),
+        };
+
+        var keys = Nodes(Preview(state)).OfType<Button>().Select(button => button.Key).ToArray();
+        Assert.DoesNotContain("save-shared:s2", keys);
+    }
+
+    [Fact]
+    public async Task A_step_that_is_refused_keeps_the_screen_and_says_why()
+    {
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var friends = await os.Install<FriendsApp>();
+
+        // No person is stamped here, so the friend links refuse.
+        await friends.Request("make-code", new FriendsMakeCode());
+        Assert.Equal(string.Empty, friends.App.State.FriendCode);
+        Assert.StartsWith("Could not make a friend code", friends.App.State.Status, StringComparison.Ordinal);
+
+        await friends.Request("share-folder", new FriendsShareFolder("ben-account", "/work/trip", "viewer"));
+        Assert.StartsWith("Could not share that", friends.App.State.Status, StringComparison.Ordinal);
+        Assert.Empty(friends.App.State.SharedByMe ?? []);
+    }
+
     private static IEnumerable<Node> Nodes(object? value) => value switch
     {
         null or string => [],

@@ -2,9 +2,11 @@
 # Friends
 Role: Default
 Shipped: true
-Operations: open, publish, update-bio, add-friend, remove-friend, fork-post, filter-scope
+Operations: open, publish, update-bio, make-code, redeem-code, unfriend, share-folder, unshare, open-shared, save-shared, fork-post, filter-scope
 
-Personal social profile, direct Friends graph, and interactive App-Post feed.
+Personal social profile, friends, files shared with friends, and interactive App-Post feed.
+A friend is confirmed with a code: one person makes it, the other redeems it. A folder or file of the workspace is shared
+with a confirmed friend as Viewer or Editor; what friends shared appears under Shared with me.
 Each Post is an App<TState> template that renders inline in the profile/feed, can embed child apps via NeuronRef slots, and can be forked/remixed into the viewer's brain.
 */
 using System.Text.Json.Serialization;
@@ -31,11 +33,37 @@ public sealed record FriendsPublish(string? Content = null, string Scope = "publ
 [Signal("friends.update-bio")]
 public sealed record FriendsUpdateBio(string Handle = "user", string Bio = "", string[]? PinnedApps = null, string DisplayName = "") : Signal;
 
-[Signal("friends.add-friend")]
-public sealed record FriendsAddFriend(string FriendBrainId = "ada", string Handle = "ada", string DisplayName = "Ada Lovelace", string Scope = "friends") : Signal;
+[Signal("friends.make-code")]
+public sealed record FriendsMakeCode : Signal;
 
-[Signal("friends.remove-friend")]
-public sealed record FriendsRemoveFriend(string FriendBrainId = "ada") : Signal;
+// An empty value is read from the field of the same name on the screen.
+[Signal("friends.redeem-code")]
+public sealed record FriendsRedeemCode(string Code = "") : Signal;
+
+[Signal("friends.unfriend")]
+public sealed record FriendsUnfriend(string Account = "") : Signal;
+
+[Signal("friends.share-folder")]
+public sealed record FriendsShareFolder(string Account = "", string Path = "", string Role = "viewer") : Signal;
+
+[Signal("friends.unshare")]
+public sealed record FriendsUnshare(string ShareId = "") : Signal;
+
+[Signal("friends.open-shared")]
+public sealed record FriendsOpenShared(string OwnerBrain = "", string ShareId = "", string Path = "") : Signal;
+
+[Signal("friends.save-shared")]
+public sealed record FriendsSaveShared(string OwnerBrain = "", string ShareId = "", string Path = "", string Text = "") : Signal;
+
+// What is open from Shared with me: a folder's entries, or one file's text.
+public sealed record FriendsOpenedShare(
+    string OwnerBrain,
+    string ShareId,
+    string Path,
+    bool CanEdit,
+    SharedEntry[] Entries,
+    string? Text = null,
+    string SavedBy = "");
 
 [Signal("friends.fork_app")]
 public sealed record FriendsForkApp(string PostId = "post-1") : Signal;
@@ -54,7 +82,11 @@ public sealed record FriendsAppState(
     ProfileFriend[] Friends,
     ProfilePostItem[] Posts,
     string SelectedScope,
-    string Status)
+    string Status,
+    string FriendCode = "",
+    WorkspaceShare[]? SharedByMe = null,
+    SharedPointer[]? SharedWithMe = null,
+    FriendsOpenedShare? Opened = null)
 {
     public FriendsAppState() : this("user", "User", "", [], [], [], "all", "Ready") { }
 
@@ -86,15 +118,17 @@ public sealed record FriendsAppState(
     };
 
     [IgnoreExplore]
-    public FriendsAppState ApplyProfile(ProfileState profile, string status, string? selectedScope = null) => new(
-        string.IsNullOrWhiteSpace(profile.Handle) ? "user" : profile.Handle,
-        string.IsNullOrWhiteSpace(profile.DisplayName) ? profile.Handle : profile.DisplayName,
-        profile.Bio ?? "",
-        profile.PinnedApps ?? [],
-        profile.Friends ?? [],
-        profile.Posts ?? [],
-        NormalizeScope(selectedScope, SelectedScope),
-        status);
+    public FriendsAppState ApplyProfile(ProfileState profile, string status, string? selectedScope = null) => this with
+    {
+        Handle = string.IsNullOrWhiteSpace(profile.Handle) ? "user" : profile.Handle,
+        DisplayName = string.IsNullOrWhiteSpace(profile.DisplayName) ? profile.Handle : profile.DisplayName,
+        Bio = profile.Bio ?? "",
+        PinnedApps = profile.PinnedApps ?? [],
+        Friends = profile.Friends ?? [],
+        Posts = profile.Posts ?? [],
+        SelectedScope = NormalizeScope(selectedScope, SelectedScope),
+        Status = status,
+    };
 }
 
 [Neuron("app.friends"), Screen("app.friends", Title = "Friends")]
@@ -111,14 +145,19 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         "2.0.0",
         new AppManifest(
             Title: "Friends",
-            Description: "Personal social profile, direct friends graph, and interactive App-Post templates that can embed other apps.",
+            Description: "Personal profile, friends confirmed with a code, files shared with friends, and interactive App-Post templates.",
             Operations:
             [
                 new("open", "Show personal profile, friends list, and interactive app-post feed."),
                 new("publish", "Publish an interactive App-Post template with optional embedded child apps."),
                 new("update-bio", "Update personal profile handle, display name, bio, and pinned apps."),
-                new("add-friend", "Add a direct friend by personal brain ID and handle."),
-                new("remove-friend", "Remove a direct friend from your personal profile."),
+                new("make-code", "Make a friend code to send to someone."),
+                new("redeem-code", "Add a friend with the code they sent."),
+                new("unfriend", "Remove a friend and everything shared between you."),
+                new("share-folder", "Share a folder or file of the workspace with a confirmed friend as viewer or editor."),
+                new("unshare", "Stop sharing a folder or file."),
+                new("open-shared", "Open a folder or file a friend shared."),
+                new("save-shared", "Save a text file a friend shared for editing."),
                 new("fork-post", "Fork an interactive App-Post template (and its embedded app slots) into a new post."),
                 new("fork_app", "Fork and install an App-Post unit template into Creator and submit to IInstalls consent loop."),
                 new("filter-scope", "Filter the feed by scope (all, public, friends)."),
@@ -156,7 +195,8 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         ArgumentNullException.ThrowIfNull(request);
         var profile = await Get<IProfile>("profile").Read();
         var scope = FriendsAppState.NormalizeScope(request.Scope, State.SelectedScope);
-        await Show(State.ApplyProfile(profile, $"@{profile.Handle} · {(profile.Friends ?? []).Length} friends · {profile.Posts.Length} app-posts", scope));
+        var opened = State.ApplyProfile(profile, $"@{profile.Handle} · {(profile.Friends ?? []).Length} friends · {profile.Posts.Length} app-posts", scope);
+        await Show(await WithShares(opened));
     }
 
     [On]
@@ -194,26 +234,139 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
         await Show(State.ApplyProfile(updated, $"Updated personal bio for @{handle}."));
     }
 
+    public const string CodeField = "friend-code";
+    public const string PathField = "share-path";
+    public const string TextField = "shared-text";
+    public static string FieldKey(string field) => $"apps/friends/{field}";
+
+    private IFriendLinks Links => Get<IFriendLinks>(FriendLinksDefaults.KeyPart);
+    private IFileShares Door => Get<IFileShares>(FileSharesDefaults.KeyPart);
+    private ISharedWithMe Mine => Get<ISharedWithMe>(SharedWithMeDefaults.KeyPart);
+
     [On]
-    public async Task AddFriend(FriendsAddFriend request)
+    public Task MakeCode(FriendsMakeCode request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var brainId = string.IsNullOrWhiteSpace(request.FriendBrainId) ? "ada" : request.FriendBrainId.Trim();
-        var handle = string.IsNullOrWhiteSpace(request.Handle) ? brainId : request.Handle.Trim();
-        var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? handle : request.DisplayName.Trim();
-        var scope = string.IsNullOrWhiteSpace(request.Scope) ? "friends" : request.Scope.Trim().ToLowerInvariant();
-        var updated = await Get<IProfile>("profile").AddFriend(brainId, handle, displayName, scope);
-        await Show(State.ApplyProfile(updated, $"Added friend @{handle} to direct network ({scope})."));
+        return Attempt("make a friend code", async () =>
+        {
+            var code = await Links.Mint();
+            return State with { FriendCode = code.Code, Status = $"Send this code to your friend. It works once, until {code.ExpiresAt:u}." };
+        });
     }
 
     [On]
-    public async Task RemoveFriend(FriendsRemoveFriend request)
+    public Task RedeemCode(FriendsRedeemCode request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var brainId = string.IsNullOrWhiteSpace(request.FriendBrainId) ? "ada" : request.FriendBrainId.Trim();
-        var updated = await Get<IProfile>("profile").RemoveFriend(brainId);
-        await Show(State.ApplyProfile(updated, $"Removed direct friend {brainId}."));
+        return Attempt("add that friend", async () =>
+        {
+            var code = await Typed(request.Code, CodeField);
+            var friend = await Links.Redeem(code);
+            var profile = await Get<IProfile>("profile").Read();
+            return await WithShares(State.ApplyProfile(profile, $"@{friend.Handle} is now a friend."));
+        });
     }
+
+    [On]
+    public Task Unfriend(FriendsUnfriend request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Attempt("remove that friend", async () =>
+        {
+            await Links.Unfriend(request.Account);
+            var profile = await Get<IProfile>("profile").Read();
+            return await WithShares(State.ApplyProfile(profile, "Removed the friend and everything shared between you.") with { Opened = null });
+        });
+    }
+
+    [On]
+    public Task ShareFolder(FriendsShareFolder request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Attempt("share that", async () =>
+        {
+            var path = await Typed(request.Path, PathField);
+            var role = string.Equals(request.Role?.Trim(), "editor", StringComparison.OrdinalIgnoreCase) ? ShareRole.Editor : ShareRole.Viewer;
+            var share = await Door.Share(request.Account, path, role);
+            return await WithShares(State with { Status = $"Shared {share.Path} as {share.Role}." });
+        });
+    }
+
+    [On]
+    public Task Unshare(FriendsUnshare request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Attempt("stop sharing that", async () =>
+        {
+            await Door.Unshare(request.ShareId);
+            return await WithShares(State with { Status = "Stopped sharing." });
+        });
+    }
+
+    [On]
+    public Task OpenShared(FriendsOpenShared request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Attempt("open that", async () =>
+        {
+            var pointer = (State.SharedWithMe ?? []).FirstOrDefault(p => p.OwnerBrain == request.OwnerBrain && p.ShareId == request.ShareId)
+                ?? throw new UnauthorizedAccessException("That is not shared with you.");
+            var entries = await Mine.List(request.OwnerBrain, request.ShareId, request.Path);
+            // One entry at the path itself is a file: show its text. Anything else is a folder listing.
+            var file = entries is [{ IsFolder: false } only] && (request.Path.Length == 0 ? !pointer.IsFolder : only.Path == request.Path) ? only : null;
+            var text = file is null ? null : System.Text.Encoding.UTF8.GetString(await Mine.Read(request.OwnerBrain, request.ShareId, request.Path) ?? []);
+            var opened = new FriendsOpenedShare(request.OwnerBrain, request.ShareId, request.Path, pointer.Role == ShareRole.Editor, file is null ? entries : [], text, file?.ModifiedBy ?? "");
+            return State with { Opened = opened, Status = file is null ? $"Opened {pointer.Path}/{request.Path}".TrimEnd('/') : $"Opened {file.Name}." };
+        });
+    }
+
+    [On]
+    public Task SaveShared(FriendsSaveShared request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Attempt("save that", async () =>
+        {
+            var text = await Typed(request.Text, TextField);
+            var saved = await Mine.Write(request.OwnerBrain, request.ShareId, request.Path, System.Text.Encoding.UTF8.GetBytes(text));
+            var opened = State.Opened is { } open && open.ShareId == request.ShareId && open.Path == request.Path ? open with { Text = text, SavedBy = saved.ModifiedBy } : State.Opened;
+            return State with { Opened = opened, Status = $"Saved {saved.Name}. Last saved by {saved.ModifiedBy}." };
+        });
+    }
+
+    public Task MakeCodeAsync() => MakeCode(new FriendsMakeCode());
+    public Task RedeemTypedCodeAsync() => RedeemCode(new FriendsRedeemCode());
+    public Task UnfriendAsync(string account) => Unfriend(new FriendsUnfriend(account));
+    public Task ShareTypedPathAsync(string account, string role) => ShareFolder(new FriendsShareFolder(account, "", role));
+    public Task UnshareAsync(string shareId) => Unshare(new FriendsUnshare(shareId));
+    public Task OpenSharedAsync(string ownerBrain, string shareId, string path) => OpenShared(new FriendsOpenShared(ownerBrain, shareId, path));
+    public Task SaveTypedTextAsync(string ownerBrain, string shareId, string path) => SaveShared(new FriendsSaveShared(ownerBrain, shareId, path));
+
+    // Runs one friend or sharing step. A refusal or a mistake in what was typed leaves the screen as it was and says why.
+    private async Task Attempt(string what, Func<Task<FriendsAppState>> step)
+    {
+        try { await Show(await step()); }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<FriendsApp>().LogSwallowed(error, "A friends or sharing step was refused or failed.");
+            await Show(State with { Status = $"Could not {what}: {error.Message}" });
+        }
+    }
+
+    // What is shared by this person and with them. Sharing may be unavailable (no friends yet, or a host without it);
+    // the profile and feed still show.
+    private async Task<FriendsAppState> WithShares(FriendsAppState state)
+    {
+        try { return state with { SharedByMe = await Door.Shares(), SharedWithMe = await Mine.Refresh() }; }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            OsConsoleLog.For<FriendsApp>().LogSwallowed(error, "Shares could not be read.");
+            return state with { SharedByMe = state.SharedByMe ?? [], SharedWithMe = state.SharedWithMe ?? [] };
+        }
+    }
+
+    // The value a signal carried, or what the person typed into the field of that name.
+    private async Task<string> Typed(string? carried, string field)
+        => !string.IsNullOrWhiteSpace(carried) ? carried.Trim() : ((await Get<IntoChat.OS.Modules.Flutter.Fields.IField>(FieldKey(field)).Read()).Value ?? "").Trim();
 
     [On]
     public async Task ForkApp(FriendsForkApp request)
@@ -257,7 +410,6 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
     }
 
     public Task PublishQuickPostAsync() => Publish(new FriendsPublish("Interactive revenue & sketch board", "friends"));
-    public Task AddDefaultFriendAsync() => AddFriend(new FriendsAddFriend("ada", "ada", "Ada Lovelace", "friends"));
     public Task ForkAndInstallPostAsync(string postId) => ForkApp(new FriendsForkApp(postId));
     public Task ForkPostTemplateAsync(string postId) => ForkPost(new FriendsForkPost(postId));
 
@@ -323,7 +475,6 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
                 $"{state.DisplayName} (@{state.Handle})",
                 string.IsNullOrWhiteSpace(state.Bio) ? state.Status : $"{state.Bio} · {state.Status}",
                 StatusPill(StatusKind.Done, $"{friends.Length} friends"),
-                Button("Add Friend", "user-plus").Key("add-friend").Small().OnClick(() => AddDefaultFriendAsync()),
                 PrimaryButton("Publish App-Post", Icons.Plus).Key("publish-app-post").Small().OnClick(() => PublishQuickPostAsync())),
             Tabs(
                 state.SelectedScope,
@@ -332,18 +483,101 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
                 Tab("friends", "Friends", "users").OnSelect<FriendsAppState>(x => x.SelectScope("friends"))),
             Grid(3, Space.Sm)[
                 StatCard("kpi-friends-posts", "App-Posts", $"{allPosts.Length}", $"@{state.Handle}", BadgeTone.Accent, "layout-grid"),
-                StatCard("kpi-friends-count", "Direct Friends", $"{friends.Length}", "Personal Graph", BadgeTone.Done, "users"),
+                StatCard("kpi-friends-count", "Friends", $"{friends.Count(f => f.Confirmed)}", $"{friends.Count(f => !f.Confirmed)} not confirmed", BadgeTone.Done, "users"),
                 StatCard("kpi-friends-embedded", "Embedded Apps", $"{allPosts.Sum(p => (p.EmbeddedApps ?? []).Length)}", $"{(state.PinnedApps ?? []).Length} Pinned", BadgeTone.Accent, "cpu")
             ],
-            friends.Length > 0
-                ? Card("Direct Friends", "Personal brains connected directly without intermediate Circle brains.")[
-                    HStack(Space.Xs, [.. friends.Select(f => (Node)new TagPill($"@{f.Handle} · {f.DisplayName} ({f.Scope})", "accent", "users"))])
-                ].ToNode()
-                : null,
+            RenderFriends(state, friends),
+            RenderSharedByMe(state),
+            RenderSharedWithMe(state),
             visiblePosts.Length == 0
                 ? Empty("No App-Posts in this scope", "Publish an interactive App-Post or switch feed scope.")
                 : VStack(Space.Md, [.. visiblePosts.Select(post => RenderPostCard(state, post))]).ToNode()
         ];
+    }
+
+    // Friends, how to add one, and the path to share. Sharing is offered only for a confirmed friend.
+    private Node RenderFriends(FriendsAppState state, ProfileFriend[] friends)
+    {
+        var rows = friends.Select(friend => (Node)HStack(Space.Sm,
+        [
+            new TagPill($"@{friend.Handle} · {friend.DisplayName}", friend.Confirmed ? "accent" : "muted", "users"),
+            .. friend.Confirmed
+                ? new Node[]
+                {
+                    Button("Share as viewer", "eye").Key($"share-viewer:{friend.Account}").Small().OnClick(() => ShareTypedPathAsync(friend.Account, "viewer")),
+                    Button("Share as editor", "pencil").Key($"share-editor:{friend.Account}").Small().OnClick(() => ShareTypedPathAsync(friend.Account, "editor")),
+                    GhostButton("Remove", "user-minus").Key($"unfriend:{friend.Account}").Small().OnClick(() => UnfriendAsync(friend.Account)),
+                }
+                : [MutedText("Not confirmed. Exchange a friend code to share with them.")],
+        ]));
+
+        return Card("Friends", "A friend is confirmed with a code: one of you makes it, the other adds it.")[
+            VStack(Space.Sm,
+            [
+                .. rows,
+                HStack(Space.Sm)[
+                    Button("Make a friend code", "key").Key("make-code").Small().OnClick(() => MakeCodeAsync()),
+                    Text(state.FriendCode)
+                ],
+                TextField(FieldKey(CodeField), "ada.XXXX-XXXX-XXXX").Key(CodeField).Label("Friend code you received"),
+                PrimaryButton("Add friend", "user-plus").Key("redeem-code").Small().OnClick(() => RedeemTypedCodeAsync()),
+                TextField(FieldKey(PathField), "/work/folder").Key(PathField).Label("Folder or file of your workspace to share"),
+            ])
+        ];
+    }
+
+    private Node? RenderSharedByMe(FriendsAppState state)
+    {
+        var shares = state.SharedByMe ?? [];
+        if (shares.Length == 0) { return null; }
+        return Card("Shared by me", "People with access to your files. Removing takes effect at once.")[
+            VStack(Space.Xs, [.. shares.Select(share => (Node)HStack(Space.Sm)[
+                Text($"{share.Path} · {share.Account} · {share.Role}"),
+                GhostButton("Remove", "x").Key($"unshare:{share.Id}").Small().OnClick(() => UnshareAsync(share.Id))
+            ])])
+        ];
+    }
+
+    private Node RenderSharedWithMe(FriendsAppState state)
+    {
+        var pointers = state.SharedWithMe ?? [];
+        if (pointers.Length == 0)
+        {
+            return Empty("Nothing shared with you", "When a friend shares a folder or file with you, it appears here.");
+        }
+
+        var list = pointers.Select(pointer => (Node)HStack(Space.Sm)[
+            Text($"{pointer.OwnerAccount} · {pointer.Path} · {pointer.Role}"),
+            Button("Open", "folder-open").Key($"open-shared:{pointer.ShareId}").Small().OnClick(() => OpenSharedAsync(pointer.OwnerBrain, pointer.ShareId, ""))
+        ]);
+
+        return Card("Shared with me", "The file stays with its owner. It is reachable while their brain is running; the last save wins.")[
+            VStack(Space.Sm, [.. list, RenderOpened(state.Opened)])
+        ];
+    }
+
+    private Node? RenderOpened(FriendsOpenedShare? opened)
+    {
+        if (opened is null) { return null; }
+        if (opened.Text is null)
+        {
+            return VStack(Space.Xs, [.. opened.Entries.Select(entry => (Node)HStack(Space.Sm)[
+                Text(entry.IsFolder ? $"{entry.Path}/" : entry.Path),
+                Button("Open", entry.IsFolder ? "folder-open" : "file-text").Key($"open-entry:{opened.ShareId}:{entry.Path}").Small()
+                    .OnClick(() => OpenSharedAsync(opened.OwnerBrain, opened.ShareId, entry.Path))
+            ])]);
+        }
+
+        return VStack(Space.Xs,
+        [
+            MutedText(string.IsNullOrEmpty(opened.SavedBy) ? opened.Path : $"{opened.Path} · last saved by {opened.SavedBy}"),
+            opened.CanEdit
+                ? TextField(FieldKey(TextField), "").Key(TextField).Label("Text").Value(opened.Text)
+                : Text(opened.Text),
+            .. opened.CanEdit
+                ? new Node[] { PrimaryButton("Save", "save").Key($"save-shared:{opened.ShareId}").Small().OnClick(() => SaveTypedTextAsync(opened.OwnerBrain, opened.ShareId, opened.Path)) }
+                : [],
+        ]);
     }
 
     private Node RenderPostCard(FriendsAppState state, ProfilePostItem post)

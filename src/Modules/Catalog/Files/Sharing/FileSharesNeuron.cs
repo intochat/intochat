@@ -8,7 +8,7 @@ namespace IntoChat.OS.Modules.Apps;
 [ExportableState]
 internal sealed class FileSharesRecord
 {
-    public FileShare[] Shares { get; set; } = [];
+    public WorkspaceShare[] Shares { get; set; } = [];
     // The last save made through a share, per canonical path: who and when.
     public FileShareSave[] Saves { get; set; } = [];
 }
@@ -25,7 +25,7 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
     private IBrainOwners Owners => services.GetRequiredService<IBrainOwners>();
     private TimeProvider Clock => Context.Time;
 
-    public async Task<FileShare> Share(string account, string path, ShareRole role)
+    public async Task<WorkspaceShare> Share(string account, string path, ShareRole role)
     {
         var owner = await Owner();
         ArgumentException.ThrowIfNullOrWhiteSpace(account);
@@ -37,7 +37,7 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
         var item = await Files(vfs => vfs.Stat(canonical))
             ?? throw new ArgumentException("There is no file or folder at that path.", nameof(path));
 
-        var share = new FileShare(Guid.NewGuid().ToString("N"), account, canonical, item.Kind == ItemKind.Folder, role, Clock.GetUtcNow());
+        var share = new WorkspaceShare(Guid.NewGuid().ToString("N"), account, canonical, item.Kind == ItemKind.Folder, role, Clock.GetUtcNow());
         var kept = State.Shares.Where(existing => existing.Account != account || existing.Path != canonical);
         await Commit([.. kept, share], State.Saves);
         return share;
@@ -74,19 +74,19 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
         return (profile.Friends ?? []).FirstOrDefault(friend => friend.Confirmed && friend.Account == account);
     }
 
-    public async Task<FileShare[]> Shares()
+    public async Task<WorkspaceShare[]> Shares()
     {
         await Owner();
         return State.Shares;
     }
 
-    public async Task<FileShare[]> SharedWithCaller()
+    public async Task<WorkspaceShare[]> SharedWithCaller()
     {
         var (account, _) = await PersonActs.Require(Context.Caller, Owners);
         return [.. State.Shares.Where(share => share.Account == account)];
     }
 
-    public async Task<FileShare> Describe(string shareId) => (await Admit(shareId)).Share;
+    public async Task<WorkspaceShare> Describe(string shareId) => (await Admit(shareId)).Share;
 
     public async Task<SharedEntry[]> List(string shareId, string? relativePath)
     {
@@ -144,14 +144,14 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
     }
 
     // The person the share names, as a person, from the brain they own.
-    private async Task<(FileShare Share, string Account)> Admit(string shareId)
+    private async Task<(WorkspaceShare Share, string Account)> Admit(string shareId)
     {
         var (account, _) = await PersonActs.Require(Context.Caller, Owners);
         var share = State.Shares.FirstOrDefault(candidate => candidate.Id == shareId && candidate.Account == account);
         return share is null ? throw PersonActs.Refused() : (share, account);
     }
 
-    private Task Commit(FileShare[] shares, FileShareSave[] saves)
+    private Task Commit(WorkspaceShare[] shares, FileShareSave[] saves)
         => Save(new FileSharesRecord { Shares = shares, Saves = saves }, new FileSharesChanged(shares.Length));
 
     // Storage is reached as the files module of this brain, never as the person of another brain who asked.
@@ -161,7 +161,7 @@ internal sealed class FileSharesNeuron(IServiceProvider services) : Neuron<FileS
         return await WorkspaceFilesService.ForBrain(services, Id.Brain.Value).WithVfs(work);
     }
 
-    private SharedEntry Entry(FileShare share, VfsItem item)
+    private SharedEntry Entry(WorkspaceShare share, VfsItem item)
     {
         var relative = item.Path.Length > share.Path.Length ? item.Path[(share.Path.Length + 1)..] : string.Empty;
         var by = State.Saves.LastOrDefault(save => save.Path == item.Path)?.Account ?? string.Empty;
