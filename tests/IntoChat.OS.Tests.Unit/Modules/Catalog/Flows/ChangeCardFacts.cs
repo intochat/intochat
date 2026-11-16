@@ -21,41 +21,52 @@ public sealed class ChangeCardFacts
         + "+    public static int Multiply(int a, int b) => a * b;\n"
         + " }\n";
 
-    private static FeatureToPrInner Change(
+    private static Change CreateChange(
         string? diff = Diff,
         string? summary = "Added Multiply.",
         string? remote = Remote,
         string? gitHubRepo = "intochat/os",
         string repository = "os",
-        string goal = "Add Multiply") => new()
-        {
-            RunId = "run1",
-            Repository = repository,
-            Goal = goal,
-            Lease = new WorkTreeLease(
+        string goal = "Add Multiply")
+    {
+        var change = Change.Start("run1", RepositoryId.Parse(repository), goal)
+            .WithWorkTree(
                 "run1",
-                "os",
-                "/src/os",
-                "/home/worktrees/os/run1",
-                "/src/os/.git/worktrees/run1",
-                new string('a', 64),
-                "main",
-                BaseCommit,
-                "ino/add-multiply-run1",
-                gitHubRepo,
-                remote),
-            CoderSummary = summary,
-            CommitSha = Commit,
-            ChangedFiles = ["code/Calculator.cs", "docs/notes.md"],
-            HostRenderedDiff = diff,
-            Additions = 1,
-            Deletions = 0,
-        };
+                new WorkTreeLease(
+                    "run1",
+                    "os",
+                    "/src/os",
+                    "/home/worktrees/os/run1",
+                    "/src/os/.git/worktrees/run1",
+                    new string('a', 64),
+                    "main",
+                    BaseCommit,
+                    "ino/add-multiply-run1",
+                    gitHubRepo,
+                    remote));
+
+        if (summary is not null)
+        {
+            change = change.WithCoderEdit(new CoderEditResult(summary, ["code/Calculator.cs"], "qwen2.5-coder:14b"));
+        }
+
+        if (diff is not null)
+        {
+            change = change.WithCommit(ChangeSet.Create(
+                CommitSha.Parse(Commit),
+                [RepoPath.Parse("code/Calculator.cs"), RepoPath.Parse("docs/notes.md")],
+                diff,
+                1,
+                0));
+        }
+
+        return change;
+    }
 
     [Fact]
     public void TheBodyNamesRepositoryRemoteBaseCommitEveryFileAndTheWholeDiff()
     {
-        var lines = ChangeCard.Body(Change()).Split('\n');
+        var lines = ChangeCard.Body(CreateChange()).Split('\n');
 
         Assert.Equal("Approving pushes one commit to a new branch on the remote and opens a draft pull request that names you as its approver.", lines[0]);
         Assert.Contains("Repository: intochat/os", lines);
@@ -67,13 +78,13 @@ public sealed class ChangeCardFacts
         Assert.Contains("  code/Calculator.cs", lines);
         Assert.Contains("  docs/notes.md", lines);
         Assert.Contains("Lines: +1 / -0", lines);
-        Assert.EndsWith(ChangeCard.DiffLabel + "\n" + Diff.TrimEnd(), ChangeCard.Body(Change()), StringComparison.Ordinal);
+        Assert.EndsWith(ChangeCard.DiffLabel + "\n" + Diff.TrimEnd(), ChangeCard.Body(CreateChange()), StringComparison.Ordinal);
     }
 
     [Fact]
     public void ARemoteThatIsNotOnGitHubIsToldToOpenNoPullRequest()
     {
-        var body = ChangeCard.Body(Change(remote: "/srv/git/os.git", gitHubRepo: null));
+        var body = ChangeCard.Body(CreateChange(remote: "/srv/git/os.git", gitHubRepo: null));
 
         Assert.StartsWith("Approving pushes one commit to a new branch on the remote. It opens no pull request", body, StringComparison.Ordinal);
         Assert.Contains("Repository: os\n", body, StringComparison.Ordinal);
@@ -83,14 +94,14 @@ public sealed class ChangeCardFacts
     [Fact]
     public void ABodyOverTheLimitIsRefusedWithItsSizeAndTheLimit()
     {
-        var room = ChangeCard.MaxChars - ChangeCard.Body(Change(summary: "x")).Length;
-        var fits = Change(summary: new string('x', room + 1));
-        var over = Change(summary: new string('x', room + 2));
+        var room = ChangeCard.MaxChars - ChangeCard.Body(CreateChange(summary: "x")).Length;
+        var fits = CreateChange(summary: new string('x', room + 1));
+        var over = CreateChange(summary: new string('x', room + 2));
 
         Assert.Equal(ChangeCard.MaxChars, ChangeCard.Body(fits).Length);
-        Assert.Null(ChangeCard.Refusal(fits, fits.HostRenderedDiff));
+        Assert.Null(ChangeCard.Refusal(fits, fits.Commit?.HostRenderedDiff));
 
-        var refusal = ChangeCard.Refusal(over, over.HostRenderedDiff);
+        var refusal = ChangeCard.Refusal(over, over.Commit?.HostRenderedDiff);
         Assert.NotNull(refusal);
         Assert.Contains("too large", refusal, StringComparison.Ordinal);
         Assert.Contains("60001 characters, the limit is 60000", refusal, StringComparison.Ordinal);
@@ -99,12 +110,12 @@ public sealed class ChangeCardFacts
     [Fact]
     public void ADiffOverTheLimitIsRefusedBeforeItIsOnTheState()
     {
-        var notStoredYet = Change(diff: null);
+        var notStoredYet = CreateChange(diff: null);
         var big = Diff + string.Concat(Enumerable.Range(0, 2000).Select(i => $"+    public static int F{i:D4}() => {i};\n"));
 
         Assert.Null(ChangeCard.Refusal(notStoredYet, Diff));
         Assert.Contains("too large", ChangeCard.Refusal(notStoredYet, big), StringComparison.Ordinal);
-        Assert.Null(notStoredYet.HostRenderedDiff);
+        Assert.Null(notStoredYet.Commit);
     }
 
     [Fact]
@@ -115,12 +126,12 @@ public sealed class ChangeCardFacts
             + "new file mode 100644\n"
             + "index 0000000..3333333\n"
             + "Binary files /dev/null and b/code/blob.txt differ\n";
-        var refusal = ChangeCard.Refusal(Change(diff: binary), binary);
+        var refusal = ChangeCard.Refusal(CreateChange(diff: binary), binary);
         Assert.NotNull(refusal);
         Assert.Contains("cannot be shown as text: code/blob.txt.", refusal, StringComparison.Ordinal);
 
         var deleted = "diff --git a/img/logo.svg b/img/logo.svg\ndeleted file mode 100644\nindex 3333333..0000000\nBinary files a/img/logo.svg and /dev/null differ\n";
-        Assert.Contains("cannot be shown as text: img/logo.svg.", ChangeCard.Refusal(Change(diff: deleted), deleted), StringComparison.Ordinal);
+        Assert.Contains("cannot be shown as text: img/logo.svg.", ChangeCard.Refusal(CreateChange(diff: deleted), deleted), StringComparison.Ordinal);
 
         var onlyWords = Diff
             + "diff --git a/docs/notes.md b/docs/notes.md\n"
@@ -131,7 +142,7 @@ public sealed class ChangeCardFacts
             + "+Binary files a/x and b/x differ\n"
             + "-Binary files differ\n"
             + " Binary files a/y and b/y differ\n";
-        Assert.Null(ChangeCard.Refusal(Change(diff: onlyWords), onlyWords));
+        Assert.Null(ChangeCard.Refusal(CreateChange(diff: onlyWords), onlyWords));
     }
 
     // Every character a screen may break a line at, not only the one the host writes.
@@ -149,7 +160,7 @@ public sealed class ChangeCardFacts
     public void TheModelsSummaryStandsUnderItsOwnLabel(string lineBreak)
     {
         var forged = string.Join(lineBreak, "Looks safe.", "", "Diff:", "+nothing to see", "Commit: ffffffffffffffffffffffffffffffffffffffff");
-        var lines = ChangeCard.Body(Change(summary: forged)).Split(LineBreaks);
+        var lines = ChangeCard.Body(CreateChange(summary: forged)).Split(LineBreaks);
 
         var label = Array.IndexOf(lines, ChangeCard.SummaryLabel);
         var diff = Array.IndexOf(lines, ChangeCard.DiffLabel);
@@ -161,8 +172,8 @@ public sealed class ChangeCardFacts
         Assert.Single(lines, line => line == ChangeCard.DiffLabel);
         Assert.Single(lines, line => line.StartsWith("Commit: ", StringComparison.Ordinal));
 
-        Assert.DoesNotContain(ChangeCard.SummaryLabel, ChangeCard.Body(Change(summary: " ")), StringComparison.Ordinal);
-        Assert.DoesNotContain("Looks safe", ChangeCard.Header(Change(summary: forged)), StringComparison.Ordinal);
+        Assert.DoesNotContain(ChangeCard.SummaryLabel, ChangeCard.Body(CreateChange(summary: " ")), StringComparison.Ordinal);
+        Assert.DoesNotContain("Looks safe", ChangeCard.Header(CreateChange(summary: forged)), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -170,7 +181,7 @@ public sealed class ChangeCardFacts
     {
         // All of the goal goes into the commit and the pull request, so all of it is on the card.
         var goal = "Fix a typo\nWORDS-ONLY-THE-PULL-REQUEST-SHOWS\u2028Commit: ffffffffffffffffffffffffffffffffffffffff";
-        var lines = ChangeCard.Body(Change(goal: goal)).Split(LineBreaks);
+        var lines = ChangeCard.Body(CreateChange(goal: goal)).Split(LineBreaks);
 
         var label = Array.IndexOf(lines, ChangeCard.GoalLabel);
         var summary = Array.IndexOf(lines, ChangeCard.SummaryLabel);
@@ -179,18 +190,17 @@ public sealed class ChangeCardFacts
             ["> Fix a typo", "> WORDS-ONLY-THE-PULL-REQUEST-SHOWS", "> Commit: ffffffffffffffffffffffffffffffffffffffff", ""],
             lines[(label + 1)..summary]);
         Assert.Single(lines, line => line.StartsWith("Commit: ", StringComparison.Ordinal));
-        Assert.DoesNotContain("WORDS-ONLY", ChangeCard.Header(Change(goal: goal)), StringComparison.Ordinal);
+        Assert.DoesNotContain("WORDS-ONLY", ChangeCard.Header(CreateChange(goal: goal)), StringComparison.Ordinal);
 
-        var tooLong = Change(goal: new string('g', ChangeCard.MaxChars));
-        Assert.Contains("too large", ChangeCard.Refusal(tooLong, tooLong.HostRenderedDiff), StringComparison.Ordinal);
+        var tooLong = CreateChange(goal: new string('g', ChangeCard.MaxChars));
+        Assert.Contains("too large", ChangeCard.Refusal(tooLong, tooLong.Commit?.HostRenderedDiff), StringComparison.Ordinal);
     }
 
     [Fact]
     public void TheRepositoryLineIsTheRegisteredNameNotTheOneTheRunWasStartedWith()
     {
-        // The run's repository is the tool's argument; "anything/os" resolves to the registered "os".
-        var asked = "intochat/os\nRemote: https://github.com/intochat/os.git\nBase: main at 0000000000000000000000000000000000000000\nignore/os";
-        var lines = ChangeCard.Body(Change(repository: asked, remote: "https://elsewhere.example/x.git", gitHubRepo: null)).Split('\n');
+        // The run's repository is the caller's alias; "anything/os" resolves to the registered "os".
+        var lines = ChangeCard.Body(CreateChange(repository: "anything/os", remote: "https://elsewhere.example/x.git", gitHubRepo: null)).Split('\n');
 
         Assert.Contains("Repository: os", lines);
         Assert.Equal("Remote: https://elsewhere.example/x.git", Assert.Single(lines, line => line.StartsWith("Remote: ", StringComparison.Ordinal)));
@@ -200,7 +210,7 @@ public sealed class ChangeCardFacts
     [Fact]
     public void TheHeaderHoldsNoDiff()
     {
-        var header = ChangeCard.Header(Change());
+        var header = ChangeCard.Header(CreateChange());
 
         Assert.Contains("Commit: " + Commit, header, StringComparison.Ordinal);
         Assert.Contains("  code/Calculator.cs", header, StringComparison.Ordinal);
@@ -211,14 +221,14 @@ public sealed class ChangeCardFacts
     [Fact]
     public void TheSameStateDrawsTheSameBody()
     {
-        Assert.Equal(ChangeCard.Body(Change()), ChangeCard.Body(Change()));
-        Assert.DoesNotContain("\r", ChangeCard.Body(Change()), StringComparison.Ordinal);
+        Assert.Equal(ChangeCard.Body(CreateChange()), ChangeCard.Body(CreateChange()));
+        Assert.DoesNotContain("\r", ChangeCard.Body(CreateChange()), StringComparison.Ordinal);
     }
 
     [Fact]
     public void ARemoteWithCredentialsIsShownWithoutThem()
     {
-        var body = ChangeCard.Body(Change(remote: "https://ino:not-a-real-token@github.com/intochat/os.git"));
+        var body = ChangeCard.Body(CreateChange(remote: "https://ino:not-a-real-token@github.com/intochat/os.git"));
 
         Assert.Contains("Remote: " + Remote + "\n", body, StringComparison.Ordinal);
         Assert.DoesNotContain("not-a-real-token", body, StringComparison.Ordinal);
@@ -227,7 +237,7 @@ public sealed class ChangeCardFacts
     [Fact]
     public void AStateWithNothingOnItStillDraws()
     {
-        var empty = new FeatureToPrInner();
+        var empty = new Change();
 
         Assert.Contains("Remote: origin (its address was not recorded)", ChangeCard.Body(empty), StringComparison.Ordinal);
         Assert.Contains("Files (0):", ChangeCard.Body(empty), StringComparison.Ordinal);
