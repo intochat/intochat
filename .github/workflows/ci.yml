@@ -193,6 +193,9 @@ jobs:
       - name: Restore AppHost
         run: dotnet restore src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj -v quiet
 
+      - name: Prepare Kernel build state
+        run: dotnet build src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj -c Release -p:CodeGraphRefresh=false -p:DebugType=none --nologo -v minimal
+
       - name: Test E2E
         run: dotnet test --project tests/IntoChat.OS.Tests.E2E/IntoChat.OS.Tests.E2E.csproj -c Release --no-build -p:CodeGraphRefresh=false
 

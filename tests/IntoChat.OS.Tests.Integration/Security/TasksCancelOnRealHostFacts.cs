@@ -133,6 +133,13 @@ public sealed class TasksCancelOnRealHostFacts
             builder.Services.AddSingleton<IChatClient>(model);
             builder.Services.RemoveAll<IAiCredentials>();
             builder.Services.AddSingleton<IAiCredentials, NoProviders>();
+            // EdgeKernelHarness defaults Topology=Local which sets Ollama.Endpoint and Default.Model;
+            // clear them so ModelCatalog routes PlanFlow to the injected SwappableChatModel on any host.
+            builder.Services.PostConfigure<AIOptions>(ai =>
+            {
+                ai.Ollama.Endpoint = null;
+                ai.Default.Model = null;
+            });
         });
         try
         {
@@ -164,6 +171,7 @@ public sealed class TasksCancelOnRealHostFacts
             view => view is { Status: FlowStatus.Failed or FlowStatus.Cancelled or FlowStatus.Completed } or { Status: FlowStatus.Waiting, WaitingStep: "approve", ConfirmationPlanId: not null },
             "the plan flow did not reach its approval");
         Assert.Equal((FlowStatus.Waiting, WaitReason.Approval), (waiting.Status, waiting.WaitingFor));
+        Assert.NotEmpty(((SwappableChatModel)host.Services.GetRequiredService<IChatClient>()).Requests);
         var planId = waiting.ConfirmationPlanId!;
         Assert.True(await Eventually(() => IsPending(host, planId), pending => pending, "the plan never reached the inbox"));
         return (flowId, planId);
