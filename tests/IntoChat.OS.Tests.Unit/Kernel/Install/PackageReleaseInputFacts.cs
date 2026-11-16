@@ -74,8 +74,7 @@ public sealed class PackageReleaseInputFacts
             var release = Directory.CreateDirectory(Path.Combine(temp.FullName, "eng", "release"));
             var script = Path.Combine(release.FullName, "package-release.ps1");
             File.Copy(Path.Combine(RepoRoot(), "eng", "release", "package-release.ps1"), script);
-            File.WriteAllText(Path.Combine(temp.FullName, "VERSION"), "9.9.9
-");
+            File.WriteAllText(Path.Combine(temp.FullName, "VERSION"), "9.9.9\n");
 
             var run = DryRun(script);
 
