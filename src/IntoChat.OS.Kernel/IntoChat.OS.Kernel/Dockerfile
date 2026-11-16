@@ -86,6 +86,9 @@ COPY --from=ui-build /workspace/build/web /app/wwwroot
 # (IntoChatOS__Modules__{id}__Enabled=false).
 # A production own machine (IntoChatOS__Platform__Parts__Role=Own) must set IntoChatOS__Platform__Parts__Custody=Tpm
 # (Windows + TPM) or IntoChatOS__Platform__Parts__ConfiguredCustodyAcknowledged=true, or it refuses to start (R81).
+# The image listens on every interface. Without a sign-in module the kernel then refuses to start unless
+# IntoChatOS__Auth__Username and IntoChatOS__Auth__Password are set (a single owner) or
+# IntoChatOS__Auth__AllowOpenOnNetwork=true; registration is not served on this address either way.
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_URLS=http://0.0.0.0:8080 \
     IntoChatOS__Topology=cloud \

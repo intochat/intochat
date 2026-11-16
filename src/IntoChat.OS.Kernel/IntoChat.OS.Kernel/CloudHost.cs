@@ -44,7 +44,9 @@ public static class CloudHost
         services.TryAddSingleton<IAuthHostSeam>(sp => new KernelAuthHost(sp.GetService<DigitalBrain.Access.EdgeAuthority>()));
         services.TryAddSingleton<IOrganisationHost>(sp => new KernelOrganisationHost(sp.GetService<DigitalBrain.Access.EdgeAuthority>()));
         services.TryAddSingleton<IMailHost>(sp => new KernelMailHost(sp.GetService<DigitalBrain.Access.EdgeAuthority>()));
-        // Cloud sign-in is the auth module's. The built-in password routes would give any visitor an owner account.
+        // Cloud sign-in is the auth module's. The built-in password routes would give any visitor an owner account. This option
+        // and the sessions bound below are how the kernel knows a sign-in module is present (NetworkSignInGuard); without them
+        // it closes registration beyond loopback by itself.
         services.PostConfigure<IdentityHostOptions>(identity => identity.BuiltInPasswordEndpoints = false);
         services.AddIdentitySessions<AuthIdentityProvider>();
         services.TryAddSingleton<ISessions>(provider => provider.GetRequiredKeyedService<ISessions>(Capability.Identity.V1Id));

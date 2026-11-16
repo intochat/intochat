@@ -38,7 +38,8 @@ public sealed class AuthOptions
     public string? Password { get; set; }
 
     // Open posture serves every anonymous caller as the owner; in Aspire run mode it may listen on loopback only
-    // (OpenPostureLoopback in ServiceDefaults) unless this explicit opt-in is set.
+    // (OpenPostureLoopback in ServiceDefaults) unless this explicit opt-in is set. In every topology it is also one of the two
+    // ways a kernel without a sign-in module may start beyond loopback; the other is the bootstrap credential (NetworkSignIn).
     public bool AllowOpenOnNetwork { get; set; }
 
     // External sign-in (GET /identity/external) is mapped only when at least one issuer is listed; the local password

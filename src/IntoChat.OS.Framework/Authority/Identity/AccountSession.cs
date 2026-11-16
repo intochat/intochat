@@ -38,10 +38,12 @@ public static class AccountSession
 
         var options = app.Services.GetRequiredService<IOptions<AuthOptions>>().Value;
         var credential = BasicCredential.FromOptions(options);
+        // Closed beyond loopback (NetworkSignIn): the route is not mapped there, and the path is not let through either.
+        var openRegistration = NetworkSignInGuard.Configured(app.Services).OpenRegistration;
 
         app.Use(async (context, next) =>
         {
-            if (IsAnonymous(context.Request) || context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is not null)
+            if (IsAnonymous(context.Request, openRegistration) ||context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is not null)
             {
                 await next(context).ConfigureAwait(false);
                 return;
@@ -189,7 +191,7 @@ public static class AccountSession
         return GuestSurface.Is(caller) ? caller with { AppId = GuestSurface.AppId } : caller;
     }
 
-    private static bool IsAnonymous(HttpRequest request)
+    private static bool IsAnonymous(HttpRequest request, bool openRegistration)
     {
         // Preflight carries no Authorization header by design; CORS answers it.
         if (HttpMethods.IsOptions(request.Method))
@@ -204,7 +206,12 @@ public static class AccountSession
             return true;
         }
 
-        if (requested is "/identity/register" or "/identity/login" && IdentityOf(request.HttpContext).BuiltInPasswordEndpoints)
+        if (requested is "/identity/login" && IdentityOf(request.HttpContext).BuiltInPasswordEndpoints)
+        {
+            return true;
+        }
+
+        if (requested is "/identity/register" && openRegistration)
         {
             return true;
         }

@@ -11,8 +11,9 @@ namespace IntoChat.OS.ServiceDefaults;
 
 // Open posture resolves every anonymous caller as the owner, so on IntoChatOS:Topology local or local+cloud (unset means local)
 // on the host it may listen on loopback only (D-21; this replaced the retired run-mode marker). Cloud and containers are out of
-// scope: they already require an explicit posture (IdentityHosting), and the isolated candidate containers opt in explicitly.
-// An IntoChatOS:Bind beyond loopback does not lift the rule: Open posture there still needs AllowOpenOnNetwork=true.
+// this check's scope: they already require an explicit posture (IdentityHosting), and the isolated candidate containers opt in
+// explicitly. An IntoChatOS:Bind beyond loopback does not lift the rule: Open posture there still needs AllowOpenOnNetwork=true.
+// Whatever the posture and the topology, a kernel beyond loopback also answers to NetworkSignIn.
 //
 // Two layers: Validate reads the URLs Kestrel will read from configuration and throws before anything binds;
 // the backstop inspects the addresses the server actually bound (code-level UseUrls/ListenAnyIP are invisible

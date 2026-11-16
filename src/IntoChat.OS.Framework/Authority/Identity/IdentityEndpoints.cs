@@ -34,7 +34,8 @@ internal static class IdentityEndpoints
         routes.MapPost(PresenceProofValidator.ExchangePath, ExchangeLocalPresence);
         if (routes.ServiceProvider.GetRequiredService<IOptions<IdentityHostOptions>>().Value.BuiltInPasswordEndpoints)
         {
-            routes.MapPost("/identity/register", RegisterAsync);
+            // Registration gives a visitor an owner account of their own, so it exists on loopback only (NetworkSignIn).
+            if (NetworkSignInGuard.Configured(routes.ServiceProvider).OpenRegistration) { routes.MapPost("/identity/register", RegisterAsync); }
             routes.MapPost("/identity/login", LoginAsync);
         }
         External.ExternalSignIn.Map(routes);

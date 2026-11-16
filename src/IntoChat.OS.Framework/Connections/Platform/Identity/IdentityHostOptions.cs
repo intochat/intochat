@@ -22,7 +22,8 @@ public sealed class IdentityHostOptions
     public string DirectoryKey { get; set; } = "identity-directory";
 
     // false unmaps POST /identity/register and /identity/login (and drops them from the anonymous list)
-    // so another module can own sign-in; session, logout, brains and grants stay.
+    // so another module can own sign-in; session, logout, brains and grants stay. Whatever this says, the kernel itself
+    // never maps /identity/register on a listener beyond loopback (NetworkSignIn).
     public bool BuiltInPasswordEndpoints { get; set; } = true;
 
     public bool Validate() => !string.IsNullOrWhiteSpace(CookieName)
