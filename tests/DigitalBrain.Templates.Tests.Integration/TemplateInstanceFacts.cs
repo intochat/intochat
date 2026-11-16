@@ -4,13 +4,13 @@ using System.Text;
 
 namespace DigitalBrain.Templates.Tests.Integration;
 
-// D-07 / APPS-05: `dotnet new digitalbrain-app -n Notes` (and its alias `intochat-app`) gives Notes.cs, Notes.spec.md and NotesFacts.cs; the instance builds with
+// D-07 / APPS-05: `dotnet new digitalbrain-app -n Notes` gives Notes.cs, Notes.spec.md and NotesFacts.cs; the instance builds with
 // -warnaserror (so zero analyzer diagnostics) and its generated baseline passes unchanged.
 //
 // Packages: DIGITALBRAIN_TEMPLATE_PACKAGES names a folder of packed DigitalBrain packages (CI passes the build job's artifacts);
 // without it the fact packs the six packages the instance needs into a temporary feed with a unique prerelease version, built
 // under a temporary artifacts path so the repository's bin and obj stay untouched. The template is installed into a custom hive.
-public sealed class IntochatAppTemplateFacts
+public sealed class TemplateInstanceFacts
 {
     private static readonly string[] Packed =
     [
@@ -22,9 +22,7 @@ public sealed class IntochatAppTemplateFacts
 
     [Theory]
     [InlineData("digitalbrain-app", "Notes", null, "notes")]
-    [InlineData("intochat-app", "Notes", null, "notes")]
     [InlineData("digitalbrain-app", "Foo.Bar", "acme.foo-bar", "acme.foo-bar")]
-    [InlineData("intochat-app", "Foo.Bar", "acme.foo-bar", "acme.foo-bar")]
     public async Task An_instance_builds_with_warnings_as_errors_and_passes_its_baseline(string shortName, string name, string? appId, string expectedId)
     {
         var ct = TestContext.Current.CancellationToken;
@@ -35,7 +33,7 @@ public sealed class IntochatAppTemplateFacts
         {
             var (feed, version) = await Packages(root, work, ct);
             var hive = Path.Combine(work, "hive");
-            var template = Path.Combine(root, "templates", "DigitalBrain.Templates", "content", "intochat-app");
+            var template = Path.Combine(root, "templates", "DigitalBrain.Templates", "content", "digitalbrain-app");
             await Dotnet(work, null, ["new", "install", template, "--debug:custom-hive", hive], ct);
 
             var app = Path.Combine(work, name);
@@ -76,7 +74,6 @@ public sealed class IntochatAppTemplateFacts
 
     [Theory]
     [InlineData("digitalbrain-module")]
-    [InlineData("intochat-module")]
     public async Task A_module_instance_builds_with_warnings_as_errors_and_passes_its_tests(string shortName)
     {
         var ct = TestContext.Current.CancellationToken;
@@ -87,7 +84,7 @@ public sealed class IntochatAppTemplateFacts
         {
             var (feed, version) = await Packages(root, work, ct);
             var hive = Path.Combine(work, "hive");
-            var template = Path.Combine(root, "templates", "DigitalBrain.Templates", "content", "intochat-module");
+            var template = Path.Combine(root, "templates", "DigitalBrain.Templates", "content", "digitalbrain-module");
             await Dotnet(work, null, ["new", "install", template, "--debug:custom-hive", hive], ct);
 
             const string name = "Weather";

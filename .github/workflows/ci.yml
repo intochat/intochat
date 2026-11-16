@@ -188,7 +188,7 @@ jobs:
           done
           exit $status
 
-  # dotnet new intochat-app / intochat-module tests outside the repository, from this run's packages.
+  # dotnet new digitalbrain-app / digitalbrain-module tests outside the repository, from this run's packages.
   template:
     name: template
     needs: build
@@ -209,8 +209,8 @@ jobs:
       - name: Template smoke facts (unit)
         run: dotnet test --project tests/DigitalBrain.Templates.Tests.Unit/DigitalBrain.Templates.Tests.Unit.csproj -c Release
 
-      # 08-05: dotnet new intochat-app (Notes, Foo.Bar) into a custom hive, build -warnaserror, generated baseline green, DB0030 probe.
-      - name: intochat-app and intochat-module template facts
+      # 08-05: dotnet new digitalbrain-app (Notes, Foo.Bar) into a custom hive, build -warnaserror, generated baseline green, DB0030 probe.
+      - name: digitalbrain-app and digitalbrain-module template facts
         env:
           DIGITALBRAIN_TEMPLATE_PACKAGES: ${{ github.workspace }}/artifacts/packages
         run: dotnet test --project tests/DigitalBrain.Templates.Tests.Integration/DigitalBrain.Templates.Tests.Integration.csproj -c Release

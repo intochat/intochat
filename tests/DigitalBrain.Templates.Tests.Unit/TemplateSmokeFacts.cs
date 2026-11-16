@@ -14,14 +14,14 @@ public sealed class TemplateSmokeFacts
         try
         {
             var hive = Path.Combine(work, "hive");
-            var templatePath = Path.Combine(root, "templates", "DigitalBrain.Templates", "content", "intochat-module");
+            var templatePath = Path.Combine(root, "templates", "DigitalBrain.Templates", "content", "digitalbrain-module");
             await Dotnet(work, ["new", "install", templatePath, "--debug:custom-hive", hive], ct);
 
             const string name = "SampleInTreeModule";
             var outDir = Path.Combine(work, name);
 
             // Scaffold with --inTree true
-            await Dotnet(work, ["new", "intochat-module", "-n", name, "-o", outDir, "--ModuleId", "acme.sample", "--inTree", "true", "--debug:custom-hive", hive], ct);
+            await Dotnet(work, ["new", "digitalbrain-module", "-n", name, "-o", outDir, "--ModuleId", "acme.sample", "--inTree", "true", "--debug:custom-hive", hive], ct);
 
             // Verify in-tree module files scaffolded
             Assert.True(File.Exists(Path.Combine(outDir, name, name + ".csproj")), "Module .csproj should exist");
@@ -56,14 +56,14 @@ public sealed class TemplateSmokeFacts
         try
         {
             var hive = Path.Combine(work, "hive");
-            var templatePath = Path.Combine(root, "templates", "DigitalBrain.Templates", "content", "intochat-module");
+            var templatePath = Path.Combine(root, "templates", "DigitalBrain.Templates", "content", "digitalbrain-module");
             await Dotnet(work, ["new", "install", templatePath, "--debug:custom-hive", hive], ct);
 
             const string name = "SampleStandaloneModule";
             var outDir = Path.Combine(work, name);
 
             // Scaffold with --inTree false (standalone mode)
-            await Dotnet(work, ["new", "intochat-module", "-n", name, "-o", outDir, "--ModuleId", "acme.standalone", "--inTree", "false", "--debug:custom-hive", hive], ct);
+            await Dotnet(work, ["new", "digitalbrain-module", "-n", name, "-o", outDir, "--ModuleId", "acme.standalone", "--inTree", "false", "--debug:custom-hive", hive], ct);
 
             // Verify module structure exists
             Assert.True(File.Exists(Path.Combine(outDir, name, name + ".csproj")), "Module .csproj should exist");

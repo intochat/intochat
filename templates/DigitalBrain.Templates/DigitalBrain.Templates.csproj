@@ -4,7 +4,7 @@
     <PackageId>DigitalBrain.Templates</PackageId>
     <IsPackable>true</IsPackable>
     <PackageType>Template</PackageType>
-    <Description>dotnet new templates for DigitalBrain: intochat-app scaffolds an app with a neuron, intochat-module scaffolds a module; both with tests.</Description>
+    <Description>dotnet new templates for DigitalBrain: digitalbrain-app scaffolds an app with a neuron, digitalbrain-module scaffolds a module; both with tests.</Description>
     <TargetFramework>netstandard2.0</TargetFramework>
     <IncludeContentInPack>true</IncludeContentInPack>
     <IncludeBuildOutput>false</IncludeBuildOutput>

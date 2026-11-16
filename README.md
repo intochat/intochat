@@ -1,13 +1,13 @@
 # DigitalBrain
 
-The open-source C# framework for building AI-native reactive apps and modular neuron systems. [IntoChat OS](https://github.com/intochat/os) and [IntoChat Modules](https://github.com/intochat/modules) are built on it.
+DigitalBrain is the open-source C# framework for building AI-native reactive apps out of neurons, signals and synapses. [IntoChat OS](https://github.com/intochat/os) is a distribution built on it.
 
 ## Quick Start
 
 ```bash
 dotnet new install DigitalBrain.Templates
-dotnet new intochat-app -n MyApp
-dotnet new intochat-module -n MyModule
+dotnet new digitalbrain-app -n MyApp
+dotnet new digitalbrain-module -n MyModule
 cd MyApp && dotnet test
 ```
 
@@ -62,7 +62,7 @@ public sealed class CalculatorApp : App<CalculatorState>
 | `DigitalBrain.Testing` | `TestOS.Local()`, `BddRunner`, `AppBaseline`, capability conformance suites, and fakes. |
 | `DigitalBrain.Testing.Silo` | Dual-tier harness running the same fact on `TestOS.Local()` and `SiloHost.Local()`. |
 | `DigitalBrain.Analyzers` | Compile-time analyzers enforcing reaction shapes, spec comments, and module invariants. |
-| `DigitalBrain.Templates` | `dotnet new intochat-app` and `dotnet new intochat-module`. |
+| `DigitalBrain.Templates` | `dotnet new digitalbrain-app` and `dotnet new digitalbrain-module`. |
 | `DigitalBrain.Runtime.Orleans` | Distributed Orleans runtime for `LocalProfile` and `LocalCloudProfile`. |
 | `DigitalBrain.Runtime.Orleans.Azure` | `CloudProfile` on Azure Storage and Key Vault. |
 | `DigitalBrain.Runtime.Http` | ASP.NET Core edge seam for module routes, webhooks, and session cookies. |
@@ -71,9 +71,8 @@ public sealed class CalculatorApp : App<CalculatorState>
 
 ## Documentation & Ecosystem
 
-- **Framework Documentation**: [`intochat/digitalbrain.docs`](https://github.com/intochat/digitalbrain.docs)
-- **Official & Community Modules**: [`intochat/modules`](https://github.com/intochat/modules)
-- **IntoChat OS**: [`intochat/os`](https://github.com/intochat/os) & [`intochat/os.docs`](https://github.com/intochat/os.docs)
+- **Framework Documentation**: [`docs/`](docs/README.md)
+- **IntoChat OS**: [`intochat/os`](https://github.com/intochat/os)
 
 ## License
 
