@@ -42,7 +42,7 @@ public sealed class WorkTreeOptions
 public sealed partial class WorkTreeService : IWorkTree
 {
     public const string AuthorName = "Ino";
-    public const string AuthorEmail = "ino@intochat.ai";
+    public const string AuthorEmail = "ino@intochat.io";
 
     private static readonly WorkTreeOptions DefaultOptions = new();
     private readonly WorkTreeOptions _options;

@@ -24,7 +24,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
-$DefaultPublicDomain = 'intochat.ai'
+$DefaultPublicDomain = 'intochat.io'
 if ([string]::IsNullOrWhiteSpace($PublicDomain)) {
     $PublicDomain = $DefaultPublicDomain
 }

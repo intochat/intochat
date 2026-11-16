@@ -197,7 +197,7 @@ public sealed class InstallerScriptFacts
     private static string PsEscape(string value) => "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
 
     [Fact]
-    public void AllEngScriptsAndManifestsUseIntoChatAiDomainWithoutLegacyIntoChatIo()
+    public void AllEngScriptsAndManifestsUseIntoChatIoDomainWithoutLegacyIntoChatAi()
     {
         var engRoot = EngPath();
         var files = Directory.EnumerateFiles(engRoot, "*", SearchOption.AllDirectories).OrderBy(p => p, StringComparer.Ordinal).ToArray();
@@ -207,8 +207,8 @@ public sealed class InstallerScriptFacts
         {
             var text = File.ReadAllText(file);
             var relative = Path.GetRelativePath(FindRepoRoot(), file);
-            Assert.DoesNotContain("intochat.io", text, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("intochat.ai", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("intochat.ai", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("intochat.io", text, StringComparison.Ordinal);
             Assert.DoesNotContain(ZeroSha256, text, StringComparison.Ordinal);
             Assert.True(text.Length > 0, relative);
         }
@@ -226,14 +226,14 @@ public sealed class InstallerScriptFacts
         Assert.Contains("PENDING_RELEASE_VERSION", brew, StringComparison.Ordinal);
         Assert.Contains("PENDING_RELEASE_SHA256_OSX_ARM64", brew, StringComparison.Ordinal);
         Assert.Contains("PENDING_RELEASE_SHA256_OSX_X64", brew, StringComparison.Ordinal);
-        Assert.Contains("https://releases.intochat.ai/", brew, StringComparison.Ordinal);
-        Assert.Contains("https://intochat.ai", brew, StringComparison.Ordinal);
+        Assert.Contains("https://releases.intochat.io/", brew, StringComparison.Ordinal);
+        Assert.Contains("https://intochat.io", brew, StringComparison.Ordinal);
 
         Assert.Contains("PENDING_RELEASE_VERSION", winget, StringComparison.Ordinal);
         Assert.Contains("PENDING_RELEASE_SHA256_WIN_X64", winget, StringComparison.Ordinal);
         Assert.Contains("PENDING_RELEASE_SHA256_WIN_ARM64", winget, StringComparison.Ordinal);
-        Assert.Contains("https://releases.intochat.ai/", winget, StringComparison.Ordinal);
-        Assert.Contains("https://intochat.ai", winget, StringComparison.Ordinal);
+        Assert.Contains("https://releases.intochat.io/", winget, StringComparison.Ordinal);
+        Assert.Contains("https://intochat.io", winget, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -375,7 +375,7 @@ public sealed class InstallerScriptFacts
                             version = '0.17.1'
                             assets  = [pscustomobject]@{
                                 {{PsEscape(rid)}} = [pscustomobject]@{
-                                    url    = "https://releases.intochat.ai/stable/0.17.1/intochat-0.17.1-{{rid}}.zip"
+                                    url    = "https://releases.intochat.io/stable/0.17.1/intochat-0.17.1-{{rid}}.zip"
                                     sha256 = {{manifestShaExpr}}
                                 }
                             }
@@ -628,7 +628,7 @@ public sealed class InstallerScriptFacts
     }
 
     [Fact]
-    public void PackageReleaseScriptsDryRunUseIntoChatAiAndPopulateManifestsWithoutZeros()
+    public void PackageReleaseScriptsDryRunUseIntoChatIoAndPopulateManifestsWithoutZeros()
     {
         var version = File.ReadAllText(Path.Combine(FindRepoRoot(), "VERSION")).Trim();
         var temp = Directory.CreateTempSubdirectory("intochat-pkg-test-");
@@ -641,8 +641,8 @@ public sealed class InstallerScriptFacts
                     ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", EngPath("release", "package-release.ps1"), "-DryRun"],
                     new Dictionary<string, string?>());
                 Assert.True(dryRun.ExitCode == 0, $"DryRun failed: {dryRun.StderrOrStdout()}");
-                Assert.Contains("intochat.ai", dryRun.StdOut, StringComparison.Ordinal);
-                Assert.DoesNotContain("intochat.io", dryRun.StdOut, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("intochat.io", dryRun.StdOut, StringComparison.Ordinal);
+                Assert.DoesNotContain("intochat.ai", dryRun.StdOut, StringComparison.OrdinalIgnoreCase);
 
                 var outWin = Path.Combine(temp.FullName, "rel-win");
                 Directory.CreateDirectory(outWin);
@@ -659,7 +659,7 @@ public sealed class InstallerScriptFacts
 
                 var wingetOut = File.ReadAllText(Path.Combine(outWin, "winget", "IntoChat.OS.yaml"));
                 Assert.Contains($"PackageVersion: {version}", wingetOut, StringComparison.Ordinal);
-                Assert.Contains($"https://releases.intochat.ai/stable/{version}/intochat-{version}-win-x64.zip", wingetOut, StringComparison.Ordinal);
+                Assert.Contains($"https://releases.intochat.io/stable/{version}/intochat-{version}-win-x64.zip", wingetOut, StringComparison.Ordinal);
                 Assert.Contains($"InstallerSha256: {shaX64}", wingetOut, StringComparison.Ordinal);
                 Assert.Contains($"InstallerSha256: {shaArm}", wingetOut, StringComparison.Ordinal);
                 Assert.DoesNotContain("PENDING_RELEASE_", wingetOut, StringComparison.Ordinal);
@@ -675,8 +675,8 @@ public sealed class InstallerScriptFacts
                 var exe = viaWsl ? "wsl.exe" : "sh";
                 var drySh = RunProcess(exe, dryArgs, new Dictionary<string, string?>());
                 Assert.True(drySh.ExitCode == 0, $"package-release.sh --dry-run failed: {drySh.StderrOrStdout()}");
-                Assert.Contains("intochat.ai", drySh.StdOut, StringComparison.Ordinal);
-                Assert.DoesNotContain("intochat.io", drySh.StdOut, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("intochat.io", drySh.StdOut, StringComparison.Ordinal);
+                Assert.DoesNotContain("intochat.ai", drySh.StdOut, StringComparison.OrdinalIgnoreCase);
 
                 var outOsx = Path.Combine(temp.FullName, "rel-osx");
                 Directory.CreateDirectory(outOsx);
@@ -696,7 +696,7 @@ public sealed class InstallerScriptFacts
                 Assert.Contains($"version \"{version}\"", brewOut, StringComparison.Ordinal);
                 Assert.Contains($"\"{shaOsxArm}\"", brewOut, StringComparison.Ordinal);
                 Assert.Contains($"\"{shaOsxX64}\"", brewOut, StringComparison.Ordinal);
-                Assert.Contains("https://releases.intochat.ai/stable/", brewOut, StringComparison.Ordinal);
+                Assert.Contains("https://releases.intochat.io/stable/", brewOut, StringComparison.Ordinal);
                 Assert.DoesNotContain("PENDING_RELEASE_", brewOut, StringComparison.Ordinal);
                 Assert.DoesNotContain(ZeroSha256, brewOut, StringComparison.Ordinal);
             }

@@ -1,9 +1,9 @@
 #!/bin/sh
-# IntoChat OS one-command POSIX installer for macOS and Linux (https://intochat.ai/install.sh).
+# IntoChat OS one-command POSIX installer for macOS and Linux (https://intochat.io/install.sh).
 # Installs a self-contained IntoChat OS release under ~/.intochat without root, Docker, or a pre-installed .NET SDK.
 set -eu
 
-DEFAULT_PUBLIC_DOMAIN="intochat.ai"
+DEFAULT_PUBLIC_DOMAIN="intochat.io"
 CHANNEL="${INTOCHAT_CHANNEL:-stable}"
 VERSION="${INTOCHAT_VERSION:-}"
 PUBLIC_DOMAIN="${INTOCHAT_PUBLIC_DOMAIN:-$DEFAULT_PUBLIC_DOMAIN}"

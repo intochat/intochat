@@ -4,10 +4,10 @@ PackageIdentifier: IntoChat.OS
 PackageVersion: PENDING_RELEASE_VERSION
 PackageLocale: en-US
 Publisher: IntoChat
-PublisherUrl: https://intochat.ai
+PublisherUrl: https://intochat.io
 PublisherSupportUrl: https://github.com/intochat/os/issues
 PackageName: IntoChat OS
-PackageUrl: https://intochat.ai
+PackageUrl: https://intochat.io
 License: MIT
 LicenseUrl: https://github.com/intochat/os/blob/master/LICENSE
 ShortDescription: Local-first AI operating system with Ino, live C# micro-apps, ArtCraft studios, and hardware-confined sandboxes.
@@ -29,7 +29,7 @@ Installers:
     NestedInstallerFiles:
       - RelativeFilePath: IntoChat.OS.Desktop.exe
         PortableCommandAlias: intochat
-    InstallerUrl: https://releases.intochat.ai/PENDING_RELEASE_CHANNEL/PENDING_RELEASE_VERSION/intochat-PENDING_RELEASE_VERSION-win-x64.zip
+    InstallerUrl: https://releases.intochat.io/PENDING_RELEASE_CHANNEL/PENDING_RELEASE_VERSION/intochat-PENDING_RELEASE_VERSION-win-x64.zip
     InstallerSha256: PENDING_RELEASE_SHA256_WIN_X64
   - Architecture: arm64
     InstallerType: zip
@@ -37,7 +37,7 @@ Installers:
     NestedInstallerFiles:
       - RelativeFilePath: IntoChat.OS.Desktop.exe
         PortableCommandAlias: intochat
-    InstallerUrl: https://releases.intochat.ai/PENDING_RELEASE_CHANNEL/PENDING_RELEASE_VERSION/intochat-PENDING_RELEASE_VERSION-win-arm64.zip
+    InstallerUrl: https://releases.intochat.io/PENDING_RELEASE_CHANNEL/PENDING_RELEASE_VERSION/intochat-PENDING_RELEASE_VERSION-win-arm64.zip
     InstallerSha256: PENDING_RELEASE_SHA256_WIN_ARM64
 ManifestType: singleton
 ManifestVersion: 1.9.0

@@ -6,10 +6,10 @@ cask "intochat" do
   sha256 arm:   "PENDING_RELEASE_SHA256_OSX_ARM64",
          intel: "PENDING_RELEASE_SHA256_OSX_X64"
 
-  url "https://releases.intochat.ai/PENDING_RELEASE_CHANNEL/#{version}/intochat-#{version}-osx-#{arch}.tar.gz"
+  url "https://releases.intochat.io/PENDING_RELEASE_CHANNEL/#{version}/intochat-#{version}-osx-#{arch}.tar.gz"
   name "IntoChat OS"
   desc "Local-first AI operating system with Ino, live C# micro-apps, and ArtCraft studios"
-  homepage "https://intochat.ai"
+  homepage "https://intochat.io"
 
   depends_on macos: ">= :sonoma"
 

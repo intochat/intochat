@@ -3,7 +3,7 @@
 # Produces intochat-<version>-<rid>.tar.gz, VERSION, SHA256SUMS, latest.json, and homebrew/intochat.rb matching eng/install/install.sh.
 set -eu
 
-DEFAULT_PUBLIC_DOMAIN="intochat.ai"
+DEFAULT_PUBLIC_DOMAIN="intochat.io"
 RID=""
 CONFIGURATION="Release"
 CHANNEL="stable"

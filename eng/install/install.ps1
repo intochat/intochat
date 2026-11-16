@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    IntoChat OS one-command Windows installer (https://intochat.ai/install.ps1).
+    IntoChat OS one-command Windows installer (https://intochat.io/install.ps1).
 .DESCRIPTION
     Downloads, verifies (SHA-256), stages, and activates the self-contained IntoChat OS
     Windows release under ~/.intochat without requiring Administrator privileges, Docker,
@@ -23,7 +23,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
 
-$DefaultPublicDomain = 'intochat.ai'
+$DefaultPublicDomain = 'intochat.io'
 if ([string]::IsNullOrWhiteSpace($PublicDomain)) {
     $PublicDomain = $DefaultPublicDomain
 }
