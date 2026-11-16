@@ -17,7 +17,7 @@ public sealed record UserSettingsState(
     string TimeZone = "UTC",
     string DateFormat = "17 Oct 2026")
 {
-    public UserSettingsState() : this("User", "dark", "qwen3.5:4b", [], "fluent-acrylic", "floating-glass", "auto", "cream", "English", "UTC", "17 Oct 2026") { }
+    public UserSettingsState() : this("User", "dark", "", [], "fluent-acrylic", "floating-glass", "auto", "cream", "English", "UTC", "17 Oct 2026") { }
 }
 
 [DigitalBrain.Signal("os.settings.changed")]

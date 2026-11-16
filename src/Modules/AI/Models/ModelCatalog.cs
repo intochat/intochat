@@ -3,13 +3,13 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Compute;
-using DigitalBrain.Log;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.AI.Inference;
+using IntoChat.OS.Modules.AI.Models.Ollama;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -22,6 +22,12 @@ namespace IntoChat.OS.Modules.AI.Models;
 // deployment's registrations.
 public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOptions> options)
 {
+    internal static LLMModel DefaultChatModel { get; } =
+        LLMModel.FindByMarker(typeof(IQwen35))
+        ?? throw new InvalidOperationException("Catalogued default chat model IQwen35 is missing.");
+
+    public static string DefaultChatModelId => DefaultChatModel.Id;
+
     private IAiCredentials Deployment => services.GetRequiredService<IAiCredentials>();
 
     private IAiCredentials CredentialsFor(string? brainId)
@@ -33,27 +39,101 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
 
     private bool HasHostChatClient => services.GetService<IChatClient>() is not null and not RebuildingChatClient;
 
-    internal Task<Ollama.LocalOllamaDetection?> DetectLocal(CancellationToken ct)
-        => services.GetService<Ollama.ILocalOllamaProbe>() is { } probe
+    internal Task<LocalOllamaDetection?> DetectLocal(CancellationToken ct)
+        => services.GetService<ILocalOllamaProbe>() is { } probe
             ? probe.Detect(ct)
-            : Task.FromResult<Ollama.LocalOllamaDetection?>(null);
+            : Task.FromResult<LocalOllamaDetection?>(null);
+
+    /// <summary>Applies the shared local-topology Ollama endpoint and chat model defaults when configured.</summary>
+    internal static void ApplyTopologyDefaults(AIOptions ai, IConfiguration? configuration)
+    {
+        ArgumentNullException.ThrowIfNull(ai);
+        if (configuration is null)
+        {
+            return;
+        }
+
+        var rawTopology = configuration[IntoChatOSNames.TopologyKey];
+        if (string.IsNullOrWhiteSpace(rawTopology))
+        {
+            return;
+        }
+
+        var topology = IntoChatOSNames.CanonicalTopology(rawTopology);
+        if (topology is not (IntoChatOSNames.TopologyLocal or IntoChatOSNames.TopologyLocalCloud))
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(ai.Ollama.Endpoint))
+        {
+            ai.Ollama.Endpoint = IntoChatOSNames.LocalOllamaEndpoint;
+        }
+
+        if (string.IsNullOrWhiteSpace(ai.Default.Model))
+        {
+            ai.Default.Model = DefaultChatModel.Marker.Name;
+        }
+
+        var localModel = Clean(configuration[IntoChatOSNames.LocalModelKey]);
+        if (localModel is not null && !ai.Ollama.Models.ContainsKey(DefaultChatModel.Marker.Name))
+        {
+            ai.Ollama.Models[DefaultChatModel.Marker.Name] = new AIModelOptions { Model = localModel };
+        }
+    }
 
     public Task<ResolvedModel> Resolve(ModelSelection? selection, bool requiresTools, CancellationToken ct)
         => Resolve(null, selection, requiresTools, ct);
 
-    public async Task<ResolvedModel> Resolve(string? brainId, ModelSelection? selection, bool requiresTools, CancellationToken ct)
+    public Task<ResolvedModel> Resolve(string? brainId, ModelSelection? selection, bool requiresTools, CancellationToken ct)
+        => Decide(brainId, ModelUse.Chat, selection, personModel: null, requiresTools, ct);
+
+    /// <summary>Single model decision entry point with precedence turn -> person -> deployment -> detected.</summary>
+    public async Task<ResolvedModel> Decide(
+        string? brainId,
+        ModelUse use,
+        ModelSelection? turn = null,
+        string? personModel = null,
+        bool requiresTools = false,
+        CancellationToken ct = default)
     {
         var credentials = CredentialsFor(brainId);
-        selection ??= new();
+        turn ??= new();
         var configuration = options.CurrentValue;
-        var useDefault = string.IsNullOrWhiteSpace(selection.Model);
-        var key = Clean(selection.Model) ?? Clean(configuration.Default.Model);
-        var reasoning = Clean(selection.Reasoning) ?? (useDefault ? Clean(configuration.Default.Reasoning) : null);
-        var maxTokens = selection.MaxOutputTokens ?? (useDefault ? configuration.Default.MaxOutputTokens : null);
 
-        if (key is not null && key.StartsWith("profile:", StringComparison.OrdinalIgnoreCase))
+        var turnKey = Clean(turn.Model);
+        var personKey = Clean(personModel);
+        var deploymentKey = Clean(configuration.Default.Model);
+        var key = turnKey ?? personKey ?? deploymentKey;
+        var fromTurn = turnKey is not null;
+        var fromDeploymentOnly = turnKey is null && personKey is null && deploymentKey is not null;
+        var inheritDeploymentTuning = turnKey is null && personKey is null;
+
+        var reasoning = Clean(turn.Reasoning) ?? (inheritDeploymentTuning ? Clean(configuration.Default.Reasoning) : null);
+        var maxTokens = turn.MaxOutputTokens ?? (inheritDeploymentTuning ? configuration.Default.MaxOutputTokens : null);
+
+        if (fromDeploymentOnly
+            && use == ModelUse.Code
+            && !HasHostChatClient
+            && IsGenericLocalChatDeployment(configuration, deploymentKey!)
+            && IsDefaultOrLoopbackOllamaEndpoint(configuration.Ollama.Endpoint)
+            && await DetectLocal(ct).ConfigureAwait(false) is { InstalledModels.Length: > 0 } localForCode)
         {
-            key = Clean(key["profile:".Length..]);
+            var coderTag = HttpLocalOllamaProbe.SelectPreferredCoderModel(localForCode.InstalledModels);
+            if (HttpLocalOllamaProbe.IsCoderModelTag(coderTag))
+            {
+                var coderEndpoint = Endpoint(Clean(configuration.Ollama.Endpoint) ?? localForCode.Endpoint, AiProvider.Ollama);
+                var coderResolved = new ResolvedModel(
+                    AiProvider.Ollama,
+                    coderTag,
+                    coderEndpoint,
+                    null,
+                    string.Empty,
+                    LlmCapabilities.Tools,
+                    NormalizeReasoning(reasoning),
+                    maxTokens);
+                return coderResolved with { Revision = Revision(coderResolved) };
+            }
         }
 
         AiProvider provider;
@@ -64,21 +144,30 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         LLMModel? preset = null;
         if (key is null)
         {
-            // Automatic: the configured model with the lowest list input price, among tool-capable
-            // models when tools are required. Ties keep catalogue order.
+            // Automatic: lowest list input price among configured tool-capable models; ties prefer stock chat default.
             var prices = services.GetService<IPriceList>();
-            foreach (var candidate in LLMModel.All.Where(model => !requiresTools || model.SupportsTools).OrderBy(model => InputPrice(prices, model)))
+            foreach (var candidate in LLMModel.All
+                .Where(model => !requiresTools || model.SupportsTools)
+                .OrderBy(model => InputPrice(prices, model))
+                .ThenBy(model => model == DefaultChatModel ? 0 : 1))
             {
-                if (await AIClients.Factory(candidate.Provider).IsConfigured(configuration, credentials, ct)) { preset = candidate; break; }
+                if (await AIClients.Factory(candidate.Provider).IsConfigured(configuration, credentials, ct))
+                {
+                    preset = candidate;
+                    break;
+                }
             }
+
             if (preset is null)
             {
                 if (!HasHostChatClient
                     && string.IsNullOrWhiteSpace(configuration.Ollama.Endpoint)
-                    && await DetectLocal(ct).ConfigureAwait(false) is { PreferredModel.Length: > 0 } localAuto)
+                    && await DetectLocal(ct).ConfigureAwait(false) is { InstalledModels.Length: > 0 } localAuto)
                 {
                     provider = AiProvider.Ollama;
-                    modelId = localAuto.PreferredModel;
+                    modelId = use == ModelUse.Code
+                        ? HttpLocalOllamaProbe.SelectPreferredCoderModel(localAuto.InstalledModels)
+                        : HttpLocalOllamaProbe.SelectPreferredModel(localAuto.InstalledModels);
                     endpoint = Endpoint(localAuto.Endpoint, AiProvider.Ollama);
                     declared = LlmCapabilities.Tools;
                 }
@@ -88,47 +177,79 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
                     return host with { Revision = Revision(host) };
                 }
             }
+            else if (preset.Provider == AiProvider.Ollama
+                && use == ModelUse.Code
+                && !HasHostChatClient
+                && IsDefaultOrLoopbackOllamaEndpoint(configuration.Ollama.Endpoint)
+                && await DetectLocal(ct).ConfigureAwait(false) is { InstalledModels.Length: > 0 } localCodeAuto)
+            {
+                var coderTag = HttpLocalOllamaProbe.SelectPreferredCoderModel(localCodeAuto.InstalledModels);
+                provider = AiProvider.Ollama;
+                modelId = HttpLocalOllamaProbe.IsCoderModelTag(coderTag) ? coderTag : preset.Id;
+                declared = preset.Capabilities;
+            }
             else
             {
                 provider = preset.Provider;
                 modelId = preset.Id;
             }
         }
-        else if (TryFindProfile(configuration, key, out var matchedProfileName, out var profile))
-        {
-            profileName = matchedProfileName;
-            provider = ParseProvider(Clean(profile.Provider) ?? throw new ArgumentException($"Model profile '{matchedProfileName}' requires a provider.", nameof(selection)));
-            modelId = Clean(profile.Model) ?? throw new ArgumentException($"Model profile '{matchedProfileName}' requires a model ID.", nameof(selection));
-            endpoint = Clean(profile.Endpoint);
-            reasoning = Clean(selection.Reasoning) ?? Clean(profile.Reasoning);
-            maxTokens = selection.MaxOutputTokens ?? profile.MaxOutputTokens;
-            declared = profile.Capabilities;
-            preset = LLMModel.Find(modelId);
-            if (preset is not null && preset.Provider != provider) { preset = null; }
-        }
-        else if (LLMModel.Find(key) is { } marker)
-        {
-            preset = marker;
-            provider = marker.Provider;
-            modelId = marker.Id;
-        }
-        else if (TryInferModel(key, out var inferredProvider, out var inferredModelId, out var inferredCapabilities))
-        {
-            provider = inferredProvider;
-            modelId = inferredModelId;
-            declared = inferredCapabilities;
-            preset = LLMModel.Find(modelId);
-            if (preset is not null && preset.Provider != provider) { preset = null; }
-        }
         else
         {
-            throw new ArgumentException($"Unknown model '{key}'. Use a model marker name or a configured profile name.", nameof(selection));
+            var profileNames = configuration.ModelProfiles.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            ModelRef? parsed = null;
+            if (ModelRef.TryReadStored(key, profileNames, detectedLocalTags: null, out var candidateRef))
+            {
+                parsed = candidateRef;
+            }
+            else
+            {
+                var probedTags = await DetectLocal(ct).ConfigureAwait(false);
+                if (probedTags is { InstalledModels.Length: > 0 }
+                    && ModelRef.TryReadStored(key, profileNames, probedTags.InstalledModels, out var localRef))
+                {
+                    parsed = localRef;
+                }
+            }
+            if (parsed is null)
+            {
+                throw new ArgumentException($"Unknown model '{key}'. Use a model marker name or a configured profile name.", fromTurn ? nameof(turn) : nameof(personModel));
+            }
+
+            switch (parsed)
+            {
+                case ModelRef.Profile p when TryFindProfile(configuration, p.Name, out var matchedProfileName, out var profile):
+                    profileName = matchedProfileName;
+                    provider = ParseProvider(Clean(profile.Provider) ?? throw new ArgumentException($"Model profile '{matchedProfileName}' requires a provider."));
+                    modelId = Clean(profile.Model) ?? throw new ArgumentException($"Model profile '{matchedProfileName}' requires a model ID.");
+                    endpoint = Clean(profile.Endpoint);
+                    reasoning = Clean(turn.Reasoning) ?? Clean(profile.Reasoning);
+                    maxTokens = turn.MaxOutputTokens ?? profile.MaxOutputTokens;
+                    declared = profile.Capabilities;
+                    preset = LLMModel.Find(modelId);
+                    if (preset is not null && preset.Provider != provider) { preset = null; }
+                    break;
+                case ModelRef.Catalogued c:
+                    preset = c.Model;
+                    provider = c.Model.Provider;
+                    modelId = c.Model.Id;
+                    break;
+                case ModelRef.Tag t:
+                    provider = t.Provider;
+                    modelId = t.Id;
+                    declared = ModelRef.DefaultCapabilitiesFor(t, key);
+                    preset = LLMModel.Find(modelId);
+                    if (preset is not null && preset.Provider != provider) { preset = null; }
+                    break;
+                default:
+                    throw new ArgumentException($"Unknown model '{key}'. Use a model marker name or a configured profile name.");
+            }
         }
 
         if (provider == AiProvider.Ollama && preset is not null)
         { modelId = Clean(configuration.Ollama.Models.GetValueOrDefault(preset.Marker.Name)?.Model) ?? modelId; }
         if (modelId.Length > 200 || modelId.Any(char.IsControl))
-        { throw new ArgumentException("Model ID must contain at most 200 printable characters.", nameof(selection)); }
+        { throw new ArgumentException("Model ID must contain at most 200 printable characters.", nameof(turn)); }
 
         var factory = AIClients.Factory(provider);
         if (!await factory.IsConfigured(configuration, credentials, ct) && !(provider == AiProvider.Ollama && endpoint is not null))
@@ -147,7 +268,9 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
                     endpoint = localDetected.Endpoint;
                     if (!localDetected.InstalledModels.Any(tag => string.Equals(tag, modelId, StringComparison.OrdinalIgnoreCase)))
                     {
-                        modelId = localDetected.PreferredModel;
+                        modelId = use == ModelUse.Code
+                            ? HttpLocalOllamaProbe.SelectPreferredCoderModel(localDetected.InstalledModels)
+                            : HttpLocalOllamaProbe.SelectPreferredModel(localDetected.InstalledModels);
                     }
                     declared ??= LlmCapabilities.Tools;
                 }
@@ -168,16 +291,16 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
 
         var capabilities = declared ?? preset?.Capabilities ?? LlmCapabilities.None;
         if ((capabilities & ~(LlmCapabilities.Tools | LlmCapabilities.Vision | LlmCapabilities.StructuredOutput)) != 0)
-        { throw new ArgumentException("Model capabilities contain unknown flags.", nameof(selection)); }
+        { throw new ArgumentException("Model capabilities contain unknown flags.", nameof(turn)); }
         if (requiresTools && !capabilities.HasFlag(LlmCapabilities.Tools))
-        { throw new ArgumentException($"Model '{modelId}' does not declare tool support. Configure Tools capabilities in its model profile before attaching tools.", nameof(selection)); }
+        { throw new ArgumentException($"Model '{modelId}' does not declare tool support. Configure Tools capabilities in its model profile before attaching tools.", nameof(turn)); }
         reasoning = NormalizeReasoning(reasoning);
         if (requiresTools && provider == AiProvider.OpenAI && modelId.StartsWith("gpt-5.6", StringComparison.OrdinalIgnoreCase))
         {
-            if (reasoning is not null and not "none") { throw new ArgumentException("GPT-5.6 tools through OpenAI Chat Completions require reasoning 'none'.", nameof(selection)); }
+            if (reasoning is not null and not "none") { throw new ArgumentException("GPT-5.6 tools through OpenAI Chat Completions require reasoning 'none'.", nameof(turn)); }
             reasoning = "none";
         }
-        if (maxTokens is < 1 or > 1_000_000) { throw new ArgumentException("MaxOutputTokens must be between 1 and 1000000.", nameof(selection)); }
+        if (maxTokens is < 1 or > 1_000_000) { throw new ArgumentException("MaxOutputTokens must be between 1 and 1000000.", nameof(turn)); }
         var resolved = new ResolvedModel(provider, modelId, endpoint, profileName, string.Empty, capabilities, reasoning, maxTokens);
         return resolved with { Revision = Revision(resolved) };
     }
@@ -224,136 +347,13 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         return false;
     }
 
-    // Recognizes standard provider-prefixed or family-prefixed model IDs (e.g. "claude-sonnet-4-5",
-    // "gpt-5", "gpt-4o", "gemini-2.5-pro", "grok-3", "openrouter/...", "ollama/...", "qwen3.5:2b", "gemma4:e2b").
-    private static bool TryInferModel(string key, out AiProvider provider, out string modelId, out LlmCapabilities capabilities)
-    {
-        capabilities = LlmCapabilities.Tools;
-        var trimmed = key.Trim();
-        if (trimmed.StartsWith("preset:", StringComparison.OrdinalIgnoreCase))
-        {
-            trimmed = trimmed["preset:".Length..].Trim();
-        }
+    private static bool IsGenericLocalChatDeployment(AIOptions configuration, string deploymentKey)
+        => LLMModel.Find(deploymentKey) == DefaultChatModel
+            && !configuration.Ollama.Models.ContainsKey(DefaultChatModel.Marker.Name);
 
-        if (trimmed.StartsWith("ollama/", StringComparison.OrdinalIgnoreCase) || trimmed.StartsWith("ollama:", StringComparison.OrdinalIgnoreCase))
-        {
-            var tag = Clean(trimmed[7..]);
-            if (tag is not null)
-            {
-                provider = AiProvider.Ollama;
-                modelId = tag;
-                return true;
-            }
-        }
-        if (trimmed.StartsWith("openrouter/", StringComparison.OrdinalIgnoreCase))
-        {
-            var route = Clean(trimmed["openrouter/".Length..]);
-            if (route is not null)
-            {
-                provider = AiProvider.OpenRouter;
-                modelId = route;
-                return true;
-            }
-        }
-        if (trimmed.StartsWith("anthropic/", StringComparison.OrdinalIgnoreCase) && !trimmed["anthropic/".Length..].Contains('/'))
-        {
-            var id = Clean(trimmed["anthropic/".Length..]);
-            if (id is not null)
-            {
-                provider = AiProvider.Anthropic;
-                modelId = id;
-                capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
-                return true;
-            }
-        }
-        if (trimmed.StartsWith("openai/", StringComparison.OrdinalIgnoreCase) && !trimmed["openai/".Length..].Contains('/'))
-        {
-            var id = Clean(trimmed["openai/".Length..]);
-            if (id is not null)
-            {
-                provider = AiProvider.OpenAI;
-                modelId = id;
-                capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
-                return true;
-            }
-        }
-        if (trimmed.StartsWith("google/", StringComparison.OrdinalIgnoreCase) && !trimmed["google/".Length..].Contains('/'))
-        {
-            var id = Clean(trimmed["google/".Length..]);
-            if (id is not null)
-            {
-                provider = AiProvider.Google;
-                modelId = id;
-                capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
-                return true;
-            }
-        }
-        if (trimmed.StartsWith("xai/", StringComparison.OrdinalIgnoreCase) && !trimmed["xai/".Length..].Contains('/'))
-        {
-            var id = Clean(trimmed["xai/".Length..]);
-            if (id is not null)
-            {
-                provider = AiProvider.XAI;
-                modelId = id;
-                return true;
-            }
-        }
-
-        if (trimmed.StartsWith("claude-", StringComparison.OrdinalIgnoreCase))
-        {
-            provider = AiProvider.Anthropic;
-            modelId = trimmed;
-            capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
-            return true;
-        }
-        if (trimmed.StartsWith("gpt-", StringComparison.OrdinalIgnoreCase)
-            || trimmed.StartsWith("o1-", StringComparison.OrdinalIgnoreCase)
-            || trimmed.StartsWith("o3-", StringComparison.OrdinalIgnoreCase)
-            || trimmed.StartsWith("o4-", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(trimmed, "o1", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(trimmed, "o3", StringComparison.OrdinalIgnoreCase))
-        {
-            provider = AiProvider.OpenAI;
-            modelId = trimmed;
-            capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
-            return true;
-        }
-        if (trimmed.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase))
-        {
-            provider = AiProvider.Google;
-            modelId = trimmed;
-            capabilities = LlmCapabilities.Tools | LlmCapabilities.Vision;
-            return true;
-        }
-        if (trimmed.StartsWith("grok-", StringComparison.OrdinalIgnoreCase))
-        {
-            provider = AiProvider.XAI;
-            modelId = trimmed;
-            return true;
-        }
-        if (trimmed.Contains('/', StringComparison.Ordinal))
-        {
-            provider = AiProvider.OpenRouter;
-            modelId = trimmed;
-            return true;
-        }
-        if (trimmed.Contains(':', StringComparison.Ordinal)
-            || trimmed.StartsWith("qwen", StringComparison.OrdinalIgnoreCase)
-            || trimmed.StartsWith("gemma", StringComparison.OrdinalIgnoreCase)
-            || trimmed.StartsWith("llama", StringComparison.OrdinalIgnoreCase)
-            || trimmed.StartsWith("mistral", StringComparison.OrdinalIgnoreCase)
-            || trimmed.StartsWith("deepseek", StringComparison.OrdinalIgnoreCase)
-            || trimmed.StartsWith("phi", StringComparison.OrdinalIgnoreCase))
-        {
-            provider = AiProvider.Ollama;
-            modelId = trimmed;
-            return true;
-        }
-
-        provider = default;
-        modelId = string.Empty;
-        return false;
-    }
+    private static bool IsDefaultOrLoopbackOllamaEndpoint(string? endpoint)
+        => string.IsNullOrWhiteSpace(endpoint)
+            || (Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) && uri.IsLoopback && uri.Port == 11434);
 
     // By default the pipeline carries GenAI telemetry and metering but never function invocation:
     // inference returns proposed calls and the agent owns the only tool loop. invokesTools is for
@@ -458,7 +458,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
             }
         }
         if (!HasHostChatClient
-            && string.IsNullOrWhiteSpace(options.CurrentValue.Ollama.Endpoint)
+            && IsDefaultOrLoopbackOllamaEndpoint(options.CurrentValue.Ollama.Endpoint)
             && await DetectLocal(ct).ConfigureAwait(false) is { } local)
         {
             foreach (var tag in local.InstalledModels)
@@ -500,9 +500,14 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
             string.Equals(choice.Id, id, StringComparison.OrdinalIgnoreCase)
             || string.Equals(choice.Label, id, StringComparison.OrdinalIgnoreCase)
             || string.Equals(choice.Selection.Model, id, StringComparison.OrdinalIgnoreCase)) is { } matched ? matched.Selection
-        : LLMModel.Find(id) is { } preset ? new(preset.Marker.Name)
-        : TryFindProfile(options.CurrentValue, id, out var profileName, out _) ? new(profileName)
-        : TryInferModel(id, out _, out var inferredId, out _) ? new(inferredId)
+        : ModelRef.TryReadStored(id, options.CurrentValue.ModelProfiles.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase), null, out var parsed)
+            ? parsed switch
+            {
+                ModelRef.Catalogued c => new(c.Model.Marker.Name),
+                ModelRef.Profile p => new(p.Name),
+                ModelRef.Tag t => new(t.Id),
+                _ => throw new ArgumentException("The selected model is unavailable. Choose a model from Settings."),
+            }
         : throw new ArgumentException("The selected model is unavailable. Choose a model from Settings.");
 
     private static ModelSelection? Default(string? defaultModel) => defaultModel is { Length: > 0 } model ? new(model) : null;
@@ -523,8 +528,13 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         { yield return new("profile:" + name, name, new(name)); }
         foreach (var preset in LLMModel.All)
         {
-            // A local server being configured does not imply every compiled local model is installed.
-            if (preset.Provider == AiProvider.Ollama && !options.CurrentValue.Ollama.Models.ContainsKey(preset.Marker.Name)) { continue; }
+            // Include the configured local default chat model when Ollama endpoint is declared even without explicit model overrides.
+            if (preset.Provider == AiProvider.Ollama
+                && !options.CurrentValue.Ollama.Models.ContainsKey(preset.Marker.Name)
+                && !(preset == DefaultChatModel && !string.IsNullOrWhiteSpace(options.CurrentValue.Ollama.Endpoint)))
+            {
+                continue;
+            }
             var visual = VisualCatalog.ForModel(preset.Id, preset.Provider.ToString());
             yield return new("preset:" + preset.Marker.Name, visual.Label, new(preset.Marker.Name), preset);
         }
@@ -548,8 +558,8 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         try { return await Resolve(brainId, selection, requiresTools: true, ct); }
         catch (Exception error) when (error is ArgumentException or InvalidOperationException or NotSupportedException)
         {
-            var logger = services.GetService<ILoggerFactory>()?.CreateLogger<ModelCatalog>() ?? OsConsoleLog.For<ModelCatalog>();
-            logger.LogSwallowed(error, "resolving catalog model candidate");
+            services.GetService<ILoggerFactory>()?.CreateLogger<ModelCatalog>()
+                ?.LogDebug(error, "Skipping catalog model candidate that cannot resolve.");
             return null;
         }
     }

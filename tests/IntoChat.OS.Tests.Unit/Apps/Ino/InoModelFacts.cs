@@ -134,6 +134,22 @@ public sealed class InoModelFacts
     }
 
     [Fact]
+    public void TheModelInInosHeaderIsTheModelTheTurnSelected()
+    {
+        var opened = new InoAppState();
+        var started = InoModel.Started(opened, "r1", "qwen3.5:4b");
+        Assert.Equal("qwen3.5:4b", started.SelectedModel);
+
+        var entryWithTurnModel = new ChatEntry("r1/assistant", ChatRole.Assistant, "Answered on Qwen 3 14B.")
+        {
+            Status = "completed",
+            Model = "qwen3:14b",
+        };
+        var projected = InoModel.Projected(started, Chat(1, ChatRunStatus.Completed, User("hello"), entryWithTurnModel), Agent);
+        Assert.Equal("qwen3:14b", projected.SelectedModel);
+    }
+
+    [Fact]
     public void ANewConversationKeepsNothingOfTheOld()
     {
         var old = InoModel.Projected(new InoAppState(), Chat(3, ChatRunStatus.Completed, User("hello"), Answer("Hi.")), Agent)

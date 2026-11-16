@@ -136,7 +136,7 @@ internal static class SettingsViewRenderer
         {
             "install-link" => "Paste a verified Smart App link (https://intochat.app/a/...) to inspect its manifest and capability requirements.",
             "add-connection" or "google-drive" or "google_drive" => "Authorize an OAuth 2.0 or token-based integration through the zero-leakage Capability Broker.",
-            "ollama-config" => "Configure local Ollama or LM Studio server endpoint (http://localhost:11434) and reasoning effort.",
+            "ollama-config" => $"Configure local Ollama or LM Studio server endpoint ({state.LocalOllamaEndpoint}) and reasoning effort.",
             "invite" => "Invite a teammate to this brain and assign Owner, Member, or Guest circle permissions.",
             "export-archive" => state.ExportedArchiveJson ?? "Export a portable JSON archive of this brain's settings, profile, and deployed Synapse units.",
             "confirm-delete" => "Two-step confirmation required: deleting or resetting this brain permanently revokes all sessions.",
@@ -445,7 +445,7 @@ internal static class SettingsViewRenderer
                 "Ollama Local Server · Zero-telemetry local inference endpoint.",
                 [
                     ["Server", "Ollama Local Server"],
-                    ["Endpoint", "http://localhost:11434"],
+                    ["Endpoint", state.LocalOllamaEndpoint],
                     ["Active local model", state.DefaultModel],
                     ["Reasoning effort", "Medium · Local execution"],
                 ],
@@ -453,20 +453,28 @@ internal static class SettingsViewRenderer
                 "Back to AI models");
         }
 
+        var models = state.AvailableModels is { Count: > 0 }
+            ? state.AvailableModels
+            : SettingsApp.CatalogFallbackOptions();
+        var options = models.Select(opt =>
+        {
+            var label = string.IsNullOrWhiteSpace(opt.ProviderLabel)
+                ? opt.Label
+                : $"{opt.Label} ({opt.ProviderLabel})";
+            if (!opt.Available && !string.IsNullOrWhiteSpace(opt.Reason))
+            {
+                label = $"{label} · {opt.Reason}";
+            }
+
+            var key = "model-opt-" + new string(opt.Id.Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray()).Trim('-');
+            return Option(opt.Id, label)
+                .Key(key)
+                .Emits(PrefEmit(state, model: opt.Id));
+        }).ToArray();
+
         return Surface(SurfaceKind.Elevated, "AI models", "Select the default reasoning model for Ino and autonomous background neurons")[
             VStack(Space.Md)[
-                SelectBox(
-                    "Default reasoning model",
-                    state.DefaultModel,
-                    Option("qwen3.5:4b", "qwen3.5:4b (Local)")
-                        .Key("model-opt-qwen")
-                        .Emits(PrefEmit(state, model: "qwen3.5:4b")),
-                    Option("claude-sonnet-4-5", "claude-sonnet-4-5")
-                        .Key("model-opt-claude")
-                        .Emits(PrefEmit(state, model: "claude-sonnet-4-5")),
-                    Option("gpt-5", "gpt-5")
-                        .Key("model-opt-gpt5")
-                        .Emits(PrefEmit(state, model: "gpt-5"))),
+                SelectBox("Default reasoning model", state.DefaultModel, options),
                 HStack(Space.Sm)[
                     PrimaryButton("Local server (Ollama)", "cpu")
                         .Key("models:local-server")

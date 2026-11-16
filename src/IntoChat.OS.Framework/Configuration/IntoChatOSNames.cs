@@ -46,6 +46,7 @@ public static class IntoChatOSNames
     public const string FrontEnabledKey = "IntoChatOS:Http:Front";
     public const string LocalGpuKey = "IntoChatOS:Local:Gpu";
     public const string LocalModelKey = "IntoChatOS:Local:Model";
+    public const string LocalDefaultChatModel = "qwen3.5:4b";
     public const string LocalOllamaEndpoint = "http://localhost:11434";
 
     // The modules switched off by default in local and local+cloud runs: the one list every host and the kernel read.

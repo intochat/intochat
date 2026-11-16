@@ -1,13 +1,15 @@
 using System.Collections.Frozen;
 using System.Diagnostics;
+using System.Globalization;
 using System.Security;
 using System.Text;
 using System.Text.Json;
-using DigitalBrain.Log;
 using IntoChat.OS.Framework.Logging;
+using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -15,18 +17,18 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Modules.Apps.Flows;
 
 /// <summary>
-/// Options controlling <see cref="LocalLlmCoder"/> model selection, tool round budget, and optional external CLI fallback.
+/// Options controlling <see cref="LocalLlmCoder"/> model selection, tool round budget, timeout, and optional external CLI fallback.
 /// </summary>
 public sealed class LocalLlmCoderOptions
 {
     /// <summary>Optional preferred model key/tag (e.g. <c>qwen2.5-coder:14b</c>).</summary>
     public string? PreferredModel { get; set; }
 
-    /// <summary>Local Ollama HTTP base address used when no cloud/host model is configured.</summary>
-    public string OllamaEndpoint { get; set; } = "http://127.0.0.1:11434";
-
     /// <summary>Maximum LLM tool-calling turns per coding task.</summary>
     public int MaxToolRounds { get; set; } = 12;
+
+    /// <summary>Hard wall-clock budget for a coding turn loop before failing with <see cref="TimeoutException"/>.</summary>
+    public TimeSpan? Timeout { get; set; }
 
     /// <summary>Optional external CLI executable fallback (disabled unless explicitly configured).</summary>
     public string? FallbackCliExecutable { get; set; }
@@ -36,10 +38,10 @@ public sealed class LocalLlmCoderOptions
 }
 
 /// <summary>
-/// Local-first <see cref="ICoder"/> implementation that drives <see cref="IModelInference"/> (or direct local Ollama
-/// <c>qwen2.5-coder:14b</c> on RTX 5080 with zero cloud API keys) using strictly path-confined file tools
-/// (<c>list_files</c>, <c>read_file</c>, <c>replace_in_file</c>, <c>write_file</c>) inside <see cref="WorkTreeLease.TreePath"/>.
-/// Supports an optional <see cref="ExternalCliCoder"/> fallback when configured.
+/// Local-first <see cref="ICoder"/> implementation that routes through <see cref="Modules.AI"/>
+/// (<see cref="ModelCatalog.Decide"/> with <see cref="ModelUse.Code"/>) and <see cref="IModelInference"/>
+/// using strictly path-confined file tools (<c>list_files</c>, <c>read_file</c>, <c>replace_in_file</c>, <c>write_file</c>)
+/// inside <see cref="WorkTreeLease.TreePath"/>.
 /// </summary>
 public sealed class LocalLlmCoder : ICoder
 {
@@ -123,13 +125,33 @@ public sealed class LocalLlmCoder : ICoder
         var sandbox = new ConfinedWorkTreeSandbox(lease.TreePath);
         try
         {
-            return await RunModelLoopAsync(sandbox, lease, goal, ct).ConfigureAwait(false);
+            return await RunWithTimeoutAsync(sandbox, lease, goal, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException && !string.IsNullOrWhiteSpace(_options.FallbackCliExecutable))
         {
             _logger.LogWarning(ex, "Local LLM coder failed; falling back to configured CLI executable '{Cli}'.", _options.FallbackCliExecutable);
-            var cli = new ExternalCliCoder(_options.FallbackCliExecutable!, _options.FallbackCliArguments);
+            var cli = new ExternalCliCoder(_options.FallbackCliExecutable!, _options.FallbackCliArguments, _options.Timeout);
             return await cli.EditAsync(lease, goal, ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<CoderEditResult> RunWithTimeoutAsync(
+        ConfinedWorkTreeSandbox sandbox,
+        WorkTreeLease lease,
+        string goal,
+        CancellationToken ct)
+    {
+        var timeout = _options.Timeout ?? TimeSpan.FromMinutes(4);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(timeout);
+
+        try
+        {
+            return await RunModelLoopAsync(sandbox, lease, goal, timeoutCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new TimeoutException($"Local LLM coder timed out after {timeout}.");
         }
     }
 
@@ -220,14 +242,32 @@ public sealed class LocalLlmCoder : ICoder
 
     private async Task<IModelTurnRunner> ResolveModelRunnerAsync(CancellationToken ct)
     {
+        var catalog = _services?.GetService<ModelCatalog>();
         var inference = _services?.GetService<IModelInference>();
+        var explicitSelection = string.IsNullOrWhiteSpace(_options.PreferredModel)
+            ? null
+            : new ModelSelection(_options.PreferredModel.Trim());
+
+        if (catalog is not null)
+        {
+            var resolved = await catalog.Decide(brainId: null, ModelUse.Code, explicitSelection, personModel: null, requiresTools: true, ct).ConfigureAwait(false);
+            if (resolved.Provider == AiProvider.Host && _services?.GetService<IChatClient>() is null)
+            {
+                throw new NoProviderConfiguredException("No configured tool-capable AI model or local Ollama server is available for Feature-to-PR coding.");
+            }
+
+            var effectiveInference = inference ?? new InferenceService(catalog);
+            var selection = ToSelection(resolved);
+            var desc = await effectiveInference.Describe(selection, marker: null, cancellationToken: ct, brainId: null).ConfigureAwait(false);
+            return new InferenceServiceRunner(effectiveInference, selection, resolved.Model, desc.Temperature == CapabilitySupport.Supported);
+        }
+
         if (inference is not null)
         {
-            // 1. Try explicit PreferredModel or default configured inference model
             var candidates = new List<ModelSelection?>();
-            if (!string.IsNullOrWhiteSpace(_options.PreferredModel))
+            if (explicitSelection is not null)
             {
-                candidates.Add(new ModelSelection(_options.PreferredModel));
+                candidates.Add(explicitSelection);
             }
             candidates.Add(null);
 
@@ -236,109 +276,42 @@ public sealed class LocalLlmCoder : ICoder
                 try
                 {
                     var desc = await inference.Describe(selection, marker: null, cancellationToken: ct, brainId: null).ConfigureAwait(false);
-                    // AiProvider.Host with "default" when no IChatClient is registered throws on CreateClient; also require tool support for coding!
                     if (desc.Tools == CapabilitySupport.Supported
                         && (!string.Equals(desc.Provider, "Host", StringComparison.OrdinalIgnoreCase)
-                            || _services?.GetService<global::Microsoft.Extensions.AI.IChatClient>() is not null))
+                            || _services?.GetService<IChatClient>() is not null))
                     {
                         return new InferenceServiceRunner(inference, selection, desc.Model, desc.Temperature == CapabilitySupport.Supported);
                     }
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                catch (Exception ex) when (!ct.IsCancellationRequested && ex is ArgumentException or InvalidOperationException or NotSupportedException or ProviderUnavailableException)
                 {
-                    _logger.LogSwallowed(ex, "Configured IModelInference candidate not ready; probing local Ollama fallback.");
+                    _logger.LogWarning(ex, "Configured IModelInference candidate '{Model}' could not resolve.", selection?.Model ?? "default");
                 }
             }
         }
 
-        // 2. Direct zero-key local Ollama probe (e.g. RTX 5080 running qwen2.5-coder:14b at http://127.0.0.1:11434)
-        var ollamaTag = await ProbeLocalOllamaModelAsync(_options.OllamaEndpoint, _options.PreferredModel, ct).ConfigureAwait(false);
-        if (ollamaTag is not null)
-        {
-            return new DirectOllamaChatRunner(_options.OllamaEndpoint, ollamaTag);
-        }
-
-        throw new InvalidOperationException(
-            $"No configured tool-capable AI model or local Ollama server ({_options.OllamaEndpoint}) is available for Feature-to-PR coding.");
+        throw new InvalidOperationException("No configured tool-capable AI model or local Ollama server is available for Feature-to-PR coding.");
     }
 
-    internal static async Task<string?> ProbeLocalOllamaModelAsync(string endpoint, string? preferred, CancellationToken ct)
-    {
-        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var baseUri))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var http = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromSeconds(5) };
-            using var response = await http.GetAsync("/api/tags", ct).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
-                return null;
-            }
-
-            var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            using var doc = JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("models", out var models) || models.ValueKind != JsonValueKind.Array)
-            {
-                return null;
-            }
-
-            var available = models.EnumerateArray()
-                .Select(m => m.TryGetProperty("name", out var n) ? n.GetString() : null)
-                .Where(n => !string.IsNullOrWhiteSpace(n))
-                .Select(n => n!)
-                .ToArray();
-            if (available.Length == 0)
-            {
-                return null;
-            }
-
-            // Priority order: explicit preferred -> qwen2.5-coder:14b -> any qwen*coder* -> qwen3.5* -> first non-embedding model
-            if (!string.IsNullOrWhiteSpace(preferred))
-            {
-                var cleanPref = preferred.StartsWith("ollama/", StringComparison.OrdinalIgnoreCase) || preferred.StartsWith("ollama:", StringComparison.OrdinalIgnoreCase)
-                    ? preferred[7..]
-                    : preferred;
-                var exact = available.FirstOrDefault(m => string.Equals(m, cleanPref, StringComparison.OrdinalIgnoreCase));
-                if (exact is not null) { return exact; }
-            }
-
-            string[] priorities = ["qwen2.5-coder:14b", "qwen2.5-coder", "qwen3-coder", "qwen3.5:4b", "qwen3.5"];
-            foreach (var p in priorities)
-            {
-                var hit = available.FirstOrDefault(m => m.StartsWith(p, StringComparison.OrdinalIgnoreCase));
-                if (hit is not null) { return hit; }
-            }
-
-            return available.FirstOrDefault(m => !m.Contains("embed", StringComparison.OrdinalIgnoreCase)) ?? available[0];
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            OsConsoleLog.For<LocalLlmCoder>().LogSwallowed(ex, "Local Ollama model probe did not succeed.");
-            return null;
-        }
-    }
+    private static ModelSelection? ToSelection(ResolvedModel resolved)
+        => resolved.Provider == AiProvider.Host ? null
+            : resolved.Profile is { Length: > 0 } ? new($"profile:{resolved.Profile}", resolved.Reasoning, resolved.MaxOutputTokens)
+            : resolved.Provider == AiProvider.Ollama ? new($"ollama/{resolved.Model}", resolved.Reasoning, resolved.MaxOutputTokens)
+            : new(resolved.Model, resolved.Reasoning, resolved.MaxOutputTokens);
 
     private static LocalLlmCoderOptions BindOptions(IConfiguration? configuration)
     {
         var opts = new LocalLlmCoderOptions();
         if (configuration is null) { return opts; }
 
-        opts.PreferredModel = configuration["IntoChatOS:Coder:Model"] ?? configuration["AI:Ollama:CoderModel"];
-        if (configuration["AI:Ollama:Endpoint"] is { Length: > 0 } ep)
-        {
-            opts.OllamaEndpoint = ep;
-        }
-        else if (Environment.GetEnvironmentVariable("IntoChatOS__AI__Ollama__Endpoint") is { Length: > 0 } envEp)
-        {
-            opts.OllamaEndpoint = envEp;
-        }
-
+        opts.PreferredModel = configuration["IntoChatOS:Coder:Model"];
         if (configuration["IntoChatOS:Coder:CliExecutable"] is { Length: > 0 } cli)
         {
             opts.FallbackCliExecutable = cli;
+        }
+        if (double.TryParse(configuration["IntoChatOS:Coder:TimeoutSeconds"], NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) && seconds > 0)
+        {
+            opts.Timeout = TimeSpan.FromSeconds(seconds);
         }
 
         return opts;
@@ -359,119 +332,6 @@ public sealed class LocalLlmCoder : ICoder
             var options = supportsTemperature ? new InferenceOptions(Temperature: 0.1f) : null;
             var req = new InferenceRequest(messages, Model: selection, Options: options, Tools: tools);
             return inference.Generate(req, marker: null, cancellationToken: ct, brainId: null);
-        }
-    }
-
-    private sealed class DirectOllamaChatRunner(string endpoint, string modelTag) : IModelTurnRunner
-    {
-        public string ModelId => $"ollama/{modelTag}";
-
-        public async Task<InferenceResult> InvokeAsync(IReadOnlyList<AiMessage> messages, IReadOnlyList<InferenceTool> tools, CancellationToken ct)
-        {
-            // Call Ollama's native /api/chat directly with think:false & tool declarations so zero external provider config is required
-            using var http = new HttpClient { BaseAddress = new Uri(endpoint), Timeout = TimeSpan.FromMinutes(4) };
-
-            var wireMessages = new List<object>(messages.Count);
-            foreach (var msg in messages)
-            {
-                if (string.Equals(msg.Role, "tool", StringComparison.OrdinalIgnoreCase))
-                {
-                    foreach (var tr in msg.Content.OfType<AiToolResult>())
-                    {
-                        wireMessages.Add(new
-                        {
-                            role = "tool",
-                            content = tr.ResultJson,
-                        });
-                    }
-                    continue;
-                }
-
-                var text = string.Join("\n", msg.Content.OfType<AiText>().Select(t => t.Text));
-                var calls = msg.Content.OfType<AiToolCall>().Select(tc => new
-                {
-                    function = new
-                    {
-                        name = tc.Name,
-                        arguments = ParseJsonOrEmptyObject(tc.ArgumentsJson),
-                    },
-                }).ToArray();
-
-                if (calls.Length > 0)
-                {
-                    wireMessages.Add(new { role = msg.Role, content = text, tool_calls = calls });
-                }
-                else
-                {
-                    wireMessages.Add(new { role = msg.Role, content = text });
-                }
-            }
-
-            var wireTools = tools.Select(t => new
-            {
-                type = "function",
-                function = new
-                {
-                    name = t.Name,
-                    description = t.Description,
-                    parameters = ParseJsonOrEmptyObject(t.ParametersJson),
-                },
-            }).ToArray();
-
-            var payload = JsonSerializer.Serialize(new
-            {
-                model = modelTag,
-                stream = false,
-                think = false,
-                options = new { temperature = 0.1 },
-                messages = wireMessages,
-                tools = wireTools,
-            }, Json);
-
-            using var content = new StringContent(payload, Encoding.UTF8, "application/json");
-            using var response = await http.PostAsync("/api/chat", content, ct).ConfigureAwait(false);
-            var responseBody = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new HttpRequestException($"Ollama /api/chat returned {(int)response.StatusCode}: {responseBody}");
-            }
-
-            using var doc = JsonDocument.Parse(responseBody);
-            var msgEl = doc.RootElement.GetProperty("message");
-            var parts = new List<AiContent>();
-            if (msgEl.TryGetProperty("content", out var textEl) && textEl.ValueKind == JsonValueKind.String)
-            {
-                var s = textEl.GetString();
-                if (!string.IsNullOrEmpty(s)) { parts.Add(new AiText(s)); }
-            }
-
-            if (msgEl.TryGetProperty("tool_calls", out var tcEl) && tcEl.ValueKind == JsonValueKind.Array)
-            {
-                var idx = 0;
-                foreach (var item in tcEl.EnumerateArray())
-                {
-                    if (!item.TryGetProperty("function", out var fn)) { continue; }
-                    var name = fn.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                    var argsJson = fn.TryGetProperty("arguments", out var a)
-                        ? (a.ValueKind == JsonValueKind.String ? a.GetString() ?? "{}" : a.GetRawText())
-                        : "{}";
-                    parts.Add(new AiToolCall($"call_{idx++}_{Guid.NewGuid():N}"[..16], name, argsJson));
-                }
-            }
-
-            return new InferenceResult(
-                [new AiMessage("assistant", [.. parts])],
-                FinishReason: parts.OfType<AiToolCall>().Any() ? "tool_calls" : "stop",
-                Usage: null,
-                ResponseId: null,
-                Model: modelTag);
-        }
-
-        private static JsonElement ParseJsonOrEmptyObject(string raw)
-        {
-            if (string.IsNullOrWhiteSpace(raw)) { return JsonElement.Parse("{}"); }
-            try { return JsonElement.Parse(raw); }
-            catch (JsonException) { return JsonElement.Parse("{}"); }
         }
     }
 
@@ -762,16 +622,46 @@ public sealed class ExternalCliCoder(string executable, IReadOnlyList<string>? a
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(_timeout);
-        var stdOut = await process.StandardOutput.ReadToEndAsync(cts.Token).ConfigureAwait(false);
-        var stdErr = await process.StandardError.ReadToEndAsync(cts.Token).ConfigureAwait(false);
-        await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
-
-        if (process.ExitCode != 0)
+        try
         {
-            throw new InvalidOperationException($"External CLI coder '{executable}' exited with code {process.ExitCode}: {stdErr}");
-        }
+            var outTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+            var errTask = process.StandardError.ReadToEndAsync(cts.Token);
+            await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+            var stdOut = await outTask.ConfigureAwait(false);
+            var stdErr = await errTask.ConfigureAwait(false);
 
-        var summary = string.IsNullOrWhiteSpace(stdOut) ? $"Edited via {Path.GetFileName(executable)}." : stdOut.Trim();
-        return new CoderEditResult(summary, [], $"cli:{Path.GetFileName(executable)}");
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidOperationException($"External CLI coder '{executable}' exited with code {process.ExitCode}: {stdErr}");
+            }
+
+            var summary = string.IsNullOrWhiteSpace(stdOut) ? $"Edited via {Path.GetFileName(executable)}." : stdOut.Trim();
+            return new CoderEditResult(summary, [], $"cli:{Path.GetFileName(executable)}");
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            KillProcessTree(process);
+            throw new TimeoutException($"External CLI coder '{executable}' timed out after {_timeout}.");
+        }
+        catch (OperationCanceledException)
+        {
+            KillProcessTree(process);
+            throw;
+        }
+    }
+
+    private static void KillProcessTree(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+        {
+            OsConsoleLog.For<ExternalCliCoder>().LogDebug(ex, "External CLI coder process already exited before termination.");
+        }
     }
 }

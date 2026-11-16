@@ -70,6 +70,10 @@ internal static class AIClients
                 });
         }
 
+        // Apply local topology defaults once before resolving AIDefaults or clients when topology is configured.
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<AIOptions>, TopologyAiOptionsPostConfigure>());
+        services.TryAddSingleton<ModelCatalog>();
+
         // Resolve the final options after application Configure delegates have run.
         // An empty marker preserves Providers' fallback to the default IChatClient.
         services.TryAddSingleton(provider => new AIDefaults(
@@ -78,6 +82,12 @@ internal static class AIClients
         services.TryAddSingleton(DefaultEmbeddingGenerator);
 
         services.AddHostedService<LlmWarmupHostedService>();
+    }
+
+    private sealed class TopologyAiOptionsPostConfigure(IServiceProvider services) : IPostConfigureOptions<AIOptions>
+    {
+        public void PostConfigure(string? name, AIOptions options)
+            => ModelCatalog.ApplyTopologyDefaults(options, services.GetService<IConfiguration>());
     }
 
     internal static ILlmProviderFactory Factory(AiProvider provider)
@@ -156,33 +166,13 @@ internal static class AIClients
 
     private static async Task<IChatClient> DefaultChatClientAsync(IServiceProvider provider, CancellationToken cancellationToken)
     {
-        var configuration = provider.GetRequiredService<IOptions<AIOptions>>().Value;
-        // A default that names a profile, or pins reasoning or output tokens, resolves through the catalog.
-        // This client runs the tools it is offered (PlaywrightWebAgent relies on that), so it keeps
-        // function invocation and rejects tools its model does not declare.
-        var defaultModel = configuration.Default.Model;
-        if ((defaultModel is { Length: > 0 } && configuration.ModelProfiles.ContainsKey(defaultModel))
-            || configuration.Default.Reasoning is not null || configuration.Default.MaxOutputTokens is not null)
+        var catalog = provider.GetRequiredService<ModelCatalog>();
+        var resolved = await catalog.Decide(brainId: null, ModelUse.Chat, ct: cancellationToken);
+        if (resolved.Provider is AiProvider.Host)
         {
-            var catalog = provider.GetRequiredService<ModelCatalog>();
-            var resolved = await catalog.Resolve(null, requiresTools: false, cancellationToken);
-            if (resolved.Provider is AiProvider.Host) { throw new NoProviderConfiguredException("No chat provider is configured. Provision a provider integration or configure an Ollama endpoint."); }
-            return await catalog.CreateClient(resolved, cancellationToken, invokesTools: true);
+            throw new NoProviderConfiguredException("No chat provider is configured. Provision a provider integration or configure an Ollama endpoint.");
         }
-        var model = configuration.Default.Model is { Length: > 0 } markerName
-            ? LLMModel.FindByMarkerName(markerName)
-                ?? throw UnknownMarker(DefaultModelKey, markerName, LLMModel.All.Select(static m => m.Marker.Name))
-            : await FirstConfiguredModel(configuration, provider.GetRequiredService<IAiCredentials>(), cancellationToken);
-        return provider.GetRequiredKeyedService<IChatClient>(model.Marker);
-    }
-
-    private static async Task<LLMModel> FirstConfiguredModel(AIOptions configuration, IAiCredentials credentials, CancellationToken cancellationToken)
-    {
-        foreach (var model in LLMModel.All)
-        {
-            if (await Factories[model.Provider].IsConfigured(configuration, credentials, cancellationToken)) { return model; }
-        }
-        throw new NoProviderConfiguredException("No LLM provider is configured. Provision a provider integration, supply an Ollama endpoint, or pin " + DefaultModelKey + ".");
+        return await catalog.CreateClient(resolved, cancellationToken, invokesTools: true);
     }
 
     private static IEmbeddingGenerator<string, Embedding<float>> DefaultEmbeddingGenerator(IServiceProvider provider)
