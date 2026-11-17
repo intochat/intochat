@@ -57,6 +57,10 @@ public readonly record struct AppRef
         return true;
     }
 
+    // The app's name when an instance key is one of this brain's apps; null otherwise (another brain, not an app, or malformed).
+    public static string? NameOf(string brainId, string key) =>
+        BrainId.IsValid(brainId) && TryParse(new BrainId(brainId), key, out var app) ? app.Name : null;
+
     public static AppRef Of(BrainId brain, string name)
     {
         if (string.IsNullOrEmpty(brain.Value))

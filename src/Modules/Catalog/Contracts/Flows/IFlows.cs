@@ -9,6 +9,9 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 [NeuronAlias("flows"), DefaultNeuronType("flows")]
 public interface IFlows
 {
+    // The flow type of a feature-to-PR change run (FeatureToPrFlow).
+    const string ChangeFlow = "flow.change";
+
     static DigitalBrain.NeuronId Key(string brain) => new(new DigitalBrain.BrainId(brain), "flows", "flows/index");
 
     [DigitalBrain.Contracts.ReadOnlyCall]

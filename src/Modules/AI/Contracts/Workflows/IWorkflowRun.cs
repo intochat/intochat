@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using DigitalBrain;
 using DigitalBrain.Contracts;
-using Microsoft.Agents.AI.Workflows;
 
 namespace IntoChat.OS.Modules.AI.Workflows;
 
@@ -18,9 +17,6 @@ public sealed record WorkflowRunView(
     string? PlanId,
     string? Output,
     string? Error);
-
-// A workflow a host offers by name; Build makes a fresh instance for each run.
-public sealed record WorkflowDefinition(string Name, string Description, Func<Workflow> Build);
 
 [Signal("workflow.run-started")]
 public sealed record WorkflowRunStarted(string RunId, string Workflow, string Input) : DigitalBrain.Signal;

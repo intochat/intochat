@@ -242,7 +242,7 @@ public sealed record DesktopAppState(
         var activeTab = w?.Tabs.FirstOrDefault(t => t.Id == w.ActiveTabId) ?? w?.Tabs.LastOrDefault();
         if (activeTab is null) { return (null, []); }
 
-        var appId = IApp.NameOf(brain, activeTab.App)
+        var appId = IntoChat.OS.Primitives.AppRef.NameOf(brain, activeTab.App)
             ?? activeTab.Id;
         var exists = s.Favourites.Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));
         WorkspaceViewRef[] nextFavs = exists

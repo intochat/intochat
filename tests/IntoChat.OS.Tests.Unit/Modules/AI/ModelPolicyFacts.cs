@@ -269,7 +269,13 @@ public sealed partial class ModelPolicyFacts
             Path.Combine(frameworkDir, "Visuals"),
         ];
 
-        var expectedSingleSource = Path.GetFullPath(Path.Combine(frameworkDir, "Configuration", "IntoChatOSNames.cs"));
+        // Two homes, proven equal below: the hosting default (IntoChatOSNames) and the model's own identity in the AI contracts,
+        // which may not depend on hosting code.
+        string[] expectedSources =
+        [
+            Path.GetFullPath(Path.Combine(frameworkDir, "Configuration", "IntoChatOSNames.cs")),
+            Path.GetFullPath(Path.Combine(aiDir, "Contracts", "Models", "Ollama", "IQwen35.cs")),
+        ];
         var literalHits = new List<string>();
         foreach (var path in ownedDirectories)
         {
@@ -284,8 +290,12 @@ public sealed partial class ModelPolicyFacts
             }
         }
 
-        Assert.Equal([expectedSingleSource], literalHits);
+        Assert.Equal(expectedSources.Order(StringComparer.OrdinalIgnoreCase), literalHits.Order(StringComparer.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void TheLocalDefaultChatModelIsTheQwen35Model()
+        => Assert.Equal(IntoChat.OS.Contracts.Configuration.IntoChatOSNames.LocalDefaultChatModel, new IntoChat.OS.Modules.AI.Models.Ollama.Qwen35().Id);
 
     private static string FindSolutionFile()
     {

@@ -30,7 +30,7 @@ public sealed class TriRepoCreatorBoundaryFacts
         var aiContracts = typeof(ITestVerificationService).Assembly;
         var aiImpl = typeof(TestVerificationService).Assembly;
 
-        Assert.Equal("IntoChat.OS.Modules.AI", aiContracts.GetName().Name);
+        Assert.Equal("IntoChat.OS.Modules.AI.Contracts", aiContracts.GetName().Name);
         Assert.Equal("IntoChat.OS.Modules.AI", aiImpl.GetName().Name);
 
         Assert.Equal(aiContracts, typeof(ITestVerificationNeuron).Assembly);

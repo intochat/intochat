@@ -539,7 +539,7 @@ public sealed class WorkspaceFilesService : IFilesVfsService
     private async Task TryRefreshFilesWorkspaceAsync(CancellationToken ct)
     {
         if (_services is null) { return; }
-        try { await SiloNeurons.Get<IFilesWorkspace>(_services, IFilesWorkspace.Key(BrainId)).Open(ct).ConfigureAwait(false); }
+        try { await SiloNeurons.Get<IFilesWorkspace>(_services, IntoChat.OS.Primitives.AppRef.Of(new(BrainId), "files").ChildKey("workspace")).Open(ct).ConfigureAwait(false); }
         catch (Exception error) when (error is not OperationCanceledException) { LogRecoverable(error); }
     }
 
