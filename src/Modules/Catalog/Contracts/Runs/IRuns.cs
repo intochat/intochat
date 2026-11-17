@@ -9,6 +9,7 @@ public enum RunKind { Flow, AgentTurn, Operation, Workflow }
 
 public enum RunState { Running, Waiting, Succeeded, Failed, Cancelled }
 
+// Synapse names the behavior the run belongs to: the flow type, the workflow name, the agent's app, or the operation kind.
 public sealed record RunView(
     string Id,
     RunKind Kind,
@@ -21,7 +22,8 @@ public sealed record RunView(
     DateTimeOffset? Ended,
     string[] Steps,
     string? Current,
-    string? Detail);
+    string? Detail,
+    string? Synapse = null);
 
 [DigitalBrain.Signal("runs.changed")]
 public sealed record RunsChanged(int Count) : DigitalBrain.Signal;

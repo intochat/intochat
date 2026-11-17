@@ -62,6 +62,10 @@ public sealed record CreatorSeed(string? Alias = null) : DigitalBrain.Signal;
 [DigitalBrain.Signal("creator.run")]
 public sealed record CreatorRun(string? RunId = null) : DigitalBrain.Signal;
 
+// Starts a run of the named workflow from Creator, with the describe field (or the workflow's name) as its input.
+[DigitalBrain.Signal("creator.start-workflow")]
+public sealed record CreatorStartWorkflow(string? Workflow = null) : DigitalBrain.Signal;
+
 [DigitalBrain.Signal("creator.approve")]
 public sealed record CreatorApprove(string? ApprovalId = null) : DigitalBrain.Signal;
 
@@ -86,11 +90,19 @@ public sealed class CreatorApp : Screen<CreatorState>
         _time = time;
     }
 
-    protected override Task OnActivate(CancellationToken cancellationToken)
+    protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         AppActivationScope.Notify(this);
-        return base.OnActivate(cancellationToken);
+        await base.OnActivate(cancellationToken);
+        // A woken Creator shows current data (synapses, flows, approvals), not the view stored before a restart, and keeps it current
+        // as runs change (a workflow it started finishing, for example).
+        try { await Follow<IntoChat.OS.Modules.Apps.Runs.IRuns, IntoChat.OS.Modules.Apps.Runs.RunsChanged>("runs/index"); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Following runs is optional when the runs index is not hosted."); }
+        await RefreshAsync();
     }
+
+    [DigitalBrain.Neurons.On]
+    public Task RunsChanged(IntoChat.OS.Modules.Apps.Runs.RunsChanged? changed) => changed is null ? Task.CompletedTask : RefreshAsync();
 
     private ILogger Log => _logger;
 
@@ -120,6 +132,7 @@ public sealed class CreatorApp : Screen<CreatorState>
     private BrainTopology _topology = new([], []);
     private FlowView[] _flows = [];
     private Approval[] _approvals = [];
+    private IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[] _synapses = [];
     private Inspection _inspection = Inspection.None;
     private readonly HashSet<string> _running = new(StringComparer.Ordinal);
 
@@ -146,6 +159,7 @@ public sealed class CreatorApp : Screen<CreatorState>
                 new("make", "Describe a new unit; Ino's studio starts its build flow."),
                 new("share", "Publish the inspected unit as an interactive App-Post on your profile."),
                 new("seed", "Deploy a shipped unit template into the brain."),
+                new("start-workflow", "Start a run of a named workflow."),
                 new("run", "Inspect an active change run pipeline and unified diff."),
                 new("approve", "Approve and promote a pending change run."),
                 new("reject", "Reject and abort a pending change run."),
@@ -394,6 +408,30 @@ public sealed class CreatorApp : Screen<CreatorState>
     }
 
     [DigitalBrain.Neurons.On]
+    public async Task StartWorkflow(CreatorStartWorkflow request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (Blank(request.Workflow) is not { } workflow)
+        {
+            await Show(State with { Status = "Choose a workflow to run." });
+            return;
+        }
+        var runKey = $"workflows/{Guid.NewGuid():N}";
+        try
+        {
+            var run = await Get<IntoChat.OS.Modules.AI.Workflows.IWorkflowRun>(runKey).Start(workflow, Blank(State.Draft) ?? workflow);
+            await Show(State with { Status = run.Status == IntoChat.OS.Modules.AI.Workflows.WorkflowRunStatus.Waiting
+                ? $"{workflow} is waiting for your approval ({runKey})."
+                : $"{workflow}: {run.Status} ({runKey})." });
+        }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException)
+        {
+            await Show(State with { Status = $"Could not run {workflow}: {error.Message}" });
+        }
+        await RefreshAsync();
+    }
+
+    [DigitalBrain.Neurons.On]
     public async Task Approve(CreatorApprove request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -441,7 +479,7 @@ public sealed class CreatorApp : Screen<CreatorState>
 
     public new CreatorState State => base.State;
     public View Render() => Render(State);
-    protected override View Render(CreatorState state) => CreatorView.Render(state, _topology, _flows, _approvals, _inspection);
+    protected override View Render(CreatorState state) => CreatorView.Render(state, _topology, _flows, _approvals, _inspection, _synapses);
 
     private async Task RefreshAsync()
     {
@@ -449,6 +487,8 @@ public sealed class CreatorApp : Screen<CreatorState>
         catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "The flows index is optional; the dialogue shows the last read."); }
         try { _approvals = [.. await Get<IApprovals>(ApprovalsKey).Pending()]; }
         catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "Approvals are optional when the inbox is not reachable."); }
+        try { _synapses = await Get<IntoChat.OS.Modules.Apps.Synapses.ISynapseDefinitions>("synapses/definitions").List(); }
+        catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "The synapse catalog is optional; the pane shows the last read."); }
         try { _topology = await Get<IDebuggerReads>(IDebuggerReads.DefaultKey).Topology(); }
         catch (Exception error) when (error is not OperationCanceledException) { Log.LogDebug(error, "The topology read is optional; the graph shows the last read."); }
         _topology = _topology with { Flows = _flows };

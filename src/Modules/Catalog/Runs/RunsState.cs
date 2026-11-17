@@ -16,18 +16,18 @@ internal sealed record RunsState(RunView[] Runs)
     internal RunsState Fold(DigitalBrain.Signal signal, DateTimeOffset at) => signal switch
     {
         TurnStarted started => Put(new RunView(started.RunId, RunKind.AgentTurn, Title(started.UserText), RunState.Running, null,
-            started.AgentId, null, at, null, [], "answering", null)),
+            started.AgentId, null, at, null, [], "answering", null, AgentApp(started.AgentId))),
         TurnCompleted completed => Update(completed.RunId, run => run with { State = RunState.Succeeded, Ended = at, Current = null, Detail = Title(completed.Reply) }),
         TurnFailed failed => Update(failed.RunId, run => run with
         {
             State = failed.Cancelled ? RunState.Cancelled : RunState.Failed, Ended = at, Current = null, Detail = failed.Error,
         }),
         OperationStarted started => Put(new RunView(started.Operation.Value, RunKind.Operation, started.Kind, RunState.Running, null,
-            started.Origin, null, at, null, [], null, null)),
+            started.Origin, null, at, null, [], null, null, started.Kind)),
         OperationAwaitingApproval awaiting => Update(awaiting.Operation.Value, run => run with { State = RunState.Waiting, Waiting = $"approval {awaiting.PlanId}" }),
         OperationDone done => Update(done.Operation.Value, run => run with { State = Outcome(done.Result), Waiting = null, Ended = at, Detail = Describe(done.Result) }),
         WorkflowRunStarted started => Put(new RunView(started.RunId, RunKind.Workflow, $"{started.Workflow}: {Title(started.Input)}", RunState.Running, null,
-            started.Workflow, null, at, null, [], null, null)),
+            started.Workflow, null, at, null, [], null, null, started.Workflow)),
         WorkflowRunWaiting waiting => Update(waiting.RunId, run => run with { State = RunState.Waiting, Waiting = $"approval {waiting.PlanId}", Detail = Title(waiting.Question) }),
         WorkflowRunDone done => Update(done.RunId, run => run with
         {
@@ -45,7 +45,14 @@ internal sealed record RunsState(RunView[] Runs)
         FlowStatus.Cancelled => RunState.Cancelled,
         _ => RunState.Running,
     }, flow.WaitingFor is { } reason ? $"{reason.ToString().ToLowerInvariant()} {flow.ConfirmationPlanId ?? flow.WaitingStep}".Trim() : null,
-        flow.Owner, flow.TraceId, flow.Started, flow.Ended, flow.Steps, flow.Current, flow.Detail);
+        flow.Owner, flow.TraceId, flow.Started, flow.Ended, flow.Steps, flow.Current, flow.Detail, flow.Type);
+
+    // "{brain}/{app}/conversations/{id}" belongs to the app's agent.
+    internal static string AgentApp(string agentId)
+    {
+        var parts = agentId.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 1 ? parts[1] : agentId;
+    }
 
     // Running and waiting first, then newest first.
     internal static RunView[] Order(IEnumerable<RunView> runs, int limit)

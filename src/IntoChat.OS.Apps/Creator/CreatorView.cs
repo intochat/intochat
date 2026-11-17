@@ -29,12 +29,13 @@ public static class CreatorView
         BrainTopology topology,
         FlowView[] flows,
         Approval[] approvals,
-        Inspection inspection)
+        Inspection inspection,
+        IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(topology);
 
-        var left = LeftPane(state, topology, flows, approvals);
+        var left = LeftPane(state, topology, flows, approvals, synapses);
         var center = CenterPane(state, topology, flows, inspection);
         var right = CreatorInspector.Render(state, inspection, flows, approvals);
 
@@ -45,12 +46,24 @@ public static class CreatorView
         CreatorState state,
         BrainTopology topology,
         FlowView[] flows,
-        Approval[] approvals)
+        Approval[] approvals,
+        IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition[]? synapses = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(flows);
 
         var children = new List<Node>();
+
+        // Every synapse by form: reactions, flows, workflows, agents; a workflow can be run from here.
+        if (synapses is { Length: > 0 })
+        {
+            children.Add(SectionHeader("Synapses"));
+            foreach (var form in synapses.GroupBy(synapse => synapse.Form).OrderBy(group => group.Key))
+            {
+                children.Add(MutedText(form.Key.ToString()));
+                children.Add(HStack(Space.Xs, [.. form.Select(Synapse)]));
+            }
+        }
 
         // 1. Catalog Units & Apps List
         children.Add(SectionHeader("Catalog Units"));
@@ -537,5 +550,14 @@ public static class CreatorView
         return flow is { Status: FlowStatus.Waiting, WaitingStep: "install" }
             ? approvals.FirstOrDefault(a => a.Kind == ApprovalKind.SynapseStaged && a.PlanId == flow.ConfirmationPlanId)
             : null;
+    }
+
+    // One synapse: its name, how often it ran and how the last run ended; a workflow's button starts a run.
+    private static Node Synapse(IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition synapse)
+    {
+        var label = synapse.Runs == 0 ? synapse.Name : $"{synapse.Name} · {synapse.Runs} run(s), last {synapse.LastRun}";
+        return synapse.Form == IntoChat.OS.Modules.Apps.Synapses.SynapseForm.Workflow
+            ? Button($"Run {label}").Key($"synapse:{synapse.Id}").Small().Emits(AppSignals.Emit(App, "start-workflow", synapse.Name))
+            : MutedText(label);
     }
 }
