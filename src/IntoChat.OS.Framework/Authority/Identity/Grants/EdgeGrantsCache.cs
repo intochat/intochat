@@ -34,7 +34,8 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     // The authority reads the grants and contacts it decides from as the kernel: under the caller being decided,
     // those reads would be judged by the very grants they fetch. It reads inside the brain it reads from.
     private Task<T> AsAuthority<T>(string brain, Func<Task<T>> read)
-        => _services?.GetService<EdgeAuthority>() is { } edge ? edge.AsKernel(new BrainId(brain), read) : read();
+        => (_services?.GetService<EdgeAuthority>() ?? throw new InvalidOperationException("The grants authority reads only on a host with an edge authority."))
+            .AsKernel(new BrainId(brain), read);
     public static EdgeGrantsCache Current { get; set; } = new();
 
     private readonly Lock _sync = new();

@@ -19,9 +19,18 @@ internal sealed class VaultSecretValueSource(AuthorityNeurons neurons, ICallerAm
         {
             throw new UnauthorizedAccessException("Zero-token auth enforcement: sandbox and app principals cannot read raw vault secret values directly.");
         }
-        // A person's own vault, or the vault of the person an agent acts for; the kernel, a module and the scheduler have none.
-        if (caller.Actor is not (Actor.Person or Actor.Agent) || caller.For is not { } person) { return []; }
+        if (VaultOwner(caller) is not { } owner) { return []; }
         if (edge is null) { return []; }
-        return await edge.AsKernel(BrainId.Kernel, () => neurons.Vault(person.Principal).Values());
+        return await edge.AsKernel(BrainId.Kernel, () => neurons.Vault(owner).Values());
     }
+
+    // Whose vault values are redacted, from the stamp: a person's own, the person an agent acts for, a module's own id, or
+    // the kernel's brain. The scheduler has none.
+    internal static string? VaultOwner(Caller caller) => caller.Actor switch
+    {
+        Actor.Person or Actor.Agent => caller.For?.Principal,
+        Actor.Module module => module.Id,
+        Actor.Kernel => caller.Brain.Value,
+        _ => null,
+    };
 }

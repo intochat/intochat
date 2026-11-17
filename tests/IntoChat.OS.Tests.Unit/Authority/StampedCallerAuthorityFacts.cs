@@ -99,6 +99,19 @@ public sealed class StampedCallerAuthorityFacts
         Assert.Equal(SecretVaultStatus.Denied, result.Status);
     }
 
+    // The redactor masks the values of the vault the stamp names: a module's own id, the kernel's brain, a person's own.
+    [Fact]
+    public async Task RedactorReadsTheVaultTheStampNames()
+    {
+        await using var os = TestOS.Local();
+        var brain = new BrainId(Brain);
+
+        Assert.Equal("files", IntoChat.OS.Authority.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Module("files", brain)));
+        Assert.Equal(Brain, IntoChat.OS.Authority.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Kernel(brain)));
+        Assert.Equal("alice", IntoChat.OS.Authority.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Agent(new Actor.Person("alice", "alice"), brain)));
+        Assert.Null(IntoChat.OS.Authority.Secrets.VaultSecretValueSource.VaultOwner(os.Edge.Scheduler(brain)));
+    }
+
     [Fact]
     public async Task SiloAccessFilterRefusesAnUnstampedCall()
     {
