@@ -42,19 +42,21 @@ public sealed class OsKernel(IGrainFactory grains, IBrainMembership? membership 
         }
     }
 
+    private DigitalBrain.Access.ICallerAmbient? Callers => services?.GetService(typeof(DigitalBrain.Access.ICallerAmbient)) as DigitalBrain.Access.ICallerAmbient;
+
     // A call with no caller is in no brain, so it sees the compiled layer alone.
     public Task<BrainType[]> Types(CancellationToken cancellationToken = default)
-        => (RuntimeCallerContext.TryGet(out _)
+        => (Callers?.Current is not null
             ? grains.GetGrain<ITypeTable>(BrainScope.CurrentId()).List()
             : grains.GetGrain<ICompiledTypeTable>(TypeTableKey.NoBrain).List()).WaitAsync(cancellationToken);
 
     public async Task<string[]> Brains(CancellationToken cancellationToken = default)
     {
         var current = BrainScope.CurrentId();
-        var caller = RuntimeCallerContext.Require();
+        var person = Callers?.Current?.For ?? throw new UnauthorizedAccessException("Listing brains requires a caller acting for a person.");
         // Fail closed: without a membership source the kernel cannot tell which brains the caller may see.
         var source = membership ?? throw new InvalidOperationException("No brain membership source registered: register IBrainMembership (AddIntoChatOSConnections) before listing brains.");
-        var members = await source.BrainsOf(caller.PersonId, cancellationToken).WaitAsync(cancellationToken);
+        var members = await source.BrainsOf(person.Principal, cancellationToken).WaitAsync(cancellationToken);
         return members.Contains(current, StringComparer.Ordinal) ? members : [current, .. members];
     }
 

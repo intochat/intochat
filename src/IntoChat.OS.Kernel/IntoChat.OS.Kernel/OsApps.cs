@@ -67,13 +67,13 @@ public static class OsAppsHosting
 // a distribution's extra apps install through the Marketplace.
 internal sealed class OsDefaults(
     IIntoChatOSBrains brains, INeuronProxies proxies, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
-    ICapabilityBroker capabilities, FeatureCatalog catalog, FeatureLoader loader) : DigitalBrain.Brains.ICreationHandler
+    ICapabilityBroker capabilities, FeatureCatalog catalog, FeatureLoader loader, DigitalBrain.Access.EdgeAuthority edge) : DigitalBrain.Brains.ICreationHandler
 {
     public async Task Created(string brainId, Created created, CancellationToken cancellationToken)
     {
         if (await (await capabilities.Identity(cancellationToken)).KindOf(brainId, cancellationToken) == BrainKind.Circle)
         {
-            await DeployCircleUnits(proxies, logger, brainId);
+            await DeployCircleUnits(edge, proxies, logger, brainId);
             return;
         }
         await ShippedInstall.Missing(catalog, loader, brainId,
@@ -99,11 +99,13 @@ internal sealed class OsDefaults(
 
     // A circle's shipped units (its room) deploy at birth and wait, Pending, for the creator's consent in the approvals: the OS never
     // approves them. One that fails is logged and the next connect deploys again (OsWorkspaceRoot); a deploy never approves.
-    internal static async Task DeployCircleUnits(INeuronProxies proxies, ILogger logger, string brainId)
+    // Host code deploying the shipped units into the circle's brain: the connecting person's stamp names another brain, so the
+    // call runs as the kernel of the target brain (the call filter refuses a person's call across brains).
+    internal static Task DeployCircleUnits(DigitalBrain.Access.EdgeAuthority edge, INeuronProxies proxies, ILogger logger, string brainId)
+        => edge.AsKernel(new BrainId(brainId), async () => { await DeployCircleUnitsAsKernel(proxies, logger, brainId); return true; });
+
+    private static async Task DeployCircleUnitsAsKernel(INeuronProxies proxies, ILogger logger, string brainId)
     {
-        // Host code deploying the shipped units into the circle's brain: the connecting person's stamp names another brain, so the
-        // call runs as the platform of the target brain (the call filter refuses a person's call across brains).
-        using var platform = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.StampScope(DigitalBrain.Capabilities.CapabilityCallers.Platform(brainId, brainId, brainId));
         var studio = proxies.Get<ISynapseStudio>(ISynapseStudio.Key(brainId));
         foreach (var alias in ShippedApps.CircleUnits)
         {

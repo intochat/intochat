@@ -1,7 +1,6 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 
@@ -14,7 +13,8 @@ public sealed class ConnectionStorage(
     string? connectionKey = null,
     IStorageUpload? uploads = null,
     IStorageWriteAuthorizer? authorizer = null,
-    string? sandboxBadge = null) : IStorage
+    string? sandboxBadge = null,
+    DigitalBrain.Access.EdgeAuthority? edge = null) : IStorage
 {
     private readonly IStorage _remote = remote ?? throw new ArgumentNullException(nameof(remote));
     private readonly string? _prefix = connectionKey is null ? null : Root(connectionKey);
@@ -92,23 +92,24 @@ public sealed class ConnectionStorage(
 
     private async Task<T> Typed<T>(Func<Task<T>> call)
     {
-        var hadCaller = RuntimeCallerContext.TryGet(out var current);
-        IDisposable? stampScope = null;
-        if (connectionKey is { Length: > 0 } && (!hadCaller || current is null || current.Kind == CallerKind.App))
+        var current = edge?.Current;
+        // Finding (caller-model collapse, Task 6): an app caller, or no caller, is lifted to the kernel for the provider call.
+        // Carried over from the old Platform stamp, now explicit through PlatformCall; it should be narrowed, not kept.
+        if (edge is not null && connectionKey is { Length: > 0 } && current?.Actor is null or DigitalBrain.Access.Actor.App)
         {
             var slash = connectionKey.IndexOf('/', StringComparison.Ordinal);
             var owner = slash > 0 ? connectionKey[..slash] : connectionKey;
-            var brain = current?.BrainId is { Length: > 0 } b ? b : owner;
-            // The connection's owner here is a brain id, nobody's account: the kernel reads the connection as its platform.
-            stampScope = RuntimeCallerContext.StampScope(CapabilityCallers.Platform(owner, owner, brain));
+            var brain = current?.Brain ?? new DigitalBrain.BrainId(owner);
+            return await edge.AsKernel(brain, () => Translated(call)).ConfigureAwait(false);
         }
+        return await Translated(call).ConfigureAwait(false);
+    }
+
+    private static async Task<T> Translated<T>(Func<Task<T>> call)
+    {
         try { return await call().ConfigureAwait(false); }
         catch (Exception error) when (error is not StorageException && StorageErrors.FromMessage(error.Message) is { } typed)
         { throw typed; }
-        finally
-        {
-            stampScope?.Dispose();
-        }
     }
 
     private sealed class RemoteReadStream(ConnectionStorage storage, ItemId item, long offset, long? length, CancellationToken opened) : Stream

@@ -35,6 +35,9 @@ public sealed class PresenceProofAndEdgeAuthFacts
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    // The same host TestEdge.Authority mints for, so the ambient the edge enters is the one the probe reads.
+    private static readonly DigitalBrain.Testing.TestOS Host = DigitalBrain.Testing.TestOS.Local();
+
     [Fact]
     public void PresenceProofValidator_MatchesBase64UrlBase64AndHexOfSame32ByteSecret_AndRejectsForgery()
     {
@@ -107,15 +110,14 @@ public sealed class PresenceProofAndEdgeAuthFacts
             Assert.Equal(HttpStatusCode.Unauthorized, forgedRes.StatusCode);
         }
 
-        // 3. Valid X-IntoChat-Presence header -> CallerKind.User / Actor.Person!
+        // 3. Valid X-IntoChat-Presence header -> Actor.Person
         using var provedReq = new HttpRequestMessage(HttpMethod.Get, "/probe/caller");
         provedReq.Headers.Add(PresenceProofValidator.HeaderName, proof.Token);
         using var provedRes = await client.SendAsync(provedReq, Ct);
         Assert.Equal(HttpStatusCode.OK, provedRes.StatusCode);
         var proved = await provedRes.Content.ReadFromJsonAsync<CallerProbe>(cancellationToken: Ct);
         Assert.NotNull(proved);
-        Assert.Equal(CallerKind.User.ToString(), proved.Kind);
-        Assert.Null(proved.AppId);
+        Assert.Equal(nameof(Actor.Person), proved.Kind);
         Assert.True(proved.IsActorPerson);
     }
 
@@ -224,30 +226,6 @@ public sealed class PresenceProofAndEdgeAuthFacts
     }
 
     [Fact]
-    public async Task McpCaller_AlwaysWrapsResolvedCallerAsAssistantAgent_EvenWhenHttpRequestHasPresenceProof()
-    {
-        var raw = RandomNumberGenerator.GetBytes(32);
-        var proof = new PresenceProofValidator(raw);
-        var services = new ServiceCollection();
-        services.AddSingleton<IPresenceProof>(proof);
-        using var provider = services.BuildServiceProvider();
-
-        var httpContext = new DefaultHttpContext { RequestServices = provider };
-        httpContext.Request.Headers[PresenceProofValidator.HeaderName] = proof.Token;
-
-        var accessor = new HttpContextAccessor { HttpContext = httpContext };
-        var auth = Options.Create(new AuthOptions { Posture = IdentityPosture.Open });
-        await using var os = DigitalBrain.Testing.TestOS.Local();
-        var mcpCaller = new McpCaller(accessor, auth, os);
-
-        var stamped = mcpCaller.Stamp(NeuronSurfaceTools.CallName);
-        Assert.Equal(CallerKind.Agent, stamped.Kind);
-        Assert.Equal(CapabilityCallers.AssistantApp, stamped.AppId);
-        Assert.Equal("mcp", stamped.ConversationId);
-        Assert.IsType<Actor.Agent>(os.Edge.From(stamped).Actor);
-    }
-
-    [Fact]
     public async Task GrantPolicySource_AllowsProvenPersonInOpenPosture_WhileZeroTokenGuardStillDeniesVault()
     {
         var identity = new StubIdentityClient();
@@ -256,7 +234,9 @@ public sealed class PresenceProofAndEdgeAuthFacts
         var source = new GrainGrantPolicySource(identity, mirror, auth);
         var stage = new GrantCallFilterStage(source);
 
-        var personCaller = IntoChat.OS.Tests.TestEdge.From(CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin));
+        var edge = IntoChat.OS.Tests.TestEdge.Authority;
+        var owner = new DigitalBrain.BrainId(AccountSession.DefaultLogin);
+        var personCaller = edge.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin, owner);
         var uiDecision = await stage.EvaluateAsync(personCaller, new CallRequest
         {
             TargetNeuron = "app.view/owner/main",
@@ -268,8 +248,7 @@ public sealed class PresenceProofAndEdgeAuthFacts
         Assert.NotNull(uiDecision);
         Assert.True(uiDecision.Allowed);
 
-        var untrustedAppCaller = IntoChat.OS.Tests.TestEdge.From(
-            CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin) with { AppId = "untrusted-app" });
+        var untrustedAppCaller = edge.App("untrusted-app", new Actor.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin), owner);
 
         var vaultDecision = await stage.EvaluateAsync(untrustedAppCaller, new CallRequest
         {
@@ -301,22 +280,22 @@ public sealed class PresenceProofAndEdgeAuthFacts
         builder.Services.AddSingleton<IPresenceProof>(proof);
         builder.Services.AddSingleton<IIdentityClient>(new StubIdentityClient());
         builder.Services.AddIdentity();
+        builder.Services.AddSingleton(IntoChat.OS.Tests.TestEdge.Authority);
+        builder.Services.AddSingleton(Host.Callers);
 
         var app = builder.Build();
         app.UseAuthentication();
         app.UseAccountSession();
         IdentityEndpoints.Map(app);
-        app.MapGet("/probe/caller", () =>
+        app.MapGet("/probe/caller", (ICallerAmbient callers) =>
         {
-            var caller = RuntimeCallerContext.Require();
-            var actor = IntoChat.OS.Tests.TestEdge.From(caller).Actor;
+            var caller = callers.Current ?? throw new UnauthorizedAccessException("no caller");
             return Results.Ok(new CallerProbe(
-                caller.PrincipalId,
-                caller.AccountId,
-                caller.BrainId,
-                caller.Kind.ToString(),
-                caller.AppId,
-                actor is Actor.Person));
+                caller.For?.Principal ?? "",
+                caller.For?.Account ?? "",
+                caller.Brain.Value,
+                caller.Actor.GetType().Name,
+                caller.Actor is Actor.Person));
         });
 
         await app.StartAsync(Ct);
@@ -328,7 +307,6 @@ public sealed class PresenceProofAndEdgeAuthFacts
         string AccountId,
         string BrainId,
         string Kind,
-        string? AppId,
         bool IsActorPerson);
 
     private sealed class RefusingSessions : DbIdentity.ISessions

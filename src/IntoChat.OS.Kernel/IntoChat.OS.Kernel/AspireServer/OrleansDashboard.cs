@@ -21,7 +21,7 @@ public static class OrleansDashboard
         {
             Orleans.Dashboard.ServiceCollectionExtensions.MapOrleansDashboard(app, routePrefix: Path)
                 .AddEndpointFilter(static async (context, next) =>
-                    RuntimeCallerContext.TryGet(out _) ? await next(context) : Results.Unauthorized());
+                    context.HttpContext.RequestServices.GetService<DigitalBrain.Access.ICallerAmbient>()?.Current is not null ? await next(context) : Results.Unauthorized());
         }
         return app;
     }

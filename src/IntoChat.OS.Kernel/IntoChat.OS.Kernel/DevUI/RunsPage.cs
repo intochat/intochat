@@ -15,7 +15,7 @@ internal static class RunsPage
     {
         app.MapGet("/runs.json", async (string? id, int? limit, IServiceProvider services) =>
         {
-            var runs = SiloNeurons.Get<IRuns>(services, IRuns.Key(RuntimeCallerContext.Require().BrainId));
+            var runs = SiloNeurons.Get<IRuns>(services, IRuns.Key(((services.GetService(typeof(DigitalBrain.Access.ICallerAmbient)) as DigitalBrain.Access.ICallerAmbient)?.Current ?? throw new UnauthorizedAccessException("The request carries no caller.")).Brain.Value));
             return id is { Length: > 0 }
                 ? (await runs.Read(id) is { } run ? Results.Json(run) : Results.NotFound())
                 : Results.Json(await runs.List(limit ?? 100));

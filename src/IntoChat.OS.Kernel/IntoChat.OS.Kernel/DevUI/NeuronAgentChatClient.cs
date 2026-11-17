@@ -29,7 +29,7 @@ internal sealed class NeuronAgentChatClient(IServiceProvider services) : IChatCl
         if (string.IsNullOrWhiteSpace(text)) { yield break; }
         var key = await ConversationKey();
         (services.GetService(typeof(Microsoft.Extensions.Logging.ILoggerFactory)) as Microsoft.Extensions.Logging.ILoggerFactory)?
-            .CreateLogger<NeuronAgentChatClient>().LogInformation("DevUI turn for agent {Agent} (caller brain {Brain}).", key, RuntimeCallerContext.Current?.BrainId);
+            .CreateLogger<NeuronAgentChatClient>().LogInformation("DevUI turn for agent {Agent} (caller brain {Brain}).", key, (services.GetService(typeof(DigitalBrain.Access.ICallerAmbient)) as DigitalBrain.Access.ICallerAmbient)?.Current?.Brain.Value);
         var agent = SiloNeurons.Get<IAgent>(services, key);
         await foreach (var turn in agent.Run(AgentTurn.Text(text), cancellationToken))
         {
@@ -40,7 +40,7 @@ internal sealed class NeuronAgentChatClient(IServiceProvider services) : IChatCl
     // The newest conversation Ino uses for this brain; the main one when Ino has none yet.
     private async Task<DigitalBrain.NeuronId> ConversationKey()
     {
-        var brain = RuntimeCallerContext.Require().BrainId;
+        var brain = ((services.GetService(typeof(DigitalBrain.Access.ICallerAmbient)) as DigitalBrain.Access.ICallerAmbient)?.Current ?? throw new UnauthorizedAccessException("The request carries no caller.")).Brain.Value;
         var current = await SiloNeurons.Get<IInoConversations>(services, new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), "ino.conversations", IInoConversations.DefaultKey)).Current();
         var key = current.FirstOrDefault(item => item.Length > 0) ?? DefaultConversation;
         return new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), "agent", key.StartsWith(brain + "/", StringComparison.Ordinal) ? key[(brain.Length + 1)..] : key);

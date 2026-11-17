@@ -24,7 +24,7 @@ internal static class BrainPage
     {
         app.MapGet("/brain.json", async (IServiceProvider services) =>
         {
-            var brain = RuntimeCallerContext.Require().BrainId;
+            var brain = ((services.GetService(typeof(DigitalBrain.Access.ICallerAmbient)) as DigitalBrain.Access.ICallerAmbient)?.Current ?? throw new UnauthorizedAccessException("The request carries no caller.")).Brain.Value;
             var topology = await SiloNeurons.Get<IDebuggerReads>(services, new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), "creator.reads", IDebuggerReads.DefaultKey)).Topology();
             var wires = services.GetService(typeof(DigitalBrain.Kernel.IBrainObserver)) is DigitalBrain.Kernel.IBrainObserver observer ? await observer.Wires() : [];
             var runs = await SiloNeurons.Get<IRuns>(services, IRuns.Key(brain)).List(200);

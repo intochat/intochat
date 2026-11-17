@@ -31,7 +31,7 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
     private const string ActName = "screen_act";
     private const string ApproveName = "screen_approve";
 
-    private IScreenDirectory Directory(string tool) => brain.Get<IScreenDirectory>(IScreenDirectory.Key(caller.Stamp(tool).BrainId));
+    private IScreenDirectory Directory(string tool) => brain.Get<IScreenDirectory>(IScreenDirectory.Key(caller.Stamp(tool).Brain.Value));
 
     // A guest opens the shipped demo screens only, named exactly.
     private void Admit(string tool, string appId)
@@ -112,7 +112,7 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
         try
         {
             var stamped = caller.Stamp(ApproveName);
-            var inbox = brain.Get<IConfirmationInbox>(IConfirmationInbox.Key(stamped.BrainId));
+            var inbox = brain.Get<IConfirmationInbox>(IConfirmationInbox.Key(stamped.Brain.Value));
             var current = await inbox.Read().WaitAsync(cancellationToken).ConfigureAwait(false);
             var wasPendingInInbox = current.Pending.Any(p => string.Equals(p.PlanId, approvalId, StringComparison.Ordinal));
             if (wasPendingInInbox)
@@ -122,7 +122,7 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
             }
             else
             {
-                var requests = brain.Get<IConfirmationRequests>(IConfirmationRequests.Of(new BrainId(stamped.BrainId)));
+                var requests = brain.Get<IConfirmationRequests>(IConfirmationRequests.Of(stamped.Brain));
                 if (await requests.Outcome(approvalId).WaitAsync(cancellationToken).ConfigureAwait(false) is not null)
                 {
                     return Text(JsonSerializer.Serialize(
@@ -139,7 +139,7 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
                 {
                     unitAlias = parts[1];
                     var deployment = brain.Get<DigitalBrain.Units.IUnitDeployment>(
-                        new NeuronId(new BrainId(stamped.BrainId), "synapse.deployment", unitAlias));
+                        new NeuronId(stamped.Brain, "synapse.deployment", unitAlias));
                     for (var attempt = 0; attempt < 40; attempt++)
                     {
                         if (await deployment.Ref(DigitalBrain.Units.UnitView.Live, cancellationToken).ConfigureAwait(false) is not null)

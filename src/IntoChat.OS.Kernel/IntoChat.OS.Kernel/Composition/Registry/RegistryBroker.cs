@@ -5,7 +5,6 @@ using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Log;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Framework;
@@ -80,8 +79,7 @@ public sealed class RegistryBroker : IRegistryBroker
     public async Task<RegistryEntryDescriptor?> DescribeAsync(string uri, CancellationToken ct = default)
     {
         var (tier, key) = ParseUri(uri);
-        RuntimeCallerContext.TryGet(out var caller);
-        var isPlatform = IsPlatformCaller(caller);
+        var isPlatform = CallerRules.IsKernel(CurrentCaller());
 
         if (_services?.GetService<IGrainFactory>() is null)
         {
@@ -180,8 +178,7 @@ public sealed class RegistryBroker : IRegistryBroker
 
     public async Task<IReadOnlyList<RegistryEntryDescriptor>> ListAsync(string? schemeOrPrefix = null, CancellationToken ct = default)
     {
-        RuntimeCallerContext.TryGet(out var caller);
-        var isPlatform = IsPlatformCaller(caller);
+        var isPlatform = CallerRules.IsKernel(CurrentCaller());
         var normalized = schemeOrPrefix?.Trim().TrimEnd('/', ':').ToLowerInvariant();
 
         if (_services?.GetService<IGrainFactory>() is null)
@@ -269,8 +266,7 @@ public sealed class RegistryBroker : IRegistryBroker
         return results;
     }
 
-    private static bool IsPlatformCaller(CapabilityCaller? caller)
-        => caller is { Kind: CallerKind.Platform, StampedBy: TrustedEdge.Platform };
+    private DigitalBrain.Access.Caller? CurrentCaller() => _services?.GetService<DigitalBrain.Access.ICallerAmbient>()?.Current;
 
     private static string MaskTail(string? tail) => tail is { Length: > 0 } ? $"••••••••{tail}" : "••••••••";
 
@@ -288,11 +284,11 @@ public sealed class RegistryBroker : IRegistryBroker
     private static void AddSettingDescriptor(List<RegistryEntryDescriptor> list, string key, string value)
         => list.Add(new RegistryEntryDescriptor($"settings://{key}", key, RegistryTier.Settings, value, null, true, null));
 
-    private static string ResolveCurrentBrainId()
+    private string ResolveCurrentBrainId()
     {
-        if (RuntimeCallerContext.TryGet(out var caller) && !string.IsNullOrWhiteSpace(caller?.BrainId))
+        if (CurrentCaller() is { } caller)
         {
-            return caller.BrainId;
+            return caller.Brain.Value;
         }
         try
         {
@@ -303,7 +299,7 @@ public sealed class RegistryBroker : IRegistryBroker
         {
             OsConsoleLog.For<RegistryBroker>().LogSwallowed(error, "Could not resolve current BrainScope id.");
         }
-        throw new InvalidOperationException("No BrainId is present in RuntimeCallerContext or BrainScope.");
+        throw new InvalidOperationException("No BrainId is present on the caller or in BrainScope.");
     }
 
     private ILogger Logger() =>

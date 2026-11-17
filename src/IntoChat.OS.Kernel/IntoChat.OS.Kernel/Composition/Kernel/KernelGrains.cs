@@ -63,14 +63,12 @@ internal sealed class InstanceDirectoryGrain(
 
     public Task<BrainInstance[]> List() => Task.FromResult(store.State.Entries);
 
-    // One-way and unstamped: the brain neuron may be the very grain whose first write is being
-    // registered, so awaiting it would deadlock; no caller travels because the kernel is the author.
+    // One-way: the brain neuron may be the very grain whose first write is being registered, so awaiting it would
+    // deadlock. The kernel is the author and Announce is kernel-only, so the call carries the kernel caller.
     private void Announce(Func<IBrainAnnouncer, Task> announce)
     {
         if (ServiceProvider is not { } services) { return; }
-        var edge = services.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
-        using var cleared = edge?.ClearCaller();
-        _ = announce(SiloNeurons.Get<IBrainAnnouncer>(services, IBrain.Key(Brain)));
+        KernelAnnouncement.Send(services, new BrainId(Brain), announce);
     }
 }
 
@@ -153,11 +151,12 @@ internal sealed class TypeTableGrain(
         await store.WriteStateAsync();
         if (this.GetPrimaryKeyString() is var brain && brain != TypeTableKey.NoBrain && ServiceProvider is { } services)
         {
-            var edge = services.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
-            using var cleared = edge?.ClearCaller();
-            var announcer = SiloNeurons.Get<IBrainAnnouncer>(services, IBrain.Key(brain));
-            foreach (var added in stamped.Where(type => !known.Contains(type.Name)))
-            { _ = announcer.TypeAdded(added.Name); }
+            var added = stamped.Where(type => !known.Contains(type.Name)).Select(type => type.Name).ToArray();
+            KernelAnnouncement.Send(services, new BrainId(brain), announcer =>
+            {
+                foreach (var name in added) { _ = announcer.TypeAdded(name); }
+                return Task.CompletedTask;
+            });
         }
     }
 
@@ -167,5 +166,24 @@ internal sealed class TypeTableGrain(
         store.State.Loaded = [.. store.State.Loaded.Where(each => each.Name != name)];
         store.State.Features = [.. store.State.Features.Where(entry => entry.Origin != feature.Provider)];
         await store.WriteStateAsync();
+    }
+}
+
+// Brain announcements are kernel-only (BrainNeuron.Announce). The kernel grains send them one-way with the kernel caller,
+// entered through the platform's one door, never awaited.
+internal static class KernelAnnouncement
+{
+    public static void Send(IServiceProvider services, BrainId brain, Func<IBrainAnnouncer, Task> announce)
+        => Send(services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>(), brain,
+            () => SiloNeurons.Get<IBrainAnnouncer>(services, IBrain.Key(brain.Value)), announce);
+
+    internal static void Send(DigitalBrain.Access.EdgeAuthority edge, BrainId brain, Func<IBrainAnnouncer> announcer, Func<IBrainAnnouncer, Task> announce)
+    {
+        ArgumentNullException.ThrowIfNull(edge);
+        _ = edge.AsKernel(brain, () =>
+        {
+            _ = announce(announcer());
+            return Task.FromResult(true);
+        });
     }
 }

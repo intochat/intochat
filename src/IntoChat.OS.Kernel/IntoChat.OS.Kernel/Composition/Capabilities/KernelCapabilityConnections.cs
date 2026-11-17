@@ -88,42 +88,37 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
             || normalized.StartsWith("test:", StringComparison.OrdinalIgnoreCase);
     }
 
-    public async Task<IReadOnlyList<BrainConnection>> ListInOrder(BrainId brain, CancellationToken ct)
+    // The kernel reads its brain's connections as the platform.
+    public Task<IReadOnlyList<BrainConnection>> ListInOrder(BrainId brain, CancellationToken ct)
+        => Edge.AsKernel(brain, () => ListInOrderAsKernel(brain, ct));
+
+    private async Task<IReadOnlyList<BrainConnection>> ListInOrderAsKernel(BrainId brain, CancellationToken ct)
     {
-        // The kernel reads its brain's connections as the platform: a user stamp made of the brain id is nobody's account.
-        using var stampScope = RuntimeCallerContext.StampScope(CapabilityCallers.Platform(brain.Value, brain.Value, brain.Value));
-        try
+        var summaries = await Requests(brain).ListConnections().WaitAsync(ct).ConfigureAwait(false);
+        var list = summaries.OrderBy(summary => summary.Order).Select(ToConnection).ToList();
+        var localKey = LocalDiskConnectionKey(brain);
+        if (!list.Any(item => string.Equals(item.Key, localKey, StringComparison.Ordinal)))
         {
-            var summaries = await Requests(brain).ListConnections().WaitAsync(ct).ConfigureAwait(false);
-            var list = summaries.OrderBy(summary => summary.Order).Select(ToConnection).ToList();
-            var localKey = LocalDiskConnectionKey(brain);
-            if (!list.Any(item => string.Equals(item.Key, localKey, StringComparison.Ordinal)))
+            try
             {
-                try
+                var localDisk = SiloNeurons.Get<StorageV1>(plain, LocalDiskId(brain));
+                var roots = await localDisk.Roots(ct).WaitAsync(ct).ConfigureAwait(false);
+                if (roots.Count > 0)
                 {
-                    var localDisk = SiloNeurons.Get<StorageV1>(plain, LocalDiskId(brain));
-                    var roots = await localDisk.Roots(ct).WaitAsync(ct).ConfigureAwait(false);
-                    if (roots.Count > 0)
-                    {
-                        list.Add(new BrainConnection(
-                            localKey,
-                            Environment.MachineName,
-                            true,
-                            [Capability.Storage.V1],
-                            ConnectionStorage.Root(localKey)));
-                    }
-                }
-                catch (Exception error) when (error is not OperationCanceledException)
-                {
-                    _logger.LogDebug(error, "LocalDisk module is optional in isolated test hosts for {Brain}", brain.Value);
+                    list.Add(new BrainConnection(
+                        localKey,
+                        Environment.MachineName,
+                        true,
+                        [Capability.Storage.V1],
+                        ConnectionStorage.Root(localKey)));
                 }
             }
-            return list;
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _logger.LogDebug(error, "LocalDisk module is optional in isolated test hosts for {Brain}", brain.Value);
+            }
         }
-        finally
-        {
-            stampScope.Dispose();
-        }
+        return list;
     }
 
     public Task<TCapability> Bind<TCapability>(BrainId brain, string key, string callerApp, CancellationToken ct) where TCapability : class
@@ -138,7 +133,8 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
                 key,
                 null,
                 services.GetService<IStorageWriteAuthorizer>(),
-                badge);
+                badge,
+                Edge);
             return Task.FromResult((TCapability)(object)localStorage);
         }
 
@@ -149,17 +145,15 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
                 key,
                 null,
                 services.GetService<IStorageWriteAuthorizer>(),
-                badge);
+                badge,
+                Edge);
             return Task.FromResult((TCapability)(object)localCloudStorage);
         }
 
         var (owner, connector, connectionId) = ConnectionKeys.Parse(key);
-        var caller = CapabilityCallers.Of($"app:{callerApp}", owner, brain.Value, CallerKind.App, callerApp);
-        var cache = services.GetService<IntoChat.OS.Authority.Identity.Grants.IEdgeGrantsCache>()
-            ?? IntoChat.OS.Authority.Identity.Grants.EdgeGrantsCache.Current;
-        var isBound = cache.IsConnectionBoundAsync(owner, caller, key, ct).GetAwaiter().GetResult()
-            || (!string.IsNullOrWhiteSpace(caller.BrainId) && !string.Equals(caller.BrainId, owner, StringComparison.OrdinalIgnoreCase)
-                && cache.IsConnectionBoundAsync(caller.BrainId, caller, key, ct).GetAwaiter().GetResult());
+        // Bound for the stamped caller (an app, or an agent as the assistant), never for the app id the request names.
+        var bindings = services.GetService<IntoChat.OS.Connections.IConnectionBindings>();
+        var isBound = owner != brain.Value && bindings is not null && bindings.IsBound(key, ct).AsTask().GetAwaiter().GetResult();
         if (owner != brain.Value && !isBound)
         {
             throw new ArgumentException("The connection belongs to another brain.", nameof(key));
@@ -174,7 +168,8 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
                 key,
                 null,
                 services.GetService<IStorageWriteAuthorizer>(),
-                SandboxCredentialsBadge);
+                SandboxCredentialsBadge,
+                Edge);
             return Task.FromResult((TCapability)(object)sandboxStorage);
         }
 
@@ -197,31 +192,28 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
     }
 
     // Dedupes on the brain's pending requests: one pending request of a module providing the capability is enough.
-    public async Task RequestConnection(BrainId brain, CapabilityId capability, string callerApp, CancellationToken ct)
+    public Task RequestConnection(BrainId brain, CapabilityId capability, string callerApp, CancellationToken ct)
+        => Edge.AsKernel(brain, () => RequestConnectionAsKernel(brain, capability, callerApp, ct));
+
+    private async Task<bool> RequestConnectionAsKernel(BrainId brain, CapabilityId capability, string callerApp, CancellationToken ct)
     {
-        // The kernel reads its brain's connections as the platform: a user stamp made of the brain id is nobody's account.
-        using var stampScope = RuntimeCallerContext.StampScope(CapabilityCallers.Platform(brain.Value, brain.Value, brain.Value));
-        try
+        var requests = Requests(brain);
+        var kinds = (await requests.ListKinds().WaitAsync(ct).ConfigureAwait(false)).Select(kind => kind.Id).ToList();
+        var hosted = services.GetService<ConnectionNeuronTypes>();
+        var candidates = kinds.Where(kind => hosted?.ProvidesOf(kind).Any(provided => provided.Satisfies(capability)) == true).ToList();
+        if (candidates.Count == 0)
         {
-            var requests = Requests(brain);
-            var kinds = (await requests.ListKinds().WaitAsync(ct).ConfigureAwait(false)).Select(kind => kind.Id).ToList();
-            var hosted = services.GetService<ConnectionNeuronTypes>();
-            var candidates = kinds.Where(kind => hosted?.ProvidesOf(kind).Any(provided => provided.Satisfies(capability)) == true).ToList();
-            if (candidates.Count == 0)
-            {
-                _logger.LogInformation("{App} needs {Capability} in brain {Brain}; no module offered here provides it", callerApp, capability, brain.Value);
-                return;
-            }
-            var pending = await requests.ListPending().WaitAsync(ct).ConfigureAwait(false);
-            if (pending.Any(request => candidates.Contains(request.Kind, StringComparer.Ordinal))) { return; }
-            var request = await requests.Request(candidates[0]).WaitAsync(ct).ConfigureAwait(false);
-            _logger.LogInformation("{App} needs {Capability} in brain {Brain}: requested a {Kind} connection ({Request})", callerApp, capability, brain.Value, request.Kind, request.Id);
+            _logger.LogInformation("{App} needs {Capability} in brain {Brain}; no module offered here provides it", callerApp, capability, brain.Value);
+            return true;
         }
-        finally
-        {
-            stampScope.Dispose();
-        }
+        var pending = await requests.ListPending().WaitAsync(ct).ConfigureAwait(false);
+        if (pending.Any(request => candidates.Contains(request.Kind, StringComparer.Ordinal))) { return true; }
+        var request = await requests.Request(candidates[0]).WaitAsync(ct).ConfigureAwait(false);
+        _logger.LogInformation("{App} needs {Capability} in brain {Brain}: requested a {Kind} connection ({Request})", callerApp, capability, brain.Value, request.Kind, request.Id);
+        return true;
     }
+
+    private DigitalBrain.Access.EdgeAuthority Edge => services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>();
 
     private IConnectionRequests Requests(BrainId brain) => SiloNeurons.Get<IConnectionRequests>(plain, IConnectionRequests.Key(brain.Value));
 
@@ -246,7 +238,7 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
         {
             var id = ConnectionGrains.IdFor(key);
             var uploads = typeof(IStorageUpload).IsAssignableFrom(neuron) ? (IStorageUpload)SiloNeurons.Get(plain, typeof(IStorageUpload), id) : null;
-            return new ConnectionStorage((StorageV1)SiloNeurons.Get(plain, typeof(StorageV1), id), key, uploads, services.GetService<IStorageWriteAuthorizer>(), sandboxBadge);
+            return new ConnectionStorage((StorageV1)SiloNeurons.Get(plain, typeof(StorageV1), id), key, uploads, services.GetService<IStorageWriteAuthorizer>(), sandboxBadge, Edge);
         }
         throw new InvalidOperationException($"Connection '{connector}' does not implement storage.");
     }

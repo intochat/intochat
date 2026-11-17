@@ -1,7 +1,7 @@
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
-using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Access;
 using DigitalBrain.Signals.Watch;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections;
@@ -27,10 +27,10 @@ public static class McpHosting
         // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.
         services.TryAddScoped<ISignalWatch>(provider =>
         {
-            var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : provider.GetRequiredService<McpCaller>().Stamp(SignalWatch);
+            var caller = provider.GetService<ICallerAmbient>()?.Current ?? provider.GetRequiredService<McpCaller>().Stamp(SignalWatch);
             // A guest opens no signal watch, whichever way its caller was stamped.
             if (GuestSurface.Is(caller)) { throw new UnauthorizedAccessException($"A guest session cannot use {SignalWatch}."); }
-            return provider.GetRequiredService<IIntoChatOSBrains>().Open(caller.BrainId);
+            return provider.GetRequiredService<IIntoChatOSBrains>().Open(caller.Brain.Value);
         });
         services.TryAddSingleton<IBrainObserver>(IntoChat.OS.Kernel.Composition.Kernel.OsKernel.For);
         services.AddHttpContextAccessor();
@@ -44,17 +44,18 @@ public static class McpHosting
     {
         app.MapMcp("/mcp").AddEndpointFilter(async (context, next) =>
         {
-            if (!RuntimeCallerContext.TryGet(out var caller))
+            if (context.HttpContext.RequestServices.GetService<ICallerAmbient>()?.Current is not { } caller)
             {
                 return Results.Unauthorized();
             }
 
-            if (await BrainAccessFilter.Decide(context.HttpContext, caller.BrainId) is { } denied)
+            if (await BrainAccessFilter.Decide(context.HttpContext, caller.Brain.Value) is { } denied)
             {
                 return denied;
             }
 
-            using (RuntimeCallerContext.Stamp(McpCaller.AsAgent(caller)))
+            var edge = context.HttpContext.RequestServices.GetRequiredService<EdgeAuthority>();
+            using (edge.Enter(McpCaller.AsAgent(edge, caller)))
             {
                 return await next(context);
             }
@@ -62,12 +63,13 @@ public static class McpHosting
         // The one door a /try guest has. The root /mcp map above is not one.
         OsBrainRoutes.Group(app).MapMcp("/mcp").WithMetadata(GuestSurface.Door.Instance).AddEndpointFilter(async (context, next) =>
         {
-            if (!RuntimeCallerContext.TryGet(out var caller))
+            if (context.HttpContext.RequestServices.GetService<ICallerAmbient>()?.Current is not { } caller)
             {
                 return Results.Unauthorized();
             }
 
-            using (RuntimeCallerContext.Stamp(McpCaller.AsAgent(caller)))
+            var edge = context.HttpContext.RequestServices.GetRequiredService<EdgeAuthority>();
+            using (edge.Enter(McpCaller.AsAgent(edge, caller)))
             {
                 return await next(context);
             }

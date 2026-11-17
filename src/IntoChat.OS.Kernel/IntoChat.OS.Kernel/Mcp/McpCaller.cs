@@ -1,10 +1,10 @@
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DigitalBrain.Capabilities;
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
@@ -18,13 +18,13 @@ using ModelContextProtocol.Server;
 namespace IntoChat.OS.Kernel.Mcp;
 
 [McpServerToolType]
-internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions> auth, IBrainObserver kernel)
+internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions> auth, IBrainObserver kernel, EdgeAuthority edge)
 {
     // The caller as stamped, plus the brains it may select with /brains/{brainId}/mcp.
     [McpServerTool(Name = NeuronSurfaceTools.ContextName), Description(NeuronSurfaceTools.ContextDescription)]
     public async Task<JsonObject> Context(CancellationToken cancellationToken)
     {
-        var context = JsonSerializer.SerializeToNode(Stamp(NeuronSurfaceTools.ContextName), JsonSerializerOptions.Web)!.AsObject();
+        var context = Describe(Stamp(NeuronSurfaceTools.ContextName));
         context["brains"] = JsonSerializer.SerializeToNode(await kernel.Brains(cancellationToken), JsonSerializerOptions.Web);
         return context;
     }
@@ -32,7 +32,7 @@ internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions>
     // MCP dispatch can run in a separate execution context. Stamp from the current HTTP
     // request at the tool boundary, rather than inheriting a previous MCP session's caller.
     // Every tool names itself: a guest is refused any tool outside GuestSurface.Tools.
-    internal CapabilityCaller Stamp(string tool)
+    internal Caller Stamp(string tool)
     {
         var context = http.HttpContext ?? throw new UnauthorizedAccessException("MCP requires an HTTP caller.");
         var resolved = AccountSession.ResolveCaller(context, auth.Value)
@@ -42,11 +42,27 @@ internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions>
             throw new UnauthorizedAccessException($"A guest session cannot use {tool}.");
         }
 
-        var caller = AsAgent(resolved);
-        RuntimeCallerContext.Stamp(caller);
+        var caller = AsAgent(edge, resolved);
+        // Entered for the rest of this tool call's execution context; the tool boundary re-stamps on the next call.
+        _ = edge.Enter(caller);
         return caller;
     }
 
-    internal static CapabilityCaller AsAgent(CapabilityCaller caller)
-        => caller with { AppId = CapabilityCallers.AssistantApp, ConversationId = "mcp" };
+    // MCP is the assistant acting for the session's person, in the brain the edge decided, in the "mcp" conversation.
+    internal static Caller AsAgent(EdgeAuthority edge, Caller caller)
+    {
+        ArgumentNullException.ThrowIfNull(edge);
+        ArgumentNullException.ThrowIfNull(caller);
+        var person = caller.For ?? throw new UnauthorizedAccessException("MCP requires a caller acting for a person.");
+        return edge.Agent(person, caller.Brain, conversation: "mcp");
+    }
+
+    private static JsonObject Describe(Caller caller) => new()
+    {
+        ["actor"] = caller.Actor.GetType().Name,
+        ["principalId"] = caller.For?.Principal,
+        ["accountId"] = caller.For?.Account,
+        ["brainId"] = caller.Brain.Value,
+        ["conversationId"] = caller.Conversation,
+    };
 }

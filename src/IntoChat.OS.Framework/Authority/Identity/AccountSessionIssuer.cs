@@ -71,11 +71,12 @@ internal sealed class AccountSessionIssuer(IServiceProvider services) : DigitalB
         await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme).ConfigureAwait(false);
     }
 
-    // The module id ModuleDeclarations checks. Auth's manifest grants Issue, End and Validate.
+    // The narrowest actor identity@1's privileged members admit (BoundSessions reads a Module or App id, ModuleDeclarations
+    // checks it): the auth module, which no person stands behind. Auth's manifest grants Issue, End and Validate.
     private IDisposable AsAuthModule()
     {
         var edge = services.GetRequiredService<EdgeAuthority>();
-        return edge.Enter(edge.Module("auth", new BrainId("system")));
+        return edge.Enter(edge.Module("auth", BrainId.System("auth")));
     }
 
     private static DateTimeOffset Expires(SessionRequest request)

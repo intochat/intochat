@@ -18,7 +18,7 @@ namespace IntoChat.OS.Kernel;
 // Deployment only. The installed Workspace program composes every visible control.
 internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kernel, AppInstaller installer, ILogger<OsWorkspaceRoot> logger,
     IOptions<OsAppsOptions> options, FeatureCatalog catalog, FeatureLoader loader,
-    ICapabilityBroker capabilities) : IUiRootProvider
+    ICapabilityBroker capabilities, DigitalBrain.Access.EdgeAuthority edge) : IUiRootProvider
 {
 
     private T Neuron<T>(string relative) where T : class => brain.Get<T>($"{BrainScope.CurrentId()}/{relative}");
@@ -30,7 +30,7 @@ internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kerne
         // The same set a new brain is born with: the shipped catalog plus ShippedApps.Roots. A circle keeps only its room, deployed again
         // when missing (a circle born before the room shipped); the same files deploy once.
         if (await (await capabilities.Identity(cancellationToken)).KindOf(scope, cancellationToken) == BrainKind.Circle)
-        { await OsDefaults.DeployCircleUnits(brain, logger, scope); }
+        { await OsDefaults.DeployCircleUnits(edge, brain, logger, scope); }
         else
         {
             await ShippedInstall.Missing(catalog, loader, scope, async name => await Neuron<IApp>($"apps/{name}").Read(),
