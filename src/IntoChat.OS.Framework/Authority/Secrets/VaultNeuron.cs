@@ -18,10 +18,10 @@ internal interface IOsVault
 
     static string Key(string principal) => "system/" + principal;
 
-    Task<SecretRef> Set(CapabilityCaller caller, string name, string label, string value);
-    Task Remove(CapabilityCaller caller, string name);
-    Task<string> Resolve(CapabilityCaller caller, SecretRef secret);
-    Task<string[]> Values(CapabilityCaller caller);
+    Task<SecretRef> Set(string name, string label, string value);
+    Task Remove(string name);
+    Task<string> Resolve(SecretRef secret);
+    Task<string[]> Values();
 }
 
 [DigitalBrain.Signal("identity.vault-changed")]
@@ -32,10 +32,9 @@ internal sealed class OsVaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IO
 {
     private readonly SecretsStore _secrets = new(keys);
 
-    public async Task<SecretRef> Set(CapabilityCaller caller, string name, string label, string value)
+    public async Task<SecretRef> Set(string name, string label, string value)
     {
-        ArgumentNullException.ThrowIfNull(caller);
-        await Check("Set", new CallerCanStoreSecret(caller, Principal()));
+        await Check("Set", new CallerCanStoreSecret(Context.Caller, Principal()));
 
         var next = Copy(State);
         next.Owner = Principal();
@@ -44,11 +43,10 @@ internal sealed class OsVaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IO
         return reference;
     }
 
-    public async Task Remove(CapabilityCaller caller, string name)
+    public async Task Remove(string name)
     {
-        ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        await Check("Remove", new CallerCanRemoveSecret(caller, Principal()));
+        await Check("Remove", new CallerCanRemoveSecret(Context.Caller, Principal()));
 
         if (!Copy(State).Fields.ContainsKey(name)) { return; }
         var next = Copy(State);
@@ -56,11 +54,11 @@ internal sealed class OsVaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IO
         await Save(next, new OsVaultChanged(name));
     }
 
-    public Task<string> Resolve(CapabilityCaller caller, SecretRef secret)
+    public Task<string> Resolve(SecretRef secret)
     {
-        if (caller is null || caller.Kind == CallerKind.User
-            || caller.StampedBy is not (TrustedEdge.AppProxy or TrustedEdge.Platform)
-            || string.IsNullOrEmpty(caller.AppId))
+        // An outbound call: an app acting for a person (the app proxy stamps it), or platform code in the kernel scope.
+        // ...and an app only for the person whose vault this is.
+        if (!(CallerRules.IsApp(Context.Caller, out _) && CallerRules.ActsFor(Context.Caller) == Principal()) && !CallerRules.IsKernel(Context.Caller))
         {
             throw new UntrustedCallerException("Only a trusted outbound call can resolve a secret.");
         }
@@ -70,9 +68,9 @@ internal sealed class OsVaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IO
         return Task.FromResult(_secrets.Resolve(next, secret));
     }
 
-    public Task<string[]> Values(CapabilityCaller caller)
+    public Task<string[]> Values()
     {
-        if (caller is null || !(caller.PrincipalId == Principal() || (caller.Kind == CallerKind.Platform && caller.StampedBy == TrustedEdge.Platform)))
+        if (!CallerRules.IsDirectPerson(Context.Caller, Principal()) && !CallerRules.IsKernel(Context.Caller))
         {
             throw new UntrustedCallerException("Only the vault's owner can list its values.");
         }

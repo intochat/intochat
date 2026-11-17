@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Broker;
 using DigitalBrain.Capabilities.Connections.Sealing;
@@ -85,7 +86,8 @@ public static class LocalIdentityHosting
         services.TryAddSingleton(sp => new LocalVaultPort(
             (contract, key) => neuronResolver(sp, contract, key),
             sp.GetRequiredService<IMasterKeyCustody>(),
-            sp.GetService<IConfiguration>()));
+            sp.GetService<IConfiguration>(),
+            sp.GetService<EdgeAuthority>()));
         services.TryAddSingleton<ISecretVaultPort>(sp => sp.GetRequiredService<LocalVaultPort>());
         services.TryAddSingleton(sp => new LocalDirectoryPort(
             (contract, key) => neuronResolver(sp, contract, key),

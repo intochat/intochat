@@ -143,10 +143,6 @@ static DigitalBrain.Identity.Local.LocalIdentityHosting.AddLocalIdentity(this Mi
 DigitalBrain.Identity.Local.Vault.IVault
 const DigitalBrain.Identity.Local.Vault.IVault.Type = "identity.vault" -> string!
 DigitalBrain.Identity.Local.Vault.IVault.Key(string! principal) -> string!
-DigitalBrain.Identity.Local.Vault.IVault.Remove(DigitalBrain.Capabilities.CapabilityCaller! caller, string! name) -> System.Threading.Tasks.Task!
-DigitalBrain.Identity.Local.Vault.IVault.Resolve(DigitalBrain.Capabilities.CapabilityCaller! caller, DigitalBrain.Capabilities.Secrets.SecretRef! secret) -> System.Threading.Tasks.Task<string!>!
-DigitalBrain.Identity.Local.Vault.IVault.Set(DigitalBrain.Capabilities.CapabilityCaller! caller, string! name, string! label, string! value) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretRef!>!
-DigitalBrain.Identity.Local.Vault.IVault.Values(DigitalBrain.Capabilities.CapabilityCaller! caller) -> System.Threading.Tasks.Task<string![]!>!
 DigitalBrain.Identity.Local.Vault.LocalSecretSealer
 DigitalBrain.Identity.Local.Vault.LocalSecretSealer.LocalSecretSealer(DigitalBrain.Identity.Local.Custody.IMasterKeyCustody! custody) -> void
 DigitalBrain.Identity.Local.Vault.LocalSecretSealer.Open(DigitalBrain.Capabilities.Secrets.SealedSecret! secret) -> string!
@@ -154,7 +150,6 @@ DigitalBrain.Identity.Local.Vault.LocalSecretSealer.Open(string! brainId, Digita
 DigitalBrain.Identity.Local.Vault.LocalSecretSealer.Seal(string! brainId, string! name, string! plaintext) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SealedSecret!>!
 DigitalBrain.Identity.Local.Vault.LocalSecretSealer.Seal(string! name, string! plaintext) -> DigitalBrain.Capabilities.Secrets.SealedSecret!
 DigitalBrain.Identity.Local.Vault.LocalVaultPort
-DigitalBrain.Identity.Local.Vault.LocalVaultPort.LocalVaultPort(System.Func<System.Type!, string!, object!>! neuronResolver, DigitalBrain.Identity.Local.Custody.IMasterKeyCustody! custody, Microsoft.Extensions.Configuration.IConfiguration? configuration = null) -> void
 DigitalBrain.Identity.Local.Vault.LocalVaultPort.Named(DigitalBrain.Capabilities.CapabilityCaller! caller, string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretVaultResult!>!
 DigitalBrain.Identity.Local.Vault.LocalVaultPort.Open(DigitalBrain.Capabilities.CapabilityCaller! caller, string! context, DigitalBrain.Capabilities.Secrets.SealedSecret! sealedSecret, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]?>!
 DigitalBrain.Identity.Local.Vault.LocalVaultPort.Remove(DigitalBrain.Capabilities.CapabilityCaller! caller, string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretVaultStatus>!
@@ -202,10 +197,6 @@ static DigitalBrain.Identity.Local.Vault.VaultChanged.operator !=(DigitalBrain.I
 static DigitalBrain.Identity.Local.Vault.VaultChanged.operator ==(DigitalBrain.Identity.Local.Vault.VaultChanged? left, DigitalBrain.Identity.Local.Vault.VaultChanged? right) -> bool
 DigitalBrain.Identity.Local.Vault.VaultNeuron
 DigitalBrain.Identity.Local.Vault.VaultNeuron.VaultNeuron(DigitalBrain.Identity.Local.Custody.IMasterKeyCustody! custody) -> void
-DigitalBrain.Identity.Local.Vault.VaultNeuron.Remove(DigitalBrain.Capabilities.CapabilityCaller! caller, string! name) -> System.Threading.Tasks.Task!
-DigitalBrain.Identity.Local.Vault.VaultNeuron.Resolve(DigitalBrain.Capabilities.CapabilityCaller! caller, DigitalBrain.Capabilities.Secrets.SecretRef! secret) -> System.Threading.Tasks.Task<string!>!
-DigitalBrain.Identity.Local.Vault.VaultNeuron.Set(DigitalBrain.Capabilities.CapabilityCaller! caller, string! name, string! label, string! value) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretRef!>!
-DigitalBrain.Identity.Local.Vault.VaultNeuron.Values(DigitalBrain.Capabilities.CapabilityCaller! caller) -> System.Threading.Tasks.Task<string![]!>!
 DigitalBrain.Identity.Local.Vault.VaultState
 DigitalBrain.Identity.Local.Vault.VaultState.VaultState() -> void
 DigitalBrain.Identity.Local.Vault.VaultState.Fields.get -> System.Collections.Generic.Dictionary<string!, DigitalBrain.Identity.Local.Vault.SecretRecord!>!
@@ -233,3 +224,12 @@ DigitalBrain.Identity.Local.Directory.SessionsNeuron.Start(string! tokenHash, st
 DigitalBrain.Identity.Local.Directory.SessionsNeuron.End(string! tokenHash) -> System.Threading.Tasks.Task!
 DigitalBrain.Identity.Local.Directory.SessionsNeuron.Find(string! tokenHash) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.Model.Session?>!
 DigitalBrain.Identity.Local.Directory.ISessionStore.Id(string! brainId = "system") -> DigitalBrain.NeuronId
+DigitalBrain.Identity.Local.Vault.IVault.Remove(string! name) -> System.Threading.Tasks.Task!
+DigitalBrain.Identity.Local.Vault.IVault.Resolve(DigitalBrain.Capabilities.Secrets.SecretRef! secret) -> System.Threading.Tasks.Task<string!>!
+DigitalBrain.Identity.Local.Vault.IVault.Set(string! name, string! label, string! value) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretRef!>!
+DigitalBrain.Identity.Local.Vault.IVault.Values() -> System.Threading.Tasks.Task<string![]!>!
+DigitalBrain.Identity.Local.Vault.LocalVaultPort.LocalVaultPort(System.Func<System.Type!, string!, object!>! neuronResolver, DigitalBrain.Identity.Local.Custody.IMasterKeyCustody! custody, Microsoft.Extensions.Configuration.IConfiguration? configuration = null, DigitalBrain.Access.EdgeAuthority? edge = null) -> void
+DigitalBrain.Identity.Local.Vault.VaultNeuron.Remove(string! name) -> System.Threading.Tasks.Task!
+DigitalBrain.Identity.Local.Vault.VaultNeuron.Resolve(DigitalBrain.Capabilities.Secrets.SecretRef! secret) -> System.Threading.Tasks.Task<string!>!
+DigitalBrain.Identity.Local.Vault.VaultNeuron.Set(string! name, string! label, string! value) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretRef!>!
+DigitalBrain.Identity.Local.Vault.VaultNeuron.Values() -> System.Threading.Tasks.Task<string![]!>!

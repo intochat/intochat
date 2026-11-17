@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Requests;
@@ -160,16 +161,17 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
     }
 
     // Installing is the one consent the install view asks for: the owner grants the app every semantic type it reads, always.
-    // Grants read the stamped caller, so the installer's explicit caller is stamped for the grant and then restored.
+    // Grants read the stamped caller: the installing person must own the brain the install names.
     internal async Task Grant(string appKey, string[]? types, CapabilityCaller? caller, CancellationToken ct)
     {
         if (types is not { Length: > 0 }) { return; }
         if (caller is null) { throw new UnauthorizedAccessException(OwnerOnly); }
         if (plain?.GetService(typeof(IIdentityClient)) is IIdentityClient identityClient)
         {
+            var brain = new DigitalBrain.BrainId(caller.BrainId);
             foreach (var type in types)
             {
-                await identityClient.GrantAsOwner(caller, Idn.Grant.Tuple($"brain:{caller.BrainId}", $"app:{appKey}", IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(caller.BrainId), appKey).Key, type));
+                await identityClient.GrantAsOwner(caller.BrainId, Idn.Grant.Tuple($"brain:{caller.BrainId}", $"app:{appKey}", IntoChat.OS.Primitives.AppRef.Of(brain, appKey).Key, type));
             }
             return;
         }

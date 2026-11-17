@@ -39,7 +39,8 @@ public sealed class IntegrationsAndZeroTokenFacts
             options,
             TimeProvider.System,
             new FakeHttpClientFactory(),
-            new ModulePriceListRegistry([]));
+            new ModulePriceListRegistry([]),
+            IntoChat.OS.Tests.TestEdge.Authority);
         var flow = new OAuthLoginFlow(requests, exchange, options);
 
         Assert.Equal("https://os.intochat.test/integrations/github/oauth/callback", flow.CallbackUri("github").AbsoluteUri);

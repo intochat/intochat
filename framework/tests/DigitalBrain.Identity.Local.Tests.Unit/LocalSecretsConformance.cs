@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using DigitalBrain.Modules;
 using System.Collections.Concurrent;
 using System.Reflection;
@@ -45,6 +46,7 @@ public sealed class LocalSecretsConformance : SecretsConformance<ISecrets>, IAsy
         services.AddSingleton<IConfiguration>(configuration);
 
         TestOS? os = null;
+        services.AddSingleton(_ => os!.Edge);
         services.AddLocalIdentity((contract, fullKey) => ResolveNeuron(os!, contract, fullKey), _directory);
         _provider = services.BuildServiceProvider();
         _os = os = TestOS.Local(options => options.Services = _provider);

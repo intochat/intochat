@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
@@ -18,13 +19,10 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
 {
     internal const string KeyPrefix = "integration/";
 
-    // The Platform's own stamp for releasing a registration to module code. ":" cannot occur in a
-    // principal id (^[a-z0-9][a-z0-9-]*$), so no account can ever be this caller.
-    // ":" cannot occur in a principal id, so no account can ever be this caller.
-    internal static readonly CapabilityCaller PlatformCaller = CapabilityCallers.Platform(
-        "integration.registration", ":integrations", ":integrations");
 
     private const int MaxValueLength = 16 * 1024;
+
+    private readonly ICallerAmbient _callers;
 
     private readonly IPersistentState<IntegrationState> _store;
     private readonly IReadOnlyList<IntegrationSchema> _definitions;
@@ -35,8 +33,9 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
     public IntegrationNeuron(
         [PersistentState("registration", IntoChatOSNames.PlatformGrainStorage)] IPersistentState<IntegrationState> store,
         IReadOnlyList<IntegrationSchema> definitions,
-        ISecretSealer sealer, ILogger<IntegrationNeuron> logger)
+        ISecretSealer sealer, ILogger<IntegrationNeuron> logger, ICallerAmbient callers)
     {
+        _callers = callers;
         _store = store;
         _definitions = definitions;
         _sealer = sealer;
@@ -184,14 +183,13 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
         return await Commit(next);
     }
 
-    public Task<ReleasedIntegration> Release(CapabilityCaller caller)
+    public Task<ReleasedIntegration> Release()
     {
         // Release is unreachable from scripts (IIntegration is not a neuron); an app-stamped ambient context is a platform call chain, not an app caller.
-        // Values leave only to trusted platform code: a module's own grain call stamped by the Platform
-        // edge. Users and assistants (authenticated HTTP), installed apps (app proxy) and the scheduler
-        // never qualify, so no HTTP route or script can obtain a provider credential.
-        if (caller is null || !RuntimeCallerContext.IsTrusted(caller)
-            || caller.Kind != CallerKind.Platform || caller.StampedBy != TrustedEdge.Platform)
+        // Values leave only to trusted platform code that entered the kernel scope, read from the stamped caller. Users and
+        // assistants (authenticated HTTP), installed apps (app proxy) and the scheduler never qualify, so no HTTP route or
+        // script can obtain a provider credential.
+        if (!CallerRules.IsKernel(_callers.Current))
         {
             throw new InvalidOperationException("Only trusted platform code can release a registration.");
         }
@@ -223,9 +221,9 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
     // Field names only; never a value.
     private void Audit(string operation, string field)
     {
-        var actor = RuntimeCallerContext.TryGet(out var current) ? current : PlatformCaller;
-        _logger.LogInformation("Registration {Operation} for {Provider}/{Field} requested by {Actor} in {Account}/{Brain}.",
-            operation, Definition.Id, field, actor.PrincipalId, actor.AccountId, actor.BrainId);
+        var caller = _callers.Current;
+        _logger.LogInformation("Registration {Operation} for {Provider}/{Field} requested by {Actor} in {Brain}.",
+            operation, Definition.Id, field, caller?.Actor.ToString() ?? "nobody", caller?.Brain.Value ?? "-");
     }
 
     private static bool Has(IntegrationState state, string field)

@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using System.Security.Cryptography;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Secrets;
@@ -11,7 +12,8 @@ namespace DigitalBrain.Identity.Local.Vault;
 public sealed class LocalVaultPort(
     Func<Type, string, object> neuronResolver,
     IMasterKeyCustody custody,
-    IConfiguration? configuration = null) : ISecretVaultPort
+    IConfiguration? configuration = null,
+    EdgeAuthority? edge = null) : ISecretVaultPort
 {
     private const string SecretScheme = "secret://";
 
@@ -33,7 +35,7 @@ public sealed class LocalVaultPort(
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
-            var stored = await Vault(caller).Set(Owner(caller), name, label ?? "", value).ConfigureAwait(false);
+            var stored = await AsPlatform(() => Vault(caller).Set(name, label ?? "", value)).ConfigureAwait(false);
             return SecretVaultResult.Stored(stored);
         }
         catch (InvalidOperationException)
@@ -53,7 +55,7 @@ public sealed class LocalVaultPort(
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
-            await Vault(caller).Remove(Owner(caller), name).ConfigureAwait(false);
+            await AsPlatform(async () => { await Vault(caller).Remove(name).ConfigureAwait(false); return true; }).ConfigureAwait(false);
             return SecretVaultStatus.Ok;
         }
         catch (InvalidOperationException)
@@ -100,7 +102,7 @@ public sealed class LocalVaultPort(
 
         try
         {
-            var resolved = await Vault(caller).Resolve(Platform(caller), secret).ConfigureAwait(false);
+            var resolved = await AsPlatform(() => Vault(caller).Resolve(secret)).ConfigureAwait(false);
             return SecretVaultResult.Resolved(resolved);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("another owner", StringComparison.OrdinalIgnoreCase))
@@ -191,11 +193,15 @@ public sealed class LocalVaultPort(
     private IVault Vault(CapabilityCaller caller)
         => (IVault)_neuronResolver(typeof(IVault), IVault.Key(caller.PrincipalId));
 
-    private static CapabilityCaller Owner(CapabilityCaller caller)
-        => CapabilityCallers.Of(caller.PrincipalId, caller.AccountId, caller.BrainId, CallerKind.User);
-
-    private static CapabilityCaller Platform(CapabilityCaller caller)
-        => CapabilityCallers.Platform(caller.PrincipalId, caller.AccountId, caller.BrainId, caller.ConversationId);
+    // The port made its own owner check; it reaches the vault as platform code in the kernel scope, which the vault reads from the
+    // stamped caller. Without an EdgeAuthority there is no kernel scope, and the vault refuses.
+    private async Task<T> AsPlatform<T>(Func<Task<T>> call)
+    {
+        using (edge?.EnterKernel(BrainId.Kernel))
+        {
+            return await call().ConfigureAwait(false);
+        }
+    }
 
     private string? DeploymentValue(CapabilityCaller caller, string name)
     {

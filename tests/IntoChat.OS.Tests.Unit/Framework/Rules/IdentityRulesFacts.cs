@@ -120,9 +120,11 @@ public sealed class IdentityRulesFacts
         Assert.True(new AuthMethodIsOffered("github", "saml", Offered: false).Broken);
         Assert.False(new AuthMethodIsOffered("github", "token", Offered: true).Broken);
 
-        var ownerCaller = new CapabilityCaller("alice", "acct-1", "brain-1");
-        var otherCaller = new CapabilityCaller("mallory", "acct-2", "brain-1");
-        var platformCaller = CapabilityCallers.Platform("vault", "system", "brain-1");
+        var edge = IntoChat.OS.Tests.TestEdge.Authority;
+        var vaultBrain = new DigitalBrain.BrainId("brain-1");
+        var ownerCaller = edge.Person("alice", "acct-1", vaultBrain);
+        var otherCaller = edge.Person("mallory", "acct-2", vaultBrain);
+        var platformCaller = edge.Kernel(vaultBrain);
         Assert.False(new CallerCanStoreSecret(ownerCaller, "alice").Broken);
         Assert.True(new CallerCanStoreSecret(otherCaller, "alice").Broken);
         Assert.False(new CallerCanRemoveSecret(ownerCaller, "alice").Broken);

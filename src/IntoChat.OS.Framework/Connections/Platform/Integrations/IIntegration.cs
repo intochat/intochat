@@ -22,5 +22,5 @@ public interface IIntegration : IGrainWithStringKey
     // never touched.
     Task<IntegrationSnapshot> Seed(ConfigureIntegration request);
 
-    Task<ReleasedIntegration> Release(CapabilityCaller caller);
+    Task<ReleasedIntegration> Release();
 }
