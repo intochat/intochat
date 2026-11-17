@@ -55,6 +55,8 @@ public static class OperatingSystemHosting
 #pragma warning disable ASPIRECERTIFICATES001
             silo.WithHttpsDeveloperCertificate();
 #pragma warning restore ASPIRECERTIFICATES001
+            // One click from the dashboard to DevUI: the kernel's own loopback endpoint, since DevUI refuses a proxied Host.
+            silo.WithUrlForEndpoint("http", static _ => new ResourceUrlAnnotation { Url = "/devui/", DisplayText = "DevUI" });
             // One encrypted local brain store for this deployment.
             silo.WithReference(os)
                 .WithOsEnvironment(IntoChatOSNames.TopologyKey, profile.Topology)
