@@ -1,3 +1,4 @@
+using IntoChat.OS.Framework;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -31,12 +32,9 @@ internal static class SecretsEndpoints
                 return Results.BadRequest();
             }
 
-            var edge = http.RequestServices.GetService<EdgeAuthority>();
-            using (edge?.Enter(edge.Module("identity.secrets", new BrainId("system"))))
-            {
-                var secret = await neurons.Vault(owner).Set(caller, body.Name, body.Label ?? body.Name, body.Value);
-                return Results.Ok(secret);
-            }
+            var edge = http.RequestServices.GetRequiredService<EdgeAuthority>();
+            var secret = await edge.AsKernel(BrainId.Kernel, () => neurons.Vault(owner).Set(body.Name, body.Label ?? body.Name, body.Value));
+            return Results.Ok(secret);
         });
     }
 }

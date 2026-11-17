@@ -1,3 +1,4 @@
+using IntoChat.OS.Framework;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
@@ -23,12 +24,6 @@ public sealed class VaultPort(
     Microsoft.Extensions.Configuration.IConfiguration? configuration = null,
     EdgeAuthority? edge = null) : ISecretVaultPort
 {
-    private IDisposable? EnterVaultScope()
-    {
-        var resolved = edge ?? services?.GetService<EdgeAuthority>();
-        return resolved?.Enter(resolved.Module("identity.vault", new BrainId("system")));
-    }
-
     // A deployment secret (09-05): the installer carries a module's declared secret {s} in IntoChatOS:Modules:{module}:Secrets:{s}
     // (ManifestEnvironment.SecretVariable). The runtime checked the module's manifest declares it; a name "{s}:Key" is covered
     // by the declared "{s}". Unset when the deployment configured no value.
@@ -55,8 +50,7 @@ public sealed class VaultPort(
         ArgumentNullException.ThrowIfNull(caller);
         try
         {
-            using var _ = EnterVaultScope();
-            var stored = await Vault(caller).Set(Owner(caller), name, label, value).WaitAsync(cancellationToken).ConfigureAwait(false);
+            var stored = await AsPlatform(() => Vault(caller).Set(name, label, value).WaitAsync(cancellationToken)).ConfigureAwait(false);
             return SecretVaultResult.Stored(stored);
         }
         catch (InvalidOperationException) { return SecretVaultResult.Denied; }
@@ -67,8 +61,7 @@ public sealed class VaultPort(
         ArgumentNullException.ThrowIfNull(caller);
         try
         {
-            using var _ = EnterVaultScope();
-            await Vault(caller).Remove(Owner(caller), name).WaitAsync(cancellationToken).ConfigureAwait(false);
+            await AsPlatform(async () => { await Vault(caller).Remove(name).WaitAsync(cancellationToken).ConfigureAwait(false); return true; }).ConfigureAwait(false);
             return SecretVaultStatus.Ok;
         }
         catch (InvalidOperationException) { return SecretVaultStatus.Denied; }
@@ -92,9 +85,8 @@ public sealed class VaultPort(
         if (!string.Equals(owner, caller.PrincipalId, StringComparison.Ordinal)) { return SecretVaultResult.Denied; }
         try
         {
-            using var _ = EnterVaultScope();
             // The vault releases plaintext only to a trusted outbound call: the runtime, on behalf of the stamped caller's app.
-            return SecretVaultResult.Resolved(await Vault(caller).Resolve(Platform(caller), reference).WaitAsync(cancellationToken).ConfigureAwait(false));
+            return SecretVaultResult.Resolved(await AsPlatform(() => Vault(caller).Resolve(reference).WaitAsync(cancellationToken)).ConfigureAwait(false));
         }
         catch (InvalidOperationException error) when (error.Message.Contains("another owner", StringComparison.Ordinal)) { return SecretVaultResult.Denied; }
         catch (InvalidOperationException) { return SecretVaultResult.NotFound; }
@@ -128,13 +120,10 @@ public sealed class VaultPort(
         => services is null ? throw new InvalidOperationException("The vault is not hosted.")
             : SiloNeurons.Get<IOsVault>(services, IOsVault.Key(caller.PrincipalId));
 
-    // Set and remove run as the person who owns the vault, even when an app is on the call.
-    private static CapabilityCaller Owner(CapabilityCaller caller)
-        => CapabilityCallers.Of(caller.PrincipalId, caller.AccountId, caller.BrainId, CallerKind.User, conversationId: caller.ConversationId);
-
-    // Resolve is a platform edge. The app id is the platform sentinel, which is enough for the vault's non-empty check.
-    private static CapabilityCaller Platform(CapabilityCaller caller)
-        => CapabilityCallers.Platform(caller.PrincipalId, caller.AccountId, caller.BrainId, caller.ConversationId);
+    // The port made its own owner check; it reaches the vault as platform code, which the vault reads from the stamped caller.
+    private Task<T> AsPlatform<T>(Func<Task<T>> call)
+        => (edge ?? services?.GetService<EdgeAuthority>() ?? throw new InvalidOperationException("The vault is not hosted."))
+            .AsKernel(BrainId.Kernel, call);
 
     // The sealer takes non-empty text: the context, a separator, then the bytes in base64 (empty bytes give an empty tail).
     private static string Prefix(string context) => context + "\n";

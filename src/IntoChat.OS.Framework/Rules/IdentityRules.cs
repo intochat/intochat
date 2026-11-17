@@ -1,3 +1,5 @@
+using IntoChat.OS.Framework;
+using DigitalBrain.Access;
 using System.Text.RegularExpressions;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
@@ -103,16 +105,15 @@ internal sealed record ConnectionBelongsToBrain(string ConnectionBrainId, string
     public override string Message => "The connection belongs to another brain.";
 }
 
-internal sealed record CallerCanStoreSecret(CapabilityCaller Caller, string OwnerPrincipal) : Rule("identity.caller-can-store-secret")
+internal sealed record CallerCanStoreSecret(Caller? Caller, string OwnerPrincipal) : Rule("identity.caller-can-store-secret")
 {
-    public override bool Broken => Caller.Kind == CallerKind.User && Caller.PrincipalId != OwnerPrincipal;
+    public override bool Broken => Caller is null || (Caller.Actor is Actor.Person person && person.Principal != OwnerPrincipal);
     public override string Message => "Only the owner can store a secret.";
 }
 
-internal sealed record CallerCanRemoveSecret(CapabilityCaller Caller, string OwnerPrincipal) : Rule("identity.caller-can-remove-secret")
+internal sealed record CallerCanRemoveSecret(Caller? Caller, string OwnerPrincipal) : Rule("identity.caller-can-remove-secret")
 {
-    public override bool Broken => !((Caller.Kind == CallerKind.User && Caller.PrincipalId == OwnerPrincipal)
-        || (Caller.Kind == CallerKind.Platform && Caller.StampedBy == TrustedEdge.Platform));
+    public override bool Broken => !(CallerRules.IsDirectPerson(Caller, OwnerPrincipal) || CallerRules.IsKernel(Caller));
     public override string Message => "Only the owner or trusted platform code can remove a secret.";
 }
 

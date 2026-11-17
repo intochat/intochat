@@ -76,8 +76,8 @@ public sealed class IdentityRulesFacts
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<OsVaultNeuron>();
         var vault = os.Get<IOsVault>(new NeuronId(new BrainId("system"), IOsVault.Type, "alice"));
 
-        var bob = CapabilityCallers.Of("bob", "bob", "bob");
-        var ex = await Assert.ThrowsAsync<RuleViolationException>(() => vault.Set(bob, "api", "API", "secret"));
+        using var bob = os.Edge.Enter(os.Edge.Person("bob", "bob", new BrainId("system")));
+        var ex = await Assert.ThrowsAsync<RuleViolationException>(() => vault.Set("api", "API", "secret"));
         Assert.Contains("identity.caller-can-store-secret", ex.Rejected.Rules);
     }
 
