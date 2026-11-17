@@ -22,6 +22,7 @@
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Clustering.AzureStorage" />
     <PackageReference Include="Microsoft.Agents.AI.DevUI" />
+    <PackageReference Include="Microsoft.Agents.AI.Hosting.AGUI.AspNetCore" />
     <PackageReference Include="Microsoft.Agents.AI.Hosting.OpenAI" />
     <PackageReference Include="Microsoft.Orleans.Dashboard" />
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
