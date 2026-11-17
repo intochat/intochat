@@ -1,3 +1,4 @@
+using DigitalBrain.Rules;
 using DigitalBrain.Access;
 using DigitalBrain.Contracts;
 using DigitalBrain.Neurons;
@@ -37,13 +38,18 @@ public sealed class ConfirmationsNeuron : Neuron<ConfirmationState>, IConfirmati
         var raisedBy = caller?.Via?.ToString() ?? caller?.Actor.ToString() ?? "edge";
         var requester = Answerer.PrincipalOf(caller);
 
-        if (State.Request(plan, requester, raisedBy, Policy, Clock.GetUtcNow()) is not { } requested)
+        switch (State.Request(plan, requester, raisedBy, Policy, Clock.GetUtcNow()))
         {
-            return State.Known(plan.Id);
+            case Transition<ConfirmationState> requested:
+                await Commit(requested).ConfigureAwait(true);
+                return State.Known(plan.Id);
+            case ConfirmationRefusals.AlreadyAsked:
+                return State.Known(plan.Id);
+            case Refusal refusal:
+                throw new InvalidOperationException(refusal.Message);
+            default:
+                throw new InvalidOperationException("confirmation.request: an outcome with no case.");
         }
-
-        await Commit(requested).ConfigureAwait(true);
-        return requested.Result;
     }
 
     public async Task<ConfirmationResult?> Outcome(string planId)
@@ -64,7 +70,7 @@ public sealed class ConfirmationsNeuron : Neuron<ConfirmationState>, IConfirmati
         {
             throw new UnauthorizedAccessException("Only who raised this question withdraws it.");
         }
-        if (State.Withdraw(planId, Clock.GetUtcNow()) is { } withdrawn)
+        if (State.Withdraw(planId, Clock.GetUtcNow()).Value is Transition<ConfirmationState> withdrawn)
         {
             await Commit(withdrawn).ConfigureAwait(true);
         }
@@ -81,9 +87,16 @@ public sealed class ConfirmationsNeuron : Neuron<ConfirmationState>, IConfirmati
     {
         var answerer = Answerer.Of(Context.Caller, Id.Brain);
         await Expire().ConfigureAwait(true);
-        if (State.Answer(planId, approve, answerer, Clock.GetUtcNow()) is { } answered)
+        switch (State.Answer(planId, approve, answerer, Clock.GetUtcNow()))
         {
-            await Commit(answered).ConfigureAwait(true);
+            case Transition<ConfirmationState> answered:
+                await Commit(answered).ConfigureAwait(true);
+                break;
+            case ConfirmationRefusals.PersonOnly refusal:
+                throw new UnauthorizedAccessException(refusal.Message);
+            case Refusal refusal:
+                await PublishEphemeral(refusal.ToRejected("confirmation.answer")).ConfigureAwait(true);
+                break;
         }
     }
 
@@ -99,16 +112,16 @@ public sealed class ConfirmationsNeuron : Neuron<ConfirmationState>, IConfirmati
         var now = Clock.GetUtcNow();
         foreach (var entry in State.Entries.Where(e => e.Result is null && e.Request.ExpiresAt <= now).ToArray())
         {
-            if (State.Expire(entry.Request.PlanId, now) is { } expired)
+            if (State.Expire(entry.Request.PlanId, now).Value is Transition<ConfirmationState> expired)
             {
                 await Commit(expired).ConfigureAwait(true);
             }
         }
     }
 
-    private async Task Commit(ConfirmationTransition transition)
+    private async Task Commit(Transition<ConfirmationState> transition)
     {
-        await Save(transition.Next, transition.Signal).ConfigureAwait(true);
+        await Save(transition.Next, transition.Signals).ConfigureAwait(true);
         await ScheduleAsync().ConfigureAwait(true);
     }
 

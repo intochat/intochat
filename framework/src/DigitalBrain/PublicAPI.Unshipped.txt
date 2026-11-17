@@ -5,7 +5,6 @@
 ~DigitalBrain.Capabilities.CapabilityConnection<TCapability>.Equals(DigitalBrain.Capabilities.CapabilityConnection<TCapability>? other) -> bool
 ~DigitalBrain.Flows.FlowState<T>.<Clone>$() -> DigitalBrain.Flows.FlowState<T>!
 ~DigitalBrain.Flows.FlowState<T>.Equals(DigitalBrain.Flows.FlowState<T>? other) -> bool
-~DigitalBrain.Flows.FlowTransition<T>.Equals(DigitalBrain.Flows.FlowTransition<T> other) -> bool
 ~override DigitalBrain.Access.AccessDecision.Equals(object obj) -> bool
 ~override DigitalBrain.Access.AccessDecision.ToString() -> string
 ~override DigitalBrain.Asks<TContract>.Equals(object obj) -> bool
@@ -13,10 +12,6 @@
 ~override DigitalBrain.BrainId.Equals(object obj) -> bool
 ~override DigitalBrain.Brains.NeuronAddress.Equals(object obj) -> bool
 ~override DigitalBrain.Capabilities.CapabilityId.Equals(object obj) -> bool
-~override DigitalBrain.Confirmation.ConfirmationTransition.Equals(object obj) -> bool
-~override DigitalBrain.Confirmation.ConfirmationTransition.ToString() -> string
-~override DigitalBrain.Flows.FlowTransition<T>.Equals(object obj) -> bool
-~override DigitalBrain.Flows.FlowTransition<T>.ToString() -> string
 ~override DigitalBrain.Identity.CompoundGrainKey.Equals(object obj) -> bool
 ~override DigitalBrain.Modules.Options.ModuleId.Equals(object obj) -> bool
 ~override DigitalBrain.NeuronId.Equals(object obj) -> bool
@@ -29,8 +24,6 @@
 ~static DigitalBrain.Capabilities.CapabilityConnection<TCapability>.operator ==(DigitalBrain.Capabilities.CapabilityConnection<TCapability>? left, DigitalBrain.Capabilities.CapabilityConnection<TCapability>? right) -> bool
 ~static DigitalBrain.Flows.FlowState<T>.operator !=(DigitalBrain.Flows.FlowState<T>? left, DigitalBrain.Flows.FlowState<T>? right) -> bool
 ~static DigitalBrain.Flows.FlowState<T>.operator ==(DigitalBrain.Flows.FlowState<T>? left, DigitalBrain.Flows.FlowState<T>? right) -> bool
-~static DigitalBrain.Flows.FlowTransition<T>.operator !=(DigitalBrain.Flows.FlowTransition<T> left, DigitalBrain.Flows.FlowTransition<T> right) -> bool
-~static DigitalBrain.Flows.FlowTransition<T>.operator ==(DigitalBrain.Flows.FlowTransition<T> left, DigitalBrain.Flows.FlowTransition<T> right) -> bool
 abstract DigitalBrain.Access.Actor.<Clone>$() -> DigitalBrain.Access.Actor!
 abstract DigitalBrain.Flows.Flow<T>.Run(string! step, T! inner, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Flows.StepResult<T!>!>!
 abstract DigitalBrain.Flows.Flow<T>.Steps.get -> System.Collections.Generic.IReadOnlyList<string!>!
@@ -602,29 +595,13 @@ DigitalBrain.Confirmation.ConfirmationsNeuron.Resolve(string! planId, bool appro
 DigitalBrain.Confirmation.ConfirmationsNeuron.Withdraw(string! planId) -> System.Threading.Tasks.Task!
 DigitalBrain.Confirmation.ConfirmationState
 DigitalBrain.Confirmation.ConfirmationState.<Clone>$() -> DigitalBrain.Confirmation.ConfirmationState!
-DigitalBrain.Confirmation.ConfirmationState.Answer(string! planId, bool approve, DigitalBrain.Confirmation.Answerer! answerer, System.DateTimeOffset now) -> DigitalBrain.Confirmation.ConfirmationTransition?
 DigitalBrain.Confirmation.ConfirmationState.ConfirmationState() -> void
-DigitalBrain.Confirmation.ConfirmationState.End(string! planId, DigitalBrain.Confirmation.ConfirmationOutcome outcome, DigitalBrain.Confirmation.ConfirmationDenyReason reason, DigitalBrain.Confirmation.ConfirmationPrincipal? approver, System.DateTimeOffset now) -> DigitalBrain.Confirmation.ConfirmationTransition?
 DigitalBrain.Confirmation.ConfirmationState.Entries.get -> DigitalBrain.Confirmation.ConfirmationEntry![]!
 DigitalBrain.Confirmation.ConfirmationState.Entries.init -> void
 DigitalBrain.Confirmation.ConfirmationState.Equals(DigitalBrain.Confirmation.ConfirmationState? other) -> bool
-DigitalBrain.Confirmation.ConfirmationState.Expire(string! planId, System.DateTimeOffset now) -> DigitalBrain.Confirmation.ConfirmationTransition?
 DigitalBrain.Confirmation.ConfirmationState.Known(string! planId) -> DigitalBrain.Confirmation.ConfirmationResult?
-DigitalBrain.Confirmation.ConfirmationState.Request(DigitalBrain.Confirmation.ConfirmationPlan! plan, DigitalBrain.Confirmation.ConfirmationPrincipal! requester, string! raisedBy, DigitalBrain.Confirmation.ConfirmationPolicy policy, System.DateTimeOffset now) -> DigitalBrain.Confirmation.ConfirmationTransition?
 DigitalBrain.Confirmation.ConfirmationState.Revision.get -> long
 DigitalBrain.Confirmation.ConfirmationState.Revision.init -> void
-DigitalBrain.Confirmation.ConfirmationState.Withdraw(string! planId, System.DateTimeOffset now) -> DigitalBrain.Confirmation.ConfirmationTransition?
-DigitalBrain.Confirmation.ConfirmationTransition
-DigitalBrain.Confirmation.ConfirmationTransition.ConfirmationTransition() -> void
-DigitalBrain.Confirmation.ConfirmationTransition.ConfirmationTransition(DigitalBrain.Confirmation.ConfirmationState! Next, DigitalBrain.Signal! Signal, DigitalBrain.Confirmation.ConfirmationResult? Result) -> void
-DigitalBrain.Confirmation.ConfirmationTransition.Deconstruct(out DigitalBrain.Confirmation.ConfirmationState! Next, out DigitalBrain.Signal! Signal, out DigitalBrain.Confirmation.ConfirmationResult? Result) -> void
-DigitalBrain.Confirmation.ConfirmationTransition.Equals(DigitalBrain.Confirmation.ConfirmationTransition other) -> bool
-DigitalBrain.Confirmation.ConfirmationTransition.Next.get -> DigitalBrain.Confirmation.ConfirmationState!
-DigitalBrain.Confirmation.ConfirmationTransition.Next.init -> void
-DigitalBrain.Confirmation.ConfirmationTransition.Result.get -> DigitalBrain.Confirmation.ConfirmationResult?
-DigitalBrain.Confirmation.ConfirmationTransition.Result.init -> void
-DigitalBrain.Confirmation.ConfirmationTransition.Signal.get -> DigitalBrain.Signal!
-DigitalBrain.Confirmation.ConfirmationTransition.Signal.init -> void
 DigitalBrain.Confirmation.IConfirmationInbox
 DigitalBrain.Confirmation.IConfirmationInbox.Key(string! brain) -> string!
 DigitalBrain.Confirmation.IConfirmationInbox.Read() -> System.Threading.Tasks.Task<DigitalBrain.Confirmation.ConfirmationInbox!>!
@@ -734,7 +711,6 @@ DigitalBrain.Flows.FlowStarted.Type.get -> string!
 DigitalBrain.Flows.FlowStarted.Type.init -> void
 DigitalBrain.Flows.FlowState<T>
 DigitalBrain.Flows.FlowState<T>.Advancing.get -> bool
-DigitalBrain.Flows.FlowState<T>.Complete(string! step, DigitalBrain.Flows.StepResult<T!>! result) -> DigitalBrain.Flows.FlowTransition<T!>?
 DigitalBrain.Flows.FlowState<T>.Current.get -> string?
 DigitalBrain.Flows.FlowState<T>.Current.init -> void
 DigitalBrain.Flows.FlowState<T>.Deconstruct(out string! FlowId, out string! Title, out string! Owner, out string! TraceId, out DigitalBrain.Flows.FlowStatus Status, out System.Collections.Immutable.ImmutableList<string!>! Done, out string? Current, out DigitalBrain.Flows.Waiting? Waiting, out System.Collections.Immutable.ImmutableList<DigitalBrain.Flows.FlowRelation!>! Relations, out string? ParentFlowId, out System.DateTimeOffset Started, out System.DateTimeOffset? Ended, out T! Inner) -> void
@@ -742,15 +718,12 @@ DigitalBrain.Flows.FlowState<T>.Done.get -> System.Collections.Immutable.Immutab
 DigitalBrain.Flows.FlowState<T>.Done.init -> void
 DigitalBrain.Flows.FlowState<T>.Ended.get -> System.DateTimeOffset?
 DigitalBrain.Flows.FlowState<T>.Ended.init -> void
-DigitalBrain.Flows.FlowState<T>.Fail(string! step, string! error, System.DateTimeOffset now) -> DigitalBrain.Flows.FlowTransition<T!>?
-DigitalBrain.Flows.FlowState<T>.Fail(string! step, string! error, System.DateTimeOffset now, string? doneDetail) -> DigitalBrain.Flows.FlowTransition<T!>?
 DigitalBrain.Flows.FlowState<T>.FlowId.get -> string!
 DigitalBrain.Flows.FlowState<T>.FlowId.init -> void
 DigitalBrain.Flows.FlowState<T>.FlowState() -> void
 DigitalBrain.Flows.FlowState<T>.FlowState(string! FlowId, string! Title, string! Owner, string! TraceId, DigitalBrain.Flows.FlowStatus Status, System.Collections.Immutable.ImmutableList<string!>! Done, string? Current, DigitalBrain.Flows.Waiting? Waiting, System.Collections.Immutable.ImmutableList<DigitalBrain.Flows.FlowRelation!>! Relations, string? ParentFlowId, System.DateTimeOffset Started, System.DateTimeOffset? Ended, T! Inner) -> void
 DigitalBrain.Flows.FlowState<T>.Inner.get -> T!
 DigitalBrain.Flows.FlowState<T>.Inner.init -> void
-DigitalBrain.Flows.FlowState<T>.Interrupted(string! step, string! detail, System.DateTimeOffset now, int maxInterruptions = 20) -> DigitalBrain.Flows.FlowTransition<T!>?
 DigitalBrain.Flows.FlowState<T>.Interruptions.get -> int
 DigitalBrain.Flows.FlowState<T>.Interruptions.init -> void
 DigitalBrain.Flows.FlowState<T>.IsOver.get -> bool
@@ -758,24 +731,16 @@ DigitalBrain.Flows.FlowState<T>.Owner.get -> string!
 DigitalBrain.Flows.FlowState<T>.Owner.init -> void
 DigitalBrain.Flows.FlowState<T>.ParentFlowId.get -> string?
 DigitalBrain.Flows.FlowState<T>.ParentFlowId.init -> void
-DigitalBrain.Flows.FlowState<T>.Relate(DigitalBrain.Flows.FlowRelation! relation) -> DigitalBrain.Flows.FlowTransition<T!>?
 DigitalBrain.Flows.FlowState<T>.Relations.get -> System.Collections.Immutable.ImmutableList<DigitalBrain.Flows.FlowRelation!>!
 DigitalBrain.Flows.FlowState<T>.Relations.init -> void
-DigitalBrain.Flows.FlowState<T>.Repeat(string! step, DigitalBrain.Flows.StepResult<T!>! result) -> DigitalBrain.Flows.FlowTransition<T!>?
-DigitalBrain.Flows.FlowState<T>.RequestCancel(string! reason, System.DateTimeOffset now) -> DigitalBrain.Flows.FlowTransition<T!>?
-DigitalBrain.Flows.FlowState<T>.Resolve(string! step, DigitalBrain.Flows.WaitOutcome outcome, string? by, System.DateTimeOffset now) -> DigitalBrain.Flows.FlowTransition<T!>?
-DigitalBrain.Flows.FlowState<T>.Skip(string! step, DigitalBrain.Flows.StepResult<T!>! result, string? reason = null) -> DigitalBrain.Flows.FlowTransition<T!>?
-DigitalBrain.Flows.FlowState<T>.Start(string! title, string! owner, string? parentFlowId, T! inner, System.DateTimeOffset now, string? traceId, string! type, string? flowId = null) -> DigitalBrain.Flows.FlowTransition<T!>?
 DigitalBrain.Flows.FlowState<T>.Started.get -> System.DateTimeOffset
 DigitalBrain.Flows.FlowState<T>.Started.init -> void
-DigitalBrain.Flows.FlowState<T>.StartStep(System.Collections.Generic.IReadOnlyList<string!>! steps, System.DateTimeOffset now) -> DigitalBrain.Flows.FlowTransition<T!>?
 DigitalBrain.Flows.FlowState<T>.Status.get -> DigitalBrain.Flows.FlowStatus
 DigitalBrain.Flows.FlowState<T>.Status.init -> void
 DigitalBrain.Flows.FlowState<T>.Title.get -> string!
 DigitalBrain.Flows.FlowState<T>.Title.init -> void
 DigitalBrain.Flows.FlowState<T>.TraceId.get -> string!
 DigitalBrain.Flows.FlowState<T>.TraceId.init -> void
-DigitalBrain.Flows.FlowState<T>.Wait(string! step, DigitalBrain.Flows.StepResult<T!>! result, DigitalBrain.Flows.Waiting! wait, string? planId) -> DigitalBrain.Flows.FlowTransition<T!>?
 DigitalBrain.Flows.FlowState<T>.Waiting.get -> DigitalBrain.Flows.Waiting?
 DigitalBrain.Flows.FlowState<T>.Waiting.init -> void
 DigitalBrain.Flows.FlowStatus
@@ -798,14 +763,6 @@ DigitalBrain.Flows.FlowStep.Outcome.get -> DigitalBrain.Flows.StepOutcome
 DigitalBrain.Flows.FlowStep.Outcome.init -> void
 DigitalBrain.Flows.FlowStep.Step.get -> string!
 DigitalBrain.Flows.FlowStep.Step.init -> void
-DigitalBrain.Flows.FlowTransition<T>
-DigitalBrain.Flows.FlowTransition<T>.Deconstruct(out DigitalBrain.Flows.FlowState<T!>! Next, out System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>! Signals) -> void
-DigitalBrain.Flows.FlowTransition<T>.FlowTransition() -> void
-DigitalBrain.Flows.FlowTransition<T>.FlowTransition(DigitalBrain.Flows.FlowState<T!>! Next, System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>! Signals) -> void
-DigitalBrain.Flows.FlowTransition<T>.Next.get -> DigitalBrain.Flows.FlowState<T!>!
-DigitalBrain.Flows.FlowTransition<T>.Next.init -> void
-DigitalBrain.Flows.FlowTransition<T>.Signals.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>!
-DigitalBrain.Flows.FlowTransition<T>.Signals.init -> void
 DigitalBrain.Flows.FlowWaiting
 DigitalBrain.Flows.FlowWaiting.ConfirmationPlanId.get -> string?
 DigitalBrain.Flows.FlowWaiting.ConfirmationPlanId.init -> void
@@ -2754,7 +2711,6 @@ override DigitalBrain.Confirmation.ConfirmationResult.ToString() -> string!
 override DigitalBrain.Confirmation.ConfirmationState.Equals(object? obj) -> bool
 override DigitalBrain.Confirmation.ConfirmationState.GetHashCode() -> int
 override DigitalBrain.Confirmation.ConfirmationState.ToString() -> string!
-override DigitalBrain.Confirmation.ConfirmationTransition.GetHashCode() -> int
 override DigitalBrain.Flows.Flow<T>.OnActivate(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 override DigitalBrain.Flows.Flow<T>.OnDeactivate(DigitalBrain.Neurons.DeactivationCause cause, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 override DigitalBrain.Flows.Flow<T>.OnReminder(string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -2784,7 +2740,6 @@ override DigitalBrain.Flows.FlowStep.<Clone>$() -> DigitalBrain.Flows.FlowStep!
 override DigitalBrain.Flows.FlowStep.Equals(object? obj) -> bool
 override DigitalBrain.Flows.FlowStep.GetHashCode() -> int
 override DigitalBrain.Flows.FlowStep.ToString() -> string!
-override DigitalBrain.Flows.FlowTransition<T>.GetHashCode() -> int
 override DigitalBrain.Flows.FlowWaiting.<Clone>$() -> DigitalBrain.Flows.FlowWaiting!
 override DigitalBrain.Flows.FlowWaiting.Equals(object? obj) -> bool
 override DigitalBrain.Flows.FlowWaiting.GetHashCode() -> int
@@ -3352,8 +3307,6 @@ static DigitalBrain.Confirmation.ConfirmationRules.DefaultExpiry.get -> System.T
 static DigitalBrain.Confirmation.ConfirmationState.Bound(DigitalBrain.Confirmation.ConfirmationEntry![]! entries) -> DigitalBrain.Confirmation.ConfirmationEntry![]!
 static DigitalBrain.Confirmation.ConfirmationState.operator !=(DigitalBrain.Confirmation.ConfirmationState? left, DigitalBrain.Confirmation.ConfirmationState? right) -> bool
 static DigitalBrain.Confirmation.ConfirmationState.operator ==(DigitalBrain.Confirmation.ConfirmationState? left, DigitalBrain.Confirmation.ConfirmationState? right) -> bool
-static DigitalBrain.Confirmation.ConfirmationTransition.operator !=(DigitalBrain.Confirmation.ConfirmationTransition left, DigitalBrain.Confirmation.ConfirmationTransition right) -> bool
-static DigitalBrain.Confirmation.ConfirmationTransition.operator ==(DigitalBrain.Confirmation.ConfirmationTransition left, DigitalBrain.Confirmation.ConfirmationTransition right) -> bool
 static DigitalBrain.Contracts.PlainNeuronContracts.ConnectorOf(string! fullKey) -> string?
 static DigitalBrain.Contracts.PlainNeuronContracts.IdOf(System.Type! contract, string! fullKey) -> DigitalBrain.NeuronId
 static DigitalBrain.Contracts.PlainNeuronContracts.Is(System.Type! type) -> bool
@@ -4045,3 +3998,161 @@ static DigitalBrain.Units.DeploymentRefusals.PlanMismatch.operator !=(DigitalBra
 static DigitalBrain.Units.DeploymentRefusals.PlanMismatch.operator ==(DigitalBrain.Units.DeploymentRefusals.PlanMismatch? left, DigitalBrain.Units.DeploymentRefusals.PlanMismatch? right) -> bool
 static DigitalBrain.Units.DeploymentRefusals.Superseded.operator !=(DigitalBrain.Units.DeploymentRefusals.Superseded? left, DigitalBrain.Units.DeploymentRefusals.Superseded? right) -> bool
 static DigitalBrain.Units.DeploymentRefusals.Superseded.operator ==(DigitalBrain.Units.DeploymentRefusals.Superseded? left, DigitalBrain.Units.DeploymentRefusals.Superseded? right) -> bool
+DigitalBrain.Confirmation.ConfirmationRefusals
+DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked
+DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked.AlreadyAsked(string! PlanId) -> void
+DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked.Deconstruct(out string! PlanId) -> void
+DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked.Equals(DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked? other) -> bool
+DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked.PlanId.get -> string!
+DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked.PlanId.init -> void
+DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested
+DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested.AlreadyRequested(string! PlanId) -> void
+DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested.Deconstruct(out string! PlanId) -> void
+DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested.Equals(DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested? other) -> bool
+DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested.PlanId.get -> string!
+DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested.PlanId.init -> void
+DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen
+DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen.Deconstruct(out string! PlanId) -> void
+DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen.Equals(DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen? other) -> bool
+DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen.NotOpen(string! PlanId) -> void
+DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen.PlanId.get -> string!
+DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen.PlanId.init -> void
+DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly
+DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly.Deconstruct(out string! PlanId) -> void
+DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly.Equals(DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly? other) -> bool
+DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly.PersonOnly(string! PlanId) -> void
+DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly.PlanId.get -> string!
+DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly.PlanId.init -> void
+DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting
+DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting.Equals(DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting? other) -> bool
+DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting.TooManyWaiting() -> void
+DigitalBrain.Confirmation.ConfirmationState.Answer(string! planId, bool approve, DigitalBrain.Confirmation.Answerer! answerer, System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Confirmation.ConfirmationState!>
+DigitalBrain.Confirmation.ConfirmationState.End(string! planId, DigitalBrain.Confirmation.ConfirmationOutcome outcome, DigitalBrain.Confirmation.ConfirmationDenyReason reason, DigitalBrain.Confirmation.ConfirmationPrincipal? approver, System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Confirmation.ConfirmationState!>
+DigitalBrain.Confirmation.ConfirmationState.Expire(string! planId, System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Confirmation.ConfirmationState!>
+DigitalBrain.Confirmation.ConfirmationState.Request(DigitalBrain.Confirmation.ConfirmationPlan! plan, DigitalBrain.Confirmation.ConfirmationPrincipal! requester, string! raisedBy, DigitalBrain.Confirmation.ConfirmationPolicy policy, System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Confirmation.ConfirmationState!>
+DigitalBrain.Confirmation.ConfirmationState.Withdraw(string! planId, System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Confirmation.ConfirmationState!>
+override DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked.<Clone>$() -> DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked!
+override DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked.Equals(object? obj) -> bool
+override DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked.GetHashCode() -> int
+override DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked.Message.get -> string!
+override DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked.ToString() -> string!
+override DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested.<Clone>$() -> DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested!
+override DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested.Equals(object? obj) -> bool
+override DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested.GetHashCode() -> int
+override DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested.Message.get -> string!
+override DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested.ToString() -> string!
+override DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen.<Clone>$() -> DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen!
+override DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen.Equals(object? obj) -> bool
+override DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen.GetHashCode() -> int
+override DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen.Message.get -> string!
+override DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen.ToString() -> string!
+override DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly.<Clone>$() -> DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly!
+override DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly.Equals(object? obj) -> bool
+override DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly.GetHashCode() -> int
+override DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly.Message.get -> string!
+override DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly.ToString() -> string!
+override DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting.<Clone>$() -> DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting!
+override DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting.Equals(object? obj) -> bool
+override DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting.GetHashCode() -> int
+override DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting.Message.get -> string!
+override DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting.ToString() -> string!
+override sealed DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+static DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked.operator !=(DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked? left, DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked.operator ==(DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked? left, DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyAsked? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested.operator !=(DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested? left, DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested.operator ==(DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested? left, DigitalBrain.Confirmation.ConfirmationRefusals.AlreadyRequested? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen.operator !=(DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen? left, DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen.operator ==(DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen? left, DigitalBrain.Confirmation.ConfirmationRefusals.NotOpen? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly.operator !=(DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly? left, DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly.operator ==(DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly? left, DigitalBrain.Confirmation.ConfirmationRefusals.PersonOnly? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting.operator !=(DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting? left, DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting? right) -> bool
+static DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting.operator ==(DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting? left, DigitalBrain.Confirmation.ConfirmationRefusals.TooManyWaiting? right) -> bool
+DigitalBrain.Flows.FlowRefusals
+DigitalBrain.Flows.FlowRefusals.AlreadyOver
+DigitalBrain.Flows.FlowRefusals.AlreadyOver.AlreadyOver() -> void
+DigitalBrain.Flows.FlowRefusals.AlreadyOver.Equals(DigitalBrain.Flows.FlowRefusals.AlreadyOver? other) -> bool
+DigitalBrain.Flows.FlowRefusals.AlreadyStarted
+DigitalBrain.Flows.FlowRefusals.AlreadyStarted.AlreadyStarted() -> void
+DigitalBrain.Flows.FlowRefusals.AlreadyStarted.Equals(DigitalBrain.Flows.FlowRefusals.AlreadyStarted? other) -> bool
+DigitalBrain.Flows.FlowRefusals.NotAdvancing
+DigitalBrain.Flows.FlowRefusals.NotAdvancing.Equals(DigitalBrain.Flows.FlowRefusals.NotAdvancing? other) -> bool
+DigitalBrain.Flows.FlowRefusals.NotAdvancing.NotAdvancing() -> void
+DigitalBrain.Flows.FlowRefusals.NotWaitingOn
+DigitalBrain.Flows.FlowRefusals.NotWaitingOn.Deconstruct(out string! Step) -> void
+DigitalBrain.Flows.FlowRefusals.NotWaitingOn.Equals(DigitalBrain.Flows.FlowRefusals.NotWaitingOn? other) -> bool
+DigitalBrain.Flows.FlowRefusals.NotWaitingOn.NotWaitingOn(string! Step) -> void
+DigitalBrain.Flows.FlowRefusals.NotWaitingOn.Step.get -> string!
+DigitalBrain.Flows.FlowRefusals.NotWaitingOn.Step.init -> void
+DigitalBrain.Flows.FlowRefusals.StepNotRunning
+DigitalBrain.Flows.FlowRefusals.StepNotRunning.Deconstruct(out string! Step) -> void
+DigitalBrain.Flows.FlowRefusals.StepNotRunning.Equals(DigitalBrain.Flows.FlowRefusals.StepNotRunning? other) -> bool
+DigitalBrain.Flows.FlowRefusals.StepNotRunning.Step.get -> string!
+DigitalBrain.Flows.FlowRefusals.StepNotRunning.Step.init -> void
+DigitalBrain.Flows.FlowRefusals.StepNotRunning.StepNotRunning(string! Step) -> void
+DigitalBrain.Flows.FlowState<T>.Complete(string! step, DigitalBrain.Flows.StepResult<T!>! result) -> DigitalBrain.Rules.Outcome<DigitalBrain.Flows.FlowState<T!>!>
+DigitalBrain.Flows.FlowState<T>.Fail(string! step, string! error, System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Flows.FlowState<T!>!>
+DigitalBrain.Flows.FlowState<T>.Fail(string! step, string! error, System.DateTimeOffset now, string? doneDetail) -> DigitalBrain.Rules.Outcome<DigitalBrain.Flows.FlowState<T!>!>
+DigitalBrain.Flows.FlowState<T>.Interrupted(string! step, string! detail, System.DateTimeOffset now, int maxInterruptions = 20) -> DigitalBrain.Rules.Transition<DigitalBrain.Flows.FlowState<T!>!>!
+DigitalBrain.Flows.FlowState<T>.Relate(DigitalBrain.Flows.FlowRelation! relation) -> DigitalBrain.Rules.Outcome<DigitalBrain.Flows.FlowState<T!>!>
+DigitalBrain.Flows.FlowState<T>.Repeat(string! step, DigitalBrain.Flows.StepResult<T!>! result) -> DigitalBrain.Rules.Outcome<DigitalBrain.Flows.FlowState<T!>!>
+DigitalBrain.Flows.FlowState<T>.RequestCancel(string! reason, System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Flows.FlowState<T!>!>
+DigitalBrain.Flows.FlowState<T>.Resolve(string! step, DigitalBrain.Flows.WaitOutcome outcome, string? by, System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Flows.FlowState<T!>!>
+DigitalBrain.Flows.FlowState<T>.Skip(string! step, DigitalBrain.Flows.StepResult<T!>! result, string? reason = null) -> DigitalBrain.Rules.Outcome<DigitalBrain.Flows.FlowState<T!>!>
+DigitalBrain.Flows.FlowState<T>.Start(string! title, string! owner, string? parentFlowId, T! inner, System.DateTimeOffset now, string? traceId, string! type, string? flowId = null) -> DigitalBrain.Rules.Outcome<DigitalBrain.Flows.FlowState<T!>!>
+DigitalBrain.Flows.FlowState<T>.StartStep(System.Collections.Generic.IReadOnlyList<string!>! steps, System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Flows.FlowState<T!>!>
+DigitalBrain.Flows.FlowState<T>.Wait(string! step, DigitalBrain.Flows.StepResult<T!>! result, DigitalBrain.Flows.Waiting! wait, string? planId) -> DigitalBrain.Rules.Outcome<DigitalBrain.Flows.FlowState<T!>!>
+override DigitalBrain.Flows.FlowRefusals.AlreadyOver.<Clone>$() -> DigitalBrain.Flows.FlowRefusals.AlreadyOver!
+override DigitalBrain.Flows.FlowRefusals.AlreadyOver.Equals(object? obj) -> bool
+override DigitalBrain.Flows.FlowRefusals.AlreadyOver.GetHashCode() -> int
+override DigitalBrain.Flows.FlowRefusals.AlreadyOver.Message.get -> string!
+override DigitalBrain.Flows.FlowRefusals.AlreadyOver.ToString() -> string!
+override DigitalBrain.Flows.FlowRefusals.AlreadyStarted.<Clone>$() -> DigitalBrain.Flows.FlowRefusals.AlreadyStarted!
+override DigitalBrain.Flows.FlowRefusals.AlreadyStarted.Equals(object? obj) -> bool
+override DigitalBrain.Flows.FlowRefusals.AlreadyStarted.GetHashCode() -> int
+override DigitalBrain.Flows.FlowRefusals.AlreadyStarted.Message.get -> string!
+override DigitalBrain.Flows.FlowRefusals.AlreadyStarted.ToString() -> string!
+override DigitalBrain.Flows.FlowRefusals.NotAdvancing.<Clone>$() -> DigitalBrain.Flows.FlowRefusals.NotAdvancing!
+override DigitalBrain.Flows.FlowRefusals.NotAdvancing.Equals(object? obj) -> bool
+override DigitalBrain.Flows.FlowRefusals.NotAdvancing.GetHashCode() -> int
+override DigitalBrain.Flows.FlowRefusals.NotAdvancing.Message.get -> string!
+override DigitalBrain.Flows.FlowRefusals.NotAdvancing.ToString() -> string!
+override DigitalBrain.Flows.FlowRefusals.NotWaitingOn.<Clone>$() -> DigitalBrain.Flows.FlowRefusals.NotWaitingOn!
+override DigitalBrain.Flows.FlowRefusals.NotWaitingOn.Equals(object? obj) -> bool
+override DigitalBrain.Flows.FlowRefusals.NotWaitingOn.GetHashCode() -> int
+override DigitalBrain.Flows.FlowRefusals.NotWaitingOn.Message.get -> string!
+override DigitalBrain.Flows.FlowRefusals.NotWaitingOn.ToString() -> string!
+override DigitalBrain.Flows.FlowRefusals.StepNotRunning.<Clone>$() -> DigitalBrain.Flows.FlowRefusals.StepNotRunning!
+override DigitalBrain.Flows.FlowRefusals.StepNotRunning.Equals(object? obj) -> bool
+override DigitalBrain.Flows.FlowRefusals.StepNotRunning.GetHashCode() -> int
+override DigitalBrain.Flows.FlowRefusals.StepNotRunning.Message.get -> string!
+override DigitalBrain.Flows.FlowRefusals.StepNotRunning.ToString() -> string!
+override sealed DigitalBrain.Flows.FlowRefusals.AlreadyOver.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Flows.FlowRefusals.AlreadyStarted.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Flows.FlowRefusals.NotAdvancing.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Flows.FlowRefusals.NotWaitingOn.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Flows.FlowRefusals.StepNotRunning.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+static DigitalBrain.Flows.FlowRefusals.AlreadyOver.operator !=(DigitalBrain.Flows.FlowRefusals.AlreadyOver? left, DigitalBrain.Flows.FlowRefusals.AlreadyOver? right) -> bool
+static DigitalBrain.Flows.FlowRefusals.AlreadyOver.operator ==(DigitalBrain.Flows.FlowRefusals.AlreadyOver? left, DigitalBrain.Flows.FlowRefusals.AlreadyOver? right) -> bool
+static DigitalBrain.Flows.FlowRefusals.AlreadyStarted.operator !=(DigitalBrain.Flows.FlowRefusals.AlreadyStarted? left, DigitalBrain.Flows.FlowRefusals.AlreadyStarted? right) -> bool
+static DigitalBrain.Flows.FlowRefusals.AlreadyStarted.operator ==(DigitalBrain.Flows.FlowRefusals.AlreadyStarted? left, DigitalBrain.Flows.FlowRefusals.AlreadyStarted? right) -> bool
+static DigitalBrain.Flows.FlowRefusals.NotAdvancing.operator !=(DigitalBrain.Flows.FlowRefusals.NotAdvancing? left, DigitalBrain.Flows.FlowRefusals.NotAdvancing? right) -> bool
+static DigitalBrain.Flows.FlowRefusals.NotAdvancing.operator ==(DigitalBrain.Flows.FlowRefusals.NotAdvancing? left, DigitalBrain.Flows.FlowRefusals.NotAdvancing? right) -> bool
+static DigitalBrain.Flows.FlowRefusals.NotWaitingOn.operator !=(DigitalBrain.Flows.FlowRefusals.NotWaitingOn? left, DigitalBrain.Flows.FlowRefusals.NotWaitingOn? right) -> bool
+static DigitalBrain.Flows.FlowRefusals.NotWaitingOn.operator ==(DigitalBrain.Flows.FlowRefusals.NotWaitingOn? left, DigitalBrain.Flows.FlowRefusals.NotWaitingOn? right) -> bool
+static DigitalBrain.Flows.FlowRefusals.StepNotRunning.operator !=(DigitalBrain.Flows.FlowRefusals.StepNotRunning? left, DigitalBrain.Flows.FlowRefusals.StepNotRunning? right) -> bool
+static DigitalBrain.Flows.FlowRefusals.StepNotRunning.operator ==(DigitalBrain.Flows.FlowRefusals.StepNotRunning? left, DigitalBrain.Flows.FlowRefusals.StepNotRunning? right) -> bool
+DigitalBrain.Flows.FlowRefusals.AlreadyRelated
+DigitalBrain.Flows.FlowRefusals.AlreadyRelated.AlreadyRelated() -> void
+DigitalBrain.Flows.FlowRefusals.AlreadyRelated.Equals(DigitalBrain.Flows.FlowRefusals.AlreadyRelated? other) -> bool
+override DigitalBrain.Flows.FlowRefusals.AlreadyRelated.<Clone>$() -> DigitalBrain.Flows.FlowRefusals.AlreadyRelated!
+override DigitalBrain.Flows.FlowRefusals.AlreadyRelated.Equals(object? obj) -> bool
+override DigitalBrain.Flows.FlowRefusals.AlreadyRelated.GetHashCode() -> int
+override DigitalBrain.Flows.FlowRefusals.AlreadyRelated.Message.get -> string!
+override DigitalBrain.Flows.FlowRefusals.AlreadyRelated.ToString() -> string!
+override sealed DigitalBrain.Flows.FlowRefusals.AlreadyRelated.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+static DigitalBrain.Flows.FlowRefusals.AlreadyRelated.operator !=(DigitalBrain.Flows.FlowRefusals.AlreadyRelated? left, DigitalBrain.Flows.FlowRefusals.AlreadyRelated? right) -> bool
+static DigitalBrain.Flows.FlowRefusals.AlreadyRelated.operator ==(DigitalBrain.Flows.FlowRefusals.AlreadyRelated? left, DigitalBrain.Flows.FlowRefusals.AlreadyRelated? right) -> bool
