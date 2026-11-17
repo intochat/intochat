@@ -14,7 +14,7 @@ internal static class WorkspaceEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var brain = BrainRoutes.Group(endpoints);
+        var brain = OsBrainRoutes.Group(endpoints);
         brain.MapGet("", (INeuronProxies intoChatOS, CancellationToken ct)
             => Respond(async () => Results.Ok(await Workspace(intoChatOS).Read().WaitAsync(ct))));
         brain.MapPost("/show", (NeuronCommand input, INeuronProxies intoChatOS, CancellationToken ct)

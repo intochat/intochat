@@ -9,13 +9,10 @@ public sealed partial class StaticCacheFacts
 {
     private static readonly Dictionary<string, string> Owners = new(StringComparer.Ordinal)
     {
-        ["LoadedContracts.Found"] = "string",
         // The mail templates, keyed by the closed set of supported languages (en, ru).
         ["MailTemplateRenderer.Localisations"] = "string",
         ["KernelInvocationSink.Contracts"] = "string",
         ["KernelInvocationSink.HostTypes"] = "string",
-        ["NeutralCallMapping.Methods"] = "MethodInfo",
-        ["NeutralCallMapping.Predicates"] = "Type",
         ["PlainInstanceRegistration.ReadOnly"] = "(string Contract",
         ["PlainInstanceRegistration.StateNames"] = "string",
         ["SignalTypes.Loaded"] = "string",

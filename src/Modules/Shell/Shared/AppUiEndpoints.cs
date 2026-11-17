@@ -40,7 +40,7 @@ internal static class AppUiEndpoints
         var logger = (endpoints.ServiceProvider.GetService(typeof(ILoggerFactory)) as ILoggerFactory)
             ?.CreateLogger(typeof(AppUiEndpoints).FullName!)
             ?? ConsoleLog;
-        var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
+        var apps = OsBrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
         apps.MapPost("/connect", async ([FromServices] IEnumerable<IUiRootProvider> providers, CancellationToken ct) =>
         {
             var provider = providers.SingleOrDefault();

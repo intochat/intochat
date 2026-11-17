@@ -84,7 +84,7 @@ public sealed class ToneObserverFacts(AiFixture fixture) : IClassFixture<AiFixtu
         {
             services.AddSingleton<IChatClient>(StubChatClient.Replying("ok"));
             // The loop resolves the surface for every turn but touches it only when a contract is composed; these turns compose none.
-            services.AddSingleton(new NeuronSurface(null!, null!, null!));
+            services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddSingleton<ISecretRedactor, NoSecrets>();
             services.AddOptions<AIOptions>();

@@ -1,4 +1,4 @@
-using IntoChat.OS.Connections.Caching;
+using DigitalBrain.Caching;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 

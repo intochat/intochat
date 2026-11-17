@@ -275,7 +275,7 @@ public sealed partial class FrameworkBoundaryFacts
             .Where(line => line.Length > 0 && !line.StartsWith('#'))
             .ToArray();
 
-        Assert.True(allowlistEntries.Length <= 11, $"FrameworkDuplicateTypesAllowlist.txt may have at most 11 entries, found {allowlistEntries.Length}.");
+        Assert.True(allowlistEntries.Length == 0, $"FrameworkDuplicateTypesAllowlist.txt must be empty, found {allowlistEntries.Length}.");
 
         var allowlist = new HashSet<string>(StringComparer.Ordinal);
         var duplicateAllowlistEntries = new List<string>();

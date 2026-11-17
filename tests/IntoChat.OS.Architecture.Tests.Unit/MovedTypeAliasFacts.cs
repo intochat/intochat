@@ -40,7 +40,7 @@ internal sealed record MovedTypes(string Old, string? Alias, bool Persisted)
     // Top-level types still in the OS awaiting their move (spec section 4.1), by CLR full name.
     private static readonly string[] Names =
     [
-        "IntoChat.OS.Framework.NeutralCallMapping", "IntoChat.OS.Framework.NeutralCallFilter",
+        "IntoChat.OS.Framework.NeutralCallFilter",
         "IntoChat.OS.Framework.Modules.OsModule",
         "IntoChat.OS.NeuronAliases", "IntoChat.OS.Runtime.NeuronProxies",
     ];
@@ -49,6 +49,7 @@ internal sealed record MovedTypes(string Old, string? Alias, bool Persisted)
     private static readonly (string Old, Type New, string? ExplicitAlias, bool ExplicitPersisted)[] Moved =
     [
         ("IntoChat.OS.Activated", typeof(DigitalBrain.Signals.Activated), null, false),
+        ("IntoChat.OS.Framework.NeutralCallMapping", typeof(DigitalBrain.Runtime.Orleans.Hosting.NeutralCallMapping), null, false),
         ("IntoChat.OS.Connections.Configuration.HostConfiguration", typeof(DigitalBrain.Capabilities.Connections.Connectors.HostConfiguration), null, false),
         ("IntoChat.OS.Connections.Contracts.ICapabilities", typeof(DigitalBrain.Capabilities.Connections.Integrations.ICapabilities), null, false),
         ("IntoChat.OS.Connections.Contracts.IRuntimeCapabilitySource", typeof(DigitalBrain.Capabilities.Connections.Integrations.IRuntimeCapabilitySource), null, false),

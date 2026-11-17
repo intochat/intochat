@@ -11,7 +11,7 @@ public static class BrainStoreCustody
     public static void Validate(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        var options = services.GetRequiredService<IOptions<BrainStoreOptions>>().Value;
+        var options = services.GetRequiredService<IOptions<OsBrainStoreOptions>>().Value;
         var configured = services.GetRequiredService<IMasterKeyCustody>() is Keys.ConfiguredMasterKeyCustody;
         if (options.Custody == MasterKeyCustodyKind.Tpm && configured)
         { throw new InvalidOperationException("TPM custody requires the Windows connector and an available TPM."); }

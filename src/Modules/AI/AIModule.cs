@@ -34,7 +34,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Orleans.Hosting;
-using NeuronSurface = IntoChat.OS.Connections.Surface.NeuronSurface;
 
 namespace IntoChat.OS.Modules.AI;
 
@@ -77,7 +76,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<ModelCatalog>();
         services.TryAddSingleton<InferenceService>();
         services.TryAddSingleton<IModelInference>(provider => provider.GetRequiredService<InferenceService>());
-        services.TryAddSingleton<NeuronSurface>();
+        services.TryAddSingleton<OsNeuronSurface>();
         services.AddSingleton<ICapabilitySource, AiModelCapabilities>();
         services.AddMediaNeurons();
         AIClients.AddImageGeneration(services, options);

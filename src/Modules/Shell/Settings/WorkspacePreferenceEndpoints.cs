@@ -25,7 +25,7 @@ internal static class WorkspacePreferenceEndpoints
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = BrainRoutes.Group(endpoints, "/preferences/workspace");
+        var group = OsBrainRoutes.Group(endpoints, "/preferences/workspace");
         group.MapGet("", async (INeuronProxies brain, IBrainObserver kernel, CancellationToken ct) => Results.Ok(await Read(brain, kernel, BrainScope.CurrentId(), ct)));
         group.MapPut("", Write);
     }

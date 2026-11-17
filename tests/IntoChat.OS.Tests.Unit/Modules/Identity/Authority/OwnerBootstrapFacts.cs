@@ -29,7 +29,7 @@ public sealed class OwnerBootstrapFacts
         services.AddSingleton(Options.Create(new AuthOptions { Posture = IdentityPosture.Open }));
         services.AddSingleton<AuthorityMirror>();
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider())
-            .Register<DirectoryNeuron>()
+            .Register<IdentityDirectoryGrain>()
             .Register<GrantsNeuron>();
 
         var directoryId = new NeuronId(new BrainId("system"), IDirectoryStore.Type, "main");
@@ -61,7 +61,7 @@ public sealed class OwnerBootstrapFacts
         await bootstrap.Execute(ct);
         var stateJson = await ((DigitalBrain.Kernel.IBrainObserver)os).State(directoryId, ct);
         Assert.NotNull(stateJson);
-        var state = stateJson.Value.Deserialize<DirectoryState>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        var state = stateJson.Value.Deserialize<IdentityDirectoryState>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
         var brain = Assert.Single(state.Brains, b => b.BrainId == "owner");
         Assert.Single(brain.Members);
     }
@@ -74,7 +74,7 @@ public sealed class OwnerBootstrapFacts
         services.AddSingleton(Options.Create(new AuthOptions { Posture = IdentityPosture.Open }));
         services.AddSingleton<AuthorityMirror>();
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider())
-            .Register<DirectoryNeuron>()
+            .Register<IdentityDirectoryGrain>()
             .Register<GrantsNeuron>();
 
         var directoryId = new NeuronId(new BrainId("system"), IDirectoryStore.Type, "main");

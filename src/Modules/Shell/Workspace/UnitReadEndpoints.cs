@@ -21,7 +21,7 @@ internal static class UnitReadEndpoints
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = BrainRoutes.Group(endpoints);
+        var group = OsBrainRoutes.Group(endpoints);
         group.MapGet("/state", (INeuronProxies brain, ISynapseCatalogSource? catalog, string brainId, string? alias, CancellationToken ct)
             => State(brain, ResolveScope(brainId), catalog, alias, ct));
         group.MapGet("/view", (INeuronProxies brain, ISynapseCatalogSource? catalog, string brainId, string? alias, CancellationToken ct)

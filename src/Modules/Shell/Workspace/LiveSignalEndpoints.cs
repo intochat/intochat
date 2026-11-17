@@ -107,7 +107,7 @@ internal static class LiveSignalEndpoints
     }
 
     public static void Map(IEndpointRouteBuilder endpoints)
-        => BrainRoutes.Group(endpoints).MapGet("/live", Live);
+        => OsBrainRoutes.Group(endpoints).MapGet("/live", Live);
 
     private static async Task Live(HttpContext http, ILoggerFactory logs, CancellationToken ct)
     {

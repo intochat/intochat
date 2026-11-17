@@ -14,7 +14,7 @@ internal static class NotificationsEndpoints
 {
     internal static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = BrainRoutes.Group(endpoints, "/notifications")
+        var group = OsBrainRoutes.Group(endpoints, "/notifications")
             .AddEndpointFilter(ModuleRouteGuard.Guard);
 
         group.MapGet("", async (INeuronProxies brain, CancellationToken ct, int limit = 50, bool unreadOnly = false) =>

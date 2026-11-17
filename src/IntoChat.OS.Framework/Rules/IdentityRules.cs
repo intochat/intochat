@@ -31,13 +31,13 @@ internal sealed record PrincipalIdIsAvailable(string PrincipalId, PrincipalRow? 
     public override string Message => "That username is unavailable.";
 }
 
-internal sealed record BrainIsProvisioned(string BrainId, BrainRow? Brain) : Rule("identity.brain-provisioned")
+internal sealed record BrainIsProvisioned(string BrainId, IdentityBrainRow? Brain) : Rule("identity.brain-provisioned")
 {
     public override bool Broken => Brain is null;
     public override string Message => $"Brain {BrainId} is not provisioned.";
 }
 
-internal sealed record MemberIsNotBrainOwner(string BrainId, string? TargetAccountOrPrincipalId, BrainRow? Brain, Member? Member) : Rule("identity.member-not-brain-owner")
+internal sealed record MemberIsNotBrainOwner(string BrainId, string? TargetAccountOrPrincipalId, IdentityBrainRow? Brain, Member? Member) : Rule("identity.member-not-brain-owner")
 {
     public override bool Broken => Member?.Role == MemberRole.Owner
         || (Brain is not null && !string.IsNullOrEmpty(TargetAccountOrPrincipalId)
@@ -46,7 +46,7 @@ internal sealed record MemberIsNotBrainOwner(string BrainId, string? TargetAccou
     public override string Message => $"The owner of brain {BrainId} cannot be removed from it.";
 }
 
-internal sealed record BrainAuthorityIsInitialized(BrainRow? Brain) : Rule("identity.brain-authority-initialized")
+internal sealed record BrainAuthorityIsInitialized(IdentityBrainRow? Brain) : Rule("identity.brain-authority-initialized")
 {
     public override bool Broken => Brain is null;
     public override string Message => "Initialize the brain authority before granting access.";
@@ -76,7 +76,7 @@ internal sealed record MemberRoleMatches(MemberRole ExistingRole, MemberRole Req
     public override string Message => "Membership role conflict.";
 }
 
-internal sealed record BrainKindIsMutable(BrainRow Brain) : Rule("identity.brain-kind-mutable")
+internal sealed record BrainKindIsMutable(IdentityBrainRow Brain) : Rule("identity.brain-kind-mutable")
 {
     public override bool Broken => Brain.OwnerProvisioned;
     public override string Message => $"Brain {Brain.BrainId} is a {Brain.Kind} brain; its kind is fixed.";

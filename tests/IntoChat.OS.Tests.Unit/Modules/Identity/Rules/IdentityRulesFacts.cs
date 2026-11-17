@@ -24,7 +24,7 @@ public sealed class IdentityRulesFacts
     [Fact]
     public void EveryRuleNameIsPrefixedAndUnique()
     {
-        var rules = typeof(DirectoryNeuron).Assembly.GetTypes()
+        var rules = typeof(IdentityDirectoryGrain).Assembly.GetTypes()
             .Where(t => !t.IsAbstract && t.IsAssignableTo(typeof(Rule)))
             .Select(CreateDefault)
             .ToArray();
@@ -50,7 +50,7 @@ public sealed class IdentityRulesFacts
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(Options.Create(new AuthOptions { Posture = IdentityPosture.Open }));
         services.AddSingleton<AuthorityMirror>();
-        await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<DirectoryNeuron>();
+        await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<IdentityDirectoryGrain>();
         var directory = os.Get<IDirectoryStore>(new NeuronId(new BrainId("system"), IDirectoryStore.Type, "main"));
 
         var ex = await Assert.ThrowsAsync<RuleViolationException>(() => directory.RegisterPrincipal("owner", "Owner"));

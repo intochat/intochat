@@ -73,7 +73,7 @@ public sealed class AgentContextProducerFacts(AiFixture fixture) : IClassFixture
         {
             services.AddSingleton<IChatClient>(client);
             // The loop resolves the surface for every turn but touches it only when a contract is composed; these turns compose none.
-            services.AddSingleton(new NeuronSurface(null!, null!, null!));
+            services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddSingleton<ISecretRedactor, NoSecrets>();
             services.AddOptions<AIOptions>();

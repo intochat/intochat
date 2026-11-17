@@ -239,7 +239,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         {
             services.AddSingleton<IChatClient>(client);
             // The loop resolves the surface for every turn but touches it only when a contract is composed; these turns compose none.
-            services.AddSingleton(new NeuronSurface(null!, null!, null!));
+            services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
             // No provider is provisioned, so an unpinned turn runs on the host client, which is the stub.
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddOptions<AIOptions>();

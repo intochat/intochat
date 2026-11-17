@@ -19,7 +19,7 @@ internal static class PoliciesEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        var policies = BrainRoutes.Group(endpoints, "/policies").AddEndpointFilter(ModuleRouteGuard.Guard);
+        var policies = OsBrainRoutes.Group(endpoints, "/policies").AddEndpointFilter(ModuleRouteGuard.Guard);
 
         // Promises are the person's: an app calling through the app proxy can neither propose nor retire one.
         policies.MapPost("", (TextRequest request, [FromServices] PolicyWriter writer, CancellationToken ct) => AppsEndpoints.Respond(async () =>

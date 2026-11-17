@@ -52,7 +52,7 @@ public sealed class IdentityRulesFacts
     {
         var ownerMember = MakeMember("alice", MemberRole.Owner);
         var regularMember = MakeMember("bob", MemberRole.Member);
-        var brain = new BrainRow
+        var brain = new IdentityBrainRow
         {
             BrainId = "brain-1",
             AccountId = "acct-1",

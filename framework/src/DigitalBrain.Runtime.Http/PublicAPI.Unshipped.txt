@@ -155,13 +155,13 @@ DigitalBrain.Runtime.Http.Surface.NeuronInstance.Contract.get -> string!
 DigitalBrain.Runtime.Http.Surface.NeuronInstance.Contract.init -> void
 DigitalBrain.Runtime.Http.Surface.NeuronInstance.Created.get -> System.DateTimeOffset
 DigitalBrain.Runtime.Http.Surface.NeuronInstance.Created.init -> void
-DigitalBrain.Runtime.Http.Surface.NeuronInstance.Creator.get -> string!
+DigitalBrain.Runtime.Http.Surface.NeuronInstance.Creator.get -> string?
 DigitalBrain.Runtime.Http.Surface.NeuronInstance.Creator.init -> void
-DigitalBrain.Runtime.Http.Surface.NeuronInstance.Deconstruct(out string! Contract, out string! Key, out System.DateTimeOffset Created, out string! Creator) -> void
+DigitalBrain.Runtime.Http.Surface.NeuronInstance.Deconstruct(out string! Contract, out string! Key, out System.DateTimeOffset Created, out string? Creator) -> void
 DigitalBrain.Runtime.Http.Surface.NeuronInstance.Equals(DigitalBrain.Runtime.Http.Surface.NeuronInstance? other) -> bool
 DigitalBrain.Runtime.Http.Surface.NeuronInstance.Key.get -> string!
 DigitalBrain.Runtime.Http.Surface.NeuronInstance.Key.init -> void
-DigitalBrain.Runtime.Http.Surface.NeuronInstance.NeuronInstance(string! Contract, string! Key, System.DateTimeOffset Created, string! Creator) -> void
+DigitalBrain.Runtime.Http.Surface.NeuronInstance.NeuronInstance(string! Contract, string! Key, System.DateTimeOffset Created, string? Creator) -> void
 DigitalBrain.Runtime.Http.Surface.NeuronsService
 DigitalBrain.Runtime.Http.Surface.NeuronsService.NeuronCallRequest
 DigitalBrain.Runtime.Http.Surface.NeuronsService.NeuronCallRequest.<Clone>$() -> DigitalBrain.Runtime.Http.Surface.NeuronsService.NeuronCallRequest!
@@ -197,6 +197,7 @@ static DigitalBrain.Runtime.Http.Storage.UploadTicket.Open(Microsoft.AspNetCore.
 static DigitalBrain.Runtime.Http.Storage.UploadTicket.operator !=(DigitalBrain.Runtime.Http.Storage.UploadTicket? left, DigitalBrain.Runtime.Http.Storage.UploadTicket? right) -> bool
 static DigitalBrain.Runtime.Http.Storage.UploadTicket.operator ==(DigitalBrain.Runtime.Http.Storage.UploadTicket? left, DigitalBrain.Runtime.Http.Storage.UploadTicket? right) -> bool
 static DigitalBrain.Runtime.Http.Surface.LoadedContracts.Find(string! name) -> System.Type!
+static DigitalBrain.Runtime.Http.Surface.LoadedContracts.Find(string! name, string![]? allowedPrefixes) -> System.Type!
 static DigitalBrain.Runtime.Http.Surface.NeuronInstance.operator !=(DigitalBrain.Runtime.Http.Surface.NeuronInstance? left, DigitalBrain.Runtime.Http.Surface.NeuronInstance? right) -> bool
 static DigitalBrain.Runtime.Http.Surface.NeuronInstance.operator ==(DigitalBrain.Runtime.Http.Surface.NeuronInstance? left, DigitalBrain.Runtime.Http.Surface.NeuronInstance? right) -> bool
 static DigitalBrain.Runtime.Http.Surface.NeuronsService.Map(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> void

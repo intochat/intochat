@@ -32,7 +32,7 @@ internal static class CapabilityEndpoints
 {
     internal static void MapCapabilities(this IEndpointRouteBuilder endpoints)
     {
-        var group = BrainRoutes.Group(endpoints, "/integrations");
+        var group = OsBrainRoutes.Group(endpoints, "/integrations");
         group.MapGet("/capabilities", async (string? kind, [FromServices] ICapabilities capabilities, CancellationToken cancellationToken) =>
             Results.Ok(await capabilities.List(RuntimeCallerContext.Require(), kind, cancellationToken)));
     }

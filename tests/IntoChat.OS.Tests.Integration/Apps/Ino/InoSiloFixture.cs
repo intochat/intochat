@@ -249,8 +249,8 @@ public sealed class InoSiloFixture : IAsyncLifetime
                 services.AddNeuronProxies();
                 services.RemoveAll<IBrainObserver>();
                 services.AddSingleton<IBrainObserver, CompiledBrainObserver>();
-                services.RemoveAll<NeuronSurface>();
-                services.AddSingleton(sp => new NeuronSurface(
+                services.RemoveAll<OsNeuronSurface>();
+                services.AddSingleton(sp => new OsNeuronSurface(
                     sp.GetRequiredService<INeuronProxies>(),
                     sp.GetRequiredService<IBrainObserver>(),
                     sp.GetRequiredService<NeuronTypeSearch>(),

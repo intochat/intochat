@@ -36,7 +36,7 @@ internal static class AppsEndpoints
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
+        var apps = OsBrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
 
         apps.MapGet("/packages", () => Results.Ok(ShippedPackages.All));
 

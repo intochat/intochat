@@ -15,7 +15,7 @@ internal static class NotificationPreferenceEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = BrainRoutes.Group(endpoints, "/preferences/notifications");
+        var group = OsBrainRoutes.Group(endpoints, "/preferences/notifications");
         group.MapGet("", async (INeuronProxies brain, CancellationToken ct) => Results.Ok(await BrainPreferenceStore.ReadNotifications(brain, BrainScope.CurrentId(), ct)));
         group.MapPut("", Write);
     }

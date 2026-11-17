@@ -42,9 +42,9 @@ public static class PlatformHosting
         // Pricing and the compute ledger are 0.8.0. External calls are not charged.
         services.TryAddSingleton<DigitalBrain.Capabilities.Compute.ModulePriceListRegistry>();
         services.TryAddSingleton(TimeProvider.System);
-        services.AddOptions<Storage.BrainStoreOptions>().BindConfiguration(Storage.BrainStoreOptions.Key)
+        services.AddOptions<Storage.OsBrainStoreOptions>().BindConfiguration(Storage.OsBrainStoreOptions.Key)
             .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration, IServiceProvider>((options, configuration, sp) => options.Directory = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, sp.GetService<DigitalBrain.Runtime.Orleans.RuntimeOptions>() ?? Identity.PresenceProofValidator.DefaultRuntimeOptions).State);
-        services.AddOptions<DigitalBrain.Runtime.Orleans.BrainStoreOptions>().BindConfiguration(Storage.BrainStoreOptions.Key)
+        services.AddOptions<DigitalBrain.Runtime.Orleans.BrainStoreOptions>().BindConfiguration(Storage.OsBrainStoreOptions.Key)
             .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration, IServiceProvider>((options, configuration, sp) => options.Directory = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, sp.GetService<DigitalBrain.Runtime.Orleans.RuntimeOptions>() ?? Identity.PresenceProofValidator.DefaultRuntimeOptions).State);
         services.AddSiloDiagnostics();
         services.TryAddSingleton<DigitalBrain.Identity.Local.Custody.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
@@ -73,7 +73,7 @@ public static class PlatformHosting
         services.TryAddSingleton<ConnectorCatalog>();
         services.TryAddSingleton<ICapabilities, Capabilities>();
         services.AddGrpc();
-        services.TryAddSingleton<IntoChat.OS.Connections.Surface.NeuronSurface>();
+        services.TryAddSingleton<IntoChat.OS.Connections.Surface.OsNeuronSurface>();
         silo.AddStartupTask<IntegrationSeeder>();
         services.Replace(ServiceDescriptor.Singleton(new DigitalBrain.Access.AccessOptions { UnstampedEdgeIsKernel = false }));
         services.TryAddSingleton<Identity.Authority.AuthorityMirror>();
@@ -116,7 +116,7 @@ public static class PlatformHosting
         IdentityEndpoints.Map(endpoints);
         Hosting.RuntimeManagementEndpoints.Map(endpoints);
         endpoints.MapSiloDiagnostics();
-        endpoints.MapGrpcService<Neurons.NeuronsService>();
+        endpoints.MapGrpcService<Neurons.NeuronsGrpcService>();
         IntoChat.OS.Connections.Http.HandleRoutes.Map(endpoints);
         return endpoints;
     }

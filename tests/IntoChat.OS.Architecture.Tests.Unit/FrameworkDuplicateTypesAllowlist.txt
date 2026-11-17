@@ -1,13 +1,2 @@
 # Duplicate public/internal type names declared in both framework/src and src/.
 # Ordered with StringComparer.Ordinal; this allowlist may only shrink.
-BrainRoutes
-BrainRow
-BrainStoreOptions
-DirectoryChanged
-DirectoryNeuron
-DirectoryState
-LoadedContracts
-NeuronInstance
-NeuronSurface
-NeuronsService
-NeutralCallMapping

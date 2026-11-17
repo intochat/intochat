@@ -83,7 +83,7 @@ public sealed class CredentialBoundaryFacts
             .ToArray();
         string[] Sites(Func<MethodBase, bool> does) => [.. methods.Where(does).Select(m => Outermost(m.DeclaringType!).FullName!).Distinct().Order()];
 
-        Assert.Equal(["IntoChat.OS.Authority.Identity.Authority.DirectoryNeuron", "IntoChat.OS.Authority.Identity.Grants.EdgeGrantsCache", "IntoChat.OS.Authority.Integrations.IntegrationNeuron", "IntoChat.OS.Authority.VaultPort"],
+        Assert.Equal(["IntoChat.OS.Authority.Identity.Authority.IdentityDirectoryGrain", "IntoChat.OS.Authority.Identity.Grants.EdgeGrantsCache", "IntoChat.OS.Authority.Integrations.IntegrationNeuron", "IntoChat.OS.Authority.VaultPort"],
             Sites(SetsAPlatformStamp));
         Assert.Equal(
             ["IntoChat.OS.Authority.Identity.AccountSession", "IntoChat.OS.Authority.Identity.AccountSessionIssuer", "IntoChat.OS.Authority.VaultPort"],

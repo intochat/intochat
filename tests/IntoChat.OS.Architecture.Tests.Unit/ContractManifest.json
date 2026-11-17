@@ -230,7 +230,7 @@
     "IntoChat.OS.Apps.Settings.SettingsRefreshConnections": "SettingsRefreshConnections",
     "IntoChat.OS.Apps.Settings.SettingsReloadPreferences": "SettingsReloadPreferences",
     "IntoChat.OS.Apps.Settings.SettingsSavePreferences": "SettingsSavePreferences",
-    "IntoChat.OS.Authority.Identity.Authority.DirectoryChanged": "DirectoryChanged",
+    "IntoChat.OS.Authority.Identity.Authority.IdentityDirectoryChanged": "IdentityDirectoryChanged",
     "IntoChat.OS.Authority.Identity.Contacts.ContactsChanged": "ContactsChanged",
     "IntoChat.OS.Authority.Identity.Grants.GrantsChanged": "GrantsChanged",
     "IntoChat.OS.Authority.Secrets.OsVaultChanged": "OsVaultChanged",

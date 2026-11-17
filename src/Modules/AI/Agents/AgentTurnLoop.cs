@@ -63,7 +63,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
             yield break;
         }
         var overrides = contexts.Where(entry => entry.EffectiveTags.Contains(ContextTags.Inference)).Select(entry => InferenceOverride.Parse(entry.Text)).ToArray();
-        var surface = services.GetService<NeuronSurface>();
+        var surface = services.GetService<OsNeuronSurface>();
         // B06: Callable tools come strictly from the agent definition's declared contracts; context entries never widen tools.
         string[] composed = surface is null ? [] : [.. plan.Contracts];
         if (composed.Length > 0 && surface is not null)

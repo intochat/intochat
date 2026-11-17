@@ -26,7 +26,7 @@ internal static class BrainEventsEndpoints
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public static void Map(IEndpointRouteBuilder endpoints)
-        => BrainRoutes.Group(endpoints).MapGet("/brain/events", Events);
+        => OsBrainRoutes.Group(endpoints).MapGet("/brain/events", Events);
 
     private static async Task Events(HttpContext http, CancellationToken ct)
     {

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Log;
+using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Contracts.Configuration;
@@ -16,7 +17,7 @@ using IntoChat.OS.Kernel.Mcp;
 namespace IntoChat.OS.Kernel.Mcp.Tools;
 
 [McpServerToolType]
-internal sealed class NeuronTools(NeuronSurface surface, McpCaller caller)
+internal sealed class NeuronTools(OsNeuronSurface surface, McpCaller caller)
 {
     private const int MaxMappedErrorLength = 500;
     [McpServerTool(Name = NeuronSurfaceTools.ListName), Description(NeuronSurfaceTools.ListDescription)]

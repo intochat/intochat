@@ -61,14 +61,14 @@ public static class SiloDiagnostics
             .AllowAnonymous(); // The configured key above authenticates these opt-in endpoints.
 
         group.MapGet("/silo", (IServiceProvider provider) => Results.Ok(Report(provider, configuration)));
-        group.MapGet("/canary", async (IOptions<BrainStoreOptions> store, CancellationToken ct) =>
+        group.MapGet("/canary", async (IOptions<OsBrainStoreOptions> store, CancellationToken ct) =>
         {
             var path = CanaryPathOf(store.Value);
             if (!File.Exists(path)) { return Results.NotFound(); }
             await using var stream = File.OpenRead(path);
             return Results.Ok(await JsonSerializer.DeserializeAsync<CanaryRecord>(stream, cancellationToken: ct));
         });
-        group.MapPost("/canary", async (CanaryWrite write, IOptions<BrainStoreOptions> store, CancellationToken ct) =>
+        group.MapPost("/canary", async (CanaryWrite write, IOptions<OsBrainStoreOptions> store, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(write.Value) || write.Value.Length > MaxCanaryLength) { return Results.BadRequest(); }
             var record = new CanaryRecord(write.Value, DateTimeOffset.UtcNow, Revision(configuration), Environment.MachineName);
@@ -99,7 +99,7 @@ public static class SiloDiagnostics
 
     private static SiloReport Report(IServiceProvider provider, IConfiguration configuration)
     {
-        _ = provider.GetRequiredService<IOptions<BrainStoreOptions>>().Value;
+        _ = provider.GetRequiredService<IOptions<OsBrainStoreOptions>>().Value;
         return new SiloReport(
             provider.GetService<ILocalSiloDetails>()?.SiloAddress.ToString(),
             provider.GetService<IOptions<ClusterOptions>>()?.Value.ClusterId,
@@ -112,7 +112,7 @@ public static class SiloDiagnostics
 
     private static string? Revision(IConfiguration configuration) => configuration[RevisionVariable] is { Length: > 0 } revision ? revision : null;
 
-    private static string CanaryPathOf(BrainStoreOptions store) => Path.Combine(store.Directory, CanaryDirectory, CanaryFile);
+    private static string CanaryPathOf(OsBrainStoreOptions store) => Path.Combine(store.Directory, CanaryDirectory, CanaryFile);
 }
 
 public sealed record SiloReport(string? SiloAddress, string? ClusterId, string? Revision, string Hostname, SiloStorage Storage, DigitalBrain.Runtime.Orleans.BrainOwnershipCounts Ownership);

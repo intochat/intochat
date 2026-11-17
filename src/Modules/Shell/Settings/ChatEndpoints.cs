@@ -24,7 +24,7 @@ internal static class ChatEndpoints
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = BrainRoutes.Group(endpoints, "/chats");
+        var group = OsBrainRoutes.Group(endpoints, "/chats");
         group.MapGet("", List);
         group.MapPost("/{id}/unarchive", Unarchive);
     }

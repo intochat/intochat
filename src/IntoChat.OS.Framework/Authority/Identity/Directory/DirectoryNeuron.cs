@@ -82,7 +82,7 @@ internal sealed record DirectoryAuthorizeRequest(
 }
 
 [DigitalBrain.Signal("identity.directory-changed")]
-internal sealed record DirectoryChanged(string Scope) : DigitalBrain.Signal;
+internal sealed record IdentityDirectoryChanged(string Scope) : DigitalBrain.Signal;
 
 internal sealed record PrincipalRow
 {
@@ -99,7 +99,7 @@ internal sealed record BrainOperation
     public required Member Member { get; init; }
 }
 
-internal sealed record BrainRow
+internal sealed record IdentityBrainRow
 {
     public string BrainId { get; init; } = "";
     public string? AccountId { get; init; }
@@ -109,16 +109,16 @@ internal sealed record BrainRow
     public BrainKind Kind { get; init; }
 }
 
-internal sealed record DirectoryState
+internal sealed record IdentityDirectoryState
 {
     public Account[] Accounts { get; init; } = [];
     public PrincipalRow[] Principals { get; init; } = [];
-    public BrainRow[] Brains { get; init; } = [];
+    public IdentityBrainRow[] Brains { get; init; } = [];
     public BrainOperation[] Operations { get; init; } = [];
 }
 
 [Neuron(IDirectoryStore.Type)]
-internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> auth, AuthorityMirror mirror, IServiceProvider? services = null) : Neuron<DirectoryState>, IDirectoryStore
+internal sealed class IdentityDirectoryGrain(TimeProvider clock, IOptions<AuthOptions> auth, AuthorityMirror mirror, IServiceProvider? services = null) : Neuron<IdentityDirectoryState>, IDirectoryStore
 {
     public static IDirectoryStore Open(IServiceProvider services) => SiloNeurons.Get<IDirectoryStore>(services, IDirectoryStore.Key);
 
@@ -315,7 +315,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         string? targetScope)
     {
         var brainId = caller.BrainId;
-        var brain = BrainOf(State, brainId) ?? new BrainRow { BrainId = brainId };
+        var brain = BrainOf(State, brainId) ?? new IdentityBrainRow { BrainId = brainId };
         var grantsBrain = BrainAuthorityDecisions.GrantsBrainOf(brainId, targetNeuron, targetScope);
         var durableGrants = await ReadGrants(grantsBrain);
         var allGrants = durableGrants.Length > 0 ? durableGrants : brain.Grants;
@@ -447,7 +447,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         }
     }
 
-    private Task<(DirectoryState Next, bool Created)> Provision(string operation, DirectoryState state, Member owner)
+    private Task<(IdentityDirectoryState Next, bool Created)> Provision(string operation, IdentityDirectoryState state, Member owner)
     {
         var account = AccountOf(state, owner.AccountId) ?? throw new UnauthorizedAccessException("Brain ownership does not match the account.");
         if (account.OwnerPrincipalId != owner.PrincipalId) { throw new UnauthorizedAccessException("Brain ownership does not match the account."); }
@@ -455,7 +455,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         return ProvisionOwnerRow(operation, next, owner);
     }
 
-    private async Task<(DirectoryState Next, bool Created)> ProvisionOwnerRow(string operation, DirectoryState state, Member owner)
+    private async Task<(IdentityDirectoryState Next, bool Created)> ProvisionOwnerRow(string operation, IdentityDirectoryState state, Member owner)
     {
         await Check(operation, new MemberIsOwnerRole(owner));
         var brain = BrainOf(state, owner.BrainId)!;
@@ -470,7 +470,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         return (JoinBrain(next, owner.PrincipalId, owner.BrainId, brain.Kind), true);
     }
 
-    private async Task<(DirectoryState Next, BrainProvision? Provision)> FinishRegistration(string operation, DirectoryState state, string principalId)
+    private async Task<(IdentityDirectoryState Next, BrainProvision? Provision)> FinishRegistration(string operation, IdentityDirectoryState state, string principalId)
     {
         var row = PrincipalOf(state, principalId);
         if (row?.DefaultMembership is not { } member) { return (state, null); }
@@ -482,7 +482,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         return (completed, new BrainProvision(member, created));
     }
 
-    private async Task<DirectoryState> AddMember(DirectoryState state, Member member)
+    private async Task<IdentityDirectoryState> AddMember(IdentityDirectoryState state, Member member)
     {
         var brain = BrainOf(state, member.BrainId);
         if (brain?.AccountId is { } owner && owner != member.AccountId)
@@ -499,14 +499,14 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         return JoinBrain(ReplaceBrain(state, brain with { Members = members }), member.PrincipalId, member.BrainId, brain.Kind);
     }
 
-    private static DirectoryState DropMember(DirectoryState state, string brainId, string principalId)
+    private static IdentityDirectoryState DropMember(IdentityDirectoryState state, string brainId, string principalId)
     {
         var brain = BrainOf(state, brainId)!;
         var members = brain.Members.Where(member => member.PrincipalId != principalId).ToArray();
         return LeaveBrain(ReplaceBrain(state, brain with { Members = members }), principalId, brainId);
     }
 
-    private DirectoryState RequireOwner(DirectoryState state, CapabilityCaller caller)
+    private IdentityDirectoryState RequireOwner(IdentityDirectoryState state, CapabilityCaller caller)
     {
         if (!RuntimeCallerContext.IsTrusted(caller) || caller.Kind != CallerKind.User || caller.BrainId.Length == 0)
         { throw new UnauthorizedAccessException("Only the current brain owner can manage grants."); }
@@ -515,10 +515,10 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         return state;
     }
 
-    private static DirectoryState Initialize(DirectoryState state, string accountId, string brainId)
+    private static IdentityDirectoryState Initialize(IdentityDirectoryState state, string accountId, string brainId)
     {
         var brain = BrainOf(state, brainId);
-        if (brain is null) { return ReplaceBrain(state, new BrainRow { BrainId = brainId, AccountId = accountId, Grants = ShippedGrants.ForAssistant(brainId) }); }
+        if (brain is null) { return ReplaceBrain(state, new IdentityBrainRow { BrainId = brainId, AccountId = accountId, Grants = ShippedGrants.ForAssistant(brainId) }); }
         if (brain.AccountId is not null && (brain.AccountId != accountId || brain.BrainId != brainId))
         {
             // authority: brain authority scope conflict is an authority invariant
@@ -527,32 +527,32 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         return brain.AccountId is null ? ReplaceBrain(state, brain with { AccountId = accountId }) : state;
     }
 
-    private async Task<DirectoryState> Classify(string operation, DirectoryState state, string brainId, BrainKind kind)
+    private async Task<IdentityDirectoryState> Classify(string operation, IdentityDirectoryState state, string brainId, BrainKind kind)
     {
-        var brain = BrainOf(state, brainId) ?? new BrainRow { BrainId = brainId };
+        var brain = BrainOf(state, brainId) ?? new IdentityBrainRow { BrainId = brainId };
         if (brain.Kind == kind) { return BrainOf(state, brainId) is null ? ReplaceBrain(state, brain) : state; }
         await Check(operation, new BrainKindIsMutable(brain));
         return ReplaceBrain(state, brain with { Kind = kind });
     }
 
-    private static DirectoryState JoinBrain(DirectoryState state, string principalId, string brainId, BrainKind kind)
+    private static IdentityDirectoryState JoinBrain(IdentityDirectoryState state, string principalId, string brainId, BrainKind kind)
     {
         var row = PrincipalOf(state, principalId) ?? new PrincipalRow { PrincipalId = principalId };
         if (row.Brains.Any(known => known.Id == brainId)) { return PrincipalOf(state, principalId) is null ? UpsertPrincipal(state, row) : state; }
         return UpsertPrincipal(state, row with { Brains = [.. row.Brains, new BrainEntry(brainId, kind)] });
     }
 
-    private static DirectoryState LeaveBrain(DirectoryState state, string principalId, string brainId)
+    private static IdentityDirectoryState LeaveBrain(IdentityDirectoryState state, string principalId, string brainId)
     {
         var row = PrincipalOf(state, principalId);
         if (row is null || !row.Brains.Any(known => known.Id == brainId)) { return state; }
         return UpsertPrincipal(state, row with { Brains = [.. row.Brains.Where(known => known.Id != brainId)] });
     }
 
-    private async Task Commit(DirectoryState next, string scope)
+    private async Task Commit(IdentityDirectoryState next, string scope)
     {
         if (ReferenceEquals(next, State)) { return; }
-        await Save(next, new DirectoryChanged(scope));
+        await Save(next, new IdentityDirectoryChanged(scope));
     }
 
     private void PublishMirror()
@@ -563,23 +563,23 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         }
     }
 
-    private static Account? AccountOf(DirectoryState state, string accountId) => state.Accounts.FirstOrDefault(account => account.AccountId == accountId);
+    private static Account? AccountOf(IdentityDirectoryState state, string accountId) => state.Accounts.FirstOrDefault(account => account.AccountId == accountId);
 
-    private static PrincipalRow? PrincipalOf(DirectoryState state, string principalId)
+    private static PrincipalRow? PrincipalOf(IdentityDirectoryState state, string principalId)
         => state.Principals.FirstOrDefault(row => row.PrincipalId == principalId);
 
-    private static BrainRow? BrainOf(DirectoryState state, string brainId)
+    private static IdentityBrainRow? BrainOf(IdentityDirectoryState state, string brainId)
         => state.Brains.FirstOrDefault(row => row.BrainId == brainId);
 
-    private static Member? OperationOf(DirectoryState state, string accountId, string operationId)
+    private static Member? OperationOf(IdentityDirectoryState state, string accountId, string operationId)
         => state.Operations.FirstOrDefault(row => row.AccountId == accountId && row.OperationId == operationId)?.Member;
 
-    private static Member? MemberOf(BrainRow? brain, string principalId)
+    private static Member? MemberOf(IdentityBrainRow? brain, string principalId)
         => brain?.Members.FirstOrDefault(member => member.PrincipalId == principalId);
 
-    private static DirectoryState UpsertPrincipal(DirectoryState state, PrincipalRow row)
+    private static IdentityDirectoryState UpsertPrincipal(IdentityDirectoryState state, PrincipalRow row)
         => state with { Principals = [.. state.Principals.Where(item => item.PrincipalId != row.PrincipalId), row] };
 
-    private static DirectoryState ReplaceBrain(DirectoryState state, BrainRow row)
+    private static IdentityDirectoryState ReplaceBrain(IdentityDirectoryState state, IdentityBrainRow row)
         => state with { Brains = [.. state.Brains.Where(item => item.BrainId != row.BrainId), row] };
 }

@@ -5,6 +5,7 @@ using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
+using DigitalBrain.Runtime.Http.Surface;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Connections.Contracts;
@@ -32,14 +33,15 @@ public static class NeuronSurfaceTools
 // The caller is stamped by the host before any of these run; each neuron's own access decides. What
 // exists is the kernel's answer for the caller's brain; this process only needs a contract to call it.
 // A migrated plain contract (06-03) is called through the host's IPlainNeurons; it has no grain reference to watch.
-public sealed class NeuronSurface(INeuronProxies brain, IBrainObserver kernel, NeuronTypeSearch search, IReadOnlySet<string>? allowed = null,
+public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel, NeuronTypeSearch search, IReadOnlySet<string>? allowed = null,
     IServiceProvider? plain = null)
 {
+    private static readonly string[] ContractAssemblyPrefixes = ["IntoChat.OS", "DigitalBrain"];
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
     private static readonly MethodInfo GetNeuron = typeof(INeuronProxies).GetMethod(nameof(INeuronProxies.Get))!;
 
     // The contracts one app composes: nothing outside them is listed, found or callable.
-    public async Task<NeuronSurface> Restrict(IReadOnlyCollection<string> names, CancellationToken ct)
+    public async Task<OsNeuronSurface> Restrict(IReadOnlyCollection<string> names, CancellationToken ct)
     {
         var neurons = await Neurons(ct).ConfigureAwait(false);
         foreach (var name in names)
@@ -223,7 +225,7 @@ public sealed class NeuronSurface(INeuronProxies brain, IBrainObserver kernel, N
 
 
     private async Task<Type> Contract(string name, CancellationToken ct)
-        => LoadedContracts.Find(Entry(await Neurons(ct).ConfigureAwait(false), name).Name);
+        => LoadedContracts.Find(Entry(await Neurons(ct).ConfigureAwait(false), name).Name, ContractAssemblyPrefixes);
 
     // A contract several neurons implement (IToolSource) has no grain type of its own; the model gets
     // the brain's reason, not a reflection wrapper, so it can switch to the hit's own contract.
@@ -244,6 +246,3 @@ public sealed class NeuronSurface(INeuronProxies brain, IBrainObserver kernel, N
 
     private static bool IsArgument(ParameterInfo parameter) => parameter.ParameterType != typeof(CancellationToken);
 }
-
-// One existing neuron as the surface lists it; Contract is the grain type when no deployed contract names it.
-public sealed record NeuronInstance(string Contract, string Key, DateTimeOffset Created, string? Creator);

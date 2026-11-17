@@ -35,7 +35,7 @@ public static class McpHosting
         services.TryAddSingleton<IBrainObserver>(IntoChat.OS.Kernel.Composition.Kernel.OsKernel.For);
         services.AddHttpContextAccessor();
         services.TryAddSingleton<McpCaller>();
-        services.TryAddScoped<NeuronSurface>();
+        services.TryAddScoped<OsNeuronSurface>();
         services.AddMcpServer().WithHttpTransport(options => options.Stateless = true)
             .WithTools<Tools.NeuronTools>().WithTools<Tools.ScreenTools>().WithTools<McpCaller>();
     }
@@ -60,7 +60,7 @@ public static class McpHosting
             }
         });
         // The one door a /try guest has. The root /mcp map above is not one.
-        BrainRoutes.Group(app).MapMcp("/mcp").WithMetadata(GuestSurface.Door.Instance).AddEndpointFilter(async (context, next) =>
+        OsBrainRoutes.Group(app).MapMcp("/mcp").WithMetadata(GuestSurface.Door.Instance).AddEndpointFilter(async (context, next) =>
         {
             if (!RuntimeCallerContext.TryGet(out var caller))
             {

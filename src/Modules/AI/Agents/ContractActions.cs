@@ -13,7 +13,7 @@ namespace IntoChat.OS.Modules.AI.Agents;
 // as the agent, marked model-originated so neurons can withhold what the model must not see.
 internal static class ContractActions
 {
-    public static IReadOnlyList<AIFunction> Create(NeuronSurface surface, string conversation) =>
+    public static IReadOnlyList<AIFunction> Create(OsNeuronSurface surface, string conversation) =>
     [
         AIFunctionFactory.Create(([Description("Optional full contract type name to list one type only.")] string? contract = null, CancellationToken ct = default) =>
             Marked(conversation, async () => await surface.List(contract, ct)), NeuronSurfaceTools.ListName, NeuronSurfaceTools.ListDescription),

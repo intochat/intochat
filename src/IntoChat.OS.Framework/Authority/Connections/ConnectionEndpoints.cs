@@ -19,7 +19,7 @@ internal static class ConnectionEndpoints
 {
     internal static void MapConnectionNeurons(this IEndpointRouteBuilder endpoints)
     {
-        var group = BrainRoutes.Group(endpoints, "/connections");
+        var group = OsBrainRoutes.Group(endpoints, "/connections");
 
         group.MapGet("", async (AuthorityNeurons neurons, [FromServices] IReadOnlyList<ConnectorDefinition> connectors) =>
         {

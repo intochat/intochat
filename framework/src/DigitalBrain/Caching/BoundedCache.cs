@@ -1,9 +1,8 @@
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
+namespace DigitalBrain.Caching;
 
-namespace IntoChat.OS.Connections.Caching;
-
-// A count-bounded least-recently-used cache. A full cache evicts its single least-recently-used entry, never the lot.
+/// <summary>
+/// A count-bounded least-recently-used cache. A full cache evicts its single least-recently-used entry, never the lot.
+/// </summary>
 public sealed class BoundedCache<TKey, TValue> where TKey : notnull
 {
     private readonly int capacity;

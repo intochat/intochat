@@ -114,7 +114,7 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, ct, siloServices: services =>
         {
             services.AddSingleton<IChatClient>(StubChatClient.Replying("Here is a joke and token sk_live_topsecret999!"));
-            services.AddSingleton(new NeuronSurface(null!, null!, null!));
+            services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddSingleton<ISecretValueSource>(new ZeroTokenGuardedSecretSource("sk_live_topsecret999"));
             services.AddSingleton<ISecretRedactor, SecretRedactor>();
@@ -146,7 +146,7 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
         {
             services.AddSingleton<IChatClient>(client);
             // The loop resolves the surface for every turn but touches it only when a contract is composed; these turns compose none.
-            services.AddSingleton(new NeuronSurface(null!, null!, null!));
+            services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
             services.AddSingleton<IAiCredentials, NoProviders>();
             services.AddSingleton<ISecretRedactor, NoSecrets>();
             services.AddOptions<AIOptions>();

@@ -357,6 +357,12 @@ DigitalBrain.Brains.Owner.AccountId.init -> void
 DigitalBrain.Brains.Owner.Deconstruct(out string! AccountId) -> void
 DigitalBrain.Brains.Owner.Equals(DigitalBrain.Brains.Owner? other) -> bool
 DigitalBrain.Brains.Owner.Owner(string! AccountId) -> void
+DigitalBrain.Caching.BoundedCache<TKey, TValue>
+DigitalBrain.Caching.BoundedCache<TKey, TValue>.BoundedCache(int capacity, System.Collections.Generic.IEqualityComparer<TKey>? comparer = null) -> void
+DigitalBrain.Caching.BoundedCache<TKey, TValue>.Count.get -> int
+DigitalBrain.Caching.BoundedCache<TKey, TValue>.GetOrAdd(TKey key, System.Func<TKey, TValue>! factory) -> TValue
+DigitalBrain.Caching.BoundedCache<TKey, TValue>.Set(TKey key, TValue value) -> void
+DigitalBrain.Caching.BoundedCache<TKey, TValue>.TryGet(TKey key, out TValue value) -> bool
 DigitalBrain.CallsAttribute
 DigitalBrain.CallsAttribute.CallsAttribute(string! from, string! to) -> void
 DigitalBrain.CallsAttribute.From.get -> string!

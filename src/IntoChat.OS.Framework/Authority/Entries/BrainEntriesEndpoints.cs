@@ -22,7 +22,7 @@ internal static class BrainEntriesEndpoints
 {
     internal static void MapBrainEntries(this IEndpointRouteBuilder endpoints)
     {
-        var group = BrainRoutes.Group(endpoints, "/entries");
+        var group = OsBrainRoutes.Group(endpoints, "/entries");
         group.AddEndpointFilter(RequireOwnerAsync);
 
         group.MapGet("", async (string brainId, AuthorityNeurons neurons) =>

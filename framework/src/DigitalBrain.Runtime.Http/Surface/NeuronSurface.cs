@@ -8,7 +8,7 @@ namespace DigitalBrain.Runtime.Http.Surface;
 /// <summary>
 /// Description of a neuron instance.
 /// </summary>
-public sealed record NeuronInstance(string Contract, string Key, DateTimeOffset Created, string Creator);
+public sealed record NeuronInstance(string Contract, string Key, DateTimeOffset Created, string? Creator);
 
 /// <summary>
 /// Provides neuron discovery and invocation surface over a runtime dispatcher.

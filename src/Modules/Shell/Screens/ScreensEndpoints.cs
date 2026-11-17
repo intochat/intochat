@@ -14,7 +14,7 @@ internal static class ScreensEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var group = BrainRoutes.Group(endpoints, "/screens").AddEndpointFilter(ModuleRouteGuard.Guard);
+        var group = OsBrainRoutes.Group(endpoints, "/screens").AddEndpointFilter(ModuleRouteGuard.Guard);
 
         group.MapGet("", async (INeuronProxies brain, CancellationToken ct) =>
         {

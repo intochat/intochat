@@ -18,7 +18,7 @@ internal static class MarketplaceEndpoints
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var marketplace = BrainRoutes.Group(endpoints, "/marketplace").AddEndpointFilter(ModuleRouteGuard.Guard);
+        var marketplace = OsBrainRoutes.Group(endpoints, "/marketplace").AddEndpointFilter(ModuleRouteGuard.Guard);
 
         marketplace.MapGet("", ([FromServices] MarketplaceView view, [FromServices] AppInstaller installer, CancellationToken ct) => AppsEndpoints.Respond(async () =>
         {

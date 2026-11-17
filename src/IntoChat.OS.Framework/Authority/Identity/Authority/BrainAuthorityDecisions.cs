@@ -11,7 +11,7 @@ namespace IntoChat.OS.Authority.Identity.Authority;
 internal static class BrainAuthorityDecisions
 {
     // Awaited, never blocked on: the expansion calls neurons, and a grain turn that blocks its scheduler on them deadlocks.
-    public static Task<CallDecision?> Decide(BrainRow state, Caller? caller, CallRequest request, IEdgeGrantsCache? edgeCache = null)
+    public static Task<CallDecision?> Decide(IdentityBrainRow state, Caller? caller, CallRequest request, IEdgeGrantsCache? edgeCache = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(request);
@@ -30,7 +30,7 @@ internal static class BrainAuthorityDecisions
     }
 
     internal static async Task<CallDecision?> Decide(
-        BrainRow state,
+        IdentityBrainRow state,
         CallerIdentity caller,
         string targetNeuron,
         string operation,
@@ -77,6 +77,6 @@ internal static class BrainAuthorityDecisions
         return EdgeGrantsCache.TryExtractBrain(targetNeuron, out var brain) ? brain.Value : callerBrain;
     }
 
-    private static Member? Member(BrainRow state, string principalId)
+    private static Member? Member(IdentityBrainRow state, string principalId)
         => state.Members.FirstOrDefault(member => member.PrincipalId == principalId);
 }

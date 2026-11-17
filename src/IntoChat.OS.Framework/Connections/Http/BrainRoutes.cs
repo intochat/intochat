@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Routing;
 
 namespace IntoChat.OS.Connections;
 
-public static class BrainRoutes
+public static class OsBrainRoutes
 {
     // The one place brain-scoped HTTP routes are rooted: /brains/{brainId} with route-id
     // validation and the membership filter applied once.
