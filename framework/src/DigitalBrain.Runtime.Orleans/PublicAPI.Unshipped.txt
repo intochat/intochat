@@ -691,9 +691,6 @@ static DigitalBrain.Runtime.Orleans.ClusterStoreHosting.UseClusterStore(this Mic
 static DigitalBrain.Runtime.Orleans.ClusterStoreHosting.UseClusterStore(this Microsoft.Extensions.Hosting.IHostApplicationBuilder! builder, System.Action<Orleans.Hosting.ISiloBuilder!>! register) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder!
 static DigitalBrain.Runtime.Orleans.Compute.TraceRequestContext.OriginOf(string! brainId, string! osKey) -> DigitalBrain.NeuronId
 static DigitalBrain.Runtime.Orleans.Hosting.NeutralCallMapping.IsOneWay(System.Reflection.MethodInfo! method) -> bool
-static DigitalBrain.Runtime.Orleans.Hosting.NeutralCallMapping.MayInterleave(System.Type! neuronClass, DigitalBrain.Invocation.BoundCall! bound, DigitalBrain.Invocation.RuntimeInvocation! call) -> bool
-static DigitalBrain.Runtime.Orleans.Hosting.NeutralCallMapping.MayInterleave(System.Type! neuronClass, Orleans.Serialization.Invocation.IInvokable! request) -> bool
-static DigitalBrain.Runtime.Orleans.Hosting.NeutralCallMapping.PredicateOf(System.Type! neuronClass) -> System.Func<DigitalBrain.Invocation.RuntimeInvocation!, bool>?
 static DigitalBrain.Runtime.Orleans.Hosting.NeutralCallMapping.TimeoutOf(System.Reflection.MethodInfo! method) -> System.TimeSpan?
 static DigitalBrain.Runtime.Orleans.Hosting.NeuronProxyHosting.AddNeuronProxies(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static DigitalBrain.Runtime.Orleans.Hosting.SiloNeurons.AuthorizeStreams(Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, DigitalBrain.NeuronId, DigitalBrain.Invocation.RuntimeInvocation!, System.Threading.Tasks.Task!>! authorize) -> void

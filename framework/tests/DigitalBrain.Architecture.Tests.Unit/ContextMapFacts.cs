@@ -28,7 +28,7 @@ public sealed class ContextMapFacts
     // Mentions against the map that exist during migration, as "Type -> Type". It may only shrink.
     private static readonly HashSet<string> Known = new(StringComparer.Ordinal)
     {
-        "DigitalBrain.Access.AccessGate -> DigitalBrain.Invocation.BoundCall",
+        "DigitalBrain.Access.AccessGate -> DigitalBrain.Kernel.CallDescriptor",
         "DigitalBrain.Kernel.ReactionTable -> DigitalBrain.Neurons.Neuron",
         "DigitalBrain.Kernel.ReactionTable+<Invoke>d__3 -> DigitalBrain.Neurons.Neuron",
         "DigitalBrain.Kernel.ReactionTable+<React>d__2 -> DigitalBrain.Neurons.Neuron",

@@ -20,7 +20,7 @@ internal static class CallPolicy
 
     /// <summary>Binds a call to the contract interface on the neuron class.</summary>
     /// <exception cref="BindingException">The class does not implement the contract, or the call does not bind.</exception>
-    public static BoundCall Bind(NeuronBinder binder, Type neuronClass, RuntimeInvocation call)
+    public static CallDescriptor Bind(NeuronBinder binder, Type neuronClass, RuntimeInvocation call)
     {
         ArgumentNullException.ThrowIfNull(binder);
         ArgumentNullException.ThrowIfNull(neuronClass);
@@ -35,26 +35,10 @@ internal static class CallPolicy
     }
 
     /// <summary>Whether <paramref name="call"/> may run while another turn of its neuron is suspended.</summary>
-    public static bool MayInterleave(Type neuronClass, BoundCall bound, RuntimeInvocation call)
-    {
-        ArgumentNullException.ThrowIfNull(bound);
-        return MayInterleave(neuronClass, bound.Method, call);
-    }
-
-    /// <summary>Whether <paramref name="call"/> may run while another turn of its neuron is suspended.</summary>
     public static bool MayInterleave(Type neuronClass, CallDescriptor descriptor, RuntimeInvocation call)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
-        if (descriptor.Method is not null)
-        {
-            return MayInterleave(neuronClass, descriptor.Method, call);
-        }
-
-        if (neuronClass.IsDefined(typeof(ReentrantAttribute), inherit: true)) { return true; }
-        if (descriptor.Scheduling == CallScheduling.Interleaved || descriptor.ReadOnly) { return true; }
-        if (PredicateOf(neuronClass) is not { } predicate) { return false; }
-        try { return predicate(call); }
-        catch (Exception error) when (error is not OutOfMemoryException) { return false; }
+        return MayInterleave(neuronClass, descriptor.Method, call);
     }
 
     /// <summary>Whether <paramref name="call"/> on <paramref name="method"/> may run while another turn of its neuron is suspended.</summary>
@@ -83,6 +67,13 @@ internal static class CallPolicy
     {
         ArgumentNullException.ThrowIfNull(neuronClass);
         return neuronClass.IsCollectible ? Resolve(neuronClass) : Predicates.GetOrAdd(neuronClass, Resolve);
+    }
+
+    /// <summary>Whether <paramref name="method"/> carries <see cref="OneWayCallAttribute"/>.</summary>
+    public static bool IsOneWay(MethodInfo method)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        return method.IsDefined(typeof(OneWayCallAttribute), false);
     }
 
     /// <summary>Gets the declared timeout override for the method, or null.</summary>

@@ -74,7 +74,6 @@ const DigitalBrain.Confirmation.IConfirmations.ConfirmationsNeuronKey = "confirm
 const DigitalBrain.Confirmation.IConfirmations.ResolveOperation = "Resolve" -> string!
 const DigitalBrain.Flows.Flow<T>.ExpiryReminder = "flow-expiry" -> string!
 const DigitalBrain.Flows.Flow<T>.NudgeReminder = "flow-nudge" -> string!
-const DigitalBrain.Invocation.NeuronBinder.DefaultMaximumArgumentBytes = 1048576 -> int
 const DigitalBrain.Kernel.SignalPage.MaxLimit = 1000 -> int
 const DigitalBrain.Modules.Options.ModuleOptionsSerialization.OptionsKeySuffix = ":Options" -> string!
 const DigitalBrain.Neurons.RevisionConflictException.Code = "RevisionConflict" -> string!
@@ -932,13 +931,6 @@ DigitalBrain.Invocation.BindingException
 DigitalBrain.Invocation.BindingException.BindingException() -> void
 DigitalBrain.Invocation.BindingException.BindingException(string! message) -> void
 DigitalBrain.Invocation.BindingException.BindingException(string! message, System.Exception! innerException) -> void
-DigitalBrain.Invocation.BoundCall
-DigitalBrain.Invocation.BoundCall.Access.get -> DigitalBrain.Access.OperationAccess
-DigitalBrain.Invocation.BoundCall.ArgumentCount.get -> int
-DigitalBrain.Invocation.BoundCall.Contract.get -> System.Type!
-DigitalBrain.Invocation.BoundCall.Kind.get -> DigitalBrain.Invocation.InvocationResultKind
-DigitalBrain.Invocation.BoundCall.Method.get -> System.Reflection.MethodInfo!
-DigitalBrain.Invocation.BoundCall.ResultType.get -> System.Type?
 DigitalBrain.Invocation.IInvocationSink
 DigitalBrain.Invocation.IInvocationSink.Invoke(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation! call, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Text.Json.JsonElement?>!
 DigitalBrain.Invocation.IInvocationSink.Post(DigitalBrain.NeuronId target, DigitalBrain.Invocation.RuntimeInvocation! call) -> System.Threading.Tasks.Task!
@@ -947,13 +939,6 @@ DigitalBrain.Invocation.InvocationResultKind
 DigitalBrain.Invocation.InvocationResultKind.None = 0 -> DigitalBrain.Invocation.InvocationResultKind
 DigitalBrain.Invocation.InvocationResultKind.Stream = 2 -> DigitalBrain.Invocation.InvocationResultKind
 DigitalBrain.Invocation.InvocationResultKind.Value = 1 -> DigitalBrain.Invocation.InvocationResultKind
-DigitalBrain.Invocation.NeuronBinder
-DigitalBrain.Invocation.NeuronBinder.Bind(System.Type! contract, DigitalBrain.Invocation.RuntimeInvocation! call) -> DigitalBrain.Invocation.BoundCall!
-DigitalBrain.Invocation.NeuronBinder.InvokeAsync(object! target, DigitalBrain.Invocation.BoundCall! call, System.Text.Json.JsonElement[]! arguments, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Text.Json.JsonElement?>!
-DigitalBrain.Invocation.NeuronBinder.MaximumArgumentBytes.get -> int
-DigitalBrain.Invocation.NeuronBinder.Misses.get -> long
-DigitalBrain.Invocation.NeuronBinder.NeuronBinder(int maximumArgumentBytes = 1048576) -> void
-DigitalBrain.Invocation.NeuronBinder.StreamAsync(object! target, DigitalBrain.Invocation.BoundCall! call, System.Text.Json.JsonElement[]! arguments, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<System.Text.Json.JsonElement>!
 DigitalBrain.Invocation.NeuronProxy
 DigitalBrain.Invocation.NeuronProxy.NeuronProxy() -> void
 DigitalBrain.Invocation.NeuronProxy.Target.get -> DigitalBrain.NeuronId
