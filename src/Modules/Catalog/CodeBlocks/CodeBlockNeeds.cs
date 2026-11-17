@@ -30,6 +30,17 @@ internal static class CodeBlockNeeds
         return [.. needs];
     }
 
+    // Contracts no code block may need: the ones that decide authority. A block acts for the person who approved it, so reaching
+    // these would let it answer its own approvals or widen its own reach.
+    private static readonly string[] AuthorityContracts =
+    [
+        "DigitalBrain.Confirmation.", "DigitalBrain.Capabilities.Identity.", "IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants",
+        "IntoChat.OS.Modules.Apps.Approvals.", "DigitalBrain.Policies.",
+    ];
+
+    internal static string[] Forbidden(string[] needs)
+        => [.. needs.Where(need => AuthorityContracts.Any(prefix => need.StartsWith(prefix, StringComparison.Ordinal)))];
+
     internal static string Hash(string[] needs)
         => "needs:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", needs.Order(StringComparer.Ordinal)))))[..16];
 

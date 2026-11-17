@@ -39,6 +39,10 @@ internal sealed class CodeBlockRunNeuron(AppPackageCompiler compiler, ISandboxRu
         var compiled = Compile();
         if (!compiled.Succeeded) { return await Finish(["compile"], null, Refusal(compiled)); }
         var needs = CodeBlockNeeds.Infer(compiled.AssemblyBytes);
+        if (CodeBlockNeeds.Forbidden(needs) is { Length: > 0 } forbidden)
+        {
+            return await Finish(["compile"], null, $"A code block may not use {string.Join(", ", forbidden)}: those decide authority.");
+        }
         if (needs.Length > 0 && !await Grants().IsApproved(CodeBlockNeeds.Hash(needs)))
         {
             var planId = $"cb-{Id.Key}";

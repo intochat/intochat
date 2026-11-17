@@ -41,6 +41,8 @@ internal sealed class ClientGrantsNeuron : DigitalBrain.Neurons.Neuron<ClientGra
 
     public Task<string[]> Allowed(string appKey) => Task.FromResult(State.Of(appKey)?.Needs ?? []);
 
+    public Task<string?> RunOf(string appKey) => Task.FromResult(State.Of(appKey)?.RunId);
+
     public async Task Record(string appKey, string call, bool allowed)
     {
         if (State.Of(appKey) is not { } binding) { return; }

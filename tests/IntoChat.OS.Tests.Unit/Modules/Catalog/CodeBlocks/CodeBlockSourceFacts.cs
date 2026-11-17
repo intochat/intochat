@@ -64,4 +64,11 @@ public sealed class CodeBlockSourceFacts
     [Fact]
     public void TheNeedsHashIgnoresOrder()
         => Assert.Equal(CodeBlockNeeds.Hash(["b", "a"]), CodeBlockNeeds.Hash(["a", "b"]));
+
+    [Theory]
+    [InlineData("DigitalBrain.Confirmation.IConfirmations")]
+    [InlineData("IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants")]
+    [InlineData("DigitalBrain.Capabilities.Identity.IGrants")]
+    public void AuthorityContractsAreNeverAllowedNeeds(string contract)
+        => Assert.Equal([contract], CodeBlockNeeds.Forbidden([contract, "IntoChat.OS.Modules.Apps.Runs.IRuns"]));
 }

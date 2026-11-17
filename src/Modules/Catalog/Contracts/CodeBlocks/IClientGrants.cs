@@ -29,6 +29,10 @@ public interface IClientGrants
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<string[]> Allowed(string appKey);
 
+    // The run a deployed block's app key belongs to; null when the key is not bound.
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
+    Task<string?> RunOf(string appKey);
+
     Task Record(string appKey, string call, bool allowed);
 
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
