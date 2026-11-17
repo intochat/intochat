@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 //   runs                          list the runs index
 //   send <app> <command> [json]   send a command to an installed sandbox app (one app run)
 //   start <workflow> [input]      start a workflow run
+//   cancel <run id> [reason]      stop a waiting workflow or code block run
 //   approve|deny <plan id>        answer a confirmation as the person at this machine
 // Gateway options: --gateway <port> --cluster <id> [--service os] [--brain owner] [--principal p] [--account a] [--limit 20].
 // Aspire shows the gateway (the kernel's second tcp endpoint) and Orleans__ClusterId; each option also reads INTOCHAT_<NAME>.
@@ -23,10 +24,10 @@ switch (options.Verb)
 {
     case "approve" or "deny":
         return await Answer(options, options.Verb == "approve");
-    case "runs" or "send" or "start":
+    case "runs" or "send" or "start" or "cancel":
         return await OverGateway(options);
     default:
-        Console.Error.WriteLine("usage: IntoChat.OS.Cli runs | send <app> <command> [json] | start <workflow> [input] | approve <plan> | deny <plan>  [options]");
+        Console.Error.WriteLine("usage: IntoChat.OS.Cli runs | send <app> <command> [json] | start <workflow> [input] | cancel <run> [reason] | approve <plan> | deny <plan>  [options]");
         return 2;
 }
 
@@ -60,6 +61,15 @@ static async Task<int> OverGateway(CliOptions options)
                         .Start(workflow, options.Arguments.ElementAtOrDefault(1) ?? "");
                     Console.WriteLine($"{started.Status} {started.RunId}{(started.PlanId is { } plan ? $"  (waits: approval {plan})" : "")}");
                     return started.Status == WorkflowRunStatus.Failed ? 1 : 0;
+                case "cancel" when options.Arguments is [var runId, ..]:
+                    var reason = options.Arguments.ElementAtOrDefault(1) ?? "Cancelled from the command line.";
+                    string? outcome = runId.StartsWith("workflows/", StringComparison.Ordinal)
+                        ? (await brains.Get<IWorkflowRun>($"{options.Brain}/{runId}").Cancel(reason))?.Status.ToString()
+                        : runId.StartsWith("codeblocks/", StringComparison.Ordinal)
+                            ? (await brains.Get<IntoChat.OS.Modules.Apps.CodeBlocks.ICodeBlockRun>($"{options.Brain}/{runId}").Cancel(reason))?.Status.ToString()
+                            : null;
+                    Console.WriteLine(outcome is null ? $"No cancellable run {runId}: workflows/ and codeblocks/ runs can be cancelled." : $"{outcome} {runId}");
+                    return outcome is null ? 1 : 0;
                 default:
                     Console.Error.WriteLine($"{options.Verb}: missing arguments.");
                     return 2;

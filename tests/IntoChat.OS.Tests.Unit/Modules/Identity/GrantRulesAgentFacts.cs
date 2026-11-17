@@ -112,6 +112,7 @@ public sealed class GrantRulesAgentFacts
     [InlineData("flows/test-brain/flows/index", true)]
     [InlineData("app.run/test-brain/commands/ticker/1", true)]
     [InlineData("workflow.run/test-brain/workflows/cli-1", true)]
+    [InlineData("codeblock.run/test-brain/codeblocks/1", true)]
     [InlineData("runtime.confirmations/test-brain/confirmations", false)]
     [InlineData("files.vfs/test-brain/main", false)]
     [InlineData("runs/other-brain/runs/index", false)]

@@ -58,6 +58,16 @@ public sealed class RunsStateFacts
     }
 
     [Fact]
+    public void ACancelledRunIsCancelledNotFailed()
+    {
+        var state = new RunsState().Fold(new CodeBlockRunStarted("cb-2", "count"), T0)
+            .Fold(new CodeBlockRunWaiting("cb-2", "plan-2", ["IRuns"]), T0)
+            .Fold(new CodeBlockRunDone("cb-2", false, null, "stop", Cancelled: true), T0.AddSeconds(1));
+        Assert.Equal(RunState.Cancelled, state.Runs[0].State);
+        Assert.Null(state.Runs[0].Waiting);
+    }
+
+    [Fact]
     public void AnEndForAnUnknownRunChangesNothing()
     {
         var state = new RunsState();

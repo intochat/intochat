@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Log;
+using IntoChat.OS.Framework.Logging;
 
 namespace IntoChat.OS.Modules.Apps.CodeBlocks;
 
@@ -57,6 +59,21 @@ internal sealed class CodeBlockRunNeuron(AppPackageCompiler compiler, ISandboxRu
     }
 
     public Task<CodeBlockRunView?> Read() => Task.FromResult(State.RunId.Length > 0 ? View() : null);
+
+    public async Task<CodeBlockRunView?> Cancel(string reason)
+    {
+        if (State.RunId.Length == 0) { return null; }
+        if (State.Status != CodeBlockStatus.Waiting) { return View(); }
+        if (State.PlanId is { } planId)
+        {
+            // Only who raised a question may withdraw it, or a person; otherwise it is left to expire and its answer is ignored.
+            try { await Confirmations().Withdraw(planId); }
+            catch (UnauthorizedAccessException refused) { OsConsoleLog.For<CodeBlockRunNeuron>().LogSwallowed(refused, "The question stays until it expires; the cancelled run ignores its answer."); }
+        }
+        var why = string.IsNullOrWhiteSpace(reason) ? "Cancelled." : reason;
+        await Save(State with { Status = CodeBlockStatus.Cancelled, Error = why, PlanId = null }, new CodeBlockRunDone(Id.Key, false, null, why, Cancelled: true));
+        return View();
+    }
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
