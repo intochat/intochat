@@ -318,7 +318,6 @@
     "IntoChat.OS.Modules.Microsoft.Playwright.BrowserUnavailable": "BrowserUnavailable",
     "IntoChat.OS.Modules.Microsoft.Playwright.PageToolsChanged": "PageToolsChanged",
     "IntoChat.OS.Modules.Microsoft.Roslyn.WorkspaceChanged": "WorkspaceChanged",
-    "IntoChat.OS.Modules.Microsoft.Windows.Signals.FileWritten": "FileWritten",
     "IntoChat.OS.Modules.Postgres.Tables.Signals.RowDeleted": "RowDeleted",
     "IntoChat.OS.Modules.Postgres.Tables.Signals.RowUpserted": "RowUpserted",
     "IntoChat.OS.Modules.Postgres.Tables.Signals.TableDefined": "TableDefined",
