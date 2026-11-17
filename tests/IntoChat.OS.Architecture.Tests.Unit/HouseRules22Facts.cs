@@ -402,6 +402,8 @@ public sealed class HouseRules22Facts
         var allowed = new HashSet<(string Project, string File)>
         {
             ("IntoChat.OS.Kernel", "Kernel.cs"),
+            // The one place os platform code releases a credential to module code as the kernel.
+            ("IntoChat.OS.Framework", "PlatformCall.cs"),
         };
         var offenders = new List<string>();
         foreach (var src in ProductionSources.Value)

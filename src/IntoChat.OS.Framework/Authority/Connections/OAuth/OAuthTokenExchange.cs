@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using System.Globalization;
 using System.Text.Json;
 using DigitalBrain.Brains;
@@ -17,7 +19,7 @@ namespace IntoChat.OS.Authority.Connections.OAuth;
 
 internal sealed class OAuthTokenExchange(
     IReadOnlyList<ConnectorDefinition> connectors, AuthorityNeurons neurons, IOptions<ConnectionsOptions> options,
-    TimeProvider clock, IHttpClientFactory clients, ModulePriceListRegistry operations) : IOAuthTokenExchange
+    TimeProvider clock, IHttpClientFactory clients, ModulePriceListRegistry operations, EdgeAuthority edge) : IOAuthTokenExchange
 {
     public const string HttpClientName = "IntoChat.OS.Connections.OAuth";
     public const string MeteredHttpClientName = "IntoChat.OS.Connections.OAuth.Metered";
@@ -45,13 +47,13 @@ internal sealed class OAuthTokenExchange(
     internal string TokenEndpoint(string connectorId, OAuthMethod method)
         => options.Value.TokenEndpoints.TryGetValue(connectorId, out var endpoint) ? endpoint : method.TokenEndpoint;
 
-    // The Integration neuron's Release demands its own platform stamp; the client values never leave this method.
+    // The Integration neuron releases only to the kernel; the client values never leave this method.
     internal async Task<(string Id, string Secret)> ClientAsync(OAuthMethod method, CancellationToken ct)
     {
         var integration = neurons.Integration(method.IntegrationId);
         if ((await integration.Read().WaitAsync(ct)).Status != IntegrationStatus.Ready)
         { throw new InvalidOperationException($"Integration '{method.IntegrationId}' is not configured."); }
-        var released = await integration.Release(IntegrationNeuron.PlatformCaller).WaitAsync(ct);
+        var released = await edge.AsKernel(BrainId.Kernel, () => integration.Release().WaitAsync(ct));
         // An optional client field can be missing from a Ready integration; refuse before any redirect.
         if (!released.Values.TryGetValue(method.ClientIdField, out var id) || string.IsNullOrWhiteSpace(id)
             || !released.Values.TryGetValue(method.ClientSecretField, out var secret) || string.IsNullOrWhiteSpace(secret))
