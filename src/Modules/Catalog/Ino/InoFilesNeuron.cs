@@ -90,7 +90,7 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
         var plan = WritePlan.WriteFile(root.Id, name, System.Text.Encoding.UTF8.GetBytes(content ?? string.Empty), ConflictPolicy.Fail)
             with { RequiresPerson = true };
 
-        await Context.Synapses.EnsureBrainWide(typeof(OperationDone), typeof(TurnCompleted));
+        await Context.Wires.EnsureBrainWide(typeof(OperationDone), typeof(TurnCompleted));
         var operation = await operations.Start(plan, CancellationToken.None);
         var write = new InoFileWrite(operation.Id.Value, conversation, name, root.Name);
         await Save(State with { Writes = [.. State.Writes.TakeLast(KeptWrites - 1), write] },

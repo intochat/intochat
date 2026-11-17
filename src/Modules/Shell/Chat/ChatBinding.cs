@@ -104,7 +104,7 @@ internal sealed partial class ChatNeuron
 
     private async Task Unfollow(DigitalBrain.NeuronId source)
     {
-        await Context.Synapses.Remove(source);
+        await Context.Wires.Remove(source);
         if (_following == source) { _following = null; }
     }
 
@@ -114,7 +114,7 @@ internal sealed partial class ChatNeuron
         var subscription = Adapter.Subscription(selected.Agent);
         if (_following is { } old && old != subscription.Source) { await Unfollow(old); }
         // Idempotent: the source admits the synapse again on every Ensure.
-        await Context.Synapses.Ensure(subscription.Source, subscription.Signals);
+        await Context.Wires.Ensure(subscription.Source, subscription.Signals);
         _following = subscription.Source;
         _dirty = true;
         await Reconcile();

@@ -224,7 +224,7 @@ public sealed class InstallsNeuron(ISynapseCatalogSource catalog, IInstallHooks 
 
     /// <inheritdoc />
     protected override Task OnActivate(CancellationToken cancellationToken)
-        => Context.Synapses.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain));
+        => Context.Wires.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain));
 
     private NeuronId StateOf(string alias) => new(Id.Brain, alias, "default");
 

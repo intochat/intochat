@@ -6,7 +6,7 @@ using DigitalBrain.Time;
 namespace DigitalBrain.Testing;
 
 // The install hooks of a TestOS: a state neuron's reaction edges are its one brain-wide synapse in the registry (what
-// Context.Synapses.EnsureBrainWide of its host holds), and its schedules are registrations with {brain}/time/default owned by its alias.
+// Context.Wires.EnsureBrainWide of its host holds), and its schedules are registrations with {brain}/time/default owned by its alias.
 internal sealed class TestInstallHooks(TestOS os) : IInstallHooks
 {
     private const string TimeType = "time";

@@ -283,8 +283,8 @@ internal sealed class AgentNeuron(
         { throw new ArgumentException("Instructions, contracts or contexts are invalid.", nameof(definition)); }
         foreach (var id in ContextIds(definition.Contexts))
         {
-            await Context.Synapses.Ensure<ContextUpdated>(id);
-            await Context.Synapses.Ensure<ContextRemoved>(id);
+            await Context.Wires.Ensure<ContextUpdated>(id);
+            await Context.Wires.Ensure<ContextRemoved>(id);
         }
         _mutating = true;
         try

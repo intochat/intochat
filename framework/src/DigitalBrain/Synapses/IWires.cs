@@ -7,7 +7,7 @@ namespace DigitalBrain.Kernel;
 /// Every call is idempotent. The source authorizes the subscriber when the synapse is created (<c>AdmitSynapse</c>).
 /// A subscriber never subscribes to itself.
 /// </summary>
-public interface ISynapses
+public interface IWires
 {
     /// <summary>Ensures signals of type <typeparamref name="TSignal"/> published by <paramref name="from"/> reach this neuron.</summary>
     /// <exception cref="ArgumentException"><paramref name="from"/> is this neuron.</exception>

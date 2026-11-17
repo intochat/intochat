@@ -53,7 +53,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
         await TryOptionalAsync("settings", () => Follow<IUserSettings, UserSettingsChanged>("settings"));
-        await TryOptionalAsync("confirmations-synapses", () => Context.Synapses.EnsureBrainWide([typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged)]));
+        await TryOptionalAsync("confirmations-synapses", () => Context.Wires.EnsureBrainWide([typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged)]));
         _canDictate = await InoModelSetup.InitializeViewAsync(Setup);
         var agentKey = InoModel.AgentKeyOf(State.ConversationId);
         await TryOptionalAsync("conversations-registry", () => Get<IInoConversations>(IInoConversations.DefaultKey).Use(agentKey));

@@ -5,7 +5,7 @@ using DigitalBrain.Neurons;
 namespace DigitalBrain.Tests.Unit.Neurons;
 
 // Records what a neuron asks of its runtime: state writes, publishes and Get calls.
-internal sealed class RecordingContext(NeuronId id) : INeuronContext, INeuronSeat, ISynapses, ISignalHistory
+internal sealed class RecordingContext(NeuronId id) : INeuronContext, INeuronSeat, IWires, ISignalHistory
 {
     private object? _stored;
 
@@ -39,7 +39,7 @@ internal sealed class RecordingContext(NeuronId id) : INeuronContext, INeuronSea
 
     public IConfirmations? RecordedConfirmations { get; set; }
 
-    public ISynapses Synapses => this;
+    public IWires Wires => this;
 
     public ISignalHistory History => this;
 
@@ -47,7 +47,7 @@ internal sealed class RecordingContext(NeuronId id) : INeuronContext, INeuronSea
 
     public DigitalBrain.Access.Caller? Caller { get; set; }
 
-    public List<Synapse> SynapseList { get; } = [];
+    public List<Wire> SynapseList { get; } = [];
 
     public List<NeuronId> Removed { get; } = [];
 
@@ -125,7 +125,7 @@ internal sealed class RecordingContext(NeuronId id) : INeuronContext, INeuronSea
         if (from == Id) { throw new ArgumentException("A neuron does not subscribe to itself.", nameof(from)); }
         foreach (var signal in signals)
         {
-            var synapse = new Synapse(from, signal, Id);
+            var synapse = new Wire(from, signal, Id);
             if (!SynapseList.Contains(synapse)) { SynapseList.Add(synapse); }
         }
         return Task.CompletedTask;

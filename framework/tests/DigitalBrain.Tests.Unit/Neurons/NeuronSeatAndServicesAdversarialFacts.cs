@@ -59,7 +59,7 @@ public sealed class FaultyFailingSeat : INeuronSeat, INeuronContext
     public TimeProvider Time => TimeProvider.System;
     public ITimers Timers => throw new NotImplementedException();
     public IReminders Reminders => throw new NotImplementedException();
-    public ISynapses Synapses => throw new NotImplementedException();
+    public IWires Wires => throw new NotImplementedException();
     public IServiceProvider Services => new ServiceCollection().BuildServiceProvider();
 
     public Task<TState?> Load<TState>() where TState : class => Task.FromResult<TState?>(null);

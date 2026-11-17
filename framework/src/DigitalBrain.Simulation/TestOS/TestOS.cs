@@ -382,7 +382,7 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
     }
 
     /// <summary>Every synapse this TestOS holds. A TestOS has no stamped caller, so the list is not limited to one brain.</summary>
-    Task<ObservedSynapse[]> IBrainObserver.Synapses(CancellationToken cancellationToken)
+    Task<ObservedWire[]> IBrainObserver.Wires(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(Delivery.All());
@@ -515,7 +515,7 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
     }
 
     /// <summary>The synapses <paramref name="subscriber"/> holds.</summary>
-    public IReadOnlyList<Synapse> SynapsesOf(NeuronId subscriber) => Delivery.Of(subscriber);
+    public IReadOnlyList<Wire> SynapsesOf(NeuronId subscriber) => Delivery.Of(subscriber);
 
     /// <summary>The last sequence of <paramref name="source"/> that <paramref name="subscriber"/> has reacted to, or null without a synapse.</summary>
     public long? Cursor(NeuronId subscriber, NeuronId source) => Delivery.Cursor(subscriber, source);

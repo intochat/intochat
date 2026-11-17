@@ -36,11 +36,11 @@ internal sealed class SandboxSignalRouterNeuron(ISandboxRuntimeBridge? bridge = 
         {
             if (string.Equals(signal, "windows.file-changed", StringComparison.OrdinalIgnoreCase))
             {
-                await Context.Synapses.Ensure<FileChanged>(new NeuronId(Id.Brain, "windows.folder", "folders")).ConfigureAwait(false);
+                await Context.Wires.Ensure<FileChanged>(new NeuronId(Id.Brain, "windows.folder", "folders")).ConfigureAwait(false);
             }
             else if (string.Equals(signal, "notifications.sent", StringComparison.OrdinalIgnoreCase))
             {
-                await Context.Synapses.Ensure<NotificationSent>(new NeuronId(Id.Brain, "notifications.inbox", "inbox")).ConfigureAwait(false);
+                await Context.Wires.Ensure<NotificationSent>(new NeuronId(Id.Brain, "notifications.inbox", "inbox")).ConfigureAwait(false);
             }
         }
     }

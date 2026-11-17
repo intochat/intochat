@@ -357,10 +357,10 @@ public sealed class InoSiloFixture : IAsyncLifetime
             return Task.FromResult(Array.Empty<string>());
         }
 
-        public Task<ObservedSynapse[]> Synapses(CancellationToken cancellationToken = default)
+        public Task<ObservedWire[]> Wires(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(Array.Empty<ObservedSynapse>());
+            return Task.FromResult(Array.Empty<ObservedWire>());
         }
 
         public IAsyncEnumerable<SignalDelivery> Deliveries(CancellationToken cancellationToken = default)

@@ -298,7 +298,7 @@ DigitalBrain.Testing.PresentedView.View.get -> DigitalBrain.UI.View?
 DigitalBrain.Testing.RecordingSynapses
 DigitalBrain.Testing.RecordingSynapses.BrainWide.get -> System.Collections.Generic.IReadOnlyCollection<System.Type!>!
 DigitalBrain.Testing.RecordingSynapses.BrainWideAliases.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
-DigitalBrain.Testing.RecordingSynapses.Current.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Kernel.Synapse!>!
+DigitalBrain.Testing.RecordingSynapses.Current.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Kernel.Wire!>!
 DigitalBrain.Testing.RecordingSynapses.Ensure(DigitalBrain.NeuronId from, params System.Type![]! signals) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.RecordingSynapses.Ensure<TSignal>(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.RecordingSynapses.EnsureBrainWide(params System.Type![]! signals) -> System.Threading.Tasks.Task!
@@ -494,7 +494,7 @@ DigitalBrain.Testing.TestOS.SeedStoredState(DigitalBrain.NeuronId id, string! js
 DigitalBrain.Testing.TestOS.Services.get -> System.IServiceProvider!
 DigitalBrain.Testing.TestOS.Source.get -> DigitalBrain.Units.SynapseCatalogSource!
 DigitalBrain.Testing.TestOS.Synapses.get -> DigitalBrain.Units.ISynapseHost!
-DigitalBrain.Testing.TestOS.SynapsesOf(DigitalBrain.NeuronId subscriber) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Kernel.Synapse!>!
+DigitalBrain.Testing.TestOS.SynapsesOf(DigitalBrain.NeuronId subscriber) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Kernel.Wire!>!
 DigitalBrain.Testing.TestOS.Types(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Kernel.BrainType![]!>!
 DigitalBrain.Testing.TestOS.Unregister(string! alias) -> DigitalBrain.Testing.TestOS!
 DigitalBrain.Testing.TestOS.With<TCapability>(string! name, TCapability! fake) -> DigitalBrain.Testing.TestOS!

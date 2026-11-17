@@ -142,7 +142,7 @@ public sealed class PoliciesNeuron : Neuron<PoliciesState>, IPolicies
 
     /// <inheritdoc />
     protected override Task OnActivate(CancellationToken cancellationToken)
-        => Context.Synapses.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain));
+        => Context.Wires.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain));
 
     private IReadOnlyList<ActionDescriptor> DeclaredActions
         => Seat.Services.GetService(typeof(IReadOnlyList<ActionDescriptor>)) as IReadOnlyList<ActionDescriptor> ?? [];

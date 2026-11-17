@@ -211,7 +211,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         catch (Exception ex) { Log.LogSwallowed(ex, "Workspace follow is optional when running in standalone mode."); }
         try { await Follow<ISynapseStudio, SynapseStudioChanged>("ino/synapses"); }
         catch (Exception ex) when (ex is not OperationCanceledException) { Log.LogSwallowed(ex, "SynapseStudio follow is optional when running in standalone mode."); }
-        try { await Context.Synapses.EnsureBrainWide([typeof(DigitalBrain.Confirmation.ConfirmationResolved)]); }
+        try { await Context.Wires.EnsureBrainWide([typeof(DigitalBrain.Confirmation.ConfirmationResolved)]); }
         catch (Exception ex) when (ex is not OperationCanceledException) { Log.LogSwallowed(ex, "ConfirmationResolved follow is optional when running in standalone mode."); }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }

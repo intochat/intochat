@@ -125,7 +125,7 @@ internal sealed class AsksNeuron(ISynapseCatalogSource catalog, IUnitResolver? u
     }
 
     public Task Attach(CancellationToken ct) =>
-        Context.Synapses.Ensure<Asked>(new NeuronId(Id.Brain, Id.Key, "default"));
+        Context.Wires.Ensure<Asked>(new NeuronId(Id.Brain, Id.Key, "default"));
 
     public async Task Detach(CancellationToken ct)
     {
@@ -136,7 +136,7 @@ internal sealed class AsksNeuron(ISynapseCatalogSource catalog, IUnitResolver? u
             await Get<IAskBatch>(AskRules.BatchOf(Id, batches[i].Id)).Drop().ConfigureAwait(true);
         }
 
-        await Context.Synapses.Remove(new NeuronId(Id.Brain, Id.Key, "default")).ConfigureAwait(true);
+        await Context.Wires.Remove(new NeuronId(Id.Brain, Id.Key, "default")).ConfigureAwait(true);
         Context.Timers.Stop(DueTimer);
         await Context.Reminders.Stop(NudgeReminder).ConfigureAwait(true);
         await Save(new AsksState(), []).ConfigureAwait(true);

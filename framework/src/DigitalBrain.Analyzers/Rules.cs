@@ -21,7 +21,7 @@ internal static class Rules
     // 04-03 (CORE-06): ids DB0013/DB0014 sit after Phase 8's reserved DB0001..DB0012 set.
     public static readonly DiagnosticDescriptor SignalLoop = new(
         "DB0013", "Signal loop inside a Neuron or App",
-        "'{0}' loops over a {1} stream; use an [On] reaction and Context.Synapses.Ensure",
+        "'{0}' loops over a {1} stream; use an [On] reaction and Context.Wires.Ensure",
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
 
     // The first rule off by default: consumers opt in with `dotnet_diagnostic.DB0040.severity = warning` in .editorconfig.

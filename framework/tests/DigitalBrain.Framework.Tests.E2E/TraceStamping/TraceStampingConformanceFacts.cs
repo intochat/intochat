@@ -153,7 +153,7 @@ public sealed class TraceCounterNeuron : Neuron<TraceCount>, ITraceCounter
 [Neuron("trace.relay", State = "trace-count")]
 public sealed class TraceRelayNeuron : Neuron<TraceCount>, ITraceFollower
 {
-    public Task Follow(string source) => Context.Synapses.Ensure<TraceCounted>(NeuronId.Parse(source));
+    public Task Follow(string source) => Context.Wires.Ensure<TraceCounted>(NeuronId.Parse(source));
 
     [On]
     public Task On(TraceCounted signal) => Save(State with { Value = signal.Value }, new TraceRelayed(signal.Value));
@@ -163,7 +163,7 @@ public sealed class TraceRelayNeuron : Neuron<TraceCount>, ITraceFollower
 [Neuron("trace.caller")]
 public sealed class TraceCallerNeuron : Neuron, ITraceFollower
 {
-    public Task Follow(string source) => Context.Synapses.Ensure<TraceCounted>(NeuronId.Parse(source));
+    public Task Follow(string source) => Context.Wires.Ensure<TraceCounted>(NeuronId.Parse(source));
 
     [On]
     public Task On(TraceCounted signal) => Get<ITraceCounter>(new NeuronId(Id.Brain, "trace.counter", Id.Key + "-called")).Add(signal.Value);

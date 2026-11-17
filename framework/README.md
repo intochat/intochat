@@ -77,7 +77,8 @@ Trimmed from [`examples/Calculator.Tests.Unit/CalculatorFacts.cs`](examples/Calc
 | Neuron | `[Neuron]`, `Neuron<TState>` | An addressable unit with a `NeuronId` (brain, type, key). It runs one turn at a time. `Save` stores the next state and its signals together. |
 | Signal | `[Signal]`, `Signal` | An immutable typed fact a neuron publishes. The alias is frozen. |
 | Reaction | `[On]` | A method that runs when a signal arrives. |
-| Synapse | `[Synapse]`, `ISynapses` | A durable route that carries one signal type from one neuron to another. |
+| Wire | `IWires`, `Wire` | A durable route that carries one signal type from one neuron to another. |
+| Synapse | `[Synapse]`, `[State]` | Behavior: a pure function over one state record, fed by signals along wires. |
 | Screen | `Screen<TState>`, `IScreen` | A neuron whose state has one stored view. `Render` builds the view, `Show` saves the state and the view together. |
 | Rule | `Rule` | A named invariant. `Check` refuses the turn when a rule is broken. |
 | Module | `[Module]`, `Module`, `ModuleManifest` | A unit of code that declares `Provides`, `Requires`, `Needs`, `Settings` and `Secrets`. |

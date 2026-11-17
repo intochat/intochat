@@ -25,7 +25,7 @@ internal sealed class SecurityPostureNeuron : AiNeuron<SecurityPostureState>, IS
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        await Context.Synapses.Ensure<GrantsChanged>(GrantsId);
+        await Context.Wires.Ensure<GrantsChanged>(GrantsId);
         // The first read only learns what is held; nothing was lost yet.
         if (!Snapshot.Seeded) { await Read(announce: false); }
     }

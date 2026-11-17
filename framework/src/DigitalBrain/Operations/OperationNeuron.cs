@@ -56,7 +56,7 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
                 return;
             }
 
-            await Context.Synapses.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain)).ConfigureAwait(true);
+            await Context.Wires.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain)).ConfigureAwait(true);
             return;
         }
     }
@@ -96,7 +96,7 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
         if (transition is { } t)
         {
             await Save(t.Next, t.Signals).ConfigureAwait(true);
-            await Context.Synapses.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain)).ConfigureAwait(true);
+            await Context.Wires.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain)).ConfigureAwait(true);
             await Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain)).Request(approval.Question).ConfigureAwait(true);
         }
     }
@@ -128,7 +128,7 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
 #pragma warning disable CA1031
         try
         {
-            await Context.Synapses.Remove(IConfirmationRequests.Of(Id.Brain)).ConfigureAwait(true);
+            await Context.Wires.Remove(IConfirmationRequests.Of(Id.Brain)).ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
