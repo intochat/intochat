@@ -36,5 +36,6 @@ public static class DevUIHosting
         app.MapOpenAIResponses();
         app.MapOpenAIConversations();
         app.MapDevUI();
+        RunsPage.Map(app);
     }
 }

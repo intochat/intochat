@@ -1,0 +1,62 @@
+using DigitalBrain.Flows;
+using DigitalBrain.Operations;
+using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.Apps.Flows;
+
+namespace IntoChat.OS.Modules.Apps.Runs;
+
+// The agent turns and operations folded from their own signals; flows are not copied here, the flows index already keeps them.
+internal sealed record RunsState(RunView[] Runs)
+{
+    internal const int Kept = 500;
+
+    public RunsState() : this([]) { }
+
+    internal RunsState Fold(DigitalBrain.Signal signal, DateTimeOffset at) => signal switch
+    {
+        TurnStarted started => Put(new RunView(started.RunId, RunKind.AgentTurn, Title(started.UserText), RunState.Running, null,
+            started.AgentId, null, at, null, [], "answering", null)),
+        TurnCompleted completed => Update(completed.RunId, run => run with { State = RunState.Succeeded, Ended = at, Current = null, Detail = Title(completed.Reply) }),
+        TurnFailed failed => Update(failed.RunId, run => run with
+        {
+            State = failed.Cancelled ? RunState.Cancelled : RunState.Failed, Ended = at, Current = null, Detail = failed.Error,
+        }),
+        OperationStarted started => Put(new RunView(started.Operation.Value, RunKind.Operation, started.Kind, RunState.Running, null,
+            started.Origin, null, at, null, [], null, null)),
+        OperationAwaitingApproval awaiting => Update(awaiting.Operation.Value, run => run with { State = RunState.Waiting, Waiting = $"approval {awaiting.PlanId}" }),
+        OperationDone done => Update(done.Operation.Value, run => run with { State = Outcome(done.Result), Waiting = null, Ended = at, Detail = Describe(done.Result) }),
+        _ => this,
+    };
+
+    // A flow as a run, from the flows index's own view.
+    internal static RunView Of(FlowView flow) => new(flow.FlowId, RunKind.Flow, flow.Title, flow.Status switch
+    {
+        FlowStatus.Waiting or FlowStatus.Blocked => RunState.Waiting,
+        FlowStatus.Completed => RunState.Succeeded,
+        FlowStatus.Failed => RunState.Failed,
+        FlowStatus.Cancelled => RunState.Cancelled,
+        _ => RunState.Running,
+    }, flow.WaitingFor is { } reason ? $"{reason.ToString().ToLowerInvariant()} {flow.ConfirmationPlanId ?? flow.WaitingStep}".Trim() : null,
+        flow.Owner, flow.TraceId, flow.Started, flow.Ended, flow.Steps, flow.Current, flow.Detail);
+
+    // Running and waiting first, then newest first.
+    internal static RunView[] Order(IEnumerable<RunView> runs, int limit)
+        => [.. runs.OrderBy(run => run.State is RunState.Running or RunState.Waiting ? 0 : 1).ThenByDescending(run => run.Started).Take(Math.Clamp(limit, 1, 200))];
+
+    private RunsState Put(RunView run)
+        => this with { Runs = [.. Runs.Where(item => item.Id != run.Id).TakeLast(Kept - 1), run] };
+
+    private RunsState Update(string id, Func<RunView, RunView> change)
+        => Array.FindIndex(Runs, run => run.Id == id) is var index and >= 0 ? this with { Runs = Runs.Select((run, i) => i == index ? change(run) : run).ToArray() } : this;
+
+    private static RunState Outcome(OperationResult result) => result switch
+    {
+        OperationResult.Succeeded or OperationResult.Planned => RunState.Succeeded,
+        OperationResult.Cancelled => RunState.Cancelled,
+        _ => RunState.Failed,
+    };
+
+    private static string? Describe(OperationResult result) => result is OperationResult.Failed failed ? $"{failed.Code}: {failed.Message}" : null;
+
+    private static string Title(string? text) => string.IsNullOrWhiteSpace(text) ? "" : text.Length <= 120 ? text : text[..120] + "…";
+}
