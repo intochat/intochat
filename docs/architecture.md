@@ -11,7 +11,7 @@ The product has four parts.
 | Modules | Capabilities and connectors the kernel composes. | `src/Modules` |
 | Shell | What you see: the Flutter client and the desktop launcher. | `ui`, `src/IntoChat.OS.Desktop` |
 
-`src/IntoChat.OS.Framework` holds product-side hosting code (identity, connections, `SiloAccessCallFilter`, `NeuronsGrpcService`). `src/IntoChat.OS.AppHost/Hosting/IntoChatOSHostingExtensions.cs` (`IntoChat.OS.Aspire.Hosting`) provides .NET Aspire helpers (`AddIntoChatOS`, `AddKernel`, and `AddIntoChatOSContainer`). `src/Modules/Shell/Contracts` (`IntoChat.OS.Modules.Shell.Contracts`) holds the shell wire contracts and signals separately from `src/Modules/Shell`.
+`src/IntoChat.OS.Framework` holds product-side hosting code (identity, connections, `SiloAccessCallFilter`, `NeuronsGrpcService`). `src/IntoChat.OS.AppHost` (`IntoChat.OS.Aspire.Hosting`) provides .NET Aspire helpers (`AddIntoChatOS` and `AddIntoChatOSContainer` in `Hosting/IntoChatOSHostingExtensions.cs`, and `AddKernel` in `Hosting/Composition/OperatingSystemHosting.cs`). `src/Modules/Shell/Contracts` (`IntoChat.OS.Modules.Shell.Contracts`) holds the shell wire contracts and signals separately from `src/Modules/Shell`.
 
 ## Kernel
 
@@ -20,7 +20,7 @@ The product has four parts.
 1. When `AzureInstaller.IsInstall(args)` matches, it discovers modules with `OperatingSystemModules.Discover(rootAssembly)` and runs `AzureInstaller.Run` before exiting.
 2. Otherwise it applies `LocalRunDefaults.Apply`, reads `IntoChatOS:Topology` (`IntoChatOSNames.TopologyKey`), and discovers modules via `OperatingSystemModules.WithWindowsEdge(rootAssembly)` on Windows or `OperatingSystemModules.Discover(rootAssembly)` elsewhere, keeping only those where `module.LoadsUnder(topology)` is true.
 3. `builder.AddIntoChatOSServer` configures the Orleans silo, the DigitalBrain runtime, `server.AddOperatingSystem(catalog)` (modules and shipped OS apps), and any `configureServer` callback (enabling the Orleans dashboard when configured); `builder.Services.AddIntoChatOSMcp()` registers MCP services.
-4. `app.MapIntoChatOSServer(beforeAccountSession)` maps the static web shell, HTTP endpoints, health probes, and gRPC endpoints; `app.MapIntoChatOSMcp()` maps the MCP endpoint at `/mcp` (plus the guest-scoped `/mcp` route).
+4. `app.MapIntoChatOSServer(beforeAccountSession)` maps the static web shell, HTTP endpoints, health probes, and gRPC endpoints; `app.MapIntoChatOSMcp()` maps `/mcp` plus the brain-scoped `/brains/{brainId}/mcp` route (via `OsBrainRoutes.Group` with `GuestSurface.Door`).
 
 The `IntoChatOS:Topology` setting picks clustering, state stores, streams, reminders and secrets.
 
