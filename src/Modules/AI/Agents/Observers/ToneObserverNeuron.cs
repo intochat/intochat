@@ -25,7 +25,7 @@ internal sealed class ToneObserverNeuron : StatelessAiNeuron, IToneObserver
         var prefix = Id.Brain.Value + "/";
         var relative = agentKey.StartsWith(prefix, StringComparison.Ordinal) ? agentKey[prefix.Length..] : agentKey;
         if (!string.Equals(relative, AgentId.Key, StringComparison.Ordinal)) { throw new ArgumentException("This observer watches another agent.", nameof(agentKey)); }
-        await Context.Synapses.Ensure<TurnCompleted>(AgentId);
+        await Context.Wires.Ensure<TurnCompleted>(AgentId);
     }
 
     [On]

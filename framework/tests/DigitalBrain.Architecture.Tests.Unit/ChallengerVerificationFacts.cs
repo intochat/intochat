@@ -73,7 +73,7 @@ public sealed class ChallengerVerificationFacts
     [InlineData("DigitalBrain.Neurons", "DigitalBrain.Neurons.NeuronServices")]
     [InlineData("DigitalBrain.Units", "DigitalBrain.Units.SynapseHost")]
     [InlineData("DigitalBrain.Units", "DigitalBrain.Units.ISlotResolver")]
-    [InlineData("DigitalBrain.Kernel", "DigitalBrain.Kernel.ISynapses")]
+    [InlineData("DigitalBrain.Kernel", "DigitalBrain.Kernel.IWires")]
     [InlineData("DigitalBrain.Kernel", "DigitalBrain.Kernel.ISignalSink")]
     [InlineData("DigitalBrain.Contracts", "DigitalBrain.Contracts.ReadOnlyCallAttribute")]
     [InlineData("DigitalBrain.Operations", "DigitalBrain.Operations.IOperations")]

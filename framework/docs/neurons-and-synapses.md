@@ -43,15 +43,17 @@ A refusal is a value, not an exception. Each refusal has a stable dotted code, a
 A signal is a record that derives from `Signal`. `[Signal("alias")]` gives it the frozen alias the journal stores.
 Published signals reach subscribers under the [delivery contract](delivery-contract.md).
 
-## Reactions and synapses
+## Reactions and wires
 
 A reaction is a neuron method marked `[On]`. It takes one signal and runs when that signal arrives.
 
-A synapse is a durable route: signals of one type published by one neuron reach another neuron.
-A neuron manages the synapses it holds through `ISynapses` (`Context.Synapses`):
+A wire is a durable route: signals of one type published by one neuron reach another neuron.
+A neuron manages the wires it holds through `IWires` (`Context.Wires`):
 
 - `Ensure<TSignal>(from)` adds a route from one neuron. `Remove(from)` drops it.
 - `EnsureBrainWide(signals)` hears the signal types from every other neuron of the brain.
+
+A synapse is behavior, not a route: the `[Synapse]` functions below, and in time the other ways to express behavior. The route that carries signals to it is a wire.
 - The source decides who may subscribe in `AdmitSynapse`. The default admits neurons of the same brain.
 
 ## Synapse functions

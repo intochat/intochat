@@ -10,10 +10,10 @@ namespace DigitalBrain.Runtime.Orleans;
 public static class SynapseObservation
 {
     /// <summary>Every synapse stored for <paramref name="brain"/> using the registered journal logs in <paramref name="services"/>.</summary>
-    public static Task<ObservedSynapse[]> List(IServiceProvider? services, string brain, CancellationToken cancellationToken = default)
+    public static Task<ObservedWire[]> List(IServiceProvider? services, string brain, CancellationToken cancellationToken = default)
         => services?.GetService<BrainLogs>() is { } logs
             ? List(logs, brain, cancellationToken)
-            : Task.FromResult<ObservedSynapse[]>([]);
+            : Task.FromResult<ObservedWire[]>([]);
 
     /// <summary>Live signal deliveries for <paramref name="brain"/> from the registered delivery hub in <paramref name="services"/>.</summary>
     public static IAsyncEnumerable<SignalDelivery> Deliveries(IServiceProvider? services, string brain, CancellationToken cancellationToken = default)
@@ -40,13 +40,13 @@ public static class SynapseObservation
     }
 
     /// <summary>Every synapse stored for <paramref name="brain"/>.</summary>
-    internal static async Task<ObservedSynapse[]> List(BrainLogs logs, string brain, CancellationToken cancellationToken)
+    internal static async Task<ObservedWire[]> List(BrainLogs logs, string brain, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(logs);
         ArgumentException.ThrowIfNullOrWhiteSpace(brain);
         cancellationToken.ThrowIfCancellationRequested();
         var log = await logs.For(brain).WaitAsync(cancellationToken).ConfigureAwait(false);
-        var rows = new List<ObservedSynapse>();
+        var rows = new List<ObservedWire>();
         foreach (var subs in log.Subscriptions.All)
         {
             var subscriber = subs.Subscriber.ToString();
@@ -56,7 +56,7 @@ public static class SynapseObservation
                 var source = entry.Source.Value.ToString();
                 foreach (var alias in entry.Aliases)
                 {
-                    if (alias.Length > 0) { rows.Add(new ObservedSynapse(source, subscriber, alias)); }
+                    if (alias.Length > 0) { rows.Add(new ObservedWire(source, subscriber, alias)); }
                 }
             }
         }

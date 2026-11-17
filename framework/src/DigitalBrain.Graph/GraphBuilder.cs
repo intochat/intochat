@@ -37,7 +37,7 @@ internal static class GraphBuilder
             }
         }
 
-        foreach (var synapse in await observer.Synapses(cancellationToken).ConfigureAwait(false))
+        foreach (var synapse in await observer.Wires(cancellationToken).ConfigureAwait(false))
         {
             var subscriberLocal = synapse.To.StartsWith(prefix, StringComparison.Ordinal);
             var publisherLocal = synapse.From.StartsWith(prefix, StringComparison.Ordinal);

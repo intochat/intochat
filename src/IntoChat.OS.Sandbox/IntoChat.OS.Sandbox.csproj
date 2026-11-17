@@ -6,6 +6,9 @@
   <ItemGroup>
     <ProjectReference Include="..\IntoChat.OS\IntoChat.OS.csproj" />
     <ProjectReference Include="..\IntoChat.OS.UI\IntoChat.OS.UI.csproj" />
+    <!-- The contracts sandboxed code may reach through the brain client: interfaces and records only, no module implementation. -->
+    <ProjectReference Include="..\Modules\AI\Contracts\IntoChat.OS.Modules.AI.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\Catalog\Contracts\IntoChat.OS.Modules.Catalog.Contracts.csproj" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
   </ItemGroup>

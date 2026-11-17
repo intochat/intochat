@@ -30,7 +30,7 @@ public sealed class ConnectionCatalogNeuron : Neuron<ConnectionCatalog>, IConnec
     /// <inheritdoc />
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        await Context.Synapses.EnsureBrainWide(
+        await Context.Wires.EnsureBrainWide(
             typeof(ConnectionConnected),
             typeof(ConnectionExpired),
             typeof(ConnectionFailing),

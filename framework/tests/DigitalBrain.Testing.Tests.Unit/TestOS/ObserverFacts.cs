@@ -29,8 +29,8 @@ public sealed class ObserverFacts
 
         await os.Get<INumberSink>(Sink).Subscribe(Source);
         var observer = (IBrainObserver)os;
-        var rows = await observer.Synapses(token);
-        Assert.Contains(rows, row => row == new ObservedSynapse(Source.ToString(), Sink.ToString(), "test.number"));
+        var rows = await observer.Wires(token);
+        Assert.Contains(rows, row => row == new ObservedWire(Source.ToString(), Sink.ToString(), "test.number"));
 
         await os.Get<INumberSource>(Source).Emit(4);
         await os.Idle();

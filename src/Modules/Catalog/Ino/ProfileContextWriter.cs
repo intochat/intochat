@@ -14,7 +14,7 @@ internal sealed class ProfileContextWriter : DigitalBrain.Neurons.Neuron, IProfi
 
     public async Task Ensure()
     {
-        await Context.Synapses.Ensure<UserSettingsChanged>(SettingsId);
+        await Context.Wires.Ensure<UserSettingsChanged>(SettingsId);
         await Write(await Get<IUserSettings>(SettingsId).Read());
     }
 

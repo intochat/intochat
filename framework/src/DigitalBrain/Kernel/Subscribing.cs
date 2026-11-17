@@ -13,7 +13,7 @@ internal sealed class Subscribing(
     bool stateless,
     Delivery delivery,
     IAdmission admission,
-    TimeProvider time) : ISynapses
+    TimeProvider time) : IWires
 {
     public Task Ensure<TSignal>(NeuronId from) where TSignal : Signal => Ensure(from, [typeof(TSignal)]);
 

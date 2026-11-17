@@ -40,7 +40,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
 
     /// <summary>Ensures <typeparamref name="TSignal"/> published by that neuron reaches this screen's <c>[On]</c> reaction. Durable and idempotent.</summary>
     protected Task Follow<TSource, TSignal>(string key) where TSource : class where TSignal : Signal
-        => Context.Synapses.Ensure<TSignal>(IdOf(typeof(TSource), key));
+        => Context.Wires.Ensure<TSignal>(IdOf(typeof(TSource), key));
 
     /// <summary>Stores the first view. An override calls the base first.</summary>
     protected override async Task OnActivate(CancellationToken cancellationToken)

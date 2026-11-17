@@ -43,6 +43,8 @@ public sealed class FakeBrain(string brainId = "test-brain", string appKey = "te
             ? folder
             : throw new UnauthorizedAccessException($"Folder slot '{slot}' is not bound in FakeBrain.");
 
+    public TContract Get<TContract>(string key) where TContract : class => Slot<TContract>(key);
+
     public TContract Slot<TContract>(string? slot = null) where TContract : class
     {
         var key = $"{typeof(TContract).FullName}:{slot ?? typeof(TContract).Name}";

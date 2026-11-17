@@ -274,7 +274,7 @@ public sealed class JournalDeliveryFacts : E2ETestBase
     public sealed class DeliverySubscriberNeuron : Neuron, IDeliverySubscriber
     {
         public Task Subscribe(NeuronId publisher) =>
-            Context.Synapses.Ensure<TestDeliveryFact>(publisher);
+            Context.Wires.Ensure<TestDeliveryFact>(publisher);
 
         [On]
         public Task On(TestDeliveryFact fact)
@@ -295,7 +295,7 @@ public sealed class JournalDeliveryFacts : E2ETestBase
         private static volatile bool _shouldThrow;
 
         public Task Subscribe(NeuronId publisher) =>
-            Context.Synapses.Ensure<TestDeliveryFact>(publisher);
+            Context.Wires.Ensure<TestDeliveryFact>(publisher);
 
         public Task ArmFailure(bool shouldThrow)
         {
@@ -326,7 +326,7 @@ public sealed class JournalDeliveryFacts : E2ETestBase
         private static volatile Gap? _lastGap;
 
         public Task Subscribe(NeuronId publisher) =>
-            Context.Synapses.Ensure<TestDeliveryFact>(publisher);
+            Context.Wires.Ensure<TestDeliveryFact>(publisher);
 
         [On]
         public Task On(TestDeliveryFact fact)
@@ -359,7 +359,7 @@ public sealed class JournalDeliveryFacts : E2ETestBase
         public Task Subscribe(NeuronId publisher)
         {
             _receivedCount = 0;
-            return Context.Synapses.Ensure<TestDeliveryFact>(publisher);
+            return Context.Wires.Ensure<TestDeliveryFact>(publisher);
         }
 
         [On]

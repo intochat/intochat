@@ -25,6 +25,8 @@ public sealed class OrleansBanFacts
     private static readonly string[] UnportedGrainModules =
     [
         "IntoChat.OS.Modules.Catalog",
+        // Catalog's unported analytics grain (IDataAnalyticsWorker) lives with its contracts; it leaves with the grain.
+        "IntoChat.OS.Modules.Catalog.Contracts",
         "IntoChat.OS.Apps",
     ];
 

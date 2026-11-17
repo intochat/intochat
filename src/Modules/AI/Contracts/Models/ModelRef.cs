@@ -118,7 +118,8 @@ public abstract record ModelRef
         return false;
     }
 
-    internal static LlmCapabilities DefaultCapabilitiesFor(ModelRef reference, string? rawHint = null) => reference switch
+    // What a model reference can do when the catalogue does not say; the AI module's catalogue falls back to it.
+    public static LlmCapabilities DefaultCapabilitiesFor(ModelRef reference, string? rawHint = null) => reference switch
     {
         Catalogued c => c.Model.Capabilities,
         Tag t when t.Provider is AiProvider.Anthropic or AiProvider.OpenAI or AiProvider.Google

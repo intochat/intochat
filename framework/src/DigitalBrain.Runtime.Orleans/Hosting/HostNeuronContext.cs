@@ -56,7 +56,7 @@ internal sealed class HostNeuronContext : INeuronContext, INeuronSeat, IHostNeur
 
         Admission = new GrainAdmission(grains, types);
         var time = (TimeProvider?)services.GetService(typeof(TimeProvider)) ?? TimeProvider.System;
-        Synapses = new Subscribing(id, registration.Policy == HostPolicy.Stateless, delivery, Admission, time);
+        Wires = new Subscribing(id, registration.Policy == HostPolicy.Stateless, delivery, Admission, time);
 
         _state = new KernelState(
             id,
@@ -80,7 +80,7 @@ internal sealed class HostNeuronContext : INeuronContext, INeuronSeat, IHostNeur
 
     public IReminders Reminders => _timers;
 
-    public ISynapses Synapses { get; }
+    public IWires Wires { get; }
 
     public Delivery Delivery { get; }
 

@@ -15,7 +15,7 @@ public sealed class UnitDeployment(LiveBindings? live = null) : Neuron<Deploymen
     /// <inheritdoc />
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        await Context.Synapses.EnsureBrainWide(typeof(Installed), typeof(InstallDenied)).ConfigureAwait(true);
+        await Context.Wires.EnsureBrainWide(typeof(Installed), typeof(InstallDenied)).ConfigureAwait(true);
         if (State.ReadyToPromote)
         {
             await Promote(State, cancellationToken).ConfigureAwait(true);

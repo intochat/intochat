@@ -32,7 +32,7 @@ public sealed record FollowerSeen(int Count) : Signal;
 [Neuron("probe.follower")]
 public sealed class FollowerNeuron : Neuron, IFollower
 {
-    public Task Follow(string source) => Context.Synapses.Ensure<Ticked>(NeuronId.Parse(source));
+    public Task Follow(string source) => Context.Wires.Ensure<Ticked>(NeuronId.Parse(source));
 
     private Task Save(Signal signal) => Publish(signal);
 

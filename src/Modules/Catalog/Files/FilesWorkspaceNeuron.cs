@@ -104,7 +104,7 @@ internal sealed partial class FilesWorkspaceNeuron(
         await Field("name").Configure(DigitalBrain.UI.FieldKind.Text);
         await Field("content").Configure(DigitalBrain.UI.FieldKind.Multiline);
         foreach (var field in new[] { "search", "filter" })
-        { await Context.Synapses.Ensure<FieldChanged>(new(Id.Brain, UIVocabulary.FieldType, AppPath + "/" + field)); }
+        { await Context.Wires.Ensure<FieldChanged>(new(Id.Brain, UIVocabulary.FieldType, AppPath + "/" + field)); }
         foreach (var operation in State.Started.Where(item => !item.Done)) { await FollowOperation(operation.Id, ct); }
         await Render();
     }
@@ -309,7 +309,7 @@ internal sealed partial class FilesWorkspaceNeuron(
                 try { var app = App; await app.Browse(new(connection, State.Files.Folder)); await Store(app, resetPage: true); }
                 catch (StorageException error) { await Persist(State with { Notice = "Storage: " + error.Code }); }
             }
-            await Context.Synapses.Remove(new(Id.Brain, "runtime.operation", done.Operation.Value));
+            await Context.Wires.Remove(new(Id.Brain, "runtime.operation", done.Operation.Value));
             await Render();
         });
     }
@@ -328,7 +328,7 @@ internal sealed partial class FilesWorkspaceNeuron(
         var source = new DigitalBrain.NeuronId(Id.Brain, "runtime.operation", operation);
         // Ensure starts a fresh cursor at the tail. Read durable history after subscribing so a fast completion cannot fall
         // between Start and Watch; subsequent delivery is harmless because completed operations are applied only once.
-        await Context.Synapses.Ensure(source, typeof(OperationProgress), typeof(OperationDone));
+        await Context.Wires.Ensure(source, typeof(OperationProgress), typeof(OperationDone));
         await operations.Reconcile(new(operation), ct);
         long since = 0;
         OperationProgress? latest = null;

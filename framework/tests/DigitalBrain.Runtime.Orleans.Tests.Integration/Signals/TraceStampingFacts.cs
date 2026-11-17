@@ -109,7 +109,7 @@ public interface IRelay
 [Neuron("probe.relay", State = "relay")]
 public sealed class RelayNeuron : Neuron<CounterState>, IRelay
 {
-    public Task Follow(string source) => Context.Synapses.Ensure<Counted>(NeuronId.Parse(source));
+    public Task Follow(string source) => Context.Wires.Ensure<Counted>(NeuronId.Parse(source));
 
     [On]
     public Task On(Counted signal) => Save(State with { Value = signal.Value }, new Noted("relayed:" + signal.Value));
@@ -124,7 +124,7 @@ public interface ICaller
 [Neuron("probe.caller")]
 public sealed class CallerNeuron : Neuron, ICaller
 {
-    public Task Follow(string source) => Context.Synapses.Ensure<Counted>(NeuronId.Parse(source));
+    public Task Follow(string source) => Context.Wires.Ensure<Counted>(NeuronId.Parse(source));
 
     [On]
     public Task On(Counted signal) => Get<ICounter>(new NeuronId(Id.Brain, "probe.counter", Id.Key + "-called")).Add(signal.Value);

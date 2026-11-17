@@ -51,7 +51,7 @@ public abstract class AgentFlow<T>(AgentStepOptions? options = null) : Flow<T> w
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        await Context.Synapses.EnsureBrainWide(typeof(TurnCompleted), typeof(TurnFailed));
+        await Context.Wires.EnsureBrainWide(typeof(TurnCompleted), typeof(TurnFailed));
         await base.OnActivate(cancellationToken);
     }
 

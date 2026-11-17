@@ -484,7 +484,8 @@ public sealed class HouseRules22Facts
             {
                 offenders.Add($"{DisplayPath(src)}:{line}");
             }
-            if (!(src.ProjectName == "IntoChat.OS.Modules.Catalog" && src.FileName == "IUserSettings.cs"))
+            // The settings contract lives in the Catalog contracts folder, whichever project scanned it first.
+            if (!(src.FileName == "IUserSettings.cs" && src.FullPath.Split(Path.DirectorySeparatorChar).Contains("Contracts", StringComparer.Ordinal)))
             {
                 foreach (var line in FindSettingsKeyInterpolations(src.Root))
                 {
@@ -1129,6 +1130,8 @@ public sealed class HouseRules22Facts
             // Cross-assembly app/kernel/unit composition or Orleans-activated grains
             "IntoChat.OS.Modules.AI.Agents.AgentFailures",
             "IntoChat.OS.Modules.AI.Models.ModelCatalog",
+            // A host registers the workflows it offers; it carries an Agent Framework factory, so it is not a contract.
+            "IntoChat.OS.Modules.AI.Workflows.WorkflowDefinition",
             "IntoChat.OS.Modules.Microsoft.Azure.ArmAzure",
             "IntoChat.OS.Modules.Microsoft.Aspire.CandidateEnvironment",
             "IntoChat.OS.Modules.Microsoft.Aspire.LiveBuild",
@@ -1169,7 +1172,6 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Apps.Flows.AgentFlow`1",
             "IntoChat.OS.Modules.Apps.Flows.BuildInner",
             "IntoChat.OS.Modules.Apps.Flows.BuildFlow",
-            "IntoChat.OS.Modules.Apps.Flows.FeatureToPrFlow",
             "IntoChat.OS.Modules.Apps.Flows.PlanRelation",
             "IntoChat.OS.Modules.Apps.Flows.PlanSubtask",
             "IntoChat.OS.Modules.Apps.Flows.PlanInner",

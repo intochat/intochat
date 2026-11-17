@@ -6,17 +6,17 @@ using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 
-public sealed record CoderEdit(
+internal sealed record CoderEdit(
     string Summary,
     string ModelId,
     RepoPath[] TouchedFiles);
 
-public sealed record ChangeApproval(
+internal sealed record ChangeApproval(
     string PlanId,
     DateTimeOffset Expires,
     string? ApprovedBy = null);
 
-public sealed record ChangePublication(
+internal sealed record ChangePublication(
     string? PushedRef = null,
     string? PullRequestUrl = null,
     bool PullRequestCompleted = false,
@@ -26,7 +26,7 @@ public sealed record ChangePublication(
 /// Immutable Feature-to-PR aggregate (<c>flow.change</c>) replacing the mutable <c>FeatureToPrInner</c>.
 /// Contains zero public setters and enforces valid stage transitions and human-only publish invariants.
 /// </summary>
-public sealed record Change
+internal sealed record Change
 {
     public Change()
     {

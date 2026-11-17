@@ -14,7 +14,7 @@ namespace IntoChat.OS.Modules.Apps;
 
 // Each installed app joins the brain graph with its own shape: one Operation node per manifest operation, owned by the app
 // (brain-graph-plan §1: derived from the stored manifest, never a second store). Screen apps register live runtime synapses
-// via Follow, which GraphBuilder projects directly from IBrainObserver.Synapses.
+// via Follow, which GraphBuilder projects directly from IBrainObserver.Wires.
 internal sealed class AppGraphSource(IServiceProvider services) : IGraphSource
 {
     public async Task Contribute(BrainId brain, GraphSink sink, CancellationToken cancellationToken)

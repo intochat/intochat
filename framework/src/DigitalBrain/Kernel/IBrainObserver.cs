@@ -19,8 +19,8 @@ public interface IBrainObserver
     /// <summary>The brains the stamped caller is a member of, the current one included.</summary>
     Task<string[]> Brains(CancellationToken cancellationToken = default);
 
-    /// <summary>Synapses of the caller's brain: one row per source, signal alias and subscriber. A static graph.</summary>
-    Task<ObservedSynapse[]> Synapses(CancellationToken cancellationToken = default);
+    /// <summary>Wires of the caller's brain: one row per source, signal alias and subscriber. A static graph.</summary>
+    Task<ObservedWire[]> Wires(CancellationToken cancellationToken = default);
 
     /// <summary>Signal deliveries in the caller's brain from now on. Nothing already delivered is replayed.</summary>
     IAsyncEnumerable<SignalDelivery> Deliveries(CancellationToken cancellationToken = default);

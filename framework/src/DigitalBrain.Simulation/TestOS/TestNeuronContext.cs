@@ -30,7 +30,7 @@ internal sealed class TestNeuronContext : INeuronContext, INeuronSeat
             () => host.Drop());
         Timers = new HostTimers(host);
         Reminders = new HostReminders(host);
-        Synapses = new Subscribing(host.Id, host.Stateless, host.OS.Delivery.For(host.Id), host.OS.Delivery.Admission, host.OS.Clock);
+        Wires = new Subscribing(host.Id, host.Stateless, host.OS.Delivery.For(host.Id), host.OS.Delivery.Admission, host.OS.Clock);
 
         var runner = TestOSOperations.Runner(host.OS.Services, host.Id.Brain);
         var confirmations = host.OS.Services.GetService(typeof(IConfirmations)) as IConfirmations
@@ -58,7 +58,7 @@ internal sealed class TestNeuronContext : INeuronContext, INeuronSeat
 
     public IReminders Reminders { get; }
 
-    public ISynapses Synapses { get; }
+    public IWires Wires { get; }
 
     public string? TraceId => TestCause.Stamp().TraceId;
 

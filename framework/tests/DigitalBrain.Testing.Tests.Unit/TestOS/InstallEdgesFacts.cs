@@ -50,8 +50,8 @@ public sealed class InstallEdgesFacts
 
         Assert.Equal(12m, await Spent(os));
         var synapse = Assert.Single(os.SynapsesOf(Books));
-        Assert.Equal(new Synapse(new NeuronId(Books.Brain, "*", "*"), typeof(Charging), Books), synapse);
-        Assert.Contains(new ObservedSynapse("*", Books.ToString(), "test.synapse.charging"), await ((IBrainObserver)os).Synapses(Ct));
+        Assert.Equal(new Wire(new NeuronId(Books.Brain, "*", "*"), typeof(Charging), Books), synapse);
+        Assert.Contains(new ObservedWire("*", Books.ToString(), "test.synapse.charging"), await ((IBrainObserver)os).Wires(Ct));
         Assert.Empty(os.Failures);
     }
 

@@ -274,7 +274,7 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
     // Advances a running flow that does not wait, including one started but never advanced (Current null, Done empty).
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        await Context.Synapses.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain)).ConfigureAwait(true);
+        await Context.Wires.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain)).ConfigureAwait(true);
         WarnOnNonInterleavingCancel();
         if (State.Status == FlowStatus.Running && State.Waiting is null) { await Advance().ConfigureAwait(true); }
         else if (State is { Status: FlowStatus.Waiting, Waiting.Reason: WaitReason.Approval })
@@ -505,7 +505,7 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
                 var neuronId = NeuronAddress.IsBrainId(childId.Split('/')[0])
                     ? NeuronId.Parse(childId)
                     : new NeuronId(Id.Brain, "flow", childId);
-                await Context.Synapses.Ensure<FlowDone>(neuronId).ConfigureAwait(true);
+                await Context.Wires.Ensure<FlowDone>(neuronId).ConfigureAwait(true);
             }
         }
         if (wait.Expires is { } expires) { await Context.Reminders.Start(ExpiryReminder, Positive(expires - now), ExpiryPeriod).ConfigureAwait(true); }

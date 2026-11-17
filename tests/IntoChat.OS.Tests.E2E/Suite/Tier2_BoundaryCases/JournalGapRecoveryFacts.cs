@@ -216,7 +216,7 @@ public sealed class JournalGapRecoveryFacts : E2ETestBase, IAsyncLifetime
         }
 
         public Task Subscribe(NeuronId publisher) =>
-            Context.Synapses.Ensure<GapTestFact>(publisher);
+            Context.Wires.Ensure<GapTestFact>(publisher);
 
         public Task ArmFailure(bool shouldThrow)
         {

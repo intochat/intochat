@@ -960,7 +960,6 @@ DigitalBrain.Kernel.IBrainObserver.Deliveries(System.Threading.CancellationToken
 DigitalBrain.Kernel.IBrainObserver.Instances(string? type, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<DigitalBrain.Kernel.BrainInstance!>!
 DigitalBrain.Kernel.IBrainObserver.Instances<T>(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<DigitalBrain.Kernel.BrainInstance!>!
 DigitalBrain.Kernel.IBrainObserver.State(DigitalBrain.NeuronId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Text.Json.JsonElement?>!
-DigitalBrain.Kernel.IBrainObserver.Synapses(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Kernel.ObservedSynapse![]!>!
 DigitalBrain.Kernel.IBrainObserver.Types(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Kernel.BrainType![]!>!
 DigitalBrain.Kernel.IClusterListeners
 DigitalBrain.Kernel.IClusterListeners.Listen<TSignal>(string! listener, System.Func<DigitalBrain.NeuronId, TSignal!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! handler) -> System.Threading.Tasks.Task<System.IAsyncDisposable!>!
@@ -969,13 +968,6 @@ DigitalBrain.Kernel.ISignalHistory.Read(DigitalBrain.NeuronId publisher, long si
 DigitalBrain.Kernel.ISignalHistory.Read(long since, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Kernel.SignalPage!>!
 DigitalBrain.Kernel.ISignalHistory.ReadTrace(string! traceId, long since, int limit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Kernel.SignalPage!>!
 DigitalBrain.Kernel.ISignalHistory.Watch(long since, System.Threading.CancellationToken ct) -> System.Collections.Generic.IAsyncEnumerable<DigitalBrain.Kernel.JournaledSignal!>!
-DigitalBrain.Kernel.ISynapses
-DigitalBrain.Kernel.ISynapses.Ensure(DigitalBrain.NeuronId from, params System.Type![]! signals) -> System.Threading.Tasks.Task!
-DigitalBrain.Kernel.ISynapses.Ensure<TSignal>(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task!
-DigitalBrain.Kernel.ISynapses.EnsureBrainWide(params System.Type![]! signals) -> System.Threading.Tasks.Task!
-DigitalBrain.Kernel.ISynapses.EnsureBrainWide(System.Collections.Generic.IReadOnlyList<string!>! signalAliases) -> System.Threading.Tasks.Task!
-DigitalBrain.Kernel.ISynapses.Remove(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task!
-DigitalBrain.Kernel.ISynapses.RemoveBrainWide() -> System.Threading.Tasks.Task!
 DigitalBrain.Kernel.JournaledSignal
 DigitalBrain.Kernel.JournaledSignal.<Clone>$() -> DigitalBrain.Kernel.JournaledSignal!
 DigitalBrain.Kernel.JournaledSignal.At.get -> System.DateTimeOffset
@@ -993,17 +985,6 @@ DigitalBrain.Kernel.JournaledSignal.Signal.get -> DigitalBrain.Signal!
 DigitalBrain.Kernel.JournaledSignal.Signal.init -> void
 DigitalBrain.Kernel.JournaledSignal.TraceId.get -> string?
 DigitalBrain.Kernel.JournaledSignal.TraceId.init -> void
-DigitalBrain.Kernel.ObservedSynapse
-DigitalBrain.Kernel.ObservedSynapse.<Clone>$() -> DigitalBrain.Kernel.ObservedSynapse!
-DigitalBrain.Kernel.ObservedSynapse.Deconstruct(out string! From, out string! To, out string! Signal) -> void
-DigitalBrain.Kernel.ObservedSynapse.Equals(DigitalBrain.Kernel.ObservedSynapse? other) -> bool
-DigitalBrain.Kernel.ObservedSynapse.From.get -> string!
-DigitalBrain.Kernel.ObservedSynapse.From.init -> void
-DigitalBrain.Kernel.ObservedSynapse.ObservedSynapse(string! From, string! To, string! Signal) -> void
-DigitalBrain.Kernel.ObservedSynapse.Signal.get -> string!
-DigitalBrain.Kernel.ObservedSynapse.Signal.init -> void
-DigitalBrain.Kernel.ObservedSynapse.To.get -> string!
-DigitalBrain.Kernel.ObservedSynapse.To.init -> void
 DigitalBrain.Kernel.SignalDelivery
 DigitalBrain.Kernel.SignalDelivery.<Clone>$() -> DigitalBrain.Kernel.SignalDelivery!
 DigitalBrain.Kernel.SignalDelivery.Deconstruct(out string! From, out string! To, out string! Signal, out long Sequence) -> void
@@ -1028,17 +1009,6 @@ DigitalBrain.Kernel.SignalPage.Last.init -> void
 DigitalBrain.Kernel.SignalPage.SignalPage(long Floor, long Last, System.Collections.Generic.IReadOnlyList<DigitalBrain.Kernel.JournaledSignal!>! Signals) -> void
 DigitalBrain.Kernel.SignalPage.Signals.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Kernel.JournaledSignal!>!
 DigitalBrain.Kernel.SignalPage.Signals.init -> void
-DigitalBrain.Kernel.Synapse
-DigitalBrain.Kernel.Synapse.<Clone>$() -> DigitalBrain.Kernel.Synapse!
-DigitalBrain.Kernel.Synapse.Deconstruct(out DigitalBrain.NeuronId From, out System.Type! Signal, out DigitalBrain.NeuronId To) -> void
-DigitalBrain.Kernel.Synapse.Equals(DigitalBrain.Kernel.Synapse? other) -> bool
-DigitalBrain.Kernel.Synapse.From.get -> DigitalBrain.NeuronId
-DigitalBrain.Kernel.Synapse.From.init -> void
-DigitalBrain.Kernel.Synapse.Signal.get -> System.Type!
-DigitalBrain.Kernel.Synapse.Signal.init -> void
-DigitalBrain.Kernel.Synapse.Synapse(DigitalBrain.NeuronId From, System.Type! Signal, DigitalBrain.NeuronId To) -> void
-DigitalBrain.Kernel.Synapse.To.get -> DigitalBrain.NeuronId
-DigitalBrain.Kernel.Synapse.To.init -> void
 DigitalBrain.Kernel.SynapseRequest
 DigitalBrain.Kernel.SynapseRequest.<Clone>$() -> DigitalBrain.Kernel.SynapseRequest!
 DigitalBrain.Kernel.SynapseRequest.Caller.get -> DigitalBrain.Capabilities.CapabilityCaller?
@@ -1463,7 +1433,6 @@ DigitalBrain.Neurons.INeuronContext.Interrupts(System.Exception! error) -> bool
 DigitalBrain.Neurons.INeuronContext.Publish(DigitalBrain.Signal! signal) -> System.Threading.Tasks.Task!
 DigitalBrain.Neurons.INeuronContext.PublishEphemeral(DigitalBrain.Signal! signal) -> System.Threading.Tasks.Task!
 DigitalBrain.Neurons.INeuronContext.Reminders.get -> DigitalBrain.Neurons.IReminders!
-DigitalBrain.Neurons.INeuronContext.Synapses.get -> DigitalBrain.Kernel.ISynapses!
 DigitalBrain.Neurons.INeuronContext.Time.get -> System.TimeProvider!
 DigitalBrain.Neurons.INeuronContext.Timers.get -> DigitalBrain.Neurons.ITimers!
 DigitalBrain.Neurons.INeuronContext.TraceId.get -> string?
@@ -2772,18 +2741,12 @@ override DigitalBrain.Kernel.BrainType.ToString() -> string!
 override DigitalBrain.Kernel.JournaledSignal.Equals(object? obj) -> bool
 override DigitalBrain.Kernel.JournaledSignal.GetHashCode() -> int
 override DigitalBrain.Kernel.JournaledSignal.ToString() -> string!
-override DigitalBrain.Kernel.ObservedSynapse.Equals(object? obj) -> bool
-override DigitalBrain.Kernel.ObservedSynapse.GetHashCode() -> int
-override DigitalBrain.Kernel.ObservedSynapse.ToString() -> string!
 override DigitalBrain.Kernel.SignalDelivery.Equals(object? obj) -> bool
 override DigitalBrain.Kernel.SignalDelivery.GetHashCode() -> int
 override DigitalBrain.Kernel.SignalDelivery.ToString() -> string!
 override DigitalBrain.Kernel.SignalPage.Equals(object? obj) -> bool
 override DigitalBrain.Kernel.SignalPage.GetHashCode() -> int
 override DigitalBrain.Kernel.SignalPage.ToString() -> string!
-override DigitalBrain.Kernel.Synapse.Equals(object? obj) -> bool
-override DigitalBrain.Kernel.Synapse.GetHashCode() -> int
-override DigitalBrain.Kernel.Synapse.ToString() -> string!
 override DigitalBrain.Kernel.SynapseRequest.Equals(object? obj) -> bool
 override DigitalBrain.Kernel.SynapseRequest.GetHashCode() -> int
 override DigitalBrain.Kernel.SynapseRequest.ToString() -> string!
@@ -3357,15 +3320,11 @@ static DigitalBrain.Kernel.BrainType.operator !=(DigitalBrain.Kernel.BrainType? 
 static DigitalBrain.Kernel.BrainType.operator ==(DigitalBrain.Kernel.BrainType? left, DigitalBrain.Kernel.BrainType? right) -> bool
 static DigitalBrain.Kernel.JournaledSignal.operator !=(DigitalBrain.Kernel.JournaledSignal? left, DigitalBrain.Kernel.JournaledSignal? right) -> bool
 static DigitalBrain.Kernel.JournaledSignal.operator ==(DigitalBrain.Kernel.JournaledSignal? left, DigitalBrain.Kernel.JournaledSignal? right) -> bool
-static DigitalBrain.Kernel.ObservedSynapse.operator !=(DigitalBrain.Kernel.ObservedSynapse? left, DigitalBrain.Kernel.ObservedSynapse? right) -> bool
-static DigitalBrain.Kernel.ObservedSynapse.operator ==(DigitalBrain.Kernel.ObservedSynapse? left, DigitalBrain.Kernel.ObservedSynapse? right) -> bool
 static DigitalBrain.Kernel.SignalDelivery.operator !=(DigitalBrain.Kernel.SignalDelivery? left, DigitalBrain.Kernel.SignalDelivery? right) -> bool
 static DigitalBrain.Kernel.SignalDelivery.operator ==(DigitalBrain.Kernel.SignalDelivery? left, DigitalBrain.Kernel.SignalDelivery? right) -> bool
 static DigitalBrain.Kernel.SignalPage.CheckLimit(int limit) -> int
 static DigitalBrain.Kernel.SignalPage.operator !=(DigitalBrain.Kernel.SignalPage? left, DigitalBrain.Kernel.SignalPage? right) -> bool
 static DigitalBrain.Kernel.SignalPage.operator ==(DigitalBrain.Kernel.SignalPage? left, DigitalBrain.Kernel.SignalPage? right) -> bool
-static DigitalBrain.Kernel.Synapse.operator !=(DigitalBrain.Kernel.Synapse? left, DigitalBrain.Kernel.Synapse? right) -> bool
-static DigitalBrain.Kernel.Synapse.operator ==(DigitalBrain.Kernel.Synapse? left, DigitalBrain.Kernel.Synapse? right) -> bool
 static DigitalBrain.Kernel.SynapseRequest.operator !=(DigitalBrain.Kernel.SynapseRequest? left, DigitalBrain.Kernel.SynapseRequest? right) -> bool
 static DigitalBrain.Kernel.SynapseRequest.operator ==(DigitalBrain.Kernel.SynapseRequest? left, DigitalBrain.Kernel.SynapseRequest? right) -> bool
 static DigitalBrain.Limits.ActionDescriptor.operator !=(DigitalBrain.Limits.ActionDescriptor? left, DigitalBrain.Limits.ActionDescriptor? right) -> bool
@@ -4156,3 +4115,45 @@ override DigitalBrain.Flows.FlowRefusals.AlreadyRelated.ToString() -> string!
 override sealed DigitalBrain.Flows.FlowRefusals.AlreadyRelated.Equals(DigitalBrain.Rules.Refusal? other) -> bool
 static DigitalBrain.Flows.FlowRefusals.AlreadyRelated.operator !=(DigitalBrain.Flows.FlowRefusals.AlreadyRelated? left, DigitalBrain.Flows.FlowRefusals.AlreadyRelated? right) -> bool
 static DigitalBrain.Flows.FlowRefusals.AlreadyRelated.operator ==(DigitalBrain.Flows.FlowRefusals.AlreadyRelated? left, DigitalBrain.Flows.FlowRefusals.AlreadyRelated? right) -> bool
+
+DigitalBrain.Kernel.IBrainObserver.Wires(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Kernel.ObservedWire![]!>!
+DigitalBrain.Kernel.IWires
+DigitalBrain.Kernel.IWires.Ensure(DigitalBrain.NeuronId from, params System.Type![]! signals) -> System.Threading.Tasks.Task!
+DigitalBrain.Kernel.IWires.Ensure<TSignal>(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task!
+DigitalBrain.Kernel.IWires.EnsureBrainWide(params System.Type![]! signals) -> System.Threading.Tasks.Task!
+DigitalBrain.Kernel.IWires.EnsureBrainWide(System.Collections.Generic.IReadOnlyList<string!>! signalAliases) -> System.Threading.Tasks.Task!
+DigitalBrain.Kernel.IWires.Remove(DigitalBrain.NeuronId from) -> System.Threading.Tasks.Task!
+DigitalBrain.Kernel.IWires.RemoveBrainWide() -> System.Threading.Tasks.Task!
+DigitalBrain.Kernel.ObservedWire
+DigitalBrain.Kernel.ObservedWire.<Clone>$() -> DigitalBrain.Kernel.ObservedWire!
+DigitalBrain.Kernel.ObservedWire.Deconstruct(out string! From, out string! To, out string! Signal) -> void
+DigitalBrain.Kernel.ObservedWire.Equals(DigitalBrain.Kernel.ObservedWire? other) -> bool
+DigitalBrain.Kernel.ObservedWire.From.get -> string!
+DigitalBrain.Kernel.ObservedWire.From.init -> void
+DigitalBrain.Kernel.ObservedWire.ObservedWire(string! From, string! To, string! Signal) -> void
+DigitalBrain.Kernel.ObservedWire.Signal.get -> string!
+DigitalBrain.Kernel.ObservedWire.Signal.init -> void
+DigitalBrain.Kernel.ObservedWire.To.get -> string!
+DigitalBrain.Kernel.ObservedWire.To.init -> void
+DigitalBrain.Kernel.Wire
+DigitalBrain.Kernel.Wire.<Clone>$() -> DigitalBrain.Kernel.Wire!
+DigitalBrain.Kernel.Wire.Deconstruct(out DigitalBrain.NeuronId From, out System.Type! Signal, out DigitalBrain.NeuronId To) -> void
+DigitalBrain.Kernel.Wire.Equals(DigitalBrain.Kernel.Wire? other) -> bool
+DigitalBrain.Kernel.Wire.From.get -> DigitalBrain.NeuronId
+DigitalBrain.Kernel.Wire.From.init -> void
+DigitalBrain.Kernel.Wire.Signal.get -> System.Type!
+DigitalBrain.Kernel.Wire.Signal.init -> void
+DigitalBrain.Kernel.Wire.Wire(DigitalBrain.NeuronId From, System.Type! Signal, DigitalBrain.NeuronId To) -> void
+DigitalBrain.Kernel.Wire.To.get -> DigitalBrain.NeuronId
+DigitalBrain.Kernel.Wire.To.init -> void
+DigitalBrain.Neurons.INeuronContext.Wires.get -> DigitalBrain.Kernel.IWires!
+override DigitalBrain.Kernel.ObservedWire.Equals(object? obj) -> bool
+override DigitalBrain.Kernel.ObservedWire.GetHashCode() -> int
+override DigitalBrain.Kernel.ObservedWire.ToString() -> string!
+override DigitalBrain.Kernel.Wire.Equals(object? obj) -> bool
+override DigitalBrain.Kernel.Wire.GetHashCode() -> int
+override DigitalBrain.Kernel.Wire.ToString() -> string!
+static DigitalBrain.Kernel.ObservedWire.operator !=(DigitalBrain.Kernel.ObservedWire? left, DigitalBrain.Kernel.ObservedWire? right) -> bool
+static DigitalBrain.Kernel.ObservedWire.operator ==(DigitalBrain.Kernel.ObservedWire? left, DigitalBrain.Kernel.ObservedWire? right) -> bool
+static DigitalBrain.Kernel.Wire.operator !=(DigitalBrain.Kernel.Wire? left, DigitalBrain.Kernel.Wire? right) -> bool
+static DigitalBrain.Kernel.Wire.operator ==(DigitalBrain.Kernel.Wire? left, DigitalBrain.Kernel.Wire? right) -> bool

@@ -162,9 +162,9 @@ public sealed class ManualReminders : IReminders
 }
 
 /// <summary>The synapses one subscriber holds, in memory. Ensure is idempotent and refuses a self-synapse.</summary>
-public sealed class RecordingSynapses : ISynapses
+public sealed class RecordingSynapses : IWires
 {
-    private readonly List<Synapse> _synapses = [];
+    private readonly List<Wire> _synapses = [];
     private readonly HashSet<Type> _brainWide = [];
     private readonly HashSet<string> _brainWideAliases = new(StringComparer.Ordinal);
 
@@ -175,7 +175,7 @@ public sealed class RecordingSynapses : ISynapses
     public NeuronId Subscriber { get; }
 
     /// <summary>The current synapses.</summary>
-    public IReadOnlyList<Synapse> Current => _synapses;
+    public IReadOnlyList<Wire> Current => _synapses;
 
     /// <inheritdoc />
     public Task Ensure<TSignal>(NeuronId from) where TSignal : Signal => Ensure(from, typeof(TSignal));
@@ -188,7 +188,7 @@ public sealed class RecordingSynapses : ISynapses
         foreach (var signal in signals)
         {
             if (signal is null || !typeof(Signal).IsAssignableFrom(signal)) { throw new ArgumentException($"{signal} is not a signal type.", nameof(signals)); }
-            var synapse = new Synapse(from, signal, Subscriber);
+            var synapse = new Wire(from, signal, Subscriber);
             if (!_synapses.Contains(synapse)) { _synapses.Add(synapse); }
         }
         return Task.CompletedTask;
@@ -554,7 +554,7 @@ public sealed class FakeNeuronContext : INeuronContext, INeuronSeat
     /// <summary>The recording synapses.</summary>
     public RecordingSynapses Synapses { get; }
 
-    ISynapses INeuronContext.Synapses => Synapses;
+    IWires INeuronContext.Wires => Synapses;
 
     /// <summary>The in-memory signal history.</summary>
     public InMemorySignalHistory History { get; } = new();
