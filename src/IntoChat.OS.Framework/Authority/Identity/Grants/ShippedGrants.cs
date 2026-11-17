@@ -33,13 +33,15 @@ public static class ShippedGrants
         ];
     }
 
-    // The command-line host (IntoChat.OS.Cli) joins the gateway as the app "cli" for a person; it reads what runs, nothing else.
+    // The command-line host (IntoChat.OS.Cli) joins the gateway as the app "cli" for a person; it reads what runs, sends app commands and starts workflows; answering approvals is not its to do.
     public const string CliApp = "cli";
 
     public static Grant[] ForCli(string brain) =>
     [
         Grant.Tuple($"brain:{brain}", $"app:{CliApp}", $"runs/{brain}/*", GrantRelations.Run),
         Grant.Tuple($"brain:{brain}", $"app:{CliApp}", $"flows/{brain}/*", GrantRelations.Run),
+        Grant.Tuple($"brain:{brain}", $"app:{CliApp}", $"app.run/{brain}/*", GrantRelations.Run),
+        Grant.Tuple($"brain:{brain}", $"app:{CliApp}", $"workflow.run/{brain}/*", GrantRelations.Run),
     ];
 
     public static Grant[] For(string brain, string app) => app switch

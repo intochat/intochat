@@ -9,6 +9,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../Modules/AI/Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
     <ProjectReference Include="../Modules/Catalog/Contracts/IntoChat.OS.Modules.Catalog.Contracts.csproj" />
   </ItemGroup>
 </Project>

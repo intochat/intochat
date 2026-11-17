@@ -339,6 +339,7 @@ internal sealed partial class AppNeuron(
         if (ServiceProvider?.GetService<ISandboxRuntimeBridge>() is { } bridge)
         {
             await bridge.UnloadAsync(BrainId(), Name(), CancellationToken.None).ConfigureAwait(false);
+            await Deployed(null, null);
         }
         if (ServiceProvider?.GetService<IKernel>() is { } kernel) { await kernel.UnloadFeature(BrainId(), Name()); }
         foreach (var hook in storageHooks) { await hook.OnRetired(State.BrainScopeId ?? "", key, CancellationToken.None); }

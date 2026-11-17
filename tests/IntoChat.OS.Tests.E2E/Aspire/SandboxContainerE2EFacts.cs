@@ -51,9 +51,9 @@ public sealed class SandboxContainerE2EFacts
             Ct);
         Assert.Equal(HttpStatusCode.OK, commandResponse.StatusCode);
         // The command ran as one run of the app's synapse.
-        var run = await commandResponse.Content.ReadFromJsonAsync<IntoChat.OS.Modules.Apps.AppRuns.AppCommandRunView>(Ct);
+        var run = await commandResponse.Content.ReadFromJsonAsync<IntoChat.OS.Modules.Apps.AppRuns.AppRunView>(Ct);
         Assert.NotNull(run);
-        Assert.Equal(IntoChat.OS.Modules.Apps.AppRuns.AppCommandStatus.Completed, run!.Status);
+        Assert.Equal(IntoChat.OS.Modules.Apps.AppRuns.AppRunStatus.Completed, run!.Status);
         Assert.Equal("email-notifier", run.App);
         Assert.StartsWith("commands/email-notifier/", run.RunId, StringComparison.Ordinal);
 
@@ -65,6 +65,60 @@ public sealed class SandboxContainerE2EFacts
             notifications!.Items,
             item => string.Equals(item.Title, "New email: Q4 Invoice Approved", StringComparison.Ordinal));
         Assert.Equal("email-notifier", alert.SourceApp);
+    }
+
+    // An installed app's [Every] schedule ticks by itself: each due tick is a run of the app, and this one raises a notification.
+    [Fact]
+    public async Task AScheduledSandboxAppTicksAsRunsOfTheApp()
+    {
+        await using var host = new OsAppHostFixture(
+            [$"--{ModuleConfiguration.ModuleSection(SandboxModuleHosting.ModuleName)}:Enabled=true"],
+            TimeSpan.FromSeconds(300));
+        await host.InitializeAsync();
+        await host.App.ResourceNotifications.WaitForResourceHealthyAsync(SandboxModuleHosting.ResourceName, Ct);
+
+        const string code = """
+            using System.Threading.Tasks;
+            using IntoChat.Sdk;
+
+            namespace IntoChat.Tests;
+
+            internal sealed record TickState { public int Ticks { get; init; } }
+            internal sealed record TickSettings;
+
+            [App("ticker", Title = "Ticker", Summary = "Ticks every minute.", Version = "1.0.0")]
+            internal sealed class TickerApp : BrainApp<TickState, TickSettings>
+            {
+                [Every("1m")]
+                public async Task Tick()
+                {
+                    State = State with { Ticks = State.Ticks + 1 };
+                    await Brain.Notifications.SendAsync(new NotificationRequest(Title: $"Tick {State.Ticks}", Body: "ticked", Category: "test"));
+                }
+
+                [OnCommand("ping", Description = "Answers pong.")]
+                public Task<string> Ping() => Task.FromResult("pong");
+            }
+            """;
+        AppSourceFile[] files = [new("TickerApp.cs", code)];
+        var package = new AppPackage("ticker", "1.0.0", "Ticker", "Ticks every minute.", "clock", "Test", "os", files,
+            new AppPackageNeeds([], [], ["1m"], [new AppCommandSpec("ping", "Answers pong.")]), "{}", AppPackage.ComputeDigest("ticker", "1.0.0", files));
+        using var importResponse = await host.Os.PostAsJsonAsync($"/brains/{host.Scope}/apps/import", package.ToAppBundle(), Ct);
+        Assert.Equal(HttpStatusCode.OK, importResponse.StatusCode);
+
+        using var ping = await host.Os.PostAsync($"/brains/{host.Scope}/apps/ticker/command/ping", content: null, Ct);
+        Assert.Equal(HttpStatusCode.OK, ping.StatusCode);
+
+        // Reminders tick no faster than once a minute; allow a few.
+        var deadline = DateTimeOffset.UtcNow.AddMinutes(4);
+        NotificationItem? tick = null;
+        while (tick is null && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(10), Ct);
+            var inbox = await host.Os.GetFromJsonAsync<NotificationInboxPayload>($"/brains/{host.Scope}/notifications", Ct);
+            tick = inbox?.Items.FirstOrDefault(item => item.Title.StartsWith("Tick ", StringComparison.Ordinal) && item.SourceApp == "ticker");
+        }
+        Assert.NotNull(tick);
     }
 
     private sealed record NotificationInboxPayload(NotificationItem[] Items, int UnreadCount);

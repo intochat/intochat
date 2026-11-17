@@ -259,6 +259,8 @@ internal sealed partial class AppNeuron
             throw new InvalidOperationException(deployment.Error ?? $"Sandbox failed to deploy '{Name()}'.");
         }
 
+        await Deployed(deployment.DiscoveredCommands, deployment.DiscoveredSchedules);
+
         if (compiledPackage.Needs.Signals.Length > 0 && ServiceProvider is not null)
         {
             try
@@ -278,6 +280,24 @@ internal sealed partial class AppNeuron
                     Name(),
                     BrainId());
             }
+        }
+    }
+
+    // The deployed program as a synapse: its commands and its [Every] schedules (each due tick is a run of the app). Null clears it.
+    private async Task Deployed(string[]? commands, string[]? schedules)
+    {
+        if (ServiceProvider is null) { return; }
+        try
+        {
+            using (Edge?.Enter(Edge.Module("apps.catalog", Id.Brain)))
+            {
+                var deployed = SiloNeurons.Get<IntoChat.OS.Modules.Apps.AppRuns.IDeployedApp>(ServiceProvider, IntoChat.OS.Modules.Apps.AppRuns.IDeployedApp.KeyOf(BrainId(), Name()));
+                await (commands is null || schedules is null ? deployed.Clear() : deployed.Set(Name(), commands, schedules)).ConfigureAwait(false);
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            ServiceProvider.GetService<ILogger<AppNeuron>>()?.LogWarning(error, "Could not record the deployed app '{App}' on brain '{Brain}'.", Name(), BrainId());
         }
     }
 

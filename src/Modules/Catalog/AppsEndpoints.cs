@@ -117,9 +117,9 @@ internal static class AppsEndpoints
             var payload = await reader.ReadToEndAsync(ct).ConfigureAwait(false);
             // Every command is a run of the app's synapse, so it shows on the runs index.
             var brainId = BrainScope.CurrentId();
-            var run = brain.Get<IAppCommandRun>($"{brainId}/commands/{name}/{Guid.NewGuid():N}");
-            var result = await run.Start(name, command, string.IsNullOrWhiteSpace(payload) ? null : payload).WaitAsync(ct).ConfigureAwait(false);
-            return result.Status == AppCommandStatus.Failed
+            var run = brain.Get<IAppRun>($"{brainId}/commands/{name}/{Guid.NewGuid():N}");
+            var result = await run.Start(AppTrigger.Command, name, command, string.IsNullOrWhiteSpace(payload) ? null : payload).WaitAsync(ct).ConfigureAwait(false);
+            return result.Status == AppRunStatus.Failed
                 ? Results.Conflict(result)
                 : Results.Ok(result);
         });

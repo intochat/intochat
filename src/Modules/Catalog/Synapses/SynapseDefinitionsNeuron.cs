@@ -1,6 +1,7 @@
 using DigitalBrain.Log;
 using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Workflows;
+using IntoChat.OS.Modules.Apps.AppRuns;
 using IntoChat.OS.Modules.Apps.Runs;
 
 namespace IntoChat.OS.Modules.Apps.Synapses;
@@ -14,10 +15,12 @@ internal sealed class SynapseDefinitionsNeuron(IEnumerable<WorkflowDefinition> w
     {
         var runs = await Optional(() => Context.Get<IRuns>(IRuns.Key(Id.Brain.Value)).List(200)) ?? [];
         var units = await Optional(() => Context.Get<ISynapseStudio>(new DigitalBrain.NeuronId(Id.Brain, "ino.synapses", "ino/synapses")).List()) ?? [];
+        var apps = await Optional(() => Context.Get<IDeployedApps>(IDeployedApps.Key(Id.Brain.Value)).List()) ?? [];
         return SynapseDefinitions.Of(
             [.. units.SelectMany(unit => unit.Aliases)],
             [.. workflows.Select(workflow => (workflow.Name, workflow.Description))],
-            runs);
+            runs,
+            apps);
     }
 
     // A form whose source is not hosted in this brain simply contributes nothing.
@@ -34,7 +37,7 @@ internal sealed class SynapseDefinitionsNeuron(IEnumerable<WorkflowDefinition> w
 
 internal static class SynapseDefinitions
 {
-    internal static SynapseDefinition[] Of(string[] unitAliases, (string Name, string Description)[] workflows, RunView[] runs)
+    internal static SynapseDefinition[] Of(string[] unitAliases, (string Name, string Description)[] workflows, RunView[] runs, DeployedApp[]? apps = null)
     {
         SynapseDefinition With(SynapseForm form, string name, string description, RunKind kind)
         {
@@ -48,9 +51,20 @@ internal static class SynapseDefinitions
         known.AddRange(workflows.Select(workflow => With(SynapseForm.Workflow, workflow.Name, workflow.Description, RunKind.Workflow)));
         known.AddRange(Seen(runs, RunKind.Flow).Select(type => With(SynapseForm.Flow, type, "A durable flow.", RunKind.Flow)));
         known.AddRange(Seen(runs, RunKind.AgentTurn).Select(app => With(SynapseForm.Agent, app, "An agent.", RunKind.AgentTurn)));
-        known.AddRange(Seen(runs, RunKind.AppCommand).Select(app => With(SynapseForm.App, app, "An installed sandbox app.", RunKind.AppCommand)));
+        var deployed = apps ?? [];
+        known.AddRange(deployed.Select(app => With(SynapseForm.App, app.App, Describe(app), RunKind.App)));
+        known.AddRange(Seen(runs, RunKind.App).Where(name => deployed.All(app => app.App != name))
+            .Select(app => With(SynapseForm.App, app, "An installed sandbox app.", RunKind.App)));
         known.AddRange(Seen(runs, RunKind.CodeBlock).Select(name => With(SynapseForm.CodeBlock, name, "Generated C# run once in the sandbox.", RunKind.CodeBlock)));
         return [.. known];
+    }
+
+    private static string Describe(DeployedApp app)
+    {
+        var parts = new List<string>();
+        if (app.Commands.Length > 0) { parts.Add("commands: " + string.Join(", ", app.Commands)); }
+        if (app.Schedules.Length > 0) { parts.Add("every " + string.Join(", ", app.Schedules)); }
+        return parts.Count > 0 ? "An installed sandbox app; " + string.Join("; ", parts) + "." : "An installed sandbox app.";
     }
 
     private static IEnumerable<string> Seen(RunView[] runs, RunKind kind)

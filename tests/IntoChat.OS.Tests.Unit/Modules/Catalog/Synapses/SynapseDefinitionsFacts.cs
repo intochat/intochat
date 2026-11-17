@@ -1,5 +1,6 @@
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Creator;
+using IntoChat.OS.Modules.Apps.AppRuns;
 using IntoChat.OS.Modules.Apps.Runs;
 using IntoChat.OS.Modules.Apps.Synapses;
 
@@ -29,6 +30,22 @@ public sealed class SynapseDefinitionsFacts
         Assert.Equal((2, "Succeeded"), (workflow.Runs, workflow.LastRun));
         Assert.Equal(0, all[0].Runs);
         Assert.Null(all[0].LastRun);
+    }
+
+    // An installed sandbox app is behavior before it ever runs: it is listed with what it answers and when it ticks.
+    [Fact]
+    public void ADeployedAppIsASynapseEvenBeforeItRuns()
+    {
+        DeployedApp[] apps = [new("ticker", ["ping"], ["1m"]), new("quiet", [], [])];
+        var all = SynapseDefinitions.Of([], [], [Run("c1", RunKind.App, "ticker", RunState.Succeeded, 1), Run("c2", RunKind.App, "gone", RunState.Failed, 2)], apps);
+
+        var ticker = all.Single(synapse => synapse.Id == "app:ticker");
+        Assert.Equal((SynapseForm.App, 1, "Succeeded"), (ticker.Form, ticker.Runs, ticker.LastRun));
+        Assert.Contains("commands: ping", ticker.Description, StringComparison.Ordinal);
+        Assert.Contains("every 1m", ticker.Description, StringComparison.Ordinal);
+        Assert.Equal(0, all.Single(synapse => synapse.Id == "app:quiet").Runs);
+        // An app that ran once but is no longer deployed is still known by its runs.
+        Assert.Contains(all, synapse => synapse.Id == "app:gone");
     }
 
     [Fact]

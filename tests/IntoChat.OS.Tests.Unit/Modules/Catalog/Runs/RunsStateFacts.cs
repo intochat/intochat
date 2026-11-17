@@ -39,10 +39,12 @@ public sealed class RunsStateFacts
     [Fact]
     public void AnAppCommandIsARunOfItsApp()
     {
-        var state = new RunsState().Fold(new AppCommandStarted("commands/email-notifier/1", "email-notifier", "test-alert"), T0)
-            .Fold(new AppCommandDone("commands/email-notifier/1", true, "\"sent\"", null), T0.AddSeconds(1));
-        var run = Assert.Single(state.Runs);
-        Assert.Equal((RunKind.AppCommand, RunState.Succeeded, "email-notifier: test-alert", "email-notifier"), (run.Kind, run.State, run.Title, run.Synapse));
+        var state = new RunsState().Fold(new AppRunStarted("commands/email-notifier/1", "email-notifier", AppTrigger.Command, "test-alert"), T0)
+            .Fold(new AppRunDone("commands/email-notifier/1", true, "\"sent\"", null), T0.AddSeconds(1))
+            .Fold(new AppRunStarted("ticks/email-notifier/2", "email-notifier", AppTrigger.Schedule, "5m"), T0.AddMinutes(5));
+        Assert.Equal(2, state.Runs.Length);
+        Assert.Contains(state.Runs, run => (run.Kind, run.State, run.Title, run.Synapse) == (RunKind.App, RunState.Succeeded, "email-notifier: test-alert", "email-notifier"));
+        Assert.Contains(state.Runs, run => (run.State, run.Title) == (RunState.Running, "email-notifier: every 5m"));
     }
 
     [Fact]

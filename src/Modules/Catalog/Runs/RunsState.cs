@@ -42,9 +42,9 @@ internal sealed record RunsState(RunView[] Runs)
         {
             State = done.Succeeded ? RunState.Succeeded : RunState.Failed, Waiting = null, Ended = at, Current = null, Detail = done.Error ?? Title(done.Output),
         }),
-        AppCommandStarted started => Put(new RunView(started.RunId, RunKind.AppCommand, $"{started.App}: {started.Command}", RunState.Running, null,
-            started.App, null, at, null, [], started.Command, null, started.App)),
-        AppCommandDone done => Update(done.RunId, run => run with
+        AppRunStarted started => Put(new RunView(started.RunId, RunKind.App, started.Trigger == AppTrigger.Schedule ? $"{started.App}: every {started.Name}" : $"{started.App}: {started.Name}",
+            RunState.Running, null, started.App, null, at, null, [], started.Name, null, started.App)),
+        AppRunDone done => Update(done.RunId, run => run with
         {
             State = done.Succeeded ? RunState.Succeeded : RunState.Failed, Ended = at, Current = null, Detail = done.Error ?? Title(done.Output),
         }),

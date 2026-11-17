@@ -32,7 +32,8 @@ internal sealed record WorkflowRunState(
 // this neuron's state. A request becomes a person-only confirmation; when it is answered (or found answered after a restart) the run
 // resumes from its last checkpoint, which announces the request again, and the answer is sent back.
 [DigitalBrain.Neurons.Neuron("workflow.run")]
-internal sealed class WorkflowRunNeuron(IEnumerable<WorkflowDefinition> definitions) : DigitalBrain.Neurons.Neuron<WorkflowRunState>, IWorkflowRun
+internal sealed class WorkflowRunNeuron(IEnumerable<WorkflowDefinition> definitions, DigitalBrain.Access.EdgeAuthority? edge = null)
+    : DigitalBrain.Neurons.Neuron<WorkflowRunState>, IWorkflowRun
 {
     public async Task<WorkflowRunView> Start(string workflow, string input)
     {
@@ -54,8 +55,10 @@ internal sealed class WorkflowRunNeuron(IEnumerable<WorkflowDefinition> definiti
         // A restart while waiting: the answer may already be in; otherwise keep listening for it.
         if (State.Status == WorkflowRunStatus.Waiting && State.PlanId is { } planId)
         {
-            if (await Confirmations().Outcome(planId) is { } outcome) { await Resume(outcome); }
-            else { await Context.Wires.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain)); }
+            ConfirmationResult? outcome;
+            using (AsWorkflows()) { outcome = await Confirmations().Outcome(planId); }
+            if (outcome is not null) { await Resume(outcome); }
+            else { using (AsWorkflows()) { await Context.Wires.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain)); } }
         }
     }
 
@@ -63,7 +66,9 @@ internal sealed class WorkflowRunNeuron(IEnumerable<WorkflowDefinition> definiti
     public async Task OnResolved(ConfirmationResolved resolved)
     {
         if (State.Status != WorkflowRunStatus.Waiting || !string.Equals(resolved.PlanId, State.PlanId, StringComparison.Ordinal)) { return; }
-        if (await Confirmations().Outcome(resolved.PlanId) is { } outcome) { await Resume(outcome); }
+        ConfirmationResult? outcome;
+        using (AsWorkflows()) { outcome = await Confirmations().Outcome(resolved.PlanId); }
+        if (outcome is not null) { await Resume(outcome); }
     }
 
     private async Task Resume(ConfirmationResult outcome)
@@ -121,10 +126,25 @@ internal sealed class WorkflowRunNeuron(IEnumerable<WorkflowDefinition> definiti
 
         var question = request.Data.As<string>() ?? request.Data.ToString() ?? "";
         var planId = $"wf-{Id.Key}-{request.RequestId}";
-        await Context.Wires.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain));
+        using (AsWorkflows())
+        {
+            await Context.Wires.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain));
+        }
         await Save(next with { Status = WorkflowRunStatus.Waiting, PlanId = planId }, new WorkflowRunWaiting(Id.Key, planId, question));
-        await Confirmations().Request(new ConfirmationPlan(planId, ConfirmationAction.Other, false, $"Continue {State.Workflow}?",
-            $"The workflow {State.Workflow} asks: {question}", "Continue", "Stop", State.Workflow) { RequiresPerson = true, Kind = "workflow.request", Subject = Id.Key });
+        try
+        {
+            using (AsWorkflows())
+            {
+                await Confirmations().Request(new ConfirmationPlan(planId, ConfirmationAction.Other, false, $"Continue {State.Workflow}?",
+                    $"The workflow {State.Workflow} asks: {question}", "Continue", "Stop", State.Workflow) { RequiresPerson = true, Kind = "workflow.request", Subject = Id.Key });
+            }
+        }
+        catch (Exception refused) when (refused is UnauthorizedAccessException or InvalidOperationException)
+        {
+            // Nobody could ever answer a request that was never filed, so the run ends instead of waiting forever.
+            var reason = $"The workflow could not ask for approval: {refused.Message}";
+            await Save(State with { Status = WorkflowRunStatus.Failed, Error = reason, PlanId = null }, new WorkflowRunDone(Id.Key, false, null, reason));
+        }
     }
 
     private WorkflowDefinition Definition(string name)
@@ -132,4 +152,8 @@ internal sealed class WorkflowRunNeuron(IEnumerable<WorkflowDefinition> definiti
             ?? throw new ArgumentException($"No workflow named '{name}'. Known: {string.Join(", ", definitions.Select(item => item.Name))}.");
 
     private IConfirmationRequests Confirmations() => Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain));
+
+    // Asking for and reading approvals is the run's own business, whoever started it: an app that may start a workflow is not thereby
+    // allowed to reach the brain's confirmations. Answering one stays the person's act.
+    private IDisposable? AsWorkflows() => edge?.Enter(edge.Module("ai.workflows", Id.Brain));
 }
