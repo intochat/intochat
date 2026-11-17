@@ -1,6 +1,5 @@
 #pragma warning disable CA1822 // Mark members as static
 
-using DigitalBrain.Capabilities;
 using DigitalBrain.Modules;
 
 namespace DigitalBrain.Access;
@@ -90,9 +89,6 @@ public sealed class EdgeAuthority
     /// <summary>Mints a kernel caller.</summary>
     public Caller Kernel(BrainId brain)
         => Caller.OfKernel(brain);
-
-    /// <summary>Converts a verified host <see cref="CapabilityCaller"/> stamp into a <see cref="Caller"/>.</summary>
-    public Caller From(CapabilityCaller caller) => LegacyCallers.Read(caller);
 
     /// <summary>Enters the ambient execution frame of <paramref name="caller"/>.</summary>
     public IDisposable Enter(Caller caller)

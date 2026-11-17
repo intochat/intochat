@@ -88,8 +88,7 @@ public abstract class Neuron
     }
 
     /// <summary>
-    /// Decides on <paramref name="request"/>, which also carries the trusted caller stamp of the call that asked
-    /// (<see cref="SynapseRequest.Caller"/>, set by the runtime only). Override it to authorize by caller; the default runs
+    /// Decides on <paramref name="request"/>. Override it to authorize by the stamped caller of the asking call; the default runs
     /// <see cref="AdmitSynapse(NeuronId, IReadOnlyList{Type})"/>.
     /// </summary>
     /// <exception cref="UnauthorizedAccessException">The subscriber is not admitted.</exception>

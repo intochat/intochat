@@ -53,9 +53,6 @@ const DigitalBrain.Capabilities.Capability.Identity.V1Id = "identity@1" -> strin
 const DigitalBrain.Capabilities.Capability.Secrets.V1Id = "secrets@1" -> string!
 const DigitalBrain.Capabilities.Capability.Storage.V1Id = "storage@1" -> string!
 const DigitalBrain.Capabilities.Capability.Tools.V1Id = "tool@1" -> string!
-const DigitalBrain.Capabilities.CapabilityCallers.AssistantApp = "assistant" -> string!
-const DigitalBrain.Capabilities.CapabilityCallers.PlatformApp = "platform" -> string!
-const DigitalBrain.Capabilities.CapabilityCallers.SchedulerApp = "scheduler" -> string!
 const DigitalBrain.Confirmation.ConfirmationPlan.SynapseInstallKind = "synapse.install" -> string!
 const DigitalBrain.Confirmation.ConfirmationsNeuron.NeuronType = "runtime.confirmations" -> string!
 const DigitalBrain.Confirmation.ConfirmationState.MaxEntries = 50 -> int
@@ -93,17 +90,6 @@ const DigitalBrain.Units.SynapseReasons.UnknownParameter = "not a signal, the st
 const DigitalBrain.Units.SynapseReasons.ViewTakesOnlyState = "view takes only the state" -> string!
 DigitalBrain.Access.AccessAttribute
 DigitalBrain.Access.AccessAttribute.AccessAttribute() -> void
-DigitalBrain.Access.AccessCounters
-DigitalBrain.Access.AccessCounters.AccessCounters() -> void
-DigitalBrain.Access.AccessCounters.ImplicitKernel(string! contract, string! method) -> void
-DigitalBrain.Access.AccessCounters.LegacyStamp(string! source) -> void
-DigitalBrain.Access.AccessCounters.OnImplicitKernel.get -> System.Action<string!, string!>?
-DigitalBrain.Access.AccessCounters.OnImplicitKernel.set -> void
-DigitalBrain.Access.AccessCounters.OnLegacyStamp.get -> System.Action<string!>?
-DigitalBrain.Access.AccessCounters.OnLegacyStamp.set -> void
-DigitalBrain.Access.AccessCounters.OnWouldDeny.get -> System.Action<string!, string!, DigitalBrain.Access.AccessDenial>?
-DigitalBrain.Access.AccessCounters.OnWouldDeny.set -> void
-DigitalBrain.Access.AccessCounters.WouldDeny(string! contract, string! method, DigitalBrain.Access.AccessDenial denial) -> void
 DigitalBrain.Access.AccessDecision
 DigitalBrain.Access.AccessDecision.AccessDecision() -> void
 DigitalBrain.Access.AccessDecision.AccessDecision(bool Allowed, DigitalBrain.Access.AccessDenial Denial, string? Explanation) -> void
@@ -121,12 +107,6 @@ DigitalBrain.Access.AccessDenial.NoCaller = 4 -> DigitalBrain.Access.AccessDenia
 DigitalBrain.Access.AccessDenial.None = 0 -> DigitalBrain.Access.AccessDenial
 DigitalBrain.Access.AccessDenial.OutsideBrain = 2 -> DigitalBrain.Access.AccessDenial
 DigitalBrain.Access.AccessDenial.UnknownActor = 1 -> DigitalBrain.Access.AccessDenial
-DigitalBrain.Access.AccessOptions
-DigitalBrain.Access.AccessOptions.AccessOptions() -> void
-DigitalBrain.Access.AccessOptions.AuditContractInternal.get -> bool
-DigitalBrain.Access.AccessOptions.AuditContractInternal.set -> void
-DigitalBrain.Access.AccessOptions.UnstampedEdgeIsKernel.get -> bool
-DigitalBrain.Access.AccessOptions.UnstampedEdgeIsKernel.set -> void
 DigitalBrain.Access.AccessPolicy
 DigitalBrain.Access.Actor
 DigitalBrain.Access.Actor.Actor(DigitalBrain.Access.Actor! original) -> void
@@ -182,7 +162,6 @@ DigitalBrain.Access.EdgeAuthority.Current.get -> DigitalBrain.Access.Caller?
 DigitalBrain.Access.EdgeAuthority.Enter(DigitalBrain.Access.Caller! caller) -> System.IDisposable!
 DigitalBrain.Access.EdgeAuthority.EnterInProcess() -> System.IDisposable!
 DigitalBrain.Access.EdgeAuthority.EnterKernel(DigitalBrain.BrainId brain) -> System.IDisposable!
-DigitalBrain.Access.EdgeAuthority.From(DigitalBrain.Capabilities.CapabilityCaller! caller) -> DigitalBrain.Access.Caller!
 DigitalBrain.Access.EdgeAuthority.Guest(string! principal, string! account, DigitalBrain.BrainId brain, string? conversation = null) -> DigitalBrain.Access.Caller!
 DigitalBrain.Access.EdgeAuthority.IsKernelActive.get -> bool
 DigitalBrain.Access.EdgeAuthority.Kernel(DigitalBrain.BrainId brain) -> DigitalBrain.Access.Caller!
@@ -358,13 +337,6 @@ DigitalBrain.CallsAttribute.CallsAttribute(string! from, string! to) -> void
 DigitalBrain.CallsAttribute.From.get -> string!
 DigitalBrain.CallsAttribute.To.get -> string!
 DigitalBrain.Capabilities.AppPrincipal
-DigitalBrain.Capabilities.CallerKind
-DigitalBrain.Capabilities.CallerKind.Agent = 1 -> DigitalBrain.Capabilities.CallerKind
-DigitalBrain.Capabilities.CallerKind.App = 2 -> DigitalBrain.Capabilities.CallerKind
-DigitalBrain.Capabilities.CallerKind.Assistant = 1 -> DigitalBrain.Capabilities.CallerKind
-DigitalBrain.Capabilities.CallerKind.Platform = 4 -> DigitalBrain.Capabilities.CallerKind
-DigitalBrain.Capabilities.CallerKind.Scheduler = 3 -> DigitalBrain.Capabilities.CallerKind
-DigitalBrain.Capabilities.CallerKind.User = 0 -> DigitalBrain.Capabilities.CallerKind
 DigitalBrain.Capabilities.Capability
 DigitalBrain.Capabilities.Capability.Compute
 DigitalBrain.Capabilities.Capability.Connections
@@ -373,28 +345,6 @@ DigitalBrain.Capabilities.Capability.Identity
 DigitalBrain.Capabilities.Capability.Secrets
 DigitalBrain.Capabilities.Capability.Storage
 DigitalBrain.Capabilities.Capability.Tools
-DigitalBrain.Capabilities.CapabilityCaller
-DigitalBrain.Capabilities.CapabilityCaller.<Clone>$() -> DigitalBrain.Capabilities.CapabilityCaller!
-DigitalBrain.Capabilities.CapabilityCaller.AccountId.get -> string!
-DigitalBrain.Capabilities.CapabilityCaller.AccountId.init -> void
-DigitalBrain.Capabilities.CapabilityCaller.AppId.get -> string?
-DigitalBrain.Capabilities.CapabilityCaller.AppId.init -> void
-DigitalBrain.Capabilities.CapabilityCaller.AppKey.get -> string?
-DigitalBrain.Capabilities.CapabilityCaller.BrainId.get -> string!
-DigitalBrain.Capabilities.CapabilityCaller.BrainId.init -> void
-DigitalBrain.Capabilities.CapabilityCaller.CapabilityCaller(string! PrincipalId, string! AccountId, string! BrainId, string? AppId = null, string? ConversationId = null) -> void
-DigitalBrain.Capabilities.CapabilityCaller.ConversationId.get -> string?
-DigitalBrain.Capabilities.CapabilityCaller.ConversationId.init -> void
-DigitalBrain.Capabilities.CapabilityCaller.Deconstruct(out string! PrincipalId, out string! AccountId, out string! BrainId, out string? AppId, out string? ConversationId) -> void
-DigitalBrain.Capabilities.CapabilityCaller.Equals(DigitalBrain.Capabilities.CapabilityCaller? other) -> bool
-DigitalBrain.Capabilities.CapabilityCaller.Kind.get -> DigitalBrain.Capabilities.CallerKind
-DigitalBrain.Capabilities.CapabilityCaller.OnBehalfOf.get -> string?
-DigitalBrain.Capabilities.CapabilityCaller.OnBehalfOf.init -> void
-DigitalBrain.Capabilities.CapabilityCaller.PersonId.get -> string!
-DigitalBrain.Capabilities.CapabilityCaller.PrincipalId.get -> string!
-DigitalBrain.Capabilities.CapabilityCaller.PrincipalId.init -> void
-DigitalBrain.Capabilities.CapabilityCaller.StampedBy.get -> DigitalBrain.Capabilities.TrustedEdge
-DigitalBrain.Capabilities.CapabilityCallers
 DigitalBrain.Capabilities.CapabilityConnection<TCapability>
 DigitalBrain.Capabilities.CapabilityConnection<TCapability>.Capability.get -> TCapability!
 DigitalBrain.Capabilities.CapabilityConnection<TCapability>.Capability.init -> void
@@ -416,11 +366,6 @@ DigitalBrain.Capabilities.CapabilityIdJsonConverter.CapabilityIdJsonConverter() 
 DigitalBrain.Capabilities.ICapabilityBroker
 DigitalBrain.Capabilities.ICapabilityBroker.Resolve<TCapability>(DigitalBrain.BrainId brain, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<TCapability!>!
 DigitalBrain.Capabilities.ICapabilityBroker.ResolveAll<TCapability>(DigitalBrain.BrainId brain, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<DigitalBrain.Capabilities.CapabilityConnection<TCapability!>!>!>!
-DigitalBrain.Capabilities.TrustedEdge
-DigitalBrain.Capabilities.TrustedEdge.AppProxy = 1 -> DigitalBrain.Capabilities.TrustedEdge
-DigitalBrain.Capabilities.TrustedEdge.AuthenticatedHttp = 0 -> DigitalBrain.Capabilities.TrustedEdge
-DigitalBrain.Capabilities.TrustedEdge.Platform = 3 -> DigitalBrain.Capabilities.TrustedEdge
-DigitalBrain.Capabilities.TrustedEdge.Scheduler = 2 -> DigitalBrain.Capabilities.TrustedEdge
 DigitalBrain.CapabilityAttribute
 DigitalBrain.CapabilityAttribute.CapabilityAttribute(string! name, int version) -> void
 DigitalBrain.CapabilityAttribute.Id.get -> DigitalBrain.Capabilities.CapabilityId
@@ -1011,15 +956,11 @@ DigitalBrain.Kernel.SignalPage.Signals.get -> System.Collections.Generic.IReadOn
 DigitalBrain.Kernel.SignalPage.Signals.init -> void
 DigitalBrain.Kernel.SynapseRequest
 DigitalBrain.Kernel.SynapseRequest.<Clone>$() -> DigitalBrain.Kernel.SynapseRequest!
-DigitalBrain.Kernel.SynapseRequest.Caller.get -> DigitalBrain.Capabilities.CapabilityCaller?
-DigitalBrain.Kernel.SynapseRequest.Caller.init -> void
-DigitalBrain.Kernel.SynapseRequest.Deconstruct(out DigitalBrain.NeuronId Subscriber, out System.Collections.Generic.IReadOnlyList<System.Type!>! Signals, out DigitalBrain.Capabilities.CapabilityCaller? Caller) -> void
 DigitalBrain.Kernel.SynapseRequest.Equals(DigitalBrain.Kernel.SynapseRequest? other) -> bool
 DigitalBrain.Kernel.SynapseRequest.Signals.get -> System.Collections.Generic.IReadOnlyList<System.Type!>!
 DigitalBrain.Kernel.SynapseRequest.Signals.init -> void
 DigitalBrain.Kernel.SynapseRequest.Subscriber.get -> DigitalBrain.NeuronId
 DigitalBrain.Kernel.SynapseRequest.Subscriber.init -> void
-DigitalBrain.Kernel.SynapseRequest.SynapseRequest(DigitalBrain.NeuronId Subscriber, System.Collections.Generic.IReadOnlyList<System.Type!>! Signals, DigitalBrain.Capabilities.CapabilityCaller? Caller) -> void
 DigitalBrain.Kernel.TypeKind
 DigitalBrain.Kernel.TypeKind.Connector = 2 -> DigitalBrain.Kernel.TypeKind
 DigitalBrain.Kernel.TypeKind.Neuron = 0 -> DigitalBrain.Kernel.TypeKind
@@ -2641,9 +2582,6 @@ override DigitalBrain.Brains.NeuronAddress.ToString() -> string!
 override DigitalBrain.Brains.Owner.Equals(object? obj) -> bool
 override DigitalBrain.Brains.Owner.GetHashCode() -> int
 override DigitalBrain.Brains.Owner.ToString() -> string!
-override DigitalBrain.Capabilities.CapabilityCaller.Equals(object? obj) -> bool
-override DigitalBrain.Capabilities.CapabilityCaller.GetHashCode() -> int
-override DigitalBrain.Capabilities.CapabilityCaller.ToString() -> string!
 override DigitalBrain.Capabilities.CapabilityConnection<TCapability>.Equals(object? obj) -> bool
 override DigitalBrain.Capabilities.CapabilityConnection<TCapability>.GetHashCode() -> int
 override DigitalBrain.Capabilities.CapabilityConnection<TCapability>.ToString() -> string!
@@ -3229,11 +3167,6 @@ static DigitalBrain.Capabilities.Capability.Identity.V1.get -> DigitalBrain.Capa
 static DigitalBrain.Capabilities.Capability.Secrets.V1.get -> DigitalBrain.Capabilities.CapabilityId
 static DigitalBrain.Capabilities.Capability.Storage.V1.get -> DigitalBrain.Capabilities.CapabilityId
 static DigitalBrain.Capabilities.Capability.Tools.V1.get -> DigitalBrain.Capabilities.CapabilityId
-static DigitalBrain.Capabilities.CapabilityCaller.App(string! appKey) -> DigitalBrain.Capabilities.CapabilityCaller!
-static DigitalBrain.Capabilities.CapabilityCaller.operator !=(DigitalBrain.Capabilities.CapabilityCaller? left, DigitalBrain.Capabilities.CapabilityCaller? right) -> bool
-static DigitalBrain.Capabilities.CapabilityCaller.operator ==(DigitalBrain.Capabilities.CapabilityCaller? left, DigitalBrain.Capabilities.CapabilityCaller? right) -> bool
-static DigitalBrain.Capabilities.CapabilityCallers.Of(string! principalId, string! accountId, string! brainId, DigitalBrain.Capabilities.CallerKind kind = DigitalBrain.Capabilities.CallerKind.User, string? appId = null, string? conversationId = null) -> DigitalBrain.Capabilities.CapabilityCaller!
-static DigitalBrain.Capabilities.CapabilityCallers.Platform(string! principalId, string! accountId, string! brainId, string? conversationId = null) -> DigitalBrain.Capabilities.CapabilityCaller!
 static DigitalBrain.Capabilities.CapabilityId.operator !=(DigitalBrain.Capabilities.CapabilityId left, DigitalBrain.Capabilities.CapabilityId right) -> bool
 static DigitalBrain.Capabilities.CapabilityId.operator ==(DigitalBrain.Capabilities.CapabilityId left, DigitalBrain.Capabilities.CapabilityId right) -> bool
 static DigitalBrain.Capabilities.CapabilityId.Parse(string! text) -> DigitalBrain.Capabilities.CapabilityId
@@ -4157,3 +4090,5 @@ static DigitalBrain.Kernel.ObservedWire.operator !=(DigitalBrain.Kernel.Observed
 static DigitalBrain.Kernel.ObservedWire.operator ==(DigitalBrain.Kernel.ObservedWire? left, DigitalBrain.Kernel.ObservedWire? right) -> bool
 static DigitalBrain.Kernel.Wire.operator !=(DigitalBrain.Kernel.Wire? left, DigitalBrain.Kernel.Wire? right) -> bool
 static DigitalBrain.Kernel.Wire.operator ==(DigitalBrain.Kernel.Wire? left, DigitalBrain.Kernel.Wire? right) -> bool
+DigitalBrain.Kernel.SynapseRequest.Deconstruct(out DigitalBrain.NeuronId Subscriber, out System.Collections.Generic.IReadOnlyList<System.Type!>! Signals) -> void
+DigitalBrain.Kernel.SynapseRequest.SynapseRequest(DigitalBrain.NeuronId Subscriber, System.Collections.Generic.IReadOnlyList<System.Type!>! Signals) -> void

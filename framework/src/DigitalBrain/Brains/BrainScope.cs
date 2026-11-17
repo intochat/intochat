@@ -11,7 +11,7 @@ public sealed record BrainScope(string Id, string Owner)
             throw new InvalidOperationException("No caller context is stamped on this call.");
         }
 
-        return Create(caller.AccountId, caller.BrainId).Id;
+        return caller.Brain.Value;
     }
 
     public static BrainScope Create(string owner, string name)

@@ -46,12 +46,11 @@ public static class NeuronAttachment
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(signals);
-        return source.Admit(new SynapseRequest(subscriber, signals, null));
+        return source.Admit(new SynapseRequest(subscriber, signals));
     }
 
     /// <summary>
-    /// The single entry point a runtime calls before it creates a synapse, with the trusted caller stamp of the asking call in
-    /// <see cref="SynapseRequest.Caller"/>. The runtime fills it from its own call context, never from the subscriber's arguments.
+    /// The single entry point a runtime calls before it creates a synapse, deciding on <paramref name="request"/>.
     /// </summary>
     /// <exception cref="UnauthorizedAccessException">The source refuses the subscriber.</exception>
     public static Task Admit(Neuron source, SynapseRequest request)
