@@ -71,6 +71,7 @@ public sealed class FlowRuntimeFacts(FlowRuntimeFixture fixture, FaultingConfirm
     public async Task FlowSurvivesDeactivation(NeuronRuntimeKind kind)
     {
         await using var runtime = await fixture.Start(kind, Ct);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var id = runtime.Id("test.flow", "survives");
         await runtime.Get<ITestFlow>(id).Start("Build", "ann", null, new FlowBox { AskFirst = true });
         _ = await runtime.WaitForSignals<FlowWaiting>(id, 1, TimeSpan.FromSeconds(20), Ct);
@@ -96,6 +97,7 @@ public sealed class FlowRuntimeFacts(FlowRuntimeFixture fixture, FaultingConfirm
     public async Task StartIsDurableAcrossRestartOnBothRuntimes(NeuronRuntimeKind kind)
     {
         await using var runtime = await fixture.Start(kind, Ct);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var id = runtime.Id("test.flow", "durable-start");
         await runtime.Get<ITestFlow>(id).Start("Build", "ann", null, new FlowBox());
         Assert.Single(await runtime.Signals<FlowStarted>(id, Ct));
@@ -120,6 +122,7 @@ public sealed class FlowRuntimeFacts(FlowRuntimeFixture fixture, FaultingConfirm
     public async Task ApprovalWaitResolvesOnBothRuntimes(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var id = runtime.Id("test.flow", "approval");
         await runtime.Get<ITestFlow>(id).Start("Build", "ann", null, new FlowBox { AskFirst = true, Approval = true });
         var waiting = Assert.Single(await runtime.WaitForSignals<FlowWaiting>(id, 1, TimeSpan.FromSeconds(20), Ct));
@@ -139,6 +142,7 @@ public sealed class FlowRuntimeFacts(FlowRuntimeFixture fixture, FaultingConfirm
     public async Task FailedConfirmationFailsTheFlowOnBothRuntimes(NeuronRuntimeKind kind)
     {
         var runtime = await faulting.Runtime(kind);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var id = runtime.Id("test.flow", "faulting");
         await runtime.Get<ITestFlow>(id).Start("Build", "ann", null, new FlowBox { AskFirst = true, Approval = true });
 
@@ -153,6 +157,7 @@ public sealed class FlowRuntimeFacts(FlowRuntimeFixture fixture, FaultingConfirm
     public async Task AFlowStartedFromAReactionKeepsTheCauseTrace(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var kicker = runtime.Id("test.flow.kicker", "traced");
         var id = runtime.Id("test.flow", "traced");
         await runtime.Get<IFlowStarter>(runtime.Id("test.flow.starter", "traced")).Follow(kicker.ToString());
@@ -170,6 +175,7 @@ public sealed class FlowRuntimeFacts(FlowRuntimeFixture fixture, FaultingConfirm
     public async Task AForgedConfirmationResolvedDoesNotCompleteAPendingConfirm(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var id = runtime.Id("test.flow", "forged");
         await runtime.Get<ITestFlow>(id).Start("Build", "ann", null, new FlowBox { AskFirst = true, Approval = true });
         var planId = Assert.IsType<string>(Assert.Single(await runtime.WaitForSignals<FlowWaiting>(id, 1, TimeSpan.FromSeconds(20), Ct)).ConfirmationPlanId);
@@ -194,6 +200,7 @@ public sealed class FlowRuntimeFacts(FlowRuntimeFixture fixture, FaultingConfirm
     public async Task ATopLevelStartHasOneTraceId(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var id = runtime.Id("test.flow", "top-level");
         await runtime.Get<ITestFlow>(id).Start("Build", "ann", null, new FlowBox());
 
@@ -208,6 +215,7 @@ public sealed class FlowRuntimeFacts(FlowRuntimeFixture fixture, FaultingConfirm
     public async Task CancelDuringALongBodyEndsCancelledWithoutConflict(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var id = runtime.Id("test.flow", "cancel-long");
         await runtime.Get<ITestFlow>(id).Start("Build", "ann", null, new FlowBox { Hang = true });
         // The body hangs, so the runtime never idles: poll the journal instead of waiting for idle.
@@ -242,6 +250,7 @@ public sealed class FlowRuntimeFacts(FlowRuntimeFixture fixture, FaultingConfirm
     public async Task AppAndAgentCallersCannotCancelFlowInTestOS()
     {
         await using var os = TestOS.Local();
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         os.Register<TwoStepFlow>();
         var brain = new BrainId("local");
         var id = new NeuronId(brain, "test.flow", "guard-os");
@@ -279,23 +288,24 @@ public sealed class FlowRuntimeFacts(FlowRuntimeFixture fixture, FaultingConfirm
     public async Task AppAndAgentCallersCannotCancelFlowInSilo()
     {
         var runtime = await fixture.Runtime(NeuronRuntimeKind.Silo);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var id = runtime.Id("test.flow", "guard-silo");
         await runtime.Get<ITestFlow>(id).Start("Build", "ann", null, new FlowBox { AskFirst = true, Approval = true });
         await runtime.WaitForSignals<FlowWaiting>(id, 1, TimeSpan.FromSeconds(20), Ct);
 
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("ann", "acc", runtime.Brain.Value, CallerKind.Agent)))
+        using (runtime.Edge.Enter(runtime.Edge.Agent(new DigitalBrain.Access.Actor.Person("ann", "acc"), runtime.Brain)))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => runtime.Get<ITestFlow>(id).Cancel("stop").WaitAsync(Ct));
         }
 
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("ann", "acc", runtime.Brain.Value, CallerKind.App, appId: "tasks")))
+        using (runtime.Edge.Enter(runtime.Edge.App("tasks", new DigitalBrain.Access.Actor.Person("ann", "acc"), runtime.Brain)))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => runtime.Get<ITestFlow>(id).Cancel("stop").WaitAsync(Ct));
         }
 
         Assert.Equal(FlowStatus.Waiting, (await runtime.Get<ITestFlow>(id).Read()).Status);
 
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("ann", "acc", runtime.Brain.Value, CallerKind.User)))
+        using (runtime.Edge.Enter(runtime.Edge.Person("ann", "acc", runtime.Brain)))
         {
             await runtime.Get<ITestFlow>(id).Cancel("stop").WaitAsync(Ct);
         }

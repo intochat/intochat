@@ -101,45 +101,6 @@ public sealed class EdgeAuthorityFacts
     }
 
     [Fact]
-    public void FromCapabilityCaller_MapsAllHostCallerKindsWithoutReflection()
-    {
-        var edge = EdgeAuthority.CreateInternal();
-
-        var user = edge.From(new CapabilityCaller("alice", "acct-1", AliceBrain.Value, ConversationId: "c1"));
-        Assert.Equal(new Actor.Person("alice", "acct-1"), user.Actor);
-        Assert.True(user.Direct);
-        Assert.Equal("c1", user.Conversation);
-
-        var onBehalf = edge.From(new CapabilityCaller("alice", "acct-1", AliceBrain.Value) { OnBehalfOf = "bob" });
-        Assert.Equal(new Actor.Person("alice", "acct-1"), onBehalf.Actor);
-        Assert.True(onBehalf.Inside);
-        Assert.False(onBehalf.Direct);
-
-        var agent = edge.From(CapabilityCallers.Of("alice", "acct-1", AliceBrain.Value, CallerKind.Agent, conversationId: "c2"));
-        Assert.Equal(new Actor.Agent(new Actor.Person("alice", "acct-1")), agent.Actor);
-        Assert.False(agent.Inside);
-        Assert.Equal("c2", agent.Conversation);
-
-        var app = edge.From(CapabilityCallers.Of("alice", "acct-1", AliceBrain.Value, CallerKind.App, appId: "notes"));
-        Assert.Equal(new Actor.App("notes", new Actor.Person("alice", "acct-1")), app.Actor);
-        Assert.False(app.Inside);
-
-        var guest = edge.From(new CapabilityCaller("try-1", "try-1", AliceBrain.Value, AppId: "guest"));
-        Assert.Equal(new Actor.App("guest", new Actor.Person("try-1", "try-1")), guest.Actor);
-
-        var scheduler = edge.From(CapabilityCallers.Of("s", "s", AliceBrain.Value, CallerKind.Scheduler));
-        Assert.IsType<Actor.Scheduler>(scheduler.Actor);
-        Assert.True(scheduler.Inside);
-        Assert.False(scheduler.Direct);
-
-        var kernel = edge.From(CapabilityCallers.Platform("k", "k", BrainId.Kernel.Value));
-        Assert.IsType<Actor.Kernel>(kernel.Actor);
-        Assert.Equal(BrainId.Kernel, kernel.Brain);
-        Assert.True(kernel.Inside);
-        Assert.False(kernel.Direct);
-    }
-
-    [Fact]
     public void KernelAndInProcessScopes_TrackAndRestoreAmbientStateCleanly()
     {
         var carrier = new AsyncLocalTestCarrier();

@@ -185,6 +185,7 @@ public sealed class AsksConformanceFacts(AsksConformanceFixture fixture) : IClas
     public async Task AsksRoundTripRetriesTransientFailureWithRetryPolicyAndDeliversAnswered(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         await InstallUnit(runtime);
 
         var driver = runtime.Get<IAsksConformanceDriver>(runtime.Id("e2e-asks-driver", "d1"));
@@ -213,6 +214,7 @@ public sealed class AsksConformanceFacts(AsksConformanceFixture fixture) : IClas
     public async Task AsksLeaseRenewalAndDurableStateSurviveHostRestart(NeuronRuntimeKind kind)
     {
         await using var runtime = await fixture.Start(kind, Ct);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         await InstallUnit(runtime);
 
         var driver = runtime.Get<IAsksConformanceDriver>(runtime.Id("e2e-asks-driver", "d-restart"));

@@ -4,7 +4,6 @@ using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Contracts;
 using DigitalBrain.Runtime.Orleans.Brain;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Hosting;
@@ -55,6 +54,8 @@ public sealed class TestFilterModule : Module
 public sealed class PlainNeuronCallFilterFacts(PlainNeuronCallFilterFacts.FilterSiloFixture fixture)
     : IClassFixture<PlainNeuronCallFilterFacts.FilterSiloFixture>
 {
+    private EdgeAuthority Edge => fixture.Services.GetRequiredService<EdgeAuthority>();
+
     public sealed class FilterSiloFixture : IAsyncLifetime
     {
         private IInProcessHost? _host;
@@ -74,11 +75,7 @@ public sealed class PlainNeuronCallFilterFacts(PlainNeuronCallFilterFacts.Filter
             }.Distinct().ToArray();
 
             var factory = new LocalSiloHostFactory(
-                new BrainStorageRegistration(signalAssemblies),
-                services =>
-                {
-                    services.AddSingleton(new AccessOptions { UnstampedEdgeIsKernel = false, AuditContractInternal = true });
-                });
+                new BrainStorageRegistration(signalAssemblies));
 
             _host = await factory.Start(
                 new InProcessHostOptions
@@ -116,7 +113,7 @@ public sealed class PlainNeuronCallFilterFacts(PlainNeuronCallFilterFacts.Filter
     public async Task StampedCallToPlainNeuronSucceeds()
     {
         var brain = fixture.NewBrain("stamped");
-        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
+        using var stamp = Edge.Enter(Edge.Person(brain, brain, new BrainId(brain)));
         var settingsNeuron = SiloNeurons.Get<ITestUserSettings>(fixture.Services, $"{brain}/test.settings/default");
 
         var state = await settingsNeuron.SetProfile("Ada");
@@ -125,17 +122,16 @@ public sealed class PlainNeuronCallFilterFacts(PlainNeuronCallFilterFacts.Filter
     }
 
     [Fact]
-    public async Task InternalPlumbingContractExecutesCleanlyWithoutCallerStamp()
+    public async Task InternalPlumbingContractRunsOnlyAsTheKernel()
     {
         var brain = fixture.NewBrain("plumbing");
         var announcer = SiloNeurons.Get<IBrainAnnouncer>(fixture.Services, $"{brain}/main");
 
-        var exception = await Record.ExceptionAsync(async () =>
+        // The announcer's members are one-way, so a refusal of another caller is not observable here; the kernel's call runs.
+        using (Edge.EnterKernel(new BrainId(brain)))
         {
-            await announcer.InstanceCreated("test.type", "test.key");
-        });
-
-        Assert.Null(exception);
+            Assert.Null(await Record.ExceptionAsync(() => announcer.InstanceCreated("test.type", "test.key")));
+        }
     }
 
     [Fact]
@@ -148,12 +144,12 @@ public sealed class PlainNeuronCallFilterFacts(PlainNeuronCallFilterFacts.Filter
     }
 
     [Fact]
-    public async Task UnstampedCall_WithForgedModuleCallKey_StillThrowsUnauthorizedAccessException()
+    public async Task UnstampedCall_WithAForgedRequestContextKey_StillThrowsUnauthorizedAccessException()
     {
         var brain = fixture.NewBrain("unstamped-forged-module");
         var settingsNeuron = SiloNeurons.Get<ITestUserSettings>(fixture.Services, $"{brain}/test.settings/default");
 
-        global::Orleans.Runtime.RequestContext.Set(RuntimeCallerContext.ModuleCallKey, true);
+        global::Orleans.Runtime.RequestContext.Set("intochatos.trusted-module-call", true);
         try
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(async () =>
@@ -163,7 +159,7 @@ public sealed class PlainNeuronCallFilterFacts(PlainNeuronCallFilterFacts.Filter
         }
         finally
         {
-            global::Orleans.Runtime.RequestContext.Remove(RuntimeCallerContext.ModuleCallKey);
+            global::Orleans.Runtime.RequestContext.Remove("intochatos.trusted-module-call");
         }
     }
 
@@ -173,7 +169,7 @@ public sealed class PlainNeuronCallFilterFacts(PlainNeuronCallFilterFacts.Filter
         var targetBrain = fixture.NewBrain("victim-brain");
         var attackerBrain = fixture.NewBrain("attacker-brain");
 
-        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(attackerBrain, attackerBrain, attackerBrain));
+        using var stamp = Edge.Enter(Edge.Person(attackerBrain, attackerBrain, new BrainId(attackerBrain)));
         var settingsNeuron = SiloNeurons.Get<ITestUserSettings>(fixture.Services, $"{targetBrain}/test.settings/default");
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(async () =>
@@ -186,7 +182,7 @@ public sealed class PlainNeuronCallFilterFacts(PlainNeuronCallFilterFacts.Filter
     public async Task StampedCall_ReadOnlyMethod_SucceedsForLegitimateCaller()
     {
         var brain = fixture.NewBrain("stamped-read");
-        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
+        using var stamp = Edge.Enter(Edge.Person(brain, brain, new BrainId(brain)));
         var settingsNeuron = SiloNeurons.Get<ITestUserSettings>(fixture.Services, $"{brain}/test.settings/default");
 
         await settingsNeuron.SetProfile("Ada");

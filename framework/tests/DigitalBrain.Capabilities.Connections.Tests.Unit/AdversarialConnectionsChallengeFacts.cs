@@ -28,6 +28,7 @@ public sealed class AdversarialConnectionsChallengeFacts
             new FakeSecretSealer(),
             [new ConnectorDefinition("stress", "Stress Connector", ["token", "oauth"], ["token", "oauth"])]);
         await using var os = TestOS.Local(options => options.Services = services);
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         os.Register<ConnectionCatalogNeuron>();
         os.Register<FaultInjectableConnectionNeuron>();
 
@@ -48,15 +49,15 @@ public sealed class AdversarialConnectionsChallengeFacts
         Assert.Null(read1.Account);
 
         // Verify neuron in-memory State itself
-        Assert.Equal(ConnectionStatus.Disconnected, await neuronDirect.GetCurrentStatus());
-        Assert.Equal(0, await neuronDirect.GetSecretsCount());
+        Assert.Equal(ConnectionStatus.Disconnected, await Inspect(os, () => neuronDirect.GetCurrentStatus()));
+        Assert.Equal(0, await Inspect(os, () => neuronDirect.GetSecretsCount()));
 
         // Scenario 2: Successful Connect succeeds
         FaultInjectableConnectionNeuron.FailRecord = false;
         var connected = await connection.Connect("token", "test-value");
         Assert.Equal(ConnectionStatus.Connected, connected.Status);
-        Assert.Equal(1, await neuronDirect.GetSecretsCount());
-        Assert.Equal(ConnectionStatus.Connected, await neuronDirect.GetCurrentStatus());
+        Assert.Equal(1, await Inspect(os, () => neuronDirect.GetSecretsCount()));
+        Assert.Equal(ConnectionStatus.Connected, await Inspect(os, () => neuronDirect.GetCurrentStatus()));
 
         // Scenario 3: Disconnect fails on save -> remains Connected, secrets NOT deleted
         FaultInjectableConnectionNeuron.FailRecord = true;
@@ -64,8 +65,8 @@ public sealed class AdversarialConnectionsChallengeFacts
 
         var readAfterFailedDisc = await connection.Read();
         Assert.Equal(ConnectionStatus.Connected, readAfterFailedDisc.Status);
-        Assert.Equal(1, await neuronDirect.GetSecretsCount());
-        Assert.Equal(ConnectionStatus.Connected, await neuronDirect.GetCurrentStatus());
+        Assert.Equal(1, await Inspect(os, () => neuronDirect.GetSecretsCount()));
+        Assert.Equal(ConnectionStatus.Connected, await Inspect(os, () => neuronDirect.GetCurrentStatus()));
 
         // Scenario 4: Probe outcome save failure -> status remains previous (Connected)
         FaultInjectableConnectionNeuron.ProbeOutcomeToReturn = ConnectionProbeOutcome.Expired;
@@ -74,18 +75,19 @@ public sealed class AdversarialConnectionsChallengeFacts
 
         var readAfterFailedProbe = await connection.Read();
         Assert.Equal(ConnectionStatus.Connected, readAfterFailedProbe.Status); // Still Connected, did not mutate to Expired!
-        Assert.Equal(ConnectionStatus.Connected, await neuronDirect.GetCurrentStatus());
+        Assert.Equal(ConnectionStatus.Connected, await Inspect(os, () => neuronDirect.GetCurrentStatus()));
 
         // Scenario 5: ShareInto failure -> remains unshared
         FaultInjectableConnectionNeuron.FailRecord = true;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => connection.ShareInto("circle-x", "app-y"));
-        Assert.False(await connection.IsSharedInto("circle-x", "app-y"));
+        // Sharing is the platform's act (an Internal operation).
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Inspect(os, async () => { await connection.ShareInto("circle-x", "app-y"); return true; }));
+        Assert.False(await Inspect(os, () => connection.IsSharedInto("circle-x", "app-y")));
 
         // Scenario 6: Successful Disconnect
         FaultInjectableConnectionNeuron.FailRecord = false;
         await connection.Disconnect();
-        Assert.Equal(ConnectionStatus.Disconnected, await neuronDirect.GetCurrentStatus());
-        Assert.Equal(0, await neuronDirect.GetSecretsCount());
+        Assert.Equal(ConnectionStatus.Disconnected, await Inspect(os, () => neuronDirect.GetCurrentStatus()));
+        Assert.Equal(0, await Inspect(os, () => neuronDirect.GetSecretsCount()));
     }
 
     // =========================================================================
@@ -105,6 +107,7 @@ public sealed class AdversarialConnectionsChallengeFacts
         {
             options.Services = new TestServices(new FakeSecretSealer(), connectors, offers);
         });
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
 
         os.Register<StressEmitterNeuron>();
         os.Register<ConnectionCatalogNeuron>();
@@ -206,6 +209,7 @@ public sealed class AdversarialConnectionsChallengeFacts
         {
             options.Services = new TestServices(new FakeSecretSealer(), connectors, offers);
         });
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
 
         os.Register<StressEmitterNeuron>();
         os.Register<ConnectionCatalogNeuron>();
@@ -433,5 +437,11 @@ public sealed class AdversarialConnectionsChallengeFacts
             if (serviceType == typeof(IConnectorOffers)) { return _offers; }
             return null;
         }
+    }
+
+    // The inspection contract is internal to the cluster; the test reads it as the kernel.
+    private static async Task<T> Inspect<T>(TestOS os, Func<Task<T>> read)
+    {
+        using (os.Edge.EnterKernel(BrainId.Kernel)) { return await read(); }
     }
 }

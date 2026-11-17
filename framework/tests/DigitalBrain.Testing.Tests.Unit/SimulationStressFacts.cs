@@ -216,6 +216,7 @@ public sealed class SimulationStressFacts
     [Fact]
     public async Task TestOS_SimultaneousTurnsOnSameNeuron_SerializedDeterministically()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local();
         os.Register<StressNeuron>();
 
@@ -240,6 +241,7 @@ public sealed class SimulationStressFacts
     [Fact]
     public async Task TestOS_ConcurrentTurnsAcrossMultipleNeurons_ExecuteIndependently()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local();
         os.Register<StressNeuron>();
 
@@ -265,6 +267,7 @@ public sealed class SimulationStressFacts
     [Fact]
     public async Task TestOS_HangingTurn_TimesOutOnVirtualClockCallTimeout()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local(opts => opts.CallTimeout = TimeSpan.FromSeconds(5));
         os.Register<StressNeuron>();
 
@@ -339,6 +342,7 @@ public sealed class SimulationStressFacts
     [Fact]
     public async Task TestOS_CustomServiceFactory_ResolvesConstructorDependencies()
     {
+        using var platform = TestStamp.Kernel();
         var services = new CustomServiceProvider(new CustomService());
         await using var os = OS.Local(opts => opts.Services = services);
         os.Register<ServiceNeuron>();
@@ -440,6 +444,7 @@ public sealed class SimulationStressFacts
     [Fact]
     public async Task UnitScenario_InvalidStepTick_ProducesFailureTranscriptWithoutCrashing()
     {
+        using var platform = TestStamp.Kernel();
         var source = new SynapseSource("Stress.Scenario", new Dictionary<string, string> { ["Source.cs"] = SimpleScenarioSource }, null, null);
         var fakes = new FakeSlots();
 
@@ -460,6 +465,7 @@ public sealed class SimulationStressFacts
     [Fact]
     public async Task UnitScenario_ExpectStateOnNonExistentProperty_FailsGracefullyInTranscript()
     {
+        using var platform = TestStamp.Kernel();
         var source = new SynapseSource("Stress.Scenario", new Dictionary<string, string> { ["Source.cs"] = SimpleScenarioSource }, null, null);
         var fakes = new FakeSlots();
 
@@ -478,6 +484,7 @@ public sealed class SimulationStressFacts
     [Fact]
     public async Task UnitScenario_ExpectSignalWhenNotPublished_RecordsFailure()
     {
+        using var platform = TestStamp.Kernel();
         var source = new SynapseSource("Stress.Scenario", new Dictionary<string, string> { ["Source.cs"] = SimpleScenarioSource }, null, null);
         var fakes = new FakeSlots();
 
@@ -551,6 +558,7 @@ public sealed class SimulationStressFacts
     [Fact]
     public async Task TestOS_SeedStoredState_SeedsStateBeforeActivation()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local();
         os.Register<StressNeuron>();
 
@@ -568,6 +576,7 @@ public sealed class SimulationStressFacts
     [Fact]
     public async Task TestOS_Restart_PreservesJournalAndStateAcrossHostLifecycles()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local();
         os.Register<StressNeuron>();
 

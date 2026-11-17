@@ -50,7 +50,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
         _key = this.GetPrimaryKeyString();
         if (!NeuronId.TryParse(_key, out var id)) { throw new BindingException($"'{_key}' is not a neuron id brain/type/key."); }
         _id = id;
-        _access = ServiceProvider.GetService<AccessGate>() ?? new AccessGate(OrleansCallerAmbient.Instance, new AccessOptions(), new AccessCounters());
+        _access = ServiceProvider.GetService<AccessGate>() ?? new AccessGate(OrleansCallerAmbient.Instance);
         _callers = ServiceProvider.GetService<ICallerCarrier>() ?? OrleansCallerAmbient.Instance;
 
         try
@@ -206,19 +206,16 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
             && bound.Contract.IsDefined(shareable, inherit: false)
             // A method the contract inherits crosses only when the interface that declares it opted in as well: Shared on
             // a derived contract must not open the methods of a base contract written for its own brain.
-            && (bound.Method.DeclaringType == bound.Contract || bound.Method.DeclaringType?.IsDefined(shareable, inherit: false) == true)
-            // The wall judges the legacy stamp; the access gate admits by the caller ambient. They must name the same
-            // brain, or a call could pass here as another brain and be admitted there as this brain's own kernel.
-            && _callers.Current is { } ambient && string.Equals(ambient.Brain.Value, caller.BrainId, StringComparison.Ordinal);
-        if (!crosses) { throw DigitalBrainCallFilter.Violation(caller.BrainId, _id.Brain.Value); }
+            && (bound.Method.DeclaringType == bound.Contract || bound.Method.DeclaringType?.IsDefined(shareable, inherit: false) == true);
+        if (!crosses) { throw DigitalBrainCallFilter.Violation(caller.Brain.Value, _id.Brain.Value); }
     }
 
-    // The stamped caller when it acts in another brain and is not the platform; null for this brain's own callers and
-    // for an unstamped call, which the access gate judges as before.
-    private DigitalBrain.Capabilities.CapabilityCaller? ForeignCaller()
-        => Capabilities.RuntimeCallerContext.TryGet(out var caller) && caller is not null
-            && !string.Equals(caller.BrainId, _id.Brain.Value, StringComparison.Ordinal)
-            && caller.Kind != DigitalBrain.Capabilities.CallerKind.Platform
+    // The stamped caller when it acts in another brain and is not the kernel; null for this brain's own callers and
+    // for an unstamped call, which the access gate refuses.
+    private Caller? ForeignCaller()
+        => _callers.Current is { } caller
+            && !string.Equals(caller.Brain.Value, _id.Brain.Value, StringComparison.Ordinal)
+            && caller.Actor is not Actor.Kernel
                 ? caller
                 : null;
 
@@ -231,7 +228,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
         try { (neuron, bound) = Prepare(call); }
         catch (BindingException) when (ForeignCaller() is { } foreign)
         {
-            throw DigitalBrainCallFilter.Violation(foreign.BrainId, _id.Brain.Value);
+            throw DigitalBrainCallFilter.Violation(foreign.Brain.Value, _id.Brain.Value);
         }
 
         RefuseAnotherBrain(bound);
@@ -320,7 +317,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
         var map = ServiceProvider.GetRequiredService<JournalPayloads>().Types;
         IReadOnlyList<Type> signals = [.. signalAliases.Select(alias => map.TryResolve(alias, out var type) ? type : throw new ArgumentException($"'{alias}' is not a registered [Signal] alias.", nameof(signalAliases)))];
         // The caller stamp comes from the call's RequestContext (the trusted edge's Stamp), never from the arguments (04-19).
-        await NeuronAttachment.Admit(neuron, new SynapseRequest(subscriber, signals, Capabilities.RuntimeCallerContext.Current)).ConfigureAwait(true);
+        await NeuronAttachment.Admit(neuron, new SynapseRequest(subscriber, signals)).ConfigureAwait(true);
     }
 
     /// <inheritdoc />
@@ -390,11 +387,12 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
     async Task<IReadOnlyList<string>> IHostTicks.ReminderNames()
         => [.. (await this.GetReminders().ConfigureAwait(true)).Select(reminder => reminder.ReminderName)];
 
-    // A timer or reminder tick: a turn on this grain that reaches Neuron.OnReminder, then runs deferred work.
+    // A timer or reminder tick: a turn on this grain that reaches Neuron.OnReminder as the scheduler of its brain, then runs
+    // deferred work.
     private async Task Tick(string name, CancellationToken cancellationToken)
     {
         if (_neuron is not { } neuron) { return; }
-        using var running = _callers.Enter(Caller.OfKernel(_id.Brain));
+        using var running = _callers.Enter(Caller.OfScheduler(_id.Brain));
         try { await NeuronAttachment.Remind(neuron, name, cancellationToken).ConfigureAwait(true); }
         finally { await Drain().ConfigureAwait(true); }
     }

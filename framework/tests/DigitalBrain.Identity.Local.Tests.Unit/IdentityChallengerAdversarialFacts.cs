@@ -2,6 +2,7 @@ namespace DigitalBrain.Identity.Local.Tests.Unit;
 
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
@@ -36,9 +37,9 @@ public sealed class IdentityChallengerAdversarialFacts
         var dir = new BrainDirectory { BrainId = "brain-1", AccountId = "acc-alice", Members = [owner, guest] };
         var now = DateTimeOffset.UtcNow;
 
-        var guestCaller = new CapabilityCaller("guest-bob", "acc-bob", "brain-1");
-        var appCaller = new CapabilityCaller("app:rogue", "acc-alice", "brain-1", "rogue-app");
-        var spoofedOwnerAppCaller = new CapabilityCaller("owner-alice", "acc-alice", "brain-1", "malicious-app");
+        var guestCaller = PersonCaller("guest-bob", "acc-bob", "brain-1");
+        var appCaller = AppCaller("rogue-app", "app:rogue", "acc-alice", "brain-1");
+        var spoofedOwnerAppCaller = AppCaller("malicious-app", "owner-alice", "acc-alice", "brain-1");
 
         // 1. EnsureMember (AddMember)
         Assert.Equal(Refusal.NotOwner, dir.AddMember(guestCaller, intruder, now).Refused);
@@ -69,7 +70,7 @@ public sealed class IdentityChallengerAdversarialFacts
         Assert.Equal(Refusal.NotOwner, dir.RevokeGrant(appCaller, "app-test", "storage", GrantMode.Once).Refused);
 
         // 6. Owner cannot be removed even by the owner themselves
-        var ownerCaller = new CapabilityCaller("owner-alice", "acc-alice", "brain-1");
+        var ownerCaller = PersonCaller("owner-alice", "acc-alice", "brain-1");
         var removeOwnerByAcc = dir.RemoveMember(ownerCaller, "acc-alice");
         Assert.Equal(Refusal.OwnerStays, removeOwnerByAcc.Refused);
         Assert.Throws<InvalidOperationException>(() => removeOwnerByAcc.OrThrow(ownerCaller, "brain-1"));
@@ -82,7 +83,8 @@ public sealed class IdentityChallengerAdversarialFacts
     [Fact]
     public async Task InMemoryIdentityDirectory_RefusesNonOwnerOperations()
     {
-        var dir = new InMemoryIdentityDirectory();
+        var callers = new MutableAmbient();
+        var dir = new InMemoryIdentityDirectory(callers: callers);
         var ct = CancellationToken.None;
 
         var ownerProvision = await dir.RegisterPrincipal("alice", "Alice", ct);
@@ -92,39 +94,39 @@ public sealed class IdentityChallengerAdversarialFacts
         var guest = new Member { PrincipalId = "bob", AccountId = guestProvision.Member.AccountId, BrainId = brainId, Role = MemberRole.Member, DisplayName = "Bob" };
         var intruder = new Member { PrincipalId = "eve", AccountId = "acc-eve", BrainId = brainId, Role = MemberRole.Member, DisplayName = "Eve" };
 
-        var ownerCaller = new CapabilityCaller("alice", ownerProvision.Member.AccountId, brainId);
-        var guestCaller = new CapabilityCaller("bob", guestProvision.Member.AccountId, brainId);
-        var appCaller = new CapabilityCaller("app:test", ownerProvision.Member.AccountId, brainId, "test-app");
+        var ownerCaller = PersonCaller("alice", ownerProvision.Member.AccountId, brainId);
+        var guestCaller = PersonCaller("bob", guestProvision.Member.AccountId, brainId);
+        var appCaller = AppCaller("test-app", "app:test", ownerProvision.Member.AccountId, brainId);
 
         // Owner adds guest
-        await dir.EnsureMember(ownerCaller, guest, ct);
+        await As(callers, ownerCaller, () => dir.EnsureMember(guest, ct));
 
         // Guest attempts EnsureMember
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => dir.EnsureMember(guestCaller, intruder, ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => As(callers, guestCaller, () => dir.EnsureMember(intruder, ct)));
 
         // Guest attempts RemoveMember
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => dir.RemoveMember(guestCaller, brainId, guestProvision.Member.AccountId, ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => As(callers, guestCaller, () => dir.RemoveMember(brainId, guestProvision.Member.AccountId, ct)));
 
         // Guest attempts RemovePrincipalMember
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => dir.RemovePrincipalMember(guestCaller, brainId, "bob", ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => As(callers, guestCaller, () => dir.RemovePrincipalMember(brainId, "bob", ct)));
 
         // App caller attempts EnsureMember
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => dir.EnsureMember(appCaller, intruder, ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => As(callers, appCaller, () => dir.EnsureMember(intruder, ct)));
 
         // App caller attempts RemoveMember
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => dir.RemoveMember(appCaller, brainId, guestProvision.Member.AccountId, ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => As(callers, appCaller, () => dir.RemoveMember(brainId, guestProvision.Member.AccountId, ct)));
 
         // App caller attempts RemovePrincipalMember
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => dir.RemovePrincipalMember(appCaller, brainId, "bob", ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => As(callers, appCaller, () => dir.RemovePrincipalMember(brainId, "bob", ct)));
 
         // Non-owner GrantAsOwner returns null
         var grant = new Grant { AppId = "app-test", WorkspaceId = brainId, SemanticTypeId = "storage", Mode = GrantMode.Once };
-        Assert.Null(await dir.GrantAsOwner(guestCaller, grant, ct));
-        Assert.Null(await dir.GrantAsOwner(appCaller, grant, ct));
+        Assert.Null(await As(callers, guestCaller, () => dir.GrantAsOwner(grant, ct)));
+        Assert.Null(await As(callers, appCaller, () => dir.GrantAsOwner(grant, ct)));
 
         // Non-owner RevokeAsOwner returns false
-        Assert.False(await dir.RevokeAsOwner(guestCaller, "app-test", "storage", GrantMode.Once, ct));
-        Assert.False(await dir.RevokeAsOwner(appCaller, "app-test", "storage", GrantMode.Once, ct));
+        Assert.False(await As(callers, guestCaller, () => dir.RevokeAsOwner("app-test", "storage", GrantMode.Once, ct)));
+        Assert.False(await As(callers, appCaller, () => dir.RevokeAsOwner("app-test", "storage", GrantMode.Once, ct)));
     }
 
     [Fact]
@@ -137,7 +139,7 @@ public sealed class IdentityChallengerAdversarialFacts
             os.Register<DirectoryNeuron>();
             os.Register<SessionsNeuron>();
 
-            var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key));
+            var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge);
             var ct = CancellationToken.None;
 
             var ownerProvision = await port.RegisterPrincipal("alice", "Alice", ct);
@@ -147,23 +149,23 @@ public sealed class IdentityChallengerAdversarialFacts
             var guest = new Member { PrincipalId = "bob", AccountId = guestProvision.Member.AccountId, BrainId = brainId, Role = MemberRole.Member, DisplayName = "Bob" };
             var intruder = new Member { PrincipalId = "eve", AccountId = "acc-eve", BrainId = brainId, Role = MemberRole.Member, DisplayName = "Eve" };
 
-            var ownerCaller = new CapabilityCaller("alice", ownerProvision.Member.AccountId, brainId);
-            var guestCaller = new CapabilityCaller("bob", guestProvision.Member.AccountId, brainId);
-            var appCaller = new CapabilityCaller("app:test", ownerProvision.Member.AccountId, brainId, "test-app");
+            var ownerCaller = PersonCaller("alice", ownerProvision.Member.AccountId, brainId);
+            var guestCaller = PersonCaller("bob", guestProvision.Member.AccountId, brainId);
+            var appCaller = AppCaller("test-app", "app:test", ownerProvision.Member.AccountId, brainId);
 
-            await port.EnsureMember(ownerCaller, guest, ct);
+            await As(os.Edge, ownerCaller, () => port.EnsureMember(guest, ct));
 
             // Verify non-owner callers are refused with UnauthorizedAccessException
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.EnsureMember(guestCaller, intruder, ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.EnsureMember(appCaller, intruder, ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.RemoveMember(guestCaller, brainId, guestProvision.Member.AccountId, ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.RemoveMember(appCaller, brainId, guestProvision.Member.AccountId, ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.RemovePrincipalMember(guestCaller, brainId, "bob", ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.RemovePrincipalMember(appCaller, brainId, "bob", ct));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => As(os.Edge, guestCaller, () => port.EnsureMember(intruder, ct)));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => As(os.Edge, appCaller, () => port.EnsureMember(intruder, ct)));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => As(os.Edge, guestCaller, () => port.RemoveMember(brainId, guestProvision.Member.AccountId, ct)));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => As(os.Edge, appCaller, () => port.RemoveMember(brainId, guestProvision.Member.AccountId, ct)));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => As(os.Edge, guestCaller, () => port.RemovePrincipalMember(brainId, "bob", ct)));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => As(os.Edge, appCaller, () => port.RemovePrincipalMember(brainId, "bob", ct)));
 
             // Owner removal is refused
-            await Assert.ThrowsAsync<InvalidOperationException>(() => port.RemoveMember(ownerCaller, brainId, ownerProvision.Member.AccountId, ct));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => port.RemovePrincipalMember(ownerCaller, brainId, "alice", ct));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => As(os.Edge, ownerCaller, () => port.RemoveMember(brainId, ownerProvision.Member.AccountId, ct)));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => As(os.Edge, ownerCaller, () => port.RemovePrincipalMember(brainId, "alice", ct)));
         }
         finally
         {
@@ -224,7 +226,7 @@ public sealed class IdentityChallengerAdversarialFacts
         os.Register<DirectoryNeuron>();
         os.Register<SessionsNeuron>();
 
-        var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key));
+        var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge);
         var ct = CancellationToken.None;
 
         const string sharedOpId = "contested-operation-xyz";
@@ -260,7 +262,7 @@ public sealed class IdentityChallengerAdversarialFacts
         var onceGrant = new Grant { AppId = TargetApp, WorkspaceId = "b1", SemanticTypeId = TargetSemanticType, Mode = GrantMode.Once };
         var dir = new BrainDirectory { BrainId = "b1", AccountId = "acc-alice", Members = [owner], Grants = [onceGrant] };
 
-        var caller = new CapabilityCaller($"app:{TargetApp}", "acc-alice", "b1", TargetApp);
+        var caller = AppCaller(TargetApp, $"app:{TargetApp}", "acc-alice", "b1");
         var request = new CallRequest { TargetNeuron = "kit/storage", Operation = "write", SemanticTypeIds = [TargetSemanticType] };
 
         // 1. First authorization succeeds and consumes Once grant
@@ -292,28 +294,28 @@ public sealed class IdentityChallengerAdversarialFacts
         os.Register<DirectoryNeuron>();
         os.Register<SessionsNeuron>();
 
-        var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key));
+        var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge);
         var ct = CancellationToken.None;
 
         var ownerProv = await port.RegisterPrincipal("alice", "Alice", ct);
         var brainId = ownerProv.Member.BrainId;
-        var ownerCaller = new CapabilityCaller("alice", ownerProv.Member.AccountId, brainId);
-        var appCaller = new CapabilityCaller($"app:{TargetApp}", ownerProv.Member.AccountId, brainId, TargetApp);
+        var ownerCaller = PersonCaller("alice", ownerProv.Member.AccountId, brainId);
+        var appCaller = AppCaller(TargetApp, $"app:{TargetApp}", ownerProv.Member.AccountId, brainId);
 
         var grant = new Grant { AppId = TargetApp, WorkspaceId = brainId, SemanticTypeId = TargetSemanticType, Mode = GrantMode.Once };
-        var recorded = await port.GrantAsOwner(ownerCaller, grant, ct);
+        var recorded = await As(os.Edge, ownerCaller, () => port.GrantAsOwner(grant, ct));
         Assert.NotNull(recorded);
 
         var request = new CallRequest { TargetNeuron = "storage", Operation = "put", SemanticTypeIds = [TargetSemanticType] };
 
         // First call allowed
-        var first = await port.Authorize(appCaller, request, ct);
+        var first = await As(os.Edge, appCaller, () => port.Authorize(request, ct));
         Assert.NotNull(first);
         Assert.True(first.Allowed);
         Assert.True(first.ConsumesOnce);
 
         // Second call denied
-        var second = await port.Authorize(appCaller, request, ct);
+        var second = await As(os.Edge, appCaller, () => port.Authorize(request, ct));
         Assert.NotNull(second);
         Assert.False(second.Allowed);
         Assert.Equal(CallDenial.MissingGrant, second.Denial);
@@ -326,23 +328,23 @@ public sealed class IdentityChallengerAdversarialFacts
         os.Register<DirectoryNeuron>();
         os.Register<SessionsNeuron>();
 
-        var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key));
+        var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge);
         var ct = CancellationToken.None;
 
         var ownerProv = await port.RegisterPrincipal("alice", "Alice", ct);
         var brainId = ownerProv.Member.BrainId;
-        var ownerCaller = new CapabilityCaller("alice", ownerProv.Member.AccountId, brainId);
-        var appCaller = new CapabilityCaller($"app:{TargetApp}", ownerProv.Member.AccountId, brainId, TargetApp);
+        var ownerCaller = PersonCaller("alice", ownerProv.Member.AccountId, brainId);
+        var appCaller = AppCaller(TargetApp, $"app:{TargetApp}", ownerProv.Member.AccountId, brainId);
 
         var grant = new Grant { AppId = TargetApp, WorkspaceId = brainId, SemanticTypeId = TargetSemanticType, Mode = GrantMode.Once };
-        await port.GrantAsOwner(ownerCaller, grant, ct);
+        await As(os.Edge, ownerCaller, () => port.GrantAsOwner(grant, ct));
 
         var request = new CallRequest { TargetNeuron = "storage", Operation = "put", SemanticTypeIds = [TargetSemanticType] };
 
         // Launch 10 concurrent Authorize calls
         const int concurrentAttempts = 10;
         var tasks = Enumerable.Range(0, concurrentAttempts)
-            .Select(_ => Task.Run(() => port.Authorize(appCaller, request, ct)))
+            .Select(_ => Task.Run(() => As(os.Edge, appCaller, () => port.Authorize(request, ct))))
             .ToArray();
 
         var decisions = await Task.WhenAll(tasks);
@@ -403,15 +405,15 @@ public sealed class IdentityChallengerAdversarialFacts
         os.Register<DirectoryNeuron>();
         os.Register<SessionsNeuron>();
 
-        var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key));
+        var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge);
         var ct = CancellationToken.None;
 
         var ownerProv = await port.RegisterPrincipal("alice", "Alice", ct);
         var owner = ownerProv.Member;
-        var ownerCaller = new CapabilityCaller("alice", owner.AccountId, owner.BrainId);
+        var ownerCaller = PersonCaller("alice", owner.AccountId, owner.BrainId);
 
         // Issue session
-        var issued = await port.Issue(ownerCaller, new SessionRequest { Member = owner }, ct);
+        var issued = await As(os.Edge, ownerCaller, () => port.Issue(new SessionRequest { Member = owner }, ct));
         var rawSessionId = issued.SessionId;
         Assert.StartsWith("session-", rawSessionId, StringComparison.Ordinal);
 
@@ -431,11 +433,11 @@ public sealed class IdentityChallengerAdversarialFacts
         Assert.Contains(expectedHash, serializedInspectableState, StringComparison.Ordinal);
 
         // INVARIANT 3: Store.Find fails when passed raw session ID (proves hash lookup is mandatory)
-        var findRaw = await store.Find(rawSessionId);
+        var findRaw = await AsKernel(os, () => store.Find(rawSessionId));
         Assert.Null(findRaw);
 
         // INVARIANT 4: Store.Find succeeds ONLY when passed the SHA256 hash of raw session ID
-        var findHashed = await store.Find(expectedHash);
+        var findHashed = await AsKernel(os, () => store.Find(expectedHash));
         Assert.NotNull(findHashed);
         Assert.Equal(owner.PrincipalId, findHashed.PrincipalId);
         Assert.Equal(owner.BrainId, findHashed.BrainId);
@@ -446,8 +448,8 @@ public sealed class IdentityChallengerAdversarialFacts
         Assert.Equal(owner.PrincipalId, validatedMember.PrincipalId);
 
         // INVARIANT 6: Ending session by raw ID through port removes it from store
-        await port.End(ownerCaller, rawSessionId, ct);
-        Assert.Null(await store.Find(expectedHash));
+        await As(os.Edge, ownerCaller, () => port.End(rawSessionId, ct));
+        Assert.Null(await AsKernel(os, () => store.Find(expectedHash)));
         Assert.Null(await port.Validate(rawSessionId, ct));
 
         // INVARIANT 7: State inspectable after End has removed the session
@@ -463,9 +465,9 @@ public sealed class IdentityChallengerAdversarialFacts
     [Fact]
     public async Task BoundIdentity_StrictCallerBoundary_NullAndNonOwnerRejection()
     {
-        var dir = new InMemoryIdentityDirectory();
-        CapabilityCaller? ambientCaller = null;
-        var bound = new BoundIdentity(dir, () => ambientCaller);
+        var callers = new MutableAmbient();
+        var dir = new InMemoryIdentityDirectory(callers: callers);
+        var bound = new BoundIdentity(dir, callers);
         var ct = CancellationToken.None;
 
         var ownerProvision = await dir.RegisterPrincipal("alice", "Alice", ct);
@@ -476,7 +478,7 @@ public sealed class IdentityChallengerAdversarialFacts
         var intruder = new Member { PrincipalId = "eve", AccountId = "acc-eve", BrainId = brainId, Role = MemberRole.Member, DisplayName = "Eve" };
 
         // --- PHASE 1: Ambient caller is null (unauthenticated call) ---
-        ambientCaller = null;
+        callers.Current = null;
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bound.EnsureMember(guest, ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bound.RemoveMember(brainId, "bob", ct));
@@ -490,12 +492,12 @@ public sealed class IdentityChallengerAdversarialFacts
         Assert.Equal(CallDenial.NotAuthenticated, nullAuthDecision.Denial);
 
         // --- PHASE 2: Ambient caller is owner -> EnsureMember guest succeeds ---
-        ambientCaller = new CapabilityCaller("alice", ownerProvision.Member.AccountId, brainId);
+        callers.Current = PersonCaller("alice", ownerProvision.Member.AccountId, brainId);
         var ensured = await bound.EnsureMember(guest, ct);
         Assert.NotNull(ensured);
 
         // --- PHASE 3: Ambient caller is guest (non-owner) -> all mutations fail with UnauthorizedAccessException ---
-        ambientCaller = new CapabilityCaller("bob", guestProvision.Member.AccountId, brainId);
+        callers.Current = PersonCaller("bob", guestProvision.Member.AccountId, brainId);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bound.EnsureMember(intruder, ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bound.RemoveMember(brainId, guestProvision.Member.AccountId, ct));
@@ -507,42 +509,83 @@ public sealed class IdentityChallengerAdversarialFacts
     [Fact]
     public async Task InMemoryIdentityDirectory_MultiTypeGrant_OnceConsumedIndividually()
     {
-        var dir = new InMemoryIdentityDirectory();
+        var callers = new MutableAmbient();
+        var dir = new InMemoryIdentityDirectory(callers: callers);
         var ct = CancellationToken.None;
 
         var ownerProv = await dir.RegisterPrincipal("alice", "Alice", ct);
         var brainId = ownerProv.Member.BrainId;
-        var ownerCaller = new CapabilityCaller("alice", ownerProv.Member.AccountId, brainId);
+        var ownerCaller = PersonCaller("alice", ownerProv.Member.AccountId, brainId);
 
         const string typeOnce = "res.once";
         const string typeAlways = "res.always";
 
         // Grant typeOnce as Once, and typeAlways as Always
-        await dir.GrantAsOwner(ownerCaller, new Grant { AppId = TargetApp, WorkspaceId = brainId, SemanticTypeId = typeOnce, Mode = GrantMode.Once }, ct);
-        await dir.GrantAsOwner(ownerCaller, new Grant { AppId = TargetApp, WorkspaceId = brainId, SemanticTypeId = typeAlways, Mode = GrantMode.Always }, ct);
+        await As(callers, ownerCaller, () => dir.GrantAsOwner(new Grant { AppId = TargetApp, WorkspaceId = brainId, SemanticTypeId = typeOnce, Mode = GrantMode.Once }, ct));
+        await As(callers, ownerCaller, () => dir.GrantAsOwner(new Grant { AppId = TargetApp, WorkspaceId = brainId, SemanticTypeId = typeAlways, Mode = GrantMode.Always }, ct));
 
-        var appCaller = new CapabilityCaller($"app:{TargetApp}", ownerProv.Member.AccountId, brainId, TargetApp);
+        var appCaller = AppCaller(TargetApp, $"app:{TargetApp}", ownerProv.Member.AccountId, brainId);
 
         // Call requiring BOTH types
         var combinedRequest = new CallRequest { TargetNeuron = "hub", Operation = "exec", SemanticTypeIds = [typeOnce, typeAlways] };
-        var decision1 = await dir.Authorize(appCaller, combinedRequest, ct);
+        var decision1 = await As(callers, appCaller, () => dir.Authorize(combinedRequest, ct));
         Assert.NotNull(decision1);
         Assert.True(decision1.Allowed);
         Assert.True(decision1.ConsumesOnce);
 
         // Second call requiring BOTH types: typeOnce is consumed, so request is DENIED
-        var decision2 = await dir.Authorize(appCaller, combinedRequest, ct);
+        var decision2 = await As(callers, appCaller, () => dir.Authorize(combinedRequest, ct));
         Assert.NotNull(decision2);
         Assert.False(decision2.Allowed);
         Assert.Equal(CallDenial.MissingGrant, decision2.Denial);
 
         // But call requiring ONLY typeAlways remains ALLOWED because Always grant was not affected!
         var alwaysRequest = new CallRequest { TargetNeuron = "hub", Operation = "exec", SemanticTypeIds = [typeAlways] };
-        var decisionAlways = await dir.Authorize(appCaller, alwaysRequest, ct);
+        var decisionAlways = await As(callers, appCaller, () => dir.Authorize(alwaysRequest, ct));
         Assert.NotNull(decisionAlways);
         Assert.True(decisionAlways.Allowed);
         Assert.False(decisionAlways.ConsumesOnce);
     }
 
     #endregion
+
+    private static Caller PersonCaller(string principal, string account, string brain)
+        => new(new Actor.Person(principal, account), new BrainId(brain));
+
+    // An app acting for the person <paramref name="principal"/>; the old model named such a caller "app:key".
+    private static Caller AppCaller(string key, string principal, string account, string brain)
+        => new(new Actor.App(key, new Actor.Person(principal, account)), new BrainId(brain));
+
+    private static Task<T> As<T>(MutableAmbient callers, Caller caller, Func<Task<T>> call)
+    {
+        callers.Current = caller;
+        return call();
+    }
+
+    private static Task As(MutableAmbient callers, Caller caller, Func<Task> call)
+    {
+        callers.Current = caller;
+        return call();
+    }
+
+    private static async Task<T> As<T>(EdgeAuthority edge, Caller caller, Func<Task<T>> call)
+    {
+        using (edge.Enter(caller)) { return await call(); }
+    }
+
+    private static async Task As(EdgeAuthority edge, Caller caller, Func<Task> call)
+    {
+        using (edge.Enter(caller)) { await call(); }
+    }
+
+    // The session store is the platform's; a test reads it as the kernel.
+    private static async Task<T> AsKernel<T>(TestOS os, Func<Task<T>> call)
+    {
+        using (os.Edge.EnterKernel(BrainId.Kernel)) { return await call(); }
+    }
+
+    private sealed class MutableAmbient : ICallerAmbient
+    {
+        public Caller? Current { get; set; }
+    }
 }

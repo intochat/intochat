@@ -89,23 +89,4 @@ public sealed class CallerFacts
         Assert.Equal(person, app.For);
         Assert.Equal("user_99", app.For?.Principal);
     }
-
-    [Fact]
-    public void LegacyCallersBidirectionalMappingPreservesIdentity()
-    {
-        var edge = EdgeAuthority.CreateInternal();
-        var person = edge.Person("user_1", "acct_1", Alice, "conv_42");
-
-        var legacy = LegacyCallers.Project(person);
-        Assert.NotNull(legacy);
-        Assert.Equal("user_1", legacy.PrincipalId);
-        Assert.Equal("acct_1", legacy.AccountId);
-        Assert.Equal(Alice.ToString(), legacy.BrainId);
-        Assert.Equal("conv_42", legacy.ConversationId);
-
-        var roundtrip = LegacyCallers.Read(legacy);
-        Assert.Equal(person.Actor, roundtrip.Actor);
-        Assert.Equal(person.Brain, roundtrip.Brain);
-        Assert.Equal(person.Conversation, roundtrip.Conversation);
-    }
 }

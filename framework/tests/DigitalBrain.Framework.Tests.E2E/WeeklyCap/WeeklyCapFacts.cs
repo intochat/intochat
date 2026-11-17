@@ -15,7 +15,10 @@ public sealed class WeeklyCapFacts
         var os = OS.Local().Register(typeof(WeeklyCapFacts).Assembly);
         os.Confirmations.ApproveAll();
         var installs = os.Get<IInstalls>(NeuronId.Parse("b/synapse.installs/default"));
-        await installs.Install(new("week", new Dictionary<string, string>()), TestContext.Current.CancellationToken);
+        using (os.Edge.EnterKernel(new BrainId("b")))
+        {
+            await installs.Install(new("week", new Dictionary<string, string>()), TestContext.Current.CancellationToken);
+        }
         await os.Idle();
         return os;
     }
@@ -30,6 +33,7 @@ public sealed class WeeklyCapFacts
     public async Task ThePromiseHoldsAcrossAWeekOfCharges()
     {
         await using var os = await Start();
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         var pay = os.Get<IPayments>(Pay);
 
         await pay.Charge(120m);

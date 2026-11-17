@@ -102,7 +102,7 @@ public static class RuntimeSiloBuilderExtensions
             sp.GetRequiredService<LiveBindings>(),
             id => NeuronHosting.Get<ISources>(sp, id),
             id => NeuronHosting.Get<IUnitDeployment>(sp, id),
-            brain => RuntimeCallerContext.StampScope(CapabilityCallers.Platform(brain.Value, brain.Value, brain.Value))));
+            brain => KernelHop.Enter(brain)));
         silo.Services.TryAddSingleton<IUnitResolver>(sp => sp.GetRequiredService<UnitResolver>());
         silo.Services.TryAddSingleton(sp => new UnitDeployer(
             sp.GetRequiredService<SynapseCompiler>(),
@@ -125,11 +125,9 @@ public static class RuntimeSiloBuilderExtensions
         silo.Services.TryAddSingleton<ICallerAmbient>(OrleansCallerAmbient.Instance);
         silo.Services.TryAddSingleton<ICallerCarrier>(OrleansCallerAmbient.Instance);
         silo.Services.TryAddSingleton(new EdgeAuthority(OrleansCallerAmbient.Instance));
-        silo.Services.TryAddSingleton(new AccessOptions());
-        silo.Services.TryAddSingleton(new AccessCounters());
-        silo.Services.TryAddSingleton(sp => new AccessGate(sp.GetRequiredService<ICallerAmbient>(), sp.GetRequiredService<AccessOptions>(), sp.GetRequiredService<AccessCounters>()));
+        silo.Services.TryAddSingleton(sp => new AccessGate(sp.GetRequiredService<ICallerAmbient>()));
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, CallerEdgeFilter>());
-        DigitalBrain.Brains.CallerAdmission.Reader = () => LegacyCallers.Project(OrleansCallerAmbient.Instance.Current);
+        DigitalBrain.Brains.CallerAdmission.Callers = OrleansCallerAmbient.Instance;
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, DigitalBrainCallFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, DigitalBrainCallFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());

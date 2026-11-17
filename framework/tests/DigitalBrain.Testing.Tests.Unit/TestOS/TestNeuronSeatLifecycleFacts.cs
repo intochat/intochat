@@ -96,6 +96,7 @@ public sealed class TestNeuronSeatLifecycleFacts
     [Fact]
     public async Task NeuronServices_ConstructorInjection_AllFourCoreServicesInjected()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = CreateTestOS();
         var probe = os.Get<ISeatProbe>(ProbeAlpha);
 
@@ -112,6 +113,7 @@ public sealed class TestNeuronSeatLifecycleFacts
     [Fact]
     public async Task INeuronSeat_TestNeuronContext_LoadSaveClearLifecycleAcrossRestarts()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = CreateTestOS();
         var probe = os.Get<ISeatProbe>(ProbeAlpha);
 
@@ -167,6 +169,7 @@ public sealed class TestNeuronSeatLifecycleFacts
     [Fact]
     public async Task NeuronServices_CrossActivationAndCrossBrainIsolation_NoStateLeak()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = CreateTestOS();
         var probeAlpha = os.Get<ISeatProbe>(ProbeAlpha);
         var probeBeta = os.Get<ISeatProbe>(ProbeBeta);

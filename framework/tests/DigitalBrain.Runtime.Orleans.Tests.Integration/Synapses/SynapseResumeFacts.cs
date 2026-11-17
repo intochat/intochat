@@ -11,6 +11,7 @@ public sealed partial class SynapseResumeFacts(SynapseSilo silo) : IClassFixture
     [Fact]
     public async Task After_each_of_three_reactivations_the_signal_arrives_once_and_the_subscription_count_stays_one()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         const string Listener = "b1/probe.listener/reactivate", Source = "b1/probe.counter/reactivate";
         await silo.Get<IListener>(Listener).Follow(Source);

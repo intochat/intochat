@@ -240,8 +240,6 @@ static DigitalBrain.Testing.Views.ViewFixtures.Slug(string! title) -> string!
 static DigitalBrain.Testing.Views.ViewFixtures.Verify(DigitalBrain.Units.PublishedView! view, string! directory) -> void
 static DigitalBrain.Testing.Views.ViewFixtures.Write(DigitalBrain.Units.PublishedView! view, string! directory) -> void
 static readonly DigitalBrain.Testing.ScreenBaseline.Budget -> System.TimeSpan
-virtual DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.Owner.get -> DigitalBrain.Capabilities.CapabilityCaller!
-virtual DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.Stranger.get -> DigitalBrain.Capabilities.CapabilityCaller!
 virtual DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.MissingId() -> DigitalBrain.Capabilities.Storage.ItemId
 virtual DigitalBrain.Testing.Conformance.Storage.StorageConformance<TStorage>.SeedFolder(DigitalBrain.Capabilities.Storage.IStorage! storage, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.ItemId>!
 DigitalBrain.Testing.Conformance.Connections.ConnectionsSubject.AddConnection.init -> void
@@ -250,3 +248,5 @@ DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.EnsureM
 DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.RemoveMemberByNonOwnerThrowsUnauthorized() -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.OnceGrantConsumesAndSubsequentCallDenies() -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.Conformance.Identity.IdentityConformance<TIdentity>.CreateBrainOperationIdIsScopedToAccount() -> System.Threading.Tasks.Task!
+virtual DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.Owner.get -> DigitalBrain.Access.Caller!
+virtual DigitalBrain.Testing.Conformance.Secrets.SecretsConformance<TSecrets>.Stranger.get -> DigitalBrain.Access.Caller!

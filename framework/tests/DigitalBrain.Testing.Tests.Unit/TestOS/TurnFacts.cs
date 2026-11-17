@@ -28,6 +28,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task Get_activates_the_registered_class_once_per_id_and_calls_through_the_proxy()
     {
+        using var platform = TestStamp.Kernel();
         var id = Id("turn.probe");
         var probe = _os.Get<ITurnProbe>(id);
 
@@ -42,6 +43,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task A_plain_call_waits_for_the_turn_while_Interleaves_and_ReadOnlyCall_run_inside_it()
     {
+        using var platform = TestStamp.Kernel();
         var probe = _os.Get<ITurnProbe>(Id("turn.probe"));
         var first = probe.Hold("a");
         await _probe.Reached("a");
@@ -60,6 +62,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task InterleavesWhen_interleaves_exactly_when_its_inherited_predicate_is_true()
     {
+        using var platform = TestStamp.Kernel();
         var probe = _os.Get<ITurnProbe>(Id("turn.when"));
         var held = probe.Hold("held");
         await _probe.Reached("held");
@@ -80,6 +83,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task A_Reentrant_class_interleaves_every_call()
     {
+        using var platform = TestStamp.Kernel();
         var probe = _os.Get<ITurnProbe>(Id("turn.reentrant"));
         var first = probe.Hold("a");
         await _probe.Reached("a");
@@ -96,6 +100,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task Save_writes_state_and_signal_as_one_journal_entry_and_state_survives_deactivation()
     {
+        using var platform = TestStamp.Kernel();
         var id = Id("turn.probe");
         var probe = _os.Get<ITurnProbe>(id);
         await probe.Count(2);
@@ -116,6 +121,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task Timers_and_reminders_fire_as_turns_on_Advance_and_a_reminder_survives_deactivation()
     {
+        using var platform = TestStamp.Kernel();
         var id = Id("turn.probe");
         var probe = _os.Get<ITurnProbe>(id);
         await probe.StartTimers();
@@ -137,6 +143,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task Deactivate_runs_OnDeactivate_after_the_current_turn_and_Idle_waits_for_every_turn()
     {
+        using var platform = TestStamp.Kernel();
         var id = Id("turn.probe");
         var probe = _os.Get<ITurnProbe>(id);
         var held = probe.Hold("d");
@@ -160,6 +167,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task Get_of_another_brain_throws_before_activation_and_an_unregistered_type_throws_with_its_name()
     {
+        using var platform = TestStamp.Kernel();
         var other = new NeuronId(new BrainId("bob"), "turn.probe", "one");
         var probe = _os.Get<ITurnProbe>(Id("turn.probe"));
 
@@ -174,6 +182,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task A_one_way_call_returns_at_once_and_runs_behind_the_turn()
     {
+        using var platform = TestStamp.Kernel();
         var probe = _os.Get<ITurnProbe>(Id("turn.probe"));
         var held = probe.Hold("w");
         await _probe.Reached("w");
@@ -190,6 +199,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task Consecutive_one_way_calls_execute_in_strict_fifo_order()
     {
+        using var platform = TestStamp.Kernel();
         var probe = _os.Get<ITurnProbe>(Id("turn.probe"));
         for (var i = 1; i <= 20; i++)
         {
@@ -204,6 +214,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task One_hundred_consecutive_one_way_calls_execute_in_strict_fifo_order()
     {
+        using var platform = TestStamp.Kernel();
         var probe = _os.Get<ITurnProbe>(Id("turn.probe", "fifo-100"));
         for (var i = 1; i <= 100; i++)
         {
@@ -219,6 +230,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task One_hundred_consecutive_one_way_calls_from_distinct_threadpool_threads_execute_in_strict_fifo_order()
     {
+        using var platform = TestStamp.Kernel();
         var probe = _os.Get<ITurnProbe>(Id("turn.probe", "distinct-threads-100"));
         for (var i = 1; i <= 100; i++)
         {
@@ -235,6 +247,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task One_hundred_concurrent_one_way_tasks_execute_all_turns_without_loss()
     {
+        using var platform = TestStamp.Kernel();
         var probe = _os.Get<ITurnProbe>(Id("turn.probe", "burst-100"));
         const int count = 100;
         using var barrier = new Barrier(count);
@@ -257,6 +270,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task A_call_cycle_fails_at_the_call_timeout_on_the_TestOS_clock_instead_of_hanging()
     {
+        using var platform = TestStamp.Kernel();
         var a = Id("turn.probe", "a");
         var b = Id("turn.probe", "b");
         var cycle = _os.Get<ITurnProbe>(a).Bounce(b);
@@ -274,6 +288,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task A_deactivation_that_throws_still_releases_the_turn()
     {
+        using var platform = TestStamp.Kernel();
         var id = Id("turn.probe");
         var probe = _os.Get<ITurnProbe>(id);
         await probe.Echo("up");
@@ -290,6 +305,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task A_periodic_timer_ticks_on_each_Advance_and_stops_with_the_activation()
     {
+        using var platform = TestStamp.Kernel();
         var id = Id("turn.probe");
         await _os.Get<ITurnProbe>(id).StartTimers();
 
@@ -309,6 +325,7 @@ public sealed class TurnFacts : IAsyncLifetime
     [Fact]
     public async Task Deferred_work_runs_after_the_turn_ends()
     {
+        using var platform = TestStamp.Kernel();
         await _os.Get<ITurnProbe>(Id("turn.probe")).DeferEcho("x");
         await _os.Idle();
 

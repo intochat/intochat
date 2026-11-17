@@ -97,7 +97,7 @@ internal sealed class SynapseRegistry : INudge
 
         IReadOnlyList<Type> named = [.. signals];
         var source = _os.Host(from);
-        var request = new SynapseRequest(subscriber.Id, named, _os.Caller);
+        var request = new SynapseRequest(subscriber.Id, named);
         await _os.Track(source.Turn(interleave: false, async neuron =>
         {
             await NeuronAttachment.Admit(neuron, request).ConfigureAwait(false);
@@ -241,7 +241,7 @@ internal sealed class SynapseRegistry : INudge
         {
             var signals = signalAliases.Select(os.TypeOf).Where(t => t is not null).Cast<Type>().ToArray();
             var source = os.Host(publisher);
-            var request = new SynapseRequest(subscriber, signals, os.Caller);
+            var request = new SynapseRequest(subscriber, signals);
             await os.Track(source.Turn(interleave: false, async neuron =>
             {
                 await NeuronAttachment.Admit(neuron, request).ConfigureAwait(false);

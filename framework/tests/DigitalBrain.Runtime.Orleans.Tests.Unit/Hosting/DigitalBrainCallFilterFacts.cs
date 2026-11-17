@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Access;
 using System.Diagnostics;
 using System.Reflection;
 using DigitalBrain.Capabilities;
@@ -16,8 +17,8 @@ public sealed class DigitalBrainCallFilterFacts
     public async Task IncomingFilter_CrossBrainViolation_ThrowsUnauthorizedAccessException()
     {
         var filter = new DigitalBrainCallFilter();
-        var caller = CapabilityCallers.Of("user1", "acc1", "brain-alpha", CallerKind.User);
-        using var scope = RuntimeCallerContext.StampScope(caller);
+        var caller = Stamps.Person("user1", "acc1", "brain-alpha");
+        using var scope = Stamps.Enter(caller);
 
         var context = new MockIncomingGrainCallContext(
             targetGrainId: GrainId.Create("neuron", "brain-beta/apps/files"));
@@ -29,8 +30,8 @@ public sealed class DigitalBrainCallFilterFacts
     public async Task IncomingFilter_SameBrain_Succeeds()
     {
         var filter = new DigitalBrainCallFilter();
-        var caller = CapabilityCallers.Of("user1", "acc1", "brain-alpha", CallerKind.User);
-        using var scope = RuntimeCallerContext.StampScope(caller);
+        var caller = Stamps.Person("user1", "acc1", "brain-alpha");
+        using var scope = Stamps.Enter(caller);
 
         var invoked = false;
         var context = new MockIncomingGrainCallContext(
@@ -45,8 +46,8 @@ public sealed class DigitalBrainCallFilterFacts
     public async Task IncomingFilter_PlatformCaller_AllowedCrossBrain()
     {
         var filter = new DigitalBrainCallFilter();
-        var caller = CapabilityCallers.Platform("kernel", "kernel", "kernel");
-        using var scope = RuntimeCallerContext.StampScope(caller);
+        var caller = Stamps.Kernel("kernel");
+        using var scope = Stamps.Enter(caller);
 
         var invoked = false;
         var context = new MockIncomingGrainCallContext(
@@ -69,7 +70,7 @@ public sealed class DigitalBrainCallFilterFacts
     public async Task IncomingFilter_CrossBrainCallCarryingMethodOfAHost_IsLeftToTheHost(string method)
     {
         var filter = new DigitalBrainCallFilter();
-        using var scope = RuntimeCallerContext.StampScope(CapabilityCallers.Of("user1", "acc1", "brain-alpha", CallerKind.User));
+        using var scope = Stamps.Enter(Stamps.Person("user1", "acc1", "brain-alpha"));
 
         foreach (var grainType in new[] { "neuron.host", "neuron.host.reentrant", "neuron.host.stateless" })
         {
@@ -90,7 +91,7 @@ public sealed class DigitalBrainCallFilterFacts
     public async Task IncomingFilter_CrossBrainOtherMethodOfAHost_StillThrows(string method)
     {
         var filter = new DigitalBrainCallFilter();
-        using var scope = RuntimeCallerContext.StampScope(CapabilityCallers.Of("user1", "acc1", "brain-alpha", CallerKind.User));
+        using var scope = Stamps.Enter(Stamps.Person("user1", "acc1", "brain-alpha"));
 
         var context = new MockIncomingGrainCallContext(
             targetGrainId: GrainId.Create("neuron.host", "brain-beta/apps/files"),
@@ -104,7 +105,7 @@ public sealed class DigitalBrainCallFilterFacts
     public async Task IncomingFilter_CrossBrainMethodOfAnotherInterfaceOnAHost_StillThrows()
     {
         var filter = new DigitalBrainCallFilter();
-        using var scope = RuntimeCallerContext.StampScope(CapabilityCallers.Of("user1", "acc1", "brain-alpha", CallerKind.User));
+        using var scope = Stamps.Enter(Stamps.Person("user1", "acc1", "brain-alpha"));
 
         var context = new MockIncomingGrainCallContext(
             targetGrainId: GrainId.Create("neuron.host", "brain-beta/apps/files"),
@@ -122,7 +123,7 @@ public sealed class DigitalBrainCallFilterFacts
     public async Task IncomingFilter_CrossBrainInvokeOnAGrainThatIsNotAHost_StillThrows()
     {
         var filter = new DigitalBrainCallFilter();
-        using var scope = RuntimeCallerContext.StampScope(CapabilityCallers.Of("user1", "acc1", "brain-alpha", CallerKind.User));
+        using var scope = Stamps.Enter(Stamps.Person("user1", "acc1", "brain-alpha"));
 
         var context = new MockIncomingGrainCallContext(
             targetGrainId: GrainId.Create("neuron.synapse-host", "brain-beta/apps/files"),
@@ -131,11 +132,11 @@ public sealed class DigitalBrainCallFilterFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => filter.Invoke(context));
     }
     [Fact]
-    public async Task OutgoingFilter_PropagatesCapabilityCallerAndActivity()
+    public async Task OutgoingFilter_PropagatesTheStampedCallerAndActivity()
     {
         var filter = new DigitalBrainCallFilter();
-        var caller = CapabilityCallers.Of("user-1", "acc-1", "brain-1", CallerKind.App, appId: "calc");
-        using var scope = RuntimeCallerContext.StampScope(caller);
+        var caller = Stamps.App("calc", "user-1", "acc-1", "brain-1");
+        using var scope = Stamps.Enter(caller);
 
         using var activity = new Activity("TestActivity").Start();
 
@@ -146,10 +147,9 @@ public sealed class DigitalBrainCallFilterFacts
             onInvoke: () =>
             {
                 invoked = true;
-                Assert.Equal("user-1", RequestContext.Get("db.cap.principal"));
-                Assert.Equal("acc-1", RequestContext.Get("db.cap.account"));
-                Assert.Equal("brain-1", RequestContext.Get("db.cap.brain"));
-                Assert.Equal("calc", RequestContext.Get("db.cap.app"));
+                Assert.Equal(new DigitalBrain.Access.Actor.App("calc", new DigitalBrain.Access.Actor.Person("user-1", "acc-1")), Stamps.Current?.Actor);
+                Assert.Equal("brain-1", Stamps.Current?.Brain.Value);
+                Assert.Null(RequestContext.Get("db.cap.principal"));
                 Assert.NotNull(RequestContext.Get("intochatos.activity-id"));
                 return Task.CompletedTask;
             });

@@ -14,6 +14,7 @@ public sealed class TimerKeepAliveFacts
     [Fact]
     public async Task A_keep_alive_one_shot_timer_due_after_the_collection_age_fires_on_the_same_activation()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         // The same local host SiloHost.Local() starts, with a one-second collection age so an idle activation is collected quickly.
         await using var host = await new LocalSiloHostFactory(null, services => services.Configure<GrainCollectionOptions>(options =>

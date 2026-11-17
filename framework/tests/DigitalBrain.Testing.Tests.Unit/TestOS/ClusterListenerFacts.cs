@@ -17,6 +17,7 @@ public sealed class ClusterListenerFacts
     [Fact]
     public async Task A_cluster_listener_hears_the_signals_of_every_brain_including_a_brain_new_after_it_registered()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register<NumberSource>();
         var heard = new ConcurrentQueue<string>();
         await using var registration = await Record(os, "boot", heard);
@@ -32,6 +33,7 @@ public sealed class ClusterListenerFacts
     [Fact]
     public async Task Listening_again_under_the_same_listener_replaces_the_handler_and_disposing_stops_it()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register<NumberSource>();
         var first = new ConcurrentQueue<string>();
         var second = new ConcurrentQueue<string>();
@@ -55,6 +57,7 @@ public sealed class ClusterListenerFacts
     [Fact]
     public async Task After_a_restart_a_listener_registered_again_at_start_hears_each_signal_once()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register<NumberSource>();
         var heard = new ConcurrentQueue<string>();
         await Record(os, "boot", heard);
@@ -70,6 +73,7 @@ public sealed class ClusterListenerFacts
     [Fact]
     public async Task A_throwing_listener_does_not_stop_the_others()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register<NumberSource>();
         await using var boom = await os.ClusterListeners.Listen<Number>("boom", (_, _, _) => throw new InvalidOperationException("boom"));
         var heard = new ConcurrentQueue<string>();
@@ -82,6 +86,7 @@ public sealed class ClusterListenerFacts
     [Fact]
     public async Task An_ephemeral_signal_is_delivered_to_cluster_listeners_without_writing_to_journal()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register<EphemeralSource>();
         var heard = new ConcurrentQueue<int>();
         await using var reg = await os.ClusterListeners.Listen<EphemeralTick>("ephemeral-test", (_, signal, _) =>

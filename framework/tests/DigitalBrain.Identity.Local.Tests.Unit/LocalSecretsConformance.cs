@@ -27,7 +27,6 @@ public sealed class LocalSecretsConformance : SecretsConformance<ISecrets>, IAsy
     }]);
 
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "db-vault-" + Guid.NewGuid().ToString("N"));
-    private readonly AmbientCallerScope _callers = new();
     private readonly ConcurrentQueue<string> _logs = new();
     private SimpleServiceProvider? _provider;
     private TestOS? _os;
@@ -51,7 +50,7 @@ public sealed class LocalSecretsConformance : SecretsConformance<ISecrets>, IAsy
         _provider = services.BuildServiceProvider();
         _os = os = TestOS.Local(options => options.Services = _provider);
         _os.Register<VaultNeuron>();
-        _secrets = new PortSecrets(_provider.GetRequiredService<ISecretVaultPort>(), _callers, Declarations, _logs);
+        _secrets = new PortSecrets(_provider.GetRequiredService<ISecretVaultPort>(), _os.Callers, Declarations, _logs);
         return ValueTask.CompletedTask;
     }
 
@@ -69,7 +68,7 @@ public sealed class LocalSecretsConformance : SecretsConformance<ISecrets>, IAsy
     }
 
     protected override Task<SecretsSubject> Connect(CancellationToken ct)
-        => Task.FromResult(new SecretsSubject(_secrets!, _callers, () => [.. _logs]) { Named = NamedSecret });
+        => Task.FromResult(new SecretsSubject(_secrets!, new EdgeCallerScope(_os!.Edge), () => [.. _logs]) { Named = NamedSecret });
 
     [Fact(Timeout = Timeout)]
     public async Task SecretSurvivesRestart()
@@ -110,7 +109,7 @@ public sealed class LocalSecretsConformance : SecretsConformance<ISecrets>, IAsy
 
     private sealed class PortSecrets(
         ISecretVaultPort port,
-        AmbientCallerScope callers,
+        ICallerAmbient callers,
         ModuleDeclarations declarations,
         ConcurrentQueue<string> logs) : ISecrets
     {
@@ -118,15 +117,15 @@ public sealed class LocalSecretsConformance : SecretsConformance<ISecrets>, IAsy
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
             ArgumentNullException.ThrowIfNull(value);
-            var caller = callers.Current;
-            var result = await port.Set(caller, name, label ?? "", value, cancellationToken).ConfigureAwait(false);
+            var caller = callers.Current ?? throw new UnauthorizedAccessException("No caller is stamped.");
+            var result = await port.Set(name, label ?? "", value, cancellationToken).ConfigureAwait(false);
             switch (result.Status)
             {
                 case SecretVaultStatus.Ok when result.Secret is not null:
-                    logs.Enqueue($"stored {result.Secret.Reference} for {caller.PrincipalId}");
+                    logs.Enqueue($"stored {result.Secret.Reference} for {caller.For?.Principal}");
                     return result.Secret;
                 case SecretVaultStatus.Denied:
-                    logs.Enqueue($"denied {name} to {caller.PrincipalId}");
+                    logs.Enqueue($"denied {name} to {caller.For?.Principal}");
                     throw new SecretDenied(name);
                 default:
                     throw new InvalidOperationException($"secrets@1: the vault port answered {result} to set {name}.");
@@ -136,35 +135,35 @@ public sealed class LocalSecretsConformance : SecretsConformance<ISecrets>, IAsy
         public async Task Remove(string name, CancellationToken cancellationToken = default)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
-            var caller = callers.Current;
-            var status = await port.Remove(caller, name, cancellationToken).ConfigureAwait(false);
+            var caller = callers.Current ?? throw new UnauthorizedAccessException("No caller is stamped.");
+            var status = await port.Remove(name, cancellationToken).ConfigureAwait(false);
             if (status == SecretVaultStatus.Denied)
             {
-                logs.Enqueue($"denied {name} to {caller.PrincipalId}");
+                logs.Enqueue($"denied {name} to {caller.For?.Principal}");
                 throw new SecretDenied(name);
             }
 
-            logs.Enqueue($"removed {name} for {caller.PrincipalId}");
+            logs.Enqueue($"removed {name} for {caller.For?.Principal}");
         }
 
         public async Task<string> Resolve(SecretRef secret, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(secret);
-            var caller = callers.Current;
+            var caller = callers.Current ?? throw new UnauthorizedAccessException("No caller is stamped.");
             var name = NameOf(secret);
             if (secret.IsNamed)
             {
                 RequireDeclared(caller, name = secret.Reference[SecretRef.NamedPrefix.Length..]);
             }
 
-            var result = await port.Resolve(caller, secret, cancellationToken).ConfigureAwait(false);
+            var result = await port.Resolve(secret, cancellationToken).ConfigureAwait(false);
             switch (result.Status)
             {
                 case SecretVaultStatus.Ok when result.Value is not null:
-                    logs.Enqueue($"resolved {secret.Reference} for {caller.PrincipalId}");
+                    logs.Enqueue($"resolved {secret.Reference} for {caller.For?.Principal}");
                     return result.Value;
                 case SecretVaultStatus.Denied:
-                    logs.Enqueue($"denied {name} to {caller.PrincipalId}");
+                    logs.Enqueue($"denied {name} to {caller.For?.Principal}");
                     throw new SecretDenied(name);
                 default:
                     throw new SecretNotFound(name);
@@ -174,15 +173,15 @@ public sealed class LocalSecretsConformance : SecretsConformance<ISecrets>, IAsy
         public async Task<SealedSecret> Seal(string context, ReadOnlyMemory<byte> plaintext, CancellationToken cancellationToken = default)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(context);
-            var caller = callers.Current;
-            var sealedSecret = await port.Seal(caller, context, plaintext, cancellationToken).ConfigureAwait(false);
+            var caller = callers.Current ?? throw new UnauthorizedAccessException("No caller is stamped.");
+            var sealedSecret = await port.Seal(context, plaintext, cancellationToken).ConfigureAwait(false);
             if (sealedSecret is null)
             {
-                logs.Enqueue($"denied {context} to {caller.PrincipalId}");
+                logs.Enqueue($"denied {context} to {caller.For?.Principal}");
                 throw new SecretDenied(context);
             }
 
-            logs.Enqueue($"sealed {context} for {caller.PrincipalId}");
+            logs.Enqueue($"sealed {context} for {caller.For?.Principal}");
             return sealedSecret;
         }
 
@@ -190,24 +189,24 @@ public sealed class LocalSecretsConformance : SecretsConformance<ISecrets>, IAsy
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(context);
             ArgumentNullException.ThrowIfNull(sealedSecret);
-            var caller = callers.Current;
-            var plaintext = await port.Open(caller, context, sealedSecret, cancellationToken).ConfigureAwait(false);
+            var caller = callers.Current ?? throw new UnauthorizedAccessException("No caller is stamped.");
+            var plaintext = await port.Open(context, sealedSecret, cancellationToken).ConfigureAwait(false);
             if (plaintext is null)
             {
-                logs.Enqueue($"denied {context} to {caller.PrincipalId}");
+                logs.Enqueue($"denied {context} to {caller.For?.Principal}");
                 throw new SecretDenied(context);
             }
 
-            logs.Enqueue($"opened {context} for {caller.PrincipalId}");
+            logs.Enqueue($"opened {context} for {caller.For?.Principal}");
             return plaintext;
         }
 
         public async Task<SecretRef> Named(string name, CancellationToken cancellationToken = default)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
-            var caller = callers.Current;
+            var caller = callers.Current ?? throw new UnauthorizedAccessException("No caller is stamped.");
             RequireDeclared(caller, name);
-            var result = await port.Named(caller, name, cancellationToken).ConfigureAwait(false);
+            var result = await port.Named(name, cancellationToken).ConfigureAwait(false);
             switch (result.Status)
             {
                 case SecretVaultStatus.Ok when result.Secret is not null:
@@ -215,19 +214,19 @@ public sealed class LocalSecretsConformance : SecretsConformance<ISecrets>, IAsy
                 case SecretVaultStatus.NotFound:
                     return SecretRef.Unset(SecretRef.NamedPrefix + name, name);
                 default:
-                    logs.Enqueue($"denied {name} to {caller.PrincipalId}");
+                    logs.Enqueue($"denied {name} to {caller.For?.Principal}");
                     throw new SecretDenied(name);
             }
         }
 
-        private void RequireDeclared(CapabilityCaller caller, string name)
+        private void RequireDeclared(Caller caller, string name)
         {
-            if (declarations.DeclaresSecret(caller.AppId, name))
+            if (declarations.DeclaresSecret(caller.Actor is Actor.App app ? app.Key : null, name))
             {
                 return;
             }
 
-            logs.Enqueue($"denied {name} to {caller.PrincipalId}");
+            logs.Enqueue($"denied {name} to {caller.For?.Principal}");
             throw new SecretDenied(name);
         }
 

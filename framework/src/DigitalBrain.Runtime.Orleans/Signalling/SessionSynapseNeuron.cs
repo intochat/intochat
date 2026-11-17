@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using DigitalBrain.Neurons;
 using System.Text.Json;
 using System.Security.Cryptography;
@@ -57,7 +58,7 @@ internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> optio
         if (_admissions.Count >= _options.MaxSessionSynapses || _admitting >= _options.MaxSessionSynapses)
         { throw new SessionLimitException($"Session {Id} has the maximum number of pending admissions."); }
         var ticket = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
-        var admission = new Admission(source, aliases, _generation, RuntimeCallerContext.Current, Host.Caller, clock.Now + AdmissionLifetime);
+        var admission = new Admission(source, aliases, _generation, Context.Caller, Host.Caller, clock.Now + AdmissionLifetime);
         _admissions.Add(ticket, admission);
         _ = AskAdmission(admission);
         try
@@ -79,7 +80,7 @@ internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> optio
     {
         PruneAdmissions();
         if (string.IsNullOrEmpty(ticket) || !_admissions.TryGetValue(ticket, out var admission) || !admission.Approved
-            || _ended || admission.Generation != _generation || admission.Principal != RuntimeCallerContext.Current
+            || _ended || admission.Generation != _generation || !SameCaller(admission.Principal, Context.Caller)
             || !string.Equals(admission.Caller, Host.Caller, StringComparison.Ordinal))
         { throw new UnauthorizedAccessException("The subscription admission ticket is not valid for this caller and session."); }
         _admissions.Remove(ticket);
@@ -192,7 +193,10 @@ internal sealed class SessionSynapseNeuron(IOptions<SessionSynapseOptions> optio
         finally { _admitting--; }
     }
 
-    private sealed record Admission(NeuronId Source, string[] Aliases, long Generation, CapabilityCaller? Principal, string Caller, DateTimeOffset Expires)
+    // The same actor in the same brain; the hop details (Via, Inside) may differ between the prepare and the commit call.
+    private static bool SameCaller(Caller? a, Caller? b) => a?.Actor == b?.Actor && a?.Brain == b?.Brain;
+
+    private sealed record Admission(NeuronId Source, string[] Aliases, long Generation, Caller? Principal, string Caller, DateTimeOffset Expires)
     {
         public TaskCompletionSource Ready { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool Approved { get; set; }

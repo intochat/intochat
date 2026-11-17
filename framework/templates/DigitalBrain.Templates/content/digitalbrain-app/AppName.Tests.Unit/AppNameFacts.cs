@@ -22,6 +22,7 @@ public sealed class APP_CLASSFacts
     {
         await using var os = TestOS.Local();
         os.Register(typeof(APP_CLASS).Assembly);
+        using var person = os.Edge.Enter(os.Edge.Person("person", "person-account", new BrainId("test")));
 
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.APP_ID", "default"));
 
@@ -39,6 +40,7 @@ public sealed class APP_CLASSFacts
     {
         await using var os = TestOS.Local();
         os.Register<CounterNeuron>();
+        using var person = os.Edge.Enter(os.Edge.Person("person", "person-account", new BrainId("test")));
         var id = new NeuronId(new BrainId("test"), "APP_ID.counter", "starter");
         Assert.Equal(1, await os.Get<ICounter>(id).Increment());
         await os.Restart();

@@ -51,6 +51,7 @@ public sealed class HostStateFacts(StatefulSilo silo) : IClassFixture<StatefulSi
     [Fact]
     public async Task Save_writes_json_state_under_the_class_state_name_with_its_signals_in_one_entry_and_state_reloads_after_restart()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var counter = silo.Get<ICounter>("b1/probe.counter/save");
         Assert.Equal(2, await counter.Add(2));
@@ -71,6 +72,7 @@ public sealed class HostStateFacts(StatefulSilo silo) : IClassFixture<StatefulSi
     [Fact]
     public async Task Publish_without_state_appends_a_signal_only_entry_then_announces_it()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var received = new ConcurrentQueue<(NeuronId Pub, Noted Signal)>();
         var clusterListeners = silo.Services.GetRequiredService<IClusterListeners>();
@@ -95,6 +97,7 @@ public sealed class HostStateFacts(StatefulSilo silo) : IClassFixture<StatefulSi
     [Fact]
     public async Task Publish_ephemeral_delivers_to_listeners_without_journal_append()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var clusterListeners = silo.Services.GetRequiredService<DigitalBrain.Kernel.IClusterListeners>();
         var heard = new ConcurrentQueue<string>();
@@ -119,6 +122,7 @@ public sealed class HostStateFacts(StatefulSilo silo) : IClassFixture<StatefulSi
     [Fact]
     public async Task A_timer_runs_as_a_turn_and_a_reminder_fires_after_a_silo_restart()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var counter = silo.Get<ICounter>("b1/probe.counter/timed");
         await counter.Tick("timer", 50);
@@ -134,6 +138,7 @@ public sealed class HostStateFacts(StatefulSilo silo) : IClassFixture<StatefulSi
     [Fact]
     public async Task Caller_is_the_stamped_neuron_History_is_limited_to_the_brain_and_a_stateless_Save_is_refused()
     {
+        using var platform = TestStamp.Kernel();
         var a = silo.Get<ICounter>("b1/probe.counter/caller-a");
         Assert.Equal("", await a.Caller());
         Assert.Equal("b1/probe.counter/caller-a", await a.AskCaller("caller-b"));

@@ -17,6 +17,7 @@ public sealed class StagedUpdateSurvivesRestartFacts
     [Fact]
     public async Task StagedBuildSurvivesRestartAndPromotesOnApproval()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register<HsPayments>().With<ISqlRead>("analytics", new FakeSqlRead(1));
         var brain = Brain("staged-test");
 

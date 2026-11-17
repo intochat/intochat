@@ -20,7 +20,6 @@
       "db.json-element",
       "db.runtime-invocation",
       "enforcement.call-decision",
-      "enforcement.untrusted-caller",
       "ensure-brain-wide",
       "identity.account",
       "identity.brain-entry",

@@ -59,6 +59,7 @@ public sealed class SourceBindingsFacts
     [Fact]
     public async Task DeployBindsSlotsFromTheSource()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
 
         _ = await Deploy(os, Brain("sb1"), Source(Bind("conn-1")), None);
@@ -69,6 +70,7 @@ public sealed class SourceBindingsFacts
     [Fact]
     public async Task RestoreKeepsTheBindings()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var brain = Brain("sb2");
         _ = await Deploy(os, brain, Source(Bind("conn-2")), None);
@@ -83,6 +85,7 @@ public sealed class SourceBindingsFacts
     [Fact]
     public async Task ExplicitArgumentWinsOverSource()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
 
         _ = await Deploy(os, Brain("sb3"), Source(Bind("conn-1")), Bind("conn-2"));
@@ -93,6 +96,7 @@ public sealed class SourceBindingsFacts
     [Fact]
     public async Task AnOldRecordWithoutBindingsRestoresAsBefore()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var brain = Brain("sb4");
         _ = await Deploy(os, brain, HsSource.Of(HsSource.Budget), None);
@@ -109,6 +113,7 @@ public sealed class SourceBindingsFacts
     [Fact]
     public async Task SameFilesDifferentBindingsReinstalls()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var brain = Brain("sb5");
         var first = await Deploy(os, brain, Source(Bind("conn-1")), None);
@@ -130,6 +135,7 @@ public sealed class SourceBindingsFacts
     [Fact]
     public async Task SameFilesNoBindingsStaysUnchanged()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var brain = Brain("sb6");
         _ = await Deploy(os, brain, Source(Bind("conn-1")), None);
@@ -145,6 +151,7 @@ public sealed class SourceBindingsFacts
     [Fact]
     public async Task ARefusedRebindLeavesEveryAliasOnItsOldBinding()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var brain = Brain("sb7");
         var two = HsSource.Of(TwoAliases);
@@ -174,6 +181,7 @@ public sealed class SourceBindingsFacts
     [Fact]
     public async Task ARebindThatWaitsForThePersonIsNotStoredYet()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var brain = Brain("sb8");
         // The first install is never answered, so the same needs are asked again, not re-bound.
@@ -196,6 +204,7 @@ public sealed class SourceBindingsFacts
     [Fact]
     public async Task AnApprovedRebindIsStored()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var brain = Brain("sb9");
         var two = HsSource.Of(TwoAliases);

@@ -35,6 +35,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task ProposeAsksThePersonAndAdoptsOnApproval()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var policies = os.Get<IPolicies>(Policies);
         var rule = WeeklyThreeHundred(os.Clock);
@@ -62,6 +63,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task ADeniedProposalAdoptsNothing()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var policies = os.Get<IPolicies>(Policies);
         var rule = WeeklyThreeHundred(os.Clock);
@@ -79,6 +81,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task TheCapHoldsAcrossFourCharges()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var policies = os.Get<IPolicies>(Policies);
         var adopted = await Adopt(os, WeeklyThreeHundred(os.Clock));
@@ -102,6 +105,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task TwoConcurrentAllowsLetExactlyOneThrough()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var policies = os.Get<IPolicies>(Policies);
         var rule = PolicyGrammar.Parse("r1", "charges.charge", "Sum", "Week", 100m, null, null, null, ChargesTestModule.Charges, os.Clock);
@@ -118,6 +122,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task ReleaseReturnsAReservation()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var policies = os.Get<IPolicies>(Policies);
         _ = await Adopt(os, WeeklyThreeHundred(os.Clock));
@@ -135,6 +140,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task TheWeekTurnsOverOnMondayUtc()
     {
+        using var platform = TestStamp.Kernel();
         var sundayNight = new DateTimeOffset(2026, 11, 8, 23, 59, 0, TimeSpan.Zero); // Sunday 23:59 UTC
         await using var os = Start(sundayNight);
         var policies = os.Get<IPolicies>(Policies);
@@ -151,6 +157,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task ARollingWindowForgetsOldReservations()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var policies = os.Get<IPolicies>(Policies);
         var rule = PolicyGrammar.Parse("r1", "charges.charge", "Sum", "Rolling:02:00:00", 100m, null, null, null, ChargesTestModule.Charges, os.Clock);
@@ -168,6 +175,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task AConditionNarrowsTheRule()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var policies = os.Get<IPolicies>(Policies);
         var rule = PolicyGrammar.Parse("r1", "gmail.draft.create", "Count", "Day", 1m, "To", "EndsWith", "@corp.com", ChargesTestModule.Drafts, os.Clock);
@@ -185,6 +193,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task RetireRemovesTheRuleAndItsReservations()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var policies = os.Get<IPolicies>(Policies);
         _ = await Adopt(os, WeeklyThreeHundred(os.Clock));
@@ -202,6 +211,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task ANegativeAmountIsRejectedBeforeItCanLowerTheTotal()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var policies = os.Get<IPolicies>(Policies);
         _ = await Adopt(os, WeeklyThreeHundred(os.Clock));
@@ -215,6 +225,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task AMissingFactMakesAConditionalRuleApply()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var policies = os.Get<IPolicies>(Policies);
         var rule = PolicyGrammar.Parse("r1", "gmail.draft.create", "Count", "Day", 1m, "To", "EndsWith", "@corp.com", ChargesTestModule.Drafts, os.Clock);
@@ -229,6 +240,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task ProposeRefusesAnUndeclaredActionWithoutAskingAnyone()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var policies = os.Get<IPolicies>(Policies);
         var rule = new PolicyRule("r1", "payments.send", PolicyMeasure.Count, new PolicyWindow(PolicyWindowKind.Day, null), 1m, null, "Send all the money", os.Clock.GetUtcNow());
@@ -245,6 +257,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task ProposeRefusesAMalformedRuleAndNeverShowsCallerText()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var policies = os.Get<IPolicies>(Policies);
         var negative = new PolicyRule("r1", "charges.charge", PolicyMeasure.Sum, new PolicyWindow(PolicyWindowKind.Week, null), -5m, null, "Allow anything", os.Clock.GetUtcNow());
@@ -265,6 +278,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task ReservationsOutsideTheirWindowArePrunedOnTheNextSave()
     {
+        using var platform = TestStamp.Kernel();
         var sunday = new DateTimeOffset(2026, 11, 8, 23, 59, 0, TimeSpan.Zero);
         await using var os = Start(sunday);
         var policies = os.Get<IPolicies>(Policies);
@@ -286,6 +300,7 @@ public sealed class PoliciesFacts
     [Fact]
     public async Task GuardRunsTheCallWhenAllowedAndReleasesWhenItThrows()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var policies = os.Get<IPolicies>(Policies);
         _ = await Adopt(os, PolicyGrammar.Parse("r1", "gmail.draft.create", "Count", "Day", 1m, null, null, null, ChargesTestModule.Drafts, os.Clock));

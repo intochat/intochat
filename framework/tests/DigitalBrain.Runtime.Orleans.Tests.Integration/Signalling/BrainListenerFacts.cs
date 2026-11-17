@@ -39,6 +39,7 @@ public sealed class BrainListenerFacts(SessionSilo silo) : IClassFixture<Session
     [Fact]
     public async Task Listen_ensures_the_listener_neuron_and_every_signal_of_the_brain_reaches_the_handler_once_in_brain_order()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         await silo.Get<ICounter>("bl-order/probe.counter/early").Add(100); // before the listener: never replayed
         var heard = new ConcurrentQueue<string>();
@@ -59,6 +60,7 @@ public sealed class BrainListenerFacts(SessionSilo silo) : IClassFixture<Session
     [Fact]
     public async Task Disposing_a_registration_stops_delivery_to_that_handler_only()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var first = new ConcurrentQueue<string>();
         var second = new ConcurrentQueue<string>();
@@ -80,6 +82,7 @@ public sealed class BrainListenerFacts(SessionSilo silo) : IClassFixture<Session
     [Fact]
     public async Task A_listener_of_brain_A_never_receives_brain_B_and_a_throwing_handler_does_not_stop_the_others()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var listeners = silo.Listeners();
         var failures = ((BrainListeners)listeners).Failures;
@@ -98,6 +101,7 @@ public sealed class BrainListenerFacts(SessionSilo silo) : IClassFixture<Session
     [Fact]
     public async Task The_listener_runs_on_the_silo_that_hosts_the_brain_and_delivers_to_handlers_registered_there()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var heard = new ConcurrentQueue<string>();
         await using var registration = await silo.Listeners().Record("bl-local", heard);
@@ -115,6 +119,7 @@ public sealed class BrainListenerRestartFacts(SessionSilo silo) : IClassFixture<
     [Fact]
     public async Task After_a_silo_restart_the_listener_resumes_from_its_brain_cursor_without_duplicates()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var before = new ConcurrentQueue<string>();
         await using (await silo.Listeners().Record("bl-restart", before))
@@ -141,6 +146,7 @@ public sealed class BrainListenerTtlFacts(SessionTtlSilo silo) : IClassFixture<S
     [Fact]
     public async Task With_no_handler_for_a_full_SessionTtl_the_listener_removes_its_synapse()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         const string Listener = "bl-sweep/runtime.listener/bl-sweep";
         var registration = await silo.Listeners().Record("bl-sweep", new ConcurrentQueue<string>());
@@ -165,6 +171,7 @@ public sealed class BrainListenerPlacementFacts
     [Fact]
     public async Task In_two_silos_the_listener_of_a_brain_runs_on_the_brain_affine_silo()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var primaryPort = FreePort();
         var primary = new IPEndPoint(IPAddress.Loopback, primaryPort);

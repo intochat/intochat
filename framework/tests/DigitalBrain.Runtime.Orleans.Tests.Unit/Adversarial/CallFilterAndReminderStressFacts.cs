@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Access;
 using DigitalBrain.Scheduling;
 using System.Diagnostics;
 using System.Reflection;
@@ -25,15 +26,15 @@ public sealed class CallFilterAndReminderStressFacts
     // =========================================================================
 
     [Theory]
-    [InlineData(CallerKind.User)]
-    [InlineData(CallerKind.App)]
-    [InlineData(CallerKind.Agent)]
-    [InlineData(CallerKind.Scheduler)]
-    public async Task CallFilter_CrossBrainNeuronInvocation_StrictlyBlockedForNonPlatform(CallerKind kind)
+    [InlineData(CallerWire.ActorPerson)]
+    [InlineData(CallerWire.ActorApp)]
+    [InlineData(CallerWire.ActorAgent)]
+    [InlineData(CallerWire.ActorScheduler)]
+    public async Task CallFilter_CrossBrainNeuronInvocation_StrictlyBlockedForNonPlatform(byte kind)
     {
         var filter = new DigitalBrainCallFilter();
-        var caller = CapabilityCallers.Of("attacker-principal", "acct-1", "brain-attacker", kind, appId: kind == CallerKind.App ? "malicious-app" : null);
-        using var scope = RuntimeCallerContext.StampScope(caller);
+        var caller = Stamps.Of(kind, "attacker-principal", "acct-1", "brain-attacker", kind == CallerWire.ActorApp ? "malicious-app" : null);
+        using var scope = Stamps.Enter(caller);
 
         var context = new MockIncomingContext(GrainId.Create("neuron", "brain-victim/apps/vault"));
 
@@ -47,8 +48,8 @@ public sealed class CallFilterAndReminderStressFacts
     public async Task CallFilter_PlatformCaller_PermittedAcrossAnyBrain()
     {
         var filter = new DigitalBrainCallFilter();
-        var caller = CapabilityCallers.Platform("kernel-principal", "kernel-acct", "kernel-brain");
-        using var scope = RuntimeCallerContext.StampScope(caller);
+        var caller = Stamps.Kernel("kernel");
+        using var scope = Stamps.Enter(caller);
 
         var executed = false;
         var context = new MockIncomingContext(
@@ -63,8 +64,8 @@ public sealed class CallFilterAndReminderStressFacts
     public async Task CallFilter_SystemBrainNeuron_PermittedFromAnyTenantBrain()
     {
         var filter = new DigitalBrainCallFilter();
-        var caller = CapabilityCallers.Of("user-1", "acct-1", "tenant-alpha", CallerKind.User);
-        using var scope = RuntimeCallerContext.StampScope(caller);
+        var caller = Stamps.Person("user-1", "acct-1", "tenant-alpha");
+        using var scope = Stamps.Enter(caller);
 
         var executed = false;
         // System scopes in DigitalBrain start with '@' (e.g. '@kernel', '@system')
@@ -80,8 +81,8 @@ public sealed class CallFilterAndReminderStressFacts
     public async Task CallFilter_UnadornedSystemTenant_BlockedWithoutLeadingAtSymbol()
     {
         var filter = new DigitalBrainCallFilter();
-        var caller = CapabilityCallers.Of("user-1", "acct-1", "tenant-alpha", CallerKind.User);
-        using var scope = RuntimeCallerContext.StampScope(caller);
+        var caller = Stamps.Person("user-1", "acct-1", "tenant-alpha");
+        using var scope = Stamps.Enter(caller);
 
         // An unadorned 'system' without '@' is treated as an ordinary tenant brain id, NOT a system scope!
         var context = new MockIncomingContext(GrainId.Create("neuron", "system/templates/starter"));
@@ -94,8 +95,8 @@ public sealed class CallFilterAndReminderStressFacts
     public async Task CallFilter_NonNeuronGrain_CrossBrainCheckDoesNotBlock()
     {
         var filter = new DigitalBrainCallFilter();
-        var caller = CapabilityCallers.Of("user-1", "acct-1", "tenant-alpha", CallerKind.User);
-        using var scope = RuntimeCallerContext.StampScope(caller);
+        var caller = Stamps.Person("user-1", "acct-1", "tenant-alpha");
+        using var scope = Stamps.Enter(caller);
 
         var executed = false;
         // Target is a stateless worker or non-neuron grain (e.g. "ino.data-analytics-worker")
@@ -111,8 +112,8 @@ public sealed class CallFilterAndReminderStressFacts
     public async Task CallFilter_MalformedTargetKey_DoesNotCrashFilter()
     {
         var filter = new DigitalBrainCallFilter();
-        var caller = CapabilityCallers.Of("user-1", "acct-1", "tenant-alpha", CallerKind.User);
-        using var scope = RuntimeCallerContext.StampScope(caller);
+        var caller = Stamps.Person("user-1", "acct-1", "tenant-alpha");
+        using var scope = Stamps.Enter(caller);
 
         var executed = false;
         // Target key without slashes (not a valid compound key)
@@ -128,8 +129,8 @@ public sealed class CallFilterAndReminderStressFacts
     public async Task CallFilter_Outgoing_PropagatesFullCallerAndPreservesExistingCallerProvenance()
     {
         var filter = new DigitalBrainCallFilter();
-        var caller = CapabilityCallers.Of("principal-99", "acct-88", "brain-77", CallerKind.App, appId: "app-66", conversationId: "conv-55");
-        using var scope = RuntimeCallerContext.StampScope(caller);
+        var caller = Stamps.App("app-66", "principal-99", "acct-88", "brain-77", "conv-55");
+        using var scope = Stamps.Enter(caller);
 
         // Pre-set existing db.caller provenance
         RequestContext.Set(HostNeuronContext.CallerKey, "preexisting-caller-neuron");
@@ -141,11 +142,11 @@ public sealed class CallFilterAndReminderStressFacts
             onInvoke: () =>
             {
                 executed = true;
-                Assert.Equal("principal-99", RequestContext.Get("db.cap.principal"));
-                Assert.Equal("acct-88", RequestContext.Get("db.cap.account"));
-                Assert.Equal("brain-77", RequestContext.Get("db.cap.brain"));
-                Assert.Equal("app-66", RequestContext.Get("db.cap.app"));
-                Assert.Equal("conv-55", RequestContext.Get("db.cap.conversation"));
+                // The stamped caller travels as the one ambient key; no other caller key is written.
+                Assert.Equal(new DigitalBrain.Access.Actor.App("app-66", new DigitalBrain.Access.Actor.Person("principal-99", "acct-88")), Stamps.Current?.Actor);
+                Assert.Equal("brain-77", Stamps.Current?.Brain.Value);
+                Assert.Equal("conv-55", Stamps.Current?.Conversation);
+                Assert.Null(RequestContext.Get("db.cap.principal"));
                 // Existing caller key must be preserved
                 Assert.Equal("preexisting-caller-neuron", RequestContext.Get(HostNeuronContext.CallerKey));
                 return Task.CompletedTask;
@@ -159,8 +160,8 @@ public sealed class CallFilterAndReminderStressFacts
     public async Task CallFilter_Outgoing_PopulatesSourceGrainAsCallerWhenNonePresent()
     {
         var filter = new DigitalBrainCallFilter();
-        var caller = CapabilityCallers.Of("user-1", "acct-1", "brain-1", CallerKind.User);
-        using var scope = RuntimeCallerContext.StampScope(caller);
+        var caller = Stamps.Person("user-1", "acct-1", "brain-1");
+        using var scope = Stamps.Enter(caller);
 
         RequestContext.Remove(HostNeuronContext.CallerKey);
 

@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -20,11 +21,11 @@ public sealed class ClusterListenerCallerFacts
         var seen = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
         await listeners.Listen<Gap>("caller", (_, _, _) =>
         {
-            seen.TrySetResult(RuntimeCallerContext.Current?.PrincipalId);
+            seen.TrySetResult(Stamps.Current?.For?.Principal);
             return Task.CompletedTask;
         });
         var publisher = new NeuronId(new BrainId("b"), "app", "apps/desktop");
-        using (RuntimeCallerContext.Stamp(new CapabilityCaller("alice", "acct", "b")))
+        using (Stamps.Enter(Stamps.Person("alice", "acct", "b")))
         {
             listeners.Offer(publisher, [new Gap(publisher, 1, 2)]);
         }

@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using DigitalBrain.Neurons;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
@@ -63,15 +64,15 @@ public sealed class BrainNeuron
 
     private Task Announce(DigitalBrain.Signal signal)
     {
-        if (RuntimeCallerContext.TryGet(out _)) { throw new UnauthorizedAccessException("Only the kernel announces a brain's instances and types."); }
+        if (Context.Caller?.Actor is not Actor.Kernel) { throw new UnauthorizedAccessException("Only the kernel announces a brain's instances and types."); }
         return Publish(signal);
     }
 
-    // Creating is the platform's act, or the owner's own. Host code with no stamped caller is trusted.
-    private static void RequireCreator(Owner owner)
+    // Creating is the kernel's act, or the owner's own.
+    private void RequireCreator(Owner owner)
     {
-        if (!RuntimeCallerContext.TryGet(out var caller)) { return; }
-        if (caller.Kind == CallerKind.Platform || caller.AccountId == owner.AccountId) { return; }
+        var caller = Context.Caller ?? throw new UnauthorizedAccessException("Only the platform or the owner may create a brain.");
+        if (caller.Actor is Actor.Kernel || (caller.Actor is Actor.Person person && caller.Direct && person.Account == owner.AccountId)) { return; }
         throw new UnauthorizedAccessException("Only the platform or the owner may create a brain.");
     }
 }

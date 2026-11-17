@@ -24,6 +24,8 @@ public sealed class TestOSTarget : FrameworkTarget
 
     private sealed class Run(TestOS os) : RunningTarget
     {
+        public override DigitalBrain.Access.EdgeAuthority Edge => os.Edge;
+
         public override T Get<T>(NeuronId id) => os.Get<T>(id);
 
         public override Task Deactivate(NeuronId id) => os.Deactivate(id);

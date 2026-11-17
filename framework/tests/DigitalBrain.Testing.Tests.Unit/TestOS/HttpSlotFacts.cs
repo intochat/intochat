@@ -26,6 +26,7 @@ public sealed class HttpSlotFacts
     [Fact]
     public async Task ASlotOfTypeIHttpReadBindsToAnHttpConnection()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         await using var os = OS.Local().Register<HsPayments>().With<IHttpRead>("feed", new FakeHttp("hello"));
         var brain = NeuronId.Parse("hh/x/y").Brain;

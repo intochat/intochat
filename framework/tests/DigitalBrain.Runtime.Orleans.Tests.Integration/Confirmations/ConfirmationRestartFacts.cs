@@ -9,6 +9,7 @@ public sealed class ConfirmationRestartFacts(StatefulSilo silo) : IClassFixture<
     [Fact]
     public async Task PendingConfirmationExpiresViaDurableReminderAfterSiloRestart()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var brain = new BrainId("cf-restart");
         var id = IConfirmationRequests.Of(brain);

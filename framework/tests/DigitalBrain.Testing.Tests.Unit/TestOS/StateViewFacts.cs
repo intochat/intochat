@@ -86,6 +86,7 @@ public sealed class StateViewFacts
     [Fact]
     public async Task ReadReturnsNullBeforeTheFirstSave()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register(typeof(StateViewFacts).Assembly);
         os.Confirmations.ApproveAll();
         await os.Get<IInstalls>(Installs).Install(new InstallRequest("vw", new Dictionary<string, string>()), Ct);
@@ -101,6 +102,7 @@ public sealed class StateViewFacts
     [Fact]
     public async Task AViewSynapseIsReadable()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = await Started();
 
         var published = await os.Get<IViewReader>(Board).Read("vw");
@@ -117,6 +119,7 @@ public sealed class StateViewFacts
     [Fact]
     public async Task ActivatePublishesTheEmitToTheOwner()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = await Started();
         var views = os.Get<IViewReader>(Board);
         var before = (await views.Read("vw"))!;
@@ -138,6 +141,7 @@ public sealed class StateViewFacts
     [Fact]
     public async Task ActivateRefusesAForeignOwner()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = await Started();
         var views = os.Get<IViewReader>(Board);
         var view = (await views.Read("vw"))!;
@@ -153,6 +157,7 @@ public sealed class StateViewFacts
     [Fact]
     public async Task ActivateRefusesAStaleGeneration()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = await Started();
         var views = os.Get<IViewReader>(Board);
         var view = (await views.Read("vw"))!;
@@ -169,6 +174,7 @@ public sealed class StateViewFacts
     [Fact]
     public async Task ActivateRefusesAnUnknownNode()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = await Started();
         var views = os.Get<IViewReader>(Board);
         var view = (await views.Read("vw"))!;
@@ -183,6 +189,7 @@ public sealed class StateViewFacts
     [Fact]
     public async Task ActivateRefusesANodeWithoutEmit()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = await Started();
         var views = os.Get<IViewReader>(Board);
         var view = (await views.Read("vw"))!;
@@ -197,6 +204,7 @@ public sealed class StateViewFacts
     [Fact]
     public async Task ActivateStampsTheHostAssertedBy()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = await Started();
         var views = os.Get<IViewReader>(Board);
         var view = (await views.Read("vw"))!;
@@ -212,6 +220,7 @@ public sealed class StateViewFacts
     [Fact]
     public async Task ActivateWithoutByEmitsNoBy()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = await Started();
         var views = os.Get<IViewReader>(Board);
         var view = (await views.Read("vw"))!;
@@ -263,6 +272,7 @@ public sealed class StateViewFacts
     [Fact]
     public async Task AViewDeclaringByIsRefusedAtPublish()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register(typeof(StateViewFacts).Assembly);
         os.Confirmations.ApproveAll();
         await os.Get<IInstalls>(Installs).Install(new InstallRequest("vwb", new Dictionary<string, string>()), Ct);
@@ -281,6 +291,7 @@ public sealed class StateViewFacts
     [Fact]
     public async Task FindIgnoresKeysInsideEmitArgs()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = await Started();
         var views = os.Get<IViewReader>(Board);
         var view = (await views.Read("vw"))!;
@@ -295,6 +306,7 @@ public sealed class StateViewFacts
     [Fact]
     public async Task AFailingReactionLeavesTheEmitJournaled()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = await Started();
         var finished = new System.Collections.Concurrent.ConcurrentQueue<SynapseFinished>();
         await using var listener = await os.ClusterListeners.Listen<SynapseFinished>("finished", (_, signal, _) =>
@@ -318,6 +330,7 @@ public sealed class StateViewFacts
     [Fact]
     public async Task TheViewSurvivesDeactivationAndRestart()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = await Started();
         var before = (await os.Get<IViewReader>(Board).Read("vw"))!;
 
@@ -341,6 +354,7 @@ public sealed class StateViewFacts
     [Fact]
     public async Task AViewButtonCannotForgeAnAnswer()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = await Started();
         var views = os.Get<IViewReader>(Board);
         var view = (await views.Read("vw"))!;

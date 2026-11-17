@@ -31,6 +31,9 @@ public sealed class AuthoringSurfaceFacts
     // Closed types the published language still mentions, as "Type -> Type". Each entry is a debt; the set may only shrink.
     private static readonly HashSet<string> Bridges = new(StringComparer.Ordinal)
     {
+        // The bound identity capability reads the stamped caller from the ambient (caller-model collapse, 17 Nov).
+        "DigitalBrain.Capabilities.Identity.BoundIdentity -> DigitalBrain.Access.ICallerAmbient",
+        "DigitalBrain.Capabilities.Identity.BoundSessions -> DigitalBrain.Access.ICallerAmbient",
         "DigitalBrain.Capabilities.Connections.ConnectionNeuron`1 -> DigitalBrain.Neurons.IStateInspectable",
         "DigitalBrain.Capabilities.Connections.ConnectionNeuron`1 -> DigitalBrain.Neurons.Neuron`1",
         "DigitalBrain.Capabilities.Storage.IStorage -> DigitalBrain.Operations.OperationId",

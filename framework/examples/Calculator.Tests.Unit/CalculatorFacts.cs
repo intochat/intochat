@@ -20,6 +20,7 @@ public sealed class CalculatorFacts
     public async Task Pressing_digits_and_operators_updates_the_rendered_view()
     {
         await using var os = TestOS.Local();
+        using var person = os.Edge.Enter(os.Edge.Person("person", "person-account", new BrainId("test")));
         os.Register(typeof(CalculatorScreen).Assembly);
 
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.calculator", "default"));
@@ -48,6 +49,7 @@ public sealed class CalculatorFacts
     public async Task DividingByZeroIsRejected()
     {
         await using var os = TestOS.Local();
+        using var person = os.Edge.Enter(os.Edge.Person("person", "person-account", new BrainId("test")));
         os.Register(typeof(CalculatorScreen).Assembly);
 
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.calculator", "default"));
@@ -68,6 +70,7 @@ public sealed class CalculatorFacts
     public async Task ViewFixtures_Verify_MatchesOnDisk()
     {
         await using var os = TestOS.Local();
+        using var person = os.Edge.Enter(os.Edge.Person("person", "person-account", new BrainId("test")));
         os.Register(typeof(CalculatorScreen).Assembly);
 
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.calculator", "default"));

@@ -48,6 +48,8 @@ public sealed class OrleansRun(IInProcessHost host, FrameworkHostOptions options
         return run;
     }
 
+    public override DigitalBrain.Access.EdgeAuthority Edge => Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<DigitalBrain.Access.EdgeAuthority>(Services);
+
     public override T Get<T>(NeuronId id) => RuntimeTestHooks.Get<T>(Services, id);
 
     public override Task Deactivate(NeuronId id) => RuntimeTestHooks.Deactivate(Services, id);

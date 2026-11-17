@@ -175,7 +175,7 @@ public sealed class StorageContentEndpointFacts
 
         var approved = host.Book.Park("b1", "disk", host.Storage.Inner.Root, "notes.txt");
         host.Book.MarkStarted(approved.PlanId);
-        Assert.True(host.Book.Approve(approved.PlanId, CapabilityCallers.Of("ada", "ada", "b1")));
+        Assert.True(host.Book.Approve(approved.PlanId, DigitalBrain.Testing.Conformance.AmbientCallerScope.LocalOwner));
         var ticket = await host.Ticket(folder, "notes.txt", approved.PlanId);
         using var mismatch = host.Upload(host.Content(folder, "other.txt"), ticket, "z"u8.ToArray());
         var wrong = await host.Client.SendAsync(mismatch, TestContext.Current.CancellationToken);

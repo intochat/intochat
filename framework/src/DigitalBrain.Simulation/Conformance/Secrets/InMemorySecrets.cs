@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Modules;
 
@@ -53,7 +54,7 @@ public class InMemorySecrets(AmbientCallerScope? callers = null) : ISecrets
     {
         cancellationToken.ThrowIfCancellationRequested();
         OnCall(nameof(Set));
-        return Task.FromResult(Put(_callers.Current.BrainId, name, label, value));
+        return Task.FromResult(Put(_callers.Current.Brain.Value, name, label, value));
     }
 
     /// <inheritdoc />
@@ -62,7 +63,7 @@ public class InMemorySecrets(AmbientCallerScope? callers = null) : ISecrets
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         cancellationToken.ThrowIfCancellationRequested();
         OnCall(nameof(Remove));
-        var reference = $"{_callers.Current.BrainId}/{name}";
+        var reference = $"{_callers.Current.Brain.Value}/{name}";
         _values.TryRemove(reference, out _);
         _log.Enqueue($"remove {reference}");
         return Task.CompletedTask;
@@ -87,7 +88,7 @@ public class InMemorySecrets(AmbientCallerScope? callers = null) : ISecrets
         var slash = reference.IndexOf('/', StringComparison.Ordinal);
         var name = slash < 0 ? reference : reference[(slash + 1)..];
         if (string.IsNullOrWhiteSpace(name)) { throw new SecretNotFound(string.IsNullOrWhiteSpace(reference) ? "(empty)" : reference); }
-        if (slash < 0 || !string.Equals(reference[..slash], _callers.Current.BrainId, StringComparison.Ordinal))
+        if (slash < 0 || !string.Equals(reference[..slash], _callers.Current.Brain.Value, StringComparison.Ordinal))
         {
             _log.Enqueue($"denied {reference}");
             throw new SecretDenied(name);
@@ -145,7 +146,7 @@ public class InMemorySecrets(AmbientCallerScope? callers = null) : ISecrets
 
     private void RequireDeclared(string name)
     {
-        var module = _callers.Current.AppId;
+        var module = _callers.Current.Actor switch { Actor.Module m => m.Id, Actor.App a => a.Key, _ => null };
         if (Declarations.DeclaresSecret(module, name)) { return; }
         _log.Enqueue($"denied named {name} to {module ?? "(no module)"}");
         throw new SecretDenied(name);

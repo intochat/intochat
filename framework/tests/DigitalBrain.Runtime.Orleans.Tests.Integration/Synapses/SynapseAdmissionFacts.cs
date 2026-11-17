@@ -9,6 +9,7 @@ public sealed class SynapseAdmissionFacts(SynapseSilo silo) : IClassFixture<Syna
     [Fact]
     public async Task A_source_that_refuses_the_subscriber_makes_Ensure_throw_and_no_subscription_exists()
     {
+        using var platform = TestStamp.Kernel();
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => silo.Get<IListener>("b1/probe.listener/denied").Follow("b1/probe.guarded/g"));
         Assert.Equal(0, await silo.Subscriptions("b1/probe.listener/denied", "probe.counted"));
 
@@ -22,6 +23,7 @@ public sealed class SynapseAdmissionFacts(SynapseSilo silo) : IClassFixture<Syna
     [Fact]
     public async Task A_self_synapse_and_a_source_of_another_brain_are_refused()
     {
+        using var platform = TestStamp.Kernel();
         await Assert.ThrowsAsync<ArgumentException>(() => silo.Get<IListener>("b1/probe.listener/self").Follow("b1/probe.listener/self"));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => silo.Get<IListener>("b1/probe.listener/foreign").Follow("b2/probe.counter/x"));
         Assert.Equal(0, await silo.Subscriptions("b1/probe.listener/self", "probe.counted"));
@@ -31,6 +33,7 @@ public sealed class SynapseAdmissionFacts(SynapseSilo silo) : IClassFixture<Syna
     [Fact]
     public async Task Two_sources_on_one_namespace_share_one_subscription_and_Ensure_again_adds_none()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         const string Listener = "b1/probe.listener/shared";
         var listener = silo.Get<IListener>(Listener);
@@ -48,6 +51,7 @@ public sealed class SynapseAdmissionFacts(SynapseSilo silo) : IClassFixture<Syna
     [Fact]
     public async Task Ensure_on_a_StatelessNeuron_throws_because_stateless_activations_own_no_durable_synapse()
     {
+        using var platform = TestStamp.Kernel();
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => silo.Get<IListener>("b1/probe.stateless.listener/x").Follow("b1/probe.counter/x"));
         Assert.Contains("StatelessNeuron", error.Message);
     }

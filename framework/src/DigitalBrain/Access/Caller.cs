@@ -45,6 +45,8 @@ public sealed record Caller
 
     internal static Caller OfKernel(BrainId brain, NeuronId? via = null) => new(new Actor.Kernel(), brain, null, via, inside: true);
 
+    internal static Caller OfScheduler(BrainId brain) => new(new Actor.Scheduler(), brain, inside: true);
+
     internal Caller ActingIn(BrainId brain) => new(Actor, brain, Conversation, Via, Inside);
 
     internal Caller Through(string appKey)

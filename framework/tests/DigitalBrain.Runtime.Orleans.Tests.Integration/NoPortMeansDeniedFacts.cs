@@ -1,6 +1,5 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -36,7 +35,8 @@ public sealed class NoPortMeansDeniedFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => identity.EnsureMember(member, ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => grants.GrantAsOwner(grant, ct));
 
-        using (RuntimeCallerContext.Stamp(new CapabilityCaller("ada", "ada-acct", "b1")))
+        var edge = host.Services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>();
+        using (edge.Enter(edge.Person("ada", "ada-acct", brain)))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => identity.EnsureMember(member, ct));
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => identity.RemoveMember("b1", "bob-acct", ct));

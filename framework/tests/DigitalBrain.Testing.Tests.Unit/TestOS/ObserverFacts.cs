@@ -12,6 +12,7 @@ public sealed class ObserverFacts
     [Fact]
     public async Task Synapses_lists_each_signal_alias_and_Deliveries_yields_a_handed_signal()
     {
+        using var platform = TestStamp.Kernel();
         var probe = new Probe();
         await using var os = OS.Local(options => options.Services = probe).Register(typeof(NumberSink).Assembly);
         var seen = new List<SignalDelivery>();
@@ -41,6 +42,7 @@ public sealed class ObserverFacts
     [Fact]
     public async Task Deliveries_registers_listener_synchronously_before_first_move_next()
     {
+        using var platform = TestStamp.Kernel();
         var probe = new Probe();
         await using var os = OS.Local(options => options.Services = probe).Register(typeof(NumberSink).Assembly);
         var token = TestContext.Current.CancellationToken;

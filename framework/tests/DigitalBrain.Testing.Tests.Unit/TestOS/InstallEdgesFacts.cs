@@ -41,6 +41,7 @@ public sealed class InstallEdgesFacts
     [Fact]
     public async Task ARecordedInstallWiresReactionsFromEveryPublisher()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         await Install(os, "ledger");
 
@@ -68,6 +69,7 @@ public sealed class InstallEdgesFacts
     [Fact]
     public async Task AnInstallReplacesPerSourceEdgesWithTheBrainWideOne()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         await EnsurePerSource(os, Books, One, typeof(Charging));
         Assert.Single(os.SynapsesOf(Books));
@@ -86,6 +88,7 @@ public sealed class InstallEdgesFacts
     [Fact]
     public async Task AnUninstalledStateReceivesNothing()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
 
         await os.Get<IPayments>(One).Charge(5m);
@@ -100,6 +103,7 @@ public sealed class InstallEdgesFacts
     [Fact]
     public async Task RetireStopsDelivery()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         await Install(os, "ledger");
         await os.Get<IPayments>(One).Charge(5m);
@@ -117,6 +121,7 @@ public sealed class InstallEdgesFacts
     [Fact]
     public async Task AReactionInstalledLaterIsFoundOnTheNextPublish()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var pay = os.Get<IPayments>(One);
         await pay.Charge(400m);

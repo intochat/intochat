@@ -237,28 +237,28 @@ public sealed class EdgeAuthorityOrleansFacts
     {
         using var provider = CreateRuntimeServices();
         var edge = provider.GetRequiredService<EdgeAuthority>();
-        var person = CapabilityCallers.Of("alice", "acct-1", VictimBrain.Value, CallerKind.App, appId: "notes", conversationId: "c1");
+        var person = Stamps.App("notes", "alice", "acct-1", VictimBrain.Value, "c1");
 
-        using (RuntimeCallerContext.Stamp(person))
+        using (Stamps.Enter(person))
         {
             Assert.NotNull(edge.Current);
-            Assert.NotNull(RuntimeCallerContext.Current);
+            Assert.NotNull(Stamps.Current);
             Assert.False(edge.IsKernelActive);
 
             using (edge.ClearCaller())
             {
                 Assert.Null(edge.Current);
-                Assert.Null(RuntimeCallerContext.Current);
+                Assert.Null(Stamps.Current);
                 Assert.True(edge.IsKernelActive);
             }
 
             Assert.Equal(new Actor.App("notes", new Actor.Person("alice", "acct-1")), edge.Current?.Actor);
-            Assert.Equal(person, RuntimeCallerContext.Current);
+            Assert.Equal(person, Stamps.Current);
             Assert.False(edge.IsKernelActive);
         }
 
         Assert.Null(edge.Current);
-        Assert.Null(RuntimeCallerContext.Current);
+        Assert.Null(Stamps.Current);
         Assert.False(edge.IsKernelActive);
     }
 

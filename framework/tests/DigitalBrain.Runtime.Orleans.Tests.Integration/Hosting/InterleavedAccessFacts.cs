@@ -12,6 +12,7 @@ public sealed class InterleavedAccessFacts(HostedSilo silo) : IClassFixture<Host
     [Fact]
     public async Task A_policy_query_is_pure_and_forcing_an_ordinary_mutation_to_interleave_has_no_effect()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var key = "b1/probe/forced-turn-" + Guid.NewGuid().ToString("N");
         var host = Host(key);
@@ -29,6 +30,7 @@ public sealed class InterleavedAccessFacts(HostedSilo silo) : IClassFixture<Host
     [Fact]
     public async Task Neither_the_policy_query_nor_the_interleaved_endpoint_can_retarget_the_host()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var key = "b1/turn/bound-" + Guid.NewGuid().ToString("N");
         var host = Host(key);
@@ -49,6 +51,7 @@ public sealed class InterleavedAccessFacts(HostedSilo silo) : IClassFixture<Host
     [InlineData("turn.own", nameof(ITurnProbe.Flagged), true, 0)]
     public async Task The_endpoint_rechecks_the_actual_class_and_exact_call_policy(string type, string method, bool flag, int expected)
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var key = "b1/" + type + "/policy-" + Guid.NewGuid().ToString("N");
         var host = Host(key);
@@ -62,6 +65,7 @@ public sealed class InterleavedAccessFacts(HostedSilo silo) : IClassFixture<Host
     [Fact]
     public async Task A_one_way_call_cannot_force_an_ordinary_effect_to_interleave()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var key = "b1/turn/forced-post-" + Guid.NewGuid().ToString("N");
         var observed = new ObservedPost(key);

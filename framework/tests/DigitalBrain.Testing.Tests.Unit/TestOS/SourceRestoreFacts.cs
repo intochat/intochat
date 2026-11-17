@@ -48,6 +48,7 @@ public sealed class SourceRestoreFacts
     [Fact]
     public async Task ADeployIsRecordedWithItsBytes()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var outcome = await DeployApproved(os, "sr1");
 
@@ -64,6 +65,7 @@ public sealed class SourceRestoreFacts
     [Fact]
     public async Task AfterRestartTheFirstHitRestoresTheSource()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var outcome = await DeployApproved(os, "sr2");
         await Ask(os, "sr2").Charge(250m);
@@ -83,6 +85,7 @@ public sealed class SourceRestoreFacts
     [Fact]
     public async Task TheRestoredSourceIsNotCompiledAgain()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         _ = await DeployApproved(os, "sr3");
         var emits = ((DigitalBrain.Runtime.Synapses.UnitDeployer)os.Synapses).Compiles;
@@ -97,6 +100,7 @@ public sealed class SourceRestoreFacts
     [Fact]
     public async Task RetireRemovesTheRecord()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         _ = await DeployApproved(os, "sr4");
 
@@ -110,6 +114,7 @@ public sealed class SourceRestoreFacts
     [Fact]
     public async Task ARetiredAliasDoesNotKeepTheGatePathAsynchronous()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         _ = await DeployApproved(os, "sr6");
         await os.Restart();
@@ -126,6 +131,7 @@ public sealed class SourceRestoreFacts
     [Fact]
     public async Task TryRestoreOfALiveAliasIsTrue()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         _ = await DeployApproved(os, "sr7");
         var emits = ((DigitalBrain.Runtime.Synapses.UnitDeployer)os.Synapses).Compiles;
@@ -138,6 +144,7 @@ public sealed class SourceRestoreFacts
     [Fact]
     public async Task ResolvingAfterRestartSucceedsWithoutRecompile()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         _ = await DeployApproved(os, "sr8");
         await os.Restart();
@@ -150,6 +157,7 @@ public sealed class SourceRestoreFacts
     [Fact]
     public async Task AStoredBuildOutsideTheBoundaryIsNotRestoredAndIsListedAsRebuildRequired()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         _ = await DeployApproved(os, "sr9");
         var deployment = os.Get<IUnitDeployment>(NeuronId.Parse($"sr9/synapse.deployment/{HsSource.Key}"));
@@ -168,6 +176,7 @@ public sealed class SourceRestoreFacts
     [Fact]
     public async Task ARecordWithoutSlotsStillResolves()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         _ = await DeployApproved(os, "sr11");
         await os.Restart();
@@ -179,6 +188,7 @@ public sealed class SourceRestoreFacts
     [Fact]
     public async Task ApprovingAnAskRaisedBeforeARestartRestoresTheAliasAndInstallsIt()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var outcome = await os.Synapses.Deploy(Brain("sr12"), HsSource.Of(HsSource.Budget), None, Ct);
         Assert.Equal(InstallStatus.Pending, outcome.Installs["hs.week"].Status);
@@ -198,6 +208,7 @@ public sealed class SourceRestoreFacts
     [Fact]
     public async Task AnInstallPlanCarriesItsKindAndAlias()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var outcome = await os.Synapses.Deploy(Brain("sr13"), HsSource.Of(HsSource.Budget), None, Ct);
         await os.Idle();
@@ -212,6 +223,7 @@ public sealed class SourceRestoreFacts
     [Fact]
     public async Task ARestoreOfAnUnknownAliasIsFalse()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         _ = await DeployApproved(os, "sr5");
 

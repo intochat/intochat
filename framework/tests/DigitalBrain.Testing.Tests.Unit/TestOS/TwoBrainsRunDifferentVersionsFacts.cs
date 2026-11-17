@@ -24,6 +24,7 @@ public sealed class TwoBrainsRunDifferentVersionsFacts
     [Fact]
     public async Task TwoBrainsRunDifferentVersionsIsolated()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register<HsPayments>();
         var b1 = Brain("brain-a");
         var b2 = Brain("brain-b");

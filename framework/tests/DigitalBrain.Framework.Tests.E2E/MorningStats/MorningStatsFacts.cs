@@ -39,6 +39,7 @@ public sealed class MorningStatsFacts
     public async Task TheInstallPromptSaysExactlyWhatTheFileNeeds()
     {
         await using var os = Start(new CountingSql());
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
 
         var outcome = await Ask(os);
 
@@ -52,6 +53,7 @@ public sealed class MorningStatsFacts
     {
         var sql = new CountingSql();
         await using var os = Start(sql);
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         os.Confirmations.ApproveAll();
         var views = new ConcurrentQueue<ViewChanged>();
         await using var listener = await os.ClusterListeners.Listen<ViewChanged>("morning", (_, signal, _) =>
@@ -78,6 +80,7 @@ public sealed class MorningStatsFacts
     public async Task AReinstallWithTheSameFileDoesNotAsk()
     {
         await using var os = Start(new CountingSql());
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         os.Confirmations.ApproveAll();
         Assert.Equal(InstallStatus.Pending, (await Ask(os)).Status);
         await os.Idle();

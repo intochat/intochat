@@ -1,6 +1,5 @@
 using DigitalBrain.Modules;
 using DigitalBrain.Access;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Runtime.Orleans.Access;
@@ -37,16 +36,7 @@ internal sealed class OrleansCallerAmbient : ICallerCarrier
 
         var previous = RequestContext.Get(Key);
         RequestContext.Remove(Key);
-
-        var capKeys = RuntimeCallerContext.Keys;
-        var previousCap = new object?[capKeys.Length];
-        for (var i = 0; i < capKeys.Length; i++)
-        {
-            previousCap[i] = RequestContext.Get(capKeys[i]);
-            RequestContext.Remove(capKeys[i]);
-        }
-
-        return new ClearRestore(scope, previous, capKeys, previousCap);
+        return new ClearRestore(scope, previous);
     }
 
     internal static Caller? Read(CallerWire? wire)
@@ -131,16 +121,10 @@ internal sealed class OrleansCallerAmbient : ICallerCarrier
         }
     }
 
-    private sealed class ClearRestore(IDisposable scope, object? previous, string[] capKeys, object?[] previousCap) : IDisposable
+    private sealed class ClearRestore(IDisposable scope, object? previous) : IDisposable
     {
         public void Dispose()
         {
-            for (var i = 0; i < capKeys.Length; i++)
-            {
-                if (previousCap[i] is null) { RequestContext.Remove(capKeys[i]); }
-                else { RequestContext.Set(capKeys[i], previousCap[i]!); }
-            }
-
             if (previous is null) { RequestContext.Remove(Key); }
             else { RequestContext.Set(Key, previous); }
 

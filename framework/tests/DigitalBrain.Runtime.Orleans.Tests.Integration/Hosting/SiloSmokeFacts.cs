@@ -26,6 +26,7 @@ public sealed class SiloSmokeFacts(StatefulSilo silo) : IClassFixture<StatefulSi
     [Fact]
     public async Task Silo_HostsAndResolvesCoreServices()
     {
+        using var platform = TestStamp.Kernel();
         Assert.NotNull(silo.Services);
         Assert.NotNull(silo.Services.GetService<IGrainFactory>());
         Assert.NotNull(silo.Services.GetService<BrainSignalHistories>());
@@ -44,6 +45,7 @@ public sealed class SiloSmokeFacts(StatefulSilo silo) : IClassFixture<StatefulSi
     [Fact]
     public async Task Grain_ActivatesOnFirstAddressAndInitializesContext()
     {
+        using var platform = TestStamp.Kernel();
         const string brain = "smoke-act";
         var id = NeuronId.Parse($"{brain}/probe.counter/first-address");
         var counter = silo.Get<ICounter>(id.ToString());
@@ -59,6 +61,7 @@ public sealed class SiloSmokeFacts(StatefulSilo silo) : IClassFixture<StatefulSi
     [Fact]
     public async Task TurnDispatch_ExecutesInvocationThroughCatalogAndReturnsOutcome()
     {
+        using var platform = TestStamp.Kernel();
         const string brain = "smoke-turn";
         var counter = silo.Get<ICounter>($"{brain}/probe.counter/dispatch");
 
@@ -74,6 +77,7 @@ public sealed class SiloSmokeFacts(StatefulSilo silo) : IClassFixture<StatefulSi
     [Fact]
     public async Task SignalDelivery_DeliversCommittedSignalToClusterListener()
     {
+        using var platform = TestStamp.Kernel();
         const string brain = "smoke-signal";
         var id = NeuronId.Parse($"{brain}/probe.counter/signal-delivery");
         var counter = silo.Get<ICounter>(id.ToString());
@@ -101,6 +105,7 @@ public sealed class SiloSmokeFacts(StatefulSilo silo) : IClassFixture<StatefulSi
     [Fact]
     public async Task Persistence_StateAndCommittedSignalsSurviveSiloRestart()
     {
+        using var platform = TestStamp.Kernel();
         const string brain = "smoke-persist";
         var id = NeuronId.Parse($"{brain}/probe.counter/restart-survival");
         var counter = silo.Get<ICounter>(id.ToString());
@@ -124,6 +129,7 @@ public sealed class SiloSmokeFacts(StatefulSilo silo) : IClassFixture<StatefulSi
     [Fact]
     public async Task Shutdown_SiloTerminatesCleanlyAndReleasesResources()
     {
+        using var platform = TestStamp.Kernel();
         string homePath;
         using (var home = new TempHome())
         {

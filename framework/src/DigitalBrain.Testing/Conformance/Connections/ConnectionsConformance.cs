@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Broker;
@@ -50,6 +51,7 @@ public abstract class ConnectionsConformance<TConnections> where TConnections : 
     public async Task ListInOrderIsEmptyForANewBrain()
     {
         var (s, ct) = await Open().ConfigureAwait(false);
+        using var owner = s.Callers.As(Owner(s));
         var listed = await s.Connections.ListInOrder(s.Brain, ct).ConfigureAwait(false);
         Assert.Empty(listed);
     }
@@ -59,6 +61,7 @@ public abstract class ConnectionsConformance<TConnections> where TConnections : 
     public async Task RequestThenListPendingContainsIt()
     {
         var (s, _) = await Open().ConfigureAwait(false);
+        using var owner = s.Callers.As(Owner(s));
         var requested = await s.Requests.Request(s.ConnectorKind).ConfigureAwait(false);
         Assert.Equal(s.ConnectorKind, requested.Kind);
         Assert.False(string.IsNullOrWhiteSpace(requested.Id));
@@ -71,6 +74,7 @@ public abstract class ConnectionsConformance<TConnections> where TConnections : 
     public async Task TrackThenListInOrderContainsTheConnection()
     {
         var (s, ct) = await Open().ConfigureAwait(false);
+        using var owner = s.Callers.As(Owner(s));
         Assert.SkipWhen(s.AddConnection is null, "the subject exposes no connection creation seam");
         var key = ConnectionKeys.For(s.Brain.Value, s.ConnectorKind, Unique("conn"));
         await s.AddConnection!(key).ConfigureAwait(false);
@@ -83,6 +87,7 @@ public abstract class ConnectionsConformance<TConnections> where TConnections : 
     public async Task ReorderIsRespectedByListInOrder()
     {
         var (s, ct) = await Open().ConfigureAwait(false);
+        using var owner = s.Callers.As(Owner(s));
         Assert.SkipWhen(s.AddConnection is null, "the subject exposes no connection creation seam");
         var first = ConnectionKeys.For(s.Brain.Value, s.ConnectorKind, Unique("first"));
         var second = ConnectionKeys.For(s.Brain.Value, s.ConnectorKind, Unique("second"));
@@ -98,6 +103,7 @@ public abstract class ConnectionsConformance<TConnections> where TConnections : 
     public async Task BindUnknownKeyThrowsNotFound()
     {
         var (s, ct) = await Open().ConfigureAwait(false);
+        using var owner = s.Callers.As(Owner(s));
         var missing = ConnectionKeys.For(s.Brain.Value, s.ConnectorKind, Unique("missing"));
         await Assert.ThrowsAnyAsync<KeyNotFoundException>(
             () => s.Connections.Bind<IStorage>(s.Brain, missing, "kit-app", ct)).ConfigureAwait(false);
@@ -108,6 +114,7 @@ public abstract class ConnectionsConformance<TConnections> where TConnections : 
     public async Task RequestConnectionRaisesConnectionRequested()
     {
         var (s, ct) = await Open().ConfigureAwait(false);
+        using var owner = s.Callers.As(Owner(s));
         await s.Connections.RequestConnection(s.Brain, s.Capability, "kit-app", ct).ConfigureAwait(false);
         var pending = await s.Requests.ListPending().ConfigureAwait(false);
         Assert.Contains(pending, request => request.Kind == s.ConnectorKind);
@@ -125,6 +132,9 @@ public abstract class ConnectionsConformance<TConnections> where TConnections : 
         Assert.NotNull(subject);
         return (subject, ct);
     }
+
+    // The facts run as the owner of the brain under test, as the brain's own person would call the broker.
+    private static Caller Owner(ConnectionsSubject s) => new(new Actor.Person("kit-owner", "kit-account"), s.Brain);
 
     private static string Unique(string prefix) => $"kit-{prefix}-{Guid.NewGuid():N}";
 }

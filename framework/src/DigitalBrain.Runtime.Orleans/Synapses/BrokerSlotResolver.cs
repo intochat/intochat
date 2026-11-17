@@ -1,3 +1,5 @@
+using DigitalBrain.Runtime.Orleans.Access;
+using DigitalBrain.Access;
 using System.Collections.Concurrent;
 using System.Reflection;
 using DigitalBrain.Capabilities.Connections.Broker;
@@ -27,7 +29,7 @@ internal sealed class BrokerSlotResolver(IServiceProvider services) : ISlotResol
         var installs = NeuronHosting.Get<IInstalls>(services, new NeuronId(state.Brain, OrleansInstallHooks.InstallsType, "default"));
         // The slot is resolved for the unit, as the brain's platform: the activating caller may belong to another brain.
         InstallRecord? record;
-        using (RuntimeCallerContext.StampScope(CapabilityCallers.Platform(state.Brain.Value, state.Brain.Value, state.Brain.Value)))
+        using (KernelHop.Enter(state.Brain))
         { record = await installs.Describe(state.Type, ct).ConfigureAwait(true); }
         if (record is null || !record.Bindings.TryGetValue(slot.Name, out var key)) { throw new SlotUnboundException(state.Type, slot.Name); }
         var (connection, problem) = await Find(services, state, slot, key, ct).ConfigureAwait(true);

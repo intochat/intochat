@@ -87,11 +87,14 @@ public static class LocalIdentityHosting
             (contract, key) => neuronResolver(sp, contract, key),
             sp.GetRequiredService<IMasterKeyCustody>(),
             sp.GetService<IConfiguration>(),
-            sp.GetService<EdgeAuthority>()));
+            sp.GetService<EdgeAuthority>(),
+            sp.GetService<ICallerAmbient>()));
         services.TryAddSingleton<ISecretVaultPort>(sp => sp.GetRequiredService<LocalVaultPort>());
         services.TryAddSingleton(sp => new LocalDirectoryPort(
             (contract, key) => neuronResolver(sp, contract, key),
-            sp.GetService<TimeProvider>()));
+            sp.GetService<TimeProvider>(),
+            sp.GetService<ICallerAmbient>(),
+            sp.GetService<EdgeAuthority>()));
         services.TryAddSingleton<IIdentityDirectoryPort>(sp => sp.GetRequiredService<LocalDirectoryPort>());
         services.TryAddSingleton<IIdentitySessionPort>(sp => sp.GetRequiredService<LocalDirectoryPort>());
         services.TryAddSingleton(sp => new LocalConnections(

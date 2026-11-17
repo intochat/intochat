@@ -111,8 +111,8 @@ storage plus a `Calls` record; bind it with `os.WithStorage("drive", new FakeSto
 ## Secrets, identity and connections: conformance kits and fakes
 
 `secrets@1` and `identity@1` take no caller parameter; the implementation reads the caller the runtime stamped. Both kits
-switch that caller through a `CallerScope` the subclass supplies (`As(CapabilityCaller)` stamps a caller until disposed);
-`AmbientCallerScope` is the scope the in-memory subjects read.
+switch that caller through a `CallerScope` the subclass supplies (`As(Caller)` stamps a caller until disposed);
+`AmbientCallerScope` is the scope the in-memory subjects read, and `EdgeCallerScope` stamps through a TestOS or silo `EdgeAuthority`.
 
 - `SecretsConformance<TSecrets>`: `Connect(ct)` returns a `SecretsSubject`. Override `Owner` and `Stranger` if your callers
   need provisioned ids.

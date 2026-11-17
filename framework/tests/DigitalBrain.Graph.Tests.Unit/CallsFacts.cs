@@ -17,6 +17,7 @@ public sealed class CallsFacts
     {
         var services = new ObserverServices();
         await using var os = TestOS.Local(o => o.Services = services).Register<TickerNeuron>().Register<FollowerNeuron>().Register<BrainGraphNeuron>();
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         services.Observer = os;
         var ticker = new NeuronId(Ada, "probe.ticker", "t");
         var follower = new NeuronId(Ada, "probe.follower", "f");

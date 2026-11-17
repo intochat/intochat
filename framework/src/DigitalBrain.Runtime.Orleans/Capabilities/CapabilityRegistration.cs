@@ -1,3 +1,5 @@
+using DigitalBrain.Runtime.Orleans.Access;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Secrets;
@@ -35,8 +37,8 @@ public static class CapabilityRegistration
         ArgumentNullException.ThrowIfNull(services);
         CapabilityHosting.RemoveDeniedIdentityFallbacks(services);
         services.TryAddSingleton<TPort>();
-        services.AddKeyedSingleton<IIdentity>(Capability.Identity.V1Id, (sp, _) => new BoundIdentity(CapabilityHosting.WrapPort(sp.GetRequiredService<TPort>()), static () => RuntimeCallerContext.Current));
-        services.AddKeyedSingleton<IGrants>(Capability.Identity.V1Id, (sp, _) => new BoundIdentity(CapabilityHosting.WrapPort(sp.GetRequiredService<TPort>()), static () => RuntimeCallerContext.Current));
+        services.AddKeyedSingleton<IIdentity>(Capability.Identity.V1Id, (sp, _) => new BoundIdentity(CapabilityHosting.WrapPort(sp.GetRequiredService<TPort>()), sp.GetService<ICallerAmbient>() ?? OrleansCallerAmbient.Instance));
+        services.AddKeyedSingleton<IGrants>(Capability.Identity.V1Id, (sp, _) => new BoundIdentity(CapabilityHosting.WrapPort(sp.GetRequiredService<TPort>()), sp.GetService<ICallerAmbient>() ?? OrleansCallerAmbient.Instance));
         services.TryAddSingleton<IIdentity>(sp => sp.GetRequiredKeyedService<IIdentity>(Capability.Identity.V1Id));
         services.TryAddSingleton<IGrants>(sp => sp.GetRequiredKeyedService<IGrants>(Capability.Identity.V1Id));
         return services;
@@ -54,7 +56,7 @@ public static class CapabilityRegistration
         services.TryAddSingleton<TPort>();
         services.TryAddSingleton<IIdentitySessionPort>(sp => sp.GetRequiredService<TPort>());
         services.TryAddSingleton(TopologyHosting.ComposedDeclarations);
-        services.AddKeyedSingleton<BoundSessions>(Capability.Identity.V1Id, (sp, _) => new BoundSessions(CapabilityHosting.WrapPort(sp.GetRequiredService<TPort>()), static () => RuntimeCallerContext.Current, sp.GetRequiredService<ModuleDeclarations>().RequirePrivileged));
+        services.AddKeyedSingleton<BoundSessions>(Capability.Identity.V1Id, (sp, _) => new BoundSessions(CapabilityHosting.WrapPort(sp.GetRequiredService<TPort>()), sp.GetService<ICallerAmbient>() ?? OrleansCallerAmbient.Instance, sp.GetRequiredService<ModuleDeclarations>().RequirePrivileged));
         services.AddKeyedSingleton<ISessions>(Capability.Identity.V1Id, (sp, key) => sp.GetRequiredKeyedService<BoundSessions>(key));
         services.AddKeyedSingleton<IIdentityProvider>(Capability.Identity.V1Id, (sp, key) => sp.GetRequiredKeyedService<BoundSessions>(key));
         services.TryAddSingleton<ISessions>(sp => sp.GetRequiredKeyedService<ISessions>(Capability.Identity.V1Id));

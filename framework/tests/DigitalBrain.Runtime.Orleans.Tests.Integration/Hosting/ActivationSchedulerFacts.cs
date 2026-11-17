@@ -9,6 +9,7 @@ public sealed class ActivationSchedulerFacts(StatefulSilo silo) : IClassFixture<
     [Fact]
     public async Task A_neuron_reads_its_reminders_and_saves_and_publishes_during_activation()
     {
+        using var platform = TestStamp.Kernel();
         var id = "b1/probe.activating/" + Guid.NewGuid().ToString("N");
         Assert.Equal("reminders:1;saved:1", await silo.Get<IActivatingProbe>(id).Seen());
 

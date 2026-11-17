@@ -57,6 +57,7 @@ public sealed class FailedReactionFacts
     [Fact]
     public async Task AFailedReactionIsRecordedOnceAndTheNextSignalStillRuns()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register(typeof(FailedReactionFacts).Assembly);
         os.Confirmations.ApproveAll();
         _ = await os.Get<IInstalls>(Installs).Install(new InstallRequest("fr.count", new Dictionary<string, string>()), Ct);

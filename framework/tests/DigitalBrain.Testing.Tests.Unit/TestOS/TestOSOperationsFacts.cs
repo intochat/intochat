@@ -78,6 +78,7 @@ public sealed class TestOSOperationsFacts : IAsyncLifetime
     [Fact]
     public async Task Dry_run_and_fail_by_default_conflicts_match_the_runtime()
     {
+        using var platform = TestStamp.Kernel();
         var file = _a.AddFile(_a.Root, "x.txt", "original"u8.ToArray());
 
         Assert.Equal("planned:1", await Writer.Run(new("write-file", null, _a.Root.Value, "y.txt", "y", ConflictPolicy.Fail, true)));

@@ -263,7 +263,6 @@ public sealed class FrameworkSourceNamesNoProductFacts
             for (var index = 0; index < lines.Length; index++)
             {
                 var line = lines[index];
-                if (Path.GetFileName(path) == "CapabilityCaller.cs" && (line.Contains("Obsolete", StringComparison.Ordinal) || line.Contains("Assistant", StringComparison.Ordinal))) { continue; }
                 if (line.Contains("IntoChat", StringComparison.Ordinal))
                 {
                     offenders.Add($"{Path.GetRelativePath(Repository.Root, path)}:{index + 1}");

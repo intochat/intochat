@@ -123,7 +123,6 @@ DigitalBrain.Runtime.Http.Storage.StorageContentGateway.Put(Microsoft.AspNetCore
 DigitalBrain.Runtime.Http.Storage.StorageContentGateway.StorageContentGateway(System.Func<DigitalBrain.BrainId, string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<DigitalBrain.Capabilities.Storage.IStorage!>!>! storageResolver, DigitalBrain.Runtime.Http.Storage.UploadPlanBook! book, DigitalBrain.Runtime.Http.Storage.ContentUploadLog! uploads, Microsoft.AspNetCore.DataProtection.IDataProtectionProvider! protection, System.TimeProvider! clock, DigitalBrain.Runtime.Http.Storage.IStorageContentAuthorizer? authorizer = null) -> void
 DigitalBrain.Runtime.Http.Storage.StorageContentGateway.Ticket(string! brainId, string! storageKey, string! folderValue, string! name, string? planId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Microsoft.AspNetCore.Http.IResult!>!
 DigitalBrain.Runtime.Http.Storage.UploadPlanBook
-DigitalBrain.Runtime.Http.Storage.UploadPlanBook.Approve(string! planId, DigitalBrain.Capabilities.CapabilityCaller! caller) -> bool
 DigitalBrain.Runtime.Http.Storage.UploadPlanBook.Deny(string! planId) -> void
 DigitalBrain.Runtime.Http.Storage.UploadPlanBook.Expire(string! planId) -> void
 DigitalBrain.Runtime.Http.Storage.UploadPlanBook.Find(string? planId) -> DigitalBrain.Runtime.Http.Storage.ParkedOverwrite?
@@ -209,3 +208,4 @@ DigitalBrain.Runtime.Http.Surface.JournalTailEndpoints
 const DigitalBrain.Runtime.Http.Surface.JournalTailEndpoints.EventType = "journaled-signal" -> string!
 static readonly DigitalBrain.Runtime.Http.Surface.JournalTailEndpoints.Window -> System.TimeSpan
 static DigitalBrain.Runtime.Http.Surface.JournalTailEndpoints.Map(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> void
+DigitalBrain.Runtime.Http.Storage.UploadPlanBook.Approve(string! planId, DigitalBrain.Access.Caller! caller) -> bool

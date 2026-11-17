@@ -12,6 +12,7 @@ public sealed class TestBrainFacts
     [Fact]
     public async Task TestBrainLocalIsTestOSLocal()
     {
+        using var platform = TestStamp.Kernel();
         var viaOS = await Heard(configure => DigitalBrain.Testing.TestOS.Local(configure));
         var viaBrain = await Heard(configure => TestBrain.Local(configure));
 

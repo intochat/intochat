@@ -52,6 +52,7 @@ public sealed class LiveCatalogFacts
     [Fact]
     public async Task ANeuronActivatedBeforeARegisterSeesTheNewSynapses()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = await Start("ledger");
         await os.Activate(Books);
         await os.Idle();
@@ -69,6 +70,7 @@ public sealed class LiveCatalogFacts
     [Fact]
     public async Task UnregisterRemovesTheAliasFromCatalog()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = await Start("week");
 
         os.Unregister("week");

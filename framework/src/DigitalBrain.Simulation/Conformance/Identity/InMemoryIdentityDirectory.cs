@@ -1,6 +1,7 @@
 namespace DigitalBrain.Testing.Conformance.Identity;
 
 using System.Collections.Immutable;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Identity.Model;
@@ -19,13 +20,18 @@ public sealed class InMemoryIdentityDirectory : IIdentityDirectoryPort, IIdentit
     private readonly Dictionary<string, BrainDirectory> _brains = new(StringComparer.Ordinal);
     private SessionBook _sessions = new();
     private readonly List<ISignInHandler> _handlers = [];
+    private readonly ICallerAmbient _callers;
 
     /// <summary>Creates the directory.</summary>
     /// <param name="time">The clock for created, joined and granted times.</param>
-    public InMemoryIdentityDirectory(TimeProvider? time = null)
+    /// <param name="callers">The ambient the stamped caller is read from; the TestOS ambient when null.</param>
+    public InMemoryIdentityDirectory(TimeProvider? time = null, ICallerAmbient? callers = null)
     {
         _time = time ?? TimeProvider.System;
+        _callers = callers ?? TestCallerAmbient.Instance;
     }
+
+    private Caller Stamped() => _callers.Current ?? throw new UnauthorizedAccessException("identity@1: the call carries no caller.");
 
     /// <summary>What <see cref="Describe"/> answers; a Secured <c>memory</c> implementation without an account surface by default.</summary>
     public IdentityProviderDescriptor Descriptor { get; set; } = new() { ProviderId = "memory", Posture = IdentityPosture.Secured };
@@ -226,9 +232,9 @@ public sealed class InMemoryIdentityDirectory : IIdentityDirectoryPort, IIdentit
     }
 
     /// <inheritdoc />
-    public Task<Member?> EnsureMember(CapabilityCaller caller, Member member, CancellationToken cancellationToken)
+    public Task<Member?> EnsureMember(Member member, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(caller);
+        var caller = Stamped();
         ArgumentNullException.ThrowIfNull(member);
 
         lock (_gate)
@@ -242,9 +248,9 @@ public sealed class InMemoryIdentityDirectory : IIdentityDirectoryPort, IIdentit
     }
 
     /// <inheritdoc />
-    public Task RemoveMember(CapabilityCaller caller, string brainScopeId, string accountId, CancellationToken cancellationToken)
+    public Task RemoveMember(string brainScopeId, string accountId, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(caller);
+        var caller = Stamped();
         lock (_gate)
         {
             var brain = BrainLocked(brainScopeId);
@@ -256,9 +262,9 @@ public sealed class InMemoryIdentityDirectory : IIdentityDirectoryPort, IIdentit
     }
 
     /// <inheritdoc />
-    public Task RemovePrincipalMember(CapabilityCaller caller, string brainScopeId, string principalId, CancellationToken cancellationToken)
+    public Task RemovePrincipalMember(string brainScopeId, string principalId, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(caller);
+        var caller = Stamped();
         lock (_gate)
         {
             var brain = BrainLocked(brainScopeId);
@@ -270,16 +276,16 @@ public sealed class InMemoryIdentityDirectory : IIdentityDirectoryPort, IIdentit
     }
 
     /// <inheritdoc />
-    public Task<CallDecision?> Authorize(CapabilityCaller caller, CallRequest request, CancellationToken cancellationToken)
+    public Task<CallDecision?> Authorize(CallRequest request, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(caller);
+        var caller = Stamped();
         ArgumentNullException.ThrowIfNull(request);
 
         lock (_gate)
         {
-            var brain = BrainLocked(caller.BrainId);
+            var brain = BrainLocked(caller.Brain.Value);
             var (outcome, decision) = brain.Authorize(caller, request);
-            _brains[caller.BrainId] = outcome.Next;
+            _brains[caller.Brain.Value] = outcome.Next;
             return Task.FromResult<CallDecision?>(decision);
         }
     }
@@ -296,14 +302,14 @@ public sealed class InMemoryIdentityDirectory : IIdentityDirectoryPort, IIdentit
     }
 
     /// <inheritdoc />
-    public Task<Grant?> GrantAsOwner(CapabilityCaller caller, Grant grant, CancellationToken cancellationToken)
+    public Task<Grant?> GrantAsOwner(Grant grant, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(caller);
+        var caller = Stamped();
         ArgumentNullException.ThrowIfNull(grant);
 
         lock (_gate)
         {
-            var brainId = string.IsNullOrWhiteSpace(grant.WorkspaceId) ? caller.BrainId : grant.WorkspaceId;
+            var brainId = string.IsNullOrWhiteSpace(grant.WorkspaceId) ? caller.Brain.Value : grant.WorkspaceId;
             var brain = BrainLocked(brainId);
             var outcome = brain.RecordGrant(caller, grant, _time.GetUtcNow());
             if (outcome.Refused == Refusal.NotOwner)
@@ -319,28 +325,28 @@ public sealed class InMemoryIdentityDirectory : IIdentityDirectoryPort, IIdentit
     }
 
     /// <inheritdoc />
-    public Task<bool> RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode, CancellationToken cancellationToken)
+    public Task<bool> RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(caller);
+        var caller = Stamped();
         lock (_gate)
         {
-            var brain = BrainLocked(caller.BrainId);
+            var brain = BrainLocked(caller.Brain.Value);
             var outcome = brain.RevokeGrant(caller, appId, semanticTypeId, mode);
             if (outcome.Refused == Refusal.NotOwner)
             {
                 return Task.FromResult(false);
             }
 
-            var nextBrain = outcome.OrThrow(caller, caller.BrainId);
-            _brains[caller.BrainId] = nextBrain;
+            var nextBrain = outcome.OrThrow(caller, caller.Brain.Value);
+            _brains[caller.Brain.Value] = nextBrain;
             return Task.FromResult(true);
         }
     }
 
     /// <inheritdoc />
-    public Task<SessionIssued> Issue(CapabilityCaller caller, SessionRequest request, CancellationToken cancellationToken)
+    public Task<SessionIssued> Issue(SessionRequest request, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(caller);
+        var caller = Stamped();
         SessionClaims.Validate(request);
 
         lock (_gate)
@@ -362,9 +368,9 @@ public sealed class InMemoryIdentityDirectory : IIdentityDirectoryPort, IIdentit
     }
 
     /// <inheritdoc />
-    public Task End(CapabilityCaller caller, string sessionId, CancellationToken cancellationToken)
+    public Task End(string sessionId, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(caller);
+        var caller = Stamped();
         ArgumentNullException.ThrowIfNull(sessionId);
 
         lock (_gate)

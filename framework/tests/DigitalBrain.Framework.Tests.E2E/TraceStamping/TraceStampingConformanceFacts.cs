@@ -34,6 +34,7 @@ public sealed class TraceStampingConformanceFacts(TraceStampingFixture fixture) 
     public async Task RequestSaveTakesTraceContextId(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var source = runtime.Id("trace.counter", "request");
         var trace = TraceContext.Begin("acct", runtime.Brain.Value, source);
         using (TraceContext.Enter(trace)) { await runtime.Get<ITraceCounter>(source).Add(1); }
@@ -47,6 +48,7 @@ public sealed class TraceStampingConformanceFacts(TraceStampingFixture fixture) 
     public async Task ReactionSaveInheritsTraceAndSetsCausation(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var source = runtime.Id("trace.counter", "cause");
         var relay = runtime.Id("trace.relay", "cause");
         await runtime.Get<ITraceFollower>(relay).Follow(source.ToString());
@@ -62,6 +64,7 @@ public sealed class TraceStampingConformanceFacts(TraceStampingFixture fixture) 
     public async Task CalledNeuronInheritsTraceAndCausationFromReaction(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var source = runtime.Id("trace.counter", "call");
         var caller = runtime.Id("trace.caller", "call");
         var called = runtime.Id("trace.counter", "call-called");
@@ -79,6 +82,7 @@ public sealed class TraceStampingConformanceFacts(TraceStampingFixture fixture) 
     public async Task SaveOutsideContextGetsFreshTrace(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var source = runtime.Id("trace.counter", "fresh");
         await runtime.Get<ITraceCounter>(source).Add(1);
         await runtime.Get<ITraceCounter>(source).Add(1);
@@ -93,6 +97,7 @@ public sealed class TraceStampingConformanceFacts(TraceStampingFixture fixture) 
     public async Task ReadTraceReturnsOnlyThatTrace(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var source = runtime.Id("trace.counter", "read");
         var trace = TraceContext.Begin("acct", runtime.Brain.Value, source);
         await runtime.Get<ITraceCounter>(source).Add(1);

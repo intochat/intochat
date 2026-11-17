@@ -58,9 +58,6 @@ public sealed class EdgeAuthorityFacts
     public async Task TestOS_Edge_SupportsKernelAndTypedCallers_WithoutExposingEdgeInNeuronServices()
     {
         await using var os = global::DigitalBrain.Testing.TestOS.Local().Register<EdgeProbeNeuron>();
-        os.AccessOptions.UnstampedEdgeIsKernel = false;
-        os.AccessOptions.AuditContractInternal = false;
-
         Assert.Null(os.Services.GetService(typeof(EdgeAuthority)));
         Assert.False(os.Edge.IsKernelActive);
 
@@ -90,7 +87,7 @@ public sealed class EdgeAuthorityFacts
             Assert.Equal("Person", await proxy.InternalPing());
         }
 
-        using (os.Edge.Enter(os.Edge.From(CapabilityCallers.Of("alice", "acct-1", Brain.Value))))
+        using (os.Edge.Enter(os.Edge.Person("alice", "acct-1", Brain)))
         {
             Assert.False(os.Edge.IsKernelActive);
             Assert.Equal("Person", await proxy.Ping());
@@ -106,7 +103,7 @@ public sealed class EdgeAuthorityFacts
         var unmarked = os.Get<IEdgeProbeNeuron>(id);
         var shareable = os.Get<IEdgeShareableProbe>(id);
 
-        using (os.Edge.Enter(os.Edge.From(CapabilityCallers.Of("bob", "acct-bob", ForeignBrain.Value))))
+        using (os.Edge.Enter(os.Edge.Person("bob", "acct-bob", ForeignBrain)))
         {
             Assert.Equal(ForeignBrain.Value, await shareable.SharedOp());
             Assert.Equal(ForeignBrain.Value, await shareable.PublicOp());

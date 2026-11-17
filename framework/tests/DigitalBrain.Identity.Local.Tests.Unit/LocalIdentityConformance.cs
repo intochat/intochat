@@ -30,7 +30,6 @@ public sealed class LocalIdentityConformance : IdentityConformance<BoundIdentity
     }]);
 
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "db-dir-" + Guid.NewGuid().ToString("N"));
-    private readonly AmbientCallerScope _callers = new();
     private SimpleServiceProvider? _provider;
     private TestOS? _os;
     private BoundIdentity? _identity;
@@ -42,6 +41,8 @@ public sealed class LocalIdentityConformance : IdentityConformance<BoundIdentity
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
         TestOS? os = null;
+        services.AddSingleton(_ => os!.Callers);
+        services.AddSingleton(_ => os!.Edge);
         services.AddLocalIdentity((contract, fullKey) => ResolveNeuron(os!, contract, fullKey), _directory);
         _provider = services.BuildServiceProvider();
         _os = os = TestOS.Local(options => options.Services = _provider);
@@ -50,9 +51,9 @@ public sealed class LocalIdentityConformance : IdentityConformance<BoundIdentity
 
         var directoryPort = _provider.GetRequiredService<IIdentityDirectoryPort>();
         var sessionPort = _provider.GetRequiredService<IIdentitySessionPort>();
-        _identity = new BoundIdentity(directoryPort, () => _callers.Current);
-        _grants = new BoundIdentity(directoryPort, () => _callers.Current);
-        _sessions = new BoundSessions(sessionPort, () => _callers.Current, Declarations.RequirePrivileged);
+        _identity = new BoundIdentity(directoryPort, _os.Callers);
+        _grants = new BoundIdentity(directoryPort, _os.Callers);
+        _sessions = new BoundSessions(sessionPort, _os.Callers, Declarations.RequirePrivileged);
         return ValueTask.CompletedTask;
     }
 
@@ -73,7 +74,7 @@ public sealed class LocalIdentityConformance : IdentityConformance<BoundIdentity
         => Task.FromResult(new IdentitySubject(
             _identity!,
             _grants!,
-            _callers,
+            new EdgeCallerScope(_os!.Edge),
             async (principalId, token) => (await _identity!.RegisterPrincipal(principalId, principalId, token).ConfigureAwait(false)).Member)
         {
             Sessions = _sessions,

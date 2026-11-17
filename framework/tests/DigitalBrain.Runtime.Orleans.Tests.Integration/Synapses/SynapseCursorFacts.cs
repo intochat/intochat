@@ -13,6 +13,7 @@ public sealed class SynapseCursorFacts(SynapseSilo silo) : IClassFixture<Synapse
     [Fact]
     public async Task References_at_or_below_the_cursor_read_nothing_and_signals_arrive_once_in_sequence_order_even_when_references_arrive_reversed()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         const string Listener = "b1/probe.listener/order", Source = "b1/probe.counter/order";
         await silo.Get<IListener>(Listener).Follow(Source);
@@ -47,6 +48,7 @@ public sealed class SynapseCursorFacts(SynapseSilo silo) : IClassFixture<Synapse
     [Fact]
     public async Task Signals_of_one_source_reach_On_in_sequence_order()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         const string Listener = "b1/probe.listener/sequence", Source = "b1/probe.counter/sequence";
         await silo.Get<IListener>(Listener).Follow(Source);
@@ -58,6 +60,7 @@ public sealed class SynapseCursorFacts(SynapseSilo silo) : IClassFixture<Synapse
     [Fact]
     public async Task The_cursor_is_persisted_in_the_subscriber_state()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         const string Listener = "b1/probe.listener/persist", Source = "b1/probe.counter/persist";
         await silo.Get<IListener>(Listener).Follow(Source);
@@ -79,6 +82,7 @@ public sealed class SynapseCursorFacts(SynapseSilo silo) : IClassFixture<Synapse
     [Fact]
     public async Task Signals_are_filtered_by_type_and_references_of_unknown_sources_are_ignored()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         const string Listener = "b1/probe.listener/filter", Source = "b1/probe.counter/filter", Stranger = "b1/probe.counter/stranger";
         await silo.Get<IListener>(Listener).Follow(Source);
@@ -95,6 +99,7 @@ public sealed class SynapseCursorFacts(SynapseSilo silo) : IClassFixture<Synapse
     [Fact]
     public async Task A_reaction_that_throws_keeps_the_cursor_before_the_signal_and_the_next_reference_retries_it()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         const string Listener = "b1/probe.listener/retry", Source = "b1/probe.counter/retry";
         await silo.Get<IListener>(Listener).FollowNotes(Source);
@@ -117,6 +122,7 @@ public sealed class SynapseGapFacts(ShortRetentionSilo silo) : IClassFixture<Sho
     [Fact]
     public async Task A_stale_cursor_behind_a_forced_checkpoint_receives_Gap_then_the_signals_after_the_floor()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         const string Listener = "b1/probe.listener/gap", Source = "b1/probe.counter/gap";
         await silo.Get<IListener>(Listener).Follow(Source);

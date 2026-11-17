@@ -47,6 +47,7 @@ public sealed class NeuronCheckFacts
     [Fact]
     public async Task RejectedTurnIsHeardAndChangesNothing()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register(typeof(CheckCounter).Assembly);
         var counter = os.Get<ICheckCounter>(Counter);
         var heard = new ConcurrentQueue<string>();

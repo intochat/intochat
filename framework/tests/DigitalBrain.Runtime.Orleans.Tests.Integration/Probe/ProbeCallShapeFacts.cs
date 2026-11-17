@@ -43,16 +43,22 @@ public sealed class ProbeCallShapeFacts(StatefulSilo silo) : IClassFixture<State
     [Fact]
     public async Task Task_returns_after_the_method_ran()
     {
+        using var platform = TestStamp.Kernel();
         await Probe("b1/probe.shapes/task").Touch("task");
         Assert.Equal(1, ShapeLog.Seen["task"]);
     }
 
     [Fact]
-    public async Task TaskOfT_returns_the_value() => Assert.Equal(5, await Probe("b1/probe.shapes/taskt").Add(2, 3));
+    public async Task TaskOfT_returns_the_value()
+    {
+        using var platform = TestStamp.Kernel();
+        Assert.Equal(5, await Probe("b1/probe.shapes/taskt").Add(2, 3));
+    }
 
     [Fact]
     public async Task ValueTask_returns_after_the_method_ran()
     {
+        using var platform = TestStamp.Kernel();
         await Probe("b1/probe.shapes/vt").Nothing("vt");
         Assert.True(ShapeLog.Seen.ContainsKey("vt"));
     }
@@ -60,6 +66,7 @@ public sealed class ProbeCallShapeFacts(StatefulSilo silo) : IClassFixture<State
     [Fact]
     public async Task ValueTaskOfT_returns_the_value_for_empty_and_large_payloads()
     {
+        using var platform = TestStamp.Kernel();
         var probe = Probe("b1/probe.shapes/vtt");
         Assert.Equal("", await probe.Echo(""));
         var large = new string('x', 32 * 1024);
@@ -69,6 +76,7 @@ public sealed class ProbeCallShapeFacts(StatefulSilo silo) : IClassFixture<State
     [Fact]
     public async Task A_caller_cancelled_CancellationToken_reaches_the_method()
     {
+        using var platform = TestStamp.Kernel();
         using var cancel = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         var waiting = Probe("b1/probe.shapes/cancel").WaitCancelled("cancel", cancel.Token);
         await Task.Delay(300, Ct);
@@ -79,11 +87,15 @@ public sealed class ProbeCallShapeFacts(StatefulSilo silo) : IClassFixture<State
 
     [Fact]
     public async Task IAsyncEnumerable_streams_every_item_in_order()
-        => Assert.Equal(Enumerable.Range(0, 50), await Probe("b1/probe.shapes/stream").Count(50, Ct).ToListAsync(Ct));
+    {
+        using var platform = TestStamp.Kernel();
+        Assert.Equal(Enumerable.Range(0, 50), await Probe("b1/probe.shapes/stream").Count(50, Ct).ToListAsync(Ct));
+    }
 
     [Fact]
     public async Task OneWayCall_returns_before_the_method_runs()
     {
+        using var platform = TestStamp.Kernel();
         var gate = "oneway#" + Guid.NewGuid().ToString("N");
         await Probe("b1/probe.shapes/oneway").Fire(gate).WaitAsync(TimeSpan.FromSeconds(5), Ct);
         Assert.False(ShapeLog.Seen.ContainsKey(gate));
@@ -92,23 +104,37 @@ public sealed class ProbeCallShapeFacts(StatefulSilo silo) : IClassFixture<State
     }
 
     [Fact]
-    public async Task CallTimeout_throws_TimeoutException() => await Assert.ThrowsAsync<TimeoutException>(() => Probe("b1/probe.shapes/slow").Slow());
+    public async Task CallTimeout_throws_TimeoutException()
+    {
+        using var platform = TestStamp.Kernel();
+        await Assert.ThrowsAsync<TimeoutException>(() => Probe("b1/probe.shapes/slow").Slow());
+    }
 
     [Fact]
     public async Task A_plain_method_does_not_run_during_a_suspended_turn()
-        => Assert.False(await RunsDuringHold("b1/probe.shapes/plain", probe => probe.Plain()));
+    {
+        using var platform = TestStamp.Kernel();
+        Assert.False(await RunsDuringHold("b1/probe.shapes/plain", probe => probe.Plain()));
+    }
 
     [Fact]
     public async Task Interleaves_runs_during_a_suspended_turn()
-        => Assert.True(await RunsDuringHold("b1/probe.shapes/interleaves", probe => probe.Peek()));
+    {
+        using var platform = TestStamp.Kernel();
+        Assert.True(await RunsDuringHold("b1/probe.shapes/interleaves", probe => probe.Peek()));
+    }
 
     [Fact]
     public async Task ReadOnlyCall_runs_during_a_suspended_turn()
-        => Assert.True(await RunsDuringHold("b1/probe.shapes/readonly", probe => probe.Look()));
+    {
+        using var platform = TestStamp.Kernel();
+        Assert.True(await RunsDuringHold("b1/probe.shapes/readonly", probe => probe.Look()));
+    }
 
     [Fact]
     public async Task InterleavesWhen_interleaves_exactly_when_its_predicate_says_so()
     {
+        using var platform = TestStamp.Kernel();
         Assert.True(await RunsDuringHold("b1/probe.shapes/when", probe => probe.Flagged(true)));
         Assert.False(await RunsDuringHold("b1/probe.shapes/when", probe => probe.Flagged(false)));
     }
@@ -116,6 +142,7 @@ public sealed class ProbeCallShapeFacts(StatefulSilo silo) : IClassFixture<State
     [Fact]
     public async Task Reentrant_is_hosted_by_neuron_host_reentrant_and_interleaves_plain_methods()
     {
+        using var platform = TestStamp.Kernel();
         Assert.Equal("neuron.host.reentrant", await HostType("b1/probe.shapes.reentrant/r", "Plain"));
         Assert.True(await RunsDuringHold("b1/probe.shapes.reentrant/r", probe => probe.Plain()));
     }
@@ -123,6 +150,7 @@ public sealed class ProbeCallShapeFacts(StatefulSilo silo) : IClassFixture<State
     [Fact]
     public async Task StatelessNeuron_is_hosted_by_neuron_host_stateless_and_answers()
     {
+        using var platform = TestStamp.Kernel();
         Assert.Equal("neuron.host.stateless", await HostType("b1/probe.shapes.stateless/s", "Add"));
         var probe = Probe("b1/probe.shapes.stateless/s");
         Assert.Equal(7, await probe.Add(3, 4));
@@ -132,17 +160,22 @@ public sealed class ProbeCallShapeFacts(StatefulSilo silo) : IClassFixture<State
     [Fact]
     public async Task StatelessNeuron_Save_is_refused()
     {
+        using var platform = TestStamp.Kernel();
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Probe("b1/probe.shapes.stateless/save").Save(1, "no"));
         Assert.Contains("StatelessNeuron", error.Message);
     }
 
     [Fact]
     public async Task Exclusive_neuron_is_hosted_by_neuron_host_keyed_brain_type_key()
-        => Assert.Equal("neuron.host", await HostType("b1/probe.shapes/keyed", "Add"));
+    {
+        using var platform = TestStamp.Kernel();
+        Assert.Equal("neuron.host", await HostType("b1/probe.shapes/keyed", "Add"));
+    }
 
     [Fact]
     public async Task Save_persists_state_and_signals_and_both_survive_deactivation_and_reactivation()
     {
+        using var platform = TestStamp.Kernel();
         var probe = Probe("b1/probe.shapes/saved");
         Assert.Equal(3, await probe.Save(3, "first"));
         Assert.Equal(8, await probe.Save(8, "second"));
@@ -157,6 +190,7 @@ public sealed class ProbeCallShapeFacts(StatefulSilo silo) : IClassFixture<State
     [Fact]
     public async Task Caller_provenance_stamped_by_the_sink_reaches_Context_Caller()
     {
+        using var platform = TestStamp.Kernel();
         var a = Probe("b1/probe.shapes/caller-a");
         Assert.Equal("", await a.Caller());
         Assert.Equal("b1/probe.shapes/caller-a", await a.AskCaller("caller-b"));

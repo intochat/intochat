@@ -294,6 +294,7 @@ public sealed class ConfirmationEmpiricalStressFacts
     [Fact]
     public async Task ForgedSignals_PoliciesNeuronRefusesToActWithoutAuthoritativeApproval()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register(typeof(ChargesTestModule).Assembly);
         var policiesId = NeuronId.Parse(IPolicies.Key("b"));
         var policies = os.Get<IPolicies>(policiesId);
@@ -343,6 +344,7 @@ public sealed class ConfirmationEmpiricalStressFacts
     [Fact]
     public async Task ForgedSignals_InstallsNeuronRefusesToActWithoutAuthoritativeApproval()
     {
+        using var platform = TestStamp.Kernel();
         var hooks = new RecordingHooks();
         await using var os = OS.Local(o => o.Services = hooks).Register(typeof(StateNeuronOnTestOSFacts).Assembly);
         var installsId = NeuronId.Parse("b/synapse.installs/default");

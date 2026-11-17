@@ -16,6 +16,7 @@ public sealed class SessionStoreFacts
 
         var brain = new BrainId("test-session-brain");
         var store = os.Get<ISessionStore>(ISessionStore.Id(brain.Value));
+        using var platform = os.Edge.EnterKernel(brain);
 
         var rawToken = "test-token-val";
         var tokenHash = SessionBook.HashToken(rawToken);

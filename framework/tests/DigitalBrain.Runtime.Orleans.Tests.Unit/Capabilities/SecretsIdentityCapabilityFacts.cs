@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Access;
 using DigitalBrain.Units;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
@@ -11,16 +12,16 @@ namespace DigitalBrain.Runtime.Orleans.Tests.Unit.Capabilities;
 
 public sealed class SecretsIdentityCapabilityFacts
 {
-    private static readonly CapabilityCaller Ada = new("ada", "ada-account", "ada-brain");
+    private static readonly DigitalBrain.Access.Caller Ada = Stamps.Person("ada", "ada-account", "ada-brain");
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
     public async Task Secrets_without_a_stamped_caller_are_denied_not_defaulted()
     {
-        var vault = new InMemorySecretVault();
+        var vault = new InMemorySecretVault(OrleansCallerAmbient.Instance);
         var secrets = new SecretsCapability(vault);
-        Assert.Null(RuntimeCallerContext.Current);
+        Assert.Null(Stamps.Current);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => secrets.Set("k", "Key", "v", Ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => secrets.Remove("k", Ct));
@@ -31,16 +32,16 @@ public sealed class SecretsIdentityCapabilityFacts
     [Fact]
     public async Task Secrets_pass_the_stamped_caller_to_the_port_and_restore_it_after()
     {
-        var vault = new InMemorySecretVault();
+        var vault = new InMemorySecretVault(OrleansCallerAmbient.Instance);
         var secrets = new SecretsCapability(vault);
-        using (RuntimeCallerContext.Stamp(Ada))
+        using (Stamps.Enter(Ada))
         {
             var secret = await secrets.Set("k", "Key", "v", Ct);
             Assert.Equal("v", await secrets.Resolve(secret, Ct));
         }
 
-        Assert.Null(RuntimeCallerContext.Current);
-        Assert.All(vault.Callers, caller => Assert.Equal(Ada, caller));
+        Assert.Null(Stamps.Current);
+        Assert.All(vault.Callers, caller => Assert.Equal(Ada.Actor, caller.Actor));
         Assert.Equal(2, vault.Callers.Count);
     }
 
@@ -50,7 +51,7 @@ public sealed class SecretsIdentityCapabilityFacts
         var port = new FixedVault(SecretVaultResult.Denied);
         var secrets = new SecretsCapability(port);
         var reference = new SecretRef { Reference = "x/k", Status = SecretStatus.Set };
-        using (RuntimeCallerContext.Stamp(Ada))
+        using (Stamps.Enter(Ada))
         {
             Assert.Equal("denied", (await Assert.ThrowsAsync<SecretDenied>(() => secrets.Resolve(reference, Ct))).Code);
             await Assert.ThrowsAsync<SecretDenied>(() => secrets.Set("k", "Key", "v", Ct));
@@ -62,8 +63,8 @@ public sealed class SecretsIdentityCapabilityFacts
     [Fact]
     public async Task Identity_gated_members_without_a_stamped_caller_are_denied()
     {
-        var directory = new InMemoryIdentityDirectory();
-        var identity = new BoundIdentity(directory, static () => RuntimeCallerContext.Current);
+        var directory = new InMemoryIdentityDirectory(callers: OrleansCallerAmbient.Instance);
+        var identity = new BoundIdentity(directory, OrleansCallerAmbient.Instance);
         var grants = identity;
         var owner = (await identity.RegisterPrincipal("ada", "Ada", Ct)).Member;
         var guest = owner with { PrincipalId = "bob", AccountId = "bob-account", Role = MemberRole.Member };
@@ -83,18 +84,18 @@ public sealed class SecretsIdentityCapabilityFacts
     [Fact]
     public async Task Grant_as_owner_uses_the_stamped_caller_not_a_parameter()
     {
-        var directory = new InMemoryIdentityDirectory();
-        var identity = new BoundIdentity(directory, static () => RuntimeCallerContext.Current);
+        var directory = new InMemoryIdentityDirectory(callers: OrleansCallerAmbient.Instance);
+        var identity = new BoundIdentity(directory, OrleansCallerAmbient.Instance);
         var grants = identity;
         var owner = (await identity.RegisterPrincipal("ada", "Ada", Ct)).Member;
         var grant = new Grant { AppId = "a", SemanticTypeId = "t", Mode = GrantMode.Always, WorkspaceId = owner.BrainId };
 
-        using (RuntimeCallerContext.Stamp(new CapabilityCaller("mallory", "m-account", owner.BrainId)))
+        using (Stamps.Enter(Stamps.Person("mallory", "m-account", owner.BrainId)))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => grants.GrantAsOwner(grant, Ct));
         }
 
-        using (RuntimeCallerContext.Stamp(new CapabilityCaller(owner.PrincipalId, owner.AccountId, owner.BrainId)))
+        using (Stamps.Enter(Stamps.Person(owner.PrincipalId, owner.AccountId, owner.BrainId)))
         {
             Assert.True((await grants.GrantAsOwner(grant, Ct)).Covers("a", "t", owner.BrainId, null));
         }
@@ -136,10 +137,10 @@ public sealed class SecretsIdentityCapabilityFacts
     {
         public SecretVaultResult Answer { get; set; } = answer;
 
-        public Task<SecretVaultResult> Set(CapabilityCaller caller, string name, string label, string value, CancellationToken cancellationToken) => Task.FromResult(Answer);
+        public Task<SecretVaultResult> Set(string name, string label, string value, CancellationToken cancellationToken) => Task.FromResult(Answer);
 
-        public Task<SecretVaultStatus> Remove(CapabilityCaller caller, string name, CancellationToken cancellationToken) => Task.FromResult(Answer.Status);
+        public Task<SecretVaultStatus> Remove(string name, CancellationToken cancellationToken) => Task.FromResult(Answer.Status);
 
-        public Task<SecretVaultResult> Resolve(CapabilityCaller caller, SecretRef secret, CancellationToken cancellationToken) => Task.FromResult(Answer);
+        public Task<SecretVaultResult> Resolve(SecretRef secret, CancellationToken cancellationToken) => Task.FromResult(Answer);
     }
 }

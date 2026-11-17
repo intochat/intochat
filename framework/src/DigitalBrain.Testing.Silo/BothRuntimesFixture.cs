@@ -101,6 +101,8 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
 
         public IServiceProvider Services => os.Services;
 
+        public DigitalBrain.Access.EdgeAuthority Edge => os.Edge;
+
         public T Get<T>(NeuronId id) where T : class => os.Get<T>(id);
 
         public Task Idle() => os.Idle();
@@ -139,6 +141,8 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
 
         public IServiceProvider Services => host.Services;
 
+        public DigitalBrain.Access.EdgeAuthority Edge => host.Services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>();
+
         public T Get<T>(NeuronId id) where T : class => SiloNeurons.Get<T>(host.Services, id);
 
         public Task Idle() => Task.CompletedTask;
@@ -158,8 +162,8 @@ public abstract class BothRuntimesFixture : IAsyncLifetime
         {
             var inbox = SiloNeurons.Get<DigitalBrain.Confirmation.IConfirmationInbox>(host.Services,
                 new NeuronId(brain, "runtime.confirmations", DigitalBrain.Confirmation.IConfirmations.ConfirmationsNeuronKey));
-            using var stamp = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(
-                DigitalBrain.Capabilities.CapabilityCallers.Of("person", "person", brain.Value));
+            var edge = host.Services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>();
+            using var stamp = edge.Enter(edge.Person("person", "person", brain));
             await inbox.Resolve(planId, approve: true).WaitAsync(ct).ConfigureAwait(false);
         }
 

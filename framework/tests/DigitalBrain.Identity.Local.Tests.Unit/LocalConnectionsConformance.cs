@@ -31,7 +31,6 @@ public sealed class LocalConnectionsConformance : ConnectionsConformance<LocalCo
     private static readonly ConnectionNeuronTypes NeuronTypes = new([typeof(KitConnectorModule)]);
 
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "db-conn-" + Guid.NewGuid().ToString("N"));
-    private readonly LocalCallerScope _callers = new();
     private SimpleServiceProvider? _provider;
     private TestOS? _os;
     private ICapabilityConnections? _connections;
@@ -70,7 +69,7 @@ public sealed class LocalConnectionsConformance : ConnectionsConformance<LocalCo
     {
         var brain = new BrainId($"kit-brain-{Guid.NewGuid():N}");
         var requests = _os!.Get<IConnectionRequests>(IConnectionCatalog.Id(brain.Value));
-        return Task.FromResult(new ConnectionsSubject(_connections!, requests, _callers)
+        return Task.FromResult(new ConnectionsSubject(_connections!, requests, new EdgeCallerScope(_os.Edge))
         {
             Brain = brain,
             ConnectorKind = ConnectorId,
@@ -78,7 +77,7 @@ public sealed class LocalConnectionsConformance : ConnectionsConformance<LocalCo
             AddConnection = async key =>
             {
                 var connection = _os.Get<IConnection>(ConnectionKeys.IdFor(key));
-                using var _ = _callers.As(new CapabilityCaller("kit-owner", "kit-account", brain.Value));
+                using var _ = _os.Edge.Enter(_os.Edge.Person("kit-owner", "kit-account", brain));
                 await connection.Connect("token", "secret-token-value");
                 await _os.Idle();
             },
@@ -139,12 +138,4 @@ public sealed class LocalConnectionsConformance : ConnectionsConformance<LocalCo
             => Task.FromResult(ConnectionProbeResult.Connected());
     }
 
-    private sealed class LocalCallerScope : CallerScope
-    {
-        public override IDisposable As(CapabilityCaller caller)
-        {
-            ArgumentNullException.ThrowIfNull(caller);
-            return CallerAdmission.Stamp(caller);
-        }
-    }
 }

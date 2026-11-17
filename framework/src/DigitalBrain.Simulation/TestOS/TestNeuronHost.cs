@@ -187,14 +187,14 @@ internal sealed class TestNeuronHost : IDisposable
         _handle = null;
     }
 
-    // A timer tick needs the activation it lives with; a reminder reactivates the neuron. Both run as turns and reach
-    // Neuron.OnReminder(name).
+    // A timer tick needs the activation it lives with; a reminder reactivates the neuron. Both run as turns, as the scheduler
+    // of the neuron's brain, and reach Neuron.OnReminder(name).
     private void Tick(string name, bool reminder)
     {
         if (!reminder && !IsActive) { return; }
         _ = _os.Track(Observe(Turn(interleave: false, async neuron =>
         {
-            using var running = TestCallerAmbient.Instance.Enter(Caller.OfKernel(Id.Brain));
+            using var running = TestCallerAmbient.Instance.Enter(Caller.OfScheduler(Id.Brain));
             await NeuronAttachment.Remind(neuron, name, CancellationToken.None).ConfigureAwait(false);
             return 0;
         })));

@@ -62,6 +62,7 @@ public abstract class HostConformanceFacts
         var brain = Facts.Brain();
         var source = Facts.Id(brain, "e2e.source", "controls");
         await using var run = await Target(target).StartHost(new FrameworkHostOptions(), ct);
+        using var platform = run.Edge.EnterKernel(BrainId.Kernel);
 
         await run.Get<ISource>(source).Emit(1);
         run.FailNextPublishAfterAppend(source);
@@ -88,6 +89,7 @@ public abstract class HostConformanceFacts
         var brain = Facts.Brain();
         NeuronId source = Facts.Id(brain, "e2e.source", "s"), listener = Facts.Id(brain, "e2e.listener", "l");
         await using var run = await Target(target).StartHost(new FrameworkHostOptions(), ct);
+        using var platform = run.Edge.EnterKernel(BrainId.Kernel);
 
         await run.Get<IListener>(listener).Follow(source.ToString());
         for (var i = 1; i <= 5; i++) { await run.Get<ISource>(source).Emit(i); }
@@ -103,6 +105,7 @@ public abstract class HostConformanceFacts
         var brain = Facts.Brain();
         NeuronId source = Facts.Id(brain, "e2e.source", "s"), listener = Facts.Id(brain, "e2e.listener", "l");
         await using var run = await Target(target).StartHost(new FrameworkHostOptions(), ct);
+        using var platform = run.Edge.EnterKernel(BrainId.Kernel);
 
         await run.Get<IListener>(listener).Follow(source.ToString());
         for (var i = 1; i <= 5; i++)
@@ -125,6 +128,7 @@ public abstract class HostConformanceFacts
         var brain = Facts.Brain();
         NeuronId source = Facts.Id(brain, "e2e.source", "s"), listener = Facts.Id(brain, "e2e.listener", "l");
         await using var run = await Target(target).StartHost(new FrameworkHostOptions(), ct);
+        using var platform = run.Edge.EnterKernel(BrainId.Kernel);
 
         await run.Get<IListener>(listener).Follow(source.ToString());
         // The listener's own reaction save is durable, then its turn dies before anything after the save runs (R4-09): the stop
@@ -150,6 +154,7 @@ public abstract class HostConformanceFacts
         var brain = Facts.Brain();
         NeuronId source = Facts.Id(brain, "e2e.source", "s"), listener = Facts.Id(brain, "e2e.listener", "l");
         await using var run = await Target(target).StartHost(new FrameworkHostOptions(), ct);
+        using var platform = run.Edge.EnterKernel(BrainId.Kernel);
 
         await run.Get<IListener>(listener).Follow(source.ToString());
         int[] killed = [2, 4, 7];
@@ -175,6 +180,7 @@ public abstract class HostConformanceFacts
         var brain = Facts.Brain();
         NeuronId turns = Facts.Id(brain, "e2e.turns", "t"), meeting = Facts.Id(brain, "e2e.turns", "m");
         await using var run = await Target(target).StartHost(new FrameworkHostOptions(), ct);
+        using var platform = run.Edge.EnterKernel(BrainId.Kernel);
 
         // Two Busy calls and a timer tick due while they run: never two at once.
         await run.Get<ITurns>(turns).Arm(500);
@@ -198,6 +204,7 @@ public abstract class HostConformanceFacts
         var brain = Facts.Brain();
         NeuronId source = Facts.Id(brain, "e2e.source", "s"), listener = Facts.Id(brain, "e2e.listener", "l");
         await using var run = await Target(target).StartHost(new FrameworkHostOptions { DuplicateDelivery = true }, ct);
+        using var platform = run.Edge.EnterKernel(BrainId.Kernel);
 
         await run.Get<IListener>(listener).Follow(source.ToString());
         for (var round = 1; round <= 3; round++)
@@ -218,6 +225,7 @@ public abstract class HostConformanceFacts
         NeuronId source = Facts.Id(brain, "e2e.source", "s"), listener = Facts.Id(brain, "e2e.listener", "l");
         var options = new FrameworkHostOptions { HistoryWindowSignals = 2, HistoryWindowAge = TimeSpan.FromMinutes(1), StaleCursorAfter = TimeSpan.FromMinutes(1) };
         await using var run = await Target(target).StartHost(options, ct);
+        using var platform = run.Edge.EnterKernel(BrainId.Kernel);
 
         await run.Get<IListener>(listener).Follow(source.ToString());
         await run.Get<ISource>(source).Emit(1);

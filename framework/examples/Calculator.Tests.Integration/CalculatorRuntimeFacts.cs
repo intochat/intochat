@@ -24,6 +24,7 @@ public sealed class CalculatorRuntimeFacts(CalculatorRuntimeFixture fixture) : I
     public async Task CalculatorScreenAgreesOnBothRuntimes(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.Edge.Enter(runtime.Edge.Person("person", "person-account", runtime.Brain));
 
         var calcId = runtime.Id("app.calculator", "default");
         var screen = runtime.Get<IScreen>(calcId);

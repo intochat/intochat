@@ -52,6 +52,7 @@ public sealed class InstallRestoreDeadlockFacts
     [Fact]
     public async Task ApprovingAMissingAliasWhileADeployHoldsTheGateDoesNotDeadlock()
     {
+        using var platform = TestStamp.Kernel();
         var hooks = new BlockingHooks();
         await using var os = OS.Local(o => o.Services = new Services(hooks)).Register<HsPayments>().With<ISqlRead>("analytics", new FakeSqlRead(1));
         var brain = Brain("dl1");

@@ -1,3 +1,5 @@
+using DigitalBrain.Runtime.Orleans.Access;
+using DigitalBrain.Access;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using DigitalBrain.Capabilities;
@@ -19,7 +21,7 @@ namespace DigitalBrain.Runtime.Orleans.Signalling;
 internal sealed partial class ClusterListeners(IServiceProvider services) : IClusterListeners, IAsyncDisposable
 {
     private readonly ConcurrentDictionary<(string Listener, Type Signal), Handler> _handlers = new();
-    private readonly Channel<(NeuronId Publisher, Signal Signal, CapabilityCaller? Caller)> _queue = Channel.CreateBounded<(NeuronId, Signal, CapabilityCaller?)>(new BoundedChannelOptions(10_000) { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true, SingleWriter = false });
+    private readonly Channel<(NeuronId Publisher, Signal Signal, Caller? Caller)> _queue = Channel.CreateBounded<(NeuronId, Signal, Caller?)>(new BoundedChannelOptions(10_000) { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true, SingleWriter = false });
     private readonly CancellationTokenSource _stopping = new();
     private readonly ILogger _log = services.GetService<ILoggerFactory>()?.CreateLogger<ClusterListeners>() ?? NullLogger<ClusterListeners>.Instance;
     private Task? _pump;
@@ -54,7 +56,7 @@ internal sealed partial class ClusterListeners(IServiceProvider services) : IClu
     {
         if (_handlers.IsEmpty) { return; }
         // The pump is not the publishing call. The caller's stamp is on this turn and does not flow onto that task.
-        var caller = RuntimeCallerContext.Current;
+        var caller = OrleansCallerAmbient.Instance.Current;
         foreach (var signal in signals)
         {
             if (_handlers.Values.Any(item => item.Type.IsInstanceOfType(signal))) { _queue.Writer.TryWrite((publisher, signal, caller)); }
@@ -67,7 +69,7 @@ internal sealed partial class ClusterListeners(IServiceProvider services) : IClu
         {
             await foreach (var (publisher, signal, caller) in _queue.Reader.ReadAllAsync(_stopping.Token).ConfigureAwait(false))
             {
-                using var scope = caller is null ? null : RuntimeCallerContext.Stamp(caller);
+                using var scope = caller is null ? null : OrleansCallerAmbient.Instance.Enter(caller);
                 foreach (var handler in _handlers.Values.Where(item => item.Type.IsInstanceOfType(signal)).ToArray())
                 {
                     try { await handler.Run(publisher, signal, _stopping.Token).ConfigureAwait(false); }

@@ -76,6 +76,8 @@ public static class ScreenBaseline
             ?? operation.ScreenType.Name;
         var screenId = new NeuronId(new BrainId("test"), screenAlias, "default");
         var screen = os.Get<IScreen>(screenId);
+        // The baseline presses the screen as a person of its brain, as the shell does for its user.
+        using var person = os.Edge.Enter(os.Edge.Person("baseline", "baseline-account", screenId.Brain));
 
         // 1. Initial activation: Read should return the initial published view
         var initialView = await Within(screen.Read(), name, "initial read", watch).ConfigureAwait(false);

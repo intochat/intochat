@@ -56,6 +56,7 @@ public sealed class ClusterListenerFacts(ClusterListenerSilo silo) : IClassFixtu
     [Fact]
     public async Task Signals_of_every_brain_reach_the_start_up_listener_once_each_and_again_after_a_silo_restart()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         bool Has(string item) => silo.Heard.Contains(item);
 
@@ -81,6 +82,7 @@ public sealed class ClusterListenerFacts(ClusterListenerSilo silo) : IClassFixtu
     [Fact]
     public async Task A_disposed_or_throwing_handler_does_not_stop_the_others()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var listeners = silo.Services.GetRequiredService<ClusterListeners>();
         var failures = listeners.Failures;

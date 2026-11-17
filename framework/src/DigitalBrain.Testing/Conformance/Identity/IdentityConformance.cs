@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using Xunit;
@@ -612,7 +613,7 @@ public abstract class IdentityConformance<TIdentity>
         return s.Sessions!;
     }
 
-    private static CapabilityCaller Privileged(IdentitySubject s, Member owner) => AppCaller(owner, s.PrivilegedModule!);
+    private static Caller Privileged(IdentitySubject s, Member owner) => AppCaller(owner, s.PrivilegedModule!);
 
     private static string Unique(string prefix) => $"kit-{prefix}-{Guid.NewGuid():N}";
 
@@ -638,10 +639,11 @@ public abstract class IdentityConformance<TIdentity>
         DisplayName = "Kit guest",
     };
 
-    private static CapabilityCaller Caller(Member member) => new(member.PrincipalId, member.AccountId, member.BrainId);
+    private static Caller Caller(Member member)
+        => new(new Actor.Person(member.PrincipalId, member.AccountId), new BrainId(member.BrainId));
 
-    private static CapabilityCaller AppCaller(Member owner, string appId, string? conversationId = null) =>
-        new($"app:{appId}", owner.AccountId, owner.BrainId, appId, conversationId);
+    private static Caller AppCaller(Member owner, string appId, string? conversationId = null)
+        => new(new Actor.App(appId, new Actor.Person(owner.PrincipalId, owner.AccountId)), new BrainId(owner.BrainId), conversationId);
 
     private static Grant NewGrant(string appId, string brainId, GrantMode mode) =>
         new() { AppId = appId, SemanticTypeId = SemanticType, Mode = mode, WorkspaceId = brainId };

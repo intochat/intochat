@@ -109,6 +109,7 @@ public sealed class GeneratedSourceFacts
     public async Task ThePromiseHoldsFromTextToExecution()
     {
         await using var os = Start();
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         await DeployApproved(os);
         var pay = Pay(os);
 
@@ -125,6 +126,7 @@ public sealed class GeneratedSourceFacts
     public async Task ANeedNeutralEditLandsWithoutAsking()
     {
         await using var os = Start();
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         await DeployApproved(os);
         var asked = os.Confirmations.Requested.Count;
 
@@ -145,6 +147,7 @@ public sealed class GeneratedSourceFacts
     public async Task ANewNeedAsksAgainWithTheNewSentence()
     {
         await using var os = Start();
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         await DeployApproved(os);
         var asked = os.Confirmations.Requested.Count;
 
@@ -171,6 +174,7 @@ public sealed class GeneratedSourceFacts
     public async Task RetireFreesEverything()
     {
         await using var os = Start();
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         var first = await DeployApproved(os);
 
         var retired = await os.Synapses.Retire(Brain, WeeklyCapSource.Key, Ct);
@@ -191,6 +195,7 @@ public sealed class GeneratedSourceFacts
     {
         var fx = new FakeFx();
         await using var os = Start().With<IFxQuote>("ecb", fx);
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
 
         var deployed = await os.Synapses.Deploy(Brain, Of(WeeklyCapSource.WithAsks), FxBindings, Ct);
         Assert.True(deployed.Status == DeployStatus.Deployed, string.Join(" | ", deployed.Diagnostics.Select(d => $"{d.Id}: {d.Message}")));

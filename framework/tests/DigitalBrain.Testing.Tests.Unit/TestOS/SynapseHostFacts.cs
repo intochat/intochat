@@ -144,6 +144,7 @@ public sealed class SynapseHostFacts
     [Fact]
     public async Task DeployCompilesLoadsInstallsAndRuns()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var outcome = await DeployApproved(os, "hs1");
         var pay = Pay(os, "hs1");
@@ -166,6 +167,7 @@ public sealed class SynapseHostFacts
     [Fact]
     public async Task ACompileErrorDeploysNothing()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var first = await DeployApproved(os, "hs2");
 
@@ -185,6 +187,7 @@ public sealed class SynapseHostFacts
     [Fact]
     public async Task ANeedNeutralUpdateSwapsSilently()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         await DeployApproved(os, "hs3");
         var asked = os.Confirmations.Requested.Count;
@@ -207,6 +210,7 @@ public sealed class SynapseHostFacts
     [Fact]
     public async Task AnUpdateThatAddsASlotIsStagedUntilApproved()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var first = await DeployApproved(os, "hs4");
 
@@ -239,6 +243,7 @@ public sealed class SynapseHostFacts
     [Fact]
     public async Task ADeniedUpdateKeepsTheOldVersion()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var first = await DeployApproved(os, "hs5");
         var update = await os.Synapses.Deploy(Brain("hs5"), HsSource.Of(HsSource.WithDb), DbBindings, Ct);
@@ -263,6 +268,7 @@ public sealed class SynapseHostFacts
     [Fact]
     public async Task TwoSourcesCannotClaimOneAlias()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var first = await DeployApproved(os, "hs6");
 
@@ -285,6 +291,7 @@ public sealed class SynapseHostFacts
     [Fact]
     public async Task RetireFreesTheContext()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var first = await DeployApproved(os, "hs7");
 
@@ -306,6 +313,7 @@ public sealed class SynapseHostFacts
     [Fact]
     public async Task ADeployOverAStageCancelsItsAsk()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         await DeployApproved(os, "hs8");
         var installs = NeuronId.Parse("hs8/synapse.installs/default");
@@ -330,6 +338,7 @@ public sealed class SynapseHostFacts
     [Fact]
     public async Task AnAutoApprovedInstallCompletesWithoutDeadlock()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         os.Confirmations.ApproveAll();
         var installs = os.Get<IInstalls>(NeuronId.Parse("hs9/synapse.installs/default"));

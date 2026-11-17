@@ -80,6 +80,7 @@ public sealed class ConfirmationFacts
     [Fact]
     public async Task Destructive_only_approves_a_non_destructive_plan_without_asking_and_audits_it_skipped()
     {
+        using var app = TestStamp.App("ada", "test.confirmer");
         await using var os = OS.Local();
         os.Register<ConfirmerNeuron>();
         var confirmer = os.Get<IConfirmer>(new NeuronId(new BrainId("ada"), "test.confirmer", "c"));
@@ -96,6 +97,7 @@ public sealed class ConfirmationFacts
     [Fact]
     public async Task Never_approves_even_a_destructive_plan_and_still_writes_the_audit_signal()
     {
+        using var app = TestStamp.App("ada", "test.confirmer");
         await using var os = OS.Local();
         os.Confirmations.Policy = ConfirmationPolicy.Never;
         os.Register<ConfirmerNeuron>();
@@ -111,6 +113,7 @@ public sealed class ConfirmationFacts
     [Fact]
     public async Task Always_asks_even_a_non_destructive_plan_and_waits_for_a_person()
     {
+        using var app = TestStamp.App("ada", "test.confirmer");
         await using var os = OS.Local(options => options.CallTimeout = TimeSpan.FromHours(1));
         os.Confirmations.Policy = ConfirmationPolicy.Always;
         os.Register<ConfirmerNeuron>();
@@ -133,6 +136,7 @@ public sealed class ConfirmationFacts
     [Fact]
     public async Task An_app_or_agent_approving_is_denied_self_approval()
     {
+        using var app = TestStamp.App("ada", "test.confirmer");
         await using var os = OS.Local(options => options.CallTimeout = TimeSpan.FromHours(1));
         os.Register<ConfirmerNeuron>();
         var confirmer = os.Get<IConfirmer>(new NeuronId(new BrainId("ada"), "test.confirmer", "c"));
@@ -150,6 +154,7 @@ public sealed class ConfirmationFacts
     [Fact]
     public async Task No_answer_within_five_minutes_expires_on_the_clock()
     {
+        using var app = TestStamp.App("ada", "test.confirmer");
         await using var os = OS.Local(options => options.CallTimeout = TimeSpan.FromHours(1));
         os.Register<ConfirmerNeuron>();
         var confirmer = os.Get<IConfirmer>(new NeuronId(new BrainId("ada"), "test.confirmer", "c"));
@@ -172,6 +177,7 @@ public sealed class ConfirmationFacts
     [Fact]
     public async Task The_first_answer_wins_and_a_second_answer_writes_nothing()
     {
+        using var app = TestStamp.App("ada", "test.confirmer");
         await using var os = OS.Local(options => options.CallTimeout = TimeSpan.FromHours(1));
         os.Register<ConfirmerNeuron>();
         var confirmer = os.Get<IConfirmer>(new NeuronId(new BrainId("ada"), "test.confirmer", "c"));
@@ -211,6 +217,7 @@ public sealed class ConfirmationFacts
     [Fact]
     public async Task A_person_clicking_the_rendered_approve_button_approves()
     {
+        using var app = TestStamp.App("ada", "test.confirmer");
         await using var os = OS.Local();
         os.Register<ConfirmerNeuron>();
         var confirmer = os.Get<IConfirmer>(new NeuronId(new BrainId("ada"), "test.confirmer", "c"));
@@ -233,6 +240,7 @@ public sealed class ConfirmationFacts
     [Fact]
     public async Task An_app_relaying_resolve_itself_is_denied_self_approval()
     {
+        using var app = TestStamp.App("ada", "test.confirmer");
         await using var os = OS.Local(options => options.CallTimeout = TimeSpan.FromHours(1));
         os.Register<ConfirmerNeuron>();
         var asker = os.Get<IConfirmer>(new NeuronId(new BrainId("ada"), "test.confirmer", "asker"));
@@ -272,6 +280,7 @@ public sealed class ConfirmationFacts
     [MemberData(nameof(Matrix))]
     public async Task The_storage_gate_asks_by_policy(ConfirmationPolicy policy, string op, bool asks)
     {
+        using var app = TestStamp.App("ada", "test.confirmer");
         var a = new FakeStorage("Drive");
         var b = new FakeStorage("Disk");
         var file = a.AddFile(a.Root, "a.txt", "x"u8.ToArray());
@@ -344,6 +353,7 @@ public sealed class ConfirmationFacts
     [Fact]
     public async Task A_direct_provider_write_uses_the_same_confirmation_policy_before_any_effect()
     {
+        using var app = TestStamp.App("ada", "test.confirmer");
         var storage = new FakeStorage("Drive");
         var file = storage.AddFile(storage.Root, "a.txt", "x"u8.ToArray());
         await using var os = OS.Local(options => options.CallTimeout = TimeSpan.FromHours(1));
@@ -460,6 +470,7 @@ public sealed class ConfirmationFacts
     [Fact]
     public async Task A_delete_through_context_operations_waits_for_a_person_and_is_refused_when_denied()
     {
+        using var app = TestStamp.App("ada", "test.confirmer");
         await using var os = OS.Local(options => options.CallTimeout = TimeSpan.FromHours(1));
         var drive = new FakeStorage("Drive");
         var file = drive.AddFile(drive.Root, "a.txt", "x"u8.ToArray());

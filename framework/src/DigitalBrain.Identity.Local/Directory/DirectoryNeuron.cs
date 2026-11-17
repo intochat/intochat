@@ -2,6 +2,7 @@ namespace DigitalBrain.Identity.Local.Directory;
 
 using System.Collections.Immutable;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Identity.Model;
@@ -9,7 +10,7 @@ using DigitalBrain.Contracts;
 using DigitalBrain.Neurons;
 
 /// <summary>Durable local directory for accounts, principals, brains, memberships, and grants.</summary>
-[NeuronAlias(IDirectory.Type), DefaultNeuronType(IDirectory.Type)]
+[NeuronAlias(IDirectory.Type), DefaultNeuronType(IDirectory.Type), Shareable]
 public interface IDirectory
 {
     /// <summary>The frozen neuron type name.</summary>
@@ -57,26 +58,35 @@ public interface IDirectory
     /// <summary>Returns the membership of <paramref name="principalId"/> in <paramref name="brainScopeId"/>, or null.</summary>
     Task<Member?> Membership(string brainScopeId, string principalId);
 
+    // The six members below decide by the stamped caller, so they serve a caller of any brain (Shared); the others are the
+    // platform's and are reached only as the kernel.
+
     /// <summary>Ensures <paramref name="member"/> belongs to its brain when called by the brain's owner.</summary>
-    Task<Member?> EnsureMember(CapabilityCaller caller, Member member);
+    [DigitalBrain.Access.Shared]
+    Task<Member?> EnsureMember(Member member);
 
     /// <summary>Removes all non-owner memberships for <paramref name="accountId"/> in <paramref name="brainScopeId"/>.</summary>
-    Task RemoveMember(CapabilityCaller caller, string brainScopeId, string accountId);
+    [DigitalBrain.Access.Shared]
+    Task RemoveMember(string brainScopeId, string accountId);
 
     /// <summary>Removes a non-owner principal from <paramref name="brainScopeId"/>.</summary>
-    Task RemovePrincipalMember(CapabilityCaller caller, string brainScopeId, string principalId);
+    [DigitalBrain.Access.Shared]
+    Task RemovePrincipalMember(string brainScopeId, string principalId);
 
-    /// <summary>Authorizes <paramref name="request"/> for <paramref name="caller"/>.</summary>
-    Task<CallDecision?> Authorize(CapabilityCaller caller, CallRequest request);
+    /// <summary>Authorizes <paramref name="request"/> for the stamped caller in the brain it acts in.</summary>
+    [DigitalBrain.Access.Shared]
+    Task<CallDecision?> Authorize(CallRequest request);
 
     /// <summary>Lists active grants for <paramref name="brainScopeId"/>.</summary>
     Task<Grant[]> ListGrants(string brainScopeId);
 
-    /// <summary>Records <paramref name="grant"/> when <paramref name="caller"/> is the brain's owner, or null when not.</summary>
-    Task<Grant?> GrantAsOwner(CapabilityCaller caller, Grant grant);
+    /// <summary>Records <paramref name="grant"/> in <paramref name="brainId"/> when the stamped caller is its owner in person, or null when not.</summary>
+    [DigitalBrain.Access.Shared]
+    Task<Grant?> GrantAsOwner(string brainId, Grant grant);
 
-    /// <summary>Revokes matching grants in the caller's brain when <paramref name="caller"/> is the owner.</summary>
-    Task<bool> RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode);
+    /// <summary>Revokes matching grants in <paramref name="brainId"/> when the stamped caller is its owner in person.</summary>
+    [DigitalBrain.Access.Shared]
+    Task<bool> RevokeAsOwner(string brainId, string appId, string semanticTypeId, GrantMode mode);
 }
 
 /// <summary>Emitted when directory state changes for a scope. Kept for historical journal compatibility.</summary>
@@ -337,9 +347,9 @@ public sealed class DirectoryNeuron(TimeProvider? clock = null) : Neuron<Directo
         => Task.FromResult(State.MemberOf(brainScopeId, principalId));
 
     /// <inheritdoc />
-    public async Task<Member?> EnsureMember(CapabilityCaller caller, Member member)
+    public async Task<Member?> EnsureMember(Member member)
     {
-        ArgumentNullException.ThrowIfNull(caller);
+        var caller = Stamped();
         ArgumentNullException.ThrowIfNull(member);
 
         var brain = State.Brain(member.BrainId);
@@ -355,9 +365,9 @@ public sealed class DirectoryNeuron(TimeProvider? clock = null) : Neuron<Directo
     }
 
     /// <inheritdoc />
-    public async Task RemoveMember(CapabilityCaller caller, string brainScopeId, string accountId)
+    public async Task RemoveMember(string brainScopeId, string accountId)
     {
-        ArgumentNullException.ThrowIfNull(caller);
+        var caller = Stamped();
         var brain = State.Brain(brainScopeId);
         var outcome = brain.RemoveMember(caller, accountId);
         var nextBrain = outcome.OrThrow(caller, brainScopeId);
@@ -369,9 +379,9 @@ public sealed class DirectoryNeuron(TimeProvider? clock = null) : Neuron<Directo
     }
 
     /// <inheritdoc />
-    public async Task RemovePrincipalMember(CapabilityCaller caller, string brainScopeId, string principalId)
+    public async Task RemovePrincipalMember(string brainScopeId, string principalId)
     {
-        ArgumentNullException.ThrowIfNull(caller);
+        var caller = Stamped();
         var brain = State.Brain(brainScopeId);
         var outcome = brain.RemovePrincipal(caller, principalId);
         var nextBrain = outcome.OrThrow(caller, brainScopeId);
@@ -383,12 +393,12 @@ public sealed class DirectoryNeuron(TimeProvider? clock = null) : Neuron<Directo
     }
 
     /// <inheritdoc />
-    public async Task<CallDecision?> Authorize(CapabilityCaller caller, CallRequest request)
+    public async Task<CallDecision?> Authorize(CallRequest request)
     {
-        ArgumentNullException.ThrowIfNull(caller);
+        var caller = Stamped();
         ArgumentNullException.ThrowIfNull(request);
 
-        var brain = State.Brain(caller.BrainId);
+        var brain = State.Brain(caller.Brain.Value);
         var (outcome, decision) = brain.Authorize(caller, request);
 
         if (outcome.Changed)
@@ -404,12 +414,12 @@ public sealed class DirectoryNeuron(TimeProvider? clock = null) : Neuron<Directo
         => Task.FromResult(State.Grants.Where(g => g.WorkspaceId == brainScopeId && !g.Revoked).ToArray());
 
     /// <inheritdoc />
-    public async Task<Grant?> GrantAsOwner(CapabilityCaller caller, Grant grant)
+    public async Task<Grant?> GrantAsOwner(string brainId, Grant grant)
     {
-        ArgumentNullException.ThrowIfNull(caller);
+        var caller = Stamped();
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
         ArgumentNullException.ThrowIfNull(grant);
 
-        var brainId = string.IsNullOrWhiteSpace(grant.WorkspaceId) ? caller.BrainId : grant.WorkspaceId;
         var brain = State.Brain(brainId);
         var outcome = brain.RecordGrant(caller, grant, _clock.GetUtcNow());
         if (outcome.Refused == Refusal.NotOwner)
@@ -427,17 +437,18 @@ public sealed class DirectoryNeuron(TimeProvider? clock = null) : Neuron<Directo
     }
 
     /// <inheritdoc />
-    public async Task<bool> RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode)
+    public async Task<bool> RevokeAsOwner(string brainId, string appId, string semanticTypeId, GrantMode mode)
     {
-        ArgumentNullException.ThrowIfNull(caller);
-        var brain = State.Brain(caller.BrainId);
+        var caller = Stamped();
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        var brain = State.Brain(brainId);
         var outcome = brain.RevokeGrant(caller, appId, semanticTypeId, mode);
         if (outcome.Refused == Refusal.NotOwner)
         {
             return false;
         }
 
-        var nextBrain = outcome.OrThrow(caller, caller.BrainId);
+        var nextBrain = outcome.OrThrow(caller, brainId);
         if (outcome.Changed)
         {
             await Save(State.With(nextBrain), outcome.Facts).ConfigureAwait(true);
@@ -445,4 +456,6 @@ public sealed class DirectoryNeuron(TimeProvider? clock = null) : Neuron<Directo
 
         return true;
     }
+
+    private Caller Stamped() => Context.Caller ?? throw new UnauthorizedAccessException("The directory acts only on a stamped caller.");
 }

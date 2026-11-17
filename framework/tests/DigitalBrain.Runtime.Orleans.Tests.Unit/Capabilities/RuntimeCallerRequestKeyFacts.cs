@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Access;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using Orleans.Runtime;
 
@@ -17,7 +18,7 @@ public sealed class RuntimeCallerRequestKeyFacts
             RequestContext.Set("db.cap.brain", "victim");
             RequestContext.Set("db.cap.app", "platform");
 
-            Assert.Null(RuntimeCallerContext.Current);
+            Assert.Null(Stamps.Current);
         }
         finally
         {

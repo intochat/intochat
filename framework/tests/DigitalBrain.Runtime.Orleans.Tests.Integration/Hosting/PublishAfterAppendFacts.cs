@@ -11,6 +11,7 @@ public sealed class PublishAfterAppendFacts(StatefulSilo silo) : IClassFixture<S
     [Fact]
     public async Task The_signal_of_a_save_arrives_only_after_its_entry_is_in_the_journal()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var publisher = NeuronId.Parse("b1/probe.counter/after");
         var history = silo.History("b1");
@@ -35,6 +36,7 @@ public sealed class PublishAfterAppendFacts(StatefulSilo silo) : IClassFixture<S
     [Fact]
     public async Task With_FailAfterAppend_the_journal_holds_the_entry_and_no_reference_is_sent()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var faults = silo.Services.GetRequiredService<PublishFaults>();
         var items = new ConcurrentQueue<(NeuronId Pub, Counted Sig)>();

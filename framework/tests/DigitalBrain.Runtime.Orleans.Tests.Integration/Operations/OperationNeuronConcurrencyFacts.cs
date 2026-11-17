@@ -21,6 +21,7 @@ public sealed class OperationNeuronConcurrencyFacts(OperationSilo silo) : IClass
     [Fact]
     public async Task DetachedBackgroundRunner_WithRapidConcurrentProgressAndCancel_ZeroStaleVersionExceptions()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var a = silo.Connections.A;
         var b = silo.Connections.B;
@@ -99,6 +100,7 @@ public sealed class OperationNeuronConcurrencyFacts(OperationSilo silo) : IClass
     [Fact]
     public async Task GrainConcurrency_RapidConcurrentCompleteCancelAndProgress_SealsCleanly()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var brain = "op-stress-race";
         var a = silo.Connections.A;
@@ -143,6 +145,7 @@ public sealed class OperationNeuronConcurrencyFacts(OperationSilo silo) : IClass
     [Fact]
     public async Task InvalidTransitions_OnLiveOrleansGrain_AreSafelyIgnoredWithoutCorruptingState()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var brain = "op-invalid-turns";
         var a = silo.Connections.A;
@@ -182,6 +185,7 @@ public sealed class OperationNeuronConcurrencyFacts(OperationSilo silo) : IClass
     [Fact]
     public async Task AwaitingApproval_RejectsProgressAndSurvivesMismatchedApprovalAnswer()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var brain = "op-gate"; // configured with ConfirmationPolicy.Always
         var a = silo.Connections.A;
@@ -217,8 +221,8 @@ public sealed class OperationNeuronConcurrencyFacts(OperationSilo silo) : IClass
         Assert.Equal(signalsBefore, (await silo.Signals(brain, operation.Id, ct)).Count);
 
         // 3. Proper resolution through inbox as a person settles the operation
-        using (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(
-            DigitalBrain.Capabilities.CapabilityCallers.Of("person", "person", brain)))
+        var edge = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<DigitalBrain.Access.EdgeAuthority>(silo.Services);
+        using (edge.Enter(edge.Person("person", "person", new BrainId(brain))))
         {
             await inbox.Resolve(state.ApprovalPlanId, approve: true);
         }
@@ -245,6 +249,7 @@ public sealed class OperationNeuronConcurrencyFacts(OperationSilo silo) : IClass
     [Fact]
     public async Task AwaitingApproval_WhenApprovedByNonPerson_FailsWithOnlyAPersonCanApproveThis()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var brain = "op-gate";
         var a = silo.Connections.A;
@@ -258,8 +263,12 @@ public sealed class OperationNeuronConcurrencyFacts(OperationSilo silo) : IClass
 
         var inbox = NeuronHosting.Get<IConfirmationInbox>(silo.Services, IConfirmationRequests.Of(new BrainId(brain)));
 
-        // Resolve without person caller stamp (e.g. app or unauthenticated)
-        await inbox.Resolve(state.ApprovalPlanId, approve: true);
+        // Resolve as an app of the brain, not a person
+        var edge = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<DigitalBrain.Access.EdgeAuthority>(silo.Services);
+        using (edge.Enter(edge.App("probe-app", new DigitalBrain.Access.Actor.Person("person", "person"), new BrainId(brain))))
+        {
+            await inbox.Resolve(state.ApprovalPlanId, approve: true);
+        }
 
         // Wait for operation to complete
         var doneResult = await ((OperationHandle)operation).Completion.WaitAsync(TimeSpan.FromSeconds(10), ct);

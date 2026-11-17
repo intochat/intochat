@@ -12,6 +12,7 @@ public sealed class CapabilityFakeFacts
     [Fact]
     public async Task A_bound_fake_reaches_the_neuron_and_a_second_binding_of_the_same_name_throws()
     {
+        using var platform = TestStamp.Kernel();
         var c = new StorageLikeFake("C:");
         await using var os = OS.Local().With<IStorageLike>("c", c);
         os.Register<SampleCounter>();

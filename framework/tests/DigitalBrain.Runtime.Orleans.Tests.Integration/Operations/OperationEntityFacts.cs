@@ -163,6 +163,7 @@ public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<Ope
     [Fact]
     public async Task StartReturnsACancellableHandleWhileHumanApprovalIsPending()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var operations = silo.Operations("op-wait-human");
         var operation = await operations.Start(WritePlan.CreateFolder(silo.Connections.A.Root, "Waiting-for-human"), ct).WaitAsync(TimeSpan.FromSeconds(5), ct);
@@ -185,6 +186,7 @@ public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<Ope
     [Fact]
     public async Task RunningListsAStartedOperation()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var operation = await silo.Operations("op-q-running").Start(new ProbePlan(), ct);
         await operation.Report(0.5);
@@ -204,6 +206,7 @@ public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<Ope
     [Fact]
     public async Task ReadReturnsResultAfterComplete()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var operation = await silo.Operations("op-q-read").Start(new ProbePlan(), ct);
         Assert.Null((await Query(silo, "op-q-read").Read(operation.Id, ct))!.Result);
@@ -216,11 +219,15 @@ public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<Ope
 
     [Fact]
     public async Task ReadOfUnknownIdIsNull()
-        => Assert.Null(await Query(silo, "op-q-unknown").Read(new OperationId("op-nope"), TestContext.Current.CancellationToken));
+    {
+        using var platform = TestStamp.Kernel();
+        Assert.Null(await Query(silo, "op-q-unknown").Read(new OperationId("op-nope"), TestContext.Current.CancellationToken));
+    }
 
     [Fact]
     public async Task ViewCarriesTraceIdOfStart()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var trace = new Trace { TraceId = "trace-of-start", PayerAccountId = "acct", BrainId = "op-q-trace", Origin = new NeuronId(new BrainId("op-q-trace"), "edge", "request") };
         IOperation operation;
@@ -232,6 +239,7 @@ public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<Ope
     [Fact]
     public async Task Start_saves_the_entity_and_publishes_started_progress_and_done_in_order()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var a = silo.Connections.A;
         var operation = await silo.Operations("op-order").Start(WritePlan.CreateFolder(a.Root, "New-order"), ct);
@@ -255,6 +263,7 @@ public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<Ope
     [Fact]
     public async Task A_dry_run_ends_planned_and_changes_nothing()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var a = silo.Connections.A;
         var before = (await a.Children(a.Root)).Count;
@@ -267,6 +276,7 @@ public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<Ope
     [Fact]
     public async Task A_conflict_fails_by_default_and_overwrite_replaces_only_when_explicit()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var a = silo.Connections.A;
         var folder = a.AddFolder(a.Root, "conflicts");
@@ -289,6 +299,7 @@ public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<Ope
     [Fact]
     public async Task Inline_bytes_are_kept_out_of_the_persisted_plan_and_the_started_signal()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var a = silo.Connections.A;
         var operation = await silo.Operations("op-inline").Start(WritePlan.WriteFile(a.Root, "secret-inline.txt", Bytes("top secret")), ct);
@@ -305,6 +316,7 @@ public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<Ope
     [Fact]
     public async Task Cancel_mid_way_ends_cancelled_and_no_progress_is_saved_after_the_cancel()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var a = silo.Connections.A;
         var b = silo.Connections.B;
@@ -333,6 +345,7 @@ public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<Ope
     [Fact]
     public async Task A_cross_connection_move_through_the_entity_copies_verifies_and_trashes_the_source()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var a = silo.Connections.A;
         var b = silo.Connections.B.Inner;
@@ -347,12 +360,17 @@ public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<Ope
     [Fact]
     public async Task The_gate_is_asked_and_a_refusal_ends_failed_denied_with_nothing_written()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var a = silo.Connections.A;
         var operation = await silo.Operations("op-gate").Start(WritePlan.CreateFolder(a.Root, "Denied-folder"), ct);
         var state = (await silo.Entity("op-gate", operation.Id).Get())!;
         var inbox = NeuronHosting.Get<IConfirmationInbox>(silo.Services, IConfirmationRequests.Of(new BrainId("op-gate")));
-        await inbox.Resolve(state.ApprovalPlanId!, approve: false);
+        var edge = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<DigitalBrain.Access.EdgeAuthority>(silo.Services);
+        using (edge.Enter(edge.Person("person", "person", new BrainId("op-gate"))))
+        {
+            await inbox.Resolve(state.ApprovalPlanId!, approve: false);
+        }
 
         Assert.Equal("declined", Assert.IsType<OperationResult.Failed>(await Done(operation)).Code);
         Assert.DoesNotContain(await a.Children(a.Root), item => item.Name == "Denied-folder");
@@ -361,6 +379,7 @@ public sealed class OperationEntityFacts(OperationSilo silo) : IClassFixture<Ope
     [Fact]
     public async Task A_hosted_neuron_starts_operations_through_its_context_with_itself_as_origin()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var a = silo.Connections.A;
         var writer = NeuronHosting.Get<IWriter>(silo.Services, NeuronId.Parse("op-ctx/probe.writer/w1"));
@@ -379,6 +398,7 @@ public sealed class OperationRestartFacts(OperationSilo silo) : IClassFixture<Op
     [Fact]
     public async Task APendingApprovalIsInterruptedAfterTheDriverEndsAndTheEndpointChanges()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         await using var restarting = new OperationSilo();
         await restarting.InitializeAsync();
@@ -407,6 +427,7 @@ public sealed class OperationRestartFacts(OperationSilo silo) : IClassFixture<Op
     [Fact]
     public async Task A_done_operation_survives_a_silo_restart_and_is_not_run_again_on_reactivation()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var a = silo.Connections.A;
         var operation = await silo.Operations("op-restart").Start(WritePlan.CreateFolder(a.Root, "Kept"), ct);

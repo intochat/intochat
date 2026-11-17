@@ -25,9 +25,9 @@ public class InMemoryIdentity : IIdentity, IGrants, ISessions, IIdentityProvider
     public InMemoryIdentity(AmbientCallerScope? callers = null, TimeProvider? time = null)
     {
         _callers = callers ?? new AmbientCallerScope();
-        _directory = new InMemoryIdentityDirectory(time);
-        _identity = new BoundIdentity(_directory, () => _callers.Current);
-        _sessions = new BoundSessions(_directory, () => _callers.Current, Declarations.RequirePrivileged);
+        _directory = new InMemoryIdentityDirectory(time, _callers);
+        _identity = new BoundIdentity(_directory, _callers);
+        _sessions = new BoundSessions(_directory, _callers, Declarations.RequirePrivileged);
     }
 
     /// <summary>The module declarations the privileged session members check; <see cref="ModuleDeclarations.None"/> by default.</summary>
@@ -37,7 +37,7 @@ public class InMemoryIdentity : IIdentity, IGrants, ISessions, IIdentityProvider
         init
         {
             _declarations = value;
-            _boundSessions = new BoundSessions(_directory, () => _callers.Current, value.RequirePrivileged);
+            _boundSessions = new BoundSessions(_directory, _callers, value.RequirePrivileged);
         }
     }
     private ModuleDeclarations _declarations = ModuleDeclarations.None;

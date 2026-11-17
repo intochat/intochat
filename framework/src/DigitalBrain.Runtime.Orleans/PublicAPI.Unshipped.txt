@@ -1,6 +1,4 @@
 #nullable enable
-const DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.ModuleCallKey = "intochatos.trusted-module-call" -> string!
-const DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.RequestContextKey = "db.cap.principal" -> string!
 const DigitalBrain.Runtime.Orleans.ClusterStoreHosting.HookName = "UseClusterStore (or an IClusterStoreRegistration service instance)" -> string!
 const DigitalBrain.Runtime.Orleans.Compute.TraceRequestContext.RequestContextKey = "intochatos.trace" -> string!
 const DigitalBrain.Runtime.Orleans.LocalProfile.HttpPort = 5310 -> int
@@ -131,7 +129,6 @@ DigitalBrain.Runtime.Orleans.Capabilities.CapabilityRegistry.IsSingle(DigitalBra
 DigitalBrain.Runtime.Orleans.Capabilities.CapabilityRegistry.Known(DigitalBrain.Capabilities.CapabilityId capability) -> bool
 DigitalBrain.Runtime.Orleans.Capabilities.CapabilityRegistry.Register(DigitalBrain.Capabilities.CapabilityId capability, System.Type? contract, DigitalBrain.Runtime.Orleans.Capabilities.CapabilityConnectionMode mode) -> void
 DigitalBrain.Runtime.Orleans.Capabilities.ModuleCapabilityValidator
-DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext
 DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability
 DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Declarations.get -> DigitalBrain.Modules.ModuleDeclarations!
 DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Declarations.init -> void
@@ -140,7 +137,6 @@ DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Open(string! context
 DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Remove(string! name, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Resolve(DigitalBrain.Capabilities.Secrets.SecretRef! secret, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string!>!
 DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Seal(string! context, System.ReadOnlyMemory<byte> plaintext, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SealedSecret!>!
-DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.SecretsCapability(DigitalBrain.Capabilities.Secrets.ISecretVaultPort! port, Microsoft.Extensions.Logging.ILogger<DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability!>? logger = null) -> void
 DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.Set(string! name, string! label, string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Secrets.SecretRef!>!
 DigitalBrain.Runtime.Orleans.Capabilities.Storage.BrokerStorageOwners
 DigitalBrain.Runtime.Orleans.Capabilities.Storage.BrokerStorageOwners.BrokerStorageOwners(DigitalBrain.Runtime.Orleans.Capabilities.CapabilityBroker! broker) -> void
@@ -150,10 +146,6 @@ DigitalBrain.Runtime.Orleans.Capabilities.Storage.StorageWriteAuthorizer.BeginAp
 DigitalBrain.Runtime.Orleans.Capabilities.Storage.StorageWriteAuthorizer.Consume(DigitalBrain.NeuronId storageNeuron, DigitalBrain.Capabilities.Storage.WritePlan! primitive, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<bool>!
 DigitalBrain.Runtime.Orleans.Capabilities.Storage.StorageWriteAuthorizer.Invoke<T>(string! connection, DigitalBrain.Capabilities.Storage.WritePlan! primitive, System.Func<System.Threading.Tasks.Task<T>!>! send, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<T>!
 DigitalBrain.Runtime.Orleans.Capabilities.Storage.StorageWriteAuthorizer.StorageWriteAuthorizer(Orleans.IGrainFactory! grains, DigitalBrain.Capabilities.Storage.IStorageWriteIdentity! identity, Microsoft.Extensions.Logging.ILogger<DigitalBrain.Runtime.Orleans.Capabilities.Storage.StorageWriteAuthorizer!>! logger) -> void
-DigitalBrain.Runtime.Orleans.Capabilities.UntrustedCallerException
-DigitalBrain.Runtime.Orleans.Capabilities.UntrustedCallerException.UntrustedCallerException() -> void
-DigitalBrain.Runtime.Orleans.Capabilities.UntrustedCallerException.UntrustedCallerException(string! message) -> void
-DigitalBrain.Runtime.Orleans.Capabilities.UntrustedCallerException.UntrustedCallerException(string! message, System.Exception! innerException) -> void
 DigitalBrain.Runtime.Orleans.ClusteringBinding
 DigitalBrain.Runtime.Orleans.ClusteringBinding.AzureTable = 2 -> DigitalBrain.Runtime.Orleans.ClusteringBinding
 DigitalBrain.Runtime.Orleans.ClusteringBinding.Localhost = 1 -> DigitalBrain.Runtime.Orleans.ClusteringBinding
@@ -678,14 +670,6 @@ static DigitalBrain.Runtime.Orleans.Capabilities.CapabilityRegistration.AddIdent
 static DigitalBrain.Runtime.Orleans.Capabilities.CapabilityRegistration.AddSecretsCapability<TPort>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static DigitalBrain.Runtime.Orleans.Capabilities.CapabilityRegistration.AddSecretsCapability<TPort>(this Microsoft.Extensions.Hosting.IHostApplicationBuilder! builder) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder!
 static DigitalBrain.Runtime.Orleans.Capabilities.ModuleCapabilityValidator.Validate(DigitalBrain.Runtime.Orleans.Capabilities.CapabilityRegistry! registry, System.Collections.Generic.IEnumerable<System.Type!>! moduleTypes) -> void
-static DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Current.get -> DigitalBrain.Capabilities.CapabilityCaller?
-static DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.IsModelOriginated(DigitalBrain.Capabilities.CapabilityCaller! caller) -> bool
-static DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.IsTrusted(DigitalBrain.Capabilities.CapabilityCaller! context) -> bool
-static DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Require() -> DigitalBrain.Capabilities.CapabilityCaller!
-static DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Required(string! capability) -> DigitalBrain.Capabilities.CapabilityCaller!
-static DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(DigitalBrain.Capabilities.CapabilityCaller! caller) -> System.IDisposable!
-static DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.StampScope(DigitalBrain.Capabilities.CapabilityCaller! context) -> System.IDisposable!
-static DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.TryGet(out DigitalBrain.Capabilities.CapabilityCaller? context) -> bool
 static DigitalBrain.Runtime.Orleans.ClusterStoreHosting.HasClusterStore(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
 static DigitalBrain.Runtime.Orleans.ClusterStoreHosting.UseClusterStore(this Microsoft.Extensions.Hosting.IHostApplicationBuilder! builder, DigitalBrain.Runtime.Orleans.IClusterStoreRegistration! registration) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder!
 static DigitalBrain.Runtime.Orleans.ClusterStoreHosting.UseClusterStore(this Microsoft.Extensions.Hosting.IHostApplicationBuilder! builder, System.Action<Orleans.Hosting.ISiloBuilder!>! register) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder!
@@ -778,3 +762,4 @@ static DigitalBrain.Runtime.Orleans.TopologyValidator.ValidateNeeds(DigitalBrain
 static DigitalBrain.Runtime.Orleans.TopologyValidator.ValidateNeeds(DigitalBrain.Runtime.Orleans.Topology topology, DigitalBrain.Runtime.Orleans.Bindings! bindings, System.Collections.Generic.IReadOnlyList<DigitalBrain.Modules.ModuleManifest!>! modules, bool clusterStoreRegistered, DigitalBrain.Runtime.Orleans.RuntimeOptions? options = null) -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Runtime.Orleans.TopologyIssue!>!
 DigitalBrain.Runtime.Orleans.Access.ClientCaller
 static DigitalBrain.Runtime.Orleans.Access.ClientCaller.ActAs(string! appKey, string! principal, string! account, string! brain) -> System.IDisposable!
+DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability.SecretsCapability(DigitalBrain.Capabilities.Secrets.ISecretVaultPort! port, Microsoft.Extensions.Logging.ILogger<DigitalBrain.Runtime.Orleans.Capabilities.SecretsCapability!>? logger = null, DigitalBrain.Access.ICallerAmbient? callers = null) -> void

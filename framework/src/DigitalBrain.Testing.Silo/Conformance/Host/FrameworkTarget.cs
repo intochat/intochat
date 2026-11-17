@@ -39,6 +39,9 @@ public abstract class OrleansFrameworkTarget : FrameworkTarget
 /// <summary>A running host and the controls every target offers the same way.</summary>
 public abstract class RunningTarget : IAsyncDisposable
 {
+    /// <summary>The edge that stamps a caller on calls to this host; the kit's facts drive the runtime as the kernel.</summary>
+    public abstract DigitalBrain.Access.EdgeAuthority Edge { get; }
+
     /// <summary>A typed proxy to <paramref name="id"/>. Take a fresh one after <see cref="Restart"/>.</summary>
     public abstract T Get<T>(NeuronId id) where T : class;
 

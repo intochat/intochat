@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Access;
 using DigitalBrain.Modules;
 using System.Collections.Concurrent;
 using DigitalBrain.Capabilities;
@@ -10,14 +11,10 @@ using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Runtime.Orleans.Tests.Unit.Capabilities;
 
-// Stamps the kit caller the way a host edge does: through RuntimeCallerContext.
+// Stamps the kit caller the way the kernel does: on the Orleans caller ambient.
 internal sealed class RuntimeCallerScope : CallerScope
 {
-    public override IDisposable As(CapabilityCaller caller)
-    {
-        ArgumentNullException.ThrowIfNull(caller);
-        return RuntimeCallerContext.Stamp(new CapabilityCaller(caller.PrincipalId, caller.AccountId, caller.BrainId, caller.AppId, caller.ConversationId));
-    }
+    public override IDisposable As(DigitalBrain.Access.Caller caller) => OrleansCallerAmbient.Instance.Enter(caller);
 }
 
 // Captures every formatted log line at every level, so LogsNeverContainValue has teeth.
@@ -50,9 +47,9 @@ public sealed class SecretsCapabilityConformance : SecretsConformance<SecretsCap
     protected override Task<SecretsSubject> Connect(CancellationToken ct)
     {
         var logs = new CapturingLoggerProvider();
-        var vault = new InMemorySecretVault();
+        var vault = new InMemorySecretVault(OrleansCallerAmbient.Instance);
         var factory = LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
-        var secrets = new SecretsCapability(vault, factory.CreateLogger<SecretsCapability>()) { Declarations = KitDeclarations.Identity };
+        var secrets = new SecretsCapability(vault, factory.CreateLogger<SecretsCapability>(), OrleansCallerAmbient.Instance) { Declarations = KitDeclarations.Identity };
         vault.Provide(KitDeclarations.NamedSecret.Name, KitDeclarations.NamedSecret.Value);
         return Task.FromResult(new SecretsSubject(secrets, new RuntimeCallerScope(), () => [.. logs.Lines, .. vault.Log]) { Named = KitDeclarations.NamedSecret });
     }
@@ -63,9 +60,9 @@ public sealed class IdentityCapabilityConformance : IdentityConformance<BoundIde
 {
     protected override Task<IdentitySubject> Connect(CancellationToken ct)
     {
-        var directory = new InMemoryIdentityDirectory();
-        var sessions = new BoundSessions(directory, static () => RuntimeCallerContext.Current, KitDeclarations.Identity.RequirePrivileged);
-        var identity = new BoundIdentity(directory, static () => RuntimeCallerContext.Current);
+        var directory = new InMemoryIdentityDirectory(callers: OrleansCallerAmbient.Instance);
+        var sessions = new BoundSessions(directory, OrleansCallerAmbient.Instance, KitDeclarations.Identity.RequirePrivileged);
+        var identity = new BoundIdentity(directory, OrleansCallerAmbient.Instance);
         return Task.FromResult(new IdentitySubject(identity, identity, new RuntimeCallerScope(), directory.SignIn)
         {
             Sessions = sessions,

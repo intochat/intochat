@@ -123,6 +123,7 @@ public sealed class DeploymentAdversarialFacts
     [Fact]
     public async Task SaveBeforeAsk_SurvivesMultipleRestartsAndDenial()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register<HsPayments>().With<ISqlRead>("analytics", new FakeSqlRead(1));
         var brain = Brain("multi-restart-deny");
 
@@ -190,6 +191,7 @@ public sealed class DeploymentAdversarialFacts
     [Fact]
     public async Task AliasConflict_DroppedAliasInNewVersion_ReleasesForRivalAcrossRestart()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local();
         var brain = Brain("alias-drop-test");
 
@@ -234,6 +236,7 @@ public sealed class DeploymentAdversarialFacts
     [Fact]
     public async Task Retirement_ReleasesAliases_AllowsRivalClaimAcrossRestart()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local();
         var brain = Brain("retire-claim-test");
 
@@ -274,6 +277,7 @@ public sealed class DeploymentAdversarialFacts
     [Fact]
     public async Task Refuse_PersistsAcrossRestart_BlocksUnitResolver()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local();
         var brain = Brain("refuse-restart-test");
 
@@ -317,6 +321,7 @@ public sealed class DeploymentAdversarialFacts
     [Fact]
     public async Task Retire_WhenStagedWithPendingConfirmation_CancelsPendingPlans()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register<HsPayments>().With<ISqlRead>("analytics", new FakeSqlRead(1));
         var brain = Brain("retire-staged-cancel-pending");
 

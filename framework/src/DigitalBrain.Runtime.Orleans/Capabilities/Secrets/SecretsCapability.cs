@@ -1,6 +1,8 @@
+using DigitalBrain.Access;
 using DigitalBrain.Modules;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Runtime.Orleans.Access;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -8,7 +10,7 @@ namespace DigitalBrain.Runtime.Orleans.Capabilities;
 
 /// <summary>
 /// secrets@1 over the host's <see cref="ISecretVaultPort"/> (R4-02, D-02, D-15). A thin adapter: every member reads the caller
-/// stamped on the call (<see cref="RuntimeCallerContext"/>), passes it to the port and maps the port's NotFound/Denied to
+/// stamped on the call (<see cref="ICallerAmbient"/>), which the port reads as well, and maps the port's NotFound/Denied to
 /// <see cref="SecretNotFound"/>/<see cref="SecretDenied"/>. A call with no stamped caller is denied
 /// (<see cref="UnauthorizedAccessException"/>), never defaulted. Logs carry names and references, never values. Named lookups
 /// and named references (<see cref="SecretRef.NamedPrefix"/>) require the caller's module to declare the secret in its
@@ -18,39 +20,36 @@ public sealed partial class SecretsCapability : ISecrets
 {
     private readonly ISecretVaultPort _port;
     private readonly ILogger _logger;
+    private readonly ICallerAmbient _callers;
 
-    /// <summary>Creates the capability over <paramref name="port"/>.</summary>
-    public SecretsCapability(ISecretVaultPort port, ILogger<SecretsCapability>? logger = null)
+    /// <summary>Creates the capability over <paramref name="port"/>; <paramref name="callers"/> is the silo's ambient when null.</summary>
+    public SecretsCapability(ISecretVaultPort port, ILogger<SecretsCapability>? logger = null, ICallerAmbient? callers = null)
     {
         ArgumentNullException.ThrowIfNull(port);
         _port = port;
         _logger = (ILogger?)logger ?? NullLogger.Instance;
+        _callers = callers ?? OrleansCallerAmbient.Instance;
     }
 
     /// <summary>The module declarations named secrets are checked against; <see cref="ModuleDeclarations.None"/> by default.</summary>
     public ModuleDeclarations Declarations { get; init; } = ModuleDeclarations.None;
-
-    private static readonly CapabilityCaller PlatformCaller = CapabilityCallers.Platform("identity.vault", "system", "system");
 
     /// <inheritdoc />
     public async Task<SecretRef> Set(string name, string label, string value, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(value);
-        var caller = RuntimeCallerContext.Required(Capability.Secrets.V1Id);
+        var caller = Required();
         SecretVaultResult result;
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
-        {
-            result = await _port.Set(caller, name, label ?? "", value, cancellationToken).ConfigureAwait(false);
-        }
+        result = await _port.Set(name, label ?? "", value, cancellationToken).ConfigureAwait(false);
 
         switch (result.Status)
         {
             case SecretVaultStatus.Ok when result.Secret is not null:
-                Stored(_logger, result.Secret.Reference, caller.PrincipalId);
+                Stored(_logger, result.Secret.Reference, caller.For?.Principal ?? string.Empty);
                 return result.Secret;
             case SecretVaultStatus.Denied:
-                Refused(_logger, name, caller.PrincipalId);
+                Refused(_logger, name, caller.For?.Principal ?? string.Empty);
                 throw new SecretDenied(name);
             default:
                 throw new InvalidOperationException($"secrets@1: the vault port answered {result} to set {name}.");
@@ -61,42 +60,36 @@ public sealed partial class SecretsCapability : ISecrets
     public async Task Remove(string name, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        var caller = RuntimeCallerContext.Required(Capability.Secrets.V1Id);
+        var caller = Required();
         SecretVaultStatus status;
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
-        {
-            status = await _port.Remove(caller, name, cancellationToken).ConfigureAwait(false);
-        }
+        status = await _port.Remove(name, cancellationToken).ConfigureAwait(false);
 
         if (status == SecretVaultStatus.Denied)
         {
-            Refused(_logger, name, caller.PrincipalId);
+            Refused(_logger, name, caller.For?.Principal ?? string.Empty);
             throw new SecretDenied(name);
         }
 
-        Removed(_logger, name, caller.PrincipalId);
+        Removed(_logger, name, caller.For?.Principal ?? string.Empty);
     }
 
     /// <inheritdoc />
     public async Task<string> Resolve(SecretRef secret, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(secret);
-        var caller = RuntimeCallerContext.Required(Capability.Secrets.V1Id);
+        var caller = Required();
         var name = NameOf(secret);
         if (secret.IsNamed) { RequireDeclared(caller, name = secret.Reference[SecretRef.NamedPrefix.Length..]); }
         SecretVaultResult result;
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
-        {
-            result = await _port.Resolve(caller, secret, cancellationToken).ConfigureAwait(false);
-        }
+        result = await _port.Resolve(secret, cancellationToken).ConfigureAwait(false);
 
         switch (result.Status)
         {
             case SecretVaultStatus.Ok when result.Value is not null:
-                Resolved(_logger, secret.Reference, caller.PrincipalId);
+                Resolved(_logger, secret.Reference, caller.For?.Principal ?? string.Empty);
                 return result.Value;
             case SecretVaultStatus.Denied:
-                Refused(_logger, name, caller.PrincipalId);
+                Refused(_logger, name, caller.For?.Principal ?? string.Empty);
                 throw new SecretDenied(name);
             default:
                 throw new SecretNotFound(name);
@@ -107,16 +100,13 @@ public sealed partial class SecretsCapability : ISecrets
     public async Task<SealedSecret> Seal(string context, ReadOnlyMemory<byte> plaintext, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(context);
-        var caller = RuntimeCallerContext.Required(Capability.Secrets.V1Id);
+        var caller = Required();
         SealedSecret? sealedSecret;
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
-        {
-            sealedSecret = await _port.Seal(caller, context, plaintext, cancellationToken).ConfigureAwait(false);
-        }
+        sealedSecret = await _port.Seal(context, plaintext, cancellationToken).ConfigureAwait(false);
 
         if (sealedSecret is null)
         {
-            Refused(_logger, context, caller.PrincipalId);
+            Refused(_logger, context, caller.For?.Principal ?? string.Empty);
             throw new SecretDenied(context);
         }
 
@@ -128,16 +118,13 @@ public sealed partial class SecretsCapability : ISecrets
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(context);
         ArgumentNullException.ThrowIfNull(sealedSecret);
-        var caller = RuntimeCallerContext.Required(Capability.Secrets.V1Id);
+        var caller = Required();
         byte[]? plaintext;
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
-        {
-            plaintext = await _port.Open(caller, context, sealedSecret, cancellationToken).ConfigureAwait(false);
-        }
+        plaintext = await _port.Open(context, sealedSecret, cancellationToken).ConfigureAwait(false);
 
         if (plaintext is null)
         {
-            Refused(_logger, context, caller.PrincipalId);
+            Refused(_logger, context, caller.For?.Principal ?? string.Empty);
             throw new SecretDenied(context);
         }
 
@@ -148,13 +135,10 @@ public sealed partial class SecretsCapability : ISecrets
     public async Task<SecretRef> Named(string name, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        var caller = RuntimeCallerContext.Required(Capability.Secrets.V1Id);
+        var caller = Required();
         RequireDeclared(caller, name);
         SecretVaultResult result;
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
-        {
-            result = await _port.Named(caller, name, cancellationToken).ConfigureAwait(false);
-        }
+        result = await _port.Named(name, cancellationToken).ConfigureAwait(false);
         switch (result.Status)
         {
             case SecretVaultStatus.Ok when result.Secret is not null:
@@ -162,15 +146,25 @@ public sealed partial class SecretsCapability : ISecrets
             case SecretVaultStatus.NotFound:
                 return SecretRef.Unset(SecretRef.NamedPrefix + name, name);
             default:
-                Refused(_logger, name, caller.PrincipalId);
+                Refused(_logger, name, caller.For?.Principal ?? string.Empty);
                 throw new SecretDenied(name);
         }
     }
 
-    private void RequireDeclared(CapabilityCaller caller, string name)
+    private Caller Required()
+        => _callers.Current ?? throw new UnauthorizedAccessException($"{Capability.Secrets.V1Id}: the call carries no stamped caller.");
+
+    private static string? ModuleOf(Caller caller) => caller.Actor switch
     {
-        if (Declarations.DeclaresSecret(caller.AppId, name)) { return; }
-        Refused(_logger, name, caller.PrincipalId);
+        Actor.Module module => module.Id,
+        Actor.App app => app.Key,
+        _ => null,
+    };
+
+    private void RequireDeclared(Caller caller, string name)
+    {
+        if (Declarations.DeclaresSecret(ModuleOf(caller), name)) { return; }
+        Refused(_logger, name, caller.For?.Principal ?? string.Empty);
         throw new SecretDenied(name);
     }
 

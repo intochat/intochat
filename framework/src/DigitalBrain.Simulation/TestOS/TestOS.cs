@@ -125,9 +125,8 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
             id => Get<IUnitDeployment>(id));
         Delivery = new SynapseRegistry(this);
         Listeners = new TestClusterListeners(this);
-        AccessOptions = new AccessOptions { UnstampedEdgeIsKernel = true, AuditContractInternal = true };
-        AccessCounters = new AccessCounters();
-        Access = new AccessGate(TestCallerAmbient.Instance, AccessOptions, AccessCounters);
+        Access = new AccessGate(TestCallerAmbient.Instance);
+        DigitalBrain.Brains.CallerAdmission.Callers = TestCallerAmbient.Instance;
         Edge = new EdgeAuthority(TestCallerAmbient.Instance);
         Confirmations = new TestConfirmations(this);
         AskProgress = new AskProgressHub(Clock);
@@ -216,23 +215,13 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
     /// <summary>The edge minting authority of this TestOS.</summary>
     public EdgeAuthority Edge { get; }
 
+    /// <summary>The ambient the stamped caller of a call on this TestOS is read from (what ports and capabilities read).</summary>
+    public ICallerAmbient Callers { get; } = TestCallerAmbient.Instance;
+
     /// <summary>The access admission gate of this TestOS.</summary>
     internal AccessGate Access { get; }
 
-    /// <summary>The operational access configuration of this TestOS.</summary>
-    public AccessOptions AccessOptions { get; }
-
-    /// <summary>Observability counters for access telemetry.</summary>
-    public AccessCounters AccessCounters { get; }
-
     internal TestClusterListeners Listeners { get; }
-
-    /// <summary>
-    /// The trusted caller stamp this TestOS puts on every synapse admission (<see cref="SynapseRequest.Caller"/>), as a host's
-    /// trusted edge stamps it on the runtime; null (the default) admits with no stamp. Set it to test an <c>AdmitSynapse</c> that
-    /// authorizes by caller.
-    /// </summary>
-    public DigitalBrain.Capabilities.CapabilityCaller? Caller { get; set; }
 
     /// <summary>The confirmation gate every neuron's <c>Context.Confirm</c> asks (07 D-03); set its policy and answer as a person here.</summary>
     public TestConfirmations Confirmations { get; }

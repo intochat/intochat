@@ -14,6 +14,7 @@ public sealed class JournalWriterDeliveryFacts(SynapseSilo silo) : IClassFixture
     [Fact]
     public async Task Adapter_signals_of_a_registered_type_reach_a_plain_subscriber_and_unknown_types_are_skipped()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         const string Listener = "b1/probe.listener/adapter", Source = "b1/probe.counter/adapter";
         await silo.Get<IListener>(Listener).Follow(Source);

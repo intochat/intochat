@@ -78,6 +78,7 @@ public sealed class AliasReactionFacts
     [Fact]
     public async Task AReactionByAliasReceivesTheEnvelope()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register(typeof(StateNeuronOnTestOSFacts).Assembly);
         os.Confirmations.ApproveAll();
         var outcome = await os.Get<IInstalls>(Installs).Install(new InstallRequest("dash", new Dictionary<string, string>()), Ct);
@@ -99,6 +100,7 @@ public sealed class AliasReactionFacts
     [Fact]
     public async Task SeededStoredStateIsLoadedOnActivation()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register(typeof(StateNeuronOnTestOSFacts).Assembly);
         var poller = NeuronId.Parse("seed/poller/a");
         os.SeedStoredState(poller, """{"polls":5}""");
@@ -113,6 +115,7 @@ public sealed class AliasReactionFacts
     [Fact]
     public async Task AnEnvelopeThatCannotBeBuiltFinishesTheSynapseAsFailed()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register(typeof(StateNeuronOnTestOSFacts).Assembly);
         os.Confirmations.ApproveAll();
         var finished = new System.Collections.Concurrent.ConcurrentQueue<SynapseFinished>();

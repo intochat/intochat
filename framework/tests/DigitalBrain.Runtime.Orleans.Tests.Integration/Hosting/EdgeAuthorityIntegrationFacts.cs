@@ -61,11 +61,7 @@ public sealed class EdgeAuthorityIntegrationFacts(EdgeAuthorityIntegrationFacts.
         public async ValueTask InitializeAsync()
         {
             var factory = new LocalSiloHostFactory(
-                new BrainStorageRegistration(typeof(Fixture).Assembly),
-                services =>
-                {
-                    services.AddSingleton(new AccessOptions { UnstampedEdgeIsKernel = false, AuditContractInternal = false });
-                });
+                new BrainStorageRegistration(typeof(Fixture).Assembly));
 
             _host = await factory.Start(
                 new InProcessHostOptions

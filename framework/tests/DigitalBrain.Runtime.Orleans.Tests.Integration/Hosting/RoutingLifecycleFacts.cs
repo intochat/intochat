@@ -19,6 +19,7 @@ public sealed class RoutingLifecycleFacts
     [InlineData(true, true)]
     public async Task An_admitted_ordinary_call_finishes_when_deactivation_starts(bool external, bool queuedCatchUp)
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var entered = new TaskCompletionSource<IGrainContext>(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = await new LocalSiloHostFactory(new HostedSilo.Hosted(), services =>

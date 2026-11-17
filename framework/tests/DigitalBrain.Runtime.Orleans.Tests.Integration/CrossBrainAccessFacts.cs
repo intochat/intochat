@@ -77,16 +77,25 @@ public sealed class CrossBrainAccessFacts(PlainNeuronCallFilterFacts.FilterSiloF
             SiloNeurons.Get<ICrossingHidden>(fixture.Services, $"{victim}/main"), victim, attacker);
     }
 
-    private static IDisposable As(string brain, CallerKind kind = CallerKind.User)
-        => RuntimeCallerContext.Stamp(kind == CallerKind.User
-            ? CapabilityCallers.Of(brain, brain, brain)
-            : CapabilityCallers.Of(brain, brain, brain, kind, $"{brain}/apps/any"));
+    public enum Kind { User, App, Agent }
+
+    private IDisposable As(string brain, Kind kind = Kind.User)
+    {
+        var edge = fixture.Services.GetRequiredService<EdgeAuthority>();
+        var person = new Actor.Person(brain, brain);
+        return edge.Enter(kind switch
+        {
+            Kind.App => edge.App($"{brain}/apps/any", person, new BrainId(brain)),
+            Kind.Agent => edge.Agent(person, new BrainId(brain)),
+            _ => edge.Person(brain, brain, new BrainId(brain)),
+        });
+    }
 
     [Theory]
-    [InlineData(CallerKind.User)]
-    [InlineData(CallerKind.App)]
-    [InlineData(CallerKind.Agent)]
-    public async Task A_shared_or_public_operation_is_reached_from_another_brain_with_the_callers_own_brain_stamped(CallerKind kind)
+    [InlineData(Kind.User)]
+    [InlineData(Kind.App)]
+    [InlineData(Kind.Agent)]
+    public async Task A_shared_or_public_operation_is_reached_from_another_brain_with_the_callers_own_brain_stamped(Kind kind)
     {
         var (open, _, victim, attacker) = Scene();
         using var stamp = As(attacker, kind);
@@ -96,10 +105,10 @@ public sealed class CrossBrainAccessFacts(PlainNeuronCallFilterFacts.FilterSiloF
     }
 
     [Theory]
-    [InlineData(CallerKind.User)]
-    [InlineData(CallerKind.App)]
-    [InlineData(CallerKind.Agent)]
-    public async Task Every_other_operation_is_refused_from_another_brain(CallerKind kind)
+    [InlineData(Kind.User)]
+    [InlineData(Kind.App)]
+    [InlineData(Kind.Agent)]
+    public async Task Every_other_operation_is_refused_from_another_brain(Kind kind)
     {
         var (open, hidden, _, attacker) = Scene();
         using var stamp = As(attacker, kind);
@@ -111,9 +120,9 @@ public sealed class CrossBrainAccessFacts(PlainNeuronCallFilterFacts.FilterSiloF
     }
 
     [Theory]
-    [InlineData(CallerKind.User)]
-    [InlineData(CallerKind.App)]
-    public async Task Shared_or_public_on_a_contract_that_did_not_opt_in_is_refused_from_another_brain(CallerKind kind)
+    [InlineData(Kind.User)]
+    [InlineData(Kind.App)]
+    public async Task Shared_or_public_on_a_contract_that_did_not_opt_in_is_refused_from_another_brain(Kind kind)
     {
         var (_, _, victim, attacker) = Scene();
         var unmarked = SiloNeurons.Get<ICrossingUnmarked>(fixture.Services, $"{victim}/main");

@@ -1,20 +1,21 @@
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Runtime.Orleans.Access;
 
 namespace DigitalBrain.Runtime.Orleans.Capabilities;
 
 /// <summary>
-/// Wraps an <see cref="IIdentityDirectoryPort"/> so internal directory neuron invocations run under a platform caller.
+/// Wraps an <see cref="IIdentityDirectoryPort"/> so the platform's directory members run as the kernel. The members that decide
+/// by the caller pass through under the caller the runtime stamped.
 /// </summary>
 internal sealed class PlatformIdentityDirectoryPort(IIdentityDirectoryPort inner) : IIdentityDirectoryPort
 {
-    private static readonly CapabilityCaller PlatformCaller = CapabilityCallers.Platform("identity.directory", "system", "system");
-
     public IIdentityDirectoryPort Inner { get; } = inner ?? throw new ArgumentNullException(nameof(inner));
 
     public async Task<Account?> ReadAccount(string accountId, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             return await Inner.ReadAccount(accountId, cancellationToken).ConfigureAwait(false);
         }
@@ -22,7 +23,7 @@ internal sealed class PlatformIdentityDirectoryPort(IIdentityDirectoryPort inner
 
     public async Task<Account?> OwnerOfBrain(string brainId, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             return await Inner.OwnerOfBrain(brainId, cancellationToken).ConfigureAwait(false);
         }
@@ -30,7 +31,7 @@ internal sealed class PlatformIdentityDirectoryPort(IIdentityDirectoryPort inner
 
     public async Task EnsureAccount(Account account, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             await Inner.EnsureAccount(account, cancellationToken).ConfigureAwait(false);
         }
@@ -38,7 +39,7 @@ internal sealed class PlatformIdentityDirectoryPort(IIdentityDirectoryPort inner
 
     public async Task<BrainProvision> CreateBrain(string accountId, string principalId, string operationId, string displayName, BrainKind kind, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             return await Inner.CreateBrain(accountId, principalId, operationId, displayName, kind, cancellationToken).ConfigureAwait(false);
         }
@@ -46,7 +47,7 @@ internal sealed class PlatformIdentityDirectoryPort(IIdentityDirectoryPort inner
 
     public async Task<BrainProvision> EnsureBrain(Member owner, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             return await Inner.EnsureBrain(owner, cancellationToken).ConfigureAwait(false);
         }
@@ -54,7 +55,7 @@ internal sealed class PlatformIdentityDirectoryPort(IIdentityDirectoryPort inner
 
     public async Task<BrainProvision> ProvisionOwner(Member owner, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             return await Inner.ProvisionOwner(owner, cancellationToken).ConfigureAwait(false);
         }
@@ -62,7 +63,7 @@ internal sealed class PlatformIdentityDirectoryPort(IIdentityDirectoryPort inner
 
     public async Task<bool> IsRegistered(string principalId, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             return await Inner.IsRegistered(principalId, cancellationToken).ConfigureAwait(false);
         }
@@ -70,7 +71,7 @@ internal sealed class PlatformIdentityDirectoryPort(IIdentityDirectoryPort inner
 
     public async Task<BrainProvision> RegisterPrincipal(string principalId, string displayName, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             return await Inner.RegisterPrincipal(principalId, displayName, cancellationToken).ConfigureAwait(false);
         }
@@ -78,7 +79,7 @@ internal sealed class PlatformIdentityDirectoryPort(IIdentityDirectoryPort inner
 
     public async Task<BrainProvision?> CompleteRegistration(string principalId, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             return await Inner.CompleteRegistration(principalId, cancellationToken).ConfigureAwait(false);
         }
@@ -86,7 +87,7 @@ internal sealed class PlatformIdentityDirectoryPort(IIdentityDirectoryPort inner
 
     public async Task<IReadOnlyList<DigitalBrain.Capabilities.Identity.BrainEntry>> BrainsOf(string principalId, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             return await Inner.BrainsOf(principalId, cancellationToken).ConfigureAwait(false);
         }
@@ -94,7 +95,7 @@ internal sealed class PlatformIdentityDirectoryPort(IIdentityDirectoryPort inner
 
     public async Task<BrainKind> KindOf(string brainScopeId, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             return await Inner.KindOf(brainScopeId, cancellationToken).ConfigureAwait(false);
         }
@@ -102,7 +103,7 @@ internal sealed class PlatformIdentityDirectoryPort(IIdentityDirectoryPort inner
 
     public async Task<bool> BrainExists(string brainScopeId, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             return await Inner.BrainExists(brainScopeId, cancellationToken).ConfigureAwait(false);
         }
@@ -110,101 +111,76 @@ internal sealed class PlatformIdentityDirectoryPort(IIdentityDirectoryPort inner
 
     public async Task<Member?> Membership(string brainScopeId, string principalId, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             return await Inner.Membership(brainScopeId, principalId, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    public async Task<Member?> EnsureMember(CapabilityCaller caller, Member member, CancellationToken cancellationToken)
-    {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
-        {
-            return await Inner.EnsureMember(caller, member, cancellationToken).ConfigureAwait(false);
-        }
-    }
+    public Task<Member?> EnsureMember(Member member, CancellationToken cancellationToken)
+        => Inner.EnsureMember(member, cancellationToken);
 
-    public async Task RemoveMember(CapabilityCaller caller, string brainScopeId, string accountId, CancellationToken cancellationToken)
-    {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
-        {
-            await Inner.RemoveMember(caller, brainScopeId, accountId, cancellationToken).ConfigureAwait(false);
-        }
-    }
+    public Task RemoveMember(string brainScopeId, string accountId, CancellationToken cancellationToken)
+        => Inner.RemoveMember(brainScopeId, accountId, cancellationToken);
 
-    public async Task RemovePrincipalMember(CapabilityCaller caller, string brainScopeId, string principalId, CancellationToken cancellationToken)
-    {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
-        {
-            await Inner.RemovePrincipalMember(caller, brainScopeId, principalId, cancellationToken).ConfigureAwait(false);
-        }
-    }
+    public Task RemovePrincipalMember(string brainScopeId, string principalId, CancellationToken cancellationToken)
+        => Inner.RemovePrincipalMember(brainScopeId, principalId, cancellationToken);
 
-    public async Task<CallDecision?> Authorize(CapabilityCaller caller, CallRequest request, CancellationToken cancellationToken)
-    {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
-        {
-            return await Inner.Authorize(caller, request, cancellationToken).ConfigureAwait(false);
-        }
-    }
+    public Task<CallDecision?> Authorize(CallRequest request, CancellationToken cancellationToken)
+        => Inner.Authorize(request, cancellationToken);
 
     public async Task<IReadOnlyList<Grant>> ListGrants(string brainScopeId, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             return await Inner.ListGrants(brainScopeId, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    public async Task<Grant?> GrantAsOwner(CapabilityCaller caller, Grant grant, CancellationToken cancellationToken)
-    {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
-        {
-            return await Inner.GrantAsOwner(caller, grant, cancellationToken).ConfigureAwait(false);
-        }
-    }
+    public Task<Grant?> GrantAsOwner(Grant grant, CancellationToken cancellationToken)
+        => Inner.GrantAsOwner(grant, cancellationToken);
 
-    public async Task<bool> RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode, CancellationToken cancellationToken)
-    {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
-        {
-            return await Inner.RevokeAsOwner(caller, appId, semanticTypeId, mode, cancellationToken).ConfigureAwait(false);
-        }
-    }
+    public Task<bool> RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode, CancellationToken cancellationToken)
+        => Inner.RevokeAsOwner(appId, semanticTypeId, mode, cancellationToken);
 }
 
 /// <summary>
-/// Wraps an <see cref="IIdentitySessionPort"/> so internal session neuron invocations run under a platform caller.
+/// Wraps an <see cref="IIdentitySessionPort"/> so session store invocations run as the kernel; the privileged check already ran
+/// against the stamped caller.
 /// </summary>
 internal sealed class PlatformIdentitySessionPort(IIdentitySessionPort inner) : IIdentitySessionPort
 {
-    private static readonly CapabilityCaller PlatformCaller = CapabilityCallers.Platform("identity.sessions", "system", "system");
-
     public IIdentitySessionPort Inner { get; } = inner ?? throw new ArgumentNullException(nameof(inner));
 
-    public async Task<SessionIssued> Issue(CapabilityCaller caller, SessionRequest request, CancellationToken cancellationToken)
+    public async Task<SessionIssued> Issue(SessionRequest request, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
-            return await Inner.Issue(caller, request, cancellationToken).ConfigureAwait(false);
+            return await Inner.Issue(request, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    public async Task End(CapabilityCaller caller, string sessionId, CancellationToken cancellationToken)
+    public async Task End(string sessionId, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
-            await Inner.End(caller, sessionId, cancellationToken).ConfigureAwait(false);
+            await Inner.End(sessionId, cancellationToken).ConfigureAwait(false);
         }
     }
 
     public async Task<Member?> Validate(string sessionId, CancellationToken cancellationToken)
     {
-        using (RuntimeCallerContext.Stamp(PlatformCaller))
+        using (PlatformScope.Kernel())
         {
             return await Inner.Validate(sessionId, cancellationToken).ConfigureAwait(false);
         }
     }
 
     public IdentityProviderDescriptor Describe() => Inner.Describe();
+}
+
+file static class PlatformScope
+{
+    // The kernel of the system brain: the platform reaching its own identity store.
+    internal static IDisposable Kernel() => OrleansCallerAmbient.Instance.Enter(Caller.OfKernel(BrainId.Kernel));
 }

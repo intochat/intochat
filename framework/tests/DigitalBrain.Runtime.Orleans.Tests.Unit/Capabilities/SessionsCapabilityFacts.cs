@@ -1,3 +1,4 @@
+using DigitalBrain.Runtime.Orleans.Access;
 using DigitalBrain.Modules;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
@@ -13,7 +14,7 @@ public sealed class SessionsCapabilityFacts
     [Fact]
     public async Task Unstamped_call_is_denied()
     {
-        var sessions = new BoundSessions(new InMemoryIdentityDirectory(), static () => RuntimeCallerContext.Current, KitDeclarations.Identity.RequirePrivileged);
+        var sessions = new BoundSessions(new InMemoryIdentityDirectory(callers: OrleansCallerAmbient.Instance), OrleansCallerAmbient.Instance, KitDeclarations.Identity.RequirePrivileged);
         await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => sessions.Validate("s", TestContext.Current.CancellationToken));
     }
 
@@ -26,7 +27,7 @@ public sealed class SessionsCapabilityFacts
         Assert.Same(sessions, services.GetRequiredService<IIdentityProvider>());
         Assert.Same(sessions, services.GetRequiredKeyedService<IIdentityProvider>(Capability.Identity.V1Id));
         Assert.Equal(IdentityPosture.Secured, services.GetRequiredKeyedService<IIdentityProvider>(Capability.Identity.V1Id).Describe().Posture);
-        using (RuntimeCallerContext.Stamp(new CapabilityCaller("app:kit-auth", "a", "b", KitDeclarations.PrivilegedModule)))
+        using (Stamps.Enter(Stamps.App(KitDeclarations.PrivilegedModule, "app:kit-auth", "a", "b")))
         {
             var denied = await Assert.ThrowsAsync<PrivilegeDenied>(() => sessions.Validate("s", TestContext.Current.CancellationToken));
             Assert.Equal(KitDeclarations.PrivilegedModule, denied.ModuleId);
@@ -36,9 +37,9 @@ public sealed class SessionsCapabilityFacts
     [Fact]
     public async Task Identity_owned_claims_never_reach_the_port()
     {
-        var sessions = new BoundSessions(new ThrowingPort(), static () => RuntimeCallerContext.Current, KitDeclarations.Identity.RequirePrivileged);
+        var sessions = new BoundSessions(new ThrowingPort(), OrleansCallerAmbient.Instance, KitDeclarations.Identity.RequirePrivileged);
         var member = new Member { PrincipalId = "p", AccountId = "a", BrainId = "b", Role = MemberRole.Owner, DisplayName = "P" };
-        using (RuntimeCallerContext.Stamp(new CapabilityCaller("app:kit-auth", "a", "b", KitDeclarations.PrivilegedModule)))
+        using (Stamps.Enter(Stamps.App(KitDeclarations.PrivilegedModule, "app:kit-auth", "a", "b")))
         {
             await Assert.ThrowsAsync<ArgumentException>(() => sessions.Issue(
                 new SessionRequest { Member = member, Claims = new Dictionary<string, string> { ["brain"] = "other" } }, TestContext.Current.CancellationToken));
@@ -47,9 +48,9 @@ public sealed class SessionsCapabilityFacts
 
     private sealed class ThrowingPort : IIdentitySessionPort
     {
-        public Task<SessionIssued> Issue(CapabilityCaller caller, SessionRequest request, CancellationToken cancellationToken) => throw new InvalidOperationException("reached the port");
+        public Task<SessionIssued> Issue(SessionRequest request, CancellationToken cancellationToken) => throw new InvalidOperationException("reached the port");
 
-        public Task End(CapabilityCaller caller, string sessionId, CancellationToken cancellationToken) => throw new InvalidOperationException("reached the port");
+        public Task End(string sessionId, CancellationToken cancellationToken) => throw new InvalidOperationException("reached the port");
 
         public Task<Member?> Validate(string sessionId, CancellationToken cancellationToken) => throw new InvalidOperationException("reached the port");
 

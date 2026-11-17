@@ -23,6 +23,7 @@ public sealed class APP_CLASSRuntimeFacts(APP_CLASSRuntimeFixture fixture) : ICl
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await fixture.Start(kind, ct);
+        using var person = runtime.Edge.Enter(runtime.Edge.Person("person", "person-account", runtime.Brain));
         var id = runtime.Id("APP_ID.counter", "starter");
 
         Assert.Equal(1, await runtime.Get<ICounter>(id).Increment());

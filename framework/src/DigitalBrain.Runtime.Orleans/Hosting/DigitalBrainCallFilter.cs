@@ -1,7 +1,7 @@
 using System.Diagnostics;
-using DigitalBrain.Capabilities;
+using DigitalBrain.Access;
 using DigitalBrain.Identity;
-using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Runtime.Orleans.Access;
 using Orleans;
 using Orleans.Runtime;
 
@@ -34,7 +34,7 @@ public sealed class DigitalBrainCallFilter : IIncomingGrainCallFilter, IOutgoing
         }
 
         // 2. Validate stamped caller context
-        if (RuntimeCallerContext.TryGet(out var caller) && caller is not null)
+        if (OrleansCallerAmbient.Instance.Current is { } caller)
         {
             var targetType = context.TargetId.Type.ToString();
             if (targetType is not null && targetType.StartsWith("neuron", StringComparison.OrdinalIgnoreCase))
@@ -43,12 +43,12 @@ public sealed class DigitalBrainCallFilter : IIncomingGrainCallFilter, IOutgoing
                 var targetKey = context.TargetId.Key.ToString();
                 if (targetKey is not null && CompoundGrainKey.TryParse(targetKey, out var compound))
                 {
-                    if (!string.Equals(compound.Brain.Value, caller.BrainId, StringComparison.Ordinal)
-                        && caller.Kind != CallerKind.Platform
+                    if (!string.Equals(compound.Brain.Value, caller.Brain.Value, StringComparison.Ordinal)
+                        && caller.Actor is not Actor.Kernel
                         && !compound.Brain.IsSystem
                         && !HostJudges(context, targetType))
                     {
-                        throw Violation(caller.BrainId, compound.Brain.Value);
+                        throw Violation(caller.Brain.Value, compound.Brain.Value);
                     }
                 }
             }
@@ -77,23 +77,13 @@ public sealed class DigitalBrainCallFilter : IIncomingGrainCallFilter, IOutgoing
 
     public async Task Invoke(IOutgoingGrainCallContext context)
     {
-        // 1. Automatically propagate current ambient CapabilityCaller across grain boundaries
-        if (RuntimeCallerContext.TryGet(out var caller) && caller is not null)
-        {
-            RequestContext.Set("db.cap.principal", caller.PrincipalId);
-            RequestContext.Set("db.cap.account", caller.AccountId);
-            RequestContext.Set("db.cap.brain", caller.BrainId);
-            if (caller.AppId is not null) RequestContext.Set("db.cap.app", caller.AppId);
-            if (caller.ConversationId is not null) RequestContext.Set("db.cap.conversation", caller.ConversationId);
-        }
-
-        // 2. Propagate db.caller if present or set from source grain
+        // 1. Propagate db.caller if present or set from source grain
         if (RequestContext.Get(HostNeuronContext.CallerKey) is null && context.SourceId is { } sourceGrain)
         {
             RequestContext.Set(HostNeuronContext.CallerKey, sourceGrain.Key.ToString() ?? string.Empty);
         }
 
-        // 3. Automatically propagate Activity ID / traceparent
+        // 2. Automatically propagate Activity ID / traceparent
         if (Activity.Current?.Id is { } id)
         {
             RequestContext.Set(ActivityIdKey, id);

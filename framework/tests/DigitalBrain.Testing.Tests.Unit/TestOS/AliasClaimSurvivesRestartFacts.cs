@@ -16,6 +16,7 @@ public sealed class AliasClaimSurvivesRestartFacts
     [Fact]
     public async Task AliasClaimedBySourceSurvivesRestartAndRefusesRival()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local();
         var brain = Brain("claim-test");
 

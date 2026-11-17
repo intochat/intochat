@@ -27,6 +27,7 @@ public sealed class InterleavingFacts(HostedSilo silo) : IClassFixture<HostedSil
     [Fact]
     public async Task A_suspended_interleaved_request_does_not_let_two_ordinary_turns_overlap()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var id = "b1/turn/first-interleaved-" + Guid.NewGuid().ToString("N");
         var probe = silo.Get<ITurnProbe>(id);
@@ -58,6 +59,7 @@ public sealed class InterleavingFacts(HostedSilo silo) : IClassFixture<HostedSil
     [Fact]
     public async Task Interleaves_and_ReadOnlyCall_run_during_a_suspended_turn_and_plain_methods_do_not()
     {
+        using var platform = TestStamp.Kernel();
         Assert.True(await RunsDuringHold("b1/turn/attrs", probe => probe.Peek()));
         Assert.True(await RunsDuringHold("b1/turn/attrs", probe => probe.Read()));
         Assert.False(await RunsDuringHold("b1/turn/attrs", probe => probe.Plain()));
@@ -66,6 +68,7 @@ public sealed class InterleavingFacts(HostedSilo silo) : IClassFixture<HostedSil
     [Fact]
     public async Task InterleavesWhen_interleaves_exactly_when_the_static_predicate_over_the_RuntimeInvocation_says_so()
     {
+        using var platform = TestStamp.Kernel();
         Assert.True(await RunsDuringHold("b1/turn/when", probe => probe.Flagged(true)));
         Assert.False(await RunsDuringHold("b1/turn/when", probe => probe.Flagged(false)));
     }
@@ -73,6 +76,7 @@ public sealed class InterleavingFacts(HostedSilo silo) : IClassFixture<HostedSil
     [Fact]
     public async Task An_inherited_predicate_applies_and_a_redeclared_attribute_uses_its_own()
     {
+        using var platform = TestStamp.Kernel();
         // TurnProbe inherits BaseRule from its abstract base.
         Assert.True(await RunsDuringHold("b1/turn/inherited", probe => probe.Flagged(true)));
         Assert.False(await RunsDuringHold("b1/turn/inherited", probe => probe.Plain()));
@@ -84,6 +88,7 @@ public sealed class InterleavingFacts(HostedSilo silo) : IClassFixture<HostedSil
     [Fact]
     public async Task A_Reentrant_class_is_hosted_by_neuron_host_reentrant_and_interleaves_everything()
     {
+        using var platform = TestStamp.Kernel();
         var id = NeuronId.Parse("b1/turn.reentrant/r");
         var host = (await new OrleansInvocationSink(silo.Grains, silo.Services.GetRequiredService<NeuronTypeRegistry>(), null)
             .Host(id, new DigitalBrain.Invocation.RuntimeInvocation("", DigitalBrain.Invocation.NeuronProxy.ContractName(typeof(ITurnProbe)), id.ToString(), "Plain", []), CancellationToken.None)).Host;
@@ -95,6 +100,7 @@ public sealed class InterleavingFacts(HostedSilo silo) : IClassFixture<HostedSil
     [Fact]
     public async Task Post_is_scheduled_by_the_same_rules_and_a_Stream_interleaves_as_in_TestOS()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         Assert.True(await RunsDuringHold("b1/turn/post", async probe =>
         {

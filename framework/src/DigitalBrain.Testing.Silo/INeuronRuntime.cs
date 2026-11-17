@@ -11,6 +11,9 @@ public interface INeuronRuntime : IAsyncDisposable
 
     IServiceProvider Services { get; }
 
+    // The edge that stamps a caller on calls to this runtime (TestOS.Edge; the silo's EdgeAuthority).
+    DigitalBrain.Access.EdgeAuthority Edge { get; }
+
     // The neuron id of type and key in this runtime's brain.
     NeuronId Id(string type, string key) => new(Brain, type, key);
 

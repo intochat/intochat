@@ -20,6 +20,7 @@ public sealed class JournalTailFacts(JournalTailFixture fixture) : IClassFixture
     public async Task WatchYieldsSignalsAppendedAfterSince(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var platform = runtime.Edge.EnterKernel(runtime.Brain);
         var counter = runtime.Get<ITailCounter>(runtime.Id("tail.counter", kind.ToString()));
         var tail = runtime.Get<ITailWatcher>(runtime.Id("tail.watcher", kind.ToString()));
         await counter.Add(1);

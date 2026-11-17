@@ -68,6 +68,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task TheTickPollerCountsAPost()
     {
+        using var platform = TestStamp.Kernel();
         var transcript = await UnitScenario.Run(Source(XWatch), OnePost(),
             [new Tick(Start.AddMinutes(6)), new ExpectState("x.watch", "Unseen", Json("1")), new ExpectSignal("x.polled")], Ct);
 
@@ -96,6 +97,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task TheTranscriptListsWhatWasConsented()
     {
+        using var platform = TestStamp.Kernel();
         var transcript = await UnitScenario.Run(Source(XWatch), OnePost(), [], Ct);
 
         Assert.True(transcript.Passed, string.Join("; ", transcript.Failures));
@@ -108,6 +110,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task AConstAliasIsBound()
     {
+        using var platform = TestStamp.Kernel();
         var text = XWatch.Replace("public static class XWatch", "public static class Names { public const string Watch = \"x.watch\"; }\n\npublic static class XWatch", StringComparison.Ordinal)
             .Replace("[State(\"x.watch\")]", "[State(Names.Watch)]", StringComparison.Ordinal);
         Assert.DoesNotContain("[State(\"", text, StringComparison.Ordinal);
@@ -120,6 +123,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task TwoPollsOfOnePostCountItOnce()
     {
+        using var platform = TestStamp.Kernel();
         var transcript = await UnitScenario.Run(Source(XWatch), OnePost(),
             [new Tick(Start.AddMinutes(6)), new Tick(Start.AddMinutes(12)), new ExpectState("x.watch", "Unseen", Json("1"))], Ct);
 
@@ -130,6 +134,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task ASecondPostIsCountedOnce()
     {
+        using var platform = TestStamp.Kernel();
         var calls = 0;
         var growing = new FakeSlots().Http("Http", _ => ++calls == 1
             ? """{"data":[{"id":"1","text":"a"}]}"""
@@ -145,6 +150,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task ATickNotAfterNowFailsTheStep()
     {
+        using var platform = TestStamp.Kernel();
         var transcript = await UnitScenario.Run(Source(XWatch), OnePost(), [new Tick(Start.AddMinutes(6)), new Tick(Start.AddMinutes(6))], Ct);
 
         Assert.False(transcript.Passed);
@@ -154,6 +160,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task ExpectStateOnANeverReactedAliasFails()
     {
+        using var platform = TestStamp.Kernel();
         var transcript = await UnitScenario.Run(Source(XWatch), OnePost(), [new ExpectState("x.watch", "Unseen", Json("0"))], Ct);
 
         Assert.False(transcript.Passed);
@@ -163,6 +170,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task AFailingExpectationNamesTheStep()
     {
+        using var platform = TestStamp.Kernel();
         var transcript = await UnitScenario.Run(Source(XWatch), OnePost(),
             [new Tick(Start.AddMinutes(6)), new ExpectState("x.watch", "Unseen", Json("2")), new ExpectSignal("x.nope")], Ct);
 
@@ -179,6 +187,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task TheTranscriptCarriesOneTraceIdPerStep()
     {
+        using var platform = TestStamp.Kernel();
         var transcript = await UnitScenario.Run(Source(XWatch), OnePost(),
             [new Tick(Start.AddMinutes(6)), new Publish("x.seen", Json("{}")), new ExpectState("x.watch", "Unseen", Json("0"))], Ct);
 
@@ -192,6 +201,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task ViewAndAbsenceStepsPassAndFailByName()
     {
+        using var platform = TestStamp.Kernel();
         var passing = await UnitScenario.Run(Source(XWatch), OnePost(),
             [new Tick(Start.AddMinutes(6)), new ExpectView("x.watch", "Unseen"), new ExpectView("x.watch", "1"), new ExpectNoSignal("x.seen")], Ct);
         Assert.True(passing.Passed, string.Join("; ", passing.Failures));
@@ -207,6 +217,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task AScriptedWorldAnswersEachCallInOrderAndRepeatsTheLast()
     {
+        using var platform = TestStamp.Kernel();
         var world = new World().On("Http", "GetJson", WorldAnswer.Json(Posts("1")), WorldAnswer.Json(Posts("2", "1")));
         var transcript = await UnitScenario.Run(Source(XWatch), new FakeSlots().World<IHttpRead>("Http", world),
             [new Tick(Start.AddMinutes(6)), new ExpectState("x.watch", "Unseen", Json("1")),
@@ -222,6 +233,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task AFailingAnswerFailsTheStepWithWhatTheConnectionThrows()
     {
+        using var platform = TestStamp.Kernel();
         var world = new World().On("Http", "GetJson", WorldAnswer.Status(503));
         var transcript = await UnitScenario.Run(Source(XWatch), new FakeSlots().World<IHttpRead>("Http", world), [new Tick(Start.AddMinutes(6))], Ct);
 
@@ -232,6 +244,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task ANonJsonBodyThrowsWhatTheRealConnectionThrows()
     {
+        using var platform = TestStamp.Kernel();
         var transcript = await UnitScenario.Run(Source(XWatch), new FakeSlots().Http("Http", _ => "<html>"), [new Tick(Start.AddMinutes(6))], Ct);
 
         Assert.Equal("step 0 Tick: HttpRequestException: api.x.com did not return JSON", Assert.Single(transcript.Failures));
@@ -240,6 +253,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task AnUnscriptedOperationNamesTheSlotAndTheOperation()
     {
+        using var platform = TestStamp.Kernel();
         var transcript = await UnitScenario.Run(Source(XWatch), new FakeSlots().World<IHttpRead>("Http", new World()), [new Tick(Start.AddMinutes(6))], Ct);
 
         Assert.Contains("the world has no answer for Http.GetJson", Assert.Single(transcript.Failures), StringComparison.Ordinal);
@@ -248,6 +262,7 @@ public sealed class UnitScenarioFacts
     [Fact]
     public async Task AnExpectedFailurePassesTheScenarioAndAnUnexpectedOneStillFailsIt()
     {
+        using var platform = TestStamp.Kernel();
         FakeSlots Down() => new FakeSlots().World<IHttpRead>("Http", new World().On("Http", "GetJson", WorldAnswer.Status(503), WorldAnswer.Json(Posts("1"))));
 
         var expected = await UnitScenario.Run(Source(XWatch), Down(),

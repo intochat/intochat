@@ -77,6 +77,7 @@ public sealed class HostActivationFacts
     [Fact]
     public async Task A_hosted_class_receives_constructor_injected_services_from_the_silo_container()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         await using var host = await new LocalSiloHostFactory(new Services()).Start(new InProcessHostOptions { Modules = [typeof(HostingModule)] }, ct);
         var greeter = NeuronHosting.Get<IGreeter>(host.Services, NeuronId.Parse("b1/probe.greeter/a"));

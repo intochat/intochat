@@ -20,6 +20,7 @@ public sealed class TraceStampingFacts(SynapseSilo silo) : IClassFixture<Synapse
     [Fact]
     public async Task RequestSaveTakesTraceContextId()
     {
+        using var platform = TestStamp.Kernel();
         const string Source = "b1/probe.counter/trace-request";
         var trace = TraceContext.Begin("acct", "b1", NeuronId.Parse(Source));
         using (TraceContext.Enter(trace)) { await silo.Get<ICounter>(Source).Add(1); }
@@ -32,6 +33,7 @@ public sealed class TraceStampingFacts(SynapseSilo silo) : IClassFixture<Synapse
     [Fact]
     public async Task ReactionSaveInheritsTraceAndSetsCausation()
     {
+        using var platform = TestStamp.Kernel();
         const string Source = "b1/probe.counter/trace-cause", Relay = "b1/probe.relay/trace-cause";
         await silo.Get<IRelay>(Relay).Follow(Source);
         var trace = TraceContext.Begin("acct", "b1", NeuronId.Parse(Source));
@@ -52,6 +54,7 @@ public sealed class TraceStampingFacts(SynapseSilo silo) : IClassFixture<Synapse
     [Fact]
     public async Task CalledNeuronInheritsTraceAndCausationFromReaction()
     {
+        using var platform = TestStamp.Kernel();
         // No request trace: the source save gets a fresh one, which the reaction carries into the neuron it calls.
         const string Source = "b1/probe.counter/trace-call", Caller = "b1/probe.caller/trace-call", Called = "b1/probe.counter/trace-call-called";
         await silo.Get<ICaller>(Caller).Follow(Source);
@@ -70,6 +73,7 @@ public sealed class TraceStampingFacts(SynapseSilo silo) : IClassFixture<Synapse
     [Fact]
     public async Task SaveOutsideContextGetsFreshTrace()
     {
+        using var platform = TestStamp.Kernel();
         const string Source = "b1/probe.counter/trace-fresh";
         await silo.Get<ICounter>(Source).Add(1);
         await silo.Get<ICounter>(Source).Add(1);
@@ -84,6 +88,7 @@ public sealed class TraceStampingFacts(SynapseSilo silo) : IClassFixture<Synapse
     [Fact]
     public async Task ReadTraceReturnsOnlyThatTrace()
     {
+        using var platform = TestStamp.Kernel();
         const string Source = "b1/probe.counter/trace-read";
         var trace = TraceContext.Begin("acct", "b1", NeuronId.Parse(Source));
         await silo.Get<ICounter>(Source).Add(1);

@@ -4,7 +4,6 @@ using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Examples.Calculator;
 using DigitalBrain.Identity.Local;
 using DigitalBrain.Identity.Local.Directory;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Hosting;
@@ -30,7 +29,8 @@ public sealed class StandaloneIdentityFacts
                 var grants = first.Services.GetRequiredService<IGrants>();
                 owner = await LocalOwner.Ensure(identity, ct);
 
-                using (RuntimeCallerContext.Stamp(new CapabilityCaller(owner.PrincipalId, owner.AccountId, owner.BrainId)))
+                var edge = first.Services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>();
+                using (edge.Enter(edge.Person(owner.PrincipalId, owner.AccountId, new BrainId(owner.BrainId))))
                 {
                     await grants.GrantAsOwner(
                         new Grant
@@ -47,7 +47,8 @@ public sealed class StandaloneIdentityFacts
             await using (var second = await StartHost(home, ct))
             {
                 var grants = second.Services.GetRequiredService<IGrants>();
-                using (RuntimeCallerContext.Stamp(new CapabilityCaller("app:calculator", owner.AccountId, owner.BrainId, "calculator")))
+                var edge = second.Services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>();
+                using (edge.Enter(edge.App("calculator", new DigitalBrain.Access.Actor.Person(owner.PrincipalId, owner.AccountId), new BrainId(owner.BrainId))))
                 {
                     var decision = await grants.Authorize(
                         new CallRequest

@@ -58,6 +58,7 @@ public sealed class InstallsFacts
     [Fact]
     public async Task InstallAsksWithTheSentenceAndRecordsOnApproval()
     {
+        using var platform = TestStamp.Kernel();
         var hooks = new RecordingHooks();
         await using var os = Start(hooks);
         var record = await Answer(os, "week", approve: true);
@@ -75,6 +76,7 @@ public sealed class InstallsFacts
     [Fact]
     public async Task ADeniedInstallRecordsNothing()
     {
+        using var platform = TestStamp.Kernel();
         var hooks = new RecordingHooks();
         await using var os = Start(hooks);
         Assert.Null(await Answer(os, "week", approve: false));
@@ -88,6 +90,7 @@ public sealed class InstallsFacts
     [Fact]
     public async Task ADeniedInstallCanBeAskedAgain()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start(new RecordingHooks());
         Assert.Null(await Answer(os, "week", approve: false));
         Assert.NotNull(await Answer(os, "week", approve: true));
@@ -97,6 +100,7 @@ public sealed class InstallsFacts
     [Fact]
     public async Task ASecondInstallWithTheSameNeedsIsUnchangedAndSilent()
     {
+        using var platform = TestStamp.Kernel();
         var hooks = new RecordingHooks();
         await using var os = Start(hooks);
         await Answer(os, "week", approve: true);
@@ -109,6 +113,7 @@ public sealed class InstallsFacts
     [Fact]
     public async Task AChangedSignatureReprompts()
     {
+        using var platform = TestStamp.Kernel();
         var hooks = new RecordingHooks();
         await using var os = Start(hooks);
         Assert.NotNull(await Answer(os, "week", approve: true));
@@ -120,6 +125,7 @@ public sealed class InstallsFacts
     [Fact]
     public async Task UnknownAliasIsRefused()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start(new RecordingHooks());
         var outcome = await os.Get<IInstalls>(Installs).Install(new InstallRequest("nowhere", None), Ct);
         Assert.Equal(InstallStatus.Refused, outcome.Status);
@@ -130,6 +136,7 @@ public sealed class InstallsFacts
     [Fact]
     public async Task RetireRemovesEdgesAndSchedulesAndPublishesRetired()
     {
+        using var platform = TestStamp.Kernel();
         var hooks = new RecordingHooks();
         await using var os = Start(hooks);
         await Answer(os, "week", approve: true);
@@ -142,6 +149,7 @@ public sealed class InstallsFacts
     [Fact]
     public async Task RetireDuringAPendingAskCancelsIt()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start(new RecordingHooks());
         var outcome = await os.Get<IInstalls>(Installs).Install(new InstallRequest("week", None), Ct);
         Assert.Equal(InstallStatus.Pending, outcome.Status);
@@ -159,6 +167,7 @@ public sealed class InstallsFacts
     [Fact]
     public async Task AFailingHookStillRecords()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start(new RecordingHooks { FailEdges = true });
         Assert.NotNull(await Answer(os, "week", approve: true));
         // The next install of the same needs runs the hooks again and reports their failure.
@@ -170,6 +179,7 @@ public sealed class InstallsFacts
     [Fact]
     public async Task Uninstall_RemovesInstallRecordAndEmitsRetired()
     {
+        using var platform = TestStamp.Kernel();
         var hooks = new RecordingHooks();
         await using var os = Start(hooks);
         await Answer(os, "week", approve: true);

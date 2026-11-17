@@ -39,6 +39,7 @@ public sealed class ConnectionCatalogFacts
             var services = new DemoServices(connectors, offers);
             options.Services = services;
         });
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
 
         os.Register<SignalEmitterNeuron>();
         os.Register<ConnectionCatalogNeuron>();

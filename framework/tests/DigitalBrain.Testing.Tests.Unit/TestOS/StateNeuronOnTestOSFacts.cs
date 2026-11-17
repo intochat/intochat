@@ -76,6 +76,7 @@ public sealed class StateNeuronOnTestOSFacts
     [Fact]
     public async Task AReactionSynapseIsEnsuredAndDeliversOnce()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         await Install(os, "ledger");
         var pay = os.Get<IPayments>(Pay);
@@ -100,6 +101,7 @@ public sealed class StateNeuronOnTestOSFacts
     [Fact]
     public async Task ViewChangedIsOfferedAfterAnAllowedCharge()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         await Install(os, "week");
         var heard = new ConcurrentQueue<string>();

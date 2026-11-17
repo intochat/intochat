@@ -94,6 +94,7 @@ public sealed class SlotResolutionFacts
     [Fact]
     public async Task AReactionUsesTheBoundFake()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start().With<ISqlRead>("analytics", new FakeSqlRead(7));
         await Install(os, "slot.stats", "analytics");
 
@@ -105,6 +106,7 @@ public sealed class SlotResolutionFacts
     [Fact]
     public async Task AnUnboundSlotIsRefusedAtInstall()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start().With<ISqlRead>("analytics", new FakeSqlRead(7));
 
         var outcome = await Ask(os, "slot.stats", "missing");
@@ -119,6 +121,7 @@ public sealed class SlotResolutionFacts
     [Fact]
     public async Task TwoInstallsResolveTheirOwnBindings()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start().With<ISqlRead>("analytics", new FakeSqlRead(7)).With<ISqlRead>("finance", new FakeSqlRead(11));
         await Install(os, "slot.stats", "analytics");
         await Install(os, "slot.audit", "finance");
@@ -132,6 +135,7 @@ public sealed class SlotResolutionFacts
     [Fact]
     public async Task ARebindingIsSavedSilentlyAndReturnsUpdated()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start().With<ISqlRead>("analytics", new FakeSqlRead(7)).With<ISqlRead>("finance", new FakeSqlRead(11));
         await Install(os, "slot.stats", "analytics");
 
@@ -150,6 +154,7 @@ public sealed class SlotResolutionFacts
     [Fact]
     public async Task ADisconnectedBindingFailsClosedAtRunTime()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start().With<ISqlRead>("analytics", new FakeSqlRead(7));
         var finished = new ConcurrentQueue<SynapseFinished>();
         await using var listener = await os.ClusterListeners.Listen<SynapseFinished>("slots", (_, signal, _) =>

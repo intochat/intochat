@@ -1,4 +1,4 @@
-using DigitalBrain.Capabilities;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Confirmation;
@@ -65,11 +65,11 @@ public sealed class UploadPlanBook
         parked.Started = true;
     }
 
-    /// <summary>A person approves. An app-stamped caller cannot.</summary>
-    public bool Approve(string planId, CapabilityCaller caller)
+    /// <summary>A person approves. An app, agent, module, scheduler or the kernel cannot.</summary>
+    public bool Approve(string planId, Caller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        if (!string.IsNullOrEmpty(caller.AppId)) { return false; }
+        if (caller.Actor is not Actor.Person) { return false; }
         var parked = Find(planId);
         if (parked is null) { return false; }
         parked.Outcome = ConfirmationOutcome.Approved;

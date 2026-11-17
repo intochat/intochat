@@ -46,6 +46,7 @@ public sealed class TestOSServicesFacts
     [Fact]
     public async Task ANeuronResolvesTheCompilerAndTheHostAndDeploysThroughThem()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = OS.Local().Register<Deployer>().Register<HsPayments>();
 
         Assert.Same(os.Synapses, os.Services.GetService(typeof(ISynapseHost)));
@@ -59,6 +60,7 @@ public sealed class TestOSServicesFacts
     [Fact]
     public async Task ASourceBindingNamesAConnectionOfTheHostsCapabilityConnections()
     {
+        using var platform = TestStamp.Kernel();
         var connections = new Connections();
         await using var os = OS.Local(o => o.Services = new Provider(connections)).Register<HsPayments>();
         var brain = NeuronId.Parse("sv2/x/y").Brain;

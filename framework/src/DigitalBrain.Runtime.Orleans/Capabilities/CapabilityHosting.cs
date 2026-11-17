@@ -1,3 +1,5 @@
+using DigitalBrain.Runtime.Orleans.Access;
+using DigitalBrain.Access;
 using System.Reflection;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Broker;
@@ -21,16 +23,20 @@ public static class CapabilityHosting
     internal static IIdentitySessionPort WrapPort(IIdentitySessionPort port)
         => port is PlatformIdentitySessionPort ? port : new PlatformIdentitySessionPort(port);
 
+    private static ICallerAmbient Callers(IServiceProvider services)
+        => services.GetService<ICallerAmbient>() ?? OrleansCallerAmbient.Instance;
+
     internal static readonly Func<IServiceProvider, object?, IIdentity> DeniedIdentityFactory =
-        static (sp, _) => new BoundIdentity(WrapPort(sp.GetService<IIdentityDirectoryPort>() ?? DeniedIdentityDirectoryPort.Instance), static () => RuntimeCallerContext.Current);
+        static (sp, _) => new BoundIdentity(WrapPort(sp.GetService<IIdentityDirectoryPort>() ?? DeniedIdentityDirectoryPort.Instance), Callers(sp));
 
     internal static readonly Func<IServiceProvider, object?, IGrants> DeniedGrantsFactory =
-        static (sp, _) => new BoundIdentity(WrapPort(sp.GetService<IIdentityDirectoryPort>() ?? DeniedIdentityDirectoryPort.Instance), static () => RuntimeCallerContext.Current);
+        static (sp, _) => new BoundIdentity(WrapPort(sp.GetService<IIdentityDirectoryPort>() ?? DeniedIdentityDirectoryPort.Instance), Callers(sp));
 
     internal static readonly Func<IServiceProvider, object?, ISecrets> DeniedSecretsFactory =
         static (sp, _) => new SecretsCapability(
             sp.GetService<ISecretVaultPort>() ?? DeniedSecretVaultPort.Instance,
-            sp.GetService<ILogger<SecretsCapability>>())
+            sp.GetService<ILogger<SecretsCapability>>(),
+            Callers(sp))
         {
             Declarations = TopologyHosting.ComposedDeclarations(sp),
         };
@@ -38,7 +44,7 @@ public static class CapabilityHosting
     internal static readonly Func<IServiceProvider, object?, BoundSessions> DeniedSessionsCapabilityFactory =
         static (sp, _) => new BoundSessions(
             WrapPort(sp.GetService<IIdentitySessionPort>() ?? DeniedIdentitySessionPort.Instance),
-            static () => RuntimeCallerContext.Current,
+            Callers(sp),
             TopologyHosting.ComposedDeclarations(sp).RequirePrivileged);
 
     internal static readonly Func<IServiceProvider, object?, ISessions> DeniedSessionsFactory =
@@ -234,27 +240,27 @@ public static class CapabilityHosting
         public Task<BrainKind> KindOf(string brainScopeId, CancellationToken cancellationToken) => throw Denied();
         public Task<bool> BrainExists(string brainScopeId, CancellationToken cancellationToken) => throw Denied();
         public Task<Member?> Membership(string brainScopeId, string principalId, CancellationToken cancellationToken) => throw Denied();
-        public Task<Member?> EnsureMember(CapabilityCaller caller, Member member, CancellationToken cancellationToken) => throw Denied();
-        public Task RemoveMember(CapabilityCaller caller, string brainScopeId, string accountId, CancellationToken cancellationToken) => throw Denied();
-        public Task RemovePrincipalMember(CapabilityCaller caller, string brainScopeId, string principalId, CancellationToken cancellationToken) => throw Denied();
-        public Task<CallDecision?> Authorize(CapabilityCaller caller, CallRequest request, CancellationToken cancellationToken)
+        public Task<Member?> EnsureMember(Member member, CancellationToken cancellationToken) => throw Denied();
+        public Task RemoveMember(string brainScopeId, string accountId, CancellationToken cancellationToken) => throw Denied();
+        public Task RemovePrincipalMember(string brainScopeId, string principalId, CancellationToken cancellationToken) => throw Denied();
+        public Task<CallDecision?> Authorize(CallRequest request, CancellationToken cancellationToken)
             => Task.FromResult<CallDecision?>(CallDecision.Deny(CallDenial.NotAuthenticated, "identity@1: no identity directory port is registered on this host."));
         public Task<IReadOnlyList<Grant>> ListGrants(string brainScopeId, CancellationToken cancellationToken) => throw Denied();
-        public Task<Grant?> GrantAsOwner(CapabilityCaller caller, Grant grant, CancellationToken cancellationToken) => throw Denied();
-        public Task<bool> RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode, CancellationToken cancellationToken) => throw Denied();
+        public Task<Grant?> GrantAsOwner(Grant grant, CancellationToken cancellationToken) => throw Denied();
+        public Task<bool> RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode, CancellationToken cancellationToken) => throw Denied();
     }
 
     private sealed class DeniedSecretVaultPort : ISecretVaultPort
     {
         public static readonly DeniedSecretVaultPort Instance = new();
 
-        public Task<SecretVaultResult> Set(CapabilityCaller caller, string name, string label, string value, CancellationToken cancellationToken)
+        public Task<SecretVaultResult> Set(string name, string label, string value, CancellationToken cancellationToken)
             => Task.FromResult(SecretVaultResult.Denied);
 
-        public Task<SecretVaultStatus> Remove(CapabilityCaller caller, string name, CancellationToken cancellationToken)
+        public Task<SecretVaultStatus> Remove(string name, CancellationToken cancellationToken)
             => Task.FromResult(SecretVaultStatus.Denied);
 
-        public Task<SecretVaultResult> Resolve(CapabilityCaller caller, SecretRef secret, CancellationToken cancellationToken)
+        public Task<SecretVaultResult> Resolve(SecretRef secret, CancellationToken cancellationToken)
             => Task.FromResult(SecretVaultResult.Denied);
     }
 
@@ -265,8 +271,8 @@ public static class CapabilityHosting
         private static UnauthorizedAccessException Denied()
             => new("identity@1: no identity session port is registered on this host.");
 
-        public Task<SessionIssued> Issue(CapabilityCaller caller, SessionRequest request, CancellationToken cancellationToken) => throw Denied();
-        public Task End(CapabilityCaller caller, string sessionId, CancellationToken cancellationToken) => throw Denied();
+        public Task<SessionIssued> Issue(SessionRequest request, CancellationToken cancellationToken) => throw Denied();
+        public Task End(string sessionId, CancellationToken cancellationToken) => throw Denied();
         public Task<Member?> Validate(string sessionId, CancellationToken cancellationToken) => throw Denied();
         public IdentityProviderDescriptor Describe() => throw Denied();
     }

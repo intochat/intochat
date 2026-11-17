@@ -54,6 +54,7 @@ public sealed class CalculatorAdversarialFacts(AdversarialRuntimeFixture fixture
     public async Task ConcurrentRequests_FiftyPressesSerializedWithoutRaceCondition(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.Edge.Enter(runtime.Edge.Person("person", "person-account", runtime.Brain));
         var screenId = runtime.Id("app.calculator", "fifty-presses-" + Guid.NewGuid().ToString("N"));
         var screen = runtime.Get<IScreen>(screenId);
 
@@ -86,6 +87,7 @@ public sealed class CalculatorAdversarialFacts(AdversarialRuntimeFixture fixture
     public async Task ConcurrentRequests_OneHundredPressesSerializedWithoutRaceCondition(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.Edge.Enter(runtime.Edge.Person("person", "person-account", runtime.Brain));
         var screenId = runtime.Id("app.calculator", "hundred-presses-" + Guid.NewGuid().ToString("N"));
         var screen = runtime.Get<IScreen>(screenId);
 
@@ -123,6 +125,7 @@ public sealed class CalculatorAdversarialFacts(AdversarialRuntimeFixture fixture
     public async Task ConcurrentActivations_OptimisticConcurrency_ExactlyOneSucceeds(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.Edge.Enter(runtime.Edge.Person("person", "person-account", runtime.Brain));
         var screenId = runtime.Id("app.interactive-adversarial", "activation-race-" + Guid.NewGuid().ToString("N"));
         var screen = runtime.Get<IScreen>(screenId);
 
@@ -181,6 +184,7 @@ public sealed class CalculatorAdversarialFacts(AdversarialRuntimeFixture fixture
     public async Task ChainedSequentialActivations_IncrementsGenerationPredictably(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.Edge.Enter(runtime.Edge.Person("person", "person-account", runtime.Brain));
         var screenId = runtime.Id("app.interactive-adversarial", "chained-activations-" + Guid.NewGuid().ToString("N"));
         var screen = runtime.Get<IScreen>(screenId);
 
@@ -204,6 +208,7 @@ public sealed class CalculatorAdversarialFacts(AdversarialRuntimeFixture fixture
     public async Task Durability_StateAndGenerationSurvive(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.Edge.Enter(runtime.Edge.Person("person", "person-account", runtime.Brain));
         var screenId = runtime.Id("app.interactive-adversarial", "durability-" + Guid.NewGuid().ToString("N"));
         var screen = runtime.Get<IScreen>(screenId);
 

@@ -1,4 +1,4 @@
-using DigitalBrain.Capabilities;
+using DigitalBrain.Access;
 using System.Text.Json;
 using DigitalBrain.Capabilities.Secrets;
 using Xunit;
@@ -36,10 +36,10 @@ public abstract class SecretsConformance<TSecrets> where TSecrets : ISecrets
     protected abstract Task<SecretsSubject> Connect(CancellationToken ct);
 
     /// <summary>The caller that owns the secrets in each fact. Override when the implementation needs a provisioned brain.</summary>
-    protected virtual CapabilityCaller Owner { get; } = new("kit-ada", "kit-ada-account", "kit-ada-brain");
+    protected virtual Caller Owner { get; } = new(new Actor.Person("kit-ada", "kit-ada-account"), new BrainId("kit-ada-brain"));
 
     /// <summary>A caller in another brain; it must be denied the owner's secrets.</summary>
-    protected virtual CapabilityCaller Stranger { get; } = new("kit-bob", "kit-bob-account", "kit-bob-brain");
+    protected virtual Caller Stranger { get; } = new(new Actor.Person("kit-bob", "kit-bob-account"), new BrainId("kit-bob-brain"));
 
     /// <summary>Set then Resolve returns the value.</summary>
     [Fact(Timeout = Timeout)]
@@ -279,7 +279,7 @@ public abstract class SecretsConformance<TSecrets> where TSecrets : ISecrets
     {
         var (s, ct) = await Open().ConfigureAwait(false);
         var named = RequireNamed(s);
-        using (s.Callers.As(Owner with { AppId = named.ModuleId }))
+        using (s.Callers.As(AsModule(Owner, named.ModuleId)))
         {
             var secret = await s.Secrets.Named(named.Name, ct).ConfigureAwait(false);
             Assert.True(secret.IsSet, $"{named.Name} is not reported set");
@@ -299,14 +299,14 @@ public abstract class SecretsConformance<TSecrets> where TSecrets : ISecrets
         var (s, ct) = await Open().ConfigureAwait(false);
         var named = RequireNamed(s);
         SecretRef secret;
-        using (s.Callers.As(Owner with { AppId = named.ModuleId }))
+        using (s.Callers.As(AsModule(Owner, named.ModuleId)))
         {
             secret = await s.Secrets.Named(named.Name, ct).ConfigureAwait(false);
             var undeclared = await Assert.ThrowsAsync<SecretDenied>(() => s.Secrets.Named($"kit-undeclared-{Guid.NewGuid():N}", ct)).ConfigureAwait(false);
             Assert.Equal("denied", undeclared.Code);
         }
 
-        foreach (var caller in new[] { Owner with { AppId = $"kit-other-{Guid.NewGuid():N}" }, Owner })
+        foreach (var caller in new[] { AsModule(Owner, $"kit-other-{Guid.NewGuid():N}"), Owner })
         {
             using (s.Callers.As(caller))
             {
@@ -316,6 +316,10 @@ public abstract class SecretsConformance<TSecrets> where TSecrets : ISecrets
             }
         }
     }
+
+    // The owner's call made through the app or module module.
+    private static Caller AsModule(Caller owner, string module)
+        => new(new Actor.App(module, owner.For ?? throw new ArgumentException("The owner must be a person.", nameof(owner))), owner.Brain);
 
     private static KitNamedSecret RequireNamed(SecretsSubject s)
     {

@@ -46,6 +46,7 @@ public sealed class NeuronHostFacts(HostedSilo silo) : IClassFixture<HostedSilo>
     [Fact]
     public async Task A_plain_neuron_answers_through_Get_and_its_activation_is_neuron_host_keyed_brain_type_key()
     {
+        using var platform = TestStamp.Kernel();
         var probe = silo.Get<IProbe>("b1/probe/a");
         Assert.Equal("b1/probe/a", await probe.Key());
         var id = NeuronId.Parse("b1/probe/a");
@@ -59,6 +60,7 @@ public sealed class NeuronHostFacts(HostedSilo silo) : IClassFixture<HostedSilo>
     [Fact]
     public async Task Task_TaskOfT_ValueTask_answer_and_a_caller_cancelled_token_reaches_the_method()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var probe = silo.Get<IProbe>("b1/probe/shapes");
         await probe.Touch();
@@ -77,6 +79,7 @@ public sealed class NeuronHostFacts(HostedSilo silo) : IClassFixture<HostedSilo>
     [Fact]
     public async Task A_stream_flows_through_Stream_and_disposing_after_two_items_stops_the_producer()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var probe = silo.Get<IProbe>("b1/probe/stream");
         List<int> items = [];
@@ -92,6 +95,7 @@ public sealed class NeuronHostFacts(HostedSilo silo) : IClassFixture<HostedSilo>
     [Fact]
     public async Task A_one_way_call_returns_before_the_neuron_runs_and_CallTimeout_throws_TimeoutException()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var probe = silo.Get<IProbe>("b1/probe/oneway");
         await probe.Fire().WaitAsync(TimeSpan.FromSeconds(5), ct);
@@ -106,6 +110,7 @@ public sealed class NeuronHostFacts(HostedSilo silo) : IClassFixture<HostedSilo>
     [Fact]
     public async Task A_StatelessNeuron_is_hosted_by_neuron_host_stateless_and_answers_from_several_activations_at_once()
     {
+        using var platform = TestStamp.Kernel();
         var id = NeuronId.Parse("b1/probe.stateless/s");
         var host = (await new OrleansInvocationSink(silo.Grains, silo.Services.GetRequiredService<NeuronTypeRegistry>(), null)
             .Host(id, new RuntimeInvocation("", NeuronProxy.ContractName(typeof(IStatelessProbe)), id.ToString(), "Busy", []), CancellationToken.None)).Host;
@@ -120,6 +125,7 @@ public sealed class NeuronHostFacts(HostedSilo silo) : IClassFixture<HostedSilo>
     [Fact]
     public async Task Host_grains_are_brain_affine_and_two_neurons_of_one_brain_share_a_silo_in_a_two_silo_cluster()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var properties = silo.Services.GetRequiredService<GrainPropertiesResolver>();
         foreach (var type in new[] { "neuron.host", "neuron.host.reentrant" })
@@ -173,6 +179,7 @@ public sealed class NeuronHostFacts(HostedSilo silo) : IClassFixture<HostedSilo>
     [Fact]
     public async Task A_Behavior_naming_another_caller_changes_nothing_provenance_comes_from_RequestContext()
     {
+        using var platform = TestStamp.Kernel();
         var host = silo.Grains.GetGrain<INeuronHost>(GrainId.Create("neuron.host", $"{Brain}/probe/target"));
         var forged = await host.Invoke(Calls.Of("b1/admin/root", $"{Brain}/probe/target", "Caller"), TestContext.Current.CancellationToken);
         Assert.Equal("", forged!.Value.GetString());

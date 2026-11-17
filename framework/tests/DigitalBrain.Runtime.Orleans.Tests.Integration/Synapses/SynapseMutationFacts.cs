@@ -8,6 +8,7 @@ public sealed class SynapseMutationFacts(SynapseSilo silo) : IClassFixture<Synap
     [Fact]
     public async Task AnOrdinaryMutationCannotEnterWhileAStreamReactionIsSuspended()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         const string Source = "b1/probe.counter/held-reaction";
         var listener = silo.Get<IHeldReaction>("b1/probe.held-reaction/listener");
@@ -25,6 +26,7 @@ public sealed class SynapseMutationFacts(SynapseSilo silo) : IClassFixture<Synap
     [Fact]
     public async Task AReactionCanSaveEnsureSaveRemoveAndSaveWithoutLosingItsCursor()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         const string Listener = "b1/probe.changing-subscriptions/save-and-follow", Source = "b1/probe.counter/save-and-follow";
         var listener = silo.Get<IChangingSubscriptions>(Listener);

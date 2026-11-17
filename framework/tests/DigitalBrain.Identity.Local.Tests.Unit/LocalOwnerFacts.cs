@@ -13,9 +13,8 @@ public sealed class LocalOwnerFacts
         var ct = TestContext.Current.CancellationToken;
         await using var os = TestOS.Local();
         os.Register<DirectoryNeuron>();
-        var port = new LocalDirectoryPort((contract, fullKey) => LocalIdentityConformance.ResolveNeuron(os, contract, fullKey));
-        var callers = new AmbientCallerScope();
-        var identity = new BoundIdentity(port, () => callers.Current);
+        var port = new LocalDirectoryPort((contract, fullKey) => LocalIdentityConformance.ResolveNeuron(os, contract, fullKey), null, os.Callers, os.Edge);
+        var identity = new BoundIdentity(port, os.Callers);
 
         var member = await LocalOwner.Ensure(identity, ct);
 
@@ -34,9 +33,8 @@ public sealed class LocalOwnerFacts
         var ct = TestContext.Current.CancellationToken;
         await using var os = TestOS.Local();
         os.Register<DirectoryNeuron>();
-        var port = new LocalDirectoryPort((contract, fullKey) => LocalIdentityConformance.ResolveNeuron(os, contract, fullKey));
-        var callers = new AmbientCallerScope();
-        var identity = new BoundIdentity(port, () => callers.Current);
+        var port = new LocalDirectoryPort((contract, fullKey) => LocalIdentityConformance.ResolveNeuron(os, contract, fullKey), null, os.Callers, os.Edge);
+        var identity = new BoundIdentity(port, os.Callers);
 
         var first = await LocalOwner.Ensure(identity, ct);
         var second = await LocalOwner.Ensure(identity, ct);

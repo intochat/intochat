@@ -65,6 +65,7 @@ public sealed class BrainGraphNeuronFacts
     public async Task Snapshot_has_the_brain_its_neurons_and_the_synapse_with_its_signal()
     {
         await using var os = Start();
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         var ticker = new NeuronId(Ada, "probe.ticker", "t");
         var follower = new NeuronId(Ada, "probe.follower", "f");
         await os.Get<ITicker>(ticker).Tick();
@@ -89,6 +90,7 @@ public sealed class BrainGraphNeuronFacts
     public async Task Rebuild_bumps_the_revision_only_when_the_graph_changed()
     {
         await using var os = Start();
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         var graph = os.Get<IBrainGraph>(GraphId);
         await os.Get<ITicker>(new NeuronId(Ada, "probe.ticker", "one")).Tick();
         await os.Idle();
@@ -107,6 +109,7 @@ public sealed class BrainGraphNeuronFacts
     public async Task Levels_group_by_module_prefix_and_focus_on_a_node()
     {
         await using var os = Start();
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         var ticker = new NeuronId(Ada, "probe.ticker", "t");
         var follower = new NeuronId(Ada, "probe.follower", "f");
         await os.Get<ITicker>(ticker).Tick();
@@ -133,6 +136,7 @@ public sealed class BrainGraphNeuronFacts
     public async Task Another_brain_is_not_in_the_snapshot()
     {
         await using var os = Start();
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         await os.Get<ITicker>(new NeuronId(Ada, "probe.ticker", "mine")).Tick();
         await os.Get<ITicker>(new NeuronId(new BrainId("bob"), "probe.ticker", "his")).Tick();
         await os.Idle();

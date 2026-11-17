@@ -46,6 +46,7 @@ public sealed class ConnectionNeuronFacts
     public async Task ShareIntoThenIsSharedInto()
     {
         await using var os = CreateTestOS();
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         var key = ConnectionKeys.For("b", "demo", "1");
         var connection = os.Get<IConnection>(ConnectionKeys.IdFor(key));
 

@@ -10,6 +10,7 @@ public sealed class SessionDeliveryFacts(SessionSilo silo) : IClassFixture<Sessi
     [Fact]
     public async Task ASignalPublishedAfterSubscribingArrivesInTheNextBatch()
     {
+        using var platform = TestStamp.Kernel();
         var ct = TestContext.Current.CancellationToken;
         var source = NeuronId.Parse("b1/probe.counter/session-delivery");
         var session = silo.Get<ISessionSynapses>("b1/runtime.session/session-delivery");

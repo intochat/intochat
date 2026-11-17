@@ -373,6 +373,7 @@ public sealed class AtomicJournalChallengerFacts
     public async Task TestOS_stale_version_triggers_host_drop_and_reactivation_clears_host()
     {
         await using var os = DigitalBrain.Testing.TestOS.Local();
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         os.Register<ChallengeNeuron>();
         var id = NeuronId.Parse("b1/challenge.test/1");
 
@@ -410,6 +411,7 @@ public sealed class AtomicJournalChallengerFacts
     public async Task TestOS_restart_deactivates_all_hosts_and_recovers_state()
     {
         await using var os = DigitalBrain.Testing.TestOS.Local();
+        using var platform = os.Edge.EnterKernel(BrainId.Kernel);
         os.Register<ChallengeNeuron>();
         var id = NeuronId.Parse("b1/challenge.test/restart-test");
 
