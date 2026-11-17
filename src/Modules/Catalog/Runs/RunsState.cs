@@ -2,6 +2,7 @@ using DigitalBrain.Flows;
 using DigitalBrain.Operations;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Workflows;
+using IntoChat.OS.Modules.Apps.AppRuns;
 using IntoChat.OS.Modules.Apps.CodeBlocks;
 using IntoChat.OS.Modules.Apps.Flows;
 
@@ -38,6 +39,12 @@ internal sealed record RunsState(RunView[] Runs)
             "sandbox", null, at, null, [], "compile, deploy, run", null, "code block")),
         CodeBlockRunWaiting waiting => Update(waiting.RunId, run => run with { State = RunState.Waiting, Waiting = $"approval {waiting.PlanId}", Detail = "needs: " + string.Join(", ", waiting.Needs) }),
         CodeBlockRunDone done => Update(done.RunId, run => run with
+        {
+            State = done.Succeeded ? RunState.Succeeded : RunState.Failed, Waiting = null, Ended = at, Current = null, Detail = done.Error ?? Title(done.Output),
+        }),
+        AppCommandStarted started => Put(new RunView(started.RunId, RunKind.AppCommand, $"{started.App}: {started.Command}", RunState.Running, null,
+            started.App, null, at, null, [], started.Command, null, started.App)),
+        AppCommandDone done => Update(done.RunId, run => run with
         {
             State = done.Succeeded ? RunState.Succeeded : RunState.Failed, Ended = at, Current = null, Detail = done.Error ?? Title(done.Output),
         }),

@@ -318,11 +318,7 @@ internal sealed class IdentityDirectoryGrain(TimeProvider clock, IOptions<AuthOp
         var brain = BrainOf(State, brainId) ?? new IdentityBrainRow { BrainId = brainId };
         var grantsBrain = BrainAuthorityDecisions.GrantsBrainOf(brainId, targetNeuron, targetScope);
         var durableGrants = await ReadGrants(grantsBrain);
-        var allGrants = durableGrants.Length > 0 ? durableGrants : brain.Grants;
-        if (caller.Kind == CallerKind.Agent && !allGrants.Any(g => g.AppId == CapabilityCallers.AssistantApp))
-        {
-            allGrants = [.. allGrants, .. ShippedGrants.ForAssistant(grantsBrain)];
-        }
+        var allGrants = ShippedGrants.WithImplicit(durableGrants.Length > 0 ? durableGrants : brain.Grants, caller.Kind, caller.AppId, grantsBrain);
         var decision = await BrainAuthorityDecisions.Decide(
             brain with { Grants = allGrants },
             caller,

@@ -1,3 +1,4 @@
+using IntoChat.OS.Modules.Apps.AppRuns;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Kernel;
@@ -109,18 +110,16 @@ internal static class AppsEndpoints
             string name,
             string command,
             HttpRequest httpRequest,
-            [FromServices] ISandboxRuntimeBridge bridge,
+            INeuronProxies brain,
             CancellationToken ct) =>
         {
             using var reader = new StreamReader(httpRequest.Body);
             var payload = await reader.ReadToEndAsync(ct).ConfigureAwait(false);
-            var result = await bridge.DispatchCommandAsync(
-                BrainScope.CurrentId(),
-                name,
-                command,
-                string.IsNullOrWhiteSpace(payload) ? null : payload,
-                ct).ConfigureAwait(false);
-            return result.Error is { Length: > 0 }
+            // Every command is a run of the app's synapse, so it shows on the runs index.
+            var brainId = BrainScope.CurrentId();
+            var run = brain.Get<IAppCommandRun>($"{brainId}/commands/{name}/{Guid.NewGuid():N}");
+            var result = await run.Start(name, command, string.IsNullOrWhiteSpace(payload) ? null : payload).WaitAsync(ct).ConfigureAwait(false);
+            return result.Status == AppCommandStatus.Failed
                 ? Results.Conflict(result)
                 : Results.Ok(result);
         });

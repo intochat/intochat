@@ -3,9 +3,9 @@ using DigitalBrain.Contracts;
 
 namespace IntoChat.OS.Modules.Apps.Runs;
 
-// One list of everything that runs in a brain, whatever expressed it: a flow, an agent turn, a workflow, or an operation (a storage write
+// One list of everything that runs in a brain, whatever expressed it: a flow, an agent turn, a workflow, a code block, an app command, or an operation (a storage write
 // waiting for approval, for example). Each kind keeps its own engine and signals; this is the one place that reads them together.
-public enum RunKind { Flow, AgentTurn, Operation, Workflow, CodeBlock }
+public enum RunKind { Flow, AgentTurn, Operation, Workflow, CodeBlock, AppCommand }
 
 public enum RunState { Running, Waiting, Succeeded, Failed, Cancelled }
 

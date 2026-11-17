@@ -4,8 +4,9 @@ using DigitalBrain.Contracts;
 namespace IntoChat.OS.Modules.Apps.Synapses;
 
 // A synapse is behavior; its form is how it is expressed: a reaction unit (pure functions over a state), a flow (durable steps),
-// an Agent Framework workflow (a graph of executors), an agent (a model with tools), or a code block (generated C# run once in the sandbox).
-public enum SynapseForm { Reaction, Flow, Workflow, Agent, CodeBlock }
+// an Agent Framework workflow (a graph of executors), an agent (a model with tools), a code block (generated C# run once in the sandbox),
+// or an app (an installed sandbox app whose commands are its runs).
+public enum SynapseForm { Reaction, Flow, Workflow, Agent, CodeBlock, App }
 
 public sealed record SynapseDefinition(
     string Id,

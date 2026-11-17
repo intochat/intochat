@@ -50,6 +50,12 @@ public sealed class SandboxContainerE2EFacts
             content: null,
             Ct);
         Assert.Equal(HttpStatusCode.OK, commandResponse.StatusCode);
+        // The command ran as one run of the app's synapse.
+        var run = await commandResponse.Content.ReadFromJsonAsync<IntoChat.OS.Modules.Apps.AppRuns.AppCommandRunView>(Ct);
+        Assert.NotNull(run);
+        Assert.Equal(IntoChat.OS.Modules.Apps.AppRuns.AppCommandStatus.Completed, run!.Status);
+        Assert.Equal("email-notifier", run.App);
+        Assert.StartsWith("commands/email-notifier/", run.RunId, StringComparison.Ordinal);
 
         var notifications = await host.Os.GetFromJsonAsync<NotificationInboxPayload>(
             $"/brains/{host.Scope}/notifications",

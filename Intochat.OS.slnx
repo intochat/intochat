@@ -57,6 +57,7 @@
   <Project Path="src/IntoChat.Cloud/IntoChat.Cloud.csproj" />
   <Project Path="src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
   <Project Path="src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
+  <Project Path="src/IntoChat.OS.Cli/IntoChat.OS.Cli.csproj" />
   <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj" />
   <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
   <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />

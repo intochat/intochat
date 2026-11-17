@@ -1,5 +1,7 @@
 using DigitalBrain.Operations;
 using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.Apps.AppRuns;
+using IntoChat.OS.Modules.Apps.CodeBlocks;
 using IntoChat.OS.Modules.Apps.Runs;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;
@@ -32,6 +34,25 @@ public sealed class RunsStateFacts
         Assert.Equal(RunState.Failed, declined.Runs[0].State);
         Assert.Null(declined.Runs[0].Waiting);
         Assert.Contains("declined", declined.Runs[0].Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnAppCommandIsARunOfItsApp()
+    {
+        var state = new RunsState().Fold(new AppCommandStarted("commands/email-notifier/1", "email-notifier", "test-alert"), T0)
+            .Fold(new AppCommandDone("commands/email-notifier/1", true, "\"sent\"", null), T0.AddSeconds(1));
+        var run = Assert.Single(state.Runs);
+        Assert.Equal((RunKind.AppCommand, RunState.Succeeded, "email-notifier: test-alert", "email-notifier"), (run.Kind, run.State, run.Title, run.Synapse));
+    }
+
+    [Fact]
+    public void ACodeBlockDeniedWhileWaitingNoLongerWaits()
+    {
+        var state = new RunsState().Fold(new CodeBlockRunStarted("cb-1", "count"), T0)
+            .Fold(new CodeBlockRunWaiting("cb-1", "plan-1", ["IRuns"]), T0)
+            .Fold(new CodeBlockRunDone("cb-1", false, null, "denied"), T0.AddSeconds(1));
+        Assert.Equal(RunState.Failed, state.Runs[0].State);
+        Assert.Null(state.Runs[0].Waiting);
     }
 
     [Fact]

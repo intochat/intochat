@@ -105,4 +105,26 @@ public sealed class GrantRulesAgentFacts
         var consumed = GrantRules.OnceToConsume(Edge(agent), Req("test-brain/apps/files", "contacts.read"), [once]);
         Assert.Equal(once, Assert.Single(consumed));
     }
+
+    // The command-line host acts as the app "cli" for a person: shipped grants let it read the runs index (and the flows it folds), nothing else.
+    [Theory]
+    [InlineData("runs/test-brain/runs/index", true)]
+    [InlineData("flows/test-brain/flows/index", true)]
+    [InlineData("files.vfs/test-brain/main", false)]
+    [InlineData("runs/other-brain/runs/index", false)]
+    public void TheCliReadsRunsThroughShippedGrantsOnly(string target, bool allowed)
+    {
+        var cli = new CapabilityCaller("test-user", "test-account", "test-brain") { AppId = ShippedGrants.CliApp };
+        var grants = ShippedGrants.WithImplicit([], cli.Kind, cli.AppId, "test-brain");
+        var request = Req(target) with { TargetScope = target.Split('/')[1] };
+        var decision = GrantRules.Evaluate(Edge(cli), request, MemberOf(cli), grants, PrincipalSet.For(cli), connectionBound: false);
+        Assert.True(allowed == decision!.Allowed, decision.Explanation);
+    }
+
+    [Fact]
+    public void StoredCliGrantsReplaceTheShippedOnes()
+    {
+        Grant[] stored = [Grant.Tuple("brain:test-brain", "app:" + ShippedGrants.CliApp, "runs/test-brain/runs/index", GrantRelations.Run)];
+        Assert.Same(stored, ShippedGrants.WithImplicit(stored, CallerKind.App, ShippedGrants.CliApp, "test-brain"));
+    }
 }
