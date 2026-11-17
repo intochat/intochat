@@ -1,5 +1,4 @@
-using System.Reflection;
-using DigitalBrain.Access;
+using System.Text.RegularExpressions;
 
 namespace DigitalBrain.Architecture.Tests.Unit;
 
@@ -10,18 +9,38 @@ public sealed class OneCallerFacts
     private static readonly string[] OldCallerTypes =
         ["CapabilityCaller", "CapabilityCallers", "CallerKind", "TrustedEdge", "RuntimeCallerContext", "LegacyCallers", "AccessCounters"];
 
-    // Files under framework/src that may call EdgeAuthority.EnterKernel, relative to framework/src.
-    private static readonly string[] EnterKernelSites =
+    // Files under framework/src (relative to it) that may mint or enter a kernel-level caller, by call shape.
+    private static readonly (string Call, string[] Sites)[] KernelEntries =
     [
-        "DigitalBrain/Access/EdgeAuthority.cs",                               // the definition
-        "DigitalBrain.Identity.Local/Vault/LocalVaultPort.cs",                // platform port: runs its own owner check, then reads the vault as platform code
-        "DigitalBrain.Testing.Silo/Conformance/Host/HostConformanceFacts.cs", // test host harness acting as the platform
+        ("EnterKernel(",
+        [
+            "DigitalBrain/Access/EdgeAuthority.cs",                               // the definition
+            "DigitalBrain.Identity.Local/Vault/LocalVaultPort.cs",                // platform port: own owner check first, then reads the vault as platform code; no edge, no scope, vault refuses
+            "DigitalBrain.Testing.Silo/Conformance/Host/HostConformanceFacts.cs", // test host harness acting as the platform
+        ]),
+        ("EnterKernelScope(",
+        [
+            "DigitalBrain/Access/EdgeAuthority.cs",                               // EnterInProcess and ClearCaller, the host's in-process scopes
+            "DigitalBrain/Access/ICallerAmbient.cs",                              // the ambient contract
+            "DigitalBrain.Runtime.Orleans/Access/OrleansCallerAmbient.cs",        // Orleans ambient implementation
+            "DigitalBrain.Simulation/TestOS/TestCallerAmbient.cs",                // TestOS ambient implementation
+        ]),
+        ("Caller.OfKernel(",
+        [
+            "DigitalBrain/Access/EdgeAuthority.cs",                               // EnterKernel and the Kernel minting method on the host-only edge
+            "DigitalBrain.Runtime.Orleans/Access/KernelHop.cs",                   // runtime hop into the kernel, opens its own trace
+            "DigitalBrain.Runtime.Orleans/Capabilities/PlatformIdentityPorts.cs", // platform reaching its own identity store as the system brain kernel
+            "DigitalBrain.Runtime.Orleans/Hosting/OrleansInvocationSink.cs",      // only when the invocation is explicitly flagged asKernel
+            "DigitalBrain.Runtime.Orleans/Synapses/OrleansInstallHooks.cs",       // synapse install runs as the kernel, via the installs neuron
+        ]),
     ];
 
+    // The facts read framework/src as text, so they cover every project there, including the runtime and host projects the unit tier must not reference.
     [Fact]
     public void NoOldCallerTypeExists()
     {
-        var found = FrameworkTypes().Where(type => OldCallerTypes.Contains(type.Name, StringComparer.Ordinal)).Select(type => type.FullName).ToList();
+        var declaration = new Regex(@"\b(?:class|struct|enum|interface|record(?:\s+(?:class|struct))?|delegate\s+[\w<>?\[\],.]+)\s+(" + string.Join("|", OldCallerTypes) + @")\b");
+        var found = FrameworkSources().SelectMany(path => declaration.Matches(File.ReadAllText(path)).Select(match => $"{match.Groups[1].Value} in {path}")).ToList();
         Assert.True(found.Count == 0, string.Join(", ", found));
     }
 
@@ -35,11 +54,9 @@ public sealed class OneCallerFacts
     [Fact]
     public void NoInterfaceMethodTakesACaller()
     {
-        var offenders = FrameworkTypes()
-            .Where(type => type.IsInterface && (type.IsPublic || type.IsNestedPublic))
-            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
-            .Where(method => method.GetParameters().Any(parameter => parameter.ParameterType == typeof(Caller)))
-            .Select(method => $"{method.DeclaringType!.FullName}.{method.Name}")
+        var parameter = new Regex(@"\b(?:DigitalBrain\.Access\.)?Caller\??\s+\w+\s*[,)]");
+        var offenders = FrameworkSources()
+            .SelectMany(path => PublicInterfaceBodies(File.ReadAllText(path)).Where(body => parameter.IsMatch(body.Text)).Select(body => $"{body.Name} in {path}"))
             .ToList();
         Assert.True(offenders.Count == 0, string.Join(", ", offenders));
     }
@@ -48,26 +65,34 @@ public sealed class OneCallerFacts
     public void EnterKernelOnlyAtAllowedSites()
     {
         var root = Path.Combine(Repository.Root, "src");
-        var allowed = EnterKernelSites.Select(site => Path.GetFullPath(Path.Combine(root, site))).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var offenders = FrameworkSources()
-            .Where(path => File.ReadAllText(path).Contains("EnterKernel(", StringComparison.Ordinal))
-            .Where(path => !allowed.Contains(Path.GetFullPath(path)))
-            .ToList();
-        Assert.True(offenders.Count == 0, string.Join(", ", offenders));
-        Assert.All(allowed, site => Assert.True(File.Exists(site), $"{site} is on the allowlist but missing."));
+        foreach (var (call, sites) in KernelEntries)
+        {
+            var allowed = sites.Select(site => Path.GetFullPath(Path.Combine(root, site))).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var offenders = FrameworkSources()
+                .Where(path => File.ReadAllText(path).Contains(call, StringComparison.Ordinal))
+                .Where(path => !allowed.Contains(Path.GetFullPath(path)))
+                .ToList();
+            Assert.True(offenders.Count == 0, $"{call}: {string.Join(", ", offenders)}");
+            Assert.All(allowed, site => Assert.True(File.Exists(site), $"{site} is on the {call} allowlist but missing."));
+        }
     }
 
     private static IEnumerable<string> FrameworkSources()
         => Repository.SourceFiles(Path.Combine(Repository.Root, "src"), "*.cs");
 
-    private static IEnumerable<Type> FrameworkTypes()
-        => Directory.EnumerateFiles(AppContext.BaseDirectory, "DigitalBrain*.dll")
-            .Select(Assembly.LoadFrom)
-            .SelectMany(LoadableTypes);
-
-    private static IEnumerable<Type> LoadableTypes(Assembly assembly)
+    private static IEnumerable<(string Name, string Text)> PublicInterfaceBodies(string source)
     {
-        try { return assembly.GetTypes(); }
-        catch (ReflectionTypeLoadException ex) { return ex.Types.OfType<Type>(); }
+        foreach (Match match in Regex.Matches(source, @"\bpublic\s+(?:partial\s+)?interface\s+(\w+)[^{;]*\{"))
+        {
+            var depth = 1;
+            var index = match.Index + match.Length;
+            var start = index;
+            while (index < source.Length && depth > 0)
+            {
+                depth += source[index] == '{' ? 1 : source[index] == '}' ? -1 : 0;
+                index++;
+            }
+            yield return (match.Groups[1].Value, source[start..index]);
+        }
     }
 }
