@@ -86,7 +86,7 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
         var listings = await catalog.Listings();
         Assert.Contains(listings, listing => listing.Publisher == "os" && listing.Name == "settings");
 
-        var origin = Assert.IsType<FeatureOrigin.Module>(await catalog.Origin("os", "settings"));
+        var origin = Assert.IsType<FeatureOrigin.ModuleSource>(await catalog.Origin("os", "settings"));
         Assert.Same(typeof(SettingsApp).Assembly, origin.Assembly);
 
         const string brain = "nofeaturesbrain";

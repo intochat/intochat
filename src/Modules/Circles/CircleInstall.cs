@@ -15,11 +15,11 @@ internal static class CircleInstall
     public static async Task<AppSnapshot> InstallExact(this AppInstaller installer, INeuronProxies brain, AppPublicationRef publication, string targetName, Guid operationId)
     {
         ArgumentNullException.ThrowIfNull(publication);
-        var request = new InstallRequest(new(publication.Publisher, publication.Name, publication.Version, publication.Digest),
+        var request = new AppInstallRequest(new(publication.Publisher, publication.Name, publication.Version, publication.Digest),
             AppConsent.Of(null), operationId, targetName);
         var outcome = await installer.Install(request, CancellationToken.None, publication.Source);
-        if (outcome.Status != InstallStatus.Ok)
-        { throw new InvalidOperationException(outcome.Status == InstallStatus.NeedsConsent ? AppInstaller.ReviewInApps : outcome.Message); }
+        if (outcome.Status != AppInstallStatus.Ok)
+        { throw new InvalidOperationException(outcome.Status == AppInstallStatus.NeedsConsent ? AppInstaller.ReviewInApps : outcome.Message); }
         return await brain.Get<IApp>(IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(BrainScope.CurrentId()), targetName).Key).Read();
     }
 }

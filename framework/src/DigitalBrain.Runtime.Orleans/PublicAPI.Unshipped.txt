@@ -91,6 +91,9 @@ DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Released.init -> void
 DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Renewed.get -> long
 DigitalBrain.Runtime.Orleans.BrainOwnershipCounts.Renewed.init -> void
 DigitalBrain.Runtime.Orleans.BrainStorageHosting
+DigitalBrain.Runtime.Orleans.BrainStorageKeys
+DigitalBrain.Runtime.Orleans.BrainStorageKeys.BrainStorageKeys(DigitalBrain.Runtime.Orleans.IBrainKeyCustody! custody, Microsoft.Extensions.Options.IOptions<DigitalBrain.Runtime.Orleans.BrainStoreOptions!>! options) -> void
+DigitalBrain.Runtime.Orleans.BrainStorageKeys.GetOrCreate(string! brainId, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<byte[]!>!
 DigitalBrain.Runtime.Orleans.BrainStorageRegistration
 DigitalBrain.Runtime.Orleans.BrainStorageRegistration.BrainStorageRegistration(params System.Reflection.Assembly![]! signalAssemblies) -> void
 DigitalBrain.Runtime.Orleans.BrainStorageRegistration.Register(Orleans.Hosting.ISiloBuilder! silo) -> void

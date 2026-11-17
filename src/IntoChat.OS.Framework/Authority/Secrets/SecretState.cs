@@ -15,7 +15,7 @@ internal sealed class SecretsState
 internal sealed class SecretRecord
 {
     [Id(0)] public string FieldPath { get; set; } = "";
-    [Id(1)] public FieldKind Kind { get; set; }
+    [Id(1)] public SemanticFieldKind Kind { get; set; }
     [Id(2)] public bool IsSecret { get; set; }
     [Id(3)] public string Label { get; set; } = "";
     [Id(4)] public bool IsSet { get; set; }

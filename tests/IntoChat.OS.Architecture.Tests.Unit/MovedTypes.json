@@ -217,6 +217,11 @@
       "persisted": true
     },
     {
+      "old": "IntoChat.OS.Connections.SecretRef",
+      "alias": "semantic.secret-ref",
+      "persisted": true
+    },
+    {
       "old": "IntoChat.OS.Contracts.Compute.BudgetExhaustedException",
       "alias": null,
       "persisted": false
@@ -388,11 +393,6 @@
     },
     {
       "old": "IntoChat.OS.Framework.Diagnostics.Swallow",
-      "alias": null,
-      "persisted": false
-    },
-    {
-      "old": "IntoChat.OS.Framework.IRevisioned`1",
       "alias": null,
       "persisted": false
     },

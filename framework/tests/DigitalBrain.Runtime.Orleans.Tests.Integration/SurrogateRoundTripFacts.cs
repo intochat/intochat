@@ -21,6 +21,7 @@ public interface ISurrogateEchoGrain : IGrainWithStringKey
     Task<Owner> EchoOwner(Owner value);
     Task<BrainState> EchoBrainState(BrainState value);
     Task<SealedSecret> EchoSealedSecret(SealedSecret value);
+    Task<SecretRef> EchoSecretRef(SecretRef value);
     Task<Trace?> ReadAmbientTrace();
 }
 
@@ -36,6 +37,7 @@ public sealed class SurrogateEchoGrain : Grain, ISurrogateEchoGrain
     public Task<Owner> EchoOwner(Owner value) => Task.FromResult(value);
     public Task<BrainState> EchoBrainState(BrainState value) => Task.FromResult(value);
     public Task<SealedSecret> EchoSealedSecret(SealedSecret value) => Task.FromResult(value);
+    public Task<SecretRef> EchoSecretRef(SecretRef value) => Task.FromResult(value);
     public Task<Trace?> ReadAmbientTrace() => Task.FromResult(TraceContext.Current);
 }
 
@@ -129,5 +131,8 @@ public sealed class SurrogateRoundTripFacts
 
         var secret = new SealedSecret { Cipher = "cipher-base64", KeyId = "key-1" };
         Assert.Equal(secret, await grain.EchoSealedSecret(secret));
+
+        var secretRef = new SecretRef { Reference = "secret://acc-1/api-key", Label = "API Key", Status = SecretStatus.Set };
+        Assert.Equal(secretRef, await grain.EchoSecretRef(secretRef));
     }
 }

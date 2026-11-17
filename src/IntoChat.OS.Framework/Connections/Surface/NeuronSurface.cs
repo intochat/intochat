@@ -141,7 +141,7 @@ public sealed class NeuronSurface(INeuronProxies brain, IBrainObserver kernel, N
         try { returned = target.Invoke(Neuron(type, key), values); }
         catch (TargetInvocationException error) when (error.InnerException is not null) { throw error.InnerException; }
         if (returned is not Task task) { throw new NotSupportedException($"{type.Name}.{target.Name} does not return a Task."); }
-        var result = await TaskBoxing.ResultAsync(task, target.ReturnType).ConfigureAwait(false);
+        var result = await DigitalBrain.Invocation.TaskBoxing.ReturnResultAsync(task, target.ReturnType).ConfigureAwait(false);
         if (!target.ReturnType.IsGenericType) { return null; }
         return JsonSerializer.SerializeToElement(result, target.ReturnType.GetGenericArguments()[0], Json);
     }

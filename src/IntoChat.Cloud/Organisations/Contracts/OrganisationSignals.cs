@@ -28,7 +28,7 @@ public sealed record InviteAccepted(
     string PrincipalId) : DigitalBrain.Signal;
 
 [Signal("organisations.member-removed")]
-public sealed record MemberRemoved(
+public sealed record OrganisationMemberRemoved(
     string OrgId,
     string PrincipalId) : DigitalBrain.Signal;
 

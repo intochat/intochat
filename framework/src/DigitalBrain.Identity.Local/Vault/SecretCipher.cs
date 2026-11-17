@@ -3,15 +3,19 @@ using System.Text;
 
 namespace DigitalBrain.Identity.Local.Vault;
 
-internal static class SecretCipher
+/// <summary>AES-GCM secret cipher used by the local vault and master-key sealing helpers.</summary>
+public static class SecretCipher
 {
-    internal const int KeySize = 32;
+    /// <summary>Key length in bytes (256-bit AES).</summary>
+    public const int KeySize = 32;
     private const int NonceSize = 12;
     private const int TagSize = 16;
 
-    internal static byte[] NewKey() => RandomNumberGenerator.GetBytes(KeySize);
+    /// <summary>Generates a random 256-bit symmetric key.</summary>
+    public static byte[] NewKey() => RandomNumberGenerator.GetBytes(KeySize);
 
-    internal static string Seal(byte[] key, string plaintext)
+    /// <summary>Encrypts <paramref name="plaintext"/> using AES-GCM with <paramref name="key"/>.</summary>
+    public static string Seal(byte[] key, string plaintext)
     {
         var nonce = RandomNumberGenerator.GetBytes(NonceSize);
         var plain = Encoding.UTF8.GetBytes(plaintext);
@@ -26,7 +30,8 @@ internal static class SecretCipher
         return Convert.ToBase64String(combined);
     }
 
-    internal static string Open(byte[] key, string sealedText)
+    /// <summary>Decrypts <paramref name="sealedText"/> produced by <see cref="Seal"/>.</summary>
+    public static string Open(byte[] key, string sealedText)
     {
         var sealedBytes = Convert.FromBase64String(sealedText);
         if (sealedBytes.Length < NonceSize + TagSize)

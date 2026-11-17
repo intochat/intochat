@@ -61,7 +61,7 @@ public sealed class UnitAuthoringFacts
     // Stands for the host's compiler, which a silo registers over its unit reference set.
     private static readonly SynapseCompiler HostCompiler = new(ReferenceSet.FromDefaultContext());
 
-    private static readonly UnitNeeds XNeeds = new([new SlotNeed("x", "http", ["api.x.com"])], "every 6m", true);
+    private static readonly UnitNeeds XNeeds = new([new AuthoredSlotNeed("x", "http", ["api.x.com"])], "every 6m", true);
 
     private static Creator Creator(ICreatorModel model, SynapseCompiler? compiler = null)
         => new(new ServiceCollection().BuildServiceProvider(), Options.Create(new AppsOptions()), NullLogger<Creator>.Instance,

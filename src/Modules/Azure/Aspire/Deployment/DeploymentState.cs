@@ -4,7 +4,7 @@ namespace IntoChat.OS.Modules.Microsoft.Aspire.Deployment;
 
 [GenerateSerializer, Alias("aspire.deployment.state")]
 [ExportableState]
-internal sealed record DeploymentState
+internal sealed record AspireDeploymentState
 {
     [Id(0)] public string CurrentSha { get; init; } = "";
     [Id(1)] public DeploymentStage Stage { get; init; } = DeploymentStage.Steady;

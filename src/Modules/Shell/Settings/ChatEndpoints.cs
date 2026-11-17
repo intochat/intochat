@@ -20,7 +20,7 @@ internal static class ChatEndpoints
 {
     internal sealed record Chat(string Id, string Title, DateTimeOffset UpdatedAt);
 
-    internal sealed record Page(Chat[] Chats, int Total);
+    internal sealed record ChatPage(Chat[] Chats, int Total);
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
@@ -43,7 +43,7 @@ internal static class ChatEndpoints
         if (Refused()) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         if (skip < 0 || take is < 1 or > ChatIndex.MaxPage) { return Results.BadRequest(new { error = "Page out of range." }); }
         var page = await (await Index(brain, ct)).List(archived, skip, take).WaitAsync(ct);
-        return Results.Ok(new Page([.. page.Entries.Select(entry => new Chat(entry.Id, entry.Title, entry.UpdatedAt))], page.Total));
+        return Results.Ok(new ChatPage([.. page.Entries.Select(entry => new Chat(entry.Id, entry.Title, entry.UpdatedAt))], page.Total));
     }
 
     internal static async Task<IResult> Unarchive(string id, INeuronProxies brain, CancellationToken ct)

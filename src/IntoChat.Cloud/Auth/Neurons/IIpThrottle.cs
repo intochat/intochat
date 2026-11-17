@@ -1,4 +1,5 @@
 using DigitalBrain.Access;
+using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS;
 
 namespace IntoChat.Cloud.Auth.Neurons;
@@ -13,5 +14,3 @@ public interface IIpThrottle
     [Internal]
     Task<ThrottleResult> Hit();
 }
-
-public sealed record ThrottleResult(bool Allowed, DateTimeOffset? RetryAt);

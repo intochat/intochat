@@ -11,9 +11,9 @@ internal static class LoginEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/auth/login", BeginAsync).AllowAnonymous().AddEndpointFilter<IpThrottleFilter>();
-        endpoints.MapPost("/auth/login/challenges/{challengeId}/verify", VerifyAsync).AllowAnonymous().AddEndpointFilter<IpThrottleFilter>();
-        endpoints.MapPost("/auth/login/challenges/{challengeId}/resend", ResendAsync).AllowAnonymous().AddEndpointFilter<IpThrottleFilter>();
+        endpoints.MapPost("/auth/login", BeginAsync).AllowAnonymous().AddEndpointFilter<AuthIpThrottleFilter>();
+        endpoints.MapPost("/auth/login/challenges/{challengeId}/verify", VerifyAsync).AllowAnonymous().AddEndpointFilter<AuthIpThrottleFilter>();
+        endpoints.MapPost("/auth/login/challenges/{challengeId}/resend", ResendAsync).AllowAnonymous().AddEndpointFilter<AuthIpThrottleFilter>();
     }
 
     private static async Task<IResult> BeginAsync(HttpContext http, LoginService login, AuthAudit audit)

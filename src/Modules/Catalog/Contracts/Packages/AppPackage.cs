@@ -5,7 +5,7 @@ using IntoChat.Sdk;
 
 namespace IntoChat.OS.Modules.Apps;
 
-/// <summary>Declarative slot capability requirement extracted from <see cref="SlotAttribute"/>.</summary>
+/// <summary>Declarative slot capability requirement extracted from <see cref="AppSlotAttribute"/>.</summary>
 [GenerateSerializer, Alias("apps.slot-spec")]
 public sealed record AppSlotSpec(
     [property: Id(0)] string Name,

@@ -97,7 +97,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         var events = await TurnLoops.Collect(runtime.Services, "hello", [], ct, [Key(runtime, "halt")]);
 
         Assert.IsType<AgentTurnEvent.Started>(events[0]);
-        Assert.Equal(new AgentTurnEvent.Failed("Blocked: halt now", false), events[^1]);
+        Assert.Equal(new AgentTurnEvent.TurnFailed("Blocked: halt now", false), events[^1]);
         Assert.Equal(2, events.Count);
         Assert.Empty(client.Requests);
     }
@@ -207,7 +207,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         // 3. Switch model at runtime to an unconfigured cloud provider ("claude-sonnet-4-5") and verify graceful diagnostic failure
         await Write(runtime, "user.profile", new("inference", """{"model":"claude-sonnet-4-5"}""", [], [ContextTags.Inference]));
         var failedTurnEvents = await TurnLoops.Collect(runtime.Services, "hello claude", [], ct, [Key(runtime, "user.profile")]);
-        var failed = Assert.Single(failedTurnEvents.OfType<AgentTurnEvent.Failed>());
+        var failed = Assert.Single(failedTurnEvents.OfType<AgentTurnEvent.TurnFailed>());
         Assert.False(failed.Cancelled);
         Assert.Contains("anthropic", failed.Message, StringComparison.OrdinalIgnoreCase);
 

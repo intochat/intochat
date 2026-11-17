@@ -59,6 +59,6 @@ public sealed partial class CirclesModule : DigitalBrain.Modules.Module, IHttpMo
         // One birth, reached as a creation handler and by the factory (which completes a birth that failed).
         if (services.Any(descriptor => descriptor.ServiceType == typeof(CircleBirth))) { return; }
         services.AddSingleton<CircleBirth>();
-        services.AddSingleton<IntoChat.OS.Framework.ICreationHandler>(provider => provider.GetRequiredService<CircleBirth>());
+        services.AddSingleton<DigitalBrain.Brains.ICreationHandler>(provider => provider.GetRequiredService<CircleBirth>());
     }
 }

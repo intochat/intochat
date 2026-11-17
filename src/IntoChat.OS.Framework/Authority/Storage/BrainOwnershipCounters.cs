@@ -1,18 +1,9 @@
 using System.Diagnostics.Metrics;
+using DigitalBrain.Runtime.Orleans;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace IntoChat.OS.Authority.Storage;
-
-// Running totals of brain-log ownership events in this silo. The writer lock reports none ("none"). A lease-based
-// ownership registers its source with UseBrainOwnershipCounters, before or after AddIntoChatOSPlatform: the
-// platform only TryAdds the no-op default, and the helper replaces whatever is registered, so exactly one remains.
-public interface IBrainOwnershipCounters
-{
-    BrainOwnershipCounts Snapshot();
-}
-
-public sealed record BrainOwnershipCounts(string Mechanism, long Acquired, long Refused, long Lost, long Released, long Renewed, long Fenced);
 
 internal sealed class NoBrainOwnershipCounters : IBrainOwnershipCounters
 {

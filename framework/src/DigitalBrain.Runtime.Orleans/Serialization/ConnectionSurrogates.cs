@@ -276,3 +276,30 @@ internal sealed class SealedSecretSurrogateConverter : IConverter<SealedSecret, 
         KeyId = value.KeyId,
     };
 }
+
+/// <summary>Orleans wire form of <see cref="SecretRef"/>.</summary>
+[GenerateSerializer, Alias("semantic.secret-ref")]
+internal struct SecretRefSurrogate
+{
+    [Id(0)] public string Reference;
+    [Id(1)] public string Label;
+    [Id(2)] public SecretStatus Status;
+}
+
+[RegisterConverter]
+internal sealed class SecretRefSurrogateConverter : IConverter<SecretRef, SecretRefSurrogate>
+{
+    public SecretRef ConvertFromSurrogate(in SecretRefSurrogate surrogate) => new()
+    {
+        Reference = surrogate.Reference,
+        Label = surrogate.Label,
+        Status = surrogate.Status,
+    };
+
+    public SecretRefSurrogate ConvertToSurrogate(in SecretRef value) => new()
+    {
+        Reference = value.Reference,
+        Label = value.Label,
+        Status = value.Status,
+    };
+}

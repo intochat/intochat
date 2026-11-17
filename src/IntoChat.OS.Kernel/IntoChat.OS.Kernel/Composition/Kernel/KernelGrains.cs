@@ -13,7 +13,7 @@ using IntoChat.OS.Kernel.Composition.Kernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using IntoChatOSNames = IntoChat.OS.Contracts.Configuration.IntoChatOSNames;
-using CompositionKernel = IntoChat.OS.Kernel.Composition.Kernel.Kernel;
+using CompositionKernel = IntoChat.OS.Kernel.Composition.Kernel.OsKernel;
 
 namespace IntoChat.OS.Kernel.Composition;
 

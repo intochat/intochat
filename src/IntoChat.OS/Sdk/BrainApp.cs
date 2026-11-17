@@ -7,14 +7,14 @@ public abstract class BrainApp<TState, TSettings>
     where TState : class, new()
     where TSettings : class, new()
 {
-    public IBrain Brain { get; protected set; } = default!;
+    public ISandboxBrain Brain { get; protected set; } = default!;
     public TState State { get; protected set; } = new();
     public TSettings Settings { get; protected set; } = new();
 
     public virtual DigitalBrain.UI.View? Render() => null;
 
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public void Bind(IBrain brain, TState state, TSettings settings)
+    public void Bind(ISandboxBrain brain, TState state, TSettings settings)
     {
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentNullException.ThrowIfNull(state);

@@ -1436,6 +1436,7 @@ public sealed class HouseRules22Facts
             "IIntoChatOSModuleHosting",
             "IRevisioned",
             "IBrain",
+            "ISandboxBrain",
             "IFolder",
             "IAi",
             "ITableHandle",

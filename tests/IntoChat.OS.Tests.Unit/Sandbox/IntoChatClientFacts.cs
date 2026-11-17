@@ -78,7 +78,7 @@ public sealed class IntoChatClientFacts
         try
         {
             var osAssembly = alc.LoadFromAssemblyName(new AssemblyName("IntoChat.OS"));
-            Assert.Same(typeof(IBrain).Assembly, osAssembly);
+            Assert.Same(typeof(ISandboxBrain).Assembly, osAssembly);
 
             Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS"));
             Assert.True(AppLoadContext.IsAssemblyAllowed("IntoChat.OS.Modules.Google"));

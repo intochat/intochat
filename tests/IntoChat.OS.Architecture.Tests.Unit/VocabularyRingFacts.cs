@@ -25,7 +25,7 @@ public sealed class VocabularyRingFacts
         typeof(IBrain),
         typeof(ILogic<>),
         typeof(ISignalWatch),
-        typeof(IntoChat.Sdk.IBrain),
+        typeof(IntoChat.Sdk.ISandboxBrain),
         typeof(IntoChat.Sdk.IFolder),
         typeof(IntoChat.Sdk.INotifications),
         typeof(IntoChat.Sdk.IAi),

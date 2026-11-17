@@ -194,16 +194,16 @@ public static class CommandBinding
         => emit is not null ? emit : new Emit(owner, UiCommand.SignalAlias);
 
     /// <summary>Establishes the active screen owner alias for nested <see cref="Kit"/> builders on the current execution context.</summary>
-    public static Scope PushOwner(string owner)
+    public static BindingScope PushOwner(string owner)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         var previous = CurrentOwner.Value;
         CurrentOwner.Value = owner;
-        return new Scope(previous);
+        return new BindingScope(previous);
     }
 
     /// <summary>Restores the previous screen owner alias when disposed.</summary>
-    public readonly struct Scope(string? previous) : IDisposable
+    public readonly struct BindingScope(string? previous) : IDisposable
     {
         /// <inheritdoc />
         public void Dispose() => CurrentOwner.Value = previous;

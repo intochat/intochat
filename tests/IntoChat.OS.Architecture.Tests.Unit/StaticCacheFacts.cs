@@ -19,7 +19,6 @@ public sealed partial class StaticCacheFacts
         ["PlainInstanceRegistration.ReadOnly"] = "(string Contract",
         ["PlainInstanceRegistration.StateNames"] = "string",
         ["SignalTypes.Loaded"] = "string",
-        ["TaskBoxing.Boxes"] = "Type",
         ["ToolCapabilitySource.PlainSources"] = "string",
     };
 

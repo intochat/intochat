@@ -1,10 +1,11 @@
+using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.Cloud.Auth.Core;
 using IntoChat.Cloud.Auth.Services;
 using Microsoft.AspNetCore.Http;
 
 namespace IntoChat.Cloud.Auth.Http;
 
-internal sealed class IpThrottleFilter(AuthCalls calls, AuthHashing hashing) : IEndpointFilter
+internal sealed class AuthIpThrottleFilter(AuthCalls calls, AuthHashing hashing) : IEndpointFilter
 {
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {

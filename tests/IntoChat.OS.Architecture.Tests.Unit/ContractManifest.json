@@ -129,7 +129,7 @@
     "IntoChat.OS.Modules.Google.Gmail.GmailUnavailableException": "db.gmail.unavailable; ",
     "IntoChat.OS.Modules.Google.Gmail.GmailWatchPush": "gmail.watch-push; HistoryId=0, EmailAddress=1",
     "IntoChat.OS.Modules.Google.Gmail.GmailWatchState": "gmail.watch-state; Mailbox=0, GrantGeneration=1, TopicName=2, ExpiresAt=3, NextActionAt=4, Status=5",
-    "IntoChat.OS.Modules.Microsoft.Aspire.Deployment.DeploymentState": "aspire.deployment.state; CurrentSha=0, Stage=1, TargetSha=2, Remaining=3, Rolled=4, PreviousSha=5, Handover=6, Failure=7, Draining=8, HandoverAt=9, FlowId=10, FailedInstance=11",
+    "IntoChat.OS.Modules.Microsoft.Aspire.Deployment.AspireDeploymentState": "aspire.deployment.state; CurrentSha=0, Stage=1, TargetSha=2, Remaining=3, Rolled=4, PreviousSha=5, Handover=6, Failure=7, Draining=8, HandoverAt=9, FlowId=10, FailedInstance=11",
     "IntoChat.OS.Modules.Microsoft.Azure.AzureConnectionState": "azure.connection-state; Ensured=0",
     "IntoChat.OS.Modules.Microsoft.Azure.AzureEnsured": "azure.ensured; Resource=0, Env=1, Owner=2",
     "IntoChat.OS.Modules.Microsoft.GitHub.CreatePullRequest": "github.create-pull-request; Title=0, HeadBranch=1, BaseBranch=2, Body=3, Draft=4",

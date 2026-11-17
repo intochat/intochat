@@ -40,7 +40,7 @@ public static class ManifestEnvironment
         => ConfigurationKeyGrammar.EnvironmentName(IntegrationSchema.Key(integrationId, field));
 
     // Every integration secret declared across composed modules' IntegrationSchemas.
-    public static IReadOnlyList<SecretRef> IntegrationSecretsOf(IEnumerable<IntoChat.OS.Framework.Modules.OsModule> modules, string vaultName)
+    public static IReadOnlyList<KeyVaultSecretRef> IntegrationSecretsOf(IEnumerable<IntoChat.OS.Framework.Modules.OsModule> modules, string vaultName)
     {
         ArgumentNullException.ThrowIfNull(modules);
         ArgumentException.ThrowIfNullOrWhiteSpace(vaultName);
@@ -53,7 +53,7 @@ public static class ManifestEnvironment
             .SelectMany(schema => schema.SecretFields.Concat(schema.OptionalSecretFields).Select(field =>
             {
                 var name = IntegrationSecretName(schema.Id, field);
-                return new SecretRef
+                return new KeyVaultSecretRef
                 {
                     Name = name,
                     Vault = vaultName,
@@ -76,14 +76,14 @@ public static class ManifestEnvironment
         }
     }
 
-    public static (IReadOnlyDictionary<string, string> Variables, IReadOnlyList<SecretRef> Secrets) Render(
+    public static (IReadOnlyDictionary<string, string> Variables, IReadOnlyList<KeyVaultSecretRef> Secrets) Render(
         InstallConfig config, IReadOnlyList<DigitalBrain.Modules.ModuleManifest> manifests)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(manifests);
         var c = config.Validated();
         var variables = new SortedDictionary<string, string>(StringComparer.Ordinal);
-        var secrets = new List<SecretRef>();
+        var secrets = new List<KeyVaultSecretRef>();
         foreach (var manifest in manifests)
         {
             var id = manifest.Id ?? throw new InvalidOperationException("A composed module's manifest has no id (use ModuleManifest.Of).");
@@ -101,7 +101,7 @@ public static class ManifestEnvironment
             foreach (var secret in manifest.Secrets)
             {
                 var name = SecretName(id, secret.Name);
-                secrets.Add(new SecretRef { Name = name, Vault = c.VaultName, VaultSecret = name, Variable = SecretVariable(id, secret.Name) });
+                secrets.Add(new KeyVaultSecretRef { Name = name, Vault = c.VaultName, VaultSecret = name, Variable = SecretVariable(id, secret.Name) });
             }
         }
         // Entries of InstallConfig.Modules that no manifest setting names are the module deployment's own (SettingsFor), not environment.

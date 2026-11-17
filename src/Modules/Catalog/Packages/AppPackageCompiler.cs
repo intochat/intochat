@@ -47,7 +47,6 @@ internal sealed class AppPackageCompiler
         global using System.Linq;
         global using IntoChat.OS.UI;
         global using IntoChat.Sdk;
-        global using SlotAttribute = IntoChat.Sdk.SlotAttribute;
         """;
 
     private static readonly Lazy<SynapseCompiler> DefaultCompiler =
@@ -247,7 +246,7 @@ internal sealed class AppPackageCompiler
         foreach (var attrHandle in appType.GetCustomAttributes())
         {
             var attr = reader.GetCustomAttribute(attrHandle);
-            if (AttributeTypeName(reader, attr) != typeof(SlotAttribute).FullName)
+            if (AttributeTypeName(reader, attr) != typeof(AppSlotAttribute).FullName)
             {
                 continue;
             }
@@ -260,10 +259,10 @@ internal sealed class AppPackageCompiler
                 continue;
             }
 
-            var required = NamedArgNullable<bool>(decoded, nameof(SlotAttribute.Required)) ?? true;
-            var description = NamedArg<string>(decoded, nameof(SlotAttribute.Description)) ?? string.Empty;
-            var accessRaw = NamedArgNullable<int>(decoded, nameof(SlotAttribute.Access)) ?? 0;
-            var defaultPath = NamedArg<string>(decoded, nameof(SlotAttribute.DefaultPath)) ?? string.Empty;
+            var required = NamedArgNullable<bool>(decoded, nameof(AppSlotAttribute.Required)) ?? true;
+            var description = NamedArg<string>(decoded, nameof(AppSlotAttribute.Description)) ?? string.Empty;
+            var accessRaw = NamedArgNullable<int>(decoded, nameof(AppSlotAttribute.Access)) ?? 0;
+            var defaultPath = NamedArg<string>(decoded, nameof(AppSlotAttribute.DefaultPath)) ?? string.Empty;
 
             slots.Add(new AppSlotSpec(
                 slotName,

@@ -1,6 +1,7 @@
 using System.Globalization;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Http;
+using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.Cloud.Auth.Core;
 using Microsoft.AspNetCore.Http;
 

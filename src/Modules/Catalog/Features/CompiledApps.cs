@@ -10,7 +10,7 @@ public sealed record CompiledAppsRegistration(Assembly Assembly, Type[]? Boot = 
 // its [Neuron("app.<name>")] screen class when compiled as a screen neuron (or its declaring bundle owner type).
 internal static class CompiledApps
 {
-    internal readonly record struct Compiled(string Owner, AppBundle Bundle, FeatureOrigin.Module Origin, Type AppType);
+    internal readonly record struct Compiled(string Owner, AppBundle Bundle, FeatureOrigin.ModuleSource Origin, Type AppType);
 
     internal static IEnumerable<Compiled> Of(Assembly assembly)
     {
@@ -35,7 +35,7 @@ internal static class CompiledApps
             if (property is not { PropertyType: var kind, GetMethod: not null } || kind != typeof(AppBundle)) { continue; }
             if (property.GetValue(null) is not AppBundle bundle || bundle.Name.Length == 0 || !seen.Add(bundle.Name)) { continue; }
             var appType = screenTypes.GetValueOrDefault(bundle.Name, type);
-            yield return new(ShippedApps.Publisher, bundle, new FeatureOrigin.Module(assembly), appType);
+            yield return new(ShippedApps.Publisher, bundle, new FeatureOrigin.ModuleSource(assembly), appType);
         }
     }
 }

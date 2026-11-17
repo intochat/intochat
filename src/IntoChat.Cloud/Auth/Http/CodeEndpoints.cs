@@ -18,8 +18,8 @@ internal static partial class CodeEndpoints
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost(ResendPath, ResendAsync).AllowAnonymous().AddEndpointFilter<IpThrottleFilter>();
-        endpoints.MapPost(VerifyPath, VerifyAsync).AllowAnonymous().AddEndpointFilter<IpThrottleFilter>();
+        endpoints.MapPost(ResendPath, ResendAsync).AllowAnonymous().AddEndpointFilter<AuthIpThrottleFilter>();
+        endpoints.MapPost(VerifyPath, VerifyAsync).AllowAnonymous().AddEndpointFilter<AuthIpThrottleFilter>();
     }
 
     internal static bool IsCode(string? code) => code is not null && SixDigits().IsMatch(code);

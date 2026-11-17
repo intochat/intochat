@@ -48,7 +48,8 @@ internal sealed class ConfiguredBrainKeyCustody(IConfiguration configuration, IS
     }
 }
 
-internal sealed class BrainStorageKeys(IBrainKeyCustody custody, IOptions<BrainStoreOptions> options)
+/// <summary>Derives and caches per-brain storage encryption keys wrapped by <see cref="IBrainKeyCustody"/>.</summary>
+public sealed class BrainStorageKeys(IBrainKeyCustody custody, IOptions<BrainStoreOptions> options)
 {
     private readonly Lock gate = new();
 
@@ -67,6 +68,7 @@ internal sealed class BrainStorageKeys(IBrainKeyCustody custody, IOptions<BrainS
         return Path.Combine(Path.GetFullPath(options.Value.Directory), Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(brainId))).ToLowerInvariant());
     }
 
+    /// <summary>Loads or creates and persists the symmetric storage key for <paramref name="brainId"/>.</summary>
     public Task<byte[]> GetOrCreate(string brainId, CancellationToken ct)
     {
         lock (gate)

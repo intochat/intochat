@@ -1,4 +1,4 @@
-using IntoChat.Cloud.Auth.Core;
+using DigitalBrain.Runtime.Http.Surface;
 
 namespace IntoChat.Cloud.Auth.Core.Tests;
 

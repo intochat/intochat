@@ -42,12 +42,12 @@ public static class BrainHosting
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, PlainInstanceRegistration>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, IntoChat.OS.Authority.Identity.Grants.SiloAccessCallFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());
-        silo.Services.TryAddSingleton<Kernel>();
-        silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<Kernel>());
+        silo.Services.TryAddSingleton<OsKernel>();
+        silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<OsKernel>());
         silo.Services.TryAddSingleton<IntoChat.OS.Kernel.Composition.Registry.IRegistryBroker, IntoChat.OS.Kernel.Composition.Registry.RegistryBroker>();
         // AddDigitalBrainRuntime registers ClusterBrainObserver first. The product kernel replaces it: it sees
         // feature types and connection contracts, which the runtime-only observer does not.
-        silo.Services.Replace(ServiceDescriptor.Singleton<DigitalBrain.Kernel.IBrainObserver>(sp => sp.GetRequiredService<Kernel>()));
+        silo.Services.Replace(ServiceDescriptor.Singleton<DigitalBrain.Kernel.IBrainObserver>(sp => sp.GetRequiredService<OsKernel>()));
         // Ledger 38: bound each "{brain}/{type}" instance directory so a brain's core does not grow without bound.
         silo.Services.AddOptions<InstanceDirectoryOptions>().BindConfiguration(InstanceDirectoryOptions.Key)
             .Validate(options => options.Limit > 0, "The instance directory limit must be positive.").ValidateOnStart();

@@ -14,7 +14,7 @@ namespace IntoChat.OS.Modules.Circles;
 // and the machine it is born on, the creator's (R76), contributed first. Create awaits this handler as the creator
 // (BrainBirths stamps the owner), so the brain is complete before anyone sees it. Any other brain is left alone.
 // The circle room was a script app and went with the script lane; a compiled room is not shipped yet.
-internal sealed class CircleBirth(ICapabilityBroker broker, IServiceProvider plain) : ICreationHandler
+internal sealed class CircleBirth(ICapabilityBroker broker, IServiceProvider plain) : DigitalBrain.Brains.ICreationHandler
 {
     public Task Created(string brainId, Created created, CancellationToken cancellationToken)
     {

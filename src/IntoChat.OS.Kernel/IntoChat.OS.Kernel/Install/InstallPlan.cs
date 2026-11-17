@@ -37,7 +37,7 @@ public static class InstallPlan
     public static ResourceSpec[] Foundation(InstallConfig config) => Build(config)[..^1];
 
     // The OS app, with the variables and secrets the module deployments asked for.
-    public static ContainerAppSpec OsApp(InstallConfig config, IReadOnlyDictionary<string, string> variables, IReadOnlyList<SecretRef> secrets) =>
+    public static ContainerAppSpec OsApp(InstallConfig config, IReadOnlyDictionary<string, string> variables, IReadOnlyList<KeyVaultSecretRef> secrets) =>
         (ContainerAppSpec)Build(config, variables, secrets)[^1];
 
     public static FoundationRefs Refs(InstallConfig config)
@@ -63,7 +63,7 @@ public static class InstallPlan
         return config.PostgresName + ".postgres.database.azure.com";
     }
 
-    private static ResourceSpec[] Build(InstallConfig config, IReadOnlyDictionary<string, string> extraVariables, IReadOnlyList<SecretRef> extraSecrets)
+    private static ResourceSpec[] Build(InstallConfig config, IReadOnlyDictionary<string, string> extraVariables, IReadOnlyList<KeyVaultSecretRef> extraSecrets)
     {
         ArgumentNullException.ThrowIfNull(config);
         var c = config.Validated();
@@ -131,7 +131,7 @@ public static class InstallPlan
             // Liveness is the process alone, readiness the drain, startup waits for dependencies.
             ProbePaths = [HostProbePaths.Alive, HostProbePaths.Ready, HostProbePaths.Health],
             Variables = Variables(c, account, vault, lease, grainState, extraVariables),
-            Secrets = [new SecretRef { Name = MasterKeySecret, Vault = vault, VaultSecret = MasterKeySecret, Variable = IntoChatOSNames.MasterKeyEnvironmentVariable }, .. extraSecrets],
+            Secrets = [new KeyVaultSecretRef { Name = MasterKeySecret, Vault = vault, VaultSecret = MasterKeySecret, Variable = IntoChatOSNames.MasterKeyEnvironmentVariable }, .. extraSecrets],
             VolumeMounts =
             [
                 new VolumeMountSpec

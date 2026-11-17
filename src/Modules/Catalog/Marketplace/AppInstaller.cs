@@ -31,7 +31,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
     // names a connection of its slot's kind, and an app that reads data is installed by the brain's owner. Then the
     // copy lands with its consent recorded in its origin, every required type is granted and the bindings are
     // configured. A source pins an exact release to the publication the caller selected.
-    public async Task<InstallOutcome> Install(InstallRequest request, CancellationToken ct, AppSource.Brain? source = null)
+    public async Task<AppInstallOutcome> Install(AppInstallRequest request, CancellationToken ct, AppSource.Brain? source = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Ref);
@@ -76,10 +76,10 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         }
 
         var requires = bundle.Manifest.Requires ?? new AppRequirements();
-        if (request.Consent != AppConsent.Of(requires)) { return InstallOutcome.NeedsConsent(requires); }
-        if (await Unbound(scope, bundle.Manifest, request.Bindings, ct) is { } refusal) { return InstallOutcome.Refused(refusal); }
+        if (request.Consent != AppConsent.Of(requires)) { return AppInstallOutcome.NeedsConsent(requires); }
+        if (await Unbound(scope, bundle.Manifest, request.Bindings, ct) is { } refusal) { return AppInstallOutcome.Refused(refusal); }
         if ((requires.SemanticTypes is { Length: > 0 } || request.Bindings is { Count: > 0 }) && !await IsOwner(scope, caller))
-        { return InstallOutcome.Refused(OwnerOnly); }
+        { return AppInstallOutcome.Refused(OwnerOnly); }
 
         // A retried exact install resumes a copy that exists already; only a copy this call created is rolled back.
         var key = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(scope), name).Key;
@@ -100,7 +100,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
             if (!existed) { await RollBack(key, requires.SemanticTypes, caller); }
             throw;
         }
-        return InstallOutcome.Installed(name);
+        return AppInstallOutcome.Installed(name);
     }
 
     // Every capability the app requires must be provided by a connected connection in this brain, before any state is
@@ -191,7 +191,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
     // An update applies as before while it asks for nothing new. One that adds a requirement (to what the person
     // consented to, or to the installed manifest for a copy recorded before consent was) changes nothing until the
     // consent is the digest of the new release's requirements; then only the added types are granted.
-    public async Task<InstallOutcome> Update(UpdateRequest request, CancellationToken ct)
+    public async Task<AppInstallOutcome> Update(UpdateRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
         var name = request.Name;
@@ -205,7 +205,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         { throw new InvalidOperationException($"{name} has your own edits; it no longer takes updates from {origin.Publisher}."); }
         if (origin.Source is AppSource.Shipped) { await catalog.Reload(origin.Publisher, origin.Name).WaitAsync(ct); }
         var listing = await marketplace.Read(origin.Publisher, origin.Name, ct) ?? throw Gone(origin.Source, origin.Publisher, origin.Name);
-        if (AppVersions.Compare(listing.Version, origin.Version) <= 0 && !Unconfirmed(current.Status)) { return InstallOutcome.Installed(name); }
+        if (AppVersions.Compare(listing.Version, origin.Version) <= 0 && !Unconfirmed(current.Status)) { return AppInstallOutcome.Installed(name); }
         var bundle = await Bundle(origin.Source, origin.Publisher, origin.Name, ct);
         // The installed version stays when the new one needs a capability this brain has no connection for.
         await CheckCapabilities(scope, bundle.Manifest, ct);
@@ -216,14 +216,14 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         {
             // Asking for no more: consent follows the release, so a release that asks for less narrows it.
             await loader.Load(scope, name, bundle, next with { Consented = origin.Consented is null ? null : Recorded(requires) }, ct);
-            return InstallOutcome.Installed(name);
+            return AppInstallOutcome.Installed(name);
         }
-        if (request.Consent != AppConsent.Of(requires)) { return InstallOutcome.NeedsConsent(added, requires); }
+        if (request.Consent != AppConsent.Of(requires)) { return AppInstallOutcome.NeedsConsent(added, requires); }
         var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : null;
-        if (added.SemanticTypes is { Length: > 0 } && !await IsOwner(scope, caller)) { return InstallOutcome.Refused(OwnerOnly); }
+        if (added.SemanticTypes is { Length: > 0 } && !await IsOwner(scope, caller)) { return AppInstallOutcome.Refused(OwnerOnly); }
         await loader.Load(scope, name, bundle, next with { Consented = Recorded(requires) }, ct);
         await Grant(key, added.SemanticTypes, caller, ct);
-        return InstallOutcome.Installed(name);
+        return AppInstallOutcome.Installed(name);
     }
 
     public async Task<MarketplaceEntry> Entry(MarketplaceListing listing, CancellationToken ct)

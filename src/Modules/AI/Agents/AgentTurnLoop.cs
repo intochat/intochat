@@ -29,7 +29,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
     public async IAsyncEnumerable<AgentTurnEvent> Run(TurnPlan plan, [EnumeratorCancellation] CancellationToken ct)
     {
         await using var steps = Steps(plan, ct).GetAsyncEnumerator(ct);
-        AgentTurnEvent.Failed? failure = null;
+        AgentTurnEvent.TurnFailed? failure = null;
         while (true)
         {
             try { if (!await steps.MoveNextAsync()) { break; } }
@@ -59,7 +59,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
         // An interrupt from a user or the platform stops the turn before anything else is prepared; one written by an app or the model is not an order.
         if (contexts.FirstOrDefault(IsTrustedInterrupt) is { } interrupt)
         {
-            yield return new AgentTurnEvent.Failed("Blocked: " + interrupt.Text, false);
+            yield return new AgentTurnEvent.TurnFailed("Blocked: " + interrupt.Text, false);
             yield break;
         }
         var overrides = contexts.Where(entry => entry.EffectiveTags.Contains(ContextTags.Inference)).Select(entry => InferenceOverride.Parse(entry.Text)).ToArray();
@@ -116,14 +116,14 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                 await foreach (var update in client.GetStreamingResponseAsync(messages, options, ct))
                 {
                     updates.Add(update);
-                    if (!string.IsNullOrEmpty(update.Text)) { yield return new AgentTurnEvent.Text(update.Text); }
+                    if (!string.IsNullOrEmpty(update.Text)) { yield return new AgentTurnEvent.TextChunk(update.Text); }
                 }
                 response = updates.ToChatResponse();
             }
             else
             {
                 response = await client.GetResponseAsync(messages, options, ct);
-                if (!string.IsNullOrEmpty(response.Text)) { yield return new AgentTurnEvent.Text(response.Text); }
+                if (!string.IsNullOrEmpty(response.Text)) { yield return new AgentTurnEvent.TextChunk(response.Text); }
             }
             ct.ThrowIfCancellationRequested();
             if (response.Usage is not null) { (usage ??= new()).Add(response.Usage); }

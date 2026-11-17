@@ -106,7 +106,7 @@ public sealed record ManagedEnvironmentSpec : ResourceSpec
     public override string Kind => ResourceKinds.ManagedEnvironment;
 }
 
-public sealed record SecretRef
+public sealed record KeyVaultSecretRef
 {
     // Container App secret name, read from Key Vault with the app's identity.
     public string Name { get; init; } = "";
@@ -165,7 +165,7 @@ public sealed record ContainerAppSpec : ResourceSpec
     public int MinReplicas { get; init; } = 1;
     public int MaxReplicas { get; init; } = 1;
     public Dictionary<string, string> Variables { get; init; } = [];
-    public SecretRef[] Secrets { get; init; } = [];
+    public KeyVaultSecretRef[] Secrets { get; init; } = [];
     public string Identity { get; init; } = "";
     public int IngressPort { get; init; } = 8080;
     public int[] InternalPorts { get; init; } = [];

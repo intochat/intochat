@@ -38,7 +38,7 @@ public sealed class AppPackageCompilerFacts
                 public sealed record MailWatcherSettings { public string Tag { get; init; } = "vip"; }
 
                 [App("vip-mail", Title = "VIP Mail", Summary = "Notifies on VIP mail")]
-                [Slot("inbox", typeof(INotifications), Description = "Notification inbox")]
+                [AppSlot("inbox", typeof(INotifications), Description = "Notification inbox")]
                 public sealed class VipMailApp : BrainApp<MailWatcherState, MailWatcherSettings>
                 {
                     [OnSignal("mail.received")]

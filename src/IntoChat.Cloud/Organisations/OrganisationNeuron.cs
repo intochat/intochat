@@ -91,7 +91,7 @@ internal sealed class OrganisationNeuron(
         var next = current.Clone();
         next.Members = [.. next.Members.Where(member => member.PrincipalId != principalId)];
         next.Version++;
-        await Save(next, new MemberRemoved(current.OrgId, principalId));
+        await Save(next, new OrganisationMemberRemoved(current.OrgId, principalId));
     }
 
     public async Task<bool> CreatePersonal(PersonalOrganisationRequest request)
@@ -174,7 +174,7 @@ internal sealed class OrganisationNeuron(
         var next = current.Clone();
         next.Members = [.. next.Members.Where(member => member.PrincipalId != principalId)];
         next.Version++;
-        await Save(next, new MemberRemoved(current.OrgId, principalId));
+        await Save(next, new OrganisationMemberRemoved(current.OrgId, principalId));
     }
 
     private OrganisationState Active() => Exists ? State : throw new OrganisationException("ORGANISATION_NOT_FOUND");

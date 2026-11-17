@@ -10,7 +10,6 @@ using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
-using OsSecretRef = IntoChat.OS.Connections.SecretRef;
 using SealedSecret = DigitalBrain.Capabilities.Secrets.SealedSecret;
 using SecretRef = DigitalBrain.Capabilities.Secrets.SecretRef;
 using SecretStatus = DigitalBrain.Capabilities.Secrets.SecretStatus;
@@ -58,7 +57,7 @@ public sealed class VaultPort(
         {
             using var _ = EnterVaultScope();
             var stored = await Vault(caller).Set(Owner(caller), name, label, value).WaitAsync(cancellationToken).ConfigureAwait(false);
-            return SecretVaultResult.Stored(ToRef(stored));
+            return SecretVaultResult.Stored(stored);
         }
         catch (InvalidOperationException) { return SecretVaultResult.Denied; }
     }
@@ -136,13 +135,6 @@ public sealed class VaultPort(
     // Resolve is a platform edge. The app id is the platform sentinel, which is enough for the vault's non-empty check.
     private static CapabilityCaller Platform(CapabilityCaller caller)
         => CapabilityCallers.Platform(caller.PrincipalId, caller.AccountId, caller.BrainId, caller.ConversationId);
-
-    private static SecretRef ToRef(OsSecretRef stored) => new()
-    {
-        Reference = stored.Reference,
-        Label = stored.Label,
-        Status = stored.IsSet ? SecretStatus.Set : SecretStatus.Unset,
-    };
 
     // The sealer takes non-empty text: the context, a separator, then the bytes in base64 (empty bytes give an empty tail).
     private static string Prefix(string context) => context + "\n";

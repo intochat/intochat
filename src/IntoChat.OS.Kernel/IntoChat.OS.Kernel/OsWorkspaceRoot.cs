@@ -47,7 +47,7 @@ internal sealed class OsWorkspaceRoot(INeuronProxies brain, IBrainObserver kerne
             try
             {
                 var outcome = await installer.Update(new(name), cancellationToken);
-                if (outcome.Status != InstallStatus.Ok)
+                if (outcome.Status != AppInstallStatus.Ok)
                 { logger.LogInformation("App {App} has an update that asks for more; its installed version was retained until the person consents.", name); }
             }
             catch (Exception error) when (error is not OperationCanceledException && name != "desktop")

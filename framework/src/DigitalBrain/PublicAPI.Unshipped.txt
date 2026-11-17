@@ -967,6 +967,7 @@ DigitalBrain.Invocation.RuntimeInvocation.Method.get -> string!
 DigitalBrain.Invocation.RuntimeInvocation.Method.init -> void
 DigitalBrain.Invocation.RuntimeInvocation.RuntimeInvocation(string! Behavior, string! Contract, string! Key, string! Method, System.Text.Json.JsonElement[]! Arguments) -> void
 DigitalBrain.Invocation.RuntimeProtocol
+DigitalBrain.Invocation.TaskBoxing
 DigitalBrain.IScreen
 DigitalBrain.IScreen.Act(DigitalBrain.ScreenAction! action) -> System.Threading.Tasks.Task!
 DigitalBrain.IScreen.Activate(string! alias, long generation, string! nodeKey, string? fieldValue = null, string? by = null) -> System.Threading.Tasks.Task!
@@ -3426,6 +3427,8 @@ static DigitalBrain.Invocation.RuntimeInvocation.operator ==(DigitalBrain.Invoca
 static DigitalBrain.Invocation.RuntimeProtocol.Forget(System.Runtime.Loader.AssemblyLoadContext! context) -> void
 static DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(System.Type! type) -> System.Text.Json.JsonSerializerOptions!
 static DigitalBrain.Invocation.RuntimeProtocol.Register(System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver! resolver) -> void
+static DigitalBrain.Invocation.TaskBoxing.ResultAsync(System.Threading.Tasks.Task! task, System.Type? resultType) -> System.Threading.Tasks.Task<object?>!
+static DigitalBrain.Invocation.TaskBoxing.ReturnResultAsync(System.Threading.Tasks.Task! task, System.Type! returnType) -> System.Threading.Tasks.Task<object?>!
 static DigitalBrain.Kernel.BrainInstance.operator !=(DigitalBrain.Kernel.BrainInstance? left, DigitalBrain.Kernel.BrainInstance? right) -> bool
 static DigitalBrain.Kernel.BrainInstance.operator ==(DigitalBrain.Kernel.BrainInstance? left, DigitalBrain.Kernel.BrainInstance? right) -> bool
 static DigitalBrain.Kernel.BrainType.operator !=(DigitalBrain.Kernel.BrainType? left, DigitalBrain.Kernel.BrainType? right) -> bool

@@ -73,7 +73,7 @@ public enum RedactorKind
 
 [GenerateSerializer, Alias("semantic.type")]
 public sealed record SemanticType(
-    [property: Id(0)] FieldKind Kind,
+    [property: Id(0)] SemanticFieldKind Kind,
     [property: Id(1)] string Id,
     [property: Id(2)] PrimitiveKind Primitive,
     [property: Id(3)] SensitivityClass Sensitivity,

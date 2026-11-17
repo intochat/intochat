@@ -3,7 +3,7 @@ using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Connections;
 
-public enum FieldKind
+public enum SemanticFieldKind
 {
     PlainText,
     LongText,

@@ -13,11 +13,11 @@ using IntoChat.OS.Kernel.Composition.Kernel.Testing;
 namespace IntoChat.OS.Kernel.Composition.Kernel;
 
 // Reads the directory of the stamped caller's brain; works on a silo and on a cluster client alike.
-public sealed class Kernel(IGrainFactory grains, IBrainMembership? membership = null, IServiceProvider? services = null) : IKernel
+public sealed class OsKernel(IGrainFactory grains, IBrainMembership? membership = null, IServiceProvider? services = null) : IKernel
 {
     // The kernel over the grain factory of services (a silo, or a cluster client host such as the MCP), with its brain
     // membership when the host registers one.
-    public static Kernel For(IServiceProvider services)
+    public static OsKernel For(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
         return new(Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IGrainFactory>(services),

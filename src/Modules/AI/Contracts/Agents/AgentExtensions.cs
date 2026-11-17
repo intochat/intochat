@@ -25,10 +25,10 @@ public static class AgentExtensions
             switch (item)
             {
                 case AgentTurnEvent.Started started: runId = started.RunId; break;
-                case AgentTurnEvent.Text delta: text.Append(delta.Content); break;
+                case AgentTurnEvent.TextChunk delta: text.Append(delta.Content); break;
                 case AgentTurnEvent.Completed done: completed = done; break;
-                case AgentTurnEvent.Failed failed when failed.Cancelled: throw new OperationCanceledException(failed.Message, ct);
-                case AgentTurnEvent.Failed failed: throw new InvalidOperationException(failed.Message);
+                case AgentTurnEvent.TurnFailed failed when failed.Cancelled: throw new OperationCanceledException(failed.Message, ct);
+                case AgentTurnEvent.TurnFailed failed: throw new InvalidOperationException(failed.Message);
             }
         }
         if (completed is null) { throw new InvalidOperationException("The run ended without a completed response."); }
@@ -53,9 +53,9 @@ public static class AgentExtensions
         {
             switch (item)
             {
-                case AgentTurnEvent.Text delta: yield return delta.Content; break;
-                case AgentTurnEvent.Failed failed when failed.Cancelled: throw new OperationCanceledException(failed.Message, ct);
-                case AgentTurnEvent.Failed failed: throw new InvalidOperationException(failed.Message);
+                case AgentTurnEvent.TextChunk delta: yield return delta.Content; break;
+                case AgentTurnEvent.TurnFailed failed when failed.Cancelled: throw new OperationCanceledException(failed.Message, ct);
+                case AgentTurnEvent.TurnFailed failed: throw new InvalidOperationException(failed.Message);
             }
         }
     }

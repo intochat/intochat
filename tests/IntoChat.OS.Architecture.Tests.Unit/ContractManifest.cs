@@ -41,6 +41,7 @@ internal sealed record ContractManifest(
         ("IntoChat.OS.Connections.Platform.Integrations.ConfigureIntegration", typeof(DigitalBrain.Capabilities.Connections.Integrations.ConfigureIntegration), null),
         ("IntoChat.OS.Connections.Platform.Integrations.IntegrationSnapshot", typeof(DigitalBrain.Capabilities.Connections.Integrations.IntegrationSnapshot), null),
         ("IntoChat.OS.Connections.Platform.Integrations.ReleasedIntegration", typeof(DigitalBrain.Capabilities.Connections.Integrations.ReleasedIntegration), null),
+        ("IntoChat.OS.Connections.SecretRef", typeof(DigitalBrain.Capabilities.Secrets.SecretRef), "semantic.secret-ref"),
         ("IntoChat.OS.Framework.UntrustedCallerException", typeof(DigitalBrain.Runtime.Orleans.Capabilities.UntrustedCallerException), null),
         ("IntoChat.OS.Owner", typeof(DigitalBrain.Brains.Owner), null),
         ("IntoChat.OS.ServiceUnavailableException", typeof(DigitalBrain.Errors.ServiceUnavailableException), "framework.service-unavailable"),

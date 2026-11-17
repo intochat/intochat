@@ -12,8 +12,8 @@ internal static class ResetEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/auth/password-reset", RequestAsync).AllowAnonymous().AddEndpointFilter<IpThrottleFilter>();
-        endpoints.MapPost("/auth/password-reset/complete", CompleteAsync).AllowAnonymous().AddEndpointFilter<IpThrottleFilter>();
+        endpoints.MapPost("/auth/password-reset", RequestAsync).AllowAnonymous().AddEndpointFilter<AuthIpThrottleFilter>();
+        endpoints.MapPost("/auth/password-reset/complete", CompleteAsync).AllowAnonymous().AddEndpointFilter<AuthIpThrottleFilter>();
     }
 
     internal static async Task<IResult> IssueAsync(string email, AuthCalls calls, AuthHashing hashing)

@@ -16,7 +16,7 @@ internal static class SignUpEndpoints
     public const string Path = "/auth/signup";
     internal static readonly string[] EmailMethod = ["email"];
 
-    public static void Map(IEndpointRouteBuilder endpoints) => endpoints.MapPost(Path, SignUpAsync).AllowAnonymous().AddEndpointFilter<IpThrottleFilter>();
+    public static void Map(IEndpointRouteBuilder endpoints) => endpoints.MapPost(Path, SignUpAsync).AllowAnonymous().AddEndpointFilter<AuthIpThrottleFilter>();
 
     private static async Task<IResult> SignUpAsync(HttpRequest request, AuthCalls calls, AuthHashing hashing, AuthModuleOptions options, TimeProvider clock)
     {

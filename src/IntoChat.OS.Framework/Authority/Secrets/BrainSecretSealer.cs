@@ -1,6 +1,7 @@
 using DigitalBrain.Capabilities.Connections.Sealing;
 using DigitalBrain.Capabilities.Secrets;
-using IntoChat.OS.Authority.Storage;
+using DigitalBrain.Identity.Local.Vault;
+using DigitalBrain.Runtime.Orleans;
 
 namespace IntoChat.OS.Authority.Secrets;
 

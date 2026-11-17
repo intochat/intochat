@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.Cloud.Auth.Core;
 using IntoChat.Cloud.Auth.Google;
 using IntoChat.Cloud.Auth.Services;
@@ -16,7 +17,7 @@ internal static class GoogleEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/auth/google/start", StartAsync).AllowAnonymous().AddEndpointFilter<IpThrottleFilter>();
+        endpoints.MapGet("/auth/google/start", StartAsync).AllowAnonymous().AddEndpointFilter<AuthIpThrottleFilter>();
         endpoints.MapGet("/auth/google/complete", CompleteAsync).AllowAnonymous();
         // This metadata lets the remote handler receive the callback through the anonymous account-session boundary.
         endpoints.MapGet("/auth/google/callback", () => Results.Redirect("/?auth_error=google")).AllowAnonymous();

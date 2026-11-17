@@ -44,10 +44,14 @@ public static class PlatformHosting
         services.TryAddSingleton(TimeProvider.System);
         services.AddOptions<Storage.BrainStoreOptions>().BindConfiguration(Storage.BrainStoreOptions.Key)
             .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration, IServiceProvider>((options, configuration, sp) => options.Directory = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, sp.GetService<DigitalBrain.Runtime.Orleans.RuntimeOptions>() ?? Identity.PresenceProofValidator.DefaultRuntimeOptions).State);
+        services.AddOptions<DigitalBrain.Runtime.Orleans.BrainStoreOptions>().BindConfiguration(Storage.BrainStoreOptions.Key)
+            .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration, IServiceProvider>((options, configuration, sp) => options.Directory = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, sp.GetService<DigitalBrain.Runtime.Orleans.RuntimeOptions>() ?? Identity.PresenceProofValidator.DefaultRuntimeOptions).State);
         services.AddSiloDiagnostics();
         services.TryAddSingleton<DigitalBrain.Identity.Local.Custody.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
-        services.TryAddSingleton<Storage.BrainStorageKeys>();
+        services.TryAddSingleton<DigitalBrain.Runtime.Orleans.IBrainKeyCustody>(provider =>
+            new MasterKeyBrainCustodyAdapter(provider.GetRequiredService<DigitalBrain.Identity.Local.Custody.IMasterKeyCustody>()));
+        services.TryAddSingleton<DigitalBrain.Runtime.Orleans.BrainStorageKeys>();
         services.TryAddSingleton<EdgeGrantsCache>();
         services.TryAddSingleton<IEdgeGrantsCache>(sp => sp.GetRequiredService<EdgeGrantsCache>());
         services.AddSingleton<IConnectionBindings, Connections.ConnectionBindings>();
@@ -115,6 +119,14 @@ public static class PlatformHosting
         endpoints.MapGrpcService<Neurons.NeuronsService>();
         IntoChat.OS.Connections.Http.HandleRoutes.Map(endpoints);
         return endpoints;
+    }
+
+    private sealed class MasterKeyBrainCustodyAdapter(DigitalBrain.Identity.Local.Custody.IMasterKeyCustody inner)
+        : DigitalBrain.Runtime.Orleans.IBrainKeyCustody
+    {
+        public byte[] Wrap(string accountId, string context, byte[] secret) => inner.Wrap(accountId, context, secret);
+
+        public byte[] Unwrap(string accountId, string context, byte[] wrapped) => inner.Unwrap(accountId, context, wrapped);
     }
 
     private sealed class PlatformRegistration;

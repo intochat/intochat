@@ -32,7 +32,7 @@ public static class McpHosting
             if (GuestSurface.Is(caller)) { throw new UnauthorizedAccessException($"A guest session cannot use {SignalWatch}."); }
             return provider.GetRequiredService<IIntoChatOSBrains>().Open(caller.BrainId);
         });
-        services.TryAddSingleton<IBrainObserver>(IntoChat.OS.Kernel.Composition.Kernel.Kernel.For);
+        services.TryAddSingleton<IBrainObserver>(IntoChat.OS.Kernel.Composition.Kernel.OsKernel.For);
         services.AddHttpContextAccessor();
         services.TryAddSingleton<McpCaller>();
         services.TryAddScoped<NeuronSurface>();

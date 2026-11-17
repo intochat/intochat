@@ -8,7 +8,7 @@ public sealed class FeatureCatalogFacts
     {
         var catalog = new FeatureCatalog([typeof(AppsModule).Assembly]);
 
-        var origin = Assert.IsType<FeatureOrigin.Module>(await catalog.Origin("os", "files"));
+        var origin = Assert.IsType<FeatureOrigin.ModuleSource>(await catalog.Origin("os", "files"));
         Assert.Same(typeof(AppsModule).Assembly, origin.Assembly);
         Assert.Contains(await catalog.Listings(), listing => listing.Publisher == "os" && listing.Name == "files");
         Assert.Empty(await catalog.Failures());

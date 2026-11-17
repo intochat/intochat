@@ -425,7 +425,7 @@ internal sealed class AgentNeuron(
         {
             await Notify(new TurnStarted(Key, runId, replay.UserText));
             yield return new AgentTurnEvent.Started(runId);
-            yield return new AgentTurnEvent.Text(replay.Reply ?? "");
+            yield return new AgentTurnEvent.TextChunk(replay.Reply ?? "");
             yield return new AgentTurnEvent.Completed([new AiMessage("assistant", [new AiText(replay.Reply ?? "")])], replay.Usage);
             await Notify(new TurnCompleted(Key, runId, await Mask(replay.Reply ?? "")));
             yield return new AgentTurnEvent.Finished();
@@ -453,7 +453,7 @@ internal sealed class AgentNeuron(
         var seen = 0;
         var stored = 0L;
         var sequence = 0;
-        AgentTurnEvent.Failed? failure = null;
+        AgentTurnEvent.TurnFailed? failure = null;
 
         // The run as streamed so far, including text not yet stored.
         AgentRun Streamed() => visible.Length > 0 ? run with { Reply = visible } : run;
@@ -528,7 +528,7 @@ internal sealed class AgentNeuron(
                             run = run with { Model = selected.Model };
                             await Store();
                             break;
-                        case AgentTurnEvent.Text delta:
+                        case AgentTurnEvent.TextChunk delta:
                             text.Append(delta.Content);
                             // The first words are stored at once, later ones at most once per interval.
                             if (shown == 0 || Clock.GetElapsedTime(stored) >= ProgressInterval) { await Store(); }
@@ -570,7 +570,7 @@ internal sealed class AgentNeuron(
                             await Announce();
                             if (done.Usage is not null) { await Notify(new TurnProgressed(Key, runId, "receipt", null, null, await Mask(JsonSerializer.Serialize(done.Usage)), ++sequence)); }
                             break;
-                        case AgentTurnEvent.Failed failed:
+                        case AgentTurnEvent.TurnFailed failed:
                             // The loop sees only a cancelled token; a run out of time failed, it was not cancelled.
                             failure = failed.Cancelled && TimedOut(timeout, ct)
                                 ? new(timedOut, Cancelled: false) { Failure = AgentFailure.TimedOut }

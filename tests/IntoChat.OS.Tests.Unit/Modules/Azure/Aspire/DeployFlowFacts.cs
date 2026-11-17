@@ -273,7 +273,7 @@ public sealed class DeployFlowFacts
         var host = new Host { Current = "new111" };
         await using var os = Os(host);
         // What the reminder loop left after its own silo's handover: Rolling, nothing remaining, no flow.
-        Seed(os, new DeploymentState { CurrentSha = "base000", Stage = DeploymentStage.Rolling, TargetSha = "new111", PreviousSha = "base000", Rolled = ["mcp-a", "silo-0", "silo-1"], Handover = "silo-1" });
+        Seed(os, new AspireDeploymentState { CurrentSha = "base000", Stage = DeploymentStage.Rolling, TargetSha = "new111", PreviousSha = "base000", Rolled = ["mcp-a", "silo-0", "silo-1"], Handover = "silo-1" });
 
         var read = await Deployment(os).Read();
 
@@ -287,7 +287,7 @@ public sealed class DeployFlowFacts
     {
         var host = new Host { Current = "new111" };
         await using var os = Os(host);
-        Seed(os, new DeploymentState { CurrentSha = "base000", Stage = DeploymentStage.Rolling, TargetSha = "new111", PreviousSha = "base000", Remaining = ["silo-1"], Rolled = ["mcp-a", "silo-0"] });
+        Seed(os, new AspireDeploymentState { CurrentSha = "base000", Stage = DeploymentStage.Rolling, TargetSha = "new111", PreviousSha = "base000", Remaining = ["silo-1"], Rolled = ["mcp-a", "silo-0"] });
 
         var read = await Deployment(os).Read();
 
@@ -295,6 +295,6 @@ public sealed class DeployFlowFacts
         Assert.Equal("the roll was interrupted", read.Failure);
     }
 
-    private static void Seed(TestOS os, DeploymentState state)
-        => os.SeedStoredState(DeploymentId, JsonSerializer.Serialize(state, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(DeploymentState))));
+    private static void Seed(TestOS os, AspireDeploymentState state)
+        => os.SeedStoredState(DeploymentId, JsonSerializer.Serialize(state, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(AspireDeploymentState))));
 }

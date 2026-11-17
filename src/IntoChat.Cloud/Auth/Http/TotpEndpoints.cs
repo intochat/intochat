@@ -10,10 +10,10 @@ internal static class TotpEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/auth/totp", BeginAsync).AddEndpointFilter<IpThrottleFilter>();
-        endpoints.MapPost("/auth/totp/confirm", ConfirmAsync).AddEndpointFilter<IpThrottleFilter>();
-        endpoints.MapPost("/auth/totp/disable", DisableAsync).AddEndpointFilter<IpThrottleFilter>();
-        endpoints.MapPost("/auth/totp/recovery-codes", RegenerateAsync).AddEndpointFilter<IpThrottleFilter>();
+        endpoints.MapPost("/auth/totp", BeginAsync).AddEndpointFilter<AuthIpThrottleFilter>();
+        endpoints.MapPost("/auth/totp/confirm", ConfirmAsync).AddEndpointFilter<AuthIpThrottleFilter>();
+        endpoints.MapPost("/auth/totp/disable", DisableAsync).AddEndpointFilter<AuthIpThrottleFilter>();
+        endpoints.MapPost("/auth/totp/recovery-codes", RegenerateAsync).AddEndpointFilter<AuthIpThrottleFilter>();
     }
 
     private static async Task<IResult> BeginAsync(HttpContext http, AuthCalls calls, AuthSecrets secrets, AuthModuleOptions options, TimeProvider clock)

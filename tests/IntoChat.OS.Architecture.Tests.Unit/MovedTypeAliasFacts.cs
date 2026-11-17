@@ -40,8 +40,7 @@ internal sealed record MovedTypes(string Old, string? Alias, bool Persisted)
     // Top-level types still in the OS awaiting their move (spec section 4.1), by CLR full name.
     private static readonly string[] Names =
     [
-        "IntoChat.OS.Framework.NeutralCallMapping", "IntoChat.OS.Framework.NeutralCallFilter", "IntoChat.OS.Framework.TaskBoxing",
-        "IntoChat.OS.Framework.IRevisioned`1",
+        "IntoChat.OS.Framework.NeutralCallMapping", "IntoChat.OS.Framework.NeutralCallFilter",
         "IntoChat.OS.Framework.Modules.OsModule",
         "IntoChat.OS.NeuronAliases", "IntoChat.OS.Runtime.NeuronProxies",
     ];
@@ -92,6 +91,7 @@ internal sealed record MovedTypes(string Old, string? Alias, bool Persisted)
         ("IntoChat.OS.Connections.Platform.Integrations.IntegrationSnapshot", typeof(DigitalBrain.Capabilities.Connections.Integrations.IntegrationSnapshot), null, false),
         ("IntoChat.OS.Connections.Platform.Integrations.IntegrationStatus", typeof(DigitalBrain.Capabilities.Connections.Integrations.IntegrationStatus), null, false),
         ("IntoChat.OS.Connections.Platform.Integrations.ReleasedIntegration", typeof(DigitalBrain.Capabilities.Connections.Integrations.ReleasedIntegration), null, false),
+        ("IntoChat.OS.Connections.SecretRef", typeof(DigitalBrain.Capabilities.Secrets.SecretRef), null, false),
         ("IntoChat.OS.Contracts.Compute.BudgetExhaustedException", typeof(DigitalBrain.Capabilities.Compute.BudgetExhaustedException), null, false),
         ("IntoChat.OS.Contracts.Compute.ComputeTracePage", typeof(DigitalBrain.Capabilities.Compute.ComputeTracePage), null, false),
         ("IntoChat.OS.Contracts.Compute.Cost", typeof(DigitalBrain.Capabilities.Compute.Cost), null, false),
@@ -158,6 +158,7 @@ internal sealed record MovedTypes(string Old, string? Alias, bool Persisted)
         ("IntoChat.OS.Framework.Modules.SettingAttribute", typeof(DigitalBrain.Modules.Options.SettingAttribute), null, false),
         ("IntoChat.OS.Framework.Parts.IMasterKeyCustody", typeof(DigitalBrain.Identity.Local.Custody.IMasterKeyCustody), null, false),
         ("IntoChat.OS.Framework.Parts.MasterKeyCustodyKind", typeof(DigitalBrain.Identity.Local.Custody.MasterKeyCustodyKind), null, false),
+        ("IntoChat.OS.Framework.TaskBoxing", typeof(DigitalBrain.Invocation.TaskBoxing), null, false),
         ("IntoChat.OS.Framework.UntrustedCallerException", typeof(DigitalBrain.Runtime.Orleans.Capabilities.UntrustedCallerException), null, false),
         ("IntoChat.OS.IBrain", typeof(DigitalBrain.Brains.IBrain), null, false),
         ("IntoChat.OS.InstanceCreated", typeof(DigitalBrain.Signals.InstanceCreated), null, false),

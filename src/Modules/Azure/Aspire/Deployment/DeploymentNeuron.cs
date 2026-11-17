@@ -15,10 +15,10 @@ internal sealed class DeploymentNeuron(
     IClusterHost host,
     IntoChat.OS.Modules.Microsoft.Orleans.IClusterMembershipFeed membership,
     ILogger<DeploymentNeuron> log)
-    : DigitalBrain.Neurons.Neuron<DeploymentState>, IDeployment, IDeploymentDriver
+    : DigitalBrain.Neurons.Neuron<AspireDeploymentState>, IDeployment, IDeploymentDriver
 {
     // The state, loaded on activation; a step that moves nothing visible saves it without a signal.
-    private DeploymentState Snapshot => State;
+    private AspireDeploymentState Snapshot => State;
     private string BrainId => Id.Brain.Value;
     private T Peer<T>(string relative) where T : class
         => Get<T>(DigitalBrain.Contracts.PlainNeuronContracts.IdOf(typeof(T), $"{BrainId}/{relative}"));
@@ -46,7 +46,7 @@ internal sealed class DeploymentNeuron(
             // The silos did not start moving: the live build stays what runs, and the caller learns the restart failed.
             log.LogWarning(error, "Cluster {Deployment} could not restart onto {Target}.", Id.ToString(), sha);
             if (previous.Length > 0) { await host.SetLive(previous, CancellationToken.None); }
-            await Save(new DeploymentState { CurrentSha = previous }, Changed(previous, DeploymentStage.Steady));
+            await Save(new AspireDeploymentState { CurrentSha = previous }, Changed(previous, DeploymentStage.Steady));
             throw;
         }
         return Describe();
@@ -55,7 +55,7 @@ internal sealed class DeploymentNeuron(
     private static bool Moving(DeploymentStage stage) => stage is DeploymentStage.Rolling or DeploymentStage.RollingBack;
 
     // Validates and records the roll, points live.json at sha, starts its DeployFlow and answers: the flow drives the steps, this
-    // neuron folds the flow's signals into DeploymentState.
+    // neuron folds the flow's signals into AspireDeploymentState.
     public async Task<DeploymentSnapshot> Roll(string sha)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sha);
@@ -72,7 +72,7 @@ internal sealed class DeploymentNeuron(
         if (host.Self is not { } self || !instances.Contains(self)) { throw new InvalidOperationException("this process is not a cluster instance"); }
         await Context.Synapses.EnsureBrainWide(typeof(FlowStep), typeof(FlowDone));
         var key = FlowKey(sha);
-        await Save(new DeploymentState { CurrentSha = previous, Stage = DeploymentStage.Rolling, TargetSha = sha, PreviousSha = previous, Remaining = instances, FlowId = FlowIdOf(key) },
+        await Save(new AspireDeploymentState { CurrentSha = previous, Stage = DeploymentStage.Rolling, TargetSha = sha, PreviousSha = previous, Remaining = instances, FlowId = FlowIdOf(key) },
             Changed(previous, DeploymentStage.Rolling));
         try
         {
@@ -83,7 +83,7 @@ internal sealed class DeploymentNeuron(
         {
             log.LogWarning(error, "Cluster {Deployment} could not start rolling onto {Target}.", Id.ToString(), sha);
             await Guarded(() => host.SetLive(previous, CancellationToken.None), "point live.json back");
-            await Save(new DeploymentState { CurrentSha = previous, Failure = error.Message }, Changed(previous, DeploymentStage.Steady));
+            await Save(new AspireDeploymentState { CurrentSha = previous, Failure = error.Message }, Changed(previous, DeploymentStage.Steady));
             throw;
         }
         return Describe();
@@ -155,7 +155,7 @@ internal sealed class DeploymentNeuron(
     {
         var current = Snapshot.TargetSha!;
         var rolledForward = Snapshot.Stage == DeploymentStage.Rolling;
-        await Save(new DeploymentState { CurrentSha = current, Failure = failure }, Changed(current, DeploymentStage.Steady));
+        await Save(new AspireDeploymentState { CurrentSha = current, Failure = failure }, Changed(current, DeploymentStage.Steady));
         if (rolledForward) { await Guarded(() => CandidatePeer(current).Finish(), "finish the promoted candidate"); }
     }
 
@@ -174,19 +174,19 @@ internal sealed class DeploymentNeuron(
             // A roll outlives its activation: its flow continues by itself and this neuron folds its signals. A roll the reminder loop
             // drove has no flow: one that reached its own silo's handover on its target is complete; any other ends Steady on what runs.
             if (Snapshot.FlowId is null && Snapshot is { Remaining.Length: 0, Handover: not null } && current == Snapshot.TargetSha) { await Finish(Snapshot.Failure); }
-            else if (Snapshot.FlowId is null) { await Save(new DeploymentState { CurrentSha = current, Failure = "the roll was interrupted" }, Changed(current, DeploymentStage.Steady)); }
+            else if (Snapshot.FlowId is null) { await Save(new AspireDeploymentState { CurrentSha = current, Failure = "the roll was interrupted" }, Changed(current, DeploymentStage.Steady)); }
         }
         else if (Snapshot.Stage == DeploymentStage.Restarting && current == Snapshot.TargetSha)
         {
             finished = Snapshot.TargetSha;
-            await Save(new DeploymentState { CurrentSha = current }, Changed(current, DeploymentStage.Steady));
+            await Save(new AspireDeploymentState { CurrentSha = current }, Changed(current, DeploymentStage.Steady));
         }
         else if (Snapshot.Stage == DeploymentStage.Restarting)
         {
             // live.json is written before the silos restart, so a different build means that restart never took.
             log.LogWarning("Cluster {Deployment} restarted towards {Target} but runs {Current}.", Id.ToString(), Snapshot.TargetSha, current);
             abandoned = Snapshot.TargetSha;
-            await Save(new DeploymentState { CurrentSha = current }, Changed(current, DeploymentStage.Steady));
+            await Save(new AspireDeploymentState { CurrentSha = current }, Changed(current, DeploymentStage.Steady));
         }
         else if (Snapshot.CurrentSha != current)
         {
@@ -226,12 +226,12 @@ internal sealed class DeploymentNeuron(
     private DeploymentChanged Changed(string sha, DeploymentStage stage) => new(stage.ToString(), sha, silos);
 
     // What was published is what committed: a refused write publishes nothing.
-    private async Task SaveQuietly(DeploymentState next)
+    private async Task SaveQuietly(AspireDeploymentState next)
     {
         await Store(next);
     }
 
-    private async Task Save(DeploymentState next, DeploymentChanged changed)
+    private async Task Save(AspireDeploymentState next, DeploymentChanged changed)
     {
         await base.Save(next, changed);
         last = changed;

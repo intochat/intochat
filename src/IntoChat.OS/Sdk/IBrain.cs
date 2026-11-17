@@ -1,7 +1,7 @@
 namespace IntoChat.Sdk;
 
 /// <summary>Brain surface exposed inside sandboxed apps and deterministic verification harnesses.</summary>
-public interface IBrain
+public interface ISandboxBrain
 {
     string BrainId { get; }
     string AppKey { get; }

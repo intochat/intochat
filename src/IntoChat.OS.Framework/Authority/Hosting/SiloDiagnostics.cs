@@ -34,7 +34,7 @@ public static class SiloDiagnostics
     {
         services.AddMetrics();
         // Only a default: UseBrainOwnershipCounters replaces it whether it runs before or after this.
-        services.TryAddSingleton<IBrainOwnershipCounters, NoBrainOwnershipCounters>();
+        services.TryAddSingleton<DigitalBrain.Runtime.Orleans.IBrainOwnershipCounters, NoBrainOwnershipCounters>();
         services.TryAddSingleton<BrainOwnershipMetrics>();
         return services;
     }
@@ -107,7 +107,7 @@ public static class SiloDiagnostics
             Environment.MachineName,
             // The runtime BrainLog writes one format (DBLG 0x02, JSON payloads) since 06-02.
             new SiloStorage("local", "Json"),
-            provider.GetRequiredService<IBrainOwnershipCounters>().Snapshot());
+            provider.GetRequiredService<DigitalBrain.Runtime.Orleans.IBrainOwnershipCounters>().Snapshot());
     }
 
     private static string? Revision(IConfiguration configuration) => configuration[RevisionVariable] is { Length: > 0 } revision ? revision : null;
@@ -115,7 +115,7 @@ public static class SiloDiagnostics
     private static string CanaryPathOf(BrainStoreOptions store) => Path.Combine(store.Directory, CanaryDirectory, CanaryFile);
 }
 
-public sealed record SiloReport(string? SiloAddress, string? ClusterId, string? Revision, string Hostname, SiloStorage Storage, BrainOwnershipCounts Ownership);
+public sealed record SiloReport(string? SiloAddress, string? ClusterId, string? Revision, string Hostname, SiloStorage Storage, DigitalBrain.Runtime.Orleans.BrainOwnershipCounts Ownership);
 
 public sealed record SiloStorage(string Mode, string WriteFormat);
 

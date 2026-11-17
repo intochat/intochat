@@ -12,10 +12,10 @@ public sealed record AuthoredUnit(string Alias, string Title, string Spec, IRead
 public sealed record AuthoredSignal(string Alias, IReadOnlyDictionary<string, string> Fields);
 
 // Schedule is an Every expression ("every 6m") or null; View is true when the unit shows a view.
-public sealed record UnitNeeds(IReadOnlyList<SlotNeed> Slots, string? Schedule, bool View);
+public sealed record UnitNeeds(IReadOnlyList<AuthoredSlotNeed> Slots, string? Schedule, bool View);
 
 // Name is the [Slot] parameter name in the unit's code; Capability is "http" or "tool"; Hosts are what an http slot may read.
-public sealed record SlotNeed(string Name, string Capability, IReadOnlyList<string> Hosts);
+public sealed record AuthoredSlotNeed(string Name, string Capability, IReadOnlyList<string> Hosts);
 
 // Given is the slots' fakes, When the stimuli and Then the expectations, in the grammar ScenarioSteps.Parse reads.
 // Supersedes: on a new scenario, the name of the earlier one the person's sentence contradicts.

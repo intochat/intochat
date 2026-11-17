@@ -93,54 +93,54 @@ internal sealed class AppStoreNeuron(
     }
 
     // Scripts install only apps that ask for nothing: one with requirements is installed from Apps, where the person sees them.
-    public async Task<InstallOutcome> Get(string publisher, string name)
+    public async Task<AppInstallOutcome> Get(string publisher, string name)
     {
         return await Answer(async () =>
         {
-            if (BrainScope.CurrentId() != Scope) { return InstallOutcome.Refused("Apps install only into your own brain."); }
-            if (!await MayInstall()) { return InstallOutcome.Refused("Only you or the desktop can install apps."); }
+            if (BrainScope.CurrentId() != Scope) { return AppInstallOutcome.Refused("Apps install only into your own brain."); }
+            if (!await MayInstall()) { return AppInstallOutcome.Refused("Only you or the desktop can install apps."); }
             if (await marketplace.Read(publisher, name, default) is { } listing && !AppConsent.IsEmpty(listing.Requires))
-            { return InstallOutcome.Refused(AppInstaller.ReviewInApps); }
+            { return AppInstallOutcome.Refused(AppInstaller.ReviewInApps); }
             var outcome = await installer.Install(new(new(publisher, name), AppConsent.Of(null), Guid.Empty), default);
-            return outcome.Status == InstallStatus.NeedsConsent ? InstallOutcome.Refused(AppInstaller.ReviewInApps) : outcome;
+            return outcome.Status == AppInstallStatus.NeedsConsent ? AppInstallOutcome.Refused(AppInstaller.ReviewInApps) : outcome;
         });
     }
 
-    public async Task<InstallOutcome> Install(InstallRequest request)
+    public async Task<AppInstallOutcome> Install(AppInstallRequest request)
     {
         return await Answer(async () =>
         {
             ArgumentNullException.ThrowIfNull(request);
-            if (BrainScope.CurrentId() != Scope) { return InstallOutcome.Refused("Apps install only into your own brain."); }
-            if (!await MayInstall()) { return InstallOutcome.Refused("Only you or the desktop can install apps."); }
+            if (BrainScope.CurrentId() != Scope) { return AppInstallOutcome.Refused("Apps install only into your own brain."); }
+            if (!await MayInstall()) { return AppInstallOutcome.Refused("Only you or the desktop can install apps."); }
             return await installer.Install(request, default);
         });
     }
 
-    public async Task<InstallOutcome> Update(UpdateRequest request)
+    public async Task<AppInstallOutcome> Update(UpdateRequest request)
     {
         return await Answer(async () =>
         {
             ArgumentNullException.ThrowIfNull(request);
-            if (BrainScope.CurrentId() != Scope) { return InstallOutcome.Refused("Apps update only in your own brain."); }
-            if (!await MayInstall()) { return InstallOutcome.Refused("Only you or the desktop can update apps."); }
+            if (BrainScope.CurrentId() != Scope) { return AppInstallOutcome.Refused("Apps update only in your own brain."); }
+            if (!await MayInstall()) { return AppInstallOutcome.Refused("Only you or the desktop can update apps."); }
             return await installer.Update(request, default);
         });
     }
 
-    public async Task<InstallOutcome> Remove(string name)
+    public async Task<AppInstallOutcome> Remove(string name)
     {
         return await Answer(async () =>
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
             if (BrainScope.CurrentId() != Scope || !RuntimeCallerContext.TryGet(out var caller)
                 || caller.Kind != CallerKind.User || caller.StampedBy == TrustedEdge.AppProxy)
-            { return InstallOutcome.Refused("Only you can remove apps."); }
-            if (ShippedApps.Roots.Contains(name)) { return InstallOutcome.Refused($"{name} is part of IntoChat and stays installed."); }
+            { return AppInstallOutcome.Refused("Only you can remove apps."); }
+            if (ShippedApps.Roots.Contains(name)) { return AppInstallOutcome.Refused($"{name} is part of IntoChat and stays installed."); }
             var app = App(IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).Key);
-            if ((await app.Read()).Manifest.Title.Length == 0) { return InstallOutcome.Refused($"No app named {name} exists in this brain."); }
+            if ((await app.Read()).Manifest.Title.Length == 0) { return AppInstallOutcome.Refused($"No app named {name} exists in this brain."); }
             await app.Delete();
-            return InstallOutcome.Installed(name);
+            return AppInstallOutcome.Installed(name);
         });
     }
 
@@ -172,13 +172,13 @@ internal sealed class AppStoreNeuron(
     }
 
     // A refusal is answered as a message, not thrown, as Get always has.
-    private static async Task<InstallOutcome> Answer(Func<Task<InstallOutcome>> act)
+    private static async Task<AppInstallOutcome> Answer(Func<Task<AppInstallOutcome>> act)
     {
         try { return await act(); }
-        catch (InvalidOperationException error) { return InstallOutcome.Refused(error.Message); }
-        catch (KeyNotFoundException error) { return InstallOutcome.Refused(error.Message); }
-        catch (UnauthorizedAccessException error) { return InstallOutcome.Refused(error.Message); }
-        catch (ArgumentException error) { return InstallOutcome.Refused(error.Message); }
+        catch (InvalidOperationException error) { return AppInstallOutcome.Refused(error.Message); }
+        catch (KeyNotFoundException error) { return AppInstallOutcome.Refused(error.Message); }
+        catch (UnauthorizedAccessException error) { return AppInstallOutcome.Refused(error.Message); }
+        catch (ArgumentException error) { return AppInstallOutcome.Refused(error.Message); }
     }
 
     private static async Task<AppBundle?> Release(Func<Task<AppBundle?>> read)

@@ -56,7 +56,7 @@ public sealed class FeatureCatalog
     internal bool IsCompiledHostApp(string name)
         => !string.IsNullOrWhiteSpace(name)
             && _loaded.Value.Origins.TryGetValue((ShippedApps.Publisher, name), out var origin)
-            && origin is FeatureOrigin.Module;
+            && origin is FeatureOrigin.ModuleSource;
 
     // Every shipped os app, plus every ShippedApps root.
     public Task<IReadOnlyList<(string Publisher, string Name)>> BootSet()
@@ -90,7 +90,7 @@ public sealed class FeatureCatalog
                 if (twice.Contains(key)) { continue; }
                 if (bundles.ContainsKey(key))
                 {
-                    var reason = $"{compiled.Owner}/{compiled.Bundle.Name} ships twice: {((FeatureOrigin.Module)origins[key]).Assembly.GetName().Name} and {compiled.Origin.Assembly.GetName().Name}.";
+                    var reason = $"{compiled.Owner}/{compiled.Bundle.Name} ships twice: {((FeatureOrigin.ModuleSource)origins[key]).Assembly.GetName().Name} and {compiled.Origin.Assembly.GetName().Name}.";
                     failures.Add(new(compiled.Owner, compiled.Bundle.Name, compiled.Bundle.Version, reason));
                     bundles.Remove(key);
                     origins.Remove(key);

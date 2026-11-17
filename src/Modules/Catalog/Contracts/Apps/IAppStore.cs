@@ -19,23 +19,23 @@ public sealed record GalleryEntry(
     string? ConnectorId = null,
     bool Available = true);
 
-public enum InstallStatus { Ok = 0, Refused = 1, NeedsConsent = 2 }
+public enum AppInstallStatus { Ok = 0, Refused = 1, NeedsConsent = 2 }
 
 // What an install, update or remove did: the installed app's name, or why nothing changed. NeedsConsent carries the
 // requirements the person must see and accept (all of them for an install, the added ones for an update); Latest is
 // everything the release asks for, the panel's full list.
-public sealed record InstallOutcome(
+public sealed record AppInstallOutcome(
     bool Ok,
     string? InstalledName,
     string? Message,
-    InstallStatus Status = InstallStatus.Ok,
+    AppInstallStatus Status = AppInstallStatus.Ok,
     AppRequirements? Requires = null,
     AppRequirements? Latest = null)
 {
-    public static InstallOutcome Installed(string name) => new(true, name, null);
-    public static InstallOutcome Refused(string message) => new(false, null, message, InstallStatus.Refused);
-    public static InstallOutcome NeedsConsent(AppRequirements requires, AppRequirements? latest = null)
-        => new(false, null, "Review what this app asks for, then install again.", InstallStatus.NeedsConsent, requires, latest ?? requires);
+    public static AppInstallOutcome Installed(string name) => new(true, name, null);
+    public static AppInstallOutcome Refused(string message) => new(false, null, message, AppInstallStatus.Refused);
+    public static AppInstallOutcome NeedsConsent(AppRequirements requires, AppRequirements? latest = null)
+        => new(false, null, "Review what this app asks for, then install again.", AppInstallStatus.NeedsConsent, requires, latest ?? requires);
 }
 
 // A listed app: both Version and Digest name one exact release; neither names the latest listing.
@@ -55,7 +55,7 @@ public sealed record AppRef(
 
 // The one install request: Consent is AppConsent.Of the requirements the person was shown; Bindings map a manifest
 // slot to one of this brain's connections of the slot's connector kind.
-public sealed record InstallRequest(
+public sealed record AppInstallRequest(
     AppRef Ref,
     string Consent,
     Guid OperationId,
@@ -88,10 +88,10 @@ public sealed record AppDetail(
 public interface IAppStore
 {
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<IReadOnlyList<GalleryEntry>> List();
-    Task<InstallOutcome> Get(string publisher, string name);
-    Task<InstallOutcome> Install(InstallRequest request);
-    Task<InstallOutcome> Update(UpdateRequest request);
-    Task<InstallOutcome> Remove(string name);
+    Task<AppInstallOutcome> Get(string publisher, string name);
+    Task<AppInstallOutcome> Install(AppInstallRequest request);
+    Task<AppInstallOutcome> Update(UpdateRequest request);
+    Task<AppInstallOutcome> Remove(string name);
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves] Task<AppDetail?> Describe(AppRef reference);
     static string Key(string brainId) => $"{brainId}/{Relative}";
     // The id inside its brain.

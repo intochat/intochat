@@ -144,7 +144,7 @@ public static class AzureInstaller
 
             var target = new DeploymentTarget(config.Subscription, config.Location, config.Prefix, config.Env);
             var variables = new Dictionary<string, string>(StringComparer.Ordinal);
-            var secrets = new List<SecretRef>();
+            var secrets = new List<KeyVaultSecretRef>();
             foreach (var (module, deployment) in deployments)
             {
                 var context = new ModuleDeploymentContext(target, foundation, module, config.SettingsFor(module), Ensure, ct, provided, dryRun,

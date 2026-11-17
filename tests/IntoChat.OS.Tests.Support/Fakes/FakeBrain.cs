@@ -6,10 +6,10 @@ using IntoChat.Sdk;
 namespace IntoChat.OS.Tests.Support.Fakes;
 
 /// <summary>
-/// Deterministic in-memory <see cref="IBrain"/> implementation used by scenario verification and tests
+/// Deterministic in-memory <see cref="ISandboxBrain"/> implementation used by scenario verification and tests
 /// to run compiled <see cref="BrainApp{TState, TSettings}"/> logic without touching host disk or network.
 /// </summary>
-public sealed class FakeBrain(string brainId = "test-brain", string appKey = "test-app") : IntoChat.Sdk.IBrain
+public sealed class FakeBrain(string brainId = "test-brain", string appKey = "test-app") : IntoChat.Sdk.ISandboxBrain
 {
     private readonly ConcurrentDictionary<string, FakeFolder> _folders = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, object> _slots = new(StringComparer.Ordinal);

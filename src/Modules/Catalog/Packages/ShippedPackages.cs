@@ -148,7 +148,7 @@ internal static class ShippedPackages
                 Icon = "receipt_long",
                 Category = "Finance",
                 Author = "into-chat")]
-            [Slot("downloads", typeof(IFolder),
+            [AppSlot("downloads", typeof(IFolder),
                 Required = true,
                 Access = FolderAccess.ReadWrite,
                 DefaultPath = "%USERPROFILE%/Downloads",

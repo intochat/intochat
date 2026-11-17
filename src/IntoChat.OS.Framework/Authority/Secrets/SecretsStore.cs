@@ -1,3 +1,5 @@
+using DigitalBrain.Capabilities.Secrets;
+using DigitalBrain.Identity.Local.Vault;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
@@ -14,7 +16,7 @@ internal sealed class SecretsStore(IKeyWrapper keys)
         state.Fields[name] = new SecretRecord
         {
             FieldPath = name,
-            Kind = FieldKind.Secret,
+            Kind = SemanticFieldKind.Secret,
             IsSecret = true,
             Label = label,
             IsSet = true,

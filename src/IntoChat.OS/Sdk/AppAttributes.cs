@@ -37,7 +37,7 @@ public sealed class OnCommandAttribute(string name) : Attribute
 
 /// <summary>Declares a typed capability slot required or optionally used by the app.</summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
-public sealed class SlotAttribute(string name, Type contract) : Attribute
+public sealed class AppSlotAttribute(string name, Type contract) : Attribute
 {
     public string Name { get; } = name;
     public Type Contract { get; } = contract;

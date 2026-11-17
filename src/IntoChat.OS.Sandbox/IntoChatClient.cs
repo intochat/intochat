@@ -36,10 +36,10 @@ public sealed record SandboxLogRequest(
     DateTimeOffset TimestampUtc);
 
 /// <summary>
-/// <see cref="IBrain"/> implementation backed by DigitalBrain <see cref="NeuronProxy"/> and a single
+/// <see cref="ISandboxBrain"/> implementation backed by DigitalBrain <see cref="NeuronProxy"/> and a single
 /// <see cref="IInvocationSink"/> mediating sandbox capability calls through the kernel edge gateway.
 /// </summary>
-public sealed class IntoChatClient : IBrain
+public sealed class IntoChatClient : ISandboxBrain
 {
     internal const string DefaultSlotKey = "slot.default";
     internal static readonly JsonSerializerOptions JsonOptions = JsonSerializerOptions.Web;

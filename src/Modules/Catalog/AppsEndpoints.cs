@@ -245,7 +245,7 @@ internal static class AppsEndpoints
             => Results.Ok(View(await App(brain, name).Publish()))));
 
         // The one install path over HTTP: a person's own session, never an app's.
-        apps.MapPost("/install", (InstallRequest request, [FromServices] AppInstaller installer, CancellationToken ct) => Install(request, installer, ct));
+        apps.MapPost("/install", (AppInstallRequest request, [FromServices] AppInstaller installer, CancellationToken ct) => Install(request, installer, ct));
 
         apps.MapPost("/{name}/update", (string name, UpdateBody? body, INeuronProxies brain, [FromServices] AppInstaller installer, CancellationToken ct)
             => Update(name, body, brain, installer, ct));
@@ -275,15 +275,15 @@ internal static class AppsEndpoints
     }
 
     // The one install path over HTTP: a person's own session, never an app's.
-    internal static Task<IResult> Install(InstallRequest request, AppInstaller installer, CancellationToken ct) => Respond(async () =>
+    internal static Task<IResult> Install(AppInstallRequest request, AppInstaller installer, CancellationToken ct) => Respond(async () =>
     {
         if (!IsPerson()) { return Results.Json(new { error = "Only you can install apps." }, statusCode: 403); }
         ArgumentNullException.ThrowIfNull(request?.Ref);
         var outcome = await installer.Install(request, ct);
         return outcome.Status switch
         {
-            InstallStatus.Ok => Results.Ok(new { status = "ok", installedName = outcome.InstalledName }),
-            InstallStatus.NeedsConsent => Results.Conflict(new { status = "needsConsent", requires = outcome.Requires, error = outcome.Message }),
+            AppInstallStatus.Ok => Results.Ok(new { status = "ok", installedName = outcome.InstalledName }),
+            AppInstallStatus.NeedsConsent => Results.Conflict(new { status = "needsConsent", requires = outcome.Requires, error = outcome.Message }),
             _ => Refused(outcome),
         };
     });
@@ -294,8 +294,8 @@ internal static class AppsEndpoints
         var outcome = await installer.Update(new(name, body?.Consent), ct);
         return outcome.Status switch
         {
-            InstallStatus.Ok => Results.Ok(View(await App(brain, outcome.InstalledName!).Read().WaitAsync(ct))),
-            InstallStatus.NeedsConsent => Results.Conflict(new { status = "needsConsent", added = outcome.Requires, requires = outcome.Latest, error = outcome.Message }),
+            AppInstallStatus.Ok => Results.Ok(View(await App(brain, outcome.InstalledName!).Read().WaitAsync(ct))),
+            AppInstallStatus.NeedsConsent => Results.Conflict(new { status = "needsConsent", added = outcome.Requires, requires = outcome.Latest, error = outcome.Message }),
             _ => Refused(outcome),
         };
     });
@@ -304,7 +304,7 @@ internal static class AppsEndpoints
     internal static bool IsPerson()
         => RuntimeCallerContext.TryGet(out var caller) && caller.Kind == CallerKind.User && caller.StampedBy != TrustedEdge.AppProxy;
 
-    internal static IResult Refused(InstallOutcome outcome) => outcome.Message == AppInstaller.OwnerOnly
+    internal static IResult Refused(AppInstallOutcome outcome) => outcome.Message == AppInstaller.OwnerOnly
         ? Results.Json(new { status = "refused", error = outcome.Message }, statusCode: 403)
         : Results.Conflict(new { status = "refused", error = outcome.Message });
 

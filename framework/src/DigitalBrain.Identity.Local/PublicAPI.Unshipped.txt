@@ -166,6 +166,11 @@ DigitalBrain.Identity.Local.Vault.MasterKeyWrapper.MasterKeyWrapper(DigitalBrain
 DigitalBrain.Identity.Local.Vault.MasterKeyWrapper.MasterKeyWrapper(System.ReadOnlySpan<byte> masterKey) -> void
 DigitalBrain.Identity.Local.Vault.MasterKeyWrapper.Unwrap(string! wrapped) -> byte[]!
 DigitalBrain.Identity.Local.Vault.MasterKeyWrapper.Wrap(byte[]! key) -> string!
+const DigitalBrain.Identity.Local.Vault.SecretCipher.KeySize = 32 -> int
+DigitalBrain.Identity.Local.Vault.SecretCipher
+static DigitalBrain.Identity.Local.Vault.SecretCipher.NewKey() -> byte[]!
+static DigitalBrain.Identity.Local.Vault.SecretCipher.Open(byte[]! key, string! sealedText) -> string!
+static DigitalBrain.Identity.Local.Vault.SecretCipher.Seal(byte[]! key, string! plaintext) -> string!
 DigitalBrain.Identity.Local.Vault.SecretRecord
 DigitalBrain.Identity.Local.Vault.SecretRecord.SecretRecord() -> void
 DigitalBrain.Identity.Local.Vault.SecretRecord.FieldPath.get -> string!

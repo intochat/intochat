@@ -67,8 +67,8 @@ public sealed class BtcAlertUnitFacts
 
         var needs = new UnitNeeds(
             [
-                new SlotNeed("market", "http", ["api.coinbase.com"]),
-                new SlotNeed("notify", "notifications", []),
+                new AuthoredSlotNeed("market", "http", ["api.coinbase.com"]),
+                new AuthoredSlotNeed("notify", "notifications", []),
             ],
             Schedule: "every 1m",
             View: true);

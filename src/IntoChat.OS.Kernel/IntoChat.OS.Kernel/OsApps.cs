@@ -56,7 +56,7 @@ public static class OsAppsHosting
         services.AddOptions<OsAppsOptions>();
         services.AddSingleton(new CompiledAppsRegistration(typeof(SettingsApp).Assembly, [typeof(IntoChat.OS.Apps.Ino.InoApp), typeof(SettingsApp)]));
         services.TryAddSingleton<OsDefaults>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<ICreationHandler, OsDefaults>(provider => provider.GetRequiredService<OsDefaults>()));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Brains.ICreationHandler, OsDefaults>(provider => provider.GetRequiredService<OsDefaults>()));
         return services;
     }
 }
@@ -67,7 +67,7 @@ public static class OsAppsHosting
 // a distribution's extra apps install through the Marketplace.
 internal sealed class OsDefaults(
     IIntoChatOSBrains brains, INeuronProxies proxies, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
-    ICapabilityBroker capabilities, FeatureCatalog catalog, FeatureLoader loader) : ICreationHandler
+    ICapabilityBroker capabilities, FeatureCatalog catalog, FeatureLoader loader) : DigitalBrain.Brains.ICreationHandler
 {
     public async Task Created(string brainId, Created created, CancellationToken cancellationToken)
     {
@@ -121,11 +121,11 @@ internal sealed class OsDefaults(
     // deployment's choice stands for them. A default that reads the person's data is never installed for them.
     private async Task InstallDefault(OsApp app, CancellationToken cancellationToken)
     {
-        InstallRequest Request(AppRequirements? requires) => new(new(app.Publisher, app.Name), AppConsent.Of(requires), Guid.Empty);
+        AppInstallRequest Request(AppRequirements? requires) => new(new(app.Publisher, app.Name), AppConsent.Of(requires), Guid.Empty);
         var outcome = await installer.Install(Request(null), cancellationToken);
-        if (outcome is { Status: InstallStatus.NeedsConsent, Requires: { } requires } && requires.SemanticTypes is not { Length: > 0 })
+        if (outcome is { Status: AppInstallStatus.NeedsConsent, Requires: { } requires } && requires.SemanticTypes is not { Length: > 0 })
         { outcome = await installer.Install(Request(requires), cancellationToken); }
-        if (outcome.Status != InstallStatus.Ok)
+        if (outcome.Status != AppInstallStatus.Ok)
         { throw new InvalidOperationException($"Default app {app.Publisher}/{app.Name} needs the person's consent: {outcome.Message}"); }
     }
 }

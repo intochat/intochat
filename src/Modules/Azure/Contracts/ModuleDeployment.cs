@@ -64,7 +64,7 @@ public sealed class ModuleDeploymentContext(
     Func<string, string, CancellationToken, Task<string?>>? readVaultSecret = null)
 {
     private readonly Dictionary<string, string> _variables = new(StringComparer.Ordinal);
-    private readonly List<SecretRef> _secrets = [];
+    private readonly List<KeyVaultSecretRef> _secrets = [];
 
     public DeploymentTarget Target { get; } = target;
     public FoundationRefs Foundation { get; } = foundation;
@@ -73,7 +73,7 @@ public sealed class ModuleDeploymentContext(
     public CancellationToken CancellationToken { get; } = cancellationToken;
     public bool IsDryRun { get; } = dryRun;
     public IReadOnlyDictionary<string, string> RuntimeVariables => _variables;
-    public IReadOnlyList<SecretRef> RuntimeSecrets => _secrets;
+    public IReadOnlyList<KeyVaultSecretRef> RuntimeSecrets => _secrets;
 
     // Values only cross into SecretSpec.Value, never ordinary module settings or diagnostic output.
     public string RequireSecret(string name)
@@ -120,7 +120,7 @@ public sealed class ModuleDeploymentContext(
         _variables[name] = value;
     }
 
-    public void AddRuntimeSecret(SecretRef secret)
+    public void AddRuntimeSecret(KeyVaultSecretRef secret)
     {
         ArgumentNullException.ThrowIfNull(secret);
         _secrets.RemoveAll(existing => existing.Name == secret.Name);
