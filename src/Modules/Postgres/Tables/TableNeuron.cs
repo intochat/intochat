@@ -38,22 +38,23 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
     private string FullKey => $"{Id.Brain.Value}/{Id.Key}";
 
     // Only the owning brain and app may hold a synapse on its rows (R4-03: the rule the Watch override kept). The caller is the
-    // trusted stamp the runtime read from the subscriber's call (R4-20), never anything the subscriber sends: no stamp, a stamp
-    // without an app, or a stamp of another brain or app is refused.
+    // subscriber's stamped caller, never anything the subscriber sends: no caller, a caller that is not an app, or one of another
+    // brain or app is refused.
     protected override Task AdmitSynapse(DigitalBrain.Kernel.SynapseRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (request.Subscriber.Brain != Id.Brain) { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
-        if (request.Caller is not { AppId: { Length: > 0 } app } caller || !BrainScope.IsValidId(caller.BrainId))
-        { throw new UnauthorizedAccessException("A trusted brain and app caller is required."); }
-        if (State.Owner is { } owner && owner != new TableOwner(caller.BrainId, app).Key)
+        var subscriber = TableOwner.Current(Context.Caller);
+        if (!BrainScope.IsValidId(subscriber.BrainId))
+        { throw new UnauthorizedAccessException("A brain and app caller is required."); }
+        if (State.Owner is { } owner && owner != subscriber.Key)
         { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
         return Task.CompletedTask;
     }
 
     private string Scope()
     {
-        var scope = TableOwner.Current().Key;
+        var scope = TableOwner.Current(Context.Caller).Key;
         if (State.Owner is { } owner && owner != scope)
         { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
         return scope;
@@ -108,7 +109,7 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
         // The placement is pinned at first Define; a later policy or binding never moves a table.
         if (State.Pending is { } pending && !TablePolicy.Compatible(pending, normalized))
         { throw new PostgresQueryException("Incompatible table redefinition; migrations are not supported."); }
-        var placement = State.Placement ?? await placements.Resolve(TableOwner.Current(), CancellationToken.None);
+        var placement = State.Placement ?? await placements.Resolve(TableOwner.Current(Context.Caller), CancellationToken.None);
         await Tables(scope).Register(FullKey);
         await Save(State with { Owner = scope, Placement = placement, Pending = normalized }, new TablePending(table));
         await Tables(placement).DefineAsync(placement, table, normalized, CancellationToken.None);

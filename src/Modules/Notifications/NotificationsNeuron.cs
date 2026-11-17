@@ -175,19 +175,6 @@ internal sealed class NotificationsNeuron(IOptions<NotificationsOptions>? option
             };
         }
 
-        if (RuntimeCallerContext.TryGet(out var caller))
-        {
-            return caller.Kind switch
-            {
-                CallerKind.App when !string.IsNullOrWhiteSpace(caller.AppId) => caller.AppId!,
-                CallerKind.Agent => "assistant",
-                CallerKind.User => "user",
-                CallerKind.Platform => "os",
-                CallerKind.Scheduler => "scheduler",
-                _ => "os",
-            };
-        }
-
         return "os";
     }
 }

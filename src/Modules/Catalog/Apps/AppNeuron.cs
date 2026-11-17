@@ -41,6 +41,7 @@ internal sealed partial class AppNeuron(
     // Every activation reconciles an interrupted turn, then queues the program's restore as its own turn.
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
+        await MigrateLegacyPrincipal();
         await Interrupt();
         if (State.Manifest is null || State.Refused is not null) { return; }
         if (await RefuseLegacy()) { return; }
@@ -85,6 +86,14 @@ internal sealed partial class AppNeuron(
         }
     }
 
+    // The one-time v1 migration of the stored caller into the publisher source (owner decision 1, 17 Nov).
+    private async Task MigrateLegacyPrincipal()
+    {
+        if (State.LegacyPrincipal is null) { return; }
+        var next = State.Clone();
+        if (next.MigrateLegacyPrincipal()) { await Store(next); }
+    }
+
     private Task Save(AppState next, DigitalBrain.Signal first, DigitalBrain.Signal second, DigitalBrain.Signal third) => base.Save(next, [first, second, third]);
 
     // Deleting the record ends the app's existence (the kernel retires the instance), then says so.
@@ -107,20 +116,11 @@ internal sealed partial class AppNeuron(
 
     private EdgeAuthority? Edge => services?.GetService<EdgeAuthority>();
 
-    private CapabilityCaller CapturePrincipal()
-    {
-        var caller = Context.Caller;
-        var brain = BrainId();
-        if (caller is null) { return CapabilityCallers.Of(brain, brain, brain); }
-        return caller.Actor switch
-        {
-            Actor.Person person => CapabilityCallers.Of(person.Principal, person.Account, brain, CallerKind.User, conversationId: caller.Conversation),
-            Actor.Agent agent => CapabilityCallers.Of(agent.For.Principal, agent.For.Account, brain, CallerKind.Agent, conversationId: caller.Conversation),
-            Actor.App app => CapabilityCallers.Of(app.For.Principal, app.For.Account, brain, CallerKind.App, app.Key, caller.Conversation),
-            Actor.Scheduler => CapabilityCallers.Of(brain, brain, brain, CallerKind.Scheduler, conversationId: caller.Conversation),
-            _ => CapabilityCallers.Of(brain, brain, brain, conversationId: caller.Conversation),
-        };
-    }
+    // The account and brain of the person the stamped caller acts for; none for the kernel, a module or the scheduler.
+    private AppPublisher? CapturePublisher()
+        => Context.Caller is { For: { } person } caller && CallerRules.ActsFor(caller) is not null
+            ? new AppPublisher(person.Account, caller.Brain.Value)
+            : null;
 
     public Task<AppSnapshot> Read() => Task.FromResult(Describe(State));
 
@@ -132,7 +132,7 @@ internal sealed partial class AppNeuron(
         var next = State.Clone();
         next.Manifest = validated;
         next.BrainScopeId = BrainId();
-        next.Principal = CapturePrincipal();
+        next.PublisherSource = CapturePublisher();
         next.Spec = spec ?? "";
         next.Settings = validated.Settings.ToDictionary(setting => setting.Name, setting => setting.Default ?? string.Empty, StringComparer.Ordinal);
         next.Version = "0.1.0";

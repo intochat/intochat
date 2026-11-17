@@ -133,8 +133,7 @@ internal sealed class AppStoreNeuron(
         return await Answer(async () =>
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
-            if (BrainScope.CurrentId() != Scope || !RuntimeCallerContext.TryGet(out var caller)
-                || caller.Kind != CallerKind.User || caller.StampedBy == TrustedEdge.AppProxy)
+            if (Context.Caller is not { Actor: DigitalBrain.Access.Actor.Person } caller || caller.Brain.Value != Scope)
             { return AppInstallOutcome.Refused("Only you can remove apps."); }
             if (ShippedApps.Roots.Contains(name)) { return AppInstallOutcome.Refused($"{name} is part of IntoChat and stays installed."); }
             var app = App(IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).Key);

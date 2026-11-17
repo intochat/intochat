@@ -49,8 +49,8 @@ internal sealed class FieldNeuron
         ArgumentNullException.ThrowIfNull(value);
         // A person's typed text, through the edge, or the platform: never an app (it sets its own fields with Set), another brain,
         // or a call no edge stamped.
-        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : throw Unstamped();
-        if (!BrainKey.BelongsTo(FullKey, caller.BrainId) || caller.Kind is not (CallerKind.User or CallerKind.Platform))
+        var caller = Context.Caller ?? throw Unstamped();
+        if (!BrainKey.BelongsTo(FullKey, caller.Brain.Value) || caller.Actor is not (DigitalBrain.Access.Actor.Person or DigitalBrain.Access.Actor.Kernel))
         { throw new UnauthorizedAccessException("Only the brain's person types into this field."); }
         if (Snapshot.Version == 0) { throw new InvalidOperationException("This field is not configured yet: its view has not been published."); }
         return Assign(value);
@@ -93,7 +93,7 @@ internal sealed class FieldNeuron
     // stamped caller is refused, never taken for the platform.
     private void RequireOwner()
     {
-        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : throw Unstamped();
+        var caller = Context.Caller ?? throw Unstamped();
         if (!IntoChat.OS.Modules.Flutter.Views.ViewNeuron.Writes(caller, FullKey)) { throw new UnauthorizedAccessException("Only the owning brain and app may change this field."); }
     }
 

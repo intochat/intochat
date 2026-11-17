@@ -4,7 +4,8 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections;
-using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Access;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Google.Gmail;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -143,10 +144,10 @@ internal sealed partial class GmailNeuron()
         PublishToolAvailability();
     }
 
-    private CapabilityCaller RequireCaller()
+    private Caller RequireCaller()
     {
-        var caller = RuntimeCallerContext.Require();
-        if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != Key.Brain)
+        var caller = Context.Caller ?? throw new UnauthorizedAccessException("The Gmail connection is called only with a stamped caller.");
+        if (caller.Brain.Value != Key.Brain)
         { throw new UnauthorizedAccessException("The selected Gmail connection belongs to another brain."); }
         return caller;
     }
@@ -154,16 +155,29 @@ internal sealed partial class GmailNeuron()
     private string CallerScope()
     {
         var caller = RequireCaller();
-        return JsonSerializer.Serialize(new[] { caller.PrincipalId, caller.AppId, caller.PersonId });
+        return JsonSerializer.Serialize(new[] { CallerRules.ActsFor(caller), CallerRules.IsApp(caller, out var app) ? app : null, caller.For?.Principal });
+    }
+
+    // Who pays for the Google calls: the person the caller acts for, or, for the scheduler resuming stored work (the push webhook
+    // and the lifecycle reminder), the brain owner whose trace IBrainOwnerDispatch began after checking the directory.
+    private string PayerAccount(Caller caller) => PayerOf(caller, TraceContext.Current, Key.Brain);
+
+    internal static string PayerOf(Caller caller, Trace? current, string brain)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        if (caller.For is { } person) { return person.Account; }
+        if (caller.Actor is Actor.Scheduler && current is { } trace && trace.BrainId == brain) { return trace.PayerAccountId; }
+        throw new UnauthorizedAccessException("Gmail work without a person runs only inside the brain owner's dispatch.");
     }
 
     private IDisposable EnterGoogleTrace()
     {
         var caller = RequireCaller();
+        var payer = PayerAccount(caller);
         var trace = TraceContext.Current;
-        if (trace is not null && (trace.BrainId != Key.Brain || trace.PayerAccountId != caller.AccountId))
+        if (trace is not null && (trace.BrainId != Key.Brain || trace.PayerAccountId != payer))
         { throw new UnauthorizedAccessException("The Gmail invocation trace does not belong to the trusted caller."); }
-        return TraceContext.Enter(trace ?? TraceContext.Begin(caller.AccountId, Key.Brain, TraceContext.OriginOf(Key.Brain, FullKey)));
+        return TraceContext.Enter(trace ?? TraceContext.Begin(payer, Key.Brain, TraceContext.OriginOf(Key.Brain, FullKey)));
     }
 
     private GoogleCallContext NewCallContext(string? invocationId = null)

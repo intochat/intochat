@@ -28,8 +28,9 @@ internal sealed class CircleBirth(ICapabilityBroker broker, IServiceProvider pla
     {
         var directory = await broker.Identity(cancellationToken);
         if (await directory.KindOf(brainId, cancellationToken) != BrainKind.Circle) { return; }
-        if (!RuntimeCallerContext.TryGet(out var creator)) { throw new InvalidOperationException($"Circle {brainId} is born only for its creator."); }
-        var name = (await directory.Membership(brainId, creator.PersonId, cancellationToken))?.DisplayName
+        if ((plain.GetService(typeof(DigitalBrain.Access.ICallerAmbient)) as DigitalBrain.Access.ICallerAmbient)?.Current?.For is not { } creator)
+        { throw new InvalidOperationException($"Circle {brainId} is born only for its creator."); }
+        var name = (await directory.Membership(brainId, creator.Principal, cancellationToken))?.DisplayName
             ?? throw new InvalidOperationException($"Circle {brainId} has no creator on record.");
         await SiloNeurons.Get<ICircle>(plain, ICircle.Key(brainId)).Found(name);
     }

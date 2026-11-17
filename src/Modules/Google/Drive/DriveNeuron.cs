@@ -90,11 +90,12 @@ internal sealed partial class DriveNeuron(
 
     private IDisposable? EnterTrace()
     {
-        var caller = RuntimeCallerContext.Require();
-        if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != Key.Brain)
+        var caller = Context.Caller ?? throw new UnauthorizedAccessException("The Drive connection is called only with a stamped caller.");
+        if (caller.Brain.Value != Key.Brain)
         { throw new UnauthorizedAccessException("The Drive connection belongs to another brain."); }
-        return TraceContext.Current is null
-            ? TraceContext.Enter(TraceContext.Begin(caller.AccountId, Key.Brain, TraceContext.OriginOf(Key.Brain, FullKey))) : null;
+        if (TraceContext.Current is not null) { return null; }
+        var payer = caller.For?.Account ?? throw new UnauthorizedAccessException("Drive calls outside a trace are paid by a person.");
+        return TraceContext.Enter(TraceContext.Begin(payer, Key.Brain, TraceContext.OriginOf(Key.Brain, FullKey)));
     }
 
     private DriveModuleOptions Options => ServiceProvider.GetRequiredService<DriveModuleOptions>();

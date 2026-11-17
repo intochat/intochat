@@ -94,18 +94,10 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
         {
             matchedName = names.FirstOrDefault(name => appActor.Key == IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).Key);
         }
-        else if (RuntimeCallerContext.TryGet(out var caller)
-            && caller.Kind == CallerKind.App
-            && caller.BrainId == Id.Brain.Value
-            && caller.AppId is { } app)
-        {
-            matchedName = names.FirstOrDefault(name => app == IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).Key);
-        }
         else if (contextCaller is { Inside: true, Via: { } via }
             && via.Brain == Id.Brain
             && contextCaller.Brain == Id.Brain
-            && contextCaller.Actor is not DigitalBrain.Access.Actor.App
-            && (!RuntimeCallerContext.TryGet(out var stamped) || stamped.Kind != CallerKind.App))
+            && contextCaller.Actor is not DigitalBrain.Access.Actor.App)
         {
             matchedName = names.FirstOrDefault(name => via == IntoChat.OS.Primitives.AppRef.Of(Id.Brain, name).ScreenNeuron);
         }

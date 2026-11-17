@@ -22,9 +22,9 @@ internal static class PoliciesEndpoints
         var policies = OsBrainRoutes.Group(endpoints, "/policies").AddEndpointFilter(ModuleRouteGuard.Guard);
 
         // Promises are the person's: an app calling through the app proxy can neither propose nor retire one.
-        policies.MapPost("", (TextRequest request, [FromServices] PolicyWriter writer, CancellationToken ct) => AppsEndpoints.Respond(async () =>
+        policies.MapPost("", (HttpContext http, TextRequest request, [FromServices] PolicyWriter writer, CancellationToken ct) => AppsEndpoints.Respond(async () =>
         {
-            if (!AppsEndpoints.IsPerson()) { return Results.Json(new { error = "Only you can propose a promise." }, statusCode: 403); }
+            if (!AppsEndpoints.IsPerson(HttpCaller.Current(http))) { return Results.Json(new { error = "Only you can propose a promise." }, statusCode: 403); }
             ArgumentException.ThrowIfNullOrWhiteSpace(request?.Text);
             var outcome = await writer.Write(BrainScope.CurrentId(), request.Text, ct);
             return outcome.Status == ProposalStatus.Refused
@@ -38,9 +38,9 @@ internal static class PoliciesEndpoints
         policies.MapGet("/actions", (INeuronProxies brain, CancellationToken ct) => AppsEndpoints.Respond(async ()
             => Results.Ok(await Policies(brain).Actions(ct))));
 
-        policies.MapDelete("/{id}", (string id, INeuronProxies brain, CancellationToken ct) => AppsEndpoints.Respond(async () =>
+        policies.MapDelete("/{id}", (HttpContext http, string id, INeuronProxies brain, CancellationToken ct) => AppsEndpoints.Respond(async () =>
         {
-            if (!AppsEndpoints.IsPerson()) { return Results.Json(new { error = "Only you can retire a promise." }, statusCode: 403); }
+            if (!AppsEndpoints.IsPerson(HttpCaller.Current(http))) { return Results.Json(new { error = "Only you can retire a promise." }, statusCode: 403); }
             ArgumentException.ThrowIfNullOrWhiteSpace(id);
             await Policies(brain).Retire(id, ct);
             return Results.Ok(new { retired = id });

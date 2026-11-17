@@ -22,9 +22,9 @@ internal static class NotificationPreferenceEndpoints
 
     // Installed apps (App callers or calls through the app proxy) cannot change a person's preferences,
     // as brain entries refuse them. The fields are text-field neurons, so this guards the HTTP path.
-    internal static async Task<IResult> Write(Dictionary<string, bool>? input, INeuronProxies brain, CancellationToken ct)
+    internal static async Task<IResult> Write(HttpContext http, Dictionary<string, bool>? input, INeuronProxies brain, CancellationToken ct)
     {
-        if (BrainPreferenceStore.IsAppCaller()) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+        if (IntoChat.OS.Framework.HttpCaller.Current(http) is not { } caller || BrainPreferenceStore.IsAppCaller(caller)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         if (input is null || input.Keys.Any(key => !BrainPreferenceStore.IsNotificationKey(key)))
         { return Results.BadRequest(new { error = "Unknown notification preference." }); }
         var scope = BrainScope.CurrentId();

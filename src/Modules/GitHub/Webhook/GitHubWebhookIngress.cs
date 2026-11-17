@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Log;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework.Logging;
@@ -54,8 +56,16 @@ internal sealed class GitHubWebhookIngress(GitHubAppRegistration registration, I
             var hash = Convert.ToHexStringLower(SHA256.HashData(body.Span));
             var results = new List<GitHubWebhookAcceptance>();
             // Every connection of every brain on this installation; one target's failure never stops the rest.
-            foreach (var key in await SiloNeurons.Get<IGitHubRepositoryIndex>(plain, IGitHubRepositoryIndex.Key(installation.Value)).Read())
+            // A signed delivery has no person behind it: the GitHub module reads its index and delivers to each brain as itself.
+            var edge = plain.GetRequiredService<EdgeAuthority>();
+            string[] keys;
+            using (edge.Enter(edge.Module(GitHubModule.ManifestName, new BrainId("system"))))
             {
+                keys = await SiloNeurons.Get<IGitHubRepositoryIndex>(plain, IGitHubRepositoryIndex.Key(installation.Value)).Read();
+            }
+            foreach (var key in keys)
+            {
+                using var asModule = edge.Enter(edge.Module(GitHubModule.ManifestName, new BrainId(key.Split('/')[0])));
                 using var activity = GitHubTelemetry.Source.StartActivity("github.webhook.accept", ActivityKind.Producer);
                 try
                 {

@@ -45,7 +45,7 @@ internal sealed partial class AppNeuron
         var manifest = bundle.Manifest.Validated();
         var next = State.Clone();
         next.BrainScopeId = BrainId();
-        next.Principal = CapturePrincipal();
+        next.PublisherSource = CapturePublisher();
         next.Manifest = manifest;
         next.Spec = spec;
         next.Files = files;
@@ -127,7 +127,7 @@ internal sealed partial class AppNeuron
     // only the runtime's answer makes it Live. Landing again is cheap: Assign is idempotent per program.
     private async Task<AppSnapshot> Land(AppState next)
     {
-        next.Principal ??= CapturePrincipal();
+        next.PublisherSource ??= CapturePublisher();
         next.Status = AppStatus.Deploying;
         next.Refused = null;
         AdvanceProgram(next);
@@ -337,10 +337,10 @@ internal sealed partial class AppNeuron
 
     private Task ValidateInstallation(string operation, AppBundle bundle, AppOrigin? origin, AppInstallReceipt installation)
     {
-        if (!RuntimeCallerContext.TryGet(out var caller) || caller.AccountId != installation.AccountId
-            || BrainScope.CurrentId() != BrainId())
+        if (Context.Caller is not { For.Account: var account } caller || account != installation.AccountId
+            || caller.Brain.Value != BrainId())
         { throw new UnauthorizedAccessException("An installation belongs to its initiating account and destination brain."); }
-        return Check(operation, new ReceiptMatchesPublication(installation, origin, bundle, Name(), caller.AccountId));
+        return Check(operation, new ReceiptMatchesPublication(installation, origin, bundle, Name(), account));
     }
 
     // Phase F: an installed app is a principal of its brain. Its membership (role App, under the brain owner's account)
@@ -357,8 +357,7 @@ internal sealed partial class AppNeuron
             if (account is null) { return; }
             var principalId = AppPrincipal.Id(Key);
             if (await directory.Membership(brain, principalId) is { Role: MemberRole.App }) { return; }
-            if (Edge?.Current is { Actor: Actor.App or Actor.Module or Actor.Scheduler }
-                || (RuntimeCallerContext.TryGet(out var caller) && caller.AppId is not null))
+            if (Context.Caller is { Actor: Actor.App or Actor.Module or Actor.Scheduler })
             {
                 return;
             }

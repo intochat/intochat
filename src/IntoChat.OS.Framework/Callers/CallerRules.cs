@@ -4,7 +4,7 @@ using DigitalBrain.Access;
 namespace IntoChat.OS.Framework;
 
 // The authority checks the platform contracts make, read from the caller the kernel stamped, never from an argument.
-internal static class CallerRules
+public static class CallerRules
 {
     public static bool IsKernel(Caller? caller) => caller?.Actor is Actor.Kernel;
 

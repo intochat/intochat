@@ -33,6 +33,10 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
 
     private IScreenDirectory Directory(string tool) => brain.Get<IScreenDirectory>(IScreenDirectory.Key(caller.Stamp(tool).Brain.Value));
 
+    // Only a person calling directly, outside a conversation, answers a confirmation card (the inbox's own Answerer rule).
+    internal static bool MayAnswerConfirmation(DigitalBrain.Access.Caller caller)
+        => caller is { Direct: true, Conversation: null, Actor: DigitalBrain.Access.Actor.Person };
+
     // A guest opens the shipped demo screens only, named exactly.
     private void Admit(string tool, string appId)
     {
@@ -117,7 +121,14 @@ internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
             var wasPendingInInbox = current.Pending.Any(p => string.Equals(p.PlanId, approvalId, StringComparison.Ordinal));
             if (wasPendingInInbox)
             {
-                // Resolve directly from the authenticated edge so RequiresPerson checks observe Direct == true.
+                // MCP is stamped as the agent: a confirmation card is the person's to answer in the shell (owner decision 3). The
+                // inbox would refuse a person-only plan and record any other answer from an agent as a self-approval denial.
+                if (!MayAnswerConfirmation(stamped))
+                {
+                    return Text(JsonSerializer.Serialize(
+                        new ScreenActionResult(false, $"Approval '{approvalId}' is a confirmation; the person answers it in the shell."),
+                        Json));
+                }
                 await inbox.Resolve(approvalId, approved).WaitAsync(cancellationToken).ConfigureAwait(false);
             }
             else

@@ -372,8 +372,7 @@ internal sealed class MemoryNeuron : Neuron<MemoryState>, IMemory
             note.Importance,
             note.RecordedAt);
 
-    private static bool IsAgentCaller()
-        => RuntimeCallerContext.TryGet(out var caller) && caller.Kind == CallerKind.Agent;
+    private bool IsAgentCaller() => Context.Caller?.Actor is DigitalBrain.Access.Actor.Agent;
 
     private static string[] ExtractEntities(string scope, string subject)
     {

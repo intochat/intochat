@@ -65,24 +65,6 @@ internal sealed class ViewportNeuron
                 throw new UnauthorizedAccessException("Only the owning screen may change this viewport.");
             }
         }
-
-        if (RuntimeCallerContext.TryGet(out var caller))
-        {
-            if (!string.Equals(caller.BrainId, Id.Brain.Value, StringComparison.Ordinal))
-            {
-                throw new UnauthorizedAccessException("Only callers in the owning brain may change this viewport.");
-            }
-
-            if (caller.Kind == CallerKind.App
-                && caller.AppId != ownerRef.Key
-                && !(contextCaller is { Inside: true, Via: { } hoppedVia }
-                    && contextCaller.Brain == Id.Brain
-                    && hoppedVia == ownerRef.ScreenNeuron
-                    && contextCaller.Actor is not DigitalBrain.Access.Actor.App))
-            {
-                throw new UnauthorizedAccessException("Only the owning app may change this viewport.");
-            }
-        }
     }
 
     private static bool IsSupportedTarget(BrainId brainId, string app)

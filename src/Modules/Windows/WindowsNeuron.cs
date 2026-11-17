@@ -57,11 +57,7 @@ internal sealed class WindowsNeuron(
     private WindowsStorage Storage => new(Snapshot.Roots, operations: operations, currentRoots: () => Snapshot.Roots, coordinator: coordinator);
     private StorageUploadSessions Uploads => _uploads ??= new(() => Storage, UploadCaller, Context.Time);
 
-    private static string UploadCaller()
-    {
-        var caller = RuntimeCallerContext.Require();
-        return JsonSerializer.Serialize(new[] { caller.AccountId, caller.BrainId, caller.PrincipalId, caller.Kind.ToString(), caller.AppId, caller.ConversationId });
-    }
+    private string UploadCaller() => IntoChat.OS.Framework.UploadScope.Of(Context.Caller);
 
     Task<StorageDescriptor> IStorage.Describe(CancellationToken ct) => Storage.Describe(ct);
     Task<IReadOnlyList<Item>> IStorage.Roots(CancellationToken ct) => Storage.Roots(ct);

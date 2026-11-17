@@ -46,21 +46,21 @@ internal static class AppUiEndpoints
             var provider = providers.SingleOrDefault();
             return Results.Ok(new { Root = provider is null ? null : await provider.Connect(ct), provider?.ActivationApp });
         });
-        apps.MapGet("/node", (string kind, string name, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
-            => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault()));
-        apps.MapPost("/event", (UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
-            => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct, requirePresenceStamp: true, logger: logger));
+        apps.MapGet("/node", (HttpContext http, string kind, string name, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
+            => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault(), HttpCaller.Current(http)));
+        apps.MapPost("/event", (HttpContext http, UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
+            => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct, HttpCaller.Current(http), logger: logger));
 
     }
 
     // GET /apps/node: one app UI node of the caller's brain, by kind.
-    internal static async Task<IResult> ReadNode(string kind, string name, INeuronProxies brain, string scope, CancellationToken ct, ILogger? logger = null, IHostedAppTypes? hosted = null)
+    internal static async Task<IResult> ReadNode(string kind, string name, INeuronProxies brain, string scope, CancellationToken ct, ILogger? logger = null, IHostedAppTypes? hosted = null, DigitalBrain.Access.Caller? caller = null)
     {
         var log = logger ?? ConsoleLog;
         if (kind == UIVocabulary.ConfirmationType)
         {
             if (name != IConfirmationInbox.Key(scope)) { throw new UnauthorizedAccessException(); }
-            return Results.Json(ConfirmationView.Render(await brain.Get<IConfirmationInbox>(name).Read().WaitAsync(ct)), ViewJson);
+            return Results.Json(ConfirmationView.Render(await brain.Get<IConfirmationInbox>(name).Read().WaitAsync(ct), caller), ViewJson);
         }
         var unit = kind is UIVocabulary.ViewType or "viewport" ? UnitAlias(scope, name) : null;
         if (unit is null && !OwnsUi(scope, name)) { throw new UnauthorizedAccessException("The UI belongs to another brain."); }
@@ -277,17 +277,17 @@ internal static class AppUiEndpoints
     // One UI event from the shell, under the caller the edge stamped on brain.
     // hosted answers whether the host loaded an app's code; without it no view answers a confirmation.
     // An app view's own Emit becomes AppRequested at its app; an Intent goes back to the client, which performs it.
-    internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? _, CancellationToken ct, bool requirePresenceStamp = false, ILogger? logger = null)
+    internal static async Task<IResult> Deliver(UiEvent input, INeuronProxies brain, string scope, IHostedAppTypes? _, CancellationToken ct, DigitalBrain.Access.Caller? caller, ILogger? logger = null)
     {
         if (input.Kind == UIVocabulary.ConfirmationType)
         {
             if (input.Name != IConfirmationInbox.Key(scope)) { throw new UnauthorizedAccessException(); }
             var (planId, approve) = ConfirmationAnswer(input);
-            ShellPresenceGate.RequireDirectPerson(requirePresenceStamp);
+            ShellPresenceGate.RequireDirectPerson(caller);
             await brain.Get<IConfirmationInbox>(input.Name).Resolve(planId, approve).WaitAsync(ct);
             return Results.Ok(new { delivered = true });
         }
-        if (input.Kind == UIVocabulary.ViewType) { return await DeliverView(input, brain, scope, ct, logger); }
+        if (input.Kind == UIVocabulary.ViewType) { return await DeliverView(input, brain, scope, ct, caller, logger); }
         if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
         switch (input.Kind)
         {
@@ -312,14 +312,14 @@ internal static class AppUiEndpoints
     }
 
     // A view event: the view neuron resolves the keyed node of the generation the client saw; the edge routes what it does.
-    private static async Task<IResult> DeliverView(UiEvent input, INeuronProxies brain, string scope, CancellationToken ct, ILogger? logger = null)
+    private static async Task<IResult> DeliverView(UiEvent input, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller, ILogger? logger = null)
     {
         var log = logger ?? ConsoleLog;
         var key = input.Key ?? throw new ArgumentException("A view event names the activated node's key.");
         var generation = input.Generation ?? throw new ArgumentException("A view event names the generation it saw.");
         if (UnitAlias(scope, input.Name) is { } alias)
         {
-            return await ActivateUnitViewAsync(brain, scope, alias, generation, key, input.Value, ct, log);
+            return await ActivateUnitViewAsync(brain, scope, alias, generation, key, input.Value, ct, caller, log);
         }
         if (ScreenAlias(scope, input.Name) is { } screenAlias)
         {
@@ -344,7 +344,7 @@ internal static class AppUiEndpoints
                     var unitPublished = await brain.Get<IViewReader>(UnitState(scope, candidateUnit)).Read(candidateUnit).WaitAsync(ct);
                     if (unitPublished is not null)
                     {
-                        return await ActivateUnitViewAsync(brain, scope, candidateUnit, generation, key, input.Value, ct, log);
+                        return await ActivateUnitViewAsync(brain, scope, candidateUnit, generation, key, input.Value, ct, caller, log);
                     }
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
@@ -372,13 +372,13 @@ internal static class AppUiEndpoints
 
                     case ViewActivationKind.Emit:
                         ViewArgs.RequireValueUnreserved(action.Emit!.Args, input.Value);
-                        if (!RuntimeCallerContext.TryGet(out var caller) || string.IsNullOrEmpty(caller.PersonId))
+                        if (caller?.For?.Principal is not { Length: > 0 } personId)
                         {
                             throw new UnauthorizedAccessException("Only a signed-in person activates a screen view.");
                         }
                         try
                         {
-                            await ScreenAppEmitBridge.ActivateAsync(screen, published, screenAlias, generation, key, input.Value, caller.PersonId, ct: ct, logger: log).WaitAsync(ct);
+                            await ScreenAppEmitBridge.ActivateAsync(screen, published, screenAlias, generation, key, input.Value, personId, ct: ct, logger: log).WaitAsync(ct);
                         }
                         catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
                         {
@@ -429,6 +429,7 @@ internal static class AppUiEndpoints
         string key,
         string? value,
         CancellationToken ct,
+        DigitalBrain.Access.Caller? caller,
         ILogger? logger = null)
     {
         var log = logger ?? ConsoleLog;
@@ -467,11 +468,11 @@ internal static class AppUiEndpoints
         }
         // The state neuron writes "by" into the emit, overwriting whatever the payload says: the caller's stable person id, never
         // a display name. A view that declares "by" never publishes (the framework's ViewDeclaresBy), so the edge need not refuse one.
-        if (!RuntimeCallerContext.TryGet(out var caller) || string.IsNullOrEmpty(caller.PersonId))
+        if (caller?.For?.Principal is not { Length: > 0 } personId)
         { throw new UnauthorizedAccessException("Only a signed-in person activates a unit view."); }
         if (screen is not null)
         {
-            try { await screen.Activate(alias, generation, key, value, caller.PersonId).WaitAsync(ct); }
+            try { await screen.Activate(alias, generation, key, value, personId).WaitAsync(ct); }
             catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
             { throw new StaleActionException("This action is no longer available. Read the view again."); }
             catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)
@@ -480,7 +481,7 @@ internal static class AppUiEndpoints
             { throw new ArgumentException($"This view node does nothing ({refused.Reason})."); }
             return Results.Ok(new { delivered = true });
         }
-        try { await reader.Activate(alias, generation, key, value, caller.PersonId).WaitAsync(ct); }
+        try { await reader.Activate(alias, generation, key, value, personId).WaitAsync(ct); }
         catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale)
         { throw new StaleActionException("This action is no longer available. Read the view again."); }
         catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)

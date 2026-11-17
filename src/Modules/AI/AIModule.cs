@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Compute;
@@ -93,23 +94,19 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
     public void Configure(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        endpoints.MapGet("/ai/models", async (INeuronProxies brain) => Results.Ok(await brain.Get<IModelCatalog>(
-            CatalogKey(RuntimeCallerContext.TryGet(out var caller) ? caller : null)).List()));
+        endpoints.MapGet("/ai/models", async (HttpContext http, INeuronProxies brain) => Results.Ok(await brain.Get<IModelCatalog>(
+            CatalogKey(StampedCaller(http))).List()));
         endpoints.MapPost("/ai/transcriptions", TranscribeAsync);
     }
 
-    // Fail closed: only a trusted, non-guest, non-model direct person caller may invoke speech recognition.
-    internal static bool IsDirectPersonCaller(CapabilityCaller? caller)
-        => caller is not null
-            && RuntimeCallerContext.IsTrusted(caller)
-            && caller.Kind == CallerKind.User
-            && caller.StampedBy == TrustedEdge.AuthenticatedHttp
-            && caller.AppId is null
-            && caller.OnBehalfOf is null
-            && !AppPrincipal.IsApp(caller.PrincipalId)
+    private static Caller? StampedCaller(HttpContext http) => http.RequestServices.GetService<ICallerAmbient>()?.Current;
+
+    // Fail closed: only a non-guest person calling directly (not an app, agent or relay) may invoke speech recognition.
+    internal static bool IsDirectPersonCaller(Caller? caller)
+        => caller is { Actor: Actor.Person person, Direct: true }
+            && CallerRules.IsDirectPerson(caller, person.Principal)
             && !GuestSurface.Is(caller)
-            && !RuntimeCallerContext.IsModelOriginated(caller)
-            && BrainScope.IsValidId(caller.BrainId);
+            && BrainScope.IsValidId(caller.Brain.Value);
 
     private static async Task<IResult> TranscribeAsync(
         HttpContext http,
@@ -117,7 +114,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         ILoggerFactory? loggerFactory,
         CancellationToken ct)
     {
-        if (!RuntimeCallerContext.TryGet(out var caller))
+        if (StampedCaller(http) is not { } caller)
         {
             return Results.Unauthorized();
         }
@@ -143,7 +140,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
             return Results.Problem(error.Message, statusCode: StatusCodes.Status400BadRequest);
         }
 
-        var recognizer = brain.Get<ISpeechRecognizer>($"{caller.BrainId}/default");
+        var recognizer = brain.Get<ISpeechRecognizer>($"{caller.Brain.Value}/default");
         try
         {
             var result = await recognizer.Recognize(
@@ -270,7 +267,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
     }
 
     // A caller stamped without a valid brain (or no caller) gets the deployment's list, not a 500.
-    internal static string CatalogKey(CapabilityCaller? caller)
-        => caller is not null && BrainScope.IsValidId(caller.BrainId) && !string.IsNullOrWhiteSpace(caller.AccountId)
-            ? IModelCatalog.Key(caller.BrainId) : IModelCatalog.DeploymentKey;
+    internal static string CatalogKey(Caller? caller)
+        => caller is { For.Account.Length: > 0 } && BrainScope.IsValidId(caller.Brain.Value)
+            ? IModelCatalog.Key(caller.Brain.Value) : IModelCatalog.DeploymentKey;
 }

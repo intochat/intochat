@@ -63,14 +63,14 @@ internal sealed class ViewNeuron
     private void RequireWriter()
     {
         // A call with no stamped caller is refused, never taken for the platform.
-        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : throw new UnauthorizedAccessException("No caller was stamped on this call; a view is published only by a stamped one.");
+        var caller = Context.Caller ?? throw new UnauthorizedAccessException("No caller was stamped on this call; a view is published only by a stamped one.");
         if (!Writes(caller, FullKey)) { throw new UnauthorizedAccessException("Only the owning brain and app may publish this view."); }
     }
 
     // The brain's person or platform, or the app that owns the key ({app}/…); never another brain.
-    internal static bool Writes(DigitalBrain.Capabilities.CapabilityCaller caller, string name)
-        => BrainKey.BelongsTo(name, caller.BrainId) && (caller.Kind != CallerKind.App ||
-            !string.IsNullOrEmpty(caller.AppId) && name.StartsWith(caller.AppId + "/", StringComparison.Ordinal));
+    internal static bool Writes(DigitalBrain.Access.Caller caller, string name)
+        => BrainKey.BelongsTo(name, caller.Brain.Value) && (!IntoChat.OS.Framework.CallerRules.IsApp(caller, out var app) ||
+            !string.IsNullOrEmpty(app) && name.StartsWith(app + "/", StringComparison.Ordinal));
 }
 
 [GenerateSerializer, Alias("ui.view-state.v2")]

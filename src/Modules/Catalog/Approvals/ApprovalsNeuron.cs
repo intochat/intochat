@@ -22,9 +22,7 @@ public sealed class ApprovalsNeuron : Neuron, IApprovals
 
     public async Task<IReadOnlyList<Approval>> Pending(CancellationToken ct = default)
     {
-        var authorized = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.TryGet(out var caller)
-            ? !string.IsNullOrEmpty(caller.BrainId) && string.Equals(caller.BrainId, Id.Brain.Value, StringComparison.Ordinal)
-            : Context.Caller is { Via: { } via } && via.Brain == Id.Brain;
+        var authorized = Context.Caller is { } caller && caller.Brain == Id.Brain;
         if (!authorized)
         {
             throw new UnauthorizedAccessException("Only signed-in callers within the same brain can read pending approvals.");

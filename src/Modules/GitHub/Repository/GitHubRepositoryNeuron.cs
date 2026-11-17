@@ -3,7 +3,8 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Limits;
-using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Access;
+using IntoChat.OS.Framework;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 
@@ -104,11 +105,11 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
     protected override Task<OAuthGrant> RefreshAsync(Credential credential, CancellationToken ct)
         => throw new InvalidOperationException("GitHub connections mint installation tokens; nothing refreshes.");
 
-    // The inbound face bypasses the call filter: a stamped caller must be platform code.
+    // The inbound face: only the kernel or the GitHub module acting as itself revokes.
     public async Task Revoke(string reason)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        if (RuntimeCallerContext.TryGet(out var caller) && caller.Kind != CallerKind.Platform)
+        if (Context.Caller?.Actor is not (Actor.Kernel or Actor.Module { Id: GitHubModule.ManifestName }))
         { throw new UnauthorizedAccessException($"Only the platform can revoke connection github/{Key.Connection}."); }
         await RevokeAsync(reason);
     }
@@ -116,7 +117,7 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
     [global::Orleans.Concurrency.ReadOnly]
     public Task<GitHubRepository?> Coordinates()
     {
-        RequireOwnBrainOrUnstamped();
+        RequireOwnBrain();
         return Task.FromResult(Snapshot.Status == ConnectionStatus.Connected ? Repository : null);
     }
 
@@ -126,7 +127,7 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
     {
         ArgumentNullException.ThrowIfNull(receipt);
         ArgumentException.ThrowIfNullOrWhiteSpace(receipt.DeliveryId);
-        RequireOwnBrainOrUnstamped();
+        RequireOwnBrain();
         if (Snapshot.Status != ConnectionStatus.Connected) { return false; }
         if (receipt.Installation != Snapshot.InstallationId
             || receipt.Repository is { } repository && repository != Snapshot.RepositoryId
@@ -262,17 +263,14 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
 
     private void RequireMergeProvenance()
     {
-        if (!RuntimeCallerContext.TryGet(out var caller) || caller is null)
-        {
-            throw new UnauthorizedAccessException("Caller is not authenticated or stamped.");
-        }
+        var caller = Context.Caller ?? throw new UnauthorizedAccessException("Caller is not authenticated or stamped.");
 
-        if (caller.Kind is CallerKind.User or CallerKind.Platform)
+        if (caller.Actor is Actor.Person or Actor.Kernel)
         {
             return;
         }
 
-        throw new UnauthorizedAccessException($"Caller of kind {caller.Kind} (Principal: {caller.PrincipalId}, App: {caller.AppId}) is not authorized to merge pull requests on github/{Key.Connection}.");
+        throw new UnauthorizedAccessException($"Caller {caller.Actor.GetType().Name} (for {CallerRules.ActsFor(caller)}) is not authorized to merge pull requests on github/{Key.Connection}.");
     }
 
     // The index entry stays: Coordinates() and AcceptRepositoryEvent skip a connection that is not
@@ -392,10 +390,10 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
         }
     }
 
-    private void RequireOwnBrainOrUnstamped()
+    private void RequireOwnBrain()
     {
-        if (RuntimeCallerContext.TryGet(out var caller) && caller.Kind != CallerKind.Platform
-            && BrainScope.Create(caller.AccountId, caller.BrainId).Id != Key.Brain)
+        if (Context.Caller is not { } caller
+            || (caller.Actor is not Actor.Kernel && caller.Brain.Value != Key.Brain))
         { throw new UnauthorizedAccessException($"Only the owning brain can deliver to connection github/{Key.Connection}."); }
     }
 

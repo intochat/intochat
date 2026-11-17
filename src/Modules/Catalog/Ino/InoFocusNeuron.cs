@@ -16,7 +16,7 @@ internal sealed class InoFocusNeuron : DigitalBrain.Neurons.Neuron, IInoFocus
         ArgumentException.ThrowIfNullOrWhiteSpace(target);
         ArgumentNullException.ThrowIfNull(reason);
         if (action is not null) { ArgumentException.ThrowIfNullOrWhiteSpace(action.Kind); }
-        if (tone == FocusTone.Critical && ContextTrust.Of(RuntimeCallerContext.Current) == ContextTrust.Model)
+        if (tone == FocusTone.Critical && ContextTrust.Of(Context.Caller) == ContextTrust.Model)
         {
             return new InoToolResult("Critical is reserved for the platform", Ok: false);
         }

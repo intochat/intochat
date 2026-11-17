@@ -58,24 +58,25 @@ internal sealed class CircleChatNeuron(ICapabilityBroker broker)
     public async Task PublishPost(string postKey, string requestId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(requestId);
-        var caller = RuntimeCallerContext.Require();
-        var brain = BrainScope.Create(caller.AccountId, caller.BrainId).Id;
+        var caller = Context.Caller ?? throw new UnauthorizedAccessException("Only the personal Friends app publishes its own post references.");
+        var brain = caller.Brain.Value;
         var prefix = brain + "/posts/";
-        if (caller.Kind != CallerKind.App || caller.AppId != IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), "friends").Key
+        if (caller.Actor is not DigitalBrain.Access.Actor.App { For: var author } app
+            || app.Key != IntoChat.OS.Primitives.AppRef.Of(caller.Brain, "friends").Key
             || !postKey.StartsWith(prefix, StringComparison.Ordinal)
             || postKey.Length == prefix.Length
             || !postKey[prefix.Length..].All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
         { throw new UnauthorizedAccessException("Only the personal Friends app publishes its own post references."); }
         var directory = await broker.Identity();
-        var owner = await directory.Membership(brain, caller.PersonId);
-        if (owner?.AccountId != caller.AccountId || owner.Role != MemberRole.Owner
+        var owner = await directory.Membership(brain, author.Principal);
+        if (owner?.AccountId != author.Account || owner.Role != MemberRole.Owner
             || await directory.KindOf(brain) != BrainKind.Personal)
         { throw new UnauthorizedAccessException("The author must own the personal brain."); }
-        var membership = await directory.Membership(CircleBrain, caller.PersonId);
+        var membership = await directory.Membership(CircleBrain, author.Principal);
         var circle = await Get<ICircleStateReader>(new DigitalBrain.NeuronId(Id.Brain, CircleGrainType.Name, "circle")).State();
-        if (membership?.AccountId != caller.AccountId || !circle.Members.Contains(caller.AccountId, StringComparer.Ordinal))
+        if (membership?.AccountId != author.Account || !circle.Members.Contains(author.Account, StringComparer.Ordinal))
         { throw new UnauthorizedAccessException("The author must currently belong to the circle."); }
-        await Append(caller.AccountId, circle, "post " + postKey, requestId, post: true);
+        await Append(author.Account, circle, "post " + postKey, requestId, post: true);
     }
 
     public async Task<CircleLine[]> Read(long since)
@@ -87,10 +88,10 @@ internal sealed class CircleChatNeuron(ICapabilityBroker broker)
     // A member of the circle brain, under its own account (T26-8).
     private async Task<(string Account, CircleState Circle)> Member()
     {
-        if (!RuntimeCallerContext.TryGet(out var caller) || caller.BrainId != CircleBrain)
+        if (Context.Caller is not { For.Account: var account } caller || caller.Brain.Value != CircleBrain)
         { throw new UnauthorizedAccessException($"The caller is not in circle {CircleBrain}."); }
         var circle = await Circle.State();
-        if (!circle.Members.Contains(caller.AccountId)) { throw new UnauthorizedAccessException($"The caller is not a member of circle {CircleBrain}."); }
-        return (caller.AccountId, circle);
+        if (!circle.Members.Contains(account)) { throw new UnauthorizedAccessException($"The caller is not a member of circle {CircleBrain}."); }
+        return (account, circle);
     }
 }

@@ -27,9 +27,8 @@ internal sealed class FlowsNeuron(
     ILogger<FlowsNeuron>? logger = null,
     IServiceProvider? services = null) : DigitalBrain.Neurons.Neuron<FlowsState>, IFlows
 {
-    private const string SystemOwner = "system";
-
-    private const string AssistantApp = "assistant";
+    // The app id a flow an agent starts is recorded under: Ino's flows.
+    private const string AssistantApp = CallerApps.Assistant;
 
     private readonly SecurityInterrupts _interrupts = new();
 
@@ -141,7 +140,7 @@ internal sealed class FlowsNeuron(
     public async Task<string> Start(string type, string title, string? parentFlowId, string innerJson, CancellationToken ct = default, string? flowId = null)
     {
         await Check("Start", new FlowKeyIsValid(flowId));
-        await Check("Start", new NotUnderSecurityInterrupt(RuntimeCallerContext.TryGet(out var starter) && starter.AppId == AssistantApp ? _interrupts.Reason : null));
+        await Check("Start", new NotUnderSecurityInterrupt(Context.Caller?.Actor is Actor.Agent ? _interrupts.Reason : null));
         ArgumentException.ThrowIfNullOrWhiteSpace(type);
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentNullException.ThrowIfNull(innerJson);
@@ -150,12 +149,14 @@ internal sealed class FlowsNeuron(
         var held = flowId is not null && State.Flows.TryGetValue(id.ToString(), out var existingEntry) ? existingEntry : null;
         var headStatus = flowId is not null && held is null ? (await Context.Get<IFlowStarter>(id).Head()).Status : (DigitalBrain.Flows.FlowStatus?)null;
         await Check("Start", new ParentNotBlocked(blocker), new FlowIsNew(id.ToString(), flowId, held, headStatus));
-        if (RuntimeCallerContext.TryGet(out var caller) && (caller.AppId is { Length: > 0 } || caller.ConversationId is { Length: > 0 }))
+        var starterApp = StarterApp(Context.Caller);
+        var conversation = Context.Caller?.Conversation;
+        if (starterApp is { Length: > 0 } || conversation is { Length: > 0 })
         {
-            await Fold(id.ToString(), entry => entry.App == caller.AppId && entry.Conversation == caller.ConversationId ? entry
-                : entry with { App = caller.AppId, Conversation = caller.ConversationId }, skipHead: true);
+            await Fold(id.ToString(), entry => entry.App == starterApp && entry.Conversation == conversation ? entry
+                : entry with { App = starterApp, Conversation = conversation }, skipHead: true);
         }
-        await Context.Get<IFlowStarter>(id).StartFromJson(title, Caller(), parentFlowId, innerJson);
+        await Context.Get<IFlowStarter>(id).StartFromJson(title, Owner(), parentFlowId, innerJson);
         return id.ToString();
     }
 
@@ -173,7 +174,7 @@ internal sealed class FlowsNeuron(
                 return;
             }
         }
-        await Flow(flowId).Resume(step, outcome, Caller());
+        await Flow(flowId).Resume(step, outcome, CallerRules.ActsFor(RequiredCaller()));
     }
 
     public async Task Cancel(string flowId, string reason, CancellationToken ct = default)
@@ -363,7 +364,7 @@ internal sealed class FlowsNeuron(
     }
 
     private FlowEntry Placeholder(string flowId)
-        => new(flowId, NeuronId.TryParse(flowId, out var id) ? id.Type : "", "", SystemOwner, "", FlowStatus.Pending, [], [], null, null, [], null,
+        => new(flowId, NeuronId.TryParse(flowId, out var id) ? id.Type : "", "", "", "", FlowStatus.Pending, [], [], null, null, [], null,
             Context.Time.GetUtcNow(), null, null);
 
     private async Task<FlowEntry> WithHead(FlowEntry entry)
@@ -412,8 +413,25 @@ internal sealed class FlowsNeuron(
 
     private ILogger Logger() => (ILogger?)logger ?? OsConsoleLog.For<FlowsNeuron>();
 
-    private string Caller()
-        => Context.Caller?.For?.Principal ?? SystemOwner;
+    private Caller RequiredCaller()
+        => Context.Caller ?? throw new UnauthorizedAccessException("A flow is started or resumed only by a stamped caller.");
+
+    // Who the flow runs for, as its label: the person the caller acts for, or the actor itself for module, scheduler and kernel
+    // work. Never a fallback identity: a call with no caller is refused (owner decision 3, 17 Nov).
+    private string Owner()
+    {
+        var caller = RequiredCaller();
+        return CallerRules.ActsFor(caller) ?? caller.Actor switch
+        {
+            Actor.Module module => module.Id,
+            Actor.Scheduler => "scheduler",
+            _ => "kernel",
+        };
+    }
+
+    // The app a flow is recorded under: the calling app, or the assistant for an agent.
+    private static string? StarterApp(Caller? caller)
+        => CallerRules.IsApp(caller, out var app) ? app : caller?.Actor is Actor.Agent ? AssistantApp : null;
 }
 
 internal static partial class FlowsLog

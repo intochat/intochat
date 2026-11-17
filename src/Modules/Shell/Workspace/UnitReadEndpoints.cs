@@ -22,15 +22,16 @@ internal static class UnitReadEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         var group = OsBrainRoutes.Group(endpoints);
-        group.MapGet("/state", (INeuronProxies brain, ISynapseCatalogSource? catalog, string brainId, string? alias, CancellationToken ct)
-            => State(brain, ResolveScope(brainId), catalog, alias, ct));
-        group.MapGet("/view", (INeuronProxies brain, ISynapseCatalogSource? catalog, string brainId, string? alias, CancellationToken ct)
-            => View(brain, ResolveScope(brainId), catalog, alias, ct));
+        group.MapGet("/state", (HttpContext http, INeuronProxies brain, ISynapseCatalogSource? catalog, string brainId, string? alias, CancellationToken ct)
+            => State(brain, ResolveScope(http, brainId), catalog, alias, ct));
+        group.MapGet("/view", (HttpContext http, INeuronProxies brain, ISynapseCatalogSource? catalog, string brainId, string? alias, CancellationToken ct)
+            => View(brain, ResolveScope(http, brainId), catalog, alias, ct));
     }
 
-    private static string ResolveScope(string brainId)
-        => RuntimeCallerContext.TryGet(out var caller)
-            ? BrainScope.Create(caller.AccountId, brainId).Id
+    // The brain the route names is data, scoped under the account of the person the stamped caller acts for.
+    private static string ResolveScope(HttpContext http, string brainId)
+        => IntoChat.OS.Framework.HttpCaller.Current(http)?.For is { } person
+            ? BrainScope.Create(person.Account, brainId).Id
             : BrainScope.CurrentId();
 
     internal static async Task<IResult> State(INeuronProxies brain, string brainId, ISynapseCatalogSource? catalog, string? alias, CancellationToken ct)

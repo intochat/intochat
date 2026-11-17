@@ -85,8 +85,7 @@ internal sealed partial class ChatNeuron(IChatAgentSource adapter) : UiNeuron<Ch
 
     public async Task MarkRead(string source, long generation, long version, string[] messageIds)
     {
-        var caller = RuntimeCallerContext.Require();
-        if (caller.Kind != CallerKind.User || RuntimeCallerContext.IsModelOriginated(caller))
+        if (Context.Caller?.Actor is not DigitalBrain.Access.Actor.Person person)
         { throw new UnauthorizedAccessException("Only a person can acknowledge an answer."); }
         var projection = Snapshot.Projection;
         if (projection is null || projection.Source != source || projection.Generation != generation || projection.Version != version)
@@ -96,7 +95,7 @@ internal sealed partial class ChatNeuron(IChatAgentSource adapter) : UiNeuron<Ch
             message.Id == id && message.Role == ChatRole.Assistant && message.Status == "completed")))
         { throw new ArgumentException("Only completed answers in this transcript can be acknowledged."); }
         var receipts = messageIds.Distinct(StringComparer.Ordinal).Select(id => new ChatReadReceipt(
-            caller.PrincipalId, source, id, ContentHash(projection.Messages.Single(message => message.Id == id)))).ToArray();
+            person.Principal, source, id, ContentHash(projection.Messages.Single(message => message.Id == id)))).ToArray();
         if (receipts.All(receipt => Snapshot.ReadReceipts.Contains(receipt))) { return; }
         var previous = Snapshot;
         var next = previous with
@@ -111,7 +110,7 @@ internal sealed partial class ChatNeuron(IChatAgentSource adapter) : UiNeuron<Ch
     [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<ChatState> Read()
     {
-        var principal = RuntimeCallerContext.TryGet(out var caller) ? caller.PrincipalId : null;
+        var principal = IntoChat.OS.Framework.CallerRules.ActsFor(Context.Caller);
         var projection = Snapshot.Projection;
         var unread = projection is null || principal is null ? [] : projection.Messages
             .Where(message => message.Role == ChatRole.Assistant && message.Status == "completed"

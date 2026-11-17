@@ -2,7 +2,8 @@ using System.Text.Json;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Invocation;
-using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Access;
+using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;
 
@@ -10,7 +11,7 @@ namespace IntoChat.OS.Modules.Postgres.Tables;
 // the source is the one neuron type allowed to make that call. The table (06-05b) and the index (06-08) are plain neurons: a
 // call one makes leaves from its runtime host grain, whose key is its neuron id, and reaches the other's host as a RuntimeInvocation.
 // Both are read from the ids Orleans sets on the message (never from the call's body), so the rule is the grain-era one.
-internal sealed class TableLifecycleGuard : IIncomingGrainCallFilter
+internal sealed class TableLifecycleGuard(ICallerAmbient callers) : IIncomingGrainCallFilter
 {
     private static readonly string Lifetime = NeuronProxy.ContractName(typeof(ITableLifetime));
     private static readonly string Index = NeuronProxy.ContractName(typeof(ITableIndex));
@@ -19,21 +20,20 @@ internal sealed class TableLifecycleGuard : IIncomingGrainCallFilter
     {
         if (context.Request.GetArgumentCount() > 0 && context.Request.GetArgument(0) is RuntimeInvocation call)
         {
-            if (string.Equals(call.Contract, Index, StringComparison.Ordinal)) { CheckIndex(context, call); }
+            if (string.Equals(call.Contract, Index, StringComparison.Ordinal)) { CheckIndex(context, call, callers.Current); }
             else if (string.Equals(call.Contract, Lifetime, StringComparison.Ordinal)) { CheckLifetime(context, call); }
         }
         await context.Invoke();
     }
 
     // The index is a plain neuron (06-08): its owner is its neuron id's brain and key, "{brain}/tables/{app}".
-    private static void CheckIndex(IIncomingGrainCallContext context, RuntimeInvocation call)
+    private static void CheckIndex(IIncomingGrainCallContext context, RuntimeInvocation call, Caller? caller)
     {
         var owner = OwnerOf(context.TargetId.Key.ToString()!);
         if (owner.BrainId != BrainScope.CurrentId()) { throw new UnauthorizedAccessException("This storage belongs to another brain."); }
         if (call.Method == nameof(ITableIndex.ReadTables))
         {
-            var caller = RuntimeCallerContext.Require();
-            if (!RuntimeCallerContext.IsTrusted(caller) || caller.Kind == CallerKind.App)
+            if (caller is null || CallerRules.IsApp(caller, out _))
             { throw new UnauthorizedAccessException("Only trusted host code may read app storage."); }
             return;
         }

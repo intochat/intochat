@@ -1,5 +1,5 @@
 using System.Runtime.Serialization;
-using DigitalBrain.Capabilities;
+using System.Text.Json.Serialization;
 using DigitalBrain.State;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
@@ -20,8 +20,11 @@ public sealed class AppState
     [Id(9)] public Guid BuildAttempt { get; set; }
     [Id(10)] public DateTimeOffset BuildStartedAt { get; set; }
     [Id(11)] public string? BrainScopeId { get; set; }
-    // The caller that created the app: what its running program acts as, so a restart keeps its identity.
-    [Id(12)] public CapabilityCaller? Principal { get; set; }
+    // Read-only v1 shape of the old stored caller (JSON "principal"); the next activation turns it into PublisherSource and clears it.
+    [Id(12), JsonPropertyName("principal"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public StoredPrincipalV1? LegacyPrincipal { get; set; }
+    // The account and brain the app was created in: source-brain data for its releases, never an identity anything acts as.
+    [Id(13)] public AppPublisher? PublisherSource { get; set; }
     [Id(17)] public OperationReceipt[] Receipts { get; set; } = [];
     [Id(18)] public string? PublishedVersion { get; set; }
     [Id(19)] public AppOrigin? Origin { get; set; }
@@ -81,6 +84,18 @@ public sealed class AppState
         return copy;
     }
 
+    // The one-time v1 migration: the old stored caller keeps only its account and brain as the publisher source.
+    // True when the state changed and must be stored.
+    public bool MigrateLegacyPrincipal()
+    {
+        if (LegacyPrincipal is not { } legacy) { return false; }
+        PublisherSource ??= legacy.AccountId is { Length: > 0 } account && legacy.BrainId is { Length: > 0 } brain
+            ? new AppPublisher(account, brain)
+            : null;
+        LegacyPrincipal = null;
+        return true;
+    }
+
     public bool HasReceipt(Guid operationId)
     {
         for (var i = 0; i < Receipts.Length; i++)
@@ -107,7 +122,8 @@ public sealed class AppState
         BuildAttempt = BuildAttempt,
         BuildStartedAt = BuildStartedAt,
         BrainScopeId = BrainScopeId,
-        Principal = Principal,
+        LegacyPrincipal = LegacyPrincipal,
+        PublisherSource = PublisherSource,
         Receipts = [.. Receipts],
         PublishedVersion = PublishedVersion,
         Origin = Origin,
@@ -160,3 +176,16 @@ public sealed record DeadLetterEntry(
 
 [GenerateSerializer, Alias("apps.retained-request")]
 public sealed record RetainedRequest([property: Id(0)] long Sequence, [property: Id(1)] Signals.AppRequested Request);
+
+// The account and brain an app was created in. Data only: nothing acts as it and no caller is rebuilt from it.
+[GenerateSerializer, Alias("apps.publisher")]
+public sealed record AppPublisher([property: Id(0)] string Account, [property: Id(1)] string Brain);
+
+// The stored shape of the caller AppState kept before the one-caller model (camelCase JSON in the journal). Read once, never written.
+[GenerateSerializer, Alias("apps.stored-principal-v1")]
+public sealed record StoredPrincipalV1(
+    [property: Id(0)] string? PrincipalId,
+    [property: Id(1)] string? AccountId,
+    [property: Id(2)] string? BrainId,
+    [property: Id(3)] string? AppId,
+    [property: Id(4)] string? ConversationId);

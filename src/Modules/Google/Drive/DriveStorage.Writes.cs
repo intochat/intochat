@@ -30,9 +30,7 @@ internal sealed partial class DriveNeuron : IStorageUpload
     private string UploadCaller()
     {
         using var trace = EnterTrace();
-        var caller = RuntimeCallerContext.Require();
-        return JsonSerializer.Serialize(new[] { caller.AccountId, caller.BrainId, caller.PrincipalId,
-            caller.Kind.ToString(), caller.AppId, caller.ConversationId });
+        return IntoChat.OS.Framework.UploadScope.Of(Context.Caller);
     }
 
     protected override async Task OnDeactivate(DigitalBrain.Neurons.DeactivationCause cause, CancellationToken cancellationToken)

@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace IntoChat.OS.Framework;
 
 // The caller the authenticated edge entered for this request (AccountSession), read from the ambient.
-internal static class HttpCaller
+public static class HttpCaller
 {
     public static Caller? Current(HttpContext http)
     {

@@ -190,7 +190,7 @@ internal sealed class RouterNeuron(IServiceProvider services) : Neuron<RouterSto
     private static bool AppsAllowed(string[]? allowed) => allowed is null || allowed.Contains(typeof(IApp).FullName!, StringComparer.Ordinal);
 
     // The asking app, from the kernel-stamped caller (an app's behaviors call as their app's key).
-    private string? Asker() => RuntimeCallerContext.TryGet(out var caller) && IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, caller.AppId, out var app) ? app.Name : null;
+    private string? Asker() => CallerRules.IsApp(Context.Caller, out var key) && IntoChat.OS.Primitives.AppRef.TryParse(Id.Brain, key, out var app) ? app.Name : null;
 
     // The router's own state: what it decided before, shown to the model so a follow-up is judged
     // in context. Its memory is its grain state, never a process.

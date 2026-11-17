@@ -1,7 +1,6 @@
 global using DigitalBrain.Brains;
 global using DigitalBrain.Neurons;
 global using DigitalBrain.Signals;
-global using CallerContextStamper = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext;
 using System.Reflection;
 using DigitalBrain.Contracts;
 using DigitalBrain.Modules;

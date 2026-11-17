@@ -46,7 +46,7 @@ internal static class MarketplaceEndpoints
     // The latest listing through the one install path: a missing or stale consent answers 409 with what the app asks for.
     internal static Task<IResult> Install(string publisher, string name, InstallBody? body, INeuronProxies brain, AppInstaller installer, CancellationToken ct) => AppsEndpoints.Respond(async () =>
     {
-        if (!AppsEndpoints.IsPerson()) { return Results.Json(new { error = "Only you can install apps." }, statusCode: 403); }
+        if (!AppsEndpoints.IsPerson(installer.Caller)) { return Results.Json(new { error = "Only you can install apps." }, statusCode: 403); }
         var outcome = await installer.Install(new(new(publisher, name), body?.Consent ?? "", Guid.Empty, body?.Name, body?.Bindings), ct);
         return outcome.Status switch
         {

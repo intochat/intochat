@@ -60,10 +60,7 @@ internal static class InoModelSetup
         => host.ReadStringArrayOptional("grants", fallback ?? [], async () =>
         {
             var grants = await host.GetGrants().List();
-#pragma warning disable CS0618
-            var assistant = DigitalBrain.Capabilities.CapabilityCallers.AssistantApp;
-#pragma warning restore CS0618
-            return InoModel.SummarizeGrants(grants, assistant);
+            return InoModel.SummarizeGrants(grants, IntoChat.OS.Framework.CallerApps.Assistant);
         });
 
     public static Task EnsureProfileContextAsync(InoSetupHost host)

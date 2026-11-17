@@ -40,11 +40,11 @@ public static class ContextTrust
 {
     public const string User = "user", App = "app", Model = "model", Platform = "platform";
 
-    public static string Of(DigitalBrain.Capabilities.CapabilityCaller? caller) => caller?.Kind switch
+    public static string Of(DigitalBrain.Access.Caller? caller) => caller?.Actor switch
     {
-        DigitalBrain.Capabilities.CallerKind.User => User,
-        DigitalBrain.Capabilities.CallerKind.Agent => Model,
-        DigitalBrain.Capabilities.CallerKind.Platform or DigitalBrain.Capabilities.CallerKind.Scheduler => Platform,
+        DigitalBrain.Access.Actor.Person => User,
+        DigitalBrain.Access.Actor.Agent => Model,
+        DigitalBrain.Access.Actor.Kernel or DigitalBrain.Access.Actor.Scheduler or DigitalBrain.Access.Actor.Module => Platform,
         _ => App,
     };
 }

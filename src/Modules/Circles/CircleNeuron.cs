@@ -182,7 +182,7 @@ internal sealed class CircleNeuron(
                 if (!string.IsNullOrEmpty(binding.Slot))
                 {
                     var grantsNeuron = SiloNeurons.Get<IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron>(plain, IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron.Key(source));
-                    await BrainActs.In(broker, source, async () =>
+                    await BrainActs.In(broker, plain, source, async () =>
                     {
                         await grantsNeuron.Revoke($"circle:{CircleBrain}:conn:{binding.ConnectionKey}");
                     });
@@ -202,7 +202,7 @@ internal sealed class CircleNeuron(
             try
             {
                 var grantsNeuron = SiloNeurons.Get<IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron>(plain, IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron.Key(source));
-                await BrainActs.In(broker, source, async () =>
+                await BrainActs.In(broker, plain, source, async () =>
                 {
                     await grantsNeuron.Revoke($"circle:{CircleBrain}:app:{appName}");
                 });
@@ -310,10 +310,10 @@ internal sealed class CircleNeuron(
         var source = await SharerBrain(caller, appName);
         var sourceApp = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(source), appName);
         var app = SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, sourceApp.Key);
-        var shared = await BrainActs.In(broker, source, app.Read);
+        var shared = await BrainActs.In(broker, plain, source, app.Read);
 
         var grantsNeuron = SiloNeurons.Get<IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron>(plain, IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron.Key(source));
-        await BrainActs.In(broker, source, async () =>
+        await BrainActs.In(broker, plain, source, async () =>
         {
             await grantsNeuron.Grant(DigitalBrain.Capabilities.Identity.Grant.Tuple(
                 $"brain:{source}",
@@ -333,7 +333,7 @@ internal sealed class CircleNeuron(
             await Check("Share", new SharedSlotIsConnectorBound(slot.Name, slot.Capability));
             if (connectionIds.Length > 0 && !connectionIds.Contains(id, StringComparer.Ordinal)) { continue; }
             var owned = ConnectionKeys.For(source, slot.Connector, id);
-            await BrainActs.In(broker, source, async () =>
+            await BrainActs.In(broker, plain, source, async () =>
             {
                 await grantsNeuron.Grant(DigitalBrain.Capabilities.Identity.Grant.Tuple(
                     $"brain:{source}",
@@ -375,7 +375,7 @@ internal sealed class CircleNeuron(
         List<string> holding = [];
         foreach (var brain in (await (await broker.Identity()).BrainsOf(personId)).Where(entry => entry.Kind == BrainKind.Personal))
         {
-            var installed = await BrainActs.In(broker, brain.Id, async () =>
+            var installed = await BrainActs.In(broker, plain, brain.Id, async () =>
                 (await SiloNeurons.Get<IntoChat.OS.Modules.Apps.IApp>(plain, IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain.Id), appName).Key).Read()).Manifest.Title.Length > 0);
             if (installed) { holding.Add(brain.Id); }
         }

@@ -173,7 +173,7 @@ internal sealed partial class ScreenDirectoryNeuron(
             try
             {
                 var inbox = await ResolveNeuron<IConfirmationInbox>(IConfirmationInbox.Key(brainId)).Read();
-                viewObject = ConfirmationView.Render(inbox);
+                viewObject = ConfirmationView.Render(inbox, Context.Caller);
                 generation = 1L;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -399,7 +399,7 @@ internal sealed partial class ScreenDirectoryNeuron(
                 var pub = await screen.Read();
                 if (pub is not null)
                 {
-                    var callerPersonId = RuntimeCallerContext.TryGet(out var caller) && !string.IsNullOrEmpty(caller.PersonId) ? caller.PersonId : "user";
+                    var callerPersonId = Context.Caller?.For?.Principal is { Length: > 0 } person ? person : "user";
                     await ScreenAppEmitBridge.ActivateAsync(
                         screen,
                         pub,
@@ -481,7 +481,7 @@ internal sealed partial class ScreenDirectoryNeuron(
         {
             var unitNeuronId = new NeuronId(new BrainId(brainId), normalizedApp, "default");
             var reader = ResolveNeuron<IViewReader>(unitNeuronId);
-            var callerPersonId = RuntimeCallerContext.TryGet(out var caller) && !string.IsNullOrEmpty(caller.PersonId) ? caller.PersonId : "user";
+            var callerPersonId = Context.Caller?.For?.Principal is { Length: > 0 } person ? person : "user";
             await reader.Activate(normalizedApp, targetGen, key, value, callerPersonId);
             var updated = await Read(appId, instanceId);
             return new ScreenActionResult(true, "Action accepted.", updated);

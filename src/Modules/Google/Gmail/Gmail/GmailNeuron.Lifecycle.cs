@@ -286,8 +286,8 @@ internal sealed partial class GmailNeuron
 
     private void ValidateLifecycleTrace(Trace trace)
     {
-        var caller = RequireCaller();
-        if (trace.BrainId != Key.Brain || trace.PayerAccountId != caller.AccountId)
+        var payer = PayerAccount(RequireCaller());
+        if (trace.BrainId != Key.Brain || trace.PayerAccountId != payer)
         { throw new UnauthorizedAccessException("The stored Gmail work belongs to another owner."); }
     }
 

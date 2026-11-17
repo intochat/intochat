@@ -5,7 +5,6 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.Options;
-using CapabilityCaller = DigitalBrain.Capabilities.CapabilityCaller;
 
 namespace IntoChat.OS.Modules.AI;
 
@@ -15,7 +14,7 @@ internal sealed class AiModelCapabilities(IModuleIntegrations<AIModule> integrat
 {
     public const string LlmKind = "llm";
 
-    public async Task<IntegrationCapability[]> Derive(CapabilityCaller caller, CancellationToken ct)
+    public async Task<IntegrationCapability[]> Derive(CancellationToken ct)
     {
         var configuration = options.CurrentValue;
         var capabilities = new List<IntegrationCapability>();

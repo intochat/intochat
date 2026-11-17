@@ -61,7 +61,7 @@ internal static class AppsEndpoints
             IServiceProvider services,
             CancellationToken ct) => Respond(async () =>
         {
-            if (!IsPerson()) { return Results.Json(new { error = "Only you can import app packages." }, statusCode: 403); }
+            if (!IsPerson(HttpCaller.Current(httpRequest.HttpContext))) { return Results.Json(new { error = "Only you can import app packages." }, statusCode: 403); }
             using var ms = new MemoryStream();
             await httpRequest.Body.CopyToAsync(ms, ct).ConfigureAwait(false);
             var aliasOverride = httpRequest.Query.TryGetValue("alias", out var aliasVals) ? aliasVals.FirstOrDefault() : null;
@@ -276,7 +276,7 @@ internal static class AppsEndpoints
     // The one install path over HTTP: a person's own session, never an app's.
     internal static Task<IResult> Install(AppInstallRequest request, AppInstaller installer, CancellationToken ct) => Respond(async () =>
     {
-        if (!IsPerson()) { return Results.Json(new { error = "Only you can install apps." }, statusCode: 403); }
+        if (!IsPerson(installer.Caller)) { return Results.Json(new { error = "Only you can install apps." }, statusCode: 403); }
         ArgumentNullException.ThrowIfNull(request?.Ref);
         var outcome = await installer.Install(request, ct);
         return outcome.Status switch
@@ -289,7 +289,7 @@ internal static class AppsEndpoints
 
     internal static Task<IResult> Update(string name, UpdateBody? body, INeuronProxies brain, AppInstaller installer, CancellationToken ct) => Respond(async () =>
     {
-        if (!IsPerson()) { return Results.Json(new { error = "Only you can update apps." }, statusCode: 403); }
+        if (!IsPerson(installer.Caller)) { return Results.Json(new { error = "Only you can update apps." }, statusCode: 403); }
         var outcome = await installer.Update(new(name, body?.Consent), ct);
         return outcome.Status switch
         {
@@ -299,9 +299,8 @@ internal static class AppsEndpoints
         };
     });
 
-    // A person at the authenticated edge: an app's call through the app proxy is not one.
-    internal static bool IsPerson()
-        => RuntimeCallerContext.TryGet(out var caller) && caller.Kind == CallerKind.User && caller.StampedBy != TrustedEdge.AppProxy;
+    // A person at the authenticated edge: an app's call through the app proxy is stamped as the app, so it is not one.
+    internal static bool IsPerson(DigitalBrain.Access.Caller? caller) => caller?.Actor is DigitalBrain.Access.Actor.Person;
 
     internal static IResult Refused(AppInstallOutcome outcome) => outcome.Message == AppInstaller.OwnerOnly
         ? Results.Json(new { status = "refused", error = outcome.Message }, statusCode: 403)

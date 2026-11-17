@@ -1,7 +1,8 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Neurons;
-using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Access;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Modules.AI.Agents.Context;
 
@@ -17,7 +18,7 @@ internal sealed record SecurityPostureState
 }
 
 [Neuron("ai.security-posture", State = "ai-security-posture")]
-internal sealed class SecurityPostureNeuron : AiNeuron<SecurityPostureState>, ISecurityPosture
+internal sealed class SecurityPostureNeuron(EdgeAuthority? edge = null) : AiNeuron<SecurityPostureState>, ISecurityPosture
 {
     private NeuronId GrantsId => new(Id.Brain, "grants.default", "grants/default");
 
@@ -53,9 +54,7 @@ internal sealed class SecurityPostureNeuron : AiNeuron<SecurityPostureState>, IS
     private async Task Read(bool announce)
     {
         var grants = await Get<IGrantsNeuron>(GrantsId).List();
-#pragma warning disable CS0618 // the AppId every agent tool call runs under (see ContractActions.Marked)
-        var assistant = CapabilityCallers.AssistantApp;
-#pragma warning restore CS0618
+        var assistant = CallerApps.Assistant;
         var held = grants.Where(grant => !grant.Revoked && (grant.AppId == assistant || grant.Grantee == "app:" + assistant)).Select(grant => grant.Id).ToArray();
         var lost = Snapshot.Held.Except(held, StringComparer.Ordinal).Any();
         await Save(new SecurityPostureState { Held = held, Seeded = true }, new SecurityPostureNoted(FullKey, held.Length));
@@ -64,5 +63,8 @@ internal sealed class SecurityPostureNeuron : AiNeuron<SecurityPostureState>, IS
         await Posture.Set(new ContextEntry("posture", "A grant for the assistant was revoked.", []));
     }
 
-    private IDisposable Platform() => RuntimeCallerContext.Stamp(CapabilityCallers.Platform("ai.security", "system", Id.Brain.Value));
+    // The posture writes the brain's interrupt as the AI security module acting as itself, which context reads as platform trust.
+    private IDisposable Platform() => edge is null
+        ? throw new InvalidOperationException("The security posture needs the edge authority to act as its module.")
+        : edge.Enter(edge.Module("ai.security", Id.Brain));
 }

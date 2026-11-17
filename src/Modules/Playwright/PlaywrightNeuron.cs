@@ -22,9 +22,13 @@ internal sealed class PlaywrightNeuron(IBrowserSessionProvider provider) : Digit
 
     private void AuthorizeManaged()
     {
-        if (_managedAccount is not null && RuntimeCallerContext.Require().AccountId != _managedAccount)
+        if (_managedAccount is not null && RequiredAccount() != _managedAccount)
         { throw new UnauthorizedAccessException("The managed browser belongs to another account."); }
     }
+
+    // The account of the person the stamped caller acts for; the managed browser belongs to that account.
+    private string RequiredAccount()
+        => Context.Caller?.For?.Account ?? throw new UnauthorizedAccessException("The managed browser is started only for a person.");
 
     private void HoldFor(TimeSpan due, TimeSpan? period) => Context.Timers.Start(KeepAlive, due, period, keepAlive: true);
 
@@ -32,18 +36,18 @@ internal sealed class PlaywrightNeuron(IBrowserSessionProvider provider) : Digit
 
     public async Task Start(CancellationToken ct = default)
     {
-        var caller = RuntimeCallerContext.Require();
+        var account = RequiredAccount();
         AuthorizeManaged();
         ct.ThrowIfCancellationRequested();
         if (_owner.Read() is { Ready: true } current && current.SessionId == _managedSessionId) { return; }
         var generation = ++_generation;
-        _managedAccount = caller.AccountId;
+        _managedAccount = account;
         var sessionId = Guid.NewGuid().ToString("N");
         _managedSessionId = sessionId;
         HoldFor(ManagedLifetime, null);
         try
         {
-            await _owner.Start(caller.AccountId, sessionId, ct);
+            await _owner.Start(account, sessionId, ct);
             if (generation == _generation && _owner.Read().Ready)
             { await Publish(new BrowserReady(sessionId)); }
         }

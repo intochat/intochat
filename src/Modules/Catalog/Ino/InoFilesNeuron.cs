@@ -85,7 +85,7 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
         var root = InoFileWriteRules.Target(roots)
             ?? throw new InvalidOperationException("No writable local folder is allowed. Allow one in Files first.");
 
-        var conversation = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Current?.ConversationId ?? string.Empty;
+        var conversation = Context.Caller?.Conversation ?? string.Empty;
         // An agent never creates a file unasked: RequiresPerson makes even a new, non-destructive file ask the owner.
         var plan = WritePlan.WriteFile(root.Id, name, System.Text.Encoding.UTF8.GetBytes(content ?? string.Empty), ConflictPolicy.Fail)
             with { RequiresPerson = true };

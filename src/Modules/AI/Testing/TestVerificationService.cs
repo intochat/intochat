@@ -34,12 +34,12 @@ internal sealed class TestVerificationService : ITestVerificationService
 
     public BrainId ResolveBrainId()
     {
-        if (RuntimeCallerContext.TryGet(out var stamped) && stamped?.BrainId is { Length: > 0 } stampedBrain)
+        if (_services?.GetService(typeof(DigitalBrain.Access.ICallerAmbient)) is DigitalBrain.Access.ICallerAmbient { Current: { } stamped })
         {
-            return new BrainId(stampedBrain);
+            return stamped.Brain;
         }
 
-        throw new InvalidOperationException("No BrainId is present in RuntimeCallerContext.");
+        throw new InvalidOperationException("No caller is stamped, so there is no brain.");
     }
 
     private ITestVerificationNeuron GetNeuron(string suiteId)

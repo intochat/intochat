@@ -1,6 +1,6 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
-using DigitalBrain.Runtime.Orleans.Capabilities;
+using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;
 
@@ -21,8 +21,7 @@ internal sealed partial class TableNeuron : ITableDescriptor
 {
     public async Task<TableDescription> Describe(string owner)
     {
-        var caller = RuntimeCallerContext.Require();
-        if (!RuntimeCallerContext.IsTrusted(caller) || caller.Kind == CallerKind.App) { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
+        if (Context.Caller is not { } caller || CallerRules.IsApp(caller, out _)) { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
         var scope = TableOwner.Parse(owner);
         if (scope.BrainId != BrainScope.CurrentId() || State.Owner != owner)
         { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }

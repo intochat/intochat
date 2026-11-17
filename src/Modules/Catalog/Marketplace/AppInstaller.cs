@@ -23,6 +23,9 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
     ICapabilitySatisfaction capabilities, ICapabilityBroker? directory = null,
     IOptions<AuthOptions>? auth = null)
 {
+    // The caller the edge stamped for this install.
+    internal DigitalBrain.Access.Caller? Caller => (plain.GetService(typeof(DigitalBrain.Access.ICallerAmbient)) as DigitalBrain.Access.ICallerAmbient)?.Current;
+
 
     public const string OwnerOnly = "Only the brain owner can install apps that read your data.";
     public const string ReviewInApps = "Open Apps to review what this app needs.";
@@ -44,14 +47,14 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
         { throw new ArgumentException("Choose an app name using lowercase letters, digits and dashes."); }
         if (!exact && name != reference.App) { throw new ArgumentException("The latest release installs under its own name."); }
         if (exact && request.OperationId == Guid.Empty) { throw new ArgumentException("An exact release installs with a nonempty operation ID."); }
-        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : null;
+        var caller = Caller;
 
         AppBundle bundle;
         AppOrigin origin;
         AppInstallReceipt? receipt = null;
         if (exact)
         {
-            if (caller is null) { throw new UnauthorizedAccessException("Sign in to fork an app."); }
+            if (caller?.For?.Account is not { } account) { throw new UnauthorizedAccessException("Sign in to fork an app."); }
             var listing = await marketplace.Read(reference.Publisher, reference.App, ct);
             if (listing?.Source is not AppSource.Brain published || (source is not null && published != source))
             { throw new KeyNotFoundException("This publication's source is unavailable."); }
@@ -60,8 +63,8 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
             release.EnsureMatches(reference.Version!, reference.Digest!);
             // The publication (fork) path: refused before loader.Create makes the copy.
             await CheckCapabilities(scope, bundle.Manifest, ct);
-            receipt = release.CreateInstallReceipt(request.OperationId, name, caller.AccountId);
-            origin = release.CreateOrigin(caller.AccountId);
+            receipt = release.CreateInstallReceipt(request.OperationId, name, account);
+            origin = release.CreateOrigin(account);
         }
         else
         {
@@ -135,26 +138,24 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
     }
 
     // A person, not an app or a script, who owns this brain: its Owner member in the directory.
-    internal async Task<bool> IsOwner(string scope, CapabilityCaller? caller)
+    internal async Task<bool> IsOwner(string scope, DigitalBrain.Access.Caller? caller)
     {
         _ = auth;
-        return directory is not null && caller?.Kind == CallerKind.User && caller.StampedBy != TrustedEdge.AppProxy
-            && BrainScope.Create(caller.AccountId, caller.BrainId).Id == scope
-            && (await (await directory.Identity()).Membership(scope, caller.PrincipalId))?.Role == Idn.MemberRole.Owner;
+        return directory is not null && caller?.Actor is DigitalBrain.Access.Actor.Person person
+            && caller.Brain.Value == scope
+            && (await (await directory.Identity()).Membership(scope, person.Principal))?.Role == Idn.MemberRole.Owner;
     }
 
-    private async Task RollBack(string appKey, string[]? types, CapabilityCaller? caller)
+    // Grants are revoked under the stamped caller that granted them (still ambient for this install).
+    private async Task RollBack(string appKey, string[]? types, DigitalBrain.Access.Caller? caller)
     {
         if (directory is not null && caller is not null)
         {
-            using (RuntimeCallerContext.Stamp(caller))
+            var grants = await directory.Grants();
+            foreach (var type in types ?? [])
             {
-                var grants = await directory.Grants();
-                foreach (var type in types ?? [])
-                {
-                    try { await grants.RevokeAsOwner(appKey, type, Idn.GrantMode.Always); }
-                    catch (UnauthorizedAccessException) { break; }
-                }
+                try { await grants.RevokeAsOwner(appKey, type, Idn.GrantMode.Always); }
+                catch (UnauthorizedAccessException) { break; }
             }
         }
         await SiloNeurons.Get<IApp>(plain, appKey).Delete();
@@ -162,21 +163,20 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
 
     // Installing is the one consent the install view asks for: the owner grants the app every semantic type it reads, always.
     // Grants read the stamped caller: the installing person must own the brain the install names.
-    internal async Task Grant(string appKey, string[]? types, CapabilityCaller? caller, CancellationToken ct)
+    internal async Task Grant(string appKey, string[]? types, DigitalBrain.Access.Caller? caller, CancellationToken ct)
     {
         if (types is not { Length: > 0 }) { return; }
         if (caller is null) { throw new UnauthorizedAccessException(OwnerOnly); }
         if (plain?.GetService(typeof(IIdentityClient)) is IIdentityClient identityClient)
         {
-            var brain = new DigitalBrain.BrainId(caller.BrainId);
+            var brain = caller.Brain;
             foreach (var type in types)
             {
-                await identityClient.GrantAsOwner(caller.BrainId, Idn.Grant.Tuple($"brain:{caller.BrainId}", $"app:{appKey}", IntoChat.OS.Primitives.AppRef.Of(brain, appKey).Key, type));
+                await identityClient.GrantAsOwner(brain.Value, Idn.Grant.Tuple($"brain:{brain.Value}", $"app:{appKey}", IntoChat.OS.Primitives.AppRef.Of(brain, appKey).Key, type));
             }
             return;
         }
         if (directory is null) { throw new UnauthorizedAccessException(OwnerOnly); }
-        using var scope = RuntimeCallerContext.Stamp(caller);
         var grants = await directory.Grants(ct);
         foreach (var type in types)
         {
@@ -185,7 +185,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
                 AppId = appKey,
                 SemanticTypeId = type,
                 Mode = Idn.GrantMode.Always,
-                WorkspaceId = caller.BrainId,
+                WorkspaceId = caller.Brain.Value,
             }, ct);
         }
     }
@@ -221,7 +221,7 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
             return AppInstallOutcome.Installed(name);
         }
         if (request.Consent != AppConsent.Of(requires)) { return AppInstallOutcome.NeedsConsent(added, requires); }
-        var caller = RuntimeCallerContext.TryGet(out var stamped) ? stamped : null;
+        var caller = Caller;
         if (added.SemanticTypes is { Length: > 0 } && !await IsOwner(scope, caller)) { return AppInstallOutcome.Refused(OwnerOnly); }
         await loader.Load(scope, name, bundle, next with { Consented = Recorded(requires) }, ct);
         await Grant(key, added.SemanticTypes, caller, ct);

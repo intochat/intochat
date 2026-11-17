@@ -38,17 +38,17 @@ internal static class ChatEndpoints
         return (data is { Length: > 0 } ? data : IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), "ino").Key) + "/chats";
     }
 
-    internal static async Task<IResult> List(INeuronProxies brain, CancellationToken ct, bool archived = true, int skip = 0, int take = ChatIndex.MaxPage)
+    internal static async Task<IResult> List(HttpContext http, INeuronProxies brain, CancellationToken ct, bool archived = true, int skip = 0, int take = ChatIndex.MaxPage)
     {
-        if (Refused()) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+        if (Refused(http)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         if (skip < 0 || take is < 1 or > ChatIndex.MaxPage) { return Results.BadRequest(new { error = "Page out of range." }); }
         var page = await (await Index(brain, ct)).List(archived, skip, take).WaitAsync(ct);
         return Results.Ok(new ChatPage([.. page.Entries.Select(entry => new Chat(entry.Id, entry.Title, entry.UpdatedAt))], page.Total));
     }
 
-    internal static async Task<IResult> Unarchive(string id, INeuronProxies brain, CancellationToken ct)
+    internal static async Task<IResult> Unarchive(HttpContext http, string id, INeuronProxies brain, CancellationToken ct)
     {
-        if (Refused()) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+        if (Refused(http)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         var index = await Index(brain, ct);
         if (!ChatIndex.IsId(id) || await index.Get(id).WaitAsync(ct) is null)
         { return Results.NotFound(new { error = "That chat no longer exists." }); }
@@ -56,8 +56,9 @@ internal static class ChatEndpoints
         return Results.NoContent();
     }
 
-    private static bool Refused()
-        => RuntimeCallerContext.TryGet(out var caller) && (caller.Kind == CallerKind.App || caller.StampedBy == TrustedEdge.AppProxy);
+    // No caller, or an installed app, may not read or change a person's chats.
+    private static bool Refused(HttpContext http)
+        => IntoChat.OS.Framework.HttpCaller.Current(http) is not { } caller || IntoChat.OS.Framework.CallerRules.IsApp(caller, out _);
 
     private static async Task<IChatIndex> Index(INeuronProxies brain, CancellationToken ct)
     {

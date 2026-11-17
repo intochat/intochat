@@ -56,7 +56,7 @@ internal sealed class CircleFactoryNeuron(
         // A retried Create completes a birth that failed before or inside the brain's creation: IBrain.Create is a no-op once the
         // brain exists, and a creation handler's failure is only logged there, so the birth runs again. The creator acts in the new
         // circle brain, a member of it since CreateBrain (06-08: IBrainCalls).
-        await BrainActs.In(broker, circle, async () =>
+        await BrainActs.In(broker, plain, circle, async () =>
         {
             await SiloNeurons.Get<IBrain>(plain, IBrain.Key(circle)).Create(new Owner(accountId));
             if (!provision.NewBrain) { await birth.Born(circle, CancellationToken.None); }

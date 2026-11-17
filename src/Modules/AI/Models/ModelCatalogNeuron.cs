@@ -26,15 +26,15 @@ internal sealed class ModelCatalogNeuron(ModelCatalog catalog, IGrainFactory? gr
 
     public async Task SaveProviderCredential(string provider, string credentialValue)
     {
-        if (RuntimeCallerContext.TryGet(out var caller))
+        if (Context.Caller is { } caller)
         {
-            if (caller.Kind == CallerKind.Agent)
+            if (caller.Actor is DigitalBrain.Access.Actor.Agent)
             {
                 throw new DigitalBrain.Rules.RuleViolationException(
                     new DigitalBrain.Rules.Rejected("SaveProviderCredential", ["owner-only"], ["Only the brain owner may store provider credentials."]));
             }
 
-            if (caller.Kind == CallerKind.App && !IsTrustedShellCaller(caller, Brain))
+            if (caller.Actor is DigitalBrain.Access.Actor.App && !IsTrustedShellCaller(caller, Brain))
             {
                 throw new UnauthorizedAccessException("Only the person or a built-in shell screen may save provider credentials.");
             }
@@ -71,10 +71,10 @@ internal sealed class ModelCatalogNeuron(ModelCatalog catalog, IGrainFactory? gr
             .ConfigureAwait(false);
     }
 
-    private static bool IsTrustedShellCaller(CapabilityCaller caller, string? brain)
+    // A built-in shell screen ("app.*") acting in this brain; a stored or proxied app carries its own key.
+    private static bool IsTrustedShellCaller(DigitalBrain.Access.Caller caller, string? brain)
         => brain is not null
-            && string.Equals(caller.BrainId, brain, StringComparison.Ordinal)
-            && caller.StampedBy != TrustedEdge.AppProxy
-            && caller.AppId is { Length: > 0 } appId
+            && string.Equals(caller.Brain.Value, brain, StringComparison.Ordinal)
+            && caller.Actor is DigitalBrain.Access.Actor.App { Key: var appId }
             && appId.StartsWith("app.", StringComparison.Ordinal);
 }

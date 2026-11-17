@@ -84,7 +84,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
             composed = [.. composed.Where(hosted.Contains)];
         }
         // The model's actions are fixed here, once: the neuron surface over the contracts the app composed.
-        var tools = composed.Length == 0 || surface is null ? new List<AIFunction>() : [.. ContractActions.Create(await surface.Restrict(composed, ct), plan.Conversation)];
+        var tools = composed.Length == 0 || surface is null ? new List<AIFunction>() : [.. ContractActions.Create(services.GetService<DigitalBrain.Access.EdgeAuthority>(), await surface.Restrict(composed, ct), plan.Conversation)];
 
         var catalog = services.GetRequiredService<ModelCatalog>();
         var (selection, settings) = InferenceMapping.Merge(plan.Model, plan.Options, overrides);

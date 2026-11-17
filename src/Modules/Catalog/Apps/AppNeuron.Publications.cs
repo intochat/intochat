@@ -83,10 +83,10 @@ internal sealed partial class AppNeuron
     private AppReleaseRecord[] Releases()
     {
         if (State.Published is not { } held || State.Publisher is not { } publisher
-            || State.Principal is not { } principal
+            || State.PublisherSource is not { } source
             || State.Releases.Any(release => release.Bundle.Version == held.Version))
         { return State.Releases; }
-        var release = PublishedRelease.Create(held, publisher, new AppSource.Brain(principal.AccountId, principal.BrainId), Name());
+        var release = PublishedRelease.Create(held, publisher, new AppSource.Brain(source.Account, source.Brain), Name());
         return [.. State.Releases, release.ToRecord()];
     }
 }

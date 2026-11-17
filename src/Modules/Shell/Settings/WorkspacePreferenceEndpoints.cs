@@ -31,9 +31,9 @@ internal static class WorkspacePreferenceEndpoints
     }
 
     // Installed apps (App callers or calls through the app proxy) cannot change a person's preferences.
-    internal static async Task<IResult> Write(Input? input, INeuronProxies brain, IBrainObserver kernel, CancellationToken ct)
+    internal static async Task<IResult> Write(HttpContext http, Input? input, INeuronProxies brain, IBrainObserver kernel, CancellationToken ct)
     {
-        if (BrainPreferenceStore.IsAppCaller()) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+        if (IntoChat.OS.Framework.HttpCaller.Current(http) is not { } caller || BrainPreferenceStore.IsAppCaller(caller)) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         var scope = BrainScope.CurrentId();
         if (!await BrainPreferenceStore.WriteNewTab(brain, kernel, scope, input?.NewTabApp, ct))
         { return Results.BadRequest(new { error = "Choose an installed app." }); }

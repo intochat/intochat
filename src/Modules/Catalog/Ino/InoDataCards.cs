@@ -45,12 +45,6 @@ public static class InoDataCards
             return brain;
         }
 
-        if (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.TryGet(out var caller)
-            && DigitalBrain.BrainId.IsValid(caller?.BrainId))
-        {
-            return new DigitalBrain.BrainId(caller.BrainId);
-        }
-
         return null;
     }
 }

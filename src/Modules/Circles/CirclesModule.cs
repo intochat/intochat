@@ -3,7 +3,7 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Log;
 using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Http.Surface;
-using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain.Access;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Logging;
@@ -34,11 +34,11 @@ public sealed partial class CirclesModule : DigitalBrain.Modules.Module, IHttpMo
         // ordinary circle routes still require membership before entering the brain.
         endpoints.MapPost("/circle-invitations/{brainId}/accept", async (string brainId, HttpContext http, IServiceProvider plain) =>
         {
-            if (http.User.Identity?.IsAuthenticated != true || !RuntimeCallerContext.TryGet(out var caller)
-                || caller.Kind != CallerKind.User || caller.StampedBy != TrustedEdge.AuthenticatedHttp)
+            var edge = plain.GetRequiredService<EdgeAuthority>();
+            if (http.User.Identity?.IsAuthenticated != true || HttpCaller.Current(http) is not { Actor: Actor.Person person, Direct: true } caller)
             { return Results.Unauthorized(); }
             if (!BrainScope.IsValidId(brainId)) { return Results.BadRequest(); }
-            RuntimeCallerContext.Stamp(caller with { BrainId = brainId });
+            using var there = edge.Enter(edge.Person(person.Principal, person.Account, new DigitalBrain.BrainId(brainId), caller.Conversation));
             try { return Results.Ok(await SiloNeurons.Get<ICircle>(plain, ICircle.Key(brainId)).Accept()); }
             catch (Exception error) when (error is UnauthorizedAccessException or InvalidOperationException)
             {
@@ -46,7 +46,6 @@ public sealed partial class CirclesModule : DigitalBrain.Modules.Module, IHttpMo
                     .LogSwallowed(error, "accepting circle invitation");
                 return Results.StatusCode(StatusCodes.Status403Forbidden);
             }
-            finally { RuntimeCallerContext.Stamp(caller); }
         });
         MapInviteCodes(endpoints);
     }
