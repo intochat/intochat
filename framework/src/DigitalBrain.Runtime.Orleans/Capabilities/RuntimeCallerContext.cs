@@ -43,11 +43,9 @@ public static class RuntimeCallerContext
                 }
                 return LegacyCallers.Project(caller);
             }
-            var principal = RequestContext.Get(PrincipalKey) as string;
-            var account = RequestContext.Get(AccountKey) as string;
-            var brain = RequestContext.Get(BrainKey) as string;
-            if (string.IsNullOrWhiteSpace(principal) || string.IsNullOrWhiteSpace(account) || string.IsNullOrWhiteSpace(brain)) { return null; }
-            return new CapabilityCaller(principal, account, brain, RequestContext.Get(AppKey) as string, RequestContext.Get(ConversationKey) as string);
+
+            // No stamped caller is no caller: request-context strings are data anyone on the call can set.
+            return null;
         }
     }
 
