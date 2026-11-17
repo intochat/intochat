@@ -252,90 +252,90 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${GITHUB_REF_NAME}" intochat-*-win-x64.zip SHA256SUMS latest.json winget/IntoChat.OS.yaml --clobber
 
-  deploy-test:
-    name: deploy-test
-    needs: [package]
-    if: inputs.rollback_tag == '' || inputs.rollback_tag == null
-    runs-on: ubuntu-24.04
-    environment: test
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
+  # deploy-test:
+  #   name: deploy-test
+  #   needs: [package]
+  #   if: inputs.rollback_tag == '' || inputs.rollback_tag == null
+  #   runs-on: ubuntu-24.04
+  #   environment: test
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: release-artifacts
-          path: ./artifacts-in
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: release-artifacts
+  #         path: ./artifacts-in
 
-      - name: Prepare installer binary and manifest
-        run: |
-          cp ./artifacts-in/release-manifest.json ./release-manifest.json
-          tar -xzf ./artifacts-in/artifacts/kernel-bin.tar.gz -C .
-          chmod +x ./IntoChat.Cloud.Host
-          printf '#!/bin/sh\nexec "$(dirname "$0")/IntoChat.Cloud.Host" "$@"\n' > ./IntoChat.OS.Kernel
-          chmod +x ./IntoChat.OS.Kernel
+  #     - name: Prepare installer binary and manifest
+  #       run: |
+  #         cp ./artifacts-in/release-manifest.json ./release-manifest.json
+  #         tar -xzf ./artifacts-in/artifacts/kernel-bin.tar.gz -C .
+  #         chmod +x ./IntoChat.Cloud.Host
+  #         printf '#!/bin/sh\nexec "$(dirname "$0")/IntoChat.Cloud.Host" "$@"\n' > ./IntoChat.OS.Kernel
+  #         chmod +x ./IntoChat.OS.Kernel
 
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #     - uses: azure/login@v2
+  #       with:
+  #         client-id: ${{ secrets.AZURE_CLIENT_ID }}
+  #         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+  #         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy test environment
-        env:
-          OS_DEPLOY_SECRETS_JSON: ${{ secrets.OS_DEPLOY_SECRETS_JSON }}
-        run: |
-          ./IntoChat.OS.Kernel install --env test --config deploy/test.json --manifest release-manifest.json
+  #     - name: Deploy test environment
+  #       env:
+  #         OS_DEPLOY_SECRETS_JSON: ${{ secrets.OS_DEPLOY_SECRETS_JSON }}
+  #       run: |
+  #         ./IntoChat.OS.Kernel install --env test --config deploy/test.json --manifest release-manifest.json
 
-  deploy-prod:
-    name: deploy-prod
-    needs: [package, deploy-test]
-    if: vars.DEPLOY_PROD_ENABLED == 'true' && (needs.deploy-test.result == 'success' || (inputs.rollback_tag != '' && inputs.rollback_tag != null))
-    runs-on: ubuntu-24.04
-    environment: production
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
+  # deploy-prod:
+  #   name: deploy-prod
+  #   needs: [package, deploy-test]
+  #   if: vars.DEPLOY_PROD_ENABLED == 'true' && (needs.deploy-test.result == 'success' || (inputs.rollback_tag != '' && inputs.rollback_tag != null))
+  #   runs-on: ubuntu-24.04
+  #   environment: production
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v7
 
-      - name: Download rollback manifest from prior release
-        if: inputs.rollback_tag != '' && inputs.rollback_tag != null
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ROLLBACK_TAG: ${{ inputs.rollback_tag }}
-        run: |
-          gh release download "$ROLLBACK_TAG" --pattern "release-manifest.json" --output release-manifest.json
-          dotnet publish src/IntoChat.Cloud.Host/IntoChat.Cloud.Host.csproj \
-            -c Release -r linux-x64 --self-contained \
-            -o ./kernel-build -p:CodeGraphRefresh=false -p:DebugType=none
-          cp -r ./kernel-build/* .
-          chmod +x ./IntoChat.Cloud.Host
-          printf '#!/bin/sh\nexec "$(dirname "$0")/IntoChat.Cloud.Host" "$@"\n' > ./IntoChat.OS.Kernel
-          chmod +x ./IntoChat.OS.Kernel
+  #     - name: Download rollback manifest from prior release
+  #       if: inputs.rollback_tag != '' && inputs.rollback_tag != null
+  #       env:
+  #         GH_TOKEN: ${{ github.token }}
+  #         ROLLBACK_TAG: ${{ inputs.rollback_tag }}
+  #       run: |
+  #         gh release download "$ROLLBACK_TAG" --pattern "release-manifest.json" --output release-manifest.json
+  #         dotnet publish src/IntoChat.Cloud.Host/IntoChat.Cloud.Host.csproj \
+  #           -c Release -r linux-x64 --self-contained \
+  #           -o ./kernel-build -p:CodeGraphRefresh=false -p:DebugType=none
+  #         cp -r ./kernel-build/* .
+  #         chmod +x ./IntoChat.Cloud.Host
+  #         printf '#!/bin/sh\nexec "$(dirname "$0")/IntoChat.Cloud.Host" "$@"\n' > ./IntoChat.OS.Kernel
+  #         chmod +x ./IntoChat.OS.Kernel
 
-      - name: Use artifacts from package job
-        if: inputs.rollback_tag == '' || inputs.rollback_tag == null
-        uses: actions/download-artifact@v4
-        with:
-          name: release-artifacts
-          path: ./artifacts-in
+  #     - name: Use artifacts from package job
+  #       if: inputs.rollback_tag == '' || inputs.rollback_tag == null
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: release-artifacts
+  #         path: ./artifacts-in
 
-      - name: Prepare installer binary and manifest
-        if: inputs.rollback_tag == '' || inputs.rollback_tag == null
-        run: |
-          cp ./artifacts-in/release-manifest.json ./release-manifest.json
-          tar -xzf ./artifacts-in/artifacts/kernel-bin.tar.gz -C .
-          chmod +x ./IntoChat.Cloud.Host
-          printf '#!/bin/sh\nexec "$(dirname "$0")/IntoChat.Cloud.Host" "$@"\n' > ./IntoChat.OS.Kernel
-          chmod +x ./IntoChat.OS.Kernel
+  #     - name: Prepare installer binary and manifest
+  #       if: inputs.rollback_tag == '' || inputs.rollback_tag == null
+  #       run: |
+  #         cp ./artifacts-in/release-manifest.json ./release-manifest.json
+  #         tar -xzf ./artifacts-in/artifacts/kernel-bin.tar.gz -C .
+  #         chmod +x ./IntoChat.Cloud.Host
+  #         printf '#!/bin/sh\nexec "$(dirname "$0")/IntoChat.Cloud.Host" "$@"\n' > ./IntoChat.OS.Kernel
+  #         chmod +x ./IntoChat.OS.Kernel
 
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #     - uses: azure/login@v2
+  #       with:
+  #         client-id: ${{ secrets.AZURE_CLIENT_ID }}
+  #         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+  #         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy production environment
-        env:
-          OS_DEPLOY_SECRETS_JSON: ${{ secrets.OS_DEPLOY_SECRETS_JSON }}
-        run: |
-          ./IntoChat.OS.Kernel install --env prod --config deploy/prod.json --manifest release-manifest.json --promote-from /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/rg-intochat-test/providers/Microsoft.ContainerRegistry/registries/acrintochattest
+  #     - name: Deploy production environment
+  #       env:
+  #         OS_DEPLOY_SECRETS_JSON: ${{ secrets.OS_DEPLOY_SECRETS_JSON }}
+  #       run: |
+  #         ./IntoChat.OS.Kernel install --env prod --config deploy/prod.json --manifest release-manifest.json --promote-from /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/rg-intochat-test/providers/Microsoft.ContainerRegistry/registries/acrintochattest
