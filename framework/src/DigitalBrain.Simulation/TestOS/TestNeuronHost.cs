@@ -115,6 +115,16 @@ internal sealed class TestNeuronHost : IDisposable
 
     public void Defer(Func<Task> work)
     {
+        // As the runtime host: deferred work runs as the caller that deferred it (the scheduler, for work an activation defers).
+        var caller = TestCallerAmbient.Instance.Current;
+        var deferring = work;
+        work = async () =>
+        {
+            using (TestCallerAmbient.Instance.Enter(caller))
+            {
+                await deferring().ConfigureAwait(false);
+            }
+        };
         if (Deferred.Value is { } turn) { turn.Add(work); }
         else { _ = _os.Track(Observe(RunDeferred([work]))); }
     }

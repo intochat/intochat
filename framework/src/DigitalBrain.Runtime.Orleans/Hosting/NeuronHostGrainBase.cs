@@ -104,7 +104,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
                     ServiceProvider.GetService<Signalling.ClusterListeners>()?.Offer(pub, sigs);
                 });
             var context = new HostNeuronContext(id, this.GetGrainId(), registration, bound, grains, types,
-                ServiceProvider.GetRequiredService<ILocalSiloDetails>().SiloAddress.ToString(), this, _deferred.Enqueue, delivery, journal, nudge);
+                ServiceProvider.GetRequiredService<ILocalSiloDetails>().SiloAddress.ToString(), this, Defer, delivery, journal, nudge);
             NeuronAttachment.Attach(neuron, context);
             // An activation resumes stored work: it runs as the scheduler of its brain, whoever's call woke it (owner decision 3,
             // 17 Nov). The waking call's caller is restored for the call itself.
@@ -418,6 +418,19 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
         // The grain key decides brain, type and key; an invocation naming any other neuron is refused before neuron code runs.
         if (!string.Equals(call.Key, _key, StringComparison.Ordinal)) { throw new BindingException($"The call names {call.Key}, but this host runs {_key}."); }
         return (neuron, Bind(_class, call));
+    }
+
+    // Deferred work runs as the caller that deferred it: work an activation defers (a resumed restore) runs as the scheduler.
+    private void Defer(Func<Task> work)
+    {
+        var caller = _callers.Current;
+        _deferred.Enqueue(async () =>
+        {
+            using (_callers.Enter(caller))
+            {
+                await work().ConfigureAwait(true);
+            }
+        });
     }
 
     private async Task Drain()
