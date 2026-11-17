@@ -57,6 +57,7 @@ Anything after a bare `--` goes to the AppHost unchanged.
 
 - The kernel serves the shell on port 5080 and MCP on port 5081 by default (`IntoChatOS:Http:UiPort`, `IntoChatOS:Http:McpPort`).
 - In Development the kernel also serves Microsoft Agent Framework DevUI at `/devui/` on its own address (the **DevUI** link on the kernel resource in the Aspire dashboard). The `ino` agent there is your current Ino conversation, so a chat in DevUI shows in Ino too. DevUI answers only on a loopback address, so it is not reachable through the shell port. Set `IntoChatOS:DevUI:Enabled=false` to turn it off.
+- Under a local AppHost, Ino reads the running app through Aspire's own MCP server (`aspire agent mcp`, started by the kernel on first use): resources, console logs, structured logs and traces, read only. The AppHost passes its path to the kernel as `IntoChatOS:Aspire:AppHostPath`; a cloud kernel never gets it.
 - Local state lives under `~/.intochat`. Set `IntoChatOS:Home` to move it.
 - The kernel listens on this computer only. On any other address (`IntoChatOS:Bind`, or a container) it refuses to start until you set `IntoChatOS:Auth:Username` and `IntoChatOS:Auth:Password`, which make you the single owner, or `IntoChatOS:Auth:AllowOpenOnNetwork=true`. Registering new accounts is switched off there in every case.
 - `IntoChatOS:Topology` says where the brain runs. Unset means `local`. See [concepts](concepts.md).

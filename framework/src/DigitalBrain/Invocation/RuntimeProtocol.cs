@@ -15,7 +15,7 @@ public static class RuntimeProtocol
     /// Types resolve through registered contexts, then the runtime's source-generated context, then reflection.
     /// </summary>
     /// <remarks>Never serialize types from collectible load contexts (generated synapse sources) through these options: the System.Text.Json cache would pin the context and block unloading. Use <see cref="OptionsFor(Type)"/> and <see cref="Forget"/> instead.</remarks>
-    public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { MaxDepth = 128, TypeInfoResolver = Resolver };
+    public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { MaxDepth = 128, TypeInfoResolver = Resolver, Converters = { new UnionJsonConverterFactory() } };
 
     /// <summary>
     /// Registers a contract's source-generated <c>JsonSerializerContext</c> (or any resolver) ahead of reflection. Register before the

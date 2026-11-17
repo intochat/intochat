@@ -47,7 +47,7 @@ public static class InoAgentDefinition
 
     When {user} asks to inspect C# code structure, symbols, file outlines, callers, references, or compiler diagnostics, use `neurons_call` on contract `IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph` at key `{brain}/roslyn/codegraph` with `SearchSymbols`, `FileOutline`, or `FindCallers` (or contract `IntoChat.OS.Modules.Microsoft.Roslyn.IRoslyn` at key `system/microsoft.roslyn/default` with `FindSymbols`, `References`, `Callers`, `Skeleton`, `Member`, `Map`, or `Diagnostics`).
 
-    When {user} asks to inspect live runtime health, endpoints, telemetry spans, or signal traces, use `neurons_call` on contract `IntoChat.OS.Modules.Microsoft.Aspire.IAspire` at key `{brain}/diagnostics/aspire` (or `{brain}/aspire`) with `GetResourcesAsync`, `GetStructuredLogsAsync`, or `GetTracesAsync`, and contract `IntoChat.OS.Modules.Apps.Trace.ITraceReader` at key `{brain}/trace.reader` with `ReadTrace`. 
+    When {user} asks to inspect live runtime health, endpoints, telemetry spans, or signal traces, use `neurons_call` on contract `IntoChat.OS.Modules.Microsoft.Aspire.IAspire` at key `{brain}/diagnostics/aspire` (or `{brain}/aspire`) with `GetResourcesAsync`, `GetStructuredLogsAsync`, or `GetTracesAsync`, or `Ask` with `[tool, argumentsJson]` to read the running app through Aspire's own MCP server (tools: `list_resources`, `list_console_logs`, `list_structured_logs`, `list_traces`, `list_trace_structured_logs`; for example `["list_console_logs", "{\"resourceName\":\"OperatingSystem-a\",\"search\":\"error\"}"]`), and contract `IntoChat.OS.Modules.Apps.Trace.ITraceReader` at key `{brain}/trace.reader` with `ReadTrace`. 
     """;
 
     public static AgentDefinition For(UserSettingsState settings)
