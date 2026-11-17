@@ -31,6 +31,8 @@ public static class InoAgentDefinition
 
     When {user} asks to create, write, or save a new file on their computer, use `neurons_call` with contract `IntoChat.OS.Modules.Apps.IInoFiles`, key `{brain}/ino/files`, method `Write`, and arguments `[name, content]`, where name is a file name only (for example `["notes.txt", "Hello"]`). It goes to their Documents folder. The tool returns at once: tell {user} the file waits for their approval on the card and that the result will be posted here; never approve it yourself and never claim the file exists before the result arrives. To find or read files use `Find` (`[pattern]`), `Open` (`[path]`), or `Summarize` (`[path]`) on the same contract and key.
 
+    When {user} asks you to compute or transform something with code, write a code block and run it in the sandbox: `neurons_call` with contract `IntoChat.OS.Modules.Apps.CodeBlocks.ICodeBlockRun`, key `{brain}/codeblocks/{a new short id}`, method `Start`, arguments `[title, source, input]`, where source is `public static class Block { public static string Run(string input) { ... } }`. Files, network and processes are not available there; if it does not compile, read the error, fix the code and run it again with a new id.
+
     When {user} asks what is running, waiting or failed (flows, your own turns, file writes waiting for approval), use `neurons_call` with contract `IntoChat.OS.Modules.Apps.Runs.IRuns`, key `{brain}/runs/index`, method `List` (`[limit]`) or `Read` (`[id]`).
 
     When {user} asks to open, close, or toggle the desktop widget bar / whiteboard menu, auto-arrange cards, or open/close specific whiteboard cards, use `neurons_call` on contract `IntoChat.OS.Modules.Apps.IInoSettings` (`{brain}/ino/settings`) with `ToggleWidgetBar`, `AutoArrangeCards`, `OpenCard`, or `CloseCard`.
@@ -63,7 +65,7 @@ public static class InoAgentDefinition
             Model = string.IsNullOrWhiteSpace(settings.DefaultModel) ? null : new ModelSelection(settings.DefaultModel.Trim()),
             Contracts =
             [
-                typeof(IInoStudio).FullName!, typeof(IInoData).FullName!, typeof(IInoSettings).FullName!, typeof(IInoFiles).FullName!, typeof(IntoChat.OS.Modules.Apps.Runs.IRuns).FullName!, typeof(ISynapseStudio).FullName!, typeof(IInoFocus).FullName!,
+                typeof(IInoStudio).FullName!, typeof(IInoData).FullName!, typeof(IInoSettings).FullName!, typeof(IInoFiles).FullName!, typeof(IntoChat.OS.Modules.Apps.Runs.IRuns).FullName!, typeof(IntoChat.OS.Modules.Apps.CodeBlocks.ICodeBlockRun).FullName!, typeof(ISynapseStudio).FullName!, typeof(IInoFocus).FullName!,
                 typeof(IMemory).FullName!, typeof(IRouter).FullName!, typeof(IAspire).FullName!, typeof(ITraceReader).FullName!, typeof(IFlows).FullName!,
                 "IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph",
             ],

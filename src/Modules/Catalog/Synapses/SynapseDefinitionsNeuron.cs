@@ -48,6 +48,7 @@ internal static class SynapseDefinitions
         known.AddRange(workflows.Select(workflow => With(SynapseForm.Workflow, workflow.Name, workflow.Description, RunKind.Workflow)));
         known.AddRange(Seen(runs, RunKind.Flow).Select(type => With(SynapseForm.Flow, type, "A durable flow.", RunKind.Flow)));
         known.AddRange(Seen(runs, RunKind.AgentTurn).Select(app => With(SynapseForm.Agent, app, "An agent.", RunKind.AgentTurn)));
+        known.AddRange(Seen(runs, RunKind.CodeBlock).Select(name => With(SynapseForm.CodeBlock, name, "Generated C# run once in the sandbox.", RunKind.CodeBlock)));
         return [.. known];
     }
 

@@ -2,6 +2,7 @@ using DigitalBrain.Flows;
 using DigitalBrain.Operations;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Workflows;
+using IntoChat.OS.Modules.Apps.CodeBlocks;
 using IntoChat.OS.Modules.Apps.Flows;
 
 namespace IntoChat.OS.Modules.Apps.Runs;
@@ -32,6 +33,12 @@ internal sealed record RunsState(RunView[] Runs)
         WorkflowRunDone done => Update(done.RunId, run => run with
         {
             State = done.Succeeded ? RunState.Succeeded : RunState.Failed, Waiting = null, Ended = at, Detail = done.Error ?? Title(done.Output),
+        }),
+        CodeBlockRunStarted started => Put(new RunView(started.RunId, RunKind.CodeBlock, started.Title, RunState.Running, null,
+            "sandbox", null, at, null, [], "compile, deploy, run", null, "code block")),
+        CodeBlockRunDone done => Update(done.RunId, run => run with
+        {
+            State = done.Succeeded ? RunState.Succeeded : RunState.Failed, Ended = at, Current = null, Detail = done.Error ?? Title(done.Output),
         }),
         _ => this,
     };
