@@ -3766,3 +3766,40 @@ virtual DigitalBrain.Signal.PrintMembers(System.Text.StringBuilder! builder) -> 
 const DigitalBrain.Operations.OperationState.MaxPersistedPayloadBytes = 262144 -> int
 DigitalBrain.Operations.OperationState.Payload.get -> byte[]?
 DigitalBrain.Operations.OperationState.Payload.init -> void
+DigitalBrain.Rules.Outcome<T>
+DigitalBrain.Rules.Outcome<T>.Outcome() -> void
+DigitalBrain.Rules.Outcome<T>.Outcome(DigitalBrain.Rules.Refusal! value) -> void
+DigitalBrain.Rules.Outcome<T>.Outcome(DigitalBrain.Rules.Transition<T>! value) -> void
+DigitalBrain.Rules.Outcome<T>.Value.get -> object?
+DigitalBrain.Rules.Refusal
+DigitalBrain.Rules.Refusal.Code.get -> string!
+DigitalBrain.Rules.Refusal.Code.init -> void
+DigitalBrain.Rules.Refusal.Deconstruct(out string! Code) -> void
+DigitalBrain.Rules.Refusal.Refusal(DigitalBrain.Rules.Refusal! original) -> void
+DigitalBrain.Rules.Refusal.Refusal(string! Code) -> void
+DigitalBrain.Rules.Refusal.ToRejected(string! operation) -> DigitalBrain.Rules.Rejected!
+DigitalBrain.Rules.Transition<T>
+DigitalBrain.Rules.Transition<T>.<Clone>$() -> DigitalBrain.Rules.Transition<T>!
+DigitalBrain.Rules.Transition<T>.Deconstruct(out T Next, out System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>! Signals) -> void
+DigitalBrain.Rules.Transition<T>.Equals(DigitalBrain.Rules.Transition<T>? other) -> bool
+DigitalBrain.Rules.Transition<T>.Next.get -> T
+DigitalBrain.Rules.Transition<T>.Next.init -> void
+DigitalBrain.Rules.Transition<T>.Signals.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>!
+DigitalBrain.Rules.Transition<T>.Signals.init -> void
+DigitalBrain.Rules.Transition<T>.Transition(T Next, System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>! Signals) -> void
+DigitalBrain.Rules.Transition<T>.Transition(T next) -> void
+abstract DigitalBrain.Rules.Refusal.<Clone>$() -> DigitalBrain.Rules.Refusal!
+abstract DigitalBrain.Rules.Refusal.Message.get -> string!
+override DigitalBrain.Rules.Refusal.Equals(object? obj) -> bool
+override DigitalBrain.Rules.Refusal.GetHashCode() -> int
+override DigitalBrain.Rules.Refusal.ToString() -> string!
+override DigitalBrain.Rules.Transition<T>.Equals(object? obj) -> bool
+override DigitalBrain.Rules.Transition<T>.GetHashCode() -> int
+override DigitalBrain.Rules.Transition<T>.ToString() -> string!
+static DigitalBrain.Rules.Refusal.operator !=(DigitalBrain.Rules.Refusal? left, DigitalBrain.Rules.Refusal? right) -> bool
+static DigitalBrain.Rules.Refusal.operator ==(DigitalBrain.Rules.Refusal? left, DigitalBrain.Rules.Refusal? right) -> bool
+static DigitalBrain.Rules.Transition<T>.operator !=(DigitalBrain.Rules.Transition<T>? left, DigitalBrain.Rules.Transition<T>? right) -> bool
+static DigitalBrain.Rules.Transition<T>.operator ==(DigitalBrain.Rules.Transition<T>? left, DigitalBrain.Rules.Transition<T>? right) -> bool
+virtual DigitalBrain.Rules.Refusal.EqualityContract.get -> System.Type!
+virtual DigitalBrain.Rules.Refusal.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+virtual DigitalBrain.Rules.Refusal.PrintMembers(System.Text.StringBuilder! builder) -> bool
