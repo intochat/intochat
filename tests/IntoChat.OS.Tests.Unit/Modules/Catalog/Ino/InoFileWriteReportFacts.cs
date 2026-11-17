@@ -44,4 +44,11 @@ public sealed class InoFileWriteReportFacts
 
     [Fact]
     public void AWaitingWriteIsNotPostedYet() => Assert.Empty(InoFileWriteReports.Unposted(Waiting));
+
+    [Theory]
+    [InlineData("owner/ino/conversations/main", "ino/conversations/main")]
+    [InlineData("ino/conversations/main", "ino/conversations/main")]
+    [InlineData("other/ino/conversations/main", "other/ino/conversations/main")]
+    public void TheAgentKeyDropsOnlyThisBrain(string conversation, string expected)
+        => Assert.Equal(expected, InoFileWriteReports.AgentKey("owner", conversation));
 }

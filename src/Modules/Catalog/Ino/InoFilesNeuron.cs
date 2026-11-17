@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
@@ -15,6 +16,10 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
     : DigitalBrain.Neurons.Neuron<InoFilesState>, IInoFiles
 {
     private const int KeptWrites = 32;
+
+    private ILogger Logger =>
+        (ILogger?)(services?.GetService(typeof(ILoggerFactory)) as ILoggerFactory)?.CreateLogger<InoFilesNeuron>()
+        ?? global::IntoChat.OS.Framework.Logging.OsConsoleLog.For<InoFilesNeuron>();
 
     private IFilesVfsService? _vfs;
 
@@ -77,7 +82,7 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
         var disk = connections.FirstOrDefault(item => item.ConnectionKey.Contains("local-disk", StringComparison.OrdinalIgnoreCase))?.Capability
             ?? throw new InvalidOperationException("The local disk is not connected in this brain.");
         var roots = await disk.Roots();
-        var root = roots.FirstOrDefault(item => item.Flags.HasFlag(ItemFlags.Write))
+        var root = InoFileWriteRules.Target(roots)
             ?? throw new InvalidOperationException("No writable local folder is allowed. Allow one in Files first.");
 
         var conversation = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Current?.ConversationId ?? string.Empty;
@@ -111,9 +116,14 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
         {
             try
             {
-                await Context.Get<IAgent>(new DigitalBrain.NeuronId(Id.Brain, "agent", write.Conversation)).Post(write.Outcome!, "file/" + write.Operation);
+                await Context.Get<IAgent>(new DigitalBrain.NeuronId(Id.Brain, "agent", InoFileWriteReports.AgentKey(Id.Brain.Value, write.Conversation))).Post(write.Outcome!, "file/" + write.Operation);
             }
-            catch (InvalidOperationException) { continue; }
+            // Left unposted on any failure, so the next completed turn tries again; the failure is logged so telemetry shows it.
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                Logger.LogWarning(error, "Posting the outcome of file operation {Operation} into {Conversation} failed; it stays pending.", write.Operation, write.Conversation);
+                continue;
+            }
             await Save(State with { Writes = [.. State.Writes.Where(item => item.Operation != write.Operation)] },
                 new InoFileWriteReported(write.Operation, "posted"));
         }

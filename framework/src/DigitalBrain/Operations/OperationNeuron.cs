@@ -136,6 +136,13 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
         }
 #pragma warning restore CA1031
 
+        // Only the answer that moved the operation out of AwaitingApproval may drive it: after a restart both Reconcile and the
+        // ConfirmationResolved signal settle the same plan, and a second Drive ran the handler twice.
+        if (transition is null)
+        {
+            return;
+        }
+
         if (State.Phase == OperationPhase.Running)
         {
             Drive();

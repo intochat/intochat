@@ -463,6 +463,8 @@ public sealed class FakeNeuronProxies : INeuronProxies
         return this;
     }
 
+    internal bool Has<T>(NeuronId id) where T : class => _proxies.ContainsKey((id, typeof(T)));
+
     /// <inheritdoc />
     /// <exception cref="KeyNotFoundException">No proxy is registered for the id.</exception>
     public T Get<T>(NeuronId id) where T : class
@@ -592,7 +594,8 @@ public sealed class FakeNeuronContext : INeuronContext, INeuronSeat
     /// <inheritdoc />
     public T Get<T>(NeuronId id) where T : class
     {
-        if (id == DigitalBrain.Confirmation.IConfirmationRequests.Of(Id.Brain))
+        // A test that registered its own confirmations answers wins over the built-in confirmations neuron.
+        if (id == DigitalBrain.Confirmation.IConfirmationRequests.Of(Id.Brain) && !Proxies.Has<T>(id))
         {
             if (typeof(T) == typeof(DigitalBrain.Confirmation.IConfirmationRequests)) { return (T)(object)ConfirmationsTarget(); }
             if (typeof(T) == typeof(DigitalBrain.Confirmation.IConfirmationInbox)) { return (T)(object)ConfirmationsTarget(); }

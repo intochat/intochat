@@ -102,6 +102,27 @@ public sealed class StorageWriteHandlerFacts
         Assert.Equal("hash-123", approval.Guard);
     }
 
+    private sealed class FinishedOperations(OperationResult result) : IOperationsQuery
+    {
+        public Task<OperationView?> Read(OperationId id, CancellationToken ct) =>
+            Task.FromResult<OperationView?>(new OperationView(id, "write", "test", 1d, result, DateTimeOffset.UnixEpoch, null));
+    }
+
+    [Fact]
+    public async Task WithoutAResultHandlerTheStoragesOwnOperationResultIsReported()
+    {
+        var storage = new FakeStorage();
+        var handler = new StorageWriteHandler(new FakeOwnerSource(new("conn", "storage", storage)));
+        var plan = WritePlan.WriteFile(new ItemId("root"), "hello.txt", "hi"u8.ToArray());
+        var scope = new OperationScope(new BrainId("b1"), "test", new ServiceCollection().BuildServiceProvider(), null,
+            new FinishedOperations(new OperationResult.Succeeded()));
+
+        var result = await handler.Run(plan, new FakeOperationNeuron(), scope, CancellationToken.None);
+
+        Assert.IsType<OperationResult.Succeeded>(result);
+        Assert.True(storage.WriteCalled);
+    }
+
     [Fact]
     public async Task RunFailsWhenGuardStampMismatches()
     {

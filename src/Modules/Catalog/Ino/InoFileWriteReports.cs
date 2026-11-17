@@ -28,4 +28,8 @@ internal static class InoFileWriteReports
     // Outcomes still to post, oldest first.
     internal static InoFileWrite[] Unposted(InoFilesState state)
         => [.. state.Writes.Where(item => item.Outcome is not null && item.Conversation.Length > 0)];
+
+    // The caller's conversation is the agent's full key, "{brain}/{key}"; the neuron key inside the brain drops the brain.
+    internal static string AgentKey(string brain, string conversation)
+        => conversation.StartsWith(brain + "/", StringComparison.Ordinal) ? conversation[(brain.Length + 1)..] : conversation;
 }
