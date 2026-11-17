@@ -1,3 +1,4 @@
+using DigitalBrain.Rules;
 using System.Collections.Concurrent;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Contracts;
@@ -107,18 +108,18 @@ public sealed class FlowEmpiricalStressFacts
     // 1. Stress-test Step Interruptions & Exact Failure at 20th Interruption
     // -----------------------------------------------------------------------------------------
 
+    private static Transition<FlowState<StressState>> Moved(Outcome<FlowState<StressState>> outcome) => Assert.IsType<Transition<FlowState<StressState>>>(outcome.Value);
+
     [Fact]
     public void StepInterruptions_PureStateTransition_IncrementsUpTo19AndFailsAt20()
     {
         var now = new DateTimeOffset(2026, 11, 11, 12, 0, 0, TimeSpan.Zero);
         var initial = new FlowState<StressState>();
-        var started = initial.Start("Stress", "user", null, new StressState(), now, "trace-1", "flow");
-        Assert.NotNull(started);
-        var state = started.Value.Next;
+        var started = Moved(initial.Start("Stress", "user", null, new StressState(), now, "trace-1", "flow"));
+        var state = started.Next;
 
-        var startStep = state.StartStep(["step1"], now);
-        Assert.NotNull(startStep);
-        state = startStep.Value.Next;
+        var startStep = Moved(state.StartStep(["step1"], now));
+        state = startStep.Next;
         Assert.Equal("step1", state.Current);
         Assert.Equal(0, state.Interruptions);
 
@@ -126,30 +127,28 @@ public sealed class FlowEmpiricalStressFacts
         for (var i = 1; i <= 19; i++)
         {
             var trans = state.Interrupted("step1", $"error-{i}", now, maxInterruptions: 20);
-            Assert.NotNull(trans);
-            state = trans.Value.Next;
+            state = trans.Next;
             Assert.Equal(FlowStatus.Running, state.Status);
             Assert.Equal("step1", state.Current);
             Assert.Equal(i, state.Interruptions);
-            var stepSignal = Assert.Single(trans.Value.Signals.OfType<FlowStep>());
+            var stepSignal = Assert.Single(trans.Signals.OfType<FlowStep>());
             Assert.Equal(StepOutcome.Interrupted, stepSignal.Outcome);
             Assert.Equal($"error-{i}", stepSignal.Detail);
         }
 
         // 20th interruption -> exact failure transition
         var failTrans = state.Interrupted("step1", "error-20", now, maxInterruptions: 20);
-        Assert.NotNull(failTrans);
-        var failed = failTrans.Value.Next;
+        var failed = failTrans.Next;
         Assert.Equal(FlowStatus.Failed, failed.Status);
         Assert.Equal(20, failed.Interruptions);
         Assert.Null(failed.Current);
         Assert.Equal(now, failed.Ended);
 
-        var stepFailed = Assert.Single(failTrans.Value.Signals.OfType<FlowStep>());
+        var stepFailed = Assert.Single(failTrans.Signals.OfType<FlowStep>());
         Assert.Equal(StepOutcome.Failed, stepFailed.Outcome);
         Assert.Equal("interrupted 20 times", stepFailed.Detail);
 
-        var flowFailed = Assert.Single(failTrans.Value.Signals.OfType<FlowDone>());
+        var flowFailed = Assert.Single(failTrans.Signals.OfType<FlowDone>());
         Assert.Equal(FlowOutcome.Failed, flowFailed.Outcome);
         Assert.Equal("interrupted 20 times", flowFailed.Detail);
     }
@@ -158,24 +157,24 @@ public sealed class FlowEmpiricalStressFacts
     public void StepInterruptions_ResetToZeroOnStepCompletion()
     {
         var now = new DateTimeOffset(2026, 11, 11, 12, 0, 0, TimeSpan.Zero);
-        var state = new FlowState<StressState>().Start("Stress", "user", null, new StressState(), now, "trace-1", "flow")!.Value.Next;
-        state = state.StartStep(["step1", "step2"], now)!.Value.Next;
+        var state = Moved(new FlowState<StressState>().Start("Stress", "user", null, new StressState(), now, "trace-1", "flow")).Next;
+        state = Moved(state.StartStep(["step1", "step2"], now)).Next;
 
         // Interrupt step 1 five times
         for (var i = 1; i <= 5; i++)
         {
-            state = state.Interrupted("step1", $"err-{i}", now)!.Value.Next;
+            state = state.Interrupted("step1", $"err-{i}", now).Next;
         }
         Assert.Equal(5, state.Interruptions);
 
         // Step 1 completes -> Interruptions counter resets to 0
-        state = state.Complete("step1", new StepResult<StressState>(new StressState()))!.Value.Next;
+        state = Moved(state.Complete("step1", new StepResult<StressState>(new StressState()))).Next;
         Assert.Equal(0, state.Interruptions);
         Assert.Contains("step1", state.Done);
         Assert.Null(state.Current);
 
         // Step 2 starts
-        state = state.StartStep(["step1", "step2"], now)!.Value.Next;
+        state = Moved(state.StartStep(["step1", "step2"], now)).Next;
         Assert.Equal("step2", state.Current);
         Assert.Equal(0, state.Interruptions);
     }

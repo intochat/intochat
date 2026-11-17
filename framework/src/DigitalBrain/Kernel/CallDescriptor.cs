@@ -20,10 +20,10 @@ internal sealed record CallDescriptor(
     Func<object, object?[], Task<object?>> Invoker)
 {
     /// <summary>The interface contract declaring this method.</summary>
-    public Type? Contract { get; init; }
+    public required Type Contract { get; init; }
 
     /// <summary>The reflected method information.</summary>
-    public MethodInfo? Method { get; init; }
+    public required MethodInfo Method { get; init; }
 
     /// <summary>How the call is scheduled.</summary>
     public CallScheduling Scheduling { get; init; } = CallScheduling.Turn;
@@ -64,7 +64,7 @@ internal sealed record CallDescriptor(
         ArgumentNullException.ThrowIfNull(target);
         if (Kind == InvocationResultKind.Stream)
         {
-            throw new BindingException($"{Contract?.Name ?? "Contract"}.{MethodName} returns a stream; stream it.");
+            throw new BindingException($"{Contract.Name}.{MethodName} returns a stream; stream it.");
         }
 
         var values = PrepareArguments(arguments, cancellationToken);
@@ -78,25 +78,14 @@ internal sealed record CallDescriptor(
         ArgumentNullException.ThrowIfNull(target);
         if (Kind != InvocationResultKind.Stream || Streamer is null)
         {
-            throw new BindingException($"{Contract?.Name ?? "Contract"}.{MethodName} does not return a stream.");
+            throw new BindingException($"{Contract.Name}.{MethodName} does not return a stream.");
         }
 
         var values = PrepareArguments(arguments, cancellationToken);
-        // Invoke target synchronously or via Invoker to obtain the stream object
-        object? streamObject;
-        if (Method is not null)
-        {
-            streamObject = Method.Invoke(target, values);
-        }
-        else
-        {
-            var task = Invoker(target, values);
-            streamObject = task.GetAwaiter().GetResult();
-        }
-
+        var streamObject = Method.Invoke(target, values);
         if (streamObject is null)
         {
-            throw new InvalidOperationException($"{Contract?.Name ?? "Contract"}.{MethodName} returned no stream.");
+            throw new InvalidOperationException($"{Contract.Name}.{MethodName} returned no stream.");
         }
 
         return EncodeStream(Streamer(streamObject, cancellationToken), ResultType!, cancellationToken);
@@ -118,7 +107,7 @@ internal sealed record CallDescriptor(
     {
         if (arguments is null || arguments.Length != Arity)
         {
-            throw new BindingException($"{Contract?.Name ?? "Contract"}.{MethodName} takes {Arity} arguments.");
+            throw new BindingException($"{Contract.Name}.{MethodName} takes {Arity} arguments.");
         }
 
         var values = new object?[ParameterTypes.Length];
@@ -137,12 +126,12 @@ internal sealed record CallDescriptor(
             }
             catch (Exception error) when (error is JsonException or NotSupportedException or InvalidOperationException)
             {
-                throw new BindingException($"{Contract?.Name ?? "Contract"}.{MethodName}: argument {argument - 1} is not a {type.Name}.", error);
+                throw new BindingException($"{Contract.Name}.{MethodName}: argument {argument - 1} is not a {type.Name}.", error);
             }
 
             if (values[index] is null && type.IsValueType && Nullable.GetUnderlyingType(type) is null)
             {
-                throw new BindingException($"{Contract?.Name ?? "Contract"}.{MethodName}: argument {argument - 1} cannot be null.");
+                throw new BindingException($"{Contract.Name}.{MethodName}: argument {argument - 1} cannot be null.");
             }
         }
 

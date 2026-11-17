@@ -2,6 +2,7 @@ using DigitalBrain.Confirmation;
 using DigitalBrain.Contracts;
 using DigitalBrain.Log;
 using DigitalBrain.Neurons;
+using DigitalBrain.Rules;
 
 namespace DigitalBrain.Operations;
 
@@ -92,10 +93,8 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
             return;
         }
 
-        var transition = State.AwaitApproval(approval.Question.Id, approval.Guard, Context.Time.GetUtcNow());
-        if (transition is { } t)
+        if (await Apply("operation.await-approval", State.AwaitApproval(approval.Question.Id, approval.Guard, Context.Time.GetUtcNow())).ConfigureAwait(true))
         {
-            await Save(t.Next, t.Signals).ConfigureAwait(true);
             await Context.Synapses.Ensure<ConfirmationResolved>(IConfirmationRequests.Of(Id.Brain)).ConfigureAwait(true);
             await Context.Get<IConfirmationRequests>(IConfirmationRequests.Of(Id.Brain)).Request(approval.Question).ConfigureAwait(true);
         }
@@ -119,11 +118,7 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
 
     private async Task Settle(ConfirmationResult outcome)
     {
-        var transition = State.Answer(outcome, Context.Time.GetUtcNow());
-        if (transition is { } t)
-        {
-            await Save(t.Next, t.Signals).ConfigureAwait(true);
-        }
+        var moved = await Apply("operation.answer", State.Answer(outcome, Context.Time.GetUtcNow())).ConfigureAwait(true);
 
 #pragma warning disable CA1031
         try
@@ -136,11 +131,18 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
         }
 #pragma warning restore CA1031
 
-        if (State.Phase == OperationPhase.Running)
+        // Only the answer that moved the operation out of AwaitingApproval may drive it: after a restart both Reconcile and the
+        // ConfirmationResolved signal settle the same plan, and a second Drive ran the handler twice.
+        if (!moved)
+        {
+            return;
+        }
+
+        if (State.Stage.Value is OperationStages.Running)
         {
             Drive();
         }
-        else if (State.Phase == OperationPhase.Done && State.Result is { } result)
+        else if (State.Stage.Value is OperationStages.Done { Result: var result })
         {
             OperationPlanRegistry.Remove(State.Id);
             if ((Seat.Services.GetService(typeof(OperationRegistry)) as OperationRegistry)?.TryGet(new OperationId(State.Id), out var handle) == true)
@@ -152,14 +154,7 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
 
     public async Task<bool> Progress(double fraction)
     {
-        var transition = State.Progress(fraction, Context.Time.GetUtcNow());
-        if (transition is not { } t)
-        {
-            return false;
-        }
-
-        await Save(t.Next, t.Signals).ConfigureAwait(true);
-        return true;
+        return await Apply("operation.progress", State.Progress(fraction, Context.Time.GetUtcNow())).ConfigureAwait(true);
     }
 
     public async Task<OperationState> Complete(OperationResult result)
@@ -170,11 +165,7 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
             return State;
         }
 
-        var transition = State.Complete(result, Context.Time.GetUtcNow());
-        if (transition is { } t)
-        {
-            await Save(t.Next, t.Signals).ConfigureAwait(true);
-        }
+        await Apply("operation.complete", State.Complete(result, Context.Time.GetUtcNow())).ConfigureAwait(true);
 
         OperationPlanRegistry.Remove(State.Id);
         _runningCts?.Cancel();
@@ -194,22 +185,26 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
 
         _runningCts?.Cancel();
         var handlerRuns = _runningCts is not null;
-        var transition = State.RequestCancel(handlerRuns, Context.Time.GetUtcNow());
-        if (transition is not { } t)
-        {
-            return false;
-        }
+        return await Apply("operation.cancel", State.RequestCancel(handlerRuns, Context.Time.GetUtcNow())).ConfigureAwait(true);
+    }
 
-        if (t.Signals.Count > 0)
+    // Commits a move, or publishes why the operation refused it; true when the operation moved.
+    private async Task<bool> Apply(string operation, Outcome<OperationState> outcome)
+    {
+        switch (outcome)
         {
-            await Save(t.Next, t.Signals).ConfigureAwait(true);
+            case Transition<OperationState> { Signals.Count: > 0 } moved:
+                await Save(moved.Next, moved.Signals).ConfigureAwait(true);
+                return true;
+            case Transition<OperationState> moved:
+                await Store(moved.Next).ConfigureAwait(true);
+                return true;
+            case Refusal refusal:
+                await PublishEphemeral(refusal.ToRejected(operation)).ConfigureAwait(true);
+                return false;
+            default:
+                throw new InvalidOperationException($"{operation}: an outcome with no case.");
         }
-        else
-        {
-            await Store(t.Next).ConfigureAwait(true);
-        }
-
-        return true;
     }
 
     public Task<OperationState?> Get() => Task.FromResult<OperationState?>(State.Exists ? State : null);
@@ -230,7 +225,7 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
             State.Guard,
             Seat.Services.GetService(typeof(IOperationsQuery)) as IOperationsQuery ?? new NeuronOperationsQuery(Seat.Services, Id.Brain));
 
-        var plan = OperationPlanRegistry.Take(State.Id) ?? execution.Deserialize(State.PlanJson);
+        var plan = OperationPlanRegistry.Take(State.Id) ?? State.Restore(execution.Deserialize(State.PlanJson));
         var self = Context.Get<IOperationNeuron>(Id);
 
         Context.Detach(async ct =>

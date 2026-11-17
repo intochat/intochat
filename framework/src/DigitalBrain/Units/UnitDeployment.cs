@@ -1,3 +1,4 @@
+using DigitalBrain.Rules;
 using DigitalBrain.Contracts;
 using DigitalBrain.Neurons;
 
@@ -39,12 +40,7 @@ public sealed class UnitDeployment(LiveBindings? live = null) : Neuron<Deploymen
         var conflict = await sources.Claim(SourceKey, build.Aliases, ct).ConfigureAwait(true);
         if (conflict is not null)
         {
-            return new DeployOutcome(
-                DeployStatus.Refused,
-                build.Ref.Hash,
-                [],
-                new Dictionary<string, InstallOutcome>(),
-                $"Alias '{conflict.Alias}' is already owned by source '{conflict.Owner}'.");
+            return DeployOutcome.Refused(build.Ref.Hash, new Dictionary<string, InstallOutcome>(), new DeploymentRefusals.AliasOwned(conflict.Alias, conflict.Owner));
         }
 
         if (State.Staged is not null)
@@ -90,7 +86,7 @@ public sealed class UnitDeployment(LiveBindings? live = null) : Neuron<Deploymen
         if (refused.Key is not null)
         {
             await Supersede(refused.Value.Reason ?? "install refused", ct).ConfigureAwait(true);
-            return new DeployOutcome(DeployStatus.Refused, build.Ref.Hash, [], installOutcomes, refused.Value.Reason ?? $"Install of '{refused.Key}' refused.");
+            return DeployOutcome.Refused(build.Ref.Hash, installOutcomes, new DeploymentRefusals.InstallRefused(refused.Key, refused.Value.Reason));
         }
 
         var pendingPlans = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -106,7 +102,9 @@ public sealed class UnitDeployment(LiveBindings? live = null) : Neuron<Deploymen
         if (asked.Staged is null)
         {
             var isDeployed = State.Live is { } promoted && promoted.Ref == build.Ref;
-            return new DeployOutcome(isDeployed ? DeployStatus.Deployed : DeployStatus.Refused, build.Ref.Hash, [], installOutcomes, null);
+            return isDeployed
+                ? new DeployOutcome(DeployStatus.Deployed, build.Ref.Hash, [], installOutcomes, null)
+                : DeployOutcome.Refused(build.Ref.Hash, installOutcomes, new DeploymentRefusals.Superseded());
         }
 
         if (asked.ReadyToPromote)
@@ -160,7 +158,7 @@ public sealed class UnitDeployment(LiveBindings? live = null) : Neuron<Deploymen
             var problem = await installs.Validate(new InstallRequest(alias, aliasBindings), ct).ConfigureAwait(true);
             if (problem is not null)
             {
-                return new DeployOutcome(DeployStatus.Refused, build.Ref.Hash, [], new Dictionary<string, InstallOutcome>(), $"the bindings of '{alias}' are refused: {problem}");
+                return DeployOutcome.Refused(build.Ref.Hash, new Dictionary<string, InstallOutcome>(), new DeploymentRefusals.BindingsRefused(alias, problem));
             }
         }
 
@@ -171,7 +169,7 @@ public sealed class UnitDeployment(LiveBindings? live = null) : Neuron<Deploymen
             outcomes[alias] = outcome;
             if (outcome.Status is InstallStatus.Refused or InstallStatus.Denied)
             {
-                return new DeployOutcome(DeployStatus.Refused, build.Ref.Hash, [], outcomes, outcome.Reason);
+                return DeployOutcome.Refused(build.Ref.Hash, outcomes, new DeploymentRefusals.InstallRefused(alias, outcome.Reason));
             }
         }
 
@@ -195,8 +193,7 @@ public sealed class UnitDeployment(LiveBindings? live = null) : Neuron<Deploymen
     {
         ArgumentNullException.ThrowIfNull(installed);
         if (State.Staged is null) { return; }
-        var next = State.Approve(installed.Alias, installed.NeedsHash);
-        if (ReferenceEquals(next, State)) { return; }
+        if (await Moved("deploy.approve", State.Approve(installed.Alias, installed.NeedsHash)).ConfigureAwait(true) is not { } next) { return; }
         if (next.ReadyToPromote)
         {
             await Promote(next, ct).ConfigureAwait(true);
@@ -213,9 +210,26 @@ public sealed class UnitDeployment(LiveBindings? live = null) : Neuron<Deploymen
     {
         ArgumentNullException.ThrowIfNull(denied);
         if (State.Staged is null) { return; }
-        var next = State.Deny(denied.Alias, denied.PlanId);
-        if (ReferenceEquals(next, State)) { return; }
+        if (await Moved("deploy.deny", State.Deny(denied.Alias, denied.PlanId)).ConfigureAwait(true) is null) { return; }
         await Supersede(denied.Reason, ct).ConfigureAwait(true);
+    }
+
+    // The next state of a move, or null after publishing why it was refused. Install signals of the whole brain arrive here,
+    // so an alias this deployment does not wait for is ordinary traffic and stays quiet.
+    private async Task<DeploymentState?> Moved(string operation, Outcome<DeploymentState> outcome)
+    {
+        switch (outcome)
+        {
+            case Transition<DeploymentState> moved:
+                return moved.Next;
+            case DeploymentRefusals.NotWaiting:
+                return null;
+            case Refusal refusal:
+                await PublishEphemeral(refusal.ToRejected(operation)).ConfigureAwait(true);
+                return null;
+            default:
+                throw new InvalidOperationException($"{operation}: an outcome with no case.");
+        }
     }
 
     private async Task Promote(DeploymentState approved, CancellationToken ct)
@@ -235,7 +249,7 @@ public sealed class UnitDeployment(LiveBindings? live = null) : Neuron<Deploymen
 
         // 2. Save promoted state with Deployed signal
         var now = Context.Time.GetUtcNow();
-        var nextState = approved.Promote(now);
+        if (await Moved("deploy.promote", approved.Promote(now)).ConfigureAwait(true) is not { } nextState) { return; }
         await Save(nextState, [new Deployed(SourceKey, build.Ref.Hash, build.Aliases)]).ConfigureAwait(true);
 
         // 3. Update local silo hint

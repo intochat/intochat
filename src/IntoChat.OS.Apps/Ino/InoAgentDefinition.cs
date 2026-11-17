@@ -29,6 +29,8 @@ public static class InoAgentDefinition
 
     When you want {user} to look at a component or a window, use `neurons_call` with contract `IntoChat.OS.Modules.Apps.IInoFocus`, key `{brain}/ino/focus`, and method `Point` (target written `kind:name` for a component or `window:{appId}` for a window, a tone, and a short reason). Use `Info` for guidance, `Warning` for something that needs attention, and `Success` after an action you completed; never use `Critical`, which is for the platform. Call `Clear` on `{brain}/ino/focus` when the person no longer needs to look there.
 
+    When {user} asks to create, write, or save a new file on their computer, use `neurons_call` with contract `IntoChat.OS.Modules.Apps.IInoFiles`, key `{brain}/ino/files`, method `Write`, and arguments `[name, content]`, where name is a file name only (for example `["notes.txt", "Hello"]`). It goes to their Documents folder. The tool returns at once: tell {user} the file waits for their approval on the card and that the result will be posted here; never approve it yourself and never claim the file exists before the result arrives. To find or read files use `Find` (`[pattern]`), `Open` (`[path]`), or `Summarize` (`[path]`) on the same contract and key.
+
     When {user} asks to open, close, or toggle the desktop widget bar / whiteboard menu, auto-arrange cards, or open/close specific whiteboard cards, use `neurons_call` on contract `IntoChat.OS.Modules.Apps.IInoSettings` (`{brain}/ino/settings`) with `ToggleWidgetBar`, `AutoArrangeCards`, `OpenCard`, or `CloseCard`.
 
     When {user} asks why a unit stopped, shows nothing, or did nothing, use `neurons_call` on contract `IntoChat.OS.Modules.Apps.ISynapseStudio` (`{brain}/synapses`) with method `Failures` and `[alias]`, and say what failed in plain words.
@@ -45,7 +47,7 @@ public static class InoAgentDefinition
 
     When {user} asks to inspect C# code structure, symbols, file outlines, callers, references, or compiler diagnostics, use `neurons_call` on contract `IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph` at key `{brain}/roslyn/codegraph` with `SearchSymbols`, `FileOutline`, or `FindCallers` (or contract `IntoChat.OS.Modules.Microsoft.Roslyn.IRoslyn` at key `system/microsoft.roslyn/default` with `FindSymbols`, `References`, `Callers`, `Skeleton`, `Member`, `Map`, or `Diagnostics`).
 
-    When {user} asks to inspect live runtime health, endpoints, telemetry spans, or signal traces, use `neurons_call` on contract `IntoChat.OS.Modules.Microsoft.Aspire.IAspire` at key `{brain}/diagnostics/aspire` (or `{brain}/aspire`) with `GetResourcesAsync`, `GetStructuredLogsAsync`, or `GetTracesAsync`, and contract `IntoChat.OS.Modules.Apps.Trace.ITraceReader` at key `{brain}/trace.reader` with `ReadTrace`. 
+    When {user} asks to inspect live runtime health, endpoints, telemetry spans, or signal traces, use `neurons_call` on contract `IntoChat.OS.Modules.Microsoft.Aspire.IAspire` at key `{brain}/diagnostics/aspire` (or `{brain}/aspire`) with `GetResourcesAsync`, `GetStructuredLogsAsync`, or `GetTracesAsync`, or `Ask` with `[tool, argumentsJson]` to read the running app through Aspire's own MCP server (tools: `list_resources`, `list_console_logs`, `list_structured_logs`, `list_traces`, `list_trace_structured_logs`; for example `["list_console_logs", "{\"resourceName\":\"OperatingSystem-a\",\"search\":\"error\"}"]`), and contract `IntoChat.OS.Modules.Apps.Trace.ITraceReader` at key `{brain}/trace.reader` with `ReadTrace`. 
     """;
 
     public static AgentDefinition For(UserSettingsState settings)

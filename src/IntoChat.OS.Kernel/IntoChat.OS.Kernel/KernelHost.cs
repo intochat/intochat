@@ -1,3 +1,4 @@
+using IntoChat.OS.Kernel.DevUI;
 using System.Reflection;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Configuration;
@@ -47,9 +48,11 @@ public static class KernelHost
             configureServer?.Invoke(server, builder.Configuration);
         });
         builder.Services.AddIntoChatOSMcp();
+        builder.AddDevUIForIno();
         var app = builder.Build();
         app.MapIntoChatOSServer(beforeAccountSession);
         app.MapIntoChatOSMcp();
+        app.MapDevUIForIno();
         configureApp?.Invoke(app);
         await app.RunAsync(cancellationToken);
         return Environment.ExitCode;

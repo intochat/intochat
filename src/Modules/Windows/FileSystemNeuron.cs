@@ -1,26 +1,16 @@
-using System.Text;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Storage.Confinement;
 using DigitalBrain.Errors;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Modules.Microsoft.Windows.Signals;
 
 namespace IntoChat.OS.Modules.Microsoft.Windows;
 
-// A plain neuron (06-08) keyed {connectionKey}/files.
+// A plain neuron (06-08) keyed {connectionKey}/files. Read-only: writes go through the storage capability as approved operations.
 [DigitalBrain.Neurons.Neuron("windows.files")]
 internal sealed class FileSystemNeuron(MachineIdentity identity, IServiceProvider services) : DigitalBrain.Neurons.Neuron, IFileSystem
 {
     public async Task<string> Read(string path, CancellationToken cancellationToken = default) =>
         await File.ReadAllTextAsync(await Resolve(path), cancellationToken);
-
-    public async Task Write(string path, string content, CancellationToken cancellationToken = default)
-    {
-        var full = await Resolve(path);
-        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
-        await File.WriteAllTextAsync(full, content, cancellationToken);
-        await Publish(new FileWritten(full, Encoding.UTF8.GetByteCount(content)));
-    }
 
     public async Task<string[]> List(string path, CancellationToken cancellationToken = default) =>
         Directory.GetFileSystemEntries(await Resolve(path));

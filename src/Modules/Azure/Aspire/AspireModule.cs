@@ -45,6 +45,7 @@ public sealed class AspireModule : DigitalBrain.Modules.Module
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
         services.TryAddSingleton<Candidates.IProcessRunner, Candidates.SystemProcessRunner>();
+        services.TryAddSingleton(provider => new AspireMcp(provider.GetService<global::Microsoft.Extensions.Configuration.IConfiguration>()));
         services.TryAddSingleton<Candidates.ICandidateHost, Candidates.DockerCandidateHost>();
         services.TryAddSingleton<Deployment.IClusterHost, Deployment.AspireCliClusterHost>();
         services.TryAddSingleton<Verification.ICandidateVerifier, Verification.CandidateVerifier>();

@@ -398,6 +398,21 @@ public sealed class FlowFacts
     }
 
     [Fact]
+    public async Task ResumingAStepTheFlowDoesNotWaitOnSaysSo()
+    {
+        var (flow, context) = await Activated();
+        await Started(flow, context, "Build", "ann", null, new Box());
+        var before = context.Writes.Count;
+
+        await flow.Resume("no-such-step", WaitOutcome.Arrived, "ann");
+
+        var rejected = Assert.Single(context.Published.OfType<DigitalBrain.Rules.Rejected>());
+        Assert.Equal("flow.resume", rejected.Operation);
+        Assert.Equal(["flow.not-waiting"], rejected.Rules);
+        Assert.Equal(before, context.Writes.Count);
+    }
+
+    [Fact]
     public async Task AForgedConfirmationResolvedDoesNotResume()
     {
         var (flow, context) = await Activated();

@@ -197,7 +197,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
     // stamped in another brain reaches only an operation whose access is Shared or Public on a contract that opted in
     // with [Shareable]. Shared or Public alone opens nothing between brains: contracts written before this rule carry
     // those marks without checking who calls. It holds whether or not the access gate is auditing internal contracts.
-    private void RefuseAnotherBrain(BoundCall bound)
+    private void RefuseAnotherBrain(CallDescriptor bound)
     {
         if (ForeignCaller() is not { } caller) { return; }
 
@@ -224,10 +224,10 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
 
     // Binds the call and applies the cross-brain wall. A caller of another brain learns nothing from a call that does
     // not bind: it gets the same refusal as for an operation that exists and is closed to it.
-    private (Neuron Neuron, BoundCall Call) PrepareFor(RuntimeInvocation call)
+    private (Neuron Neuron, CallDescriptor Call) PrepareFor(RuntimeInvocation call)
     {
         Neuron neuron;
-        BoundCall bound;
+        CallDescriptor bound;
         try { (neuron, bound) = Prepare(call); }
         catch (BindingException) when (ForeignCaller() is { } foreign)
         {
@@ -238,7 +238,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
         return (neuron, bound);
     }
 
-    private (Neuron Neuron, BoundCall Call, Caller As) Admitted(RuntimeInvocation call)
+    private (Neuron Neuron, CallDescriptor Call, Caller As) Admitted(RuntimeInvocation call)
     {
         var (neuron, bound) = PrepareFor(call);
         return (neuron, bound, _access.Admit(_id, bound));
@@ -249,7 +249,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
     {
         var (neuron, bound, caller) = Admitted(call);
         using var running = _callers.Enter(caller);
-        try { return await Binder.InvokeAsync(neuron, bound, call.Arguments, cancellationToken).ConfigureAwait(true); }
+        try { return await bound.InvokeAsync(neuron, call.Arguments, cancellationToken).ConfigureAwait(true); }
         catch (InconsistentStateException error)
         {
             LogStateConflict(ServiceProvider.GetRequiredService<ILogger<NeuronHostGrainBase>>(), _key,
@@ -270,7 +270,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
     {
         var (neuron, bound, caller) = Admitted(call);
         using var running = _callers.Enter(caller);
-        try { _ = await Binder.InvokeAsync(neuron, bound, call.Arguments, CancellationToken.None).ConfigureAwait(true); }
+        try { _ = await bound.InvokeAsync(neuron, call.Arguments, CancellationToken.None).ConfigureAwait(true); }
         finally { await Drain().ConfigureAwait(true); }
     }
 
@@ -286,7 +286,7 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
         // Orleans enumerates streams through its extension outside ordinary request admission, as before.
         var (neuron, bound, caller) = Admitted(call);
         using var running = _callers.Enter(caller);
-        await foreach (var item in Binder.StreamAsync(neuron, bound, call.Arguments, cancellationToken).ConfigureAwait(true)) { yield return item; }
+        await foreach (var item in bound.StreamAsync(neuron, call.Arguments, cancellationToken).ConfigureAwait(true)) { yield return item; }
     }
 
     /// <inheritdoc />
@@ -405,10 +405,10 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
 
     /// <summary>Binds <paramref name="call"/> against the contract it names on <paramref name="neuronClass"/>.</summary>
     /// <exception cref="BindingException">The class does not implement the contract, or the call does not bind.</exception>
-    internal static BoundCall Bind(Type neuronClass, RuntimeInvocation call)
+    internal static CallDescriptor Bind(Type neuronClass, RuntimeInvocation call)
         => CallPolicy.Bind(Binder, neuronClass, call);
 
-    private (Neuron Neuron, BoundCall Call) Prepare(RuntimeInvocation call)
+    private (Neuron Neuron, CallDescriptor Call) Prepare(RuntimeInvocation call)
     {
         ArgumentNullException.ThrowIfNull(call);
         if (_neuron is not { } neuron || _class is null) { throw new InvalidOperationException($"The neuron {_key} is not active."); }

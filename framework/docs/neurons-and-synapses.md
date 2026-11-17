@@ -31,6 +31,13 @@ public sealed class CounterNeuron : Neuron<CounterState>, ICounter
 
 From `templates/DigitalBrain.Templates/content/digitalbrain-app/AppName/CounterNeuron.cs`.
 
+### State with a lifecycle
+
+When a neuron's state has phases, the phases are a `union` of sealed records. Each phase has only the methods that are legal in it, so an illegal move does not compile.
+A method that can say no returns `Outcome<T>`, which is either a `Transition<T>` (the next state and its signals) or a `Refusal`.
+A refusal is a value, not an exception. Each refusal has a stable dotted code, and `Refusal.ToRejected` turns it into the published `Rejected`.
+`Rule` and `Check` stay for input validation that reports every broken rule at once. Stored unions keep their case under `$case`, and only exact case types can be stored.
+
 ## Signals
 
 A signal is a record that derives from `Signal`. `[Signal("alias")]` gives it the frozen alias the journal stores.

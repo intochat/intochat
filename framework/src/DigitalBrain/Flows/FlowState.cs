@@ -1,3 +1,4 @@
+using DigitalBrain.Rules;
 using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
@@ -205,9 +206,9 @@ public sealed record FlowState<T>(
     private bool Runs(string step) => Advancing && Current == step;
 
     /// <summary>Starts the flow if pending.</summary>
-    public FlowTransition<T>? Start(string title, string owner, string? parentFlowId, T inner, DateTimeOffset now, string? traceId, string type, string? flowId = null)
+    public Outcome<FlowState<T>> Start(string title, string owner, string? parentFlowId, T inner, DateTimeOffset now, string? traceId, string type, string? flowId = null)
     {
-        if (Status != FlowStatus.Pending) { return null; }
+        if (Status != FlowStatus.Pending) { return new FlowRefusals.AlreadyStarted(); }
         var id = flowId ?? FlowId;
         var next = this with
         {
@@ -220,101 +221,96 @@ public sealed record FlowState<T>(
             Started = now,
             Inner = inner,
         };
-        return new(next, [new FlowStarted(id, type, title)]);
+        return new Transition<FlowState<T>>(next, [new FlowStarted(id, type, title)]);
     }
 
     /// <summary>Cancels the flow if not over.</summary>
-    public FlowTransition<T>? RequestCancel(string reason, DateTimeOffset now)
-        => IsOver ? null
-            : new(this with { Status = FlowStatus.Cancelled, Waiting = null, Current = null, Ended = now },
+    public Outcome<FlowState<T>> RequestCancel(string reason, DateTimeOffset now)
+        => IsOver ? new FlowRefusals.AlreadyOver()
+            : new Transition<FlowState<T>>(this with { Status = FlowStatus.Cancelled, Waiting = null, Current = null, Ended = now },
                 [new FlowDone(FlowId, FlowOutcome.Cancelled, reason)]);
 
     /// <summary>Starts the next step, or completes the flow if all steps are done.</summary>
-    public FlowTransition<T>? StartStep(IReadOnlyList<string> steps, DateTimeOffset now)
+    public Outcome<FlowState<T>> StartStep(IReadOnlyList<string> steps, DateTimeOffset now)
     {
-        if (!Advancing) { return null; }
+        if (!Advancing) { return new FlowRefusals.NotAdvancing(); }
         if (steps.FirstOrDefault(candidate => !Done.Contains(candidate)) is not { } step)
         {
-            return new(this with { Status = FlowStatus.Completed, Current = null, Ended = now },
+            return new Transition<FlowState<T>>(this with { Status = FlowStatus.Completed, Current = null, Ended = now },
                 [new FlowDone(FlowId, FlowOutcome.Completed, null)]);
         }
-        return new(this with { Current = step }, [new FlowStep(FlowId, step, StepOutcome.Started, null)]);
+        return new Transition<FlowState<T>>(this with { Current = step }, [new FlowStep(FlowId, step, StepOutcome.Started, null)]);
     }
 
     /// <summary>Completes the running step with its result.</summary>
-    public FlowTransition<T>? Complete(string step, StepResult<T> result)
+    public Outcome<FlowState<T>> Complete(string step, StepResult<T> result)
         => Runs(step)
-            ? new(this with { Done = Done.Add(step), Current = null, Inner = result.Next, Interruptions = 0 },
+            ? new Transition<FlowState<T>>(this with { Done = Done.Add(step), Current = null, Inner = result.Next, Interruptions = 0 },
                 [new FlowStep(FlowId, step, StepOutcome.Completed, null), .. result.Emits ?? []])
-            : null;
+            : new FlowRefusals.StepNotRunning(step);
 
     /// <summary>Skips the running step with its result.</summary>
-    public FlowTransition<T>? Skip(string step, StepResult<T> result, string? reason = null)
+    public Outcome<FlowState<T>> Skip(string step, StepResult<T> result, string? reason = null)
         => Runs(step)
-            ? new(this with { Done = Done.Add(step), Current = null, Inner = result.Next, Interruptions = 0 },
+            ? new Transition<FlowState<T>>(this with { Done = Done.Add(step), Current = null, Inner = result.Next, Interruptions = 0 },
                 [new FlowStep(FlowId, step, StepOutcome.Skipped, reason), .. result.Emits ?? []])
-            : null;
+            : new FlowRefusals.StepNotRunning(step);
 
     /// <summary>Repeats the running step without marking it as done.</summary>
-    public FlowTransition<T>? Repeat(string step, StepResult<T> result)
+    public Outcome<FlowState<T>> Repeat(string step, StepResult<T> result)
         => Runs(step)
-            ? new(this with { Current = null, Inner = result.Next, Interruptions = 0 },
+            ? new Transition<FlowState<T>>(this with { Current = null, Inner = result.Next, Interruptions = 0 },
                 [new FlowStep(FlowId, step, StepOutcome.Repeated, null), .. result.Emits ?? []])
-            : null;
+            : new FlowRefusals.StepNotRunning(step);
 
     /// <summary>Transitions the running step into a waiting state.</summary>
-    public FlowTransition<T>? Wait(string step, StepResult<T> result, Waiting wait, string? planId)
+    public Outcome<FlowState<T>> Wait(string step, StepResult<T> result, Waiting wait, string? planId)
         => Runs(step)
-            ? new(this with { Status = FlowStatus.Waiting, Waiting = wait with { Step = step, ConfirmationPlanId = planId }, Current = step, Inner = result.Next },
+            ? new Transition<FlowState<T>>(this with { Status = FlowStatus.Waiting, Waiting = wait with { Step = step, ConfirmationPlanId = planId }, Current = step, Inner = result.Next },
                 [new FlowWaiting(FlowId, step, wait.Reason, planId), .. result.Emits ?? []])
-            : null;
+            : new FlowRefusals.StepNotRunning(step);
 
     /// <summary>Fails the flow if not over.</summary>
-    public FlowTransition<T>? Fail(string step, string error, DateTimeOffset now)
+    public Outcome<FlowState<T>> Fail(string step, string error, DateTimeOffset now)
         => Fail(step, error, now, null);
 
     /// <summary>Fails the flow if not over with custom done detail.</summary>
-    public FlowTransition<T>? Fail(string step, string error, DateTimeOffset now, string? doneDetail)
-        => IsOver ? null
-            : new(this with { Status = FlowStatus.Failed, Waiting = null, Current = null, Ended = now },
+    public Outcome<FlowState<T>> Fail(string step, string error, DateTimeOffset now, string? doneDetail)
+        => IsOver ? new FlowRefusals.AlreadyOver()
+            : new Transition<FlowState<T>>(this with { Status = FlowStatus.Failed, Waiting = null, Current = null, Ended = now },
                 [new FlowStep(FlowId, step, StepOutcome.Failed, error), new FlowDone(FlowId, FlowOutcome.Failed, doneDetail ?? error)]);
 
     /// <summary>Records an interruption of the current step; fails the flow if max interruptions exceeded.</summary>
-    public FlowTransition<T>? Interrupted(string step, string detail, DateTimeOffset now, int maxInterruptions = 20)
+    public Transition<FlowState<T>> Interrupted(string step, string detail, DateTimeOffset now, int maxInterruptions = 20)
     {
         var count = Interruptions + 1;
         if (count >= maxInterruptions)
         {
             var failure = $"interrupted {maxInterruptions} times";
-            return new(this with { Status = FlowStatus.Failed, Interruptions = count, Current = null, Ended = now },
+            return new Transition<FlowState<T>>(this with { Status = FlowStatus.Failed, Interruptions = count, Current = null, Ended = now },
                 [new FlowStep(FlowId, step, StepOutcome.Failed, failure), new FlowDone(FlowId, FlowOutcome.Failed, failure)]);
         }
-        return new(this with { Interruptions = count }, [new FlowStep(FlowId, step, StepOutcome.Interrupted, detail)]);
+        return new Transition<FlowState<T>>(this with { Interruptions = count }, [new FlowStep(FlowId, step, StepOutcome.Interrupted, detail)]);
     }
 
     /// <summary>Resolves a waiting step.</summary>
-    public FlowTransition<T>? Resolve(string step, WaitOutcome outcome, string? by, DateTimeOffset now)
+    public Outcome<FlowState<T>> Resolve(string step, WaitOutcome outcome, string? by, DateTimeOffset now)
     {
-        if (Status != FlowStatus.Waiting || Waiting is not { } waiting || waiting.Step != step) { return null; }
+        if (Status != FlowStatus.Waiting || Waiting is not { } waiting || waiting.Step != step) { return new FlowRefusals.NotWaitingOn(step); }
         var resolve = new FlowResolve(FlowId, step, outcome, by);
         if (outcome is WaitOutcome.Approved or WaitOutcome.Arrived)
         {
             var nextDone = waiting.IsRepeat ? Done : Done.Add(step);
-            return new(this with { Status = FlowStatus.Running, Waiting = null, Current = null, Done = nextDone, Interruptions = 0 },
+            return new Transition<FlowState<T>>(this with { Status = FlowStatus.Running, Waiting = null, Current = null, Done = nextDone, Interruptions = 0 },
                 [resolve, new FlowStep(FlowId, step, waiting.IsRepeat ? StepOutcome.Repeated : StepOutcome.Completed, null)]);
         }
-        return new(this with { Status = FlowStatus.Cancelled, Waiting = null, Current = null, Ended = now },
+        return new Transition<FlowState<T>>(this with { Status = FlowStatus.Cancelled, Waiting = null, Current = null, Ended = now },
             [resolve, new FlowDone(FlowId, FlowOutcome.Cancelled, outcome.ToString())]);
     }
 
     /// <summary>Adds a relation to another flow.</summary>
-    public FlowTransition<T>? Relate(FlowRelation relation)
-        => Relations.Contains(relation) ? null
-            : new(this with { Relations = Relations.Add(relation) }, [new FlowRelated(FlowId, relation)]);
+    public Outcome<FlowState<T>> Relate(FlowRelation relation)
+        => Relations.Contains(relation) ? new FlowRefusals.AlreadyRelated()
+            : new Transition<FlowState<T>>(this with { Relations = Relations.Add(relation) }, [new FlowRelated(FlowId, relation)]);
 }
 
-/// <summary>The result of a pure state transition on a flow state.</summary>
-/// <typeparam name="T">The flow's own state.</typeparam>
-/// <param name="Next">The updated flow state.</param>
-/// <param name="Signals">Signals emitted during the transition.</param>
-public readonly record struct FlowTransition<T>(FlowState<T> Next, IReadOnlyList<Signal> Signals) where T : class, new();

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
@@ -169,15 +170,27 @@ internal static partial class AspireLiveTelemetry
 internal sealed class AspireNeuron : DigitalBrain.Neurons.Neuron<AspireTelemetryState>, IAspire
 {
     private readonly IConfiguration? _configuration;
+    private readonly AspireMcp? _mcp;
 
-    public AspireNeuron(IConfiguration? configuration = null)
+    public AspireNeuron(IConfiguration? configuration = null, AspireMcp? mcp = null)
     {
         _configuration = configuration;
+        _mcp = mcp;
         AspireLiveTelemetry.EnsureListener();
     }
 
-    public Task<AspireResourceView[]> GetResourcesAsync()
-        => Task.FromResult(AspireLiveTelemetry.DiscoverResources(State.Resources, _configuration));
+    // The live AppHost model when Aspire's MCP server is reachable; the configured view otherwise.
+    public async Task<AspireResourceView[]> GetResourcesAsync()
+        => _mcp is { Available: true }
+            ? await _mcp.AllResources(CancellationToken.None)
+            : AspireLiveTelemetry.DiscoverResources(State.Resources, _configuration);
+
+    public async Task<string> Ask(string tool, string argumentsJson = "{}")
+    {
+        if (_mcp is not { Available: true }) { return "Aspire's MCP server is not available here; it is reachable only when the kernel runs under a local AppHost."; }
+        var arguments = JsonSerializer.Deserialize<Dictionary<string, object?>>(string.IsNullOrWhiteSpace(argumentsJson) ? "{}" : argumentsJson) ?? [];
+        return await _mcp.Call(tool, arguments, CancellationToken.None);
+    }
 
     public Task<string[]> GetConsoleLogsAsync(string resourceName, int tailLines = 50)
     {

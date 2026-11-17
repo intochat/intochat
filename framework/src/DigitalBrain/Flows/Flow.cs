@@ -1,3 +1,4 @@
+using DigitalBrain.Rules;
 using DigitalBrain.Access;
 using DigitalBrain.Modules;
 using DigitalBrain.Units;
@@ -102,8 +103,8 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         ArgumentNullException.ThrowIfNull(inner);
         var transition = State.Start(title, owner, parentFlowId, inner, Context.Time.GetUtcNow(), Context.TraceId, Id.Type, FlowId);
-        if (transition is null) { return; }
-        await Save(transition.Value.Next, transition.Value.Signals).ConfigureAwait(true);
+        if (transition.Value is not Transition<FlowState<T>> transitionMoved) { return; }
+        await Save(transitionMoved.Next, transitionMoved.Signals).ConfigureAwait(true);
         await StartNudge().ConfigureAwait(true);
         // A turn of its own, so the caller does not wait on the steps. A failed post is logged, not thrown: the start is saved and
         // the nudge or the next activation advances it.
@@ -129,7 +130,7 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(step);
         if (State.Waiting is { Reason: WaitReason.Approval }) { throw new InvalidOperationException("approval waits are resolved by the confirmations inbox"); }
-        return Resolve(step, outcome, by);
+        return Resolve(step, outcome, by, publish: true);
     }
 
     /// <summary>
@@ -184,9 +185,9 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
         if (State.IsOver) { return; }
         var waiting = State.Waiting;
         var transition = State.RequestCancel(reason, Context.Time.GetUtcNow());
-        if (transition is not null)
+        if (transition.Value is Transition<FlowState<T>> transitionMoved)
         {
-            await Save(transition.Value.Next, transition.Value.Signals).ConfigureAwait(true);
+            await Save(transitionMoved.Next, transitionMoved.Signals).ConfigureAwait(true);
         }
         await StopNudge().ConfigureAwait(true);
         if (waiting is { Reason: WaitReason.Approval, ConfirmationPlanId: { } planId })
@@ -206,8 +207,8 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
     {
         ArgumentNullException.ThrowIfNull(relation);
         var transition = State.Relate(relation);
-        if (transition is null) { return; }
-        await Save(transition.Value.Next, transition.Value.Signals).ConfigureAwait(true);
+        if (transition.Value is not Transition<FlowState<T>> transitionMoved) { return; }
+        await Save(transitionMoved.Next, transitionMoved.Signals).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -338,15 +339,15 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
         while (State is { Status: FlowStatus.Running, Waiting: null } && !token.IsCancellationRequested && _cancelRequested is null)
         {
             var stepTransition = State.StartStep(Steps, Context.Time.GetUtcNow());
-            if (stepTransition is null) { return; }
-            if (stepTransition.Value.Next.Status == FlowStatus.Completed)
+            if (stepTransition.Value is not Transition<FlowState<T>> stepTransitionMoved) { return; }
+            if (stepTransitionMoved.Next.Status == FlowStatus.Completed)
             {
-                await Save(stepTransition.Value.Next, stepTransition.Value.Signals).ConfigureAwait(true);
+                await Save(stepTransitionMoved.Next, stepTransitionMoved.Signals).ConfigureAwait(true);
                 await StopNudge().ConfigureAwait(true);
                 return;
             }
-            await Save(stepTransition.Value.Next, stepTransition.Value.Signals).ConfigureAwait(true);
-            var step = stepTransition.Value.Next.Current!;
+            await Save(stepTransitionMoved.Next, stepTransitionMoved.Signals).ConfigureAwait(true);
+            var step = stepTransitionMoved.Next.Current!;
             if (_cancelRequested is not null) { return; }
             StepResult<T> result;
             using var run = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -367,9 +368,9 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
             {
                 if (State.Status != FlowStatus.Running || _cancelRequested is not null) { return; }
                 var failTransition = State.Fail(step, error.Message, Context.Time.GetUtcNow());
-                if (failTransition is not null)
+                if (failTransition.Value is Transition<FlowState<T>> failTransitionMoved)
                 {
-                    await Save(failTransition.Value.Next, failTransition.Value.Signals).ConfigureAwait(true);
+                    await Save(failTransitionMoved.Next, failTransitionMoved.Signals).ConfigureAwait(true);
                 }
                 await StopNudge().ConfigureAwait(true);
                 return;
@@ -381,9 +382,9 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
             if (result.Disposition == StepDisposition.Skip)
             {
                 var skipTransition = State.Skip(step, result, result.Reason);
-                if (skipTransition is not null)
+                if (skipTransition.Value is Transition<FlowState<T>> skipTransitionMoved)
                 {
-                    await Save(skipTransition.Value.Next, skipTransition.Value.Signals).ConfigureAwait(true);
+                    await Save(skipTransitionMoved.Next, skipTransitionMoved.Signals).ConfigureAwait(true);
                 }
                 continue;
             }
@@ -396,9 +397,9 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
                     var expires = now + delay;
                     var repeatWait = new Waiting(step, WaitReason.Schedule, expires, null, IsRepeat: true);
                     var transition = State.Wait(step, result, repeatWait, null);
-                    if (transition is not null)
+                    if (transition.Value is Transition<FlowState<T>> transitionMoved)
                     {
-                        await Save(transition.Value.Next, [new FlowStep(FlowId, step, StepOutcome.Repeated, null), .. transition.Value.Signals]).ConfigureAwait(true);
+                        await Save(transitionMoved.Next, [new FlowStep(FlowId, step, StepOutcome.Repeated, null), .. transitionMoved.Signals]).ConfigureAwait(true);
                         await Context.Reminders.Start(ExpiryReminder, delay, ExpiryPeriod).ConfigureAwait(true);
                     }
                     await StopNudge().ConfigureAwait(true);
@@ -407,9 +408,9 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
                 else
                 {
                     var repeatTransition = State.Repeat(step, result);
-                    if (repeatTransition is not null)
+                    if (repeatTransition.Value is Transition<FlowState<T>> repeatTransitionMoved)
                     {
-                        await Save(repeatTransition.Value.Next, repeatTransition.Value.Signals).ConfigureAwait(true);
+                        await Save(repeatTransitionMoved.Next, repeatTransitionMoved.Signals).ConfigureAwait(true);
                     }
                     continue;
                 }
@@ -420,9 +421,9 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
                 if (wait.Reason == WaitReason.Children && (wait.Children is null || wait.Children.Count == 0))
                 {
                     var complete = State.Complete(step, result);
-                    if (complete is not null)
+                    if (complete.Value is Transition<FlowState<T>> completeMoved)
                     {
-                        await Save(complete.Value.Next, complete.Value.Signals).ConfigureAwait(true);
+                        await Save(completeMoved.Next, completeMoved.Signals).ConfigureAwait(true);
                     }
                     continue;
                 }
@@ -430,9 +431,9 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
                 return;
             }
             var completeTransition = State.Complete(step, result);
-            if (completeTransition is not null)
+            if (completeTransition.Value is Transition<FlowState<T>> completeTransitionMoved)
             {
-                await Save(completeTransition.Value.Next, completeTransition.Value.Signals).ConfigureAwait(true);
+                await Save(completeTransitionMoved.Next, completeTransitionMoved.Signals).ConfigureAwait(true);
             }
         }
     }
@@ -444,10 +445,10 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
         try
         {
             var transition = State.Interrupted(step, detail, Context.Time.GetUtcNow(), MaxInterruptions);
-            if (transition is not null)
+            if (transition is { } transitionMoved)
             {
-                await Save(transition.Value.Next, transition.Value.Signals).ConfigureAwait(true);
-                if (transition.Value.Next.Status == FlowStatus.Failed)
+                await Save(transitionMoved.Next, transitionMoved.Signals).ConfigureAwait(true);
+                if (transitionMoved.Next.Status == FlowStatus.Failed)
                 {
                     await StopNudge().ConfigureAwait(true);
                 }
@@ -468,8 +469,8 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
         // An external wait keeps a caller-supplied plan id (a plan another neuron raised for this wait); an approval wait gets the base's.
         var planId = plan?.Id ?? (wait.Reason == WaitReason.External ? wait.ConfirmationPlanId : null);
         var transition = State.Wait(step, result, wait, planId);
-        if (transition is null) { return; }
-        await Save(transition.Value.Next, transition.Value.Signals).ConfigureAwait(true);
+        if (transition.Value is not Transition<FlowState<T>> transitionMoved) { return; }
+        await Save(transitionMoved.Next, transitionMoved.Signals).ConfigureAwait(true);
 
         // An approval wait keeps the nudge: a plan lost before the confirmations side registered it is raised again.
         if (plan is not null)
@@ -487,9 +488,9 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
             catch (Exception error) when (error is not OutOfMemoryException)
             {
                 var failTransition = State.Fail(step, "confirmation: " + error.Message, now, doneDetail: "confirmation");
-                if (failTransition is not null)
+                if (failTransition.Value is Transition<FlowState<T>> failTransitionMoved)
                 {
-                    await Save(failTransition.Value.Next, failTransition.Value.Signals).ConfigureAwait(true);
+                    await Save(failTransitionMoved.Next, failTransitionMoved.Signals).ConfigureAwait(true);
                 }
                 await StopNudge().ConfigureAwait(true);
             }
@@ -529,21 +530,26 @@ public abstract class Flow<T> : Neuron<FlowState<T>>, IFlowCallbacks where T : c
         catch (Exception error) when (error is not OutOfMemoryException)
         {
             var failTransition = State.Fail(waiting.Step, "confirmation: " + error.Message, Context.Time.GetUtcNow(), doneDetail: "confirmation");
-            if (failTransition is not null)
+            if (failTransition.Value is Transition<FlowState<T>> failTransitionMoved)
             {
-                await Save(failTransition.Value.Next, failTransition.Value.Signals).ConfigureAwait(true);
+                await Save(failTransitionMoved.Next, failTransitionMoved.Signals).ConfigureAwait(true);
             }
             await StopNudge().ConfigureAwait(true);
         }
     }
 
-    private async Task Resolve(string step, WaitOutcome outcome, string? by)
+    private async Task Resolve(string step, WaitOutcome outcome, string? by, bool publish = false)
     {
-        if (State is not { Status: FlowStatus.Waiting, Waiting: { } waiting } || waiting.Step != step || _cancelRequested is not null) { return; }
-        _askedPlanId = null;
+        if (_cancelRequested is not null) { return; }
+        var waiting = State.Waiting;
         var transition = State.Resolve(step, outcome, by, Context.Time.GetUtcNow());
-        if (transition is null) { return; }
-        await Save(transition.Value.Next, transition.Value.Signals).ConfigureAwait(true);
+        if (transition.Value is not Transition<FlowState<T>> transitionMoved)
+        {
+            if (publish && transition.Value is Refusal refusal) { await PublishEphemeral(refusal.ToRejected("flow.resume")).ConfigureAwait(true); }
+            return;
+        }
+        _askedPlanId = null;
+        await Save(transitionMoved.Next, transitionMoved.Signals).ConfigureAwait(true);
         if (outcome is WaitOutcome.Approved or WaitOutcome.Arrived)
         {
             await StartNudge().ConfigureAwait(true);

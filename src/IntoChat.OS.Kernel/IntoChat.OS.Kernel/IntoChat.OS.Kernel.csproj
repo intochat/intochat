@@ -21,6 +21,8 @@
     <ProjectReference Include="../../../framework/src/DigitalBrain.Runtime.Synapses/DigitalBrain.Runtime.Synapses.csproj" />
     <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Clustering.AzureStorage" />
+    <PackageReference Include="Microsoft.Agents.AI.DevUI" />
+    <PackageReference Include="Microsoft.Agents.AI.Hosting.OpenAI" />
     <PackageReference Include="Microsoft.Orleans.Dashboard" />
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Serialization.SystemTextJson" />

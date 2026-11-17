@@ -47,6 +47,8 @@ public sealed class ConfirmationEmpiricalStressFacts
     // 1. Stress-test 20 Pending Limit (Concurrent and Sequential)
     // -----------------------------------------------------------------------------------------
 
+    private static Transition<ConfirmationState> Moved(Outcome<ConfirmationState> outcome) => Assert.IsType<Transition<ConfirmationState>>(outcome.Value);
+
     [Fact]
     public async Task TwentyPendingLimit_Attempt25ConcurrentRequests_Exactly20AcceptedAnd5Rejected()
     {
@@ -119,9 +121,8 @@ public sealed class ConfirmationEmpiricalStressFacts
         for (var i = 0; i < 20; i++)
         {
             var plan = Plan($"cf-seq-{i}");
-            var transition = state.Request(plan, Requester1, "caller-1", ConfirmationPolicy.Always, T0);
-            Assert.NotNull(transition);
-            state = transition.Value.Next;
+            var transition = Moved(state.Request(plan, Requester1, "caller-1", ConfirmationPolicy.Always, T0));
+            state = transition.Next;
         }
 
         Assert.Equal(20, Pending(state).Length);
@@ -130,15 +131,13 @@ public sealed class ConfirmationEmpiricalStressFacts
         for (var i = 20; i < 25; i++)
         {
             var plan = Plan($"cf-seq-{i}");
-            var ex = Assert.Throws<InvalidOperationException>(() =>
-                state.Request(plan, Requester1, "caller-1", ConfirmationPolicy.Always, T0));
-            Assert.Equal("This raiser already has 20 confirmations waiting.", ex.Message);
+            var refusal = Assert.IsType<ConfirmationRefusals.TooManyWaiting>(state.Request(plan, Requester1, "caller-1", ConfirmationPolicy.Always, T0).Value);
+            Assert.Equal("This raiser already has 20 confirmations waiting.", refusal.Message);
         }
 
         // A distinct raiser succeeds cleanly
-        var secondRaiser = state.Request(Plan("cf-seq-other"), Requester2, "caller-2", ConfirmationPolicy.Always, T0);
-        Assert.NotNull(secondRaiser);
-        Assert.Equal(21, Pending(secondRaiser.Value.Next).Length);
+        var secondRaiser = Moved(state.Request(Plan("cf-seq-other"), Requester2, "caller-2", ConfirmationPolicy.Always, T0));
+        Assert.Equal(21, Pending(secondRaiser.Next).Length);
     }
 
     [Fact]
@@ -183,9 +182,8 @@ public sealed class ConfirmationEmpiricalStressFacts
         // Exact boundary: 128 chars is accepted
         var id128 = new string('x', 128);
         var plan128 = Plan(id128);
-        var t128 = state.Request(plan128, Requester1, "caller-1", ConfirmationPolicy.Always, T0);
-        Assert.NotNull(t128);
-        Assert.Single(Pending(t128.Value.Next));
+        var t128 = Moved(state.Request(plan128, Requester1, "caller-1", ConfirmationPolicy.Always, T0));
+        Assert.Single(Pending(t128.Next));
 
         // 129 chars is rejected
         var id129 = new string('x', 129);
@@ -233,10 +231,9 @@ public sealed class ConfirmationEmpiricalStressFacts
         var state = new ConfirmationState();
         var plan = Plan($"cf-exp-{requestedMinutes}", expiry: TimeSpan.FromMinutes(requestedMinutes));
 
-        var transition = state.Request(plan, Requester1, "caller-1", ConfirmationPolicy.Always, T0);
-        Assert.NotNull(transition);
+        var transition = Moved(state.Request(plan, Requester1, "caller-1", ConfirmationPolicy.Always, T0));
 
-        var entry = Assert.Single(Pending(transition.Value.Next));
+        var entry = Assert.Single(Pending(transition.Next));
         Assert.Equal(TimeSpan.FromMinutes(expectedMinutes), entry.Plan.Expiry);
         Assert.Equal(T0.AddMinutes(expectedMinutes), entry.ExpiresAt);
     }
@@ -252,22 +249,20 @@ public sealed class ConfirmationEmpiricalStressFacts
         var plan = Plan("cf-idemp-test");
 
         // 1. Initial request by caller-A
-        var t1 = state.Request(plan, Requester1, "neuron-caller-A", ConfirmationPolicy.Always, T0);
-        Assert.NotNull(t1);
-        state = t1.Value.Next;
+        var t1 = Moved(state.Request(plan, Requester1, "neuron-caller-A", ConfirmationPolicy.Always, T0));
+        state = t1.Next;
         Assert.Equal(1, state.Revision);
         Assert.Single(state.Entries);
 
-        // 2. Re-raise by same caller-A returns null (idempotent no-op)
+        // 2. Re-raise by same caller-A is refused as already asked (idempotent no-op)
         var t2 = state.Request(plan, Requester1, "neuron-caller-A", ConfirmationPolicy.Always, T0);
-        Assert.Null(t2);
+        Assert.IsType<ConfirmationRefusals.AlreadyAsked>(t2.Value);
         Assert.Equal(1, state.Revision);
         Assert.Single(state.Entries);
 
-        // 3. Request by DIFFERENT caller-B with the same plan ID throws InvalidOperationException
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-            state.Request(plan, Requester2, "neuron-caller-B", ConfirmationPolicy.Always, T0));
-        Assert.Equal("This confirmation plan was already requested.", ex.Message);
+        // 3. Request by DIFFERENT caller-B with the same plan ID is refused as already requested
+        var refusal = Assert.IsType<ConfirmationRefusals.AlreadyRequested>(state.Request(plan, Requester2, "neuron-caller-B", ConfirmationPolicy.Always, T0).Value);
+        Assert.Equal("This confirmation plan was already requested.", refusal.Message);
     }
 
     [Fact]

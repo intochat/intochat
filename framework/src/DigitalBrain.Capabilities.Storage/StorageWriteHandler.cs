@@ -23,9 +23,10 @@ public sealed class StorageWriteHandler(IStorageOwnerSource ownerSource, Storage
         }
 
         var owner = _ownerSource.For(scope.Brain, scope.Origin);
-        var resultHandler = _writeResult ?? (scope.Services.GetService(typeof(StorageWriteResult)) as StorageWriteResult) ?? DefaultResult;
+        var resultHandler = _writeResult ?? (scope.Services.GetService(typeof(StorageWriteResult)) as StorageWriteResult) ?? Awaited(scope);
         var runner = new StorageWriteRunner(owner, resultHandler);
         var question = await runner.Confirmation(plan, ct).ConfigureAwait(false);
+        if (plan.RequiresPerson) { question = question with { RequiresPerson = true }; }
 
         var policies = scope.Services.GetService(typeof(ConfirmationPolicies)) as ConfirmationPolicies;
         var policy = policies?.For(scope.Brain.Value) ?? ConfirmationPolicy.DestructiveOnly;
@@ -63,7 +64,7 @@ public sealed class StorageWriteHandler(IStorageOwnerSource ownerSource, Storage
         }
 
         using var authorizer = (scope.Services.GetService(typeof(IStorageWriteAuthorizer)) as IStorageWriteAuthorizer)?.BeginApproved(scope.Brain, scope.Origin);
-        var resultHandler = _writeResult ?? (scope.Services.GetService(typeof(StorageWriteResult)) as StorageWriteResult) ?? DefaultResult;
+        var resultHandler = _writeResult ?? (scope.Services.GetService(typeof(StorageWriteResult)) as StorageWriteResult) ?? Awaited(scope);
         var runner = new StorageWriteRunner(owner, resultHandler);
         var adapter = new NeuronOperationAdapter(operation, ct);
         return await runner.Run(plan, adapter).ConfigureAwait(false);
@@ -82,6 +83,12 @@ public sealed class StorageWriteHandler(IStorageOwnerSource ownerSource, Storage
             return null;
         }
     }
+
+    // A storage write starts its own operation; its outcome is that operation's result. Without a query to wait on, the old
+    // refusal stays (before this, every operation-driven write reported "unsupported" even when the file was written).
+    private static StorageWriteResult Awaited(OperationScope scope) => scope.Operations is { } query
+        ? async (storage, id, ct) => (await OperationWait.For(query, id, ct).ConfigureAwait(false)).Result!
+        : DefaultResult;
 
     private static Task<OperationResult> DefaultResult(IStorage storage, OperationId id, CancellationToken ct) =>
         throw new Unsupported(null, new NotSupportedException($"Storage connection {storage.GetType().Name} has no write result handler."));

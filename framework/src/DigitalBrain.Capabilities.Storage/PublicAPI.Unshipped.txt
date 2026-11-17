@@ -403,3 +403,5 @@ static DigitalBrain.Capabilities.Storage.WritePlan.WriteFile(DigitalBrain.Capabi
 static readonly DigitalBrain.Capabilities.Storage.Confinement.HardDenyList.Segments -> string![]!
 virtual DigitalBrain.Capabilities.Storage.StorageOwner.Invoke(DigitalBrain.Capabilities.Storage.ItemId item, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.CapabilityConnection<DigitalBrain.Capabilities.Storage.IStorage!>!>!
 virtual DigitalBrain.Capabilities.Storage.StorageWriteResult.Invoke(DigitalBrain.Capabilities.Storage.IStorage! storage, DigitalBrain.Operations.OperationId operation, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Operations.OperationResult!>!
+DigitalBrain.Capabilities.Storage.WritePlan.RequiresPerson.get -> bool
+DigitalBrain.Capabilities.Storage.WritePlan.RequiresPerson.init -> void

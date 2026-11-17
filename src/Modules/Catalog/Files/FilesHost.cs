@@ -92,7 +92,8 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
         try
         {
             var disk = SiloNeurons.Get<ILocalDisk>(services, new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), "local-disk", "main"));
-            var workspaceRoot = Directory.GetCurrentDirectory();
+            // The owner's Documents folder, not the process's working directory (2026-11-17 design, decision 3).
+            var workspaceRoot = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             if (!string.IsNullOrWhiteSpace(workspaceRoot) && Directory.Exists(workspaceRoot))
             {
                 try { await disk.AllowRoot(workspaceRoot); }

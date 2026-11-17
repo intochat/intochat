@@ -58,7 +58,7 @@ internal sealed class TestNeuronHost : IDisposable
         var work = _os.Track(Turn(interleave, async neuron =>
         {
             using var running = TestCallerAmbient.Instance.Enter(_os.Access.Admit(Id, bound));
-            return await _os.Binder.InvokeAsync(neuron, bound, call.Arguments, cancellationToken).ConfigureAwait(false);
+            return await bound.InvokeAsync(neuron, call.Arguments, cancellationToken).ConfigureAwait(false);
         }));
         return work.WaitAsync(_os.Options.CallTimeout, _os.Clock, cancellationToken);
     }
@@ -69,7 +69,7 @@ internal sealed class TestNeuronHost : IDisposable
         _ = _os.Track(Observe(Turn(interleave, async neuron =>
         {
             using var running = TestCallerAmbient.Instance.Enter(_os.Access.Admit(Id, bound));
-            return await _os.Binder.InvokeAsync(neuron, bound, call.Arguments, CancellationToken.None).ConfigureAwait(false);
+            return await bound.InvokeAsync(neuron, call.Arguments, CancellationToken.None).ConfigureAwait(false);
         })));
         return Task.CompletedTask;
     }
@@ -80,7 +80,7 @@ internal sealed class TestNeuronHost : IDisposable
         var (bound, _, _) = Bind(call);
         using var running = TestCallerAmbient.Instance.Enter(_os.Access.Admit(Id, bound));
         var neuron = await Activated().ConfigureAwait(false);
-        await foreach (var item in _os.Binder.StreamAsync(neuron, bound, call.Arguments, cancellationToken).ConfigureAwait(false))
+        await foreach (var item in bound.StreamAsync(neuron, call.Arguments, cancellationToken).ConfigureAwait(false))
         {
             yield return item;
         }
@@ -200,11 +200,11 @@ internal sealed class TestNeuronHost : IDisposable
         })));
     }
 
-    private (BoundCall Bound, bool Interleave, bool OneWay) Bind(RuntimeInvocation call)
+    private (CallDescriptor Bound, bool Interleave, bool OneWay) Bind(RuntimeInvocation call)
     {
         var caller = TestCallerAmbient.Instance.Current;
         var foreign = caller is not null && caller.Actor is not Actor.Kernel && caller.Brain != Id.Brain && !Id.Brain.IsSystem;
-        BoundCall bound;
+        CallDescriptor bound;
         try { bound = CallPolicy.Bind(_os.Binder, Class, call); }
         catch (BindingException) when (foreign)
         {

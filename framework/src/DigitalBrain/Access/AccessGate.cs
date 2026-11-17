@@ -1,3 +1,4 @@
+using DigitalBrain.Kernel;
 using DigitalBrain.Invocation;
 
 namespace DigitalBrain.Access;
@@ -12,7 +13,7 @@ internal sealed class AccessGate(ICallerAmbient callers, AccessOptions options, 
     /// </summary>
     /// <returns>The caller under which the operation runs.</returns>
     /// <exception cref="UnauthorizedAccessException">Access is denied or required caller is absent.</exception>
-    public Caller Admit(NeuronId target, BoundCall call)
+    public Caller Admit(NeuronId target, CallDescriptor call)
     {
         ArgumentNullException.ThrowIfNull(call);
         var exemptToday = options.AuditContractInternal

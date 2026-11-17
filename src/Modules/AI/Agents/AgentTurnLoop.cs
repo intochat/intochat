@@ -28,10 +28,13 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
 {
     public async IAsyncEnumerable<AgentTurnEvent> Run(TurnPlan plan, [EnumeratorCancellation] CancellationToken ct)
     {
+        using var turn = AgentTelemetry.Turn(AgentName(plan.Conversation), plan.Conversation, plan.RunId);
         await using var steps = Steps(plan, ct).GetAsyncEnumerator(ct);
         AgentTurnEvent.TurnFailed? failure = null;
         while (true)
         {
+            // An async iterator does not carry Activity.Current between steps; each step runs under the turn so its spans nest.
+            if (turn is not null) { System.Diagnostics.Activity.Current = turn; }
             try { if (!await steps.MoveNextAsync()) { break; } }
             catch (Exception error)
             {
@@ -46,8 +49,17 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
             }
             yield return steps.Current;
         }
-        if (failure is not null) { yield return failure; }
+        if (failure is not null) { turn?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, failure.Message); yield return failure; }
     }
+
+    // "{brain}/{app}/conversations/{id}" names the agent after its app; a key with no app segment names itself.
+    internal static string AgentName(string conversation)
+    {
+        var parts = conversation.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 1 ? parts[1] : conversation;
+    }
+
+    private bool SensitiveTelemetry => services.GetService<global::Microsoft.Extensions.Options.IOptions<AIOptions>>()?.Value.Telemetry.EnableSensitiveData ?? false;
 
     private async IAsyncEnumerable<AgentTurnEvent> Steps(TurnPlan plan, [EnumeratorCancellation] CancellationToken ct)
     {
@@ -163,14 +175,22 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
                 object? result = null;
                 var serialized = "";
                 ExceptionDispatchInfo? fault = null;
+                var sensitive = SensitiveTelemetry;
+                var toolSpan = AgentTelemetry.Tool(call, sensitive);
                 try
                 {
                     result = await tool.InvokeAsync(new AIFunctionArguments(call.Arguments ?? new Dictionary<string, object?>()), ct);
                     ct.ThrowIfCancellationRequested();
                     serialized = JsonSerializer.Serialize(result);
+                    AgentTelemetry.Result(toolSpan, serialized, sensitive);
                 }
-                catch (Exception error) { OsConsoleLog.For<AgentTurnLoop>().LogSwallowed(error, "agent tool invocation faulted before rethrow"); fault = ExceptionDispatchInfo.Capture(error); }
-                finally { currentCall = null; }
+                catch (Exception error)
+                {
+                    OsConsoleLog.For<AgentTurnLoop>().LogSwallowed(error, "agent tool invocation faulted before rethrow");
+                    AgentTelemetry.Failed(toolSpan, error);
+                    fault = ExceptionDispatchInfo.Capture(error);
+                }
+                finally { currentCall = null; toolSpan?.Dispose(); }
                 // An iterator cannot yield from a catch: the failure is reported here, then ends the turn as it failed.
                 if (fault is not null)
                 {
