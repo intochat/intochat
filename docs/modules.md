@@ -22,7 +22,7 @@ Each module lives in a folder under `src/Modules` and has its own `README.md`. T
 | `Postgres` | `postgres` | Read-only PostgreSQL queries, schema discovery and table neurons. Needs a container. |
 | `Roslyn` | `roslyn` | A Roslyn workspace over a solution: symbols, references, diagnostics and checked edits. |
 | `Salesforce` | `salesforce` | One org connection: bounded queries and confirmed record writes. |
-| `Shell` | `flutter` | The kernel side of the Flutter shell: views, screens, chat, workspace and settings neurons. |
+| `Shell` | `flutter` | The kernel side of the Flutter shell: views, screens, chat, workspace and settings neurons. Its contracts assembly (`IntoChat.OS.Modules.Shell.Contracts`) lives in `src/Modules/Shell/Contracts`. |
 | `Storage` | `local-disk` | Local disks as storage: allowed roots, volume quota and confined file access. |
 | `Time` | `time` | Timers and persistent periodic reminders. |
 | `Windows` | `windows` | A Windows PC as a connection: its files and console, inside allowed roots. Loaded only on Windows. |
