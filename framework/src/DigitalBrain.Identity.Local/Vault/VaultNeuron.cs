@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using DigitalBrain.Neurons;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Secrets;
@@ -17,16 +18,16 @@ public interface IVault
     public static string Key(string principal) => "system/" + principal;
 
     /// <summary>Stores <paramref name="value"/> under <paramref name="name"/>.</summary>
-    Task<SecretRef> Set(CapabilityCaller caller, string name, string label, string value);
+    Task<SecretRef> Set(string name, string label, string value);
 
     /// <summary>Removes <paramref name="name"/> if present.</summary>
-    Task Remove(CapabilityCaller caller, string name);
+    Task Remove(string name);
 
     /// <summary>Resolves the plaintext value behind <paramref name="secret"/>.</summary>
-    Task<string> Resolve(CapabilityCaller caller, SecretRef secret);
+    Task<string> Resolve(SecretRef secret);
 
     /// <summary>Lists all plaintext secret values in the vault for masking.</summary>
-    Task<string[]> Values(CapabilityCaller caller);
+    Task<string[]> Values();
 }
 
 /// <summary>Emitted when a vault secret is stored or removed.</summary>
@@ -81,12 +82,11 @@ public sealed class VaultNeuron(IMasterKeyCustody custody) : Neuron<VaultState>,
     private readonly MasterKeyWrapper _keys = new(custody);
 
     /// <inheritdoc />
-    public async Task<SecretRef> Set(CapabilityCaller caller, string name, string label, string value)
+    public async Task<SecretRef> Set(string name, string label, string value)
     {
-        ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        if (caller.Kind == CallerKind.User && caller.PrincipalId != Principal())
+        if (Context.Caller is not { } caller || (caller.Actor is Actor.Person person && person.Principal != Principal()))
         {
             throw new InvalidOperationException("Only the owner can store a secret.");
         }
@@ -113,13 +113,10 @@ public sealed class VaultNeuron(IMasterKeyCustody custody) : Neuron<VaultState>,
     }
 
     /// <inheritdoc />
-    public async Task Remove(CapabilityCaller caller, string name)
+    public async Task Remove(string name)
     {
-        ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        var isOwner = caller.Kind == CallerKind.User && caller.PrincipalId == Principal();
-        var isPlatform = caller.Kind == CallerKind.Platform && caller.StampedBy == TrustedEdge.Platform;
-        if (!isOwner && !isPlatform)
+        if (!IsOwner(Context.Caller) && !IsKernel(Context.Caller))
         {
             throw new InvalidOperationException("Only the owner or platform can remove a secret.");
         }
@@ -135,12 +132,10 @@ public sealed class VaultNeuron(IMasterKeyCustody custody) : Neuron<VaultState>,
     }
 
     /// <inheritdoc />
-    public Task<string> Resolve(CapabilityCaller caller, SecretRef secret)
+    public Task<string> Resolve(SecretRef secret)
     {
-        if (caller is null
-            || caller.Kind == CallerKind.User
-            || caller.StampedBy is not (TrustedEdge.AppProxy or TrustedEdge.Platform)
-            || string.IsNullOrEmpty(caller.AppId))
+        // An outbound call: an app acting for a person (the app proxy stamps it), or platform code in the kernel scope.
+        if (Context.Caller?.Actor is not (Actor.App or Actor.Kernel))
         {
             throw new UnauthorizedAccessException("Only a trusted outbound call can resolve a secret.");
         }
@@ -163,10 +158,9 @@ public sealed class VaultNeuron(IMasterKeyCustody custody) : Neuron<VaultState>,
     }
 
     /// <inheritdoc />
-    public Task<string[]> Values(CapabilityCaller caller)
+    public Task<string[]> Values()
     {
-        if (caller is null
-            || !(caller.PrincipalId == Principal() || (caller.Kind == CallerKind.Platform && caller.StampedBy == TrustedEdge.Platform)))
+        if (!IsOwner(Context.Caller) && !IsKernel(Context.Caller))
         {
             throw new UnauthorizedAccessException("Only the vault's owner can list its values.");
         }
@@ -196,6 +190,11 @@ public sealed class VaultNeuron(IMasterKeyCustody custody) : Neuron<VaultState>,
     }
 
     private string Principal() => Context.Id.Key;
+
+    // The owner calling for themselves, as the stamped caller says; an agent, an app or a relay acting for them is not the owner.
+    private bool IsOwner(Caller? caller) => caller is { Actor: Actor.Person person, Direct: true } && person.Principal == Principal();
+
+    private static bool IsKernel(Caller? caller) => caller?.Actor is Actor.Kernel;
 
     private static VaultState Copy(VaultState state) => new()
     {
