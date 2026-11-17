@@ -371,10 +371,10 @@ public sealed class PresenceProofAndEdgeAuthFacts
         public Task RemovePrincipalMember(string brainScopeId, string principalId) => Task.CompletedTask;
         public Task<CallDecision?> Authorize(Caller? caller, CallRequest request) => Task.FromResult<CallDecision?>(CallDecision.Allow());
         public Task<Grant[]> ListGrants(string brainScopeId) => Task.FromResult<Grant[]>([]);
-        public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => Task.FromResult(grant);
+        public Task<Grant> GrantAsOwner(Grant grant) => Task.FromResult(grant);
         public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => Task.FromResult(grants);
-        public Task RevokeAsOwner(CapabilityCaller caller, string grantId) => Task.CompletedTask;
-        public Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode) => Task.CompletedTask;
+        public Task RevokeAsOwner(string grantId) => Task.CompletedTask;
+        public Task RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode) => Task.CompletedTask;
         public Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null) => throw new NotSupportedException();
     }
 }

@@ -18,6 +18,9 @@ namespace IntoChat.OS.Authority.Identity.Authority;
 // Directory state for every account, principal and brain. One plain neuron in the system brain (clean break:
 // the account, principal and brain-authority grains no longer hold it).
 [NeuronAlias("identity.directory"), DefaultNeuronType(IDirectoryStore.Type)]
+// Shareable for the owner methods only: a person reaches this system-brain authority from their own brain, and the directory checks
+// that the stamped, direct person owns the brain they act in. Every other method stays closed to other brains.
+[Shareable]
 internal interface IDirectoryStore
 {
     const string Type = "identity.directory";
@@ -41,10 +44,13 @@ internal interface IDirectoryStore
     Task RemovePrincipalMember(string brainScopeId, string principalId);
     Task<CallDecision?> Authorize(DirectoryAuthorizeRequest request);
     Task<Grant[]> ListGrants(string brainScopeId);
-    Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant);
+    [Shared]
+    Task<Grant> GrantAsOwner(Grant grant);
     Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants);
-    Task RevokeAsOwner(CapabilityCaller caller, string grantId);
-    Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode);
+    [Shared]
+    Task RevokeAsOwner(string grantId);
+    [Shared]
+    Task RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode);
     Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null);
 }
 
@@ -355,22 +361,22 @@ internal sealed class IdentityDirectoryGrain(TimeProvider clock, IOptions<AuthOp
         return BrainOf(State, brainScopeId)?.Grants.Where(grant => !grant.Revoked).ToArray() ?? [];
     }
 
-    public async Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant)
+    public async Task<Grant> GrantAsOwner(Grant grant)
     {
-        var next = RequireOwner(State, caller);
-        await Check("GrantAsOwner", new BrainAuthorityIsInitialized(BrainOf(next, caller.BrainId)));
+        var (next, brainId) = RequireOwner(State);
+        await Check("GrantAsOwner", new BrainAuthorityIsInitialized(BrainOf(next, brainId)));
         var normalized = Grant.Normalize(grant);
         ArgumentException.ThrowIfNullOrWhiteSpace(normalized.Grantee);
         ArgumentException.ThrowIfNullOrWhiteSpace(normalized.Scope);
-        if (normalized.Target.Length > 0 && !InBrain(normalized.Target, caller.BrainId))
+        if (normalized.Target.Length > 0 && !InBrain(normalized.Target, brainId))
         { throw new UnauthorizedAccessException("A brain owner grants access only to neurons in that brain."); }
         var stored = normalized with
         {
-            Owner = string.IsNullOrEmpty(normalized.Owner) ? $"brain:{caller.BrainId}" : normalized.Owner,
-            WorkspaceId = caller.BrainId,
+            Owner = string.IsNullOrEmpty(normalized.Owner) ? $"brain:{brainId}" : normalized.Owner,
+            WorkspaceId = brainId,
             GrantedAt = clock.GetUtcNow(),
         };
-        var brain = BrainOf(next, caller.BrainId)!;
+        var brain = BrainOf(next, brainId)!;
         var grants = brain.Grants.Where(item =>
         {
             var n = Grant.Normalize(item);
@@ -378,9 +384,9 @@ internal sealed class IdentityDirectoryGrain(TimeProvider clock, IOptions<AuthOp
                 && string.Equals(n.Target, stored.Target, StringComparison.Ordinal)
                 && string.Equals(n.Scope, stored.Scope, StringComparison.Ordinal));
         }).Append(stored).ToArray();
-        await Commit(ReplaceBrain(next, brain with { Grants = grants }), caller.BrainId);
+        await Commit(ReplaceBrain(next, brain with { Grants = grants }), brainId);
 
-        await WriteGrant(caller.BrainId, stored);
+        await WriteGrant(brainId, stored);
         return stored;
     }
 
@@ -421,29 +427,29 @@ internal sealed class IdentityDirectoryGrain(TimeProvider clock, IOptions<AuthOp
         return slash > 0 && EdgeGrantsCache.TryExtractBrain(target[(slash + 1)..], out extracted) && string.Equals(extracted.Value, brainId, StringComparison.Ordinal);
     }
 
-    public async Task RevokeAsOwner(CapabilityCaller caller, string grantId)
+    public async Task RevokeAsOwner(string grantId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(grantId);
-        var next = RequireOwner(State, caller);
-        var brain = BrainOf(next, caller.BrainId)!;
+        var (next, brainId) = RequireOwner(State);
+        var brain = BrainOf(next, brainId)!;
         var grants = brain.Grants.Where(item => item.Id != grantId).ToArray();
-        await Commit(ReplaceBrain(next, brain with { Grants = grants }), caller.BrainId);
+        await Commit(ReplaceBrain(next, brain with { Grants = grants }), brainId);
 
-        await RevokeGrant(caller.BrainId, grantId);
+        await RevokeGrant(brainId, grantId);
     }
 
     [Obsolete("Use RevokeAsOwner with grantId")]
-    public async Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode)
+    public async Task RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode)
     {
-        var next = RequireOwner(State, caller);
-        var brain = BrainOf(next, caller.BrainId)!;
+        var (next, brainId) = RequireOwner(State);
+        var brain = BrainOf(next, brainId)!;
         var grants = brain.Grants.Where(item => item.AppId != appId || item.SemanticTypeId != semanticTypeId || item.Mode != mode).ToArray();
-        await Commit(ReplaceBrain(next, brain with { Grants = grants }), caller.BrainId);
+        await Commit(ReplaceBrain(next, brain with { Grants = grants }), brainId);
 
-        var activeGrants = await ReadGrants(caller.BrainId);
+        var activeGrants = await ReadGrants(brainId);
         foreach (var item in activeGrants.Where(item => item.AppId == appId && item.SemanticTypeId == semanticTypeId && item.Mode == mode))
         {
-            await RevokeGrant(caller.BrainId, item.Id);
+            await RevokeGrant(brainId, item.Id);
         }
     }
 
@@ -506,13 +512,15 @@ internal sealed class IdentityDirectoryGrain(TimeProvider clock, IOptions<AuthOp
         return LeaveBrain(ReplaceBrain(state, brain with { Members = members }), principalId, brainId);
     }
 
-    private IdentityDirectoryState RequireOwner(IdentityDirectoryState state, CapabilityCaller caller)
+    // The stamped caller must be a person calling for themselves who owns the brain they act in; an agent, an app or a relay
+    // acting for the owner is not the owner. The brain is the caller's, never an argument.
+    private (IdentityDirectoryState State, string BrainId) RequireOwner(IdentityDirectoryState state)
     {
-        if (!RuntimeCallerContext.IsTrusted(caller) || caller.Kind != CallerKind.User || caller.BrainId.Length == 0)
+        if (Context.Caller is not { Actor: Actor.Person person } caller || !CallerRules.IsDirectPerson(caller, person.Principal)
+            || caller.Brain.Value.Length == 0
+            || MemberOf(BrainOf(state, caller.Brain.Value), person.Principal)?.Role != MemberRole.Owner)
         { throw new UnauthorizedAccessException("Only the current brain owner can manage grants."); }
-        if (MemberOf(BrainOf(state, caller.BrainId), caller.PrincipalId)?.Role != MemberRole.Owner)
-        { throw new UnauthorizedAccessException("Only the current brain owner can manage grants."); }
-        return state;
+        return (state, caller.Brain.Value);
     }
 
     private static IdentityDirectoryState Initialize(IdentityDirectoryState state, string accountId, string brainId)

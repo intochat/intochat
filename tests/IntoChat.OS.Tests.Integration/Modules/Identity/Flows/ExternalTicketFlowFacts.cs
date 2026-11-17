@@ -52,12 +52,12 @@ public sealed class ExternalTicketFlowFacts(IdentityFixture fixture) : IClassFix
         public Task RemovePrincipalMember(string brainScopeId, string principalId) => directory.RemovePrincipalMember(brainScopeId, principalId);
         public Task<CallDecision?> Authorize(Caller? caller, CallRequest request) => directory.Authorize(DirectoryAuthorizeRequest.From(caller, request));
         public Task<Grant[]> ListGrants(string brainScopeId) => directory.ListGrants(brainScopeId);
-        public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => directory.GrantAsOwner(caller, grant);
+        public Task<Grant> GrantAsOwner(Grant grant) => directory.GrantAsOwner(grant);
         public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => directory.GrantShipped(brainScopeId, grants);
-        public Task RevokeAsOwner(CapabilityCaller caller, string grantId) => directory.RevokeAsOwner(caller, grantId);
+        public Task RevokeAsOwner(string grantId) => directory.RevokeAsOwner(grantId);
         [Obsolete("Use RevokeAsOwner with grantId")]
-        public Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode)
-            => directory.RevokeAsOwner(caller, appId, semanticTypeId, mode);
+        public Task RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode)
+            => directory.RevokeAsOwner(appId, semanticTypeId, mode);
         public Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null)
             => directory.RedeemExternalTicket(issuer, email, displayName);
     }

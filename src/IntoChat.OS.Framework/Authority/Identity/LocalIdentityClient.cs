@@ -43,12 +43,13 @@ internal sealed class LocalIdentityClient(AuthorityNeurons neurons, EdgeAuthorit
     public Task RemovePrincipalMember(string brainScopeId, string principalId) => SystemCall(() => Directory.RemovePrincipalMember(brainScopeId, principalId));
     public Task<CallDecision?> Authorize(Caller? caller, CallRequest request) => SystemCall(() => Directory.Authorize(DirectoryAuthorizeRequest.From(caller, request)));
     public Task<Grant[]> ListGrants(string brainScopeId) => SystemCall(() => Directory.ListGrants(brainScopeId));
-    public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => SystemCall(() => Directory.GrantAsOwner(caller, grant));
+    // The owner methods keep the stamped owner: no module stamp replaces it.
+    public Task<Grant> GrantAsOwner(Grant grant) => Directory.GrantAsOwner(grant);
     public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => SystemCall(() => Directory.GrantShipped(brainScopeId, grants));
-    public Task RevokeAsOwner(CapabilityCaller caller, string grantId) => SystemCall(() => Directory.RevokeAsOwner(caller, grantId));
+    public Task RevokeAsOwner(string grantId) => Directory.RevokeAsOwner(grantId);
     [Obsolete("Use RevokeAsOwner with grantId")]
-    public Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode)
-        => SystemCall(() => Directory.RevokeAsOwner(caller, appId, semanticTypeId, mode));
+    public Task RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode)
+        => Directory.RevokeAsOwner(appId, semanticTypeId, mode);
     public Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null)
         => SystemCall(() => Directory.RedeemExternalTicket(issuer, email, displayName));
 }

@@ -85,12 +85,19 @@ public sealed class OwnerBootstrapFacts
         var caller = CapabilityCallers.Of("owner", "owner", "owner", CallerKind.User);
 
         // Before OwnerBootstrap runs (no Owner membership row in the directory), Open posture alone does not admit:
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            directory.GrantAsOwner(caller, Grant.Tuple("brain:owner", "app:owner/apps/demo", "owner/apps/demo", "os.notes")));
+        using (os.Edge.Enter(os.Edge.Person("owner", "owner", new BrainId("owner"))))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+                directory.GrantAsOwner(Grant.Tuple("brain:owner", "app:owner/apps/demo", "owner/apps/demo", "os.notes")));
+        }
 
         // After OwnerBootstrap writes the Owner membership row, RequireOwner admits:
         await bootstrap.Execute(TestContext.Current.CancellationToken);
-        var grant = await directory.GrantAsOwner(caller, Grant.Tuple("brain:owner", "app:owner/apps/demo", "owner/apps/demo", "os.notes"));
+        Grant grant;
+        using (os.Edge.Enter(os.Edge.Person("owner", "owner", new BrainId("owner"))))
+        {
+            grant = await directory.GrantAsOwner(Grant.Tuple("brain:owner", "app:owner/apps/demo", "owner/apps/demo", "os.notes"));
+        }
         Assert.Equal("os.notes", grant.Scope);
 
         // Wire roundtrip check: Authorize over NeuronProxy serializes DirectoryAuthorizeRequest cleanly:
@@ -117,12 +124,12 @@ public sealed class OwnerBootstrapFacts
         Assert.False(appDenied!.Allowed);
     }
 
-    private sealed class NoOpBrainBirths : IBrainBirths
+    internal sealed class NoOpBrainBirths : IBrainBirths
     {
         public Task<Member> Born(BrainProvision provision) => Task.FromResult(provision.Member);
     }
 
-    private sealed class TestIdentityClient(IDirectoryStore directory) : IIdentityClient
+    internal sealed class TestIdentityClient(IDirectoryStore directory) : IIdentityClient
     {
         public Task<Account?> ReadAccount(string accountId) => directory.ReadAccount(accountId);
         public Task<Account?> OwnerOfBrain(string brainId) => directory.OwnerOfBrain(brainId);
@@ -143,12 +150,12 @@ public sealed class OwnerBootstrapFacts
         public Task RemovePrincipalMember(string brainScopeId, string principalId) => directory.RemovePrincipalMember(brainScopeId, principalId);
         public Task<CallDecision?> Authorize(Caller? caller, CallRequest request) => directory.Authorize(DirectoryAuthorizeRequest.From(caller, request));
         public Task<Grant[]> ListGrants(string brainScopeId) => directory.ListGrants(brainScopeId);
-        public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => directory.GrantAsOwner(caller, grant);
+        public Task<Grant> GrantAsOwner(Grant grant) => directory.GrantAsOwner(grant);
         public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => directory.GrantShipped(brainScopeId, grants);
-        public Task RevokeAsOwner(CapabilityCaller caller, string grantId) => directory.RevokeAsOwner(caller, grantId);
+        public Task RevokeAsOwner(string grantId) => directory.RevokeAsOwner(grantId);
         [Obsolete("Use RevokeAsOwner with grantId")]
-        public Task RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode)
-            => directory.RevokeAsOwner(caller, appId, semanticTypeId, mode);
+        public Task RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode)
+            => directory.RevokeAsOwner(appId, semanticTypeId, mode);
         public Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null)
             => directory.RedeemExternalTicket(issuer, email, displayName);
     }

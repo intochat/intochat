@@ -112,7 +112,7 @@ public sealed class DirectoryPort(
                 ? IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(caller.BrainId), grant.AppId).Key
                 : grant.TargetNeuronKey;
             var tuple = Grant.Tuple($"brain:{owner}", $"app:{grant.AppId}", target, grant.SemanticTypeId);
-            return ToGrant(await identity.GrantAsOwner(User(caller), tuple).WaitAsync(cancellationToken).ConfigureAwait(false));
+            return ToGrant(await identity.GrantAsOwner(tuple).WaitAsync(cancellationToken).ConfigureAwait(false));
         }
         catch (UnauthorizedAccessException) { return null; }
     }
@@ -123,7 +123,7 @@ public sealed class DirectoryPort(
         try
         {
 #pragma warning disable CS0618
-            await identity.RevokeAsOwner(User(caller), appId, semanticTypeId, mode).WaitAsync(cancellationToken).ConfigureAwait(false);
+            await identity.RevokeAsOwner(appId, semanticTypeId, mode).WaitAsync(cancellationToken).ConfigureAwait(false);
 #pragma warning restore CS0618
             return true;
         }
@@ -139,8 +139,6 @@ public sealed class DirectoryPort(
         { return; }
         throw new UnauthorizedAccessException("Only the brain's owner changes its membership.");
     }
-
-    private static CapabilityCaller User(CapabilityCaller caller) => caller;
 
     private static Grant ToGrant(Grant grant)
     {
