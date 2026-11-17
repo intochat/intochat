@@ -92,15 +92,15 @@ public sealed class ConnectionStorage(
 
     private async Task<T> Typed<T>(Func<Task<T>> call)
     {
-        var current = edge?.Current;
-        // Finding (caller-model collapse, Task 6): an app caller, or no caller, is lifted to the kernel for the provider call.
-        // Carried over from the old Platform stamp, now explicit through PlatformCall; it should be narrowed, not kept.
-        if (edge is not null && connectionKey is { Length: > 0 } && current?.Actor is null or DigitalBrain.Access.Actor.App)
+        if (connectionKey is { Length: > 0 })
         {
-            var slash = connectionKey.IndexOf('/', StringComparison.Ordinal);
-            var owner = slash > 0 ? connectionKey[..slash] : connectionKey;
-            var brain = current?.Brain ?? new DigitalBrain.BrainId(owner);
-            return await edge.AsKernel(brain, () => Translated(call)).ConfigureAwait(false);
+            if (edge is null) { throw new InvalidOperationException($"Connection storage '{connectionKey}' was bound without an EdgeAuthority."); }
+            var current = edge.Current ?? throw new UnauthorizedAccessException($"Connection storage '{connectionKey}' refuses a call with no caller.");
+            // Carried (OWED.md): an app caller is lifted to the kernel of the connection's brain for the provider call.
+            if (current.Actor is DigitalBrain.Access.Actor.App)
+            {
+                return await edge.AsKernel(current.Brain, () => Translated(call)).ConfigureAwait(false);
+            }
         }
         return await Translated(call).ConfigureAwait(false);
     }
