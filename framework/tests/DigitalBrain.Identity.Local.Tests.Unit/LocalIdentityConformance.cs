@@ -49,8 +49,8 @@ public sealed class LocalIdentityConformance : IdentityConformance<BoundIdentity
         _os.Register<DirectoryNeuron>();
         _os.Register<SessionsNeuron>();
 
-        var directoryPort = _provider.GetRequiredService<IIdentityDirectoryPort>();
-        var sessionPort = _provider.GetRequiredService<IIdentitySessionPort>();
+        var directoryPort = new KernelHostPort(_provider.GetRequiredService<LocalDirectoryPort>(), _os.Edge);
+        var sessionPort = directoryPort;
         _identity = new BoundIdentity(directoryPort, _os.Callers);
         _grants = new BoundIdentity(directoryPort, _os.Callers);
         _sessions = new BoundSessions(sessionPort, _os.Callers, Declarations.RequirePrivileged);

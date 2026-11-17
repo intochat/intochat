@@ -13,6 +13,7 @@ public sealed class VaultCallerFacts : IAsyncLifetime
     private static readonly Actor.Person Alice = new("alice", "acc-1");
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "db-vault-callers-" + Guid.NewGuid().ToString("N"));
     private TestOS _os = null!;
+    private SimpleServiceProvider _provider = null!;
 
     private EdgeAuthority Edge => _os.Edge;
 
@@ -22,8 +23,10 @@ public sealed class VaultCallerFacts : IAsyncLifetime
     {
         var services = new ServiceCollection();
         TestOS? os = null;
+        services.AddSingleton(_ => os!.Edge);
         services.AddLocalIdentity((_, _) => throw new InvalidOperationException("Not used."), _directory);
-        _os = os = TestOS.Local(options => options.Services = services.BuildServiceProvider());
+        _provider = services.BuildServiceProvider();
+        _os = os = TestOS.Local(options => options.Services = _provider);
         _os.Register<VaultNeuron>();
         return ValueTask.CompletedTask;
     }
@@ -85,5 +88,19 @@ public sealed class VaultCallerFacts : IAsyncLifetime
         using var _ = Edge.Enter(Edge.App("assistant", new Actor.Person("bob", "acc-2"), Brain));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Vault.Resolve(secret));
         await Assert.ThrowsAsync<InvalidOperationException>(() => Vault.Set("pat", "PAT", "x"));
+    }
+
+    // A vault belongs to a person: the kernel, a module or the scheduler acting for no person is refused, not mistaken for a bug.
+    [Fact]
+    public async Task A_caller_acting_for_no_person_is_refused_by_the_vault_port()
+    {
+        var port = _provider.GetRequiredService<ISecretVaultPort>();
+        foreach (var caller in new[] { Edge.Kernel(Brain), Edge.Module("mod.x", Brain), Edge.Scheduler(Brain) })
+        {
+            using (Edge.Enter(caller))
+            {
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.Set("k", "K", "v", TestContext.Current.CancellationToken));
+            }
+        }
     }
 }

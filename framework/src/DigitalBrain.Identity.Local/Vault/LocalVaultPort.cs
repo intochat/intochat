@@ -190,7 +190,7 @@ public sealed class LocalVaultPort(
         => callers?.Current ?? edge?.Current ?? throw new UnauthorizedAccessException("secrets@1: the call carries no caller.");
 
     private IVault Vault(Caller caller)
-        => (IVault)_neuronResolver(typeof(IVault), IVault.Key(caller.For?.Principal ?? throw new InvalidOperationException("Only a person or an agent or app acting for one has a vault.")));
+        => (IVault)_neuronResolver(typeof(IVault), IVault.Key(caller.For?.Principal ?? throw new UnauthorizedAccessException("secrets@1: only a person, or an agent or app acting for one, has a vault.")));
 
     // The port made its own owner check; it reaches the vault as platform code in the kernel scope, which the vault reads from the
     // stamped caller. Without an EdgeAuthority there is no kernel scope, and the vault refuses.

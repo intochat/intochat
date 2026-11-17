@@ -14,7 +14,7 @@ public sealed class StandaloneDirectoryOwnerFacts
         var ct = TestContext.Current.CancellationToken;
         await using var os = TestOS.Local();
         os.Register<DirectoryNeuron>();
-        var port = new LocalDirectoryPort((contract, key) => LocalIdentityConformance.ResolveNeuron(os, contract, key), null, os.Callers, os.Edge);
+        var port = new KernelHostPort(new LocalDirectoryPort((contract, key) => LocalIdentityConformance.ResolveNeuron(os, contract, key), null, os.Callers, os.Edge), os.Edge);
         var identity = new BoundIdentity(port, os.Callers);
         var owner = (await identity.RegisterPrincipal("alice", "Alice", ct)).Member;
         var stranger = (await identity.RegisterPrincipal("mallory", "Mallory", ct)).Member;
@@ -37,6 +37,29 @@ public sealed class StandaloneDirectoryOwnerFacts
         using (os.Edge.Enter(os.Edge.Person(owner.PrincipalId, owner.AccountId, brain)))
         {
             Assert.NotNull(await identity.GrantAsOwner(grant, ct));
+        }
+    }
+
+    // The port never enters the kernel itself: its platform members run only when the host already stamped the kernel.
+    [Fact]
+    public async Task PlatformMembersRequireAKernelTheHostStamped()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var os = TestOS.Local();
+        os.Register<DirectoryNeuron>();
+        var port = new LocalDirectoryPort((contract, key) => LocalIdentityConformance.ResolveNeuron(os, contract, key), null, os.Callers, os.Edge);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.RegisterPrincipal("alice", "Alice", ct));
+        using (os.Edge.Enter(os.Edge.Person("alice", "acc", new BrainId("brain-alice"))))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.RegisterPrincipal("alice", "Alice", ct));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.ListGrants("brain-alice", ct));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => port.Validate("s", ct));
+        }
+
+        using (os.Edge.EnterKernel(BrainId.Kernel))
+        {
+            Assert.Equal("alice", (await port.RegisterPrincipal("alice", "Alice", ct)).Member.PrincipalId);
         }
     }
 }

@@ -139,7 +139,7 @@ public sealed class IdentityChallengerAdversarialFacts
             os.Register<DirectoryNeuron>();
             os.Register<SessionsNeuron>();
 
-            var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge);
+            var port = new KernelHostPort(new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge), os.Edge);
             var ct = CancellationToken.None;
 
             var ownerProvision = await port.RegisterPrincipal("alice", "Alice", ct);
@@ -226,7 +226,7 @@ public sealed class IdentityChallengerAdversarialFacts
         os.Register<DirectoryNeuron>();
         os.Register<SessionsNeuron>();
 
-        var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge);
+        var port = new KernelHostPort(new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge), os.Edge);
         var ct = CancellationToken.None;
 
         const string sharedOpId = "contested-operation-xyz";
@@ -294,7 +294,7 @@ public sealed class IdentityChallengerAdversarialFacts
         os.Register<DirectoryNeuron>();
         os.Register<SessionsNeuron>();
 
-        var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge);
+        var port = new KernelHostPort(new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge), os.Edge);
         var ct = CancellationToken.None;
 
         var ownerProv = await port.RegisterPrincipal("alice", "Alice", ct);
@@ -328,7 +328,7 @@ public sealed class IdentityChallengerAdversarialFacts
         os.Register<DirectoryNeuron>();
         os.Register<SessionsNeuron>();
 
-        var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge);
+        var port = new KernelHostPort(new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge), os.Edge);
         var ct = CancellationToken.None;
 
         var ownerProv = await port.RegisterPrincipal("alice", "Alice", ct);
@@ -405,7 +405,7 @@ public sealed class IdentityChallengerAdversarialFacts
         os.Register<DirectoryNeuron>();
         os.Register<SessionsNeuron>();
 
-        var port = new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge);
+        var port = new KernelHostPort(new LocalDirectoryPort((type, key) => LocalIdentityConformance.ResolveNeuron(os, type, key), null, os.Callers, os.Edge), os.Edge);
         var ct = CancellationToken.None;
 
         var ownerProv = await port.RegisterPrincipal("alice", "Alice", ct);

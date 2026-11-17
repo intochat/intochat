@@ -8,7 +8,7 @@ using DigitalBrain.Capabilities.Identity.Model;
 /// <summary>
 /// Implements <see cref="IIdentityDirectoryPort"/> and <see cref="IIdentitySessionPort"/> over <see cref="DirectoryNeuron"/> and
 /// <see cref="SessionsNeuron"/>. The members that decide by the caller reach the directory under the caller the runtime
-/// stamped; the platform's members reach it as the kernel, which needs <paramref name="edge"/> (without it they are refused).
+/// stamped; the platform's members run only under a kernel caller the host stamped (read from <paramref name="callers"/>, else <paramref name="edge"/>); otherwise they are refused.
 /// </summary>
 public sealed class LocalDirectoryPort(
     Func<Type, string, object> neuronResolver,
@@ -187,21 +187,26 @@ public sealed class LocalDirectoryPort(
     private Caller Stamped()
         => callers?.Current ?? throw new UnauthorizedAccessException("identity@1: the call carries no caller.");
 
-    // The platform's members reach the directory and the session store as the kernel.
-    private async Task<T> AsKernel<T>(Func<Task<T>> call)
+    // The platform's members and the session store run only when the host already stamped the kernel; the port never enters
+    // that authority itself (a host wraps it, as PlatformIdentityDirectoryPort does on Orleans).
+    private void RequireKernel()
     {
-        using (edge?.EnterKernel(BrainId.Kernel))
+        if ((callers?.Current ?? edge?.Current)?.Actor is not Actor.Kernel)
         {
-            return await call().ConfigureAwait(false);
+            throw new UnauthorizedAccessException("identity@1: only the platform (the kernel) may call this directory member.");
         }
     }
 
-    private async Task AsKernel(Func<Task> call)
+    private Task<T> AsKernel<T>(Func<Task<T>> call)
     {
-        using (edge?.EnterKernel(BrainId.Kernel))
-        {
-            await call().ConfigureAwait(false);
-        }
+        RequireKernel();
+        return call();
+    }
+
+    private Task AsKernel(Func<Task> call)
+    {
+        RequireKernel();
+        return call();
     }
 
     private IDirectory Directory()
