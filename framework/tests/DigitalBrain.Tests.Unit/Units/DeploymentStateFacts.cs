@@ -1,3 +1,4 @@
+using DigitalBrain.Rules;
 using DigitalBrain.Units;
 using Xunit;
 
@@ -12,6 +13,8 @@ public sealed class DeploymentStateFacts
         var image = new BuildImage(new BuildRef(sourceKey, hash), "TestAssembly", [1, 2, 3], [4, 5, 6]);
         return new StoredBuild(image, new Dictionary<string, string> { ["Test.cs"] = "// code" }, null, aliases, needs);
     }
+
+    private static DeploymentState Moved(Outcome<DeploymentState> outcome) => Assert.IsType<Transition<DeploymentState>>(outcome.Value).Next;
 
     [Fact]
     public void Propose_NewBuild_NoNeedsDiff_BecomesReadyToPromote()
@@ -89,7 +92,7 @@ public sealed class DeploymentStateFacts
         var build = MakeBuild(aliases: ["a1", "a2"]);
         var state = new DeploymentState().Propose(build, ["a1", "a2"]).Asked(new Dictionary<string, string> { ["a1"] = "p1", ["a2"] = "p2" });
 
-        var afterA1 = state.Approve("a1", "needs1");
+        var afterA1 = Moved(state.Approve("a1", "needs1"));
 
         Assert.False(afterA1.Staged!.Waiting.ContainsKey("a1"));
         Assert.True(afterA1.Staged!.Waiting.ContainsKey("a2"));
@@ -102,22 +105,22 @@ public sealed class DeploymentStateFacts
         var build = MakeBuild(aliases: ["a1"]);
         var state = new DeploymentState().Propose(build, ["a1"]).Asked(new Dictionary<string, string> { ["a1"] = "p1" });
 
-        var approved = state.Approve("a1", "needs1");
+        var approved = Moved(state.Approve("a1", "needs1"));
 
         Assert.Empty(approved.Staged!.Waiting);
         Assert.True(approved.ReadyToPromote);
     }
 
     [Fact]
-    public void Approve_WrongNeedsHash_Ignored()
+    public void Approve_WrongNeedsHash_IsRefusedAsNeedsChanged()
     {
         var build = MakeBuild(aliases: ["a1"]);
         var state = new DeploymentState().Propose(build, ["a1"]).Asked(new Dictionary<string, string> { ["a1"] = "p1" });
 
-        var unchanged = state.Approve("a1", "wrong-hash");
+        var refusal = Assert.IsType<DeploymentRefusals.NeedsChanged>(state.Approve("a1", "wrong-hash").Value);
 
-        Assert.Same(state, unchanged);
-        Assert.False(unchanged.ReadyToPromote);
+        Assert.Equal(("a1", "wrong-hash"), (refusal.Alias, refusal.Approved));
+        Assert.Equal("deploy.needs-changed", refusal.Code);
     }
 
     [Fact]
@@ -126,34 +129,28 @@ public sealed class DeploymentStateFacts
         var build = MakeBuild();
         var state = new DeploymentState().Propose(build, ["test.alias"]).Asked(new Dictionary<string, string> { ["test.alias"] = "plan-1" });
 
-        var denied = state.Deny("test.alias", "plan-1");
+        var denied = Moved(state.Deny("test.alias", "plan-1"));
 
         Assert.Null(denied.Staged);
         Assert.False(denied.ReadyToPromote);
     }
 
     [Fact]
-    public void Deny_WrongPlanId_Ignored()
+    public void Deny_WrongPlanId_IsRefusedAsPlanMismatch()
     {
         var build = MakeBuild();
         var state = new DeploymentState().Propose(build, ["test.alias"]).Asked(new Dictionary<string, string> { ["test.alias"] = "plan-1" });
 
-        var unchanged = state.Deny("test.alias", "wrong-plan");
-
-        Assert.Same(state, unchanged);
-        Assert.NotNull(unchanged.Staged);
+        Assert.Equal(new DeploymentRefusals.PlanMismatch("test.alias", "plan-1", "wrong-plan"), state.Deny("test.alias", "wrong-plan").Value);
     }
 
     [Fact]
-    public void Deny_UnrelatedAlias_Ignored()
+    public void Deny_UnrelatedAlias_IsNotWaiting()
     {
         var build = MakeBuild();
         var state = new DeploymentState().Propose(build, ["test.alias"]).Asked(new Dictionary<string, string> { ["test.alias"] = "plan-1" });
 
-        var unchanged = state.Deny("other.alias", "plan-1");
-
-        Assert.Same(state, unchanged);
-        Assert.NotNull(unchanged.Staged);
+        Assert.Equal(new DeploymentRefusals.NotWaiting("other.alias"), state.Deny("other.alias", "plan-1").Value);
     }
 
     [Fact]
@@ -174,7 +171,7 @@ public sealed class DeploymentStateFacts
         var state = new DeploymentState().Propose(build, []);
         var now = DateTimeOffset.UtcNow;
 
-        var promoted = state.Promote(now);
+        var promoted = Moved(state.Promote(now));
 
         Assert.Null(promoted.Staged);
         Assert.NotNull(promoted.Live);
@@ -183,17 +180,17 @@ public sealed class DeploymentStateFacts
     }
 
     [Fact]
-    public void Promote_WhenNoStage_Throws()
+    public void Promote_WhenNoStage_IsRefused()
     {
         var state = new DeploymentState();
-        Assert.Throws<InvalidOperationException>(() => state.Promote(DateTimeOffset.UtcNow));
+        Assert.IsType<DeploymentRefusals.NothingStaged>(state.Promote(DateTimeOffset.UtcNow).Value);
     }
 
     [Fact]
     public void Refuse_LiveBuild_SetsRebuildReason()
     {
         var build = MakeBuild(hash: "h1");
-        var state = new DeploymentState().Propose(build, []).Promote(DateTimeOffset.UtcNow);
+        var state = Moved(new DeploymentState().Propose(build, []).Promote(DateTimeOffset.UtcNow));
 
         var refused = state.Refuse("h1", "banned api");
 
@@ -217,7 +214,7 @@ public sealed class DeploymentStateFacts
     {
         var build1 = MakeBuild(hash: "h1");
         var build2 = MakeBuild(hash: "h2");
-        var state = new DeploymentState().Propose(build1, []).Promote(DateTimeOffset.UtcNow).Propose(build2, ["test.alias"]);
+        var state = Moved(new DeploymentState().Propose(build1, []).Promote(DateTimeOffset.UtcNow)).Propose(build2, ["test.alias"]);
 
         var retired = state.Retire();
 
@@ -231,7 +228,7 @@ public sealed class DeploymentStateFacts
         var liveBuild = MakeBuild(hash: "live");
         var proposedBuild = MakeBuild(hash: "prop");
 
-        var state = new DeploymentState().Propose(liveBuild, []).Promote(DateTimeOffset.UtcNow).Propose(proposedBuild, ["test.alias"]);
+        var state = Moved(new DeploymentState().Propose(liveBuild, []).Promote(DateTimeOffset.UtcNow)).Propose(proposedBuild, ["test.alias"]);
 
         Assert.Equal("live", state.Ref(UnitView.Live)!.Value.Hash);
         Assert.Equal("prop", state.Ref(UnitView.Proposed)!.Value.Hash);

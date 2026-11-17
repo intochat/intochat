@@ -1,3 +1,4 @@
+using DigitalBrain.Rules;
 using System.Text.Json;
 using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
@@ -23,6 +24,8 @@ public sealed class DeploymentAdversarialFacts
         return new StoredBuild(image, new Dictionary<string, string> { ["Test.cs"] = "// code" }, null, aliases, needs);
     }
 
+    private static DeploymentState Moved(Outcome<DeploymentState> outcome) => Assert.IsType<Transition<DeploymentState>>(outcome.Value).Next;
+
     [Fact]
     public void PureTransitions_NullArguments_ThrowsArgumentNullException()
     {
@@ -45,9 +48,9 @@ public sealed class DeploymentAdversarialFacts
         var state = new DeploymentState();
         var b1 = MakeBuild(hash: "h1", aliases: ["a1", "a2"]);
 
-        // Staged is null: Approve, Deny, Asked, Supersede return this
-        Assert.Same(state, state.Approve("a1", "needs1"));
-        Assert.Same(state, state.Deny("a1", "p1"));
+        // Staged is null: Approve and Deny refuse; Asked, Supersede and Retire return this
+        Assert.IsType<DeploymentRefusals.NothingStaged>(state.Approve("a1", "needs1").Value);
+        Assert.IsType<DeploymentRefusals.NothingStaged>(state.Deny("a1", "p1").Value);
         Assert.Same(state, state.Asked(new Dictionary<string, string>()));
         Assert.Same(state, state.Supersede());
         Assert.Same(state, state.Retire());
@@ -57,7 +60,7 @@ public sealed class DeploymentAdversarialFacts
         Assert.Equal(2, proposed.Staged!.Waiting.Count);
 
         // Deny with empty planId drops stage when waiting has empty planId (pre-asked stage)
-        var deniedEarly = proposed.Deny("a1", "");
+        var deniedEarly = Moved(proposed.Deny("a1", ""));
         Assert.Null(deniedEarly.Staged);
 
         // Refuse hash matching neither Live nor Staged returns this
@@ -66,7 +69,7 @@ public sealed class DeploymentAdversarialFacts
         Assert.Same(asked, refusedUnmatched);
 
         // Refuse hash matching BOTH Live and Staged
-        var promoted = asked.Approve("a1", "needs1").Approve("a2", "needs1").Promote(DateTimeOffset.UtcNow);
+        var promoted = Moved(Moved(Moved(asked.Approve("a1", "needs1")).Approve("a2", "needs1")).Promote(DateTimeOffset.UtcNow));
         var sameHashProposed = promoted.Propose(MakeBuild(hash: promoted.Live!.Ref.Hash), ["a1"]);
         var refusedBoth = sameHashProposed.Refuse(promoted.Live.Ref.Hash, "broken");
         Assert.NotNull(refusedBoth.Live);

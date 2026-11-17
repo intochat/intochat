@@ -2178,18 +2178,15 @@ DigitalBrain.Units.DeployedSource.Status.get -> DigitalBrain.Units.DeployStatus
 DigitalBrain.Units.DeployedSource.Status.init -> void
 DigitalBrain.Units.DeploymentState
 DigitalBrain.Units.DeploymentState.<Clone>$() -> DigitalBrain.Units.DeploymentState!
-DigitalBrain.Units.DeploymentState.Approve(string! alias, string! needsHash) -> DigitalBrain.Units.DeploymentState!
 DigitalBrain.Units.DeploymentState.Asked(System.Collections.Generic.IReadOnlyDictionary<string!, string!>! plans) -> DigitalBrain.Units.DeploymentState!
 DigitalBrain.Units.DeploymentState.At.get -> System.DateTimeOffset
 DigitalBrain.Units.DeploymentState.At.init -> void
 DigitalBrain.Units.DeploymentState.Deconstruct(out DigitalBrain.Units.StoredBuild? Live, out DigitalBrain.Units.StagedBuild? Staged, out System.DateTimeOffset At) -> void
-DigitalBrain.Units.DeploymentState.Deny(string! alias, string! planId) -> DigitalBrain.Units.DeploymentState!
 DigitalBrain.Units.DeploymentState.DeploymentState() -> void
 DigitalBrain.Units.DeploymentState.DeploymentState(DigitalBrain.Units.StoredBuild? Live, DigitalBrain.Units.StagedBuild? Staged, System.DateTimeOffset At) -> void
 DigitalBrain.Units.DeploymentState.Equals(DigitalBrain.Units.DeploymentState? other) -> bool
 DigitalBrain.Units.DeploymentState.Live.get -> DigitalBrain.Units.StoredBuild?
 DigitalBrain.Units.DeploymentState.Live.init -> void
-DigitalBrain.Units.DeploymentState.Promote(System.DateTimeOffset now) -> DigitalBrain.Units.DeploymentState!
 DigitalBrain.Units.DeploymentState.Propose(DigitalBrain.Units.StoredBuild! build, System.Collections.Generic.IEnumerable<string!>! needsDiff) -> DigitalBrain.Units.DeploymentState!
 DigitalBrain.Units.DeploymentState.ReadyToPromote.get -> bool
 DigitalBrain.Units.DeploymentState.Ref(DigitalBrain.Units.UnitView view) -> DigitalBrain.Units.BuildRef?
@@ -2200,8 +2197,6 @@ DigitalBrain.Units.DeploymentState.Staged.init -> void
 DigitalBrain.Units.DeploymentState.Supersede() -> DigitalBrain.Units.DeploymentState!
 DigitalBrain.Units.DeployOutcome
 DigitalBrain.Units.DeployOutcome.<Clone>$() -> DigitalBrain.Units.DeployOutcome!
-DigitalBrain.Units.DeployOutcome.Deconstruct(out DigitalBrain.Units.DeployStatus Status, out string? Hash, out System.Collections.Generic.IReadOnlyList<DigitalBrain.Units.SynapseDiagnostic!>! Diagnostics, out System.Collections.Generic.IReadOnlyDictionary<string!, DigitalBrain.Units.InstallOutcome!>! Installs, out string? Reason) -> void
-DigitalBrain.Units.DeployOutcome.DeployOutcome(DigitalBrain.Units.DeployStatus Status, string? Hash, System.Collections.Generic.IReadOnlyList<DigitalBrain.Units.SynapseDiagnostic!>! Diagnostics, System.Collections.Generic.IReadOnlyDictionary<string!, DigitalBrain.Units.InstallOutcome!>! Installs, string? Reason) -> void
 DigitalBrain.Units.DeployOutcome.Diagnostics.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Units.SynapseDiagnostic!>!
 DigitalBrain.Units.DeployOutcome.Diagnostics.init -> void
 DigitalBrain.Units.DeployOutcome.Equals(DigitalBrain.Units.DeployOutcome? other) -> bool
@@ -3921,3 +3916,132 @@ static DigitalBrain.Operations.OperationStages.NotStarted.operator !=(DigitalBra
 static DigitalBrain.Operations.OperationStages.NotStarted.operator ==(DigitalBrain.Operations.OperationStages.NotStarted? left, DigitalBrain.Operations.OperationStages.NotStarted? right) -> bool
 static DigitalBrain.Operations.OperationStages.Running.operator !=(DigitalBrain.Operations.OperationStages.Running? left, DigitalBrain.Operations.OperationStages.Running? right) -> bool
 static DigitalBrain.Operations.OperationStages.Running.operator ==(DigitalBrain.Operations.OperationStages.Running? left, DigitalBrain.Operations.OperationStages.Running? right) -> bool
+DigitalBrain.Units.DeployOutcome.Code.get -> string?
+DigitalBrain.Units.DeployOutcome.Code.init -> void
+DigitalBrain.Units.DeployOutcome.Deconstruct(out DigitalBrain.Units.DeployStatus Status, out string? Hash, out System.Collections.Generic.IReadOnlyList<DigitalBrain.Units.SynapseDiagnostic!>! Diagnostics, out System.Collections.Generic.IReadOnlyDictionary<string!, DigitalBrain.Units.InstallOutcome!>! Installs, out string? Reason, out string? Code) -> void
+DigitalBrain.Units.DeployOutcome.DeployOutcome(DigitalBrain.Units.DeployStatus Status, string? Hash, System.Collections.Generic.IReadOnlyList<DigitalBrain.Units.SynapseDiagnostic!>! Diagnostics, System.Collections.Generic.IReadOnlyDictionary<string!, DigitalBrain.Units.InstallOutcome!>! Installs, string? Reason, string? Code = null) -> void
+DigitalBrain.Units.DeploymentRefusals
+DigitalBrain.Units.DeploymentRefusals.AliasOwned
+DigitalBrain.Units.DeploymentRefusals.AliasOwned.Alias.get -> string!
+DigitalBrain.Units.DeploymentRefusals.AliasOwned.Alias.init -> void
+DigitalBrain.Units.DeploymentRefusals.AliasOwned.AliasOwned(string! Alias, string! Owner) -> void
+DigitalBrain.Units.DeploymentRefusals.AliasOwned.Deconstruct(out string! Alias, out string! Owner) -> void
+DigitalBrain.Units.DeploymentRefusals.AliasOwned.Equals(DigitalBrain.Units.DeploymentRefusals.AliasOwned? other) -> bool
+DigitalBrain.Units.DeploymentRefusals.AliasOwned.Owner.get -> string!
+DigitalBrain.Units.DeploymentRefusals.AliasOwned.Owner.init -> void
+DigitalBrain.Units.DeploymentRefusals.BindingsRefused
+DigitalBrain.Units.DeploymentRefusals.BindingsRefused.Alias.get -> string!
+DigitalBrain.Units.DeploymentRefusals.BindingsRefused.Alias.init -> void
+DigitalBrain.Units.DeploymentRefusals.BindingsRefused.BindingsRefused(string! Alias, string! Problem) -> void
+DigitalBrain.Units.DeploymentRefusals.BindingsRefused.Deconstruct(out string! Alias, out string! Problem) -> void
+DigitalBrain.Units.DeploymentRefusals.BindingsRefused.Equals(DigitalBrain.Units.DeploymentRefusals.BindingsRefused? other) -> bool
+DigitalBrain.Units.DeploymentRefusals.BindingsRefused.Problem.get -> string!
+DigitalBrain.Units.DeploymentRefusals.BindingsRefused.Problem.init -> void
+DigitalBrain.Units.DeploymentRefusals.InstallRefused
+DigitalBrain.Units.DeploymentRefusals.InstallRefused.Alias.get -> string!
+DigitalBrain.Units.DeploymentRefusals.InstallRefused.Alias.init -> void
+DigitalBrain.Units.DeploymentRefusals.InstallRefused.Deconstruct(out string! Alias, out string? Reason) -> void
+DigitalBrain.Units.DeploymentRefusals.InstallRefused.Equals(DigitalBrain.Units.DeploymentRefusals.InstallRefused? other) -> bool
+DigitalBrain.Units.DeploymentRefusals.InstallRefused.InstallRefused(string! Alias, string? Reason) -> void
+DigitalBrain.Units.DeploymentRefusals.InstallRefused.Reason.get -> string?
+DigitalBrain.Units.DeploymentRefusals.InstallRefused.Reason.init -> void
+DigitalBrain.Units.DeploymentRefusals.NeedsChanged
+DigitalBrain.Units.DeploymentRefusals.NeedsChanged.Alias.get -> string!
+DigitalBrain.Units.DeploymentRefusals.NeedsChanged.Alias.init -> void
+DigitalBrain.Units.DeploymentRefusals.NeedsChanged.Approved.get -> string!
+DigitalBrain.Units.DeploymentRefusals.NeedsChanged.Approved.init -> void
+DigitalBrain.Units.DeploymentRefusals.NeedsChanged.Deconstruct(out string! Alias, out string! Staged, out string! Approved) -> void
+DigitalBrain.Units.DeploymentRefusals.NeedsChanged.Equals(DigitalBrain.Units.DeploymentRefusals.NeedsChanged? other) -> bool
+DigitalBrain.Units.DeploymentRefusals.NeedsChanged.NeedsChanged(string! Alias, string! Staged, string! Approved) -> void
+DigitalBrain.Units.DeploymentRefusals.NeedsChanged.Staged.get -> string!
+DigitalBrain.Units.DeploymentRefusals.NeedsChanged.Staged.init -> void
+DigitalBrain.Units.DeploymentRefusals.NotWaiting
+DigitalBrain.Units.DeploymentRefusals.NotWaiting.Alias.get -> string!
+DigitalBrain.Units.DeploymentRefusals.NotWaiting.Alias.init -> void
+DigitalBrain.Units.DeploymentRefusals.NotWaiting.Deconstruct(out string! Alias) -> void
+DigitalBrain.Units.DeploymentRefusals.NotWaiting.Equals(DigitalBrain.Units.DeploymentRefusals.NotWaiting? other) -> bool
+DigitalBrain.Units.DeploymentRefusals.NotWaiting.NotWaiting(string! Alias) -> void
+DigitalBrain.Units.DeploymentRefusals.NothingStaged
+DigitalBrain.Units.DeploymentRefusals.NothingStaged.Equals(DigitalBrain.Units.DeploymentRefusals.NothingStaged? other) -> bool
+DigitalBrain.Units.DeploymentRefusals.NothingStaged.NothingStaged() -> void
+DigitalBrain.Units.DeploymentRefusals.PlanMismatch
+DigitalBrain.Units.DeploymentRefusals.PlanMismatch.Alias.get -> string!
+DigitalBrain.Units.DeploymentRefusals.PlanMismatch.Alias.init -> void
+DigitalBrain.Units.DeploymentRefusals.PlanMismatch.Answered.get -> string!
+DigitalBrain.Units.DeploymentRefusals.PlanMismatch.Answered.init -> void
+DigitalBrain.Units.DeploymentRefusals.PlanMismatch.Asked.get -> string!
+DigitalBrain.Units.DeploymentRefusals.PlanMismatch.Asked.init -> void
+DigitalBrain.Units.DeploymentRefusals.PlanMismatch.Deconstruct(out string! Alias, out string! Asked, out string! Answered) -> void
+DigitalBrain.Units.DeploymentRefusals.PlanMismatch.Equals(DigitalBrain.Units.DeploymentRefusals.PlanMismatch? other) -> bool
+DigitalBrain.Units.DeploymentRefusals.PlanMismatch.PlanMismatch(string! Alias, string! Asked, string! Answered) -> void
+DigitalBrain.Units.DeploymentRefusals.Superseded
+DigitalBrain.Units.DeploymentRefusals.Superseded.Equals(DigitalBrain.Units.DeploymentRefusals.Superseded? other) -> bool
+DigitalBrain.Units.DeploymentRefusals.Superseded.Superseded() -> void
+DigitalBrain.Units.DeploymentState.Approve(string! alias, string! needsHash) -> DigitalBrain.Rules.Outcome<DigitalBrain.Units.DeploymentState!>
+DigitalBrain.Units.DeploymentState.Deny(string! alias, string! planId) -> DigitalBrain.Rules.Outcome<DigitalBrain.Units.DeploymentState!>
+DigitalBrain.Units.DeploymentState.Promote(System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Units.DeploymentState!>
+override DigitalBrain.Units.DeploymentRefusals.AliasOwned.<Clone>$() -> DigitalBrain.Units.DeploymentRefusals.AliasOwned!
+override DigitalBrain.Units.DeploymentRefusals.AliasOwned.Equals(object? obj) -> bool
+override DigitalBrain.Units.DeploymentRefusals.AliasOwned.GetHashCode() -> int
+override DigitalBrain.Units.DeploymentRefusals.AliasOwned.Message.get -> string!
+override DigitalBrain.Units.DeploymentRefusals.AliasOwned.ToString() -> string!
+override DigitalBrain.Units.DeploymentRefusals.BindingsRefused.<Clone>$() -> DigitalBrain.Units.DeploymentRefusals.BindingsRefused!
+override DigitalBrain.Units.DeploymentRefusals.BindingsRefused.Equals(object? obj) -> bool
+override DigitalBrain.Units.DeploymentRefusals.BindingsRefused.GetHashCode() -> int
+override DigitalBrain.Units.DeploymentRefusals.BindingsRefused.Message.get -> string!
+override DigitalBrain.Units.DeploymentRefusals.BindingsRefused.ToString() -> string!
+override DigitalBrain.Units.DeploymentRefusals.InstallRefused.<Clone>$() -> DigitalBrain.Units.DeploymentRefusals.InstallRefused!
+override DigitalBrain.Units.DeploymentRefusals.InstallRefused.Equals(object? obj) -> bool
+override DigitalBrain.Units.DeploymentRefusals.InstallRefused.GetHashCode() -> int
+override DigitalBrain.Units.DeploymentRefusals.InstallRefused.Message.get -> string!
+override DigitalBrain.Units.DeploymentRefusals.InstallRefused.ToString() -> string!
+override DigitalBrain.Units.DeploymentRefusals.NeedsChanged.<Clone>$() -> DigitalBrain.Units.DeploymentRefusals.NeedsChanged!
+override DigitalBrain.Units.DeploymentRefusals.NeedsChanged.Equals(object? obj) -> bool
+override DigitalBrain.Units.DeploymentRefusals.NeedsChanged.GetHashCode() -> int
+override DigitalBrain.Units.DeploymentRefusals.NeedsChanged.Message.get -> string!
+override DigitalBrain.Units.DeploymentRefusals.NeedsChanged.ToString() -> string!
+override DigitalBrain.Units.DeploymentRefusals.NotWaiting.<Clone>$() -> DigitalBrain.Units.DeploymentRefusals.NotWaiting!
+override DigitalBrain.Units.DeploymentRefusals.NotWaiting.Equals(object? obj) -> bool
+override DigitalBrain.Units.DeploymentRefusals.NotWaiting.GetHashCode() -> int
+override DigitalBrain.Units.DeploymentRefusals.NotWaiting.Message.get -> string!
+override DigitalBrain.Units.DeploymentRefusals.NotWaiting.ToString() -> string!
+override DigitalBrain.Units.DeploymentRefusals.NothingStaged.<Clone>$() -> DigitalBrain.Units.DeploymentRefusals.NothingStaged!
+override DigitalBrain.Units.DeploymentRefusals.NothingStaged.Equals(object? obj) -> bool
+override DigitalBrain.Units.DeploymentRefusals.NothingStaged.GetHashCode() -> int
+override DigitalBrain.Units.DeploymentRefusals.NothingStaged.Message.get -> string!
+override DigitalBrain.Units.DeploymentRefusals.NothingStaged.ToString() -> string!
+override DigitalBrain.Units.DeploymentRefusals.PlanMismatch.<Clone>$() -> DigitalBrain.Units.DeploymentRefusals.PlanMismatch!
+override DigitalBrain.Units.DeploymentRefusals.PlanMismatch.Equals(object? obj) -> bool
+override DigitalBrain.Units.DeploymentRefusals.PlanMismatch.GetHashCode() -> int
+override DigitalBrain.Units.DeploymentRefusals.PlanMismatch.Message.get -> string!
+override DigitalBrain.Units.DeploymentRefusals.PlanMismatch.ToString() -> string!
+override DigitalBrain.Units.DeploymentRefusals.Superseded.<Clone>$() -> DigitalBrain.Units.DeploymentRefusals.Superseded!
+override DigitalBrain.Units.DeploymentRefusals.Superseded.Equals(object? obj) -> bool
+override DigitalBrain.Units.DeploymentRefusals.Superseded.GetHashCode() -> int
+override DigitalBrain.Units.DeploymentRefusals.Superseded.Message.get -> string!
+override DigitalBrain.Units.DeploymentRefusals.Superseded.ToString() -> string!
+override sealed DigitalBrain.Units.DeploymentRefusals.AliasOwned.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Units.DeploymentRefusals.BindingsRefused.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Units.DeploymentRefusals.InstallRefused.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Units.DeploymentRefusals.NeedsChanged.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Units.DeploymentRefusals.NotWaiting.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Units.DeploymentRefusals.NothingStaged.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Units.DeploymentRefusals.PlanMismatch.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Units.DeploymentRefusals.Superseded.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+static DigitalBrain.Units.DeployOutcome.Refused(string? hash, System.Collections.Generic.IReadOnlyDictionary<string!, DigitalBrain.Units.InstallOutcome!>! installs, DigitalBrain.Rules.Refusal! refusal) -> DigitalBrain.Units.DeployOutcome!
+static DigitalBrain.Units.DeploymentRefusals.AliasOwned.operator !=(DigitalBrain.Units.DeploymentRefusals.AliasOwned? left, DigitalBrain.Units.DeploymentRefusals.AliasOwned? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.AliasOwned.operator ==(DigitalBrain.Units.DeploymentRefusals.AliasOwned? left, DigitalBrain.Units.DeploymentRefusals.AliasOwned? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.BindingsRefused.operator !=(DigitalBrain.Units.DeploymentRefusals.BindingsRefused? left, DigitalBrain.Units.DeploymentRefusals.BindingsRefused? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.BindingsRefused.operator ==(DigitalBrain.Units.DeploymentRefusals.BindingsRefused? left, DigitalBrain.Units.DeploymentRefusals.BindingsRefused? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.InstallRefused.operator !=(DigitalBrain.Units.DeploymentRefusals.InstallRefused? left, DigitalBrain.Units.DeploymentRefusals.InstallRefused? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.InstallRefused.operator ==(DigitalBrain.Units.DeploymentRefusals.InstallRefused? left, DigitalBrain.Units.DeploymentRefusals.InstallRefused? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.NeedsChanged.operator !=(DigitalBrain.Units.DeploymentRefusals.NeedsChanged? left, DigitalBrain.Units.DeploymentRefusals.NeedsChanged? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.NeedsChanged.operator ==(DigitalBrain.Units.DeploymentRefusals.NeedsChanged? left, DigitalBrain.Units.DeploymentRefusals.NeedsChanged? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.NotWaiting.operator !=(DigitalBrain.Units.DeploymentRefusals.NotWaiting? left, DigitalBrain.Units.DeploymentRefusals.NotWaiting? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.NotWaiting.operator ==(DigitalBrain.Units.DeploymentRefusals.NotWaiting? left, DigitalBrain.Units.DeploymentRefusals.NotWaiting? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.NothingStaged.operator !=(DigitalBrain.Units.DeploymentRefusals.NothingStaged? left, DigitalBrain.Units.DeploymentRefusals.NothingStaged? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.NothingStaged.operator ==(DigitalBrain.Units.DeploymentRefusals.NothingStaged? left, DigitalBrain.Units.DeploymentRefusals.NothingStaged? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.PlanMismatch.operator !=(DigitalBrain.Units.DeploymentRefusals.PlanMismatch? left, DigitalBrain.Units.DeploymentRefusals.PlanMismatch? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.PlanMismatch.operator ==(DigitalBrain.Units.DeploymentRefusals.PlanMismatch? left, DigitalBrain.Units.DeploymentRefusals.PlanMismatch? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.Superseded.operator !=(DigitalBrain.Units.DeploymentRefusals.Superseded? left, DigitalBrain.Units.DeploymentRefusals.Superseded? right) -> bool
+static DigitalBrain.Units.DeploymentRefusals.Superseded.operator ==(DigitalBrain.Units.DeploymentRefusals.Superseded? left, DigitalBrain.Units.DeploymentRefusals.Superseded? right) -> bool

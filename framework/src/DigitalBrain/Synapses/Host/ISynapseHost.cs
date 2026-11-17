@@ -36,12 +36,22 @@ public enum DeployStatus
 /// <param name="Diagnostics">The compiler and analyzer diagnostics; empty for a retire.</param>
 /// <param name="Installs">The install outcome per state alias.</param>
 /// <param name="Reason">Why it was refused or failed; null otherwise.</param>
+/// <param name="Code">The stable code of a refusal (see <see cref="DeploymentRefusals"/>); null otherwise.</param>
 public sealed record DeployOutcome(
     DeployStatus Status,
     string? Hash,
     IReadOnlyList<SynapseDiagnostic> Diagnostics,
     IReadOnlyDictionary<string, InstallOutcome> Installs,
-    string? Reason);
+    string? Reason,
+    string? Code = null)
+{
+    /// <summary>A refused deploy of <paramref name="hash"/> that says why.</summary>
+    public static DeployOutcome Refused(string? hash, IReadOnlyDictionary<string, InstallOutcome> installs, Rules.Refusal refusal)
+    {
+        ArgumentNullException.ThrowIfNull(refusal);
+        return new(DeployStatus.Refused, hash, [], installs, refusal.Message, refusal.Code);
+    }
+}
 
 /// <summary>A synapse source deployed to a brain.</summary>
 /// <param name="SourceKey">The source key.</param>
