@@ -19,4 +19,3 @@ public static class AppPrincipal
     /// <summary>Extracts the app key from an app principal identifier, or null when not an app principal.</summary>
     public static string? AppKeyOf(string? principalId) => IsApp(principalId) ? principalId![Prefix.Length..] : null;
 }
-

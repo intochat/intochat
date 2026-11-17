@@ -15,10 +15,7 @@ public enum AccessDenial
     OutsideBrain = 2,
 
     /// <summary>The operation is marked [Internal] and can only be invoked from within the cluster or by a module.</summary>
-    InternalOnly = 3,
-
-    /// <summary>The invocation carried no authenticated caller context.</summary>
-    NoCaller = 4
+    InternalOnly = 3
 }
 
 /// <summary>

@@ -16,7 +16,7 @@ public static class CallerAdmission
 
     public static void RequireSameBrain(string brainId, string? appId = null, string? target = null)
     {
-        if (!TryGetCaller(out var caller)) { return; }
+        var caller = Require();
         if (!CanTouchBrain(caller, brainId, appId))
         {
             throw new UnauthorizedAccessException($"A {caller.Actor.GetType().Name} caller of brain {caller.Brain} may not touch {target ?? brainId}.");
@@ -46,14 +46,16 @@ public static class CallerAdmission
 
     public static void RequireNotAppCaller(string message)
     {
-        if (TryGetCaller(out var caller) && IsApp(caller))
+        if (IsApp(Require()))
         {
             throw new UnauthorizedAccessException(message);
         }
     }
 
-    private static bool IsApp(Caller caller)
-        => caller.Actor is Actor.App || caller.Actor is Actor.Person person && AppPrincipal.IsApp(person.Principal);
+    private static Caller Require()
+        => TryGetCaller(out var caller) ? caller : throw new UnauthorizedAccessException("No caller context was stamped at a trusted edge.");
+
+    private static bool IsApp(Caller caller) => caller.Actor is Actor.App;
 
     private static bool CanTouchBrain(Caller caller, string brainId, string? appId)
     {
@@ -62,7 +64,8 @@ public static class CallerAdmission
         {
             Actor.Kernel => true,
             Actor.App app => appId is not null && sameBrain && string.Equals(app.Key, appId, StringComparison.Ordinal),
-            Actor.Person or Actor.Agent => sameBrain,
+            Actor.Person person => sameBrain && !AppPrincipal.IsApp(person.Principal),
+            Actor.Agent => sameBrain,
             _ => false,
         };
     }

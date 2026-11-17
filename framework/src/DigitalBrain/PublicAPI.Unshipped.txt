@@ -103,7 +103,6 @@ DigitalBrain.Access.AccessDecision.Explanation.get -> string?
 DigitalBrain.Access.AccessDecision.Explanation.init -> void
 DigitalBrain.Access.AccessDenial
 DigitalBrain.Access.AccessDenial.InternalOnly = 3 -> DigitalBrain.Access.AccessDenial
-DigitalBrain.Access.AccessDenial.NoCaller = 4 -> DigitalBrain.Access.AccessDenial
 DigitalBrain.Access.AccessDenial.None = 0 -> DigitalBrain.Access.AccessDenial
 DigitalBrain.Access.AccessDenial.OutsideBrain = 2 -> DigitalBrain.Access.AccessDenial
 DigitalBrain.Access.AccessDenial.UnknownActor = 1 -> DigitalBrain.Access.AccessDenial
