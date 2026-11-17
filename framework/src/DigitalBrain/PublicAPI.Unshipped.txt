@@ -21,8 +21,6 @@
 ~override DigitalBrain.Modules.Options.ModuleId.Equals(object obj) -> bool
 ~override DigitalBrain.NeuronId.Equals(object obj) -> bool
 ~override DigitalBrain.Operations.OperationId.Equals(object obj) -> bool
-~override DigitalBrain.Operations.OperationTransition.Equals(object obj) -> bool
-~override DigitalBrain.Operations.OperationTransition.ToString() -> string
 ~override DigitalBrain.Units.BuildRef.Equals(object obj) -> bool
 ~override DigitalBrain.Units.BuildRef.ToString() -> string
 ~static DigitalBrain.Asks<TContract>.operator !=(DigitalBrain.Asks<TContract> left, DigitalBrain.Asks<TContract> right) -> bool
@@ -1741,15 +1739,12 @@ DigitalBrain.Operations.OperationStarted.Origin.get -> string!
 DigitalBrain.Operations.OperationStarted.Origin.init -> void
 DigitalBrain.Operations.OperationState
 DigitalBrain.Operations.OperationState.<Clone>$() -> DigitalBrain.Operations.OperationState!
-DigitalBrain.Operations.OperationState.Answer(DigitalBrain.Confirmation.ConfirmationResult! answer, System.DateTimeOffset now) -> DigitalBrain.Operations.OperationTransition?
 DigitalBrain.Operations.OperationState.ApprovalPlanId.get -> string?
 DigitalBrain.Operations.OperationState.ApprovalPlanId.init -> void
-DigitalBrain.Operations.OperationState.AwaitApproval(string! planId, string? guard, System.DateTimeOffset now) -> DigitalBrain.Operations.OperationTransition?
 DigitalBrain.Operations.OperationState.Brain.get -> string!
 DigitalBrain.Operations.OperationState.Brain.init -> void
 DigitalBrain.Operations.OperationState.CancelRequested.get -> bool
 DigitalBrain.Operations.OperationState.CancelRequested.init -> void
-DigitalBrain.Operations.OperationState.Complete(DigitalBrain.Operations.OperationResult! result, System.DateTimeOffset now) -> DigitalBrain.Operations.OperationTransition?
 DigitalBrain.Operations.OperationState.Deconstruct(out string! Id, out string! Brain, out string! Origin, out string! Kind, out string! PlanJson, out long? InlineLength, out string? InlineHash, out DigitalBrain.Operations.OperationPhase Phase, out bool CancelRequested, out double Fraction, out DigitalBrain.Operations.OperationResult? Result, out System.DateTimeOffset Started, out System.DateTimeOffset Updated, out string? Driver, out string? DriverLifetime, out string? TraceId, out string? ApprovalPlanId, out string? Guard, out System.DateTimeOffset? Resumed) -> void
 DigitalBrain.Operations.OperationState.Driver.get -> string?
 DigitalBrain.Operations.OperationState.Driver.init -> void
@@ -1778,8 +1773,6 @@ DigitalBrain.Operations.OperationState.Phase.get -> DigitalBrain.Operations.Oper
 DigitalBrain.Operations.OperationState.Phase.init -> void
 DigitalBrain.Operations.OperationState.PlanJson.get -> string!
 DigitalBrain.Operations.OperationState.PlanJson.init -> void
-DigitalBrain.Operations.OperationState.Progress(double fraction, System.DateTimeOffset now) -> DigitalBrain.Operations.OperationTransition?
-DigitalBrain.Operations.OperationState.RequestCancel(bool handlerRuns, System.DateTimeOffset now) -> DigitalBrain.Operations.OperationTransition?
 DigitalBrain.Operations.OperationState.Result.get -> DigitalBrain.Operations.OperationResult?
 DigitalBrain.Operations.OperationState.Result.init -> void
 DigitalBrain.Operations.OperationState.Resumed.get -> System.DateTimeOffset?
@@ -1790,15 +1783,6 @@ DigitalBrain.Operations.OperationState.TraceId.get -> string?
 DigitalBrain.Operations.OperationState.TraceId.init -> void
 DigitalBrain.Operations.OperationState.Updated.get -> System.DateTimeOffset
 DigitalBrain.Operations.OperationState.Updated.init -> void
-DigitalBrain.Operations.OperationTransition
-DigitalBrain.Operations.OperationTransition.Deconstruct(out DigitalBrain.Operations.OperationState! Next, out System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>! Signals) -> void
-DigitalBrain.Operations.OperationTransition.Equals(DigitalBrain.Operations.OperationTransition other) -> bool
-DigitalBrain.Operations.OperationTransition.Next.get -> DigitalBrain.Operations.OperationState!
-DigitalBrain.Operations.OperationTransition.Next.init -> void
-DigitalBrain.Operations.OperationTransition.OperationTransition() -> void
-DigitalBrain.Operations.OperationTransition.OperationTransition(DigitalBrain.Operations.OperationState! Next, System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>! Signals) -> void
-DigitalBrain.Operations.OperationTransition.Signals.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.Signal!>!
-DigitalBrain.Operations.OperationTransition.Signals.init -> void
 DigitalBrain.Operations.OperationView
 DigitalBrain.Operations.OperationView.<Clone>$() -> DigitalBrain.Operations.OperationView!
 DigitalBrain.Operations.OperationView.ApprovalPlanId.get -> string?
@@ -3009,7 +2993,6 @@ override DigitalBrain.Operations.OperationStarted.ToString() -> string!
 override DigitalBrain.Operations.OperationState.Equals(object? obj) -> bool
 override DigitalBrain.Operations.OperationState.GetHashCode() -> int
 override DigitalBrain.Operations.OperationState.ToString() -> string!
-override DigitalBrain.Operations.OperationTransition.GetHashCode() -> int
 override DigitalBrain.Operations.OperationView.Equals(object? obj) -> bool
 override DigitalBrain.Operations.OperationView.GetHashCode() -> int
 override DigitalBrain.Operations.OperationView.ToString() -> string!
@@ -3583,8 +3566,6 @@ static DigitalBrain.Operations.OperationStarted.operator !=(DigitalBrain.Operati
 static DigitalBrain.Operations.OperationStarted.operator ==(DigitalBrain.Operations.OperationStarted? left, DigitalBrain.Operations.OperationStarted? right) -> bool
 static DigitalBrain.Operations.OperationState.operator !=(DigitalBrain.Operations.OperationState? left, DigitalBrain.Operations.OperationState? right) -> bool
 static DigitalBrain.Operations.OperationState.operator ==(DigitalBrain.Operations.OperationState? left, DigitalBrain.Operations.OperationState? right) -> bool
-static DigitalBrain.Operations.OperationTransition.operator !=(DigitalBrain.Operations.OperationTransition left, DigitalBrain.Operations.OperationTransition right) -> bool
-static DigitalBrain.Operations.OperationTransition.operator ==(DigitalBrain.Operations.OperationTransition left, DigitalBrain.Operations.OperationTransition right) -> bool
 static DigitalBrain.Operations.OperationView.operator !=(DigitalBrain.Operations.OperationView? left, DigitalBrain.Operations.OperationView? right) -> bool
 static DigitalBrain.Operations.OperationView.operator ==(DigitalBrain.Operations.OperationView? left, DigitalBrain.Operations.OperationView? right) -> bool
 static DigitalBrain.Operations.OperationWait.For(DigitalBrain.Operations.IOperationsQuery! query, DigitalBrain.Operations.OperationId id, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Operations.OperationView!>!
@@ -3788,3 +3769,155 @@ static DigitalBrain.Rules.Transition<T>.operator ==(DigitalBrain.Rules.Transitio
 virtual DigitalBrain.Rules.Refusal.EqualityContract.get -> System.Type!
 virtual DigitalBrain.Rules.Refusal.Equals(DigitalBrain.Rules.Refusal? other) -> bool
 virtual DigitalBrain.Rules.Refusal.PrintMembers(System.Text.StringBuilder! builder) -> bool
+DigitalBrain.Operations.OperationRefusals
+DigitalBrain.Operations.OperationRefusals.AlreadyDone
+DigitalBrain.Operations.OperationRefusals.AlreadyDone.AlreadyDone() -> void
+DigitalBrain.Operations.OperationRefusals.AlreadyDone.Equals(DigitalBrain.Operations.OperationRefusals.AlreadyDone? other) -> bool
+DigitalBrain.Operations.OperationRefusals.ApprovalAsked
+DigitalBrain.Operations.OperationRefusals.ApprovalAsked.ApprovalAsked() -> void
+DigitalBrain.Operations.OperationRefusals.ApprovalAsked.Equals(DigitalBrain.Operations.OperationRefusals.ApprovalAsked? other) -> bool
+DigitalBrain.Operations.OperationRefusals.AwaitingApproval
+DigitalBrain.Operations.OperationRefusals.AwaitingApproval.AwaitingApproval() -> void
+DigitalBrain.Operations.OperationRefusals.AwaitingApproval.Equals(DigitalBrain.Operations.OperationRefusals.AwaitingApproval? other) -> bool
+DigitalBrain.Operations.OperationRefusals.CancelPending
+DigitalBrain.Operations.OperationRefusals.CancelPending.CancelPending() -> void
+DigitalBrain.Operations.OperationRefusals.CancelPending.Equals(DigitalBrain.Operations.OperationRefusals.CancelPending? other) -> bool
+DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval
+DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval.Equals(DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval? other) -> bool
+DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval.NotAwaitingApproval() -> void
+DigitalBrain.Operations.OperationRefusals.NotStarted
+DigitalBrain.Operations.OperationRefusals.NotStarted.Equals(DigitalBrain.Operations.OperationRefusals.NotStarted? other) -> bool
+DigitalBrain.Operations.OperationRefusals.NotStarted.NotStarted() -> void
+DigitalBrain.Operations.OperationRefusals.PlanMismatch
+DigitalBrain.Operations.OperationRefusals.PlanMismatch.Answered.get -> string!
+DigitalBrain.Operations.OperationRefusals.PlanMismatch.Answered.init -> void
+DigitalBrain.Operations.OperationRefusals.PlanMismatch.Asked.get -> string!
+DigitalBrain.Operations.OperationRefusals.PlanMismatch.Asked.init -> void
+DigitalBrain.Operations.OperationRefusals.PlanMismatch.Deconstruct(out string! Asked, out string! Answered) -> void
+DigitalBrain.Operations.OperationRefusals.PlanMismatch.Equals(DigitalBrain.Operations.OperationRefusals.PlanMismatch? other) -> bool
+DigitalBrain.Operations.OperationRefusals.PlanMismatch.PlanMismatch(string! Asked, string! Answered) -> void
+DigitalBrain.Operations.OperationStage
+DigitalBrain.Operations.OperationStage.OperationStage() -> void
+DigitalBrain.Operations.OperationStage.OperationStage(DigitalBrain.Operations.OperationStages.AwaitingApproval! value) -> void
+DigitalBrain.Operations.OperationStage.OperationStage(DigitalBrain.Operations.OperationStages.Cancelling! value) -> void
+DigitalBrain.Operations.OperationStage.OperationStage(DigitalBrain.Operations.OperationStages.Done! value) -> void
+DigitalBrain.Operations.OperationStage.OperationStage(DigitalBrain.Operations.OperationStages.NotStarted! value) -> void
+DigitalBrain.Operations.OperationStage.OperationStage(DigitalBrain.Operations.OperationStages.Running! value) -> void
+DigitalBrain.Operations.OperationStage.Value.get -> object?
+DigitalBrain.Operations.OperationStages
+DigitalBrain.Operations.OperationStages.AwaitingApproval
+DigitalBrain.Operations.OperationStages.AwaitingApproval.<Clone>$() -> DigitalBrain.Operations.OperationStages.AwaitingApproval!
+DigitalBrain.Operations.OperationStages.AwaitingApproval.AwaitingApproval(string! PlanId) -> void
+DigitalBrain.Operations.OperationStages.AwaitingApproval.Deconstruct(out string! PlanId) -> void
+DigitalBrain.Operations.OperationStages.AwaitingApproval.Equals(DigitalBrain.Operations.OperationStages.AwaitingApproval? other) -> bool
+DigitalBrain.Operations.OperationStages.AwaitingApproval.PlanId.get -> string!
+DigitalBrain.Operations.OperationStages.AwaitingApproval.PlanId.init -> void
+DigitalBrain.Operations.OperationStages.Cancelling
+DigitalBrain.Operations.OperationStages.Cancelling.<Clone>$() -> DigitalBrain.Operations.OperationStages.Cancelling!
+DigitalBrain.Operations.OperationStages.Cancelling.Cancelling() -> void
+DigitalBrain.Operations.OperationStages.Cancelling.Equals(DigitalBrain.Operations.OperationStages.Cancelling? other) -> bool
+DigitalBrain.Operations.OperationStages.Done
+DigitalBrain.Operations.OperationStages.Done.<Clone>$() -> DigitalBrain.Operations.OperationStages.Done!
+DigitalBrain.Operations.OperationStages.Done.Deconstruct(out DigitalBrain.Operations.OperationResult! Result) -> void
+DigitalBrain.Operations.OperationStages.Done.Done(DigitalBrain.Operations.OperationResult! Result) -> void
+DigitalBrain.Operations.OperationStages.Done.Equals(DigitalBrain.Operations.OperationStages.Done? other) -> bool
+DigitalBrain.Operations.OperationStages.Done.Result.get -> DigitalBrain.Operations.OperationResult!
+DigitalBrain.Operations.OperationStages.Done.Result.init -> void
+DigitalBrain.Operations.OperationStages.NotStarted
+DigitalBrain.Operations.OperationStages.NotStarted.<Clone>$() -> DigitalBrain.Operations.OperationStages.NotStarted!
+DigitalBrain.Operations.OperationStages.NotStarted.Equals(DigitalBrain.Operations.OperationStages.NotStarted? other) -> bool
+DigitalBrain.Operations.OperationStages.NotStarted.NotStarted() -> void
+DigitalBrain.Operations.OperationStages.Running
+DigitalBrain.Operations.OperationStages.Running.<Clone>$() -> DigitalBrain.Operations.OperationStages.Running!
+DigitalBrain.Operations.OperationStages.Running.Approved.get -> bool
+DigitalBrain.Operations.OperationStages.Running.Approved.init -> void
+DigitalBrain.Operations.OperationStages.Running.Deconstruct(out bool Approved) -> void
+DigitalBrain.Operations.OperationStages.Running.Equals(DigitalBrain.Operations.OperationStages.Running? other) -> bool
+DigitalBrain.Operations.OperationStages.Running.Running(bool Approved) -> void
+DigitalBrain.Operations.OperationState.Answer(DigitalBrain.Confirmation.ConfirmationResult! answer, System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Operations.OperationState!>
+DigitalBrain.Operations.OperationState.AwaitApproval(string! planId, string? guard, System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Operations.OperationState!>
+DigitalBrain.Operations.OperationState.Complete(DigitalBrain.Operations.OperationResult! result, System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Operations.OperationState!>
+DigitalBrain.Operations.OperationState.Progress(double fraction, System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Operations.OperationState!>
+DigitalBrain.Operations.OperationState.RequestCancel(bool handlerRuns, System.DateTimeOffset now) -> DigitalBrain.Rules.Outcome<DigitalBrain.Operations.OperationState!>
+DigitalBrain.Operations.OperationState.Stage.get -> DigitalBrain.Operations.OperationStage
+override DigitalBrain.Operations.OperationRefusals.AlreadyDone.<Clone>$() -> DigitalBrain.Operations.OperationRefusals.AlreadyDone!
+override DigitalBrain.Operations.OperationRefusals.AlreadyDone.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationRefusals.AlreadyDone.GetHashCode() -> int
+override DigitalBrain.Operations.OperationRefusals.AlreadyDone.Message.get -> string!
+override DigitalBrain.Operations.OperationRefusals.AlreadyDone.ToString() -> string!
+override DigitalBrain.Operations.OperationRefusals.ApprovalAsked.<Clone>$() -> DigitalBrain.Operations.OperationRefusals.ApprovalAsked!
+override DigitalBrain.Operations.OperationRefusals.ApprovalAsked.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationRefusals.ApprovalAsked.GetHashCode() -> int
+override DigitalBrain.Operations.OperationRefusals.ApprovalAsked.Message.get -> string!
+override DigitalBrain.Operations.OperationRefusals.ApprovalAsked.ToString() -> string!
+override DigitalBrain.Operations.OperationRefusals.AwaitingApproval.<Clone>$() -> DigitalBrain.Operations.OperationRefusals.AwaitingApproval!
+override DigitalBrain.Operations.OperationRefusals.AwaitingApproval.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationRefusals.AwaitingApproval.GetHashCode() -> int
+override DigitalBrain.Operations.OperationRefusals.AwaitingApproval.Message.get -> string!
+override DigitalBrain.Operations.OperationRefusals.AwaitingApproval.ToString() -> string!
+override DigitalBrain.Operations.OperationRefusals.CancelPending.<Clone>$() -> DigitalBrain.Operations.OperationRefusals.CancelPending!
+override DigitalBrain.Operations.OperationRefusals.CancelPending.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationRefusals.CancelPending.GetHashCode() -> int
+override DigitalBrain.Operations.OperationRefusals.CancelPending.Message.get -> string!
+override DigitalBrain.Operations.OperationRefusals.CancelPending.ToString() -> string!
+override DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval.<Clone>$() -> DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval!
+override DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval.GetHashCode() -> int
+override DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval.Message.get -> string!
+override DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval.ToString() -> string!
+override DigitalBrain.Operations.OperationRefusals.NotStarted.<Clone>$() -> DigitalBrain.Operations.OperationRefusals.NotStarted!
+override DigitalBrain.Operations.OperationRefusals.NotStarted.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationRefusals.NotStarted.GetHashCode() -> int
+override DigitalBrain.Operations.OperationRefusals.NotStarted.Message.get -> string!
+override DigitalBrain.Operations.OperationRefusals.NotStarted.ToString() -> string!
+override DigitalBrain.Operations.OperationRefusals.PlanMismatch.<Clone>$() -> DigitalBrain.Operations.OperationRefusals.PlanMismatch!
+override DigitalBrain.Operations.OperationRefusals.PlanMismatch.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationRefusals.PlanMismatch.GetHashCode() -> int
+override DigitalBrain.Operations.OperationRefusals.PlanMismatch.Message.get -> string!
+override DigitalBrain.Operations.OperationRefusals.PlanMismatch.ToString() -> string!
+override DigitalBrain.Operations.OperationStages.AwaitingApproval.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationStages.AwaitingApproval.GetHashCode() -> int
+override DigitalBrain.Operations.OperationStages.AwaitingApproval.ToString() -> string!
+override DigitalBrain.Operations.OperationStages.Cancelling.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationStages.Cancelling.GetHashCode() -> int
+override DigitalBrain.Operations.OperationStages.Cancelling.ToString() -> string!
+override DigitalBrain.Operations.OperationStages.Done.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationStages.Done.GetHashCode() -> int
+override DigitalBrain.Operations.OperationStages.Done.ToString() -> string!
+override DigitalBrain.Operations.OperationStages.NotStarted.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationStages.NotStarted.GetHashCode() -> int
+override DigitalBrain.Operations.OperationStages.NotStarted.ToString() -> string!
+override DigitalBrain.Operations.OperationStages.Running.Equals(object? obj) -> bool
+override DigitalBrain.Operations.OperationStages.Running.GetHashCode() -> int
+override DigitalBrain.Operations.OperationStages.Running.ToString() -> string!
+override sealed DigitalBrain.Operations.OperationRefusals.AlreadyDone.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Operations.OperationRefusals.ApprovalAsked.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Operations.OperationRefusals.AwaitingApproval.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Operations.OperationRefusals.CancelPending.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Operations.OperationRefusals.NotStarted.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+override sealed DigitalBrain.Operations.OperationRefusals.PlanMismatch.Equals(DigitalBrain.Rules.Refusal? other) -> bool
+static DigitalBrain.Operations.OperationRefusals.AlreadyDone.operator !=(DigitalBrain.Operations.OperationRefusals.AlreadyDone? left, DigitalBrain.Operations.OperationRefusals.AlreadyDone? right) -> bool
+static DigitalBrain.Operations.OperationRefusals.AlreadyDone.operator ==(DigitalBrain.Operations.OperationRefusals.AlreadyDone? left, DigitalBrain.Operations.OperationRefusals.AlreadyDone? right) -> bool
+static DigitalBrain.Operations.OperationRefusals.ApprovalAsked.operator !=(DigitalBrain.Operations.OperationRefusals.ApprovalAsked? left, DigitalBrain.Operations.OperationRefusals.ApprovalAsked? right) -> bool
+static DigitalBrain.Operations.OperationRefusals.ApprovalAsked.operator ==(DigitalBrain.Operations.OperationRefusals.ApprovalAsked? left, DigitalBrain.Operations.OperationRefusals.ApprovalAsked? right) -> bool
+static DigitalBrain.Operations.OperationRefusals.AwaitingApproval.operator !=(DigitalBrain.Operations.OperationRefusals.AwaitingApproval? left, DigitalBrain.Operations.OperationRefusals.AwaitingApproval? right) -> bool
+static DigitalBrain.Operations.OperationRefusals.AwaitingApproval.operator ==(DigitalBrain.Operations.OperationRefusals.AwaitingApproval? left, DigitalBrain.Operations.OperationRefusals.AwaitingApproval? right) -> bool
+static DigitalBrain.Operations.OperationRefusals.CancelPending.operator !=(DigitalBrain.Operations.OperationRefusals.CancelPending? left, DigitalBrain.Operations.OperationRefusals.CancelPending? right) -> bool
+static DigitalBrain.Operations.OperationRefusals.CancelPending.operator ==(DigitalBrain.Operations.OperationRefusals.CancelPending? left, DigitalBrain.Operations.OperationRefusals.CancelPending? right) -> bool
+static DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval.operator !=(DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval? left, DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval? right) -> bool
+static DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval.operator ==(DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval? left, DigitalBrain.Operations.OperationRefusals.NotAwaitingApproval? right) -> bool
+static DigitalBrain.Operations.OperationRefusals.NotStarted.operator !=(DigitalBrain.Operations.OperationRefusals.NotStarted? left, DigitalBrain.Operations.OperationRefusals.NotStarted? right) -> bool
+static DigitalBrain.Operations.OperationRefusals.NotStarted.operator ==(DigitalBrain.Operations.OperationRefusals.NotStarted? left, DigitalBrain.Operations.OperationRefusals.NotStarted? right) -> bool
+static DigitalBrain.Operations.OperationRefusals.PlanMismatch.operator !=(DigitalBrain.Operations.OperationRefusals.PlanMismatch? left, DigitalBrain.Operations.OperationRefusals.PlanMismatch? right) -> bool
+static DigitalBrain.Operations.OperationRefusals.PlanMismatch.operator ==(DigitalBrain.Operations.OperationRefusals.PlanMismatch? left, DigitalBrain.Operations.OperationRefusals.PlanMismatch? right) -> bool
+static DigitalBrain.Operations.OperationStages.AwaitingApproval.operator !=(DigitalBrain.Operations.OperationStages.AwaitingApproval? left, DigitalBrain.Operations.OperationStages.AwaitingApproval? right) -> bool
+static DigitalBrain.Operations.OperationStages.AwaitingApproval.operator ==(DigitalBrain.Operations.OperationStages.AwaitingApproval? left, DigitalBrain.Operations.OperationStages.AwaitingApproval? right) -> bool
+static DigitalBrain.Operations.OperationStages.Cancelling.operator !=(DigitalBrain.Operations.OperationStages.Cancelling? left, DigitalBrain.Operations.OperationStages.Cancelling? right) -> bool
+static DigitalBrain.Operations.OperationStages.Cancelling.operator ==(DigitalBrain.Operations.OperationStages.Cancelling? left, DigitalBrain.Operations.OperationStages.Cancelling? right) -> bool
+static DigitalBrain.Operations.OperationStages.Done.operator !=(DigitalBrain.Operations.OperationStages.Done? left, DigitalBrain.Operations.OperationStages.Done? right) -> bool
+static DigitalBrain.Operations.OperationStages.Done.operator ==(DigitalBrain.Operations.OperationStages.Done? left, DigitalBrain.Operations.OperationStages.Done? right) -> bool
+static DigitalBrain.Operations.OperationStages.NotStarted.operator !=(DigitalBrain.Operations.OperationStages.NotStarted? left, DigitalBrain.Operations.OperationStages.NotStarted? right) -> bool
+static DigitalBrain.Operations.OperationStages.NotStarted.operator ==(DigitalBrain.Operations.OperationStages.NotStarted? left, DigitalBrain.Operations.OperationStages.NotStarted? right) -> bool
+static DigitalBrain.Operations.OperationStages.Running.operator !=(DigitalBrain.Operations.OperationStages.Running? left, DigitalBrain.Operations.OperationStages.Running? right) -> bool
+static DigitalBrain.Operations.OperationStages.Running.operator ==(DigitalBrain.Operations.OperationStages.Running? left, DigitalBrain.Operations.OperationStages.Running? right) -> bool

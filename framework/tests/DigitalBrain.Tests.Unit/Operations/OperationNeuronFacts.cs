@@ -176,5 +176,8 @@ public sealed class OperationNeuronFacts
         Assert.IsType<OperationResult.Cancelled>(state.Result);
 
         Assert.False(await neuron.Progress(0.8));
+        var rejected = Assert.Single(context.Published.OfType<DigitalBrain.Rules.Rejected>());
+        Assert.Equal("operation.progress", rejected.Operation);
+        Assert.Equal(["operation.already-done"], rejected.Rules);
     }
 }

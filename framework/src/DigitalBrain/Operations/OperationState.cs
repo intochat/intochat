@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using DigitalBrain.Confirmation;
+using DigitalBrain.Rules;
 using DigitalBrain.State;
 
 namespace DigitalBrain.Operations;
@@ -16,11 +17,6 @@ public enum OperationPhase
     /// <summary>Waiting for approval before proceeding.</summary>
     AwaitingApproval = 2,
 }
-
-/// <summary>The result of a state transition: next state and published signals.</summary>
-/// <param name="Next">The updated state.</param>
-/// <param name="Signals">Signals emitted by this transition.</param>
-public readonly record struct OperationTransition(OperationState Next, IReadOnlyList<Signal> Signals);
 
 /// <summary>
 /// The persisted state of one operation neuron (runtime.operation/id).
@@ -75,43 +71,45 @@ public sealed record OperationState(
     [JsonIgnore]
     public OperationId Key => new(Id);
 
-    /// <summary>Pure transition: places the operation into awaiting approval.</summary>
-    public OperationTransition? AwaitApproval(string planId, string? guard, DateTimeOffset now)
+    /// <summary>Where the operation is, read from the stored fields.</summary>
+    [JsonIgnore]
+    public OperationStage Stage => (Exists, Phase, CancelRequested) switch
+    {
+        (false, _, _) => new OperationStages.NotStarted(),
+        (_, OperationPhase.Done, _) => new OperationStages.Done(Result ?? new OperationResult.Failed("unknown", "The operation ended without a result.")),
+        (_, OperationPhase.AwaitingApproval, _) => new OperationStages.AwaitingApproval(ApprovalPlanId ?? string.Empty),
+        (_, _, true) => new OperationStages.Cancelling(),
+        _ => new OperationStages.Running(ApprovalPlanId is not null),
+    };
+
+    /// <summary>Places a running operation that was never approved into awaiting approval of <paramref name="planId"/>.</summary>
+    public Outcome<OperationState> AwaitApproval(string planId, string? guard, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(planId);
-        if (Phase != OperationPhase.Running || CancelRequested || ApprovalPlanId is not null)
+        return Stage switch
         {
-            return null;
-        }
-
-        var next = this with
-        {
-            Phase = OperationPhase.AwaitingApproval,
-            ApprovalPlanId = planId,
-            Guard = guard,
-            Updated = now,
+            OperationStages.Running { Approved: false } => new Transition<OperationState>(
+                this with { Phase = OperationPhase.AwaitingApproval, ApprovalPlanId = planId, Guard = guard, Updated = now },
+                [new OperationAwaitingApproval(Key, planId)]),
+            OperationStages.Running or OperationStages.AwaitingApproval => new OperationRefusals.ApprovalAsked(),
+            OperationStages.Cancelling => new OperationRefusals.CancelPending(),
+            OperationStages.Done => new OperationRefusals.AlreadyDone(),
+            OperationStages.NotStarted => new OperationRefusals.NotStarted(),
         };
-        return new(next, [new OperationAwaitingApproval(Key, planId)]);
     }
 
-    /// <summary>Pure transition: answers the pending approval.</summary>
-    public OperationTransition? Answer(ConfirmationResult answer, DateTimeOffset now)
+    /// <summary>Answers the pending approval: an approval runs the operation, anything else ends it as failed.</summary>
+    public Outcome<OperationState> Answer(ConfirmationResult answer, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(answer);
-        if (Phase != OperationPhase.AwaitingApproval || !string.Equals(answer.PlanId, ApprovalPlanId, StringComparison.Ordinal))
-        {
-            return null;
-        }
+        if (Stage.Value is not OperationStages.AwaitingApproval awaiting) { return new OperationRefusals.NotAwaitingApproval(); }
+        if (!string.Equals(answer.PlanId, awaiting.PlanId, StringComparison.Ordinal)) { return new OperationRefusals.PlanMismatch(awaiting.PlanId, answer.PlanId); }
 
         if (answer.Outcome == ConfirmationOutcome.Approved)
         {
-            var next = this with
-            {
-                Phase = OperationPhase.Running,
-                Resumed = now,
-                Updated = now,
-            };
-            return new(next, [new OperationProgress(Key, 0d)]);
+            return new Transition<OperationState>(
+                this with { Phase = OperationPhase.Running, Resumed = now, Updated = now },
+                [new OperationProgress(Key, 0d)]);
         }
 
         var (code, reason) = answer.Outcome switch
@@ -124,66 +122,47 @@ public sealed record OperationState(
         return Complete(new OperationResult.Failed(code, reason), now);
     }
 
-    /// <summary>Pure transition: requests cancellation.</summary>
-    public OperationTransition? RequestCancel(bool handlerRuns, DateTimeOffset now)
+    /// <summary>Requests cancellation: a running handler is asked to stop; otherwise the operation ends as cancelled.</summary>
+    public Outcome<OperationState> RequestCancel(bool handlerRuns, DateTimeOffset now) => Stage switch
     {
-        if (Phase == OperationPhase.Done)
-        {
-            return null;
-        }
+        OperationStages.Done => new OperationRefusals.AlreadyDone(),
+        OperationStages.Cancelling => new OperationRefusals.CancelPending(),
+        OperationStages.Running when handlerRuns => new Transition<OperationState>(this with { CancelRequested = true, Updated = now }),
+        _ => Complete(new OperationResult.Cancelled(), now),
+    };
 
-        if (Phase == OperationPhase.Running && CancelRequested)
-        {
-            return null;
-        }
-
-        if (Phase == OperationPhase.Running && handlerRuns)
-        {
-            var next = this with
-            {
-                CancelRequested = true,
-                Updated = now,
-            };
-            return new(next, []);
-        }
-
-        return Complete(new OperationResult.Cancelled(), now);
-    }
-
-    /// <summary>Pure transition: completes the operation with a result.</summary>
-    public OperationTransition? Complete(OperationResult result, DateTimeOffset now)
+    /// <summary>Ends the operation with <paramref name="result"/>.</summary>
+    public Outcome<OperationState> Complete(OperationResult result, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(result);
-        if (!Exists || Phase == OperationPhase.Done)
+        return Stage switch
         {
-            return null;
-        }
-
-        var next = this with
-        {
-            Phase = OperationPhase.Done,
-            Result = result,
-            Payload = null,
-            Fraction = result is OperationResult.Succeeded ? 1d : Fraction,
-            Updated = now,
+            OperationStages.NotStarted => new OperationRefusals.NotStarted(),
+            OperationStages.Done => new OperationRefusals.AlreadyDone(),
+            _ => new Transition<OperationState>(
+                this with
+                {
+                    Phase = OperationPhase.Done,
+                    Result = result,
+                    Payload = null,
+                    Fraction = result is OperationResult.Succeeded ? 1d : Fraction,
+                    Updated = now,
+                },
+                [new OperationDone(Key, result)]),
         };
-        return new(next, [new OperationDone(Key, result)]);
     }
 
-    /// <summary>Pure transition: advances progress fraction.</summary>
-    public OperationTransition? Progress(double fraction, DateTimeOffset now)
+    /// <summary>Records progress of a running operation, clamped to [0, 1].</summary>
+    public Outcome<OperationState> Progress(double fraction, DateTimeOffset now)
     {
-        if (Phase != OperationPhase.Running || CancelRequested)
-        {
-            return null;
-        }
-
         var clamped = Math.Clamp(fraction, 0d, 1d);
-        var next = this with
+        return Stage switch
         {
-            Fraction = clamped,
-            Updated = now,
+            OperationStages.Running => new Transition<OperationState>(this with { Fraction = clamped, Updated = now }, [new OperationProgress(Key, clamped)]),
+            OperationStages.Cancelling => new OperationRefusals.CancelPending(),
+            OperationStages.AwaitingApproval => new OperationRefusals.AwaitingApproval(),
+            OperationStages.Done => new OperationRefusals.AlreadyDone(),
+            OperationStages.NotStarted => new OperationRefusals.NotStarted(),
         };
-        return new(next, [new OperationProgress(Key, clamped)]);
     }
 }
