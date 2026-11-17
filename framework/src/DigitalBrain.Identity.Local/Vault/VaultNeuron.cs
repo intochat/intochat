@@ -86,7 +86,7 @@ public sealed class VaultNeuron(IMasterKeyCustody custody) : Neuron<VaultState>,
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        if (Context.Caller is not { } caller || (caller.Actor is Actor.Person person && person.Principal != Principal()))
+        if (Context.Caller is not { } caller || (ActsFor(caller) is { } principal && principal != Principal()))
         {
             throw new InvalidOperationException("Only the owner can store a secret.");
         }
@@ -135,7 +135,7 @@ public sealed class VaultNeuron(IMasterKeyCustody custody) : Neuron<VaultState>,
     public Task<string> Resolve(SecretRef secret)
     {
         // An outbound call: an app acting for a person (the app proxy stamps it), or platform code in the kernel scope.
-        if (Context.Caller?.Actor is not (Actor.App or Actor.Kernel))
+        if (!(Context.Caller?.Actor is Actor.App app && app.For.Principal == Principal()) && Context.Caller?.Actor is not Actor.Kernel)
         {
             throw new UnauthorizedAccessException("Only a trusted outbound call can resolve a secret.");
         }
@@ -195,6 +195,15 @@ public sealed class VaultNeuron(IMasterKeyCustody custody) : Neuron<VaultState>,
     private bool IsOwner(Caller? caller) => caller is { Actor: Actor.Person person, Direct: true } && person.Principal == Principal();
 
     private static bool IsKernel(Caller? caller) => caller?.Actor is Actor.Kernel;
+
+    // Whom the caller acts for: the person, or the person an app or agent acts for; null for the kernel, a module or the scheduler.
+    private static string? ActsFor(Caller caller) => caller.Actor switch
+    {
+        Actor.Person person => person.Principal,
+        Actor.App app => app.For.Principal,
+        Actor.Agent agent => agent.For.Principal,
+        _ => null,
+    };
 
     private static VaultState Copy(VaultState state) => new()
     {

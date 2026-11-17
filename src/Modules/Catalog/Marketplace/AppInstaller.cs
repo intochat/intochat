@@ -161,18 +161,17 @@ public sealed class AppInstaller(IServiceProvider plain, MarketplaceView marketp
     }
 
     // Installing is the one consent the install view asks for: the owner grants the app every semantic type it reads, always.
-    // Grants read the stamped caller: the installing person, re-scoped to the brain the install names.
+    // Grants read the stamped caller: the installing person must own the brain the install names.
     internal async Task Grant(string appKey, string[]? types, CapabilityCaller? caller, CancellationToken ct)
     {
         if (types is not { Length: > 0 }) { return; }
         if (caller is null) { throw new UnauthorizedAccessException(OwnerOnly); }
-        if (plain?.GetService(typeof(IIdentityClient)) is IIdentityClient identityClient
-            && plain.GetService(typeof(EdgeAuthority)) is EdgeAuthority edge)
+        if (plain?.GetService(typeof(IIdentityClient)) is IIdentityClient identityClient)
         {
             var brain = new DigitalBrain.BrainId(caller.BrainId);
             foreach (var type in types)
             {
-                await edge.InBrain(brain, () => identityClient.GrantAsOwner(Idn.Grant.Tuple($"brain:{caller.BrainId}", $"app:{appKey}", IntoChat.OS.Primitives.AppRef.Of(brain, appKey).Key, type)));
+                await identityClient.GrantAsOwner(caller.BrainId, Idn.Grant.Tuple($"brain:{caller.BrainId}", $"app:{appKey}", IntoChat.OS.Primitives.AppRef.Of(brain, appKey).Key, type));
             }
             return;
         }

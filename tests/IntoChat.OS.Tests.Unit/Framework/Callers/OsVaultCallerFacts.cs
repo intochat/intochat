@@ -73,4 +73,13 @@ public sealed class OsVaultCallerFacts : IAsyncLifetime
         await Assert.ThrowsAnyAsync<Exception>(() => Vault.Set("pat", "PAT", "x"));
         await Assert.ThrowsAnyAsync<Exception>(() => Vault.Remove("pat"));
     }
+
+    [Fact]
+    public async Task AnAppActingForAnotherPersonCannotResolveOrStore()
+    {
+        var secret = await Stored();
+        using var _ = Edge.Enter(Edge.App("assistant", new Actor.Person("bob", "acc-2"), Brain));
+        await Assert.ThrowsAsync<UntrustedCallerException>(() => Vault.Resolve(secret));
+        await Assert.ThrowsAnyAsync<Exception>(() => Vault.Set("pat", "PAT", "x"));
+    }
 }

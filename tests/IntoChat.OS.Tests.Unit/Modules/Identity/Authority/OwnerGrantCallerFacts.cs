@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Authority.Identity;
 
-// Only the brain's owner, as the kernel stamped them, manages grants. Nothing in an argument can claim to be the owner.
+// Only the owner of the named brain, as the kernel stamped them, manages its grants. The brain is data; the stamped person is the authority.
 public sealed class OwnerGrantCallerFacts : IAsyncLifetime
 {
     private static readonly BrainId OwnerBrain = new("owner");
@@ -40,34 +40,34 @@ public sealed class OwnerGrantCallerFacts : IAsyncLifetime
     public async Task GrantAsOwnerAllowsTheDirectOwner()
     {
         using var _ = Edge.Enter(Edge.Person("owner", "owner", OwnerBrain));
-        Assert.Equal("os.notes", (await _directory.GrantAsOwner(Demo)).Scope);
+        Assert.Equal("os.notes", (await _directory.GrantAsOwner("owner", Demo)).Scope);
     }
 
     [Fact]
     public async Task GrantAsOwnerRefusesAnAgentActingForTheOwner()
     {
         using var _ = Edge.Enter(Edge.Agent(new Actor.Person("owner", "owner"), OwnerBrain));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _directory.GrantAsOwner(Demo));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _directory.GrantAsOwner("owner", Demo));
     }
 
     [Fact]
-    public async Task GrantAsOwnerRefusesTheOwnerStampedInAnotherBrain()
+    public async Task GrantAsOwnerRefusesABrainThePersonDoesNotOwn()
     {
-        using var _ = Edge.Enter(Edge.Person("owner", "owner", new BrainId("other")));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _directory.GrantAsOwner(Demo));
+        using var _ = Edge.Enter(Edge.Person("owner", "owner", OwnerBrain));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _directory.GrantAsOwner("other", Demo with { Owner = "brain:other" }));
     }
 
     [Fact]
     public async Task GrantAsOwnerRefusesARelayedOwner()
     {
         using var _ = Edge.Enter(Edge.RelayedPerson("owner", "owner", OwnerBrain));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _directory.GrantAsOwner(Demo));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _directory.GrantAsOwner("owner", Demo));
     }
 
     [Fact]
     public async Task RevokeAsOwnerRefusesAnotherPerson()
     {
         using var _ = Edge.Enter(Edge.Person("mallory", "mallory", OwnerBrain));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _directory.RevokeAsOwner("grant-1"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _directory.RevokeAsOwner("owner", "grant-1"));
     }
 }

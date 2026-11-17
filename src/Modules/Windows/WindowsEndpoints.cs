@@ -112,19 +112,17 @@ internal static class WindowsEndpoints
                 entry => entry.Enabled && string.Equals(entry.AppKey, grant.AppKey, StringComparison.OrdinalIgnoreCase));
             if (identityClient is not null)
             {
-                var edge = grains.GetRequiredService<EdgeAuthority>();
-                var brain = new DigitalBrain.BrainId(brainId);
                 if (hasEnabledGrant)
                 {
                     var tuple = Grant.Tuple($"brain:{brainId}", $"app:{grant.AppKey}", FolderTarget(brainId), GrantRelations.Run) with
                     {
                         Id = FolderAuthorityGrantId(brainId, grant.AppKey),
                     };
-                    await edge.InBrain(brain, () => identityClient.GrantAsOwner(tuple).WaitAsync(cancellationToken)).ConfigureAwait(false);
+                    await identityClient.GrantAsOwner(brainId, tuple).WaitAsync(cancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
-                    await edge.InBrain(brain, () => identityClient.RevokeAsOwner(FolderAuthorityGrantId(brainId, grant.AppKey)).WaitAsync(cancellationToken)).ConfigureAwait(false);
+                    await identityClient.RevokeAsOwner(brainId, FolderAuthorityGrantId(brainId, grant.AppKey)).WaitAsync(cancellationToken).ConfigureAwait(false);
                 }
             }
             return Results.Ok(grants);
@@ -151,8 +149,7 @@ internal static class WindowsEndpoints
         await gateway.RevokeAppAsync(appKey, cancellationToken).ConfigureAwait(false);
         if (identityClient is not null)
         {
-            await grains.GetRequiredService<EdgeAuthority>().InBrain(new DigitalBrain.BrainId(brainId),
-                () => identityClient.RevokeAsOwner(FolderAuthorityGrantId(brainId, appKey)).WaitAsync(cancellationToken)).ConfigureAwait(false);
+            await identityClient.RevokeAsOwner(brainId, FolderAuthorityGrantId(brainId, appKey)).WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         return Results.Ok(await gateway.ListGrantsAsync(cancellationToken).ConfigureAwait(false));
     }

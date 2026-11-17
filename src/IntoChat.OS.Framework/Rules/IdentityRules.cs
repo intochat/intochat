@@ -107,7 +107,9 @@ internal sealed record ConnectionBelongsToBrain(string ConnectionBrainId, string
 
 internal sealed record CallerCanStoreSecret(Caller? Caller, string OwnerPrincipal) : Rule("identity.caller-can-store-secret")
 {
-    public override bool Broken => Caller is null || (Caller.Actor is Actor.Person person && person.Principal != OwnerPrincipal);
+    // A person, or an app or agent acting for one, stores only in that person's own vault.
+    public override bool Broken => Caller is null
+        || (CallerRules.ActsFor(Caller) is { } principal && !string.Equals(principal, OwnerPrincipal, StringComparison.Ordinal));
     public override string Message => "Only the owner can store a secret.";
 }
 

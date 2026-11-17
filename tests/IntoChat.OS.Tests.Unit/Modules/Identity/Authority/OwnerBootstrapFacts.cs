@@ -88,7 +88,7 @@ public sealed class OwnerBootstrapFacts
         using (os.Edge.Enter(os.Edge.Person("owner", "owner", new BrainId("owner"))))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-                directory.GrantAsOwner(Grant.Tuple("brain:owner", "app:owner/apps/demo", "owner/apps/demo", "os.notes")));
+                directory.GrantAsOwner("owner", Grant.Tuple("brain:owner", "app:owner/apps/demo", "owner/apps/demo", "os.notes")));
         }
 
         // After OwnerBootstrap writes the Owner membership row, RequireOwner admits:
@@ -96,7 +96,7 @@ public sealed class OwnerBootstrapFacts
         Grant grant;
         using (os.Edge.Enter(os.Edge.Person("owner", "owner", new BrainId("owner"))))
         {
-            grant = await directory.GrantAsOwner(Grant.Tuple("brain:owner", "app:owner/apps/demo", "owner/apps/demo", "os.notes"));
+            grant = await directory.GrantAsOwner("owner", Grant.Tuple("brain:owner", "app:owner/apps/demo", "owner/apps/demo", "os.notes"));
         }
         Assert.Equal("os.notes", grant.Scope);
 
@@ -150,12 +150,12 @@ public sealed class OwnerBootstrapFacts
         public Task RemovePrincipalMember(string brainScopeId, string principalId) => directory.RemovePrincipalMember(brainScopeId, principalId);
         public Task<CallDecision?> Authorize(Caller? caller, CallRequest request) => directory.Authorize(DirectoryAuthorizeRequest.From(caller, request));
         public Task<Grant[]> ListGrants(string brainScopeId) => directory.ListGrants(brainScopeId);
-        public Task<Grant> GrantAsOwner(Grant grant) => directory.GrantAsOwner(grant);
+        public Task<Grant> GrantAsOwner(string brainId, Grant grant) => directory.GrantAsOwner(brainId, grant);
         public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => directory.GrantShipped(brainScopeId, grants);
-        public Task RevokeAsOwner(string grantId) => directory.RevokeAsOwner(grantId);
+        public Task RevokeAsOwner(string brainId, string grantId) => directory.RevokeAsOwner(brainId, grantId);
         [Obsolete("Use RevokeAsOwner with grantId")]
-        public Task RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode)
-            => directory.RevokeAsOwner(appId, semanticTypeId, mode);
+        public Task RevokeAsOwner(string brainId, string appId, string semanticTypeId, GrantMode mode)
+            => directory.RevokeAsOwner(brainId, appId, semanticTypeId, mode);
         public Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null)
             => directory.RedeemExternalTicket(issuer, email, displayName);
     }

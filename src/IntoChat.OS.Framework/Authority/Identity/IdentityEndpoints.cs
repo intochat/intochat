@@ -45,24 +45,24 @@ internal static class IdentityEndpoints
         var grants = OsBrainRoutes.Group(routes, "/grants");
         grants.MapGet("", async (string brainId, [FromServices] IIdentityClient identity, CancellationToken ct) =>
             Results.Ok(await identity.ListGrants(BrainScope.Create(RuntimeCallerContext.Require().AccountId, brainId).Id).WaitAsync(ct)));
-        grants.MapPost("", async (string brainId, Grant input, [FromServices] IIdentityClient identity, [FromServices] EdgeAuthority edge, CancellationToken ct) =>
+        grants.MapPost("", async (string brainId, Grant input, [FromServices] IIdentityClient identity, CancellationToken ct) =>
         {
-            try { return Results.Ok(await edge.InBrain(new DigitalBrain.BrainId(brainId), () => identity.GrantAsOwner(Grant.Normalize(input)).WaitAsync(ct))); }
+            try { return Results.Ok(await identity.GrantAsOwner(brainId, Grant.Normalize(input)).WaitAsync(ct)); }
             catch (UnauthorizedAccessException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         });
-        grants.MapPost("/revoke", async (string brainId, RevokeGrant input, [FromServices] IIdentityClient identity, [FromServices] EdgeAuthority edge, CancellationToken ct) =>
+        grants.MapPost("/revoke", async (string brainId, RevokeGrant input, [FromServices] IIdentityClient identity, CancellationToken ct) =>
         {
             try
             {
                 var grantId = input.Id ?? input.GrantId;
                 if (!string.IsNullOrEmpty(grantId))
                 {
-                    await edge.InBrain(new DigitalBrain.BrainId(brainId), () => identity.RevokeAsOwner(grantId).WaitAsync(ct));
+                    await identity.RevokeAsOwner(brainId, grantId).WaitAsync(ct);
                 }
                 else if (!string.IsNullOrEmpty(input.AppId) && !string.IsNullOrEmpty(input.SemanticTypeId))
                 {
 #pragma warning disable CS0618
-                    await edge.InBrain(new DigitalBrain.BrainId(brainId), () => identity.RevokeAsOwner(input.AppId, input.SemanticTypeId, input.Mode).WaitAsync(ct));
+                    await identity.RevokeAsOwner(brainId, input.AppId, input.SemanticTypeId, input.Mode).WaitAsync(ct);
 #pragma warning restore CS0618
                 }
                 return Results.NoContent();

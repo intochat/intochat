@@ -57,7 +57,8 @@ internal sealed class OsVaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IO
     public Task<string> Resolve(SecretRef secret)
     {
         // An outbound call: an app acting for a person (the app proxy stamps it), or platform code in the kernel scope.
-        if (!CallerRules.IsApp(Context.Caller, out _) && !CallerRules.IsKernel(Context.Caller))
+        // ...and an app only for the person whose vault this is.
+        if (!(CallerRules.IsApp(Context.Caller, out _) && CallerRules.ActsFor(Context.Caller) == Principal()) && !CallerRules.IsKernel(Context.Caller))
         {
             throw new UntrustedCallerException("Only a trusted outbound call can resolve a secret.");
         }

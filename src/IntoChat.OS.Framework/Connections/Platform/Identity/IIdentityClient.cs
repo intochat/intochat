@@ -48,16 +48,16 @@ public interface IIdentityClient
 
     Task<Grant[]> ListGrants(string brainScopeId);
 
-    Task<Grant> GrantAsOwner(Grant grant);
+    Task<Grant> GrantAsOwner(string brainId, Grant grant);
 
     // The platform records what a shipped app needs when it installs it; a grant the brain already holds for the same
     // grantee, target and relation is kept as it is, and nothing is ever revoked here.
     Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants);
 
-    Task RevokeAsOwner(string grantId);
+    Task RevokeAsOwner(string brainId, string grantId);
 
     [Obsolete("Use RevokeAsOwner with grantId")]
-    Task RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode);
+    Task RevokeAsOwner(string brainId, string appId, string semanticTypeId, GrantMode mode);
 
     Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null)
         => throw new NotSupportedException();
