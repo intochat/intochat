@@ -55,13 +55,17 @@ public sealed class FlowResumeCallerFacts
             await os.Get<IFlowStarter>(probe).StartFromJson("Probe", "ann", null, "{}");
         }
         await os.Idle();
-        // The flow's activation ends, as a host restart ends it; its expiry reminder outlives it, as the runtime's reminders do
-        // (TestOS.Restart also drops reminders, so it cannot stand in here). The reminder's tick brings the flow back.
-        await os.Deactivate(probe);
-        os.Clock.Advance(TimeSpan.FromMinutes(2));
+        // A flow the host stopped mid-run: the probe's stored state with the sleep step done and nothing waiting, stored for a
+        // second flow (a journal record is seeded only before its neuron first saves). After the restart, a person's read wakes it;
+        // the activation resumes the run, and does so as the brain's scheduler, not as that person.
+        var stopped = new NeuronId(Brain, "test.resume-probe", "p2");
+        var midRun = MidRun(os, probe, stopped);
+        await os.Restart();
+        os.SeedStoredState(stopped, midRun);
+        await ReadHead(os, stopped);
         await os.Idle();
 
-        var head = await ReadHead(os, probe);
+        var head = await ReadHead(os, stopped);
         Assert.Equal(DigitalBrain.Flows.FlowStatus.Completed, head.Status);
         var inner = System.Text.Json.JsonSerializer.Deserialize<ResumeProbeInner>(head.InnerJson, NoteFlow.Json)!;
         Assert.Equal(nameof(DigitalBrain.Access.Actor.Scheduler), inner.RanAs);
@@ -77,6 +81,19 @@ public sealed class FlowResumeCallerFacts
         var flows = os.Get<IFlows>(IFlows.Key(Brain.Value));
 
         await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => flows.Start(NoteFlow.Alias, "orphan", null, "{}", TestContext.Current.CancellationToken));
+    }
+
+    private static string MidRun(TestOS os, NeuronId id, NeuronId target)
+    {
+        var load = typeof(TestJournal).GetMethod("Load", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .MakeGenericMethod(typeof(System.Text.Json.Nodes.JsonObject));
+        var state = (System.Text.Json.Nodes.JsonObject)load.Invoke(os.Journal(id.Brain), [id])!;
+        state["status"] = System.Text.Json.JsonSerializer.SerializeToNode(DigitalBrain.Flows.FlowStatus.Running, DigitalBrain.Invocation.RuntimeProtocol.Json);
+        state["waiting"] = null;
+        state["current"] = null;
+        state["done"] = new System.Text.Json.Nodes.JsonArray("sleep");
+        state["flowId"] = target.ToString();
+        return state.ToJsonString();
     }
 
     private static async Task<FlowHead> ReadHead(TestOS os, NeuronId id)

@@ -76,7 +76,7 @@ internal sealed partial class GmailNeuron
         }
         var prepared = preview.Value;
         var mime = await GmailDraftPayload.EncodeAsync(prepared.To, prepared.Cc, prepared.Bcc, prepared.Subject, prepared.Body, ct);
-        using var trace = EnterGoogleTrace();
+        using var trace = EnterGoogleTrace(await PayerAccountAsync());
         var context = NewCallContext();
         var accounting = new GmailDraftAccounting(TraceContext.Current!.TraceId, context.InvocationId, GmailAccountingStatus.Pending);
         try

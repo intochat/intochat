@@ -240,7 +240,11 @@ internal sealed class TestNeuronHost : IDisposable
             var context = new TestNeuronContext(this);
             var neuron = Construct(context.Services);
             NeuronAttachment.Attach(neuron, context);
-            await NeuronAttachment.Activate(neuron, CancellationToken.None).ConfigureAwait(false);
+            // As the runtime host: an activation runs as the scheduler of its brain, whoever's call woke it; the caller is restored after.
+            using (TestCallerAmbient.Instance.Enter(Caller.OfScheduler(Id.Brain)))
+            {
+                await NeuronAttachment.Activate(neuron, CancellationToken.None).ConfigureAwait(false);
+            }
             _neuron = neuron;
             _os.Delivery.Activated(this);
             return neuron;

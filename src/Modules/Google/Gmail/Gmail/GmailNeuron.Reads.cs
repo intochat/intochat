@@ -17,7 +17,7 @@ internal sealed partial class GmailNeuron
             Snapshot.BoundMailbox!, Snapshot.GrantGeneration, Snapshot.PageTokenKey, out pageToken))
         { return GmailInboxResult.FromFailure(new("invalid_input", "The continuation does not belong to this mailbox grant.", [new("pageToken", "invalid", "Read a fresh inbox page.")])); }
 
-        using var trace = EnterGoogleTrace();
+        using var trace = EnterGoogleTrace(await PayerAccountAsync());
         var context = NewCallContext();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30), GmailClock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, deadline.Token);
@@ -61,7 +61,7 @@ internal sealed partial class GmailNeuron
         if (GmailValidation.Validate(request) is { } invalid) { return GmailMessageResult.FromFailure(invalid); }
         await EnsureGrantBindingAsync();
         if (GrantFailure() is { } unavailable) { return GmailMessageResult.FromFailure(unavailable); }
-        using var trace = EnterGoogleTrace();
+        using var trace = EnterGoogleTrace(await PayerAccountAsync());
         var context = NewCallContext();
         try
         {

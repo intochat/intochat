@@ -25,11 +25,7 @@ internal sealed class BrainOwnerDispatch(IIdentityClient identity, EdgeAuthority
         cancellationToken.ThrowIfCancellationRequested();
         if (!BrainScope.IsValidId(brainId) || !BrainKey.BelongsTo(originKey, brainId))
         { throw new UnauthorizedAccessException("The work origin must belong to its target brain."); }
-        var owner = await identity.OwnerOfBrain(brainId).WaitAsync(cancellationToken);
-        if (owner is null) { return false; }
-        var member = await identity.Membership(brainId, owner.OwnerPrincipalId).WaitAsync(cancellationToken);
-        if (member is null || member.AccountId != owner.AccountId || member.PrincipalId != owner.OwnerPrincipalId
-            || member.BrainId != brainId || member.Role != MemberRole.Owner) { return false; }
+        if (await BrainOwners.VerifiedOwnerAsync(identity, brainId, cancellationToken) is not { } owner) { return false; }
         if (trace is not null && (trace.BrainId != brainId || trace.PayerAccountId != owner.AccountId))
         { throw new UnauthorizedAccessException("The resumed work does not belong to the persisted brain owner."); }
         cancellationToken.ThrowIfCancellationRequested();

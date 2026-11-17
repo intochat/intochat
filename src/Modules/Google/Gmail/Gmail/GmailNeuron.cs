@@ -158,22 +158,29 @@ internal sealed partial class GmailNeuron()
         return JsonSerializer.Serialize(new[] { CallerRules.ActsFor(caller), CallerRules.IsApp(caller, out var app) ? app : null, caller.For?.Principal });
     }
 
-    // Who pays for the Google calls: the person the caller acts for, or, for the scheduler resuming stored work (the push webhook
-    // and the lifecycle reminder), the brain owner whose trace IBrainOwnerDispatch began after checking the directory.
-    private string PayerAccount(Caller caller) => PayerOf(caller, TraceContext.Current, Key.Brain);
+    // Who pays for the Google calls: the person the caller acts for, or, for the scheduler resuming stored work in this brain (the
+    // push webhook and the lifecycle reminder), the brain's owner as the directory records it. A trace is never a source of the
+    // payer; it is only checked against the payer found here.
+    private Task<string> PayerAccountAsync()
+        => PayerOf(RequireCaller(), Key.Brain, VerifiedOwnerAccount);
 
-    internal static string PayerOf(Caller caller, Trace? current, string brain)
+    private async Task<string?> VerifiedOwnerAccount(string brain)
+        => ServiceProvider.GetService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>() is { } identity
+            ? (await IntoChat.OS.Authority.Identity.BrainOwners.VerifiedOwnerAsync(identity, brain))?.AccountId
+            : null;
+
+    internal static async Task<string> PayerOf(Caller caller, string brain, Func<string, Task<string?>> verifiedOwnerAccount)
     {
         ArgumentNullException.ThrowIfNull(caller);
+        ArgumentNullException.ThrowIfNull(verifiedOwnerAccount);
         if (caller.For is { } person) { return person.Account; }
-        if (caller.Actor is Actor.Scheduler && current is { } trace && trace.BrainId == brain) { return trace.PayerAccountId; }
-        throw new UnauthorizedAccessException("Gmail work without a person runs only inside the brain owner's dispatch.");
+        if (caller.Actor is Actor.Scheduler && caller.Brain.Value == brain
+            && await verifiedOwnerAccount(brain) is { Length: > 0 } owner) { return owner; }
+        throw new UnauthorizedAccessException("Gmail work without a person runs only as the scheduler of a brain with a recorded owner.");
     }
 
-    private IDisposable EnterGoogleTrace()
+    private IDisposable EnterGoogleTrace(string payer)
     {
-        var caller = RequireCaller();
-        var payer = PayerAccount(caller);
         var trace = TraceContext.Current;
         if (trace is not null && (trace.BrainId != Key.Brain || trace.PayerAccountId != payer))
         { throw new UnauthorizedAccessException("The Gmail invocation trace does not belong to the trusted caller."); }

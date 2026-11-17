@@ -106,7 +106,12 @@ internal abstract partial class NeuronHostGrainBase(NeuronTypeRegistry types, IG
             var context = new HostNeuronContext(id, this.GetGrainId(), registration, bound, grains, types,
                 ServiceProvider.GetRequiredService<ILocalSiloDetails>().SiloAddress.ToString(), this, _deferred.Enqueue, delivery, journal, nudge);
             NeuronAttachment.Attach(neuron, context);
-            await NeuronAttachment.Activate(neuron, cancellationToken).ConfigureAwait(true);
+            // An activation resumes stored work: it runs as the scheduler of its brain, whoever's call woke it (owner decision 3,
+            // 17 Nov). The waking call's caller is restored for the call itself.
+            using (_callers.Enter(Caller.OfScheduler(_id.Brain)))
+            {
+                await NeuronAttachment.Activate(neuron, cancellationToken).ConfigureAwait(true);
+            }
             _neuron = neuron;
             _delivery = delivery;
             RegisterExtensions(neuron, neuronClass);

@@ -15,7 +15,7 @@ internal sealed partial class GmailNeuron
 
     protected override async Task<OAuthGrant> AcceptGrantAsync(OAuthGrant grant)
     {
-        using var trace = EnterGoogleTrace();
+        using var trace = EnterGoogleTrace(await PayerAccountAsync());
         var result = await Api.ProfileAsync(grant.AccessToken, NewCallContext(), CancellationToken.None);
         if (result.Value is not { } profile || !GmailPubSub.ValidMailbox(profile.EmailAddress))
         { throw new GmailUnavailableException("Google did not verify the mailbox identity. Reconnect Gmail."); }
@@ -25,7 +25,7 @@ internal sealed partial class GmailNeuron
 
     protected override async Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
     {
-        using var trace = EnterGoogleTrace();
+        using var trace = EnterGoogleTrace(await PayerAccountAsync());
         var result = await Api.ProfileAsync(credential.Value, NewCallContext(), ct);
         if (result.Value is { } profile)
         {
@@ -54,7 +54,7 @@ internal sealed partial class GmailNeuron
     {
         CompleteGrantBinding();
         await RecoverLifecycleAsync(CancellationToken.None);
-        using var trace = EnterGoogleTrace();
+        using var trace = EnterGoogleTrace(await PayerAccountAsync());
         await RenewWatchIfDueAsync(CancellationToken.None);
     }
 
@@ -114,7 +114,7 @@ internal sealed partial class GmailNeuron
         await EnsureGrantBindingAsync();
         if (!IsGrantReady || !string.Equals(Snapshot.BoundMailbox, push.EmailAddress, StringComparison.OrdinalIgnoreCase))
         { return GmailPushAcceptance.Ignored; }
-        using var trace = EnterGoogleTrace();
+        using var trace = EnterGoogleTrace(await PayerAccountAsync());
         await RecoverLifecycleAsync(CancellationToken.None);
         await DrainWakeupAsync();
         var history = Snapshot.History!;
@@ -133,7 +133,7 @@ internal sealed partial class GmailNeuron
     {
         await DrainWakeupAsync();
         if (Snapshot.History?.Work is not { } work) { return GmailPushAcceptance.Duplicate; }
-        ValidateLifecycleTrace(work.Trace);
+        await ValidateLifecycleTrace(work.Trace);
         using var trace = TraceContext.Enter(work.Trace);
         try
         {
@@ -200,7 +200,7 @@ internal sealed partial class GmailNeuron
     private async Task DrainWakeupAsync()
     {
         if (Snapshot.History?.Wakeup is not { } wakeup) { return; }
-        ValidateLifecycleTrace(wakeup.Trace);
+        await ValidateLifecycleTrace(wakeup.Trace);
         using var trace = TraceContext.Enter(wakeup.Trace);
         await PublishAsync(new MailReceived(Snapshot.History.Mailbox, wakeup.HistoryId));
         await SaveGmailStateAsync(next => next.History = next.History! with { Wakeup = null });
@@ -284,9 +284,9 @@ internal sealed partial class GmailNeuron
         => Snapshot.Detail == detail || Snapshot.Detail is { } existing && !existing.StartsWith(WatchDetailPrefix, StringComparison.Ordinal)
             ? Task.CompletedTask : SaveGmailStateAsync(next => next with { Detail = detail });
 
-    private void ValidateLifecycleTrace(Trace trace)
+    private async Task ValidateLifecycleTrace(Trace trace)
     {
-        var payer = PayerAccount(RequireCaller());
+        var payer = await PayerAccountAsync();
         if (trace.BrainId != Key.Brain || trace.PayerAccountId != payer)
         { throw new UnauthorizedAccessException("The stored Gmail work belongs to another owner."); }
     }
