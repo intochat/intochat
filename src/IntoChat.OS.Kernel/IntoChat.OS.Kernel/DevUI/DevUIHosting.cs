@@ -25,6 +25,8 @@ public static class DevUIHosting
         if (!IsEnabled(builder)) { return; }
         builder.AddAIAgent(InoAgent, (services, name) => new ChatClientAgent(new NeuronAgentChatClient(services), name: name,
             description: "Your current Ino conversation (the same one the shell shows)."));
+        builder.Services.AddSingleton(new IntoChat.OS.Modules.AI.Workflows.WorkflowDefinition(ApprovalDemoWorkflow.Name,
+            "Shouts its input and waits for a person to approve before it finishes.", ApprovalDemoWorkflow.Build));
         builder.AddWorkflow(ApprovalDemoWorkflow.Name, (_, _) => ApprovalDemoWorkflow.Build());
         builder.AddOpenAIResponses();
         builder.AddOpenAIConversations();

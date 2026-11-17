@@ -1,11 +1,12 @@
 using DigitalBrain.Flows;
 using DigitalBrain.Operations;
 using IntoChat.OS.Modules.AI.Agents.Signals;
+using IntoChat.OS.Modules.AI.Workflows;
 using IntoChat.OS.Modules.Apps.Flows;
 
 namespace IntoChat.OS.Modules.Apps.Runs;
 
-// The agent turns and operations folded from their own signals; flows are not copied here, the flows index already keeps them.
+// The agent turns, workflow runs and operations folded from their own signals; flows are not copied here, the flows index keeps them.
 internal sealed record RunsState(RunView[] Runs)
 {
     internal const int Kept = 500;
@@ -25,6 +26,13 @@ internal sealed record RunsState(RunView[] Runs)
             started.Origin, null, at, null, [], null, null)),
         OperationAwaitingApproval awaiting => Update(awaiting.Operation.Value, run => run with { State = RunState.Waiting, Waiting = $"approval {awaiting.PlanId}" }),
         OperationDone done => Update(done.Operation.Value, run => run with { State = Outcome(done.Result), Waiting = null, Ended = at, Detail = Describe(done.Result) }),
+        WorkflowRunStarted started => Put(new RunView(started.RunId, RunKind.Workflow, $"{started.Workflow}: {Title(started.Input)}", RunState.Running, null,
+            started.Workflow, null, at, null, [], null, null)),
+        WorkflowRunWaiting waiting => Update(waiting.RunId, run => run with { State = RunState.Waiting, Waiting = $"approval {waiting.PlanId}", Detail = Title(waiting.Question) }),
+        WorkflowRunDone done => Update(done.RunId, run => run with
+        {
+            State = done.Succeeded ? RunState.Succeeded : RunState.Failed, Waiting = null, Ended = at, Detail = done.Error ?? Title(done.Output),
+        }),
         _ => this,
     };
 

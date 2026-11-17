@@ -35,7 +35,7 @@ internal static class RunsPage
         <body><h1>Runs</h1><table><thead><tr><th>State</th><th>Kind</th><th>Title</th><th>Waiting / detail</th><th>Started</th><th>Id</th></tr></thead>
         <tbody id="rows"></tbody></table><script>
         const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-        const kinds=["Flow","Agent turn","Operation"],states=["Running","Waiting","Succeeded","Failed","Cancelled"];
+        const kinds=["Flow","Agent turn","Operation","Workflow"],states=["Running","Waiting","Succeeded","Failed","Cancelled"];
         async function load(){try{const r=await fetch("/runs.json");const runs=await r.json();
         document.getElementById("rows").innerHTML=runs.map(x=>{const s=states[x.state]??x.state;return `<tr><td class="${s}">${s}</td><td>${kinds[x.kind]??x.kind}</td><td class="title">${esc(x.title)}</td><td>${esc(x.waiting??x.detail??x.current??"")}</td><td>${new Date(x.started).toLocaleTimeString()}</td><td><code>${esc(x.id)}</code></td></tr>`}).join("")}catch(e){}}
         load();setInterval(load,2000);</script></body></html>

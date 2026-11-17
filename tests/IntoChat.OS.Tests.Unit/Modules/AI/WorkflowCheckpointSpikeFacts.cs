@@ -43,7 +43,15 @@ public sealed class WorkflowCheckpointSpikeFacts
         string? output = null;
         await using (var resumed = await InProcessExecution.ResumeStreamingAsync(Build(), last, CheckpointManager.CreateJson(new StateCheckpointStore(restored)), Ct))
         {
-            await resumed.SendResponseAsync(asked.CreateResponse(true));
+            // The resumed run announces its pending request again, so nothing but the checkpoints has to be kept.
+            ExternalRequest? again = null;
+            await foreach (var evt in resumed.WatchStreamAsync(blockOnPendingRequest: false, Ct))
+            {
+                if (evt is RequestInfoEvent request) { again = request.Request; }
+            }
+            Assert.NotNull(again);
+            Assert.Equal(asked.RequestId, again.RequestId);
+            await resumed.SendResponseAsync(again.CreateResponse(true));
             await foreach (var evt in resumed.WatchStreamAsync(Ct))
             {
                 if (evt is WorkflowOutputEvent done) { output = done.As<string>(); }
