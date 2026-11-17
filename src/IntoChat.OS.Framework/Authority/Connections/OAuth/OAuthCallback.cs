@@ -184,9 +184,16 @@ public sealed class OAuthCallback : IHttpSurface
             {
                 var exchange = context.RequestServices.GetRequiredService<OAuthTokenExchange>();
                 var flow = context.RequestServices.GetRequiredService<OAuthLoginFlow>();
-                using (CallerContextScope.Scoped(login.Owner))
-                using (TraceContext.Enter(TraceContext.Begin(login.Owner.AccountId,
-                    BrainScope.Create(login.Owner.AccountId, login.Owner.BrainId).Id, TraceContext.OriginOf(login.Owner.BrainId, login.ConnectionKey))))
+                // The person who began the login, if still a member of that brain; a signed-in browser must be that person.
+                var identity = context.RequestServices.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>();
+                var edge = context.RequestServices.GetRequiredService<DigitalBrain.Access.EdgeAuthority>();
+                if (HttpCaller.Current(context)?.For is { } present && present.Principal != login.OwnerPrincipal)
+                { throw new UnauthorizedAccessException("The login was begun by another person."); }
+                var member = await identity.Membership(login.OwnerBrain, login.OwnerPrincipal).WaitAsync(context.RequestAborted)
+                    ?? throw new UnauthorizedAccessException("The login's person is no longer a member of its brain.");
+                using (edge.Enter(edge.RelayedPerson(member.PrincipalId, member.AccountId, new DigitalBrain.BrainId(login.OwnerBrain))))
+                using (TraceContext.Enter(TraceContext.Begin(member.AccountId,
+                    BrainScope.Create(member.AccountId, login.OwnerBrain).Id, TraceContext.OriginOf(login.OwnerBrain, login.ConnectionKey))))
                 {
                     var neurons = context.RequestServices.GetRequiredService<AuthorityNeurons>();
                     var grant = await exchange.ExchangeCodeAsync(login.ConnectionKey, login.AuthMethodId, code, login.CodeVerifier, flow.CallbackUri(connector, context.Request).AbsoluteUri, login.Target, context.RequestAborted);

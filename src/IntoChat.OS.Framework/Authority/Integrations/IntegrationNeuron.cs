@@ -209,10 +209,10 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
     }
 
     // Scripts run under an App stamp; nothing an installed app does may touch a provider registration,
-    // whatever parameters it passes. Platform HTTP paths carry User and startup work carries no stamp.
-    private static void RefuseAppCalls()
+    // whatever parameters it passes. Platform HTTP paths carry a person and startup work enters the kernel.
+    private void RefuseAppCalls()
     {
-        if (RuntimeCallerContext.TryGet(out var ambient) && (ambient.Kind == CallerKind.App || ambient.StampedBy == TrustedEdge.AppProxy))
+        if (_callers.Current is { } ambient && Identity.Grants.GrantRules.IsAppCaller(ambient))
         {
             throw new InvalidOperationException("Installed apps cannot use provider registrations.");
         }

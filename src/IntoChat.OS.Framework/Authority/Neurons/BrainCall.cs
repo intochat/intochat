@@ -1,14 +1,17 @@
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Errors;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using Grpc.Core;
+using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Authority.Neurons;
@@ -17,18 +20,26 @@ namespace IntoChat.OS.Authority.Neurons;
 // the same membership decision, then the brain stamped into the caller for BrainScope.CurrentId().
 internal static class BrainCall
 {
-    public static async Task<CapabilityCaller> Enter(ServerCallContext context, string brainId)
+    // The edge's caller again, in the brain the message names, once the membership decision admitted it. The caller enters it:
+    // an ambient entered in an async helper does not flow back.
+    public static async Task<Caller> Enter(ServerCallContext context, string brainId)
     {
         if (!BrainScope.IsValidId(brainId)) { throw new RpcException(new Status(StatusCode.InvalidArgument, "brain_id is not a valid brain id.")); }
-        var caller = RuntimeCallerContext.Require() with { BrainId = brainId };
-        RuntimeCallerContext.Stamp(caller);
         var http = context.GetHttpContext();
+        var edge = http.RequestServices.GetRequiredService<EdgeAuthority>();
+        var brain = new BrainId(brainId);
+        var caller = HttpCaller.Current(http) switch
+        {
+            { Actor: Actor.Person person } current => edge.Person(person.Principal, person.Account, brain, current.Conversation),
+            { Actor: Actor.App { Key: GuestSurface.AppId } app } current => edge.Guest(app.For.Principal, app.For.Account, brain, current.Conversation),
+            null => throw new RpcException(new Status(StatusCode.Unauthenticated, "The call carries no caller.")),
+            _ => throw new RpcException(new Status(StatusCode.PermissionDenied, "Only a person's session reaches a brain over this channel.")),
+        };
         if (await BrainAccessFilter.Decide(http, brainId) is { } denied)
         {
             var code = denied is IStatusCodeHttpResult { StatusCode: StatusCodes.Status401Unauthorized } ? StatusCode.Unauthenticated : StatusCode.PermissionDenied;
             throw new RpcException(new Status(code, "This brain is not yours."));
         }
-        // RequestContext changes in an async helper do not flow back to its caller.
         return caller;
     }
 

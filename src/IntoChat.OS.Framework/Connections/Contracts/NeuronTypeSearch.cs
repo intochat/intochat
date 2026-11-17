@@ -17,7 +17,8 @@ public sealed class NeuronTypeSearch(
     IBrainObserver kernel,
     IEnumerable<IRuntimeCapabilitySource> live,
     IEmbeddingGenerator<string, Embedding<float>>? embeddings,
-    ILogger<NeuronTypeSearch>? logger = null) : IDisposable
+    ILogger<NeuronTypeSearch>? logger = null,
+    DigitalBrain.Access.ICallerAmbient? callers = null) : IDisposable
 {
     private const int MaxTake = 100;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -25,15 +26,15 @@ public sealed class NeuronTypeSearch(
 
     public static NeuronTypeSearch Create(IServiceProvider services) => new(
         services.GetRequiredService<IBrainObserver>(), services.GetServices<IRuntimeCapabilitySource>(), Embeddings(services),
-        services.GetService<ILogger<NeuronTypeSearch>>());
+        services.GetService<ILogger<NeuronTypeSearch>>(), services.GetService<DigitalBrain.Access.ICallerAmbient>());
 
     // Live capabilities belong to a brain, so an un-stamped call reads the kernel types alone. A source
     // that throws is logged and skipped so the kernel types stay searchable.
     public async Task<IReadOnlyList<NeuronType>> Capabilities(CancellationToken ct)
     {
         List<NeuronType> entries = [.. (await kernel.Types(ct).ConfigureAwait(false)).Where(type => type.Kind == TypeKind.Neuron).Select(NeuronType.From)];
-        if (!RuntimeCallerContext.TryGet(out _)) { return entries; }
-        var brain = BrainScope.CurrentId();
+        if (callers?.Current is not { } caller) { return entries; }
+        var brain = caller.Brain.Value;
         foreach (var source in live)
         {
             try { entries.AddRange(await source.Read(brain, ct).ConfigureAwait(false)); }

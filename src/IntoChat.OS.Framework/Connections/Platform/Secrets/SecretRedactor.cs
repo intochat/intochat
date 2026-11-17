@@ -47,17 +47,10 @@ internal sealed class SecretRedactor(IServiceProvider services) : ISecretRedacto
 
     private IDisposable? EnterOwnerScopeIfAppCaller()
     {
-        if (!RuntimeCallerContext.TryGet(out var caller)) { return null; }
-        if (caller.Kind != CallerKind.App && !AppPrincipal.IsApp(caller.PrincipalId)) { return null; }
-        var owner = !string.IsNullOrEmpty(caller.AccountId) && !AppPrincipal.IsApp(caller.AccountId)
-            ? caller.AccountId
-            : !string.IsNullOrEmpty(caller.PrincipalId) && !AppPrincipal.IsApp(caller.PrincipalId)
-                ? caller.PrincipalId
-                : caller.BrainId;
+        // Only an app acting for a person: the person it acts for is relayed, never a principal it named.
+        if (services.GetService<ICallerAmbient>()?.Current is not { Actor: Actor.App app } caller) { return null; }
         var edge = services.GetService<EdgeAuthority>();
-        return edge is null || string.IsNullOrWhiteSpace(owner)
-            ? null
-            : edge.Enter(edge.RelayedPerson(owner, owner, new BrainId("system")));
+        return edge?.Enter(edge.RelayedPerson(app.For.Principal, app.For.Account, caller.Brain));
     }
 
     internal static string Apply(string text, IReadOnlyList<string> longestFirst)

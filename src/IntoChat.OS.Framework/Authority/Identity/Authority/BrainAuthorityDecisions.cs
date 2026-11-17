@@ -21,7 +21,7 @@ internal static class BrainAuthorityDecisions
         }
         return Decide(
             state,
-            CallerIdentity.From(caller),
+            caller,
             request.TargetNeuron,
             request.Operation,
             request.SemanticTypeIds,
@@ -31,7 +31,7 @@ internal static class BrainAuthorityDecisions
 
     internal static async Task<CallDecision?> Decide(
         IdentityBrainRow state,
-        CallerIdentity caller,
+        Caller caller,
         string targetNeuron,
         string operation,
         IReadOnlyList<string> semanticTypeIds,
@@ -39,22 +39,41 @@ internal static class BrainAuthorityDecisions
         IEdgeGrantsCache? edgeCache = null)
     {
         ArgumentNullException.ThrowIfNull(state);
-        var circleMember = state.Kind == BrainKind.Circle && Member(state, caller.PersonId)?.AccountId == caller.AccountId;
-        var sameBrainSystem = (caller.Kind == CallerKind.Scheduler || caller.IsModule) && state.BrainId == caller.BrainId;
-        if ((!sameBrainSystem && state.AccountId != caller.AccountId && !circleMember) || state.BrainId != caller.BrainId)
+        ArgumentNullException.ThrowIfNull(caller);
+        var brain = caller.Brain.Value;
+        var person = caller.For;
+        var circleMember = state.Kind == BrainKind.Circle && person is not null && Member(state, person.Principal)?.AccountId == person.Account;
+        var sameBrainSystem = caller.Actor is Actor.Scheduler or Actor.Module && state.BrainId == brain;
+        if ((!sameBrainSystem && (person is null || state.AccountId != person.Account) && !circleMember) || state.BrainId != brain)
         { return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target scope does not match this brain."); }
-        var grantsBrain = GrantsBrainOf(caller.BrainId, targetNeuron, targetScope);
+        var grantsBrain = GrantsBrainOf(brain, targetNeuron, targetScope);
         var cache = edgeCache ?? EdgeGrantsCache.Current;
-        var capCaller = caller.ToCapabilityCaller();
-        var principals = cache is EdgeGrantsCache concrete
-            ? await concrete.ExpandAsync(grantsBrain, caller)
-            : await cache.ExpandAsync(grantsBrain, capCaller);
-        var connectionBound = caller.Kind == CallerKind.App && semanticTypeIds.Count == 0 && GrantRules.AppOf(caller) is not null
-            && (cache is EdgeGrantsCache directCache
-                ? await directCache.IsConnectionBoundAsync(caller, targetNeuron)
-                : await cache.IsConnectionBoundAsync(capCaller, targetNeuron));
-        var grants = ShippedGrants.WithImplicit(state.Grants, caller.Kind, caller.AppId, grantsBrain);
-        return GrantRules.Evaluate(caller, targetNeuron, operation, semanticTypeIds, targetScope, Member(state, caller.PrincipalId), grants, principals, connectionBound);
+        var principals = await cache.ExpandAsync(grantsBrain, caller);
+        var connectionBound = caller.Actor is Actor.App && semanticTypeIds.Count == 0
+            && await cache.IsConnectionBoundAsync(caller, targetNeuron);
+        var grants = ShippedGrants.WithImplicit(state.Grants, caller, grantsBrain);
+        return GrantRules.Evaluate(caller, targetNeuron, operation, semanticTypeIds, targetScope,
+            person is null ? null : Member(state, person.Principal), grants, principals, connectionBound);
+    }
+
+    // The directory's decision for a call, made from the caller value over the directory's authority state. A one-time grant
+    // the decision consumes is spent in one directory turn; when another call spent it first, this call is refused.
+    public static async Task<CallDecision?> Authorize(Caller? caller, CallRequest request,
+        Func<string, string, Task<IdentityBrainRow>> authorityOf, Func<string, string, string[], Task<bool>> spendOnce, IEdgeGrantsCache? edgeCache = null)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(authorityOf);
+        ArgumentNullException.ThrowIfNull(spendOnce);
+        if (caller is null) { return CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no caller."); }
+        var grantsBrain = GrantsBrainOf(caller, request);
+        var state = await authorityOf(caller.Brain.Value, grantsBrain);
+        var decision = await Decide(state, caller, request, edgeCache);
+        if (decision is not { Allowed: true }) { return decision; }
+        var consumed = GrantRules.OnceToConsume(caller, request, state.Grants);
+        if (consumed.Count == 0) { return decision; }
+        return await spendOnce(caller.Brain.Value, grantsBrain, [.. consumed.Select(grant => grant.Id)])
+            ? decision with { ConsumesOnce = true }
+            : CallDecision.Deny(CallDenial.MissingGrant, "The one-time grant was already used.");
     }
 
     // Grants are owner-declared, so the brain whose grants decide a call is the target's, falling back to the

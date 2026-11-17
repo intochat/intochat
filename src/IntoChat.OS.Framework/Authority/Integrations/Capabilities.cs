@@ -8,18 +8,17 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using CapabilityCaller = DigitalBrain.Capabilities.CapabilityCaller;
 
 namespace IntoChat.OS.Authority.Integrations;
 
 internal sealed class Capabilities(IEnumerable<ICapabilitySource> sources) : ICapabilities
 {
-    public async Task<IntegrationCapability[]> List(CapabilityCaller caller, string? kind = null, CancellationToken ct = default)
+    public async Task<IntegrationCapability[]> List(string? kind = null, CancellationToken ct = default)
     {
         var derived = new List<IntegrationCapability>();
         foreach (var source in sources)
         {
-            derived.AddRange(await source.Derive(caller, ct));
+            derived.AddRange(await source.Derive(ct));
         }
 
         return [.. derived.Where(capability => kind is null || capability.Kind == kind)
@@ -34,6 +33,6 @@ internal static class CapabilityEndpoints
     {
         var group = OsBrainRoutes.Group(endpoints, "/integrations");
         group.MapGet("/capabilities", async (string? kind, [FromServices] ICapabilities capabilities, CancellationToken cancellationToken) =>
-            Results.Ok(await capabilities.List(RuntimeCallerContext.Require(), kind, cancellationToken)));
+            Results.Ok(await capabilities.List(kind, cancellationToken)));
     }
 }

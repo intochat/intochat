@@ -1,4 +1,4 @@
-using DigitalBrain.Capabilities;
+using DigitalBrain.Access;
 
 namespace IntoChat.OS.Authority.Identity;
 
@@ -18,11 +18,13 @@ public static class GuestSurface
 
     public static IReadOnlyList<string> Screens { get; } = ["helloworld", "btcalert", "photocraft"];
 
-    public static bool Is(CapabilityCaller caller)
+    public static bool Is(Caller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        return caller.PrincipalId.StartsWith(BrainPrefix, StringComparison.Ordinal);
+        return caller.Actor is Actor.App { Key: AppId } || IsGuestPrincipal(caller.For?.Principal);
     }
+
+    public static bool IsGuestPrincipal(string? principal) => principal?.StartsWith(BrainPrefix, StringComparison.Ordinal) == true;
 
     public static bool MayUseTool(string? tool) => tool is not null && Tools.Contains(tool, StringComparer.Ordinal);
 

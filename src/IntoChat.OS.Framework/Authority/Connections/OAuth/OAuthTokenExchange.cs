@@ -64,15 +64,15 @@ internal sealed class OAuthTokenExchange(
     private async Task<OAuthGrant> PostAsync(string connectionKey, string authMethodId, string? target, bool refreshGrant, Dictionary<string, string> form, CancellationToken ct)
     {
         var (brain, connectorId, _) = ConnectionKeys.Parse(connectionKey);
-        var caller = RuntimeCallerContext.Require();
-        if (brain != BrainScope.Create(caller.AccountId, caller.BrainId).Id)
+        var caller = edge.Current ?? throw new UnauthorizedAccessException("The token exchange runs only for a stamped caller.");
+        if (brain != caller.Brain.Value)
         { throw new UnauthorizedAccessException("The connection must belong to the current brain."); }
         var method = Method(connectorId, authMethodId);
         var operation = refreshGrant ? method.ExternalOperations?.Refresh : method.ExternalOperations?.CodeExchange;
         if (operation is not null)
         {
             var trace = TraceContext.Current;
-            if (trace is null || trace.BrainId != brain || trace.PayerAccountId != caller.AccountId)
+            if (trace is null || trace.BrainId != brain || trace.PayerAccountId != (caller.For?.Account ?? caller.Brain.Value))
             { throw new UnauthorizedAccessException("The token exchange requires the current owner's compute trace."); }
             if (operations.GetOperation(operation).Integration != method.IntegrationId)
             { throw new InvalidOperationException("The OAuth operation must belong to its declared integration."); }

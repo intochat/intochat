@@ -42,7 +42,11 @@ internal interface IDirectoryStore
     Task<Member?> EnsureMember(Member member);
     Task RemoveMember(string brainScopeId, string accountId);
     Task RemovePrincipalMember(string brainScopeId, string principalId);
-    Task<CallDecision?> Authorize(DirectoryAuthorizeRequest request);
+    // The authority state a call into brainId is decided from, with the grants of grantsBrain. The decision itself runs
+    // where the stamped caller is (IIdentityClient.Authorize): a caller never crosses into this neuron as data.
+    Task<IdentityBrainRow> AuthorityOf(string brainId, string grantsBrain);
+    // Spends one-time grants a decision consumed, in one turn: false when any of them is no longer live.
+    Task<bool> SpendOnce(string brainId, string grantsBrain, string[] grantIds);
     Task<Grant[]> ListGrants(string brainScopeId);
     [Shared]
     Task<Grant> GrantAsOwner(string brainId, Grant grant);
@@ -52,39 +56,6 @@ internal interface IDirectoryStore
     [Shared]
     Task RevokeAsOwner(string brainId, string appId, string semanticTypeId, GrantMode mode);
     Task<BrainProvision> RedeemExternalTicket(string issuer, string email, string? displayName = null);
-}
-
-internal sealed record DirectoryAuthorizeRequest(
-    CapabilityCaller? Caller,
-    string TargetNeuron,
-    string Operation,
-    IReadOnlyList<string> SemanticTypeIds,
-    decimal EstimatedCompute,
-    bool HasSideEffects,
-    bool EnforceTarget,
-    string? TargetScope,
-    bool PublicOperation,
-    bool IsModule = false)
-{
-    public static DirectoryAuthorizeRequest From(Caller? caller, CallRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        var identity = caller is null ? (CallerIdentity?)null : CallerIdentity.From(caller);
-        return new DirectoryAuthorizeRequest(
-            identity?.ToCapabilityCaller(),
-            request.TargetNeuron,
-            request.Operation,
-            request.SemanticTypeIds,
-            request.EstimatedCompute,
-            request.HasSideEffects,
-            request.EnforceTarget,
-            request.TargetScope,
-            request.PublicOperation,
-            identity?.IsModule ?? false);
-    }
-
-    internal CallerIdentity? ToIdentity()
-        => Caller is null ? null : CallerIdentity.From(Caller) with { IsModule = IsModule };
 }
 
 [DigitalBrain.Signal("identity.directory-changed")]
@@ -275,7 +246,9 @@ internal sealed class IdentityDirectoryGrain(TimeProvider clock, IOptions<AuthOp
     // The authority reads and writes a brain's grants as the platform, as EdgeGrantsCache does. Under the caller being decided,
     // the grants neuron's incoming filter would ask this directory again while it waits on the grants neuron: a call cycle that
     // only the 30 s timeout ended, so every first call after a start failed (reconciler, compiled apps, brain scene).
-    private static CapabilityCaller AuthorityReader(string brain) => CapabilityCallers.Platform(IDirectoryStore.Type, "system", brain);
+    private Task<T> AsAuthority<T>(string brain, Func<Task<T>> call)
+        => (services?.GetService<EdgeAuthority>() ?? throw new InvalidOperationException("The directory reads grants only on a host with an edge authority."))
+            .AsKernel(new BrainId(brain), call);
 
     private Grants.IGrantsNeuron? GrantsOf(string brain)
         => services?.GetService<IGrainFactory>() is not null
@@ -285,69 +258,43 @@ internal sealed class IdentityDirectoryGrain(TimeProvider clock, IOptions<AuthOp
     private async Task<Grant[]> ReadGrants(string brain)
     {
         if (GrantsOf(brain) is not { } grants) { return []; }
-        using var asAuthority = RuntimeCallerContext.Stamp(AuthorityReader(brain));
-        return await grants.List();
+        return await AsAuthority(brain, grants.List);
     }
 
     private async Task WriteGrant(string brain, Grant grant)
     {
         if (GrantsOf(brain) is not { } grants) { return; }
-        using var asAuthority = RuntimeCallerContext.Stamp(AuthorityReader(brain));
-        await grants.Grant(grant);
+        await AsAuthority(brain, async () => { await grants.Grant(grant); return true; });
     }
 
     private async Task RevokeGrant(string brain, string grantId)
     {
         if (GrantsOf(brain) is not { } grants) { return; }
-        using var asAuthority = RuntimeCallerContext.Stamp(AuthorityReader(brain));
-        await grants.Revoke(grantId);
+        await AsAuthority(brain, async () => { await grants.Revoke(grantId); return true; });
     }
 
-    public Task<CallDecision?> Authorize(DirectoryAuthorizeRequest request)
+    public async Task<IdentityBrainRow> AuthorityOf(string brainId, string grantsBrain)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        if (request.ToIdentity() is not { } caller)
-        {
-            return Task.FromResult<CallDecision?>(CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no caller."));
-        }
-        return AuthorizeIdentity(caller, request.TargetNeuron, request.Operation, request.SemanticTypeIds ?? [], request.TargetScope);
-    }
-
-    internal async Task<CallDecision?> AuthorizeIdentity(
-        CallerIdentity caller,
-        string targetNeuron,
-        string operation,
-        IReadOnlyList<string> semanticTypeIds,
-        string? targetScope)
-    {
-        var brainId = caller.BrainId;
         var brain = BrainOf(State, brainId) ?? new IdentityBrainRow { BrainId = brainId };
-        var grantsBrain = BrainAuthorityDecisions.GrantsBrainOf(brainId, targetNeuron, targetScope);
         var durableGrants = await ReadGrants(grantsBrain);
-        var allGrants = ShippedGrants.WithImplicit(durableGrants.Length > 0 ? durableGrants : brain.Grants, caller.Kind, caller.AppId, grantsBrain);
-        var decision = await BrainAuthorityDecisions.Decide(
-            brain with { Grants = allGrants },
-            caller,
-            targetNeuron,
-            operation,
-            semanticTypeIds,
-            targetScope,
-            services?.GetService<IEdgeGrantsCache>());
-        if (decision is { Allowed: true })
+        return brain with { Grants = durableGrants.Length > 0 ? durableGrants : brain.Grants };
+    }
+
+    public async Task<bool> SpendOnce(string brainId, string grantsBrain, string[] grantIds)
+    {
+        ArgumentNullException.ThrowIfNull(grantIds);
+        var live = (await AuthorityOf(brainId, grantsBrain)).Grants.Where(grant => !grant.Revoked).Select(grant => grant.Id).ToHashSet(StringComparer.Ordinal);
+        if (grantIds.Length == 0 || !grantIds.All(live.Contains)) { return false; }
+        foreach (var id in grantIds)
         {
-            var consumed = GrantRules.OnceToConsume(caller, targetNeuron, semanticTypeIds, allGrants);
-            if (consumed.Count > 0)
-            {
-                decision = decision with { ConsumesOnce = true };
-                foreach (var c in consumed)
-                {
-                    await RevokeGrant(grantsBrain, c.Id);
-                }
-                var grants = brain.Grants.Where(grant => !consumed.Contains(grant)).ToArray();
-                await Commit(ReplaceBrain(State, brain with { Grants = grants }), brain.BrainId);
-            }
+            await RevokeGrant(grantsBrain, id);
         }
-        return decision;
+        if (BrainOf(State, brainId) is { } brain)
+        {
+            var grants = brain.Grants.Where(grant => !grantIds.Contains(grant.Id, StringComparer.Ordinal)).ToArray();
+            await Commit(ReplaceBrain(State, brain with { Grants = grants }), brain.BrainId);
+        }
+        return true;
     }
 
     public async Task<Grant[]> ListGrants(string brainScopeId)
@@ -395,8 +342,8 @@ internal sealed class IdentityDirectoryGrain(TimeProvider clock, IOptions<AuthOp
         foreach (var grant in grants)
         {
             var normalized = Grant.Normalize(grant);
-            var assistantKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainScopeId), CapabilityCallers.AssistantApp).Key;
-            var isAssistantGrantee = string.Equals(normalized.Grantee, $"app:{CapabilityCallers.AssistantApp}", StringComparison.Ordinal)
+            var assistantKey = IntoChat.OS.Primitives.AppRef.Of(new BrainId(brainScopeId), CallerApps.Assistant).Key;
+            var isAssistantGrantee = string.Equals(normalized.Grantee, $"app:{CallerApps.Assistant}", StringComparison.Ordinal)
                 || string.Equals(normalized.Grantee, $"app:{assistantKey}", StringComparison.Ordinal);
             var isAppGrantee = normalized.Grantee.StartsWith("app:", StringComparison.Ordinal)
                 && IntoChat.OS.Primitives.AppRef.TryParse(new BrainId(brainScopeId), normalized.Grantee["app:".Length..], out _);

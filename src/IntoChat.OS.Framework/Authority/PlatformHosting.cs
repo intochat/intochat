@@ -75,7 +75,6 @@ public static class PlatformHosting
         services.AddGrpc();
         services.TryAddSingleton<IntoChat.OS.Connections.Surface.OsNeuronSurface>();
         silo.AddStartupTask<IntegrationSeeder>();
-        services.Replace(ServiceDescriptor.Singleton(new DigitalBrain.Access.AccessOptions { UnstampedEdgeIsKernel = false }));
         services.TryAddSingleton<Identity.Authority.AuthorityMirror>();
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICallFilterStage, GrantCallFilterStage>());

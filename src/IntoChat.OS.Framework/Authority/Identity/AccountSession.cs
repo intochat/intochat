@@ -1,9 +1,9 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using DigitalBrain.Capabilities;
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Identity;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
@@ -17,8 +17,8 @@ namespace IntoChat.OS.Authority.Identity;
 
 // The authenticated edge. A cookie session (issued by the identity endpoints) or the configured
 // Basic bootstrap credential decides the principal; only the declared Open posture lets an
-// anonymous request act as the synthetic owner. Resolving a principal stamps a CapabilityCaller on
-// the Orleans RequestContext so it travels with grain calls.
+// anonymous request act as the synthetic owner. The resolved person is entered through EdgeAuthority for the
+// rest of the request, so it travels with grain calls.
 public static class AccountSession
 {
     public const string DefaultLogin = Authority.DefaultOwner.Login;
@@ -65,7 +65,7 @@ public static class AccountSession
                 return;
             }
 
-            RuntimeCallerContext.Stamp(principal);
+            using var entered = Edge(context).Enter(principal);
             // The framework's session surfaces (the journal tail among them) ask for an authenticated user with the principal
             // claim, as a cookie session carries. The Basic operator and the Open owner have no cookie, so those routes alone are
             // shown the resolved caller as that user. Any other route still sees an unauthenticated user for them: the runtime
@@ -90,17 +90,21 @@ public static class AccountSession
     internal const string LocalSessionScheme = "IntoChatOS.LocalCaller";
 
     // The user a cookie session would have been for this caller: the same claim names the framework's membership check reads.
-    public static ClaimsPrincipal SessionUser(CapabilityCaller caller)
-        => new(new ClaimsIdentity(
+    public static ClaimsPrincipal SessionUser(Caller caller)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        var person = caller.For ?? throw new UnauthorizedAccessException("Only a caller acting for a person has a session user.");
+        return new(new ClaimsIdentity(
         [
-            new Claim(DigitalBrain.Capabilities.Identity.SessionClaims.Principal, caller.PrincipalId),
-            new Claim(DigitalBrain.Capabilities.Identity.SessionClaims.Account, caller.AccountId),
-            new Claim(DigitalBrain.Capabilities.Identity.SessionClaims.Brain, caller.BrainId),
+            new Claim(DigitalBrain.Capabilities.Identity.SessionClaims.Principal, person.Principal),
+            new Claim(DigitalBrain.Capabilities.Identity.SessionClaims.Account, person.Account),
+            new Claim(DigitalBrain.Capabilities.Identity.SessionClaims.Brain, caller.Brain.Value),
         ], LocalSessionScheme));
+    }
 
     // A cookie session wins; otherwise the configured Basic bootstrap credential; otherwise only
     // the declared Open posture lets the request act as the synthetic owner — Secured answers 401.
-    public static CapabilityCaller? ResolveCaller(HttpContext context, AuthOptions options)
+    public static Caller? ResolveCaller(HttpContext context, AuthOptions options)
         => ResolvePrincipal(context, options.Posture, BasicCredential.FromOptions(options));
 
     // The one seam for "which brain is this caller using": the session may declare a brain, else
@@ -119,13 +123,16 @@ public static class AccountSession
     private static readonly IdentityHostOptions DefaultIdentity = new();
 
     // The member a sign-in just proved, stamped exactly as their next authenticated request will be.
-    internal static CapabilityCaller ForMember(Member member)
+    internal static Caller ForMember(EdgeAuthority edge, Member member)
     {
+        ArgumentNullException.ThrowIfNull(edge);
         ArgumentNullException.ThrowIfNull(member);
-        return CapabilityCallers.Of(member.PrincipalId, member.AccountId, member.BrainId);
+        return edge.Person(member.PrincipalId, member.AccountId, new BrainId(member.BrainId));
     }
 
-    private static CapabilityCaller? ResolvePrincipal(HttpContext context, IdentityPosture? posture, BasicCredential? credential)
+    private static EdgeAuthority Edge(HttpContext context) => context.RequestServices.GetRequiredService<EdgeAuthority>();
+
+    private static Caller? ResolvePrincipal(HttpContext context, IdentityPosture? posture, BasicCredential? credential)
     {
         if (context.User.Identity?.IsAuthenticated == true)
         {
@@ -180,15 +187,20 @@ public static class AccountSession
         return null;
     }
 
-    private static CapabilityCaller Build(string principalId, string accountId, HttpContext context, string? claimBrain = null)
+    private static Caller? Build(string principalId, string accountId, HttpContext context, string? claimBrain = null)
     {
         var brainId = context.Request.RouteValues.TryGetValue("brainId", out var routeBrain)
             && routeBrain is string { Length: > 0 } brainValue
                 ? brainValue
                 : DefaultBrain(accountId, claimBrain);
-        var caller = CapabilityCallers.Of(principalId, accountId, brainId);
-        // A guest never inherits Actor.Person either: stamp a non-person guest app caller.
-        return GuestSurface.Is(caller) ? caller with { AppId = GuestSurface.AppId } : caller;
+        ArgumentException.ThrowIfNullOrWhiteSpace(principalId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
+        // A route naming no valid brain identifies no caller.
+        if (!BrainId.IsValid(brainId)) { return null; }
+        var edge = Edge(context);
+        var brain = new BrainId(brainId);
+        // A guest never inherits Actor.Person: it is stamped as the guest app.
+        return GuestSurface.IsGuestPrincipal(principalId) ? edge.Guest(principalId, accountId, brain) : edge.Person(principalId, accountId, brain);
     }
 
     private static bool IsAnonymous(HttpRequest request, bool openRegistration)

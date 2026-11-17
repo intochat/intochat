@@ -1,4 +1,4 @@
-using DigitalBrain.Capabilities;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Connections.Platform.Identity;
 
@@ -7,9 +7,11 @@ namespace IntoChat.OS.Authority;
 // identity@1's directory port over the local directory. Membership changes need the brain's owner as the stamped caller.
 public sealed class DirectoryPort(
     IIdentityClient identity,
-    Identity.IBrainBirths? births = null,
-    DigitalBrain.Access.EdgeAuthority? edge = null) : IIdentityDirectoryPort
+    ICallerAmbient callers,
+    Identity.IBrainBirths? births = null) : IIdentityDirectoryPort
 {
+    private Caller RequiredCaller() => callers.Current ?? throw new UnauthorizedAccessException("identity@1: the call carries no caller.");
+
     public Task<Account?> ReadAccount(string accountId, CancellationToken cancellationToken)
         => identity.ReadAccount(accountId).WaitAsync(cancellationToken);
 
@@ -71,45 +73,43 @@ public sealed class DirectoryPort(
     public Task<Member?> Membership(string brainScopeId, string principalId, CancellationToken cancellationToken)
         => identity.Membership(brainScopeId, principalId).WaitAsync(cancellationToken);
 
-    public async Task<Member?> EnsureMember(CapabilityCaller caller, Member member, CancellationToken cancellationToken)
+    public async Task<Member?> EnsureMember(Member member, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(member);
-        await RequireOwner(caller, member.BrainId, cancellationToken).ConfigureAwait(false);
+        await RequireOwner(member.BrainId, cancellationToken).ConfigureAwait(false);
         return await identity.EnsureMember(member).WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task RemoveMember(CapabilityCaller caller, string brainScopeId, string accountId, CancellationToken cancellationToken)
+    public async Task RemoveMember(string brainScopeId, string accountId, CancellationToken cancellationToken)
     {
-        await RequireOwner(caller, brainScopeId, cancellationToken).ConfigureAwait(false);
+        await RequireOwner(brainScopeId, cancellationToken).ConfigureAwait(false);
         await identity.RemoveMember(brainScopeId, accountId).WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task RemovePrincipalMember(CapabilityCaller caller, string brainScopeId, string principalId, CancellationToken cancellationToken)
+    public async Task RemovePrincipalMember(string brainScopeId, string principalId, CancellationToken cancellationToken)
     {
-        await RequireOwner(caller, brainScopeId, cancellationToken).ConfigureAwait(false);
+        await RequireOwner(brainScopeId, cancellationToken).ConfigureAwait(false);
         await identity.RemovePrincipalMember(brainScopeId, principalId).WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<CallDecision?> Authorize(CapabilityCaller caller, CallRequest request, CancellationToken cancellationToken)
+    public async Task<CallDecision?> Authorize(CallRequest request, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(caller);
         ArgumentNullException.ThrowIfNull(request);
-        var authority = edge ?? throw new InvalidOperationException("EdgeAuthority is not registered.");
-        return await identity.Authorize(authority.From(caller), request).WaitAsync(cancellationToken).ConfigureAwait(false);
+        return await identity.Authorize(callers.Current, request).WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<Grant>> ListGrants(string brainScopeId, CancellationToken cancellationToken)
         => [.. (await identity.ListGrants(brainScopeId).WaitAsync(cancellationToken).ConfigureAwait(false)).Select(ToGrant)];
 
-    public async Task<Grant?> GrantAsOwner(CapabilityCaller caller, Grant grant, CancellationToken cancellationToken)
+    public async Task<Grant?> GrantAsOwner(Grant grant, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(caller);
         ArgumentNullException.ThrowIfNull(grant);
+        var brain = RequiredCaller().Brain;
         try
         {
-            var owner = grant.WorkspaceId.Length > 0 ? grant.WorkspaceId : caller.BrainId;
+            var owner = grant.WorkspaceId.Length > 0 ? grant.WorkspaceId : brain.Value;
             var target = string.IsNullOrEmpty(grant.TargetNeuronKey)
-                ? IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(caller.BrainId), grant.AppId).Key
+                ? IntoChat.OS.Primitives.AppRef.Of(brain, grant.AppId).Key
                 : grant.TargetNeuronKey;
             var tuple = Grant.Tuple($"brain:{owner}", $"app:{grant.AppId}", target, grant.SemanticTypeId);
             return ToGrant(await identity.GrantAsOwner(owner, tuple).WaitAsync(cancellationToken).ConfigureAwait(false));
@@ -117,25 +117,24 @@ public sealed class DirectoryPort(
         catch (UnauthorizedAccessException) { return null; }
     }
 
-    public async Task<bool> RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode, CancellationToken cancellationToken)
+    public async Task<bool> RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(caller);
+        var brain = RequiredCaller().Brain;
         try
         {
 #pragma warning disable CS0618
-            await identity.RevokeAsOwner(caller.BrainId, appId, semanticTypeId, mode).WaitAsync(cancellationToken).ConfigureAwait(false);
+            await identity.RevokeAsOwner(brain.Value, appId, semanticTypeId, mode).WaitAsync(cancellationToken).ConfigureAwait(false);
 #pragma warning restore CS0618
             return true;
         }
         catch (UnauthorizedAccessException) { return false; }
     }
 
-    // Only the brain's owner changes its membership.
-    private async Task RequireOwner(CapabilityCaller caller, string brainScopeId, CancellationToken cancellationToken)
+    // Only the brain's owner, as a person, changes its membership: an app, an agent or the scheduler never does.
+    private async Task RequireOwner(string brainScopeId, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(caller);
-        if (caller.AppId is null
-            && await identity.Membership(brainScopeId, caller.PrincipalId).WaitAsync(cancellationToken).ConfigureAwait(false) is { Role: MemberRole.Owner })
+        if (RequiredCaller().Actor is Actor.Person person
+            && await identity.Membership(brainScopeId, person.Principal).WaitAsync(cancellationToken).ConfigureAwait(false) is { Role: MemberRole.Owner })
         { return; }
         throw new UnauthorizedAccessException("Only the brain's owner changes its membership.");
     }

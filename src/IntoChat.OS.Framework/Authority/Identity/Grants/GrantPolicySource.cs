@@ -13,7 +13,6 @@ namespace IntoChat.OS.Authority.Identity.Grants;
 internal interface IGrantPolicySource
 {
     ValueTask<CallDecision?> AuthorizeAsync(Caller? caller, CallRequest request, CancellationToken cancellationToken);
-    ValueTask<IReadOnlyList<Grant>> ListGrantsAsync(CapabilityCaller caller, CancellationToken cancellationToken);
 }
 
 internal sealed class GrainGrantPolicySource(IIdentityClient identity, AuthorityMirror mirror, IOptions<AuthOptions>? auth = null) : IGrantPolicySource
@@ -62,10 +61,8 @@ internal sealed class GrainGrantPolicySource(IIdentityClient identity, Authority
         var (decided, mirrored) = await mirror.TryDecide(caller, request).WaitAsync(cancellationToken);
         if (decided && !Provisions(caller, mirrored)) { return mirrored; }
         var decision = await identity.Authorize(caller, request).WaitAsync(cancellationToken);
-        var callerIdentity = CallerIdentity.From(caller);
-        if (decision is not { Denial: CallDenial.OutsideWorkspace } || auth?.Value.Posture != IdentityPosture.Open
-            || callerIdentity.AccountId != AccountSession.DefaultLogin
-            || await identity.Membership(BrainScope.Create(callerIdentity.AccountId, callerIdentity.BrainId).Id, AccountSession.DefaultLogin).WaitAsync(cancellationToken) is not null)
+        if (decision is not { Denial: CallDenial.OutsideWorkspace } || !ActsForOpenOwner(caller)
+            || await identity.Membership(caller.Brain.Value, AccountSession.DefaultLogin).WaitAsync(cancellationToken) is not null)
         { return decision; }
         try
         {
@@ -73,7 +70,7 @@ internal sealed class GrainGrantPolicySource(IIdentityClient identity, Authority
             {
                 PrincipalId = AccountSession.DefaultLogin,
                 AccountId = AccountSession.DefaultLogin,
-                BrainId = callerIdentity.BrainId,
+                BrainId = caller.Brain.Value,
                 Role = MemberRole.Owner,
                 DisplayName = AccountSession.DefaultLogin,
             }).WaitAsync(cancellationToken);
@@ -86,8 +83,9 @@ internal sealed class GrainGrantPolicySource(IIdentityClient identity, Authority
     // other kind is final: the grain would answer the same way.
     private bool Provisions(Caller caller, CallDecision? decision)
         => decision is { Denial: CallDenial.OutsideWorkspace }
-            && auth?.Value.Posture == IdentityPosture.Open
-            && CallerIdentity.From(caller).AccountId == AccountSession.DefaultLogin;
-    public async ValueTask<IReadOnlyList<Grant>> ListGrantsAsync(CapabilityCaller caller, CancellationToken cancellationToken)
-        => await identity.ListGrants(BrainScope.Create(caller.AccountId, caller.BrainId).Id).WaitAsync(cancellationToken);
+            && ActsForOpenOwner(caller);
+
+    // Open posture only: the call is for a person under the synthetic owner's account.
+    private bool ActsForOpenOwner(Caller caller)
+        => auth?.Value.Posture == IdentityPosture.Open && caller.For?.Account == AccountSession.DefaultLogin;
 }

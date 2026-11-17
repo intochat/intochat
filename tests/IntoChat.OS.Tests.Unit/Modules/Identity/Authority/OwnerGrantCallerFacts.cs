@@ -29,7 +29,7 @@ public sealed class OwnerGrantCallerFacts : IAsyncLifetime
         services.AddSingleton<AuthorityMirror>();
         _os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<IdentityDirectoryGrain>().Register<GrantsNeuron>();
         _directory = _os.Get<IDirectoryStore>(new NeuronId(new BrainId("system"), IDirectoryStore.Type, "main"));
-        var identity = new OwnerBootstrapFacts.TestIdentityClient(_directory);
+        var identity = new OwnerBootstrapFacts.TestIdentityClient(_directory, _os.Edge);
         await new OwnerBootstrap(identity, new OwnerBootstrapFacts.NoOpBrainBirths(), Options.Create(new AuthOptions { Posture = IdentityPosture.Open }), TimeProvider.System)
             .Execute(TestContext.Current.CancellationToken);
     }

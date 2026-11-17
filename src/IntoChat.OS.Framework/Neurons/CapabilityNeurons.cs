@@ -3,7 +3,6 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Neurons;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 
 namespace IntoChat.OS.Authority;
 
@@ -52,13 +51,13 @@ internal sealed class IdentityNeuron(DirectoryPort directory) : Neuron<IdentityN
         => directory.Membership(brainScopeId, principalId, cancellationToken);
 
     public Task<Member?> EnsureMember(Member member, CancellationToken cancellationToken = default)
-        => directory.EnsureMember(RuntimeCallerContext.Required(Capability.Identity.V1Id), member, cancellationToken);
+        => directory.EnsureMember(member, cancellationToken);
 
     public Task RemoveMember(string brainScopeId, string accountId, CancellationToken cancellationToken = default)
-        => directory.RemoveMember(RuntimeCallerContext.Required(Capability.Identity.V1Id), brainScopeId, accountId, cancellationToken);
+        => directory.RemoveMember(brainScopeId, accountId, cancellationToken);
 
     public Task RemovePrincipalMember(string brainScopeId, string principalId, CancellationToken cancellationToken = default)
-        => directory.RemovePrincipalMember(RuntimeCallerContext.Required(Capability.Identity.V1Id), brainScopeId, principalId, cancellationToken);
+        => directory.RemovePrincipalMember(brainScopeId, principalId, cancellationToken);
 }
 
 public sealed class IdentityNeuronState;
@@ -69,19 +68,19 @@ internal sealed class SecretsNeuron(VaultPort vault) : Neuron<SecretsNeuronState
 {
     public async Task<SecretRef> Set(string name, string label, string value, CancellationToken cancellationToken = default)
     {
-        var result = await vault.Set(RuntimeCallerContext.Required(Capability.Secrets.V1Id), name, label, value, cancellationToken).ConfigureAwait(false);
+        var result = await vault.Set(name, label, value, cancellationToken).ConfigureAwait(false);
         return result.Status == SecretVaultStatus.Ok && result.Secret is not null ? result.Secret : throw new SecretDenied(name);
     }
 
     public async Task Remove(string name, CancellationToken cancellationToken = default)
     {
-        var status = await vault.Remove(RuntimeCallerContext.Required(Capability.Secrets.V1Id), name, cancellationToken).ConfigureAwait(false);
+        var status = await vault.Remove(name, cancellationToken).ConfigureAwait(false);
         if (status == SecretVaultStatus.Denied) { throw new SecretDenied(name); }
     }
 
     public async Task<string> Resolve(SecretRef secret, CancellationToken cancellationToken = default)
     {
-        var result = await vault.Resolve(RuntimeCallerContext.Required(Capability.Secrets.V1Id), secret, cancellationToken).ConfigureAwait(false);
+        var result = await vault.Resolve(secret, cancellationToken).ConfigureAwait(false);
         if (result.Status == SecretVaultStatus.Ok && result.Value is not null) { return result.Value; }
         if (result.Status == SecretVaultStatus.Denied) { throw new SecretDenied(secret.Reference); }
         throw new SecretNotFound(secret.Reference);
@@ -89,19 +88,19 @@ internal sealed class SecretsNeuron(VaultPort vault) : Neuron<SecretsNeuronState
 
     public async Task<SealedSecret> Seal(string context, ReadOnlyMemory<byte> plaintext, CancellationToken cancellationToken = default)
     {
-        var sealedSecret = await vault.Seal(RuntimeCallerContext.Required(Capability.Secrets.V1Id), context, plaintext, cancellationToken).ConfigureAwait(false);
+        var sealedSecret = await vault.Seal(context, plaintext, cancellationToken).ConfigureAwait(false);
         return sealedSecret ?? throw new SecretDenied(context);
     }
 
     public async Task<byte[]> Open(string context, SealedSecret sealedSecret, CancellationToken cancellationToken = default)
     {
-        var plaintext = await vault.Open(RuntimeCallerContext.Required(Capability.Secrets.V1Id), context, sealedSecret, cancellationToken).ConfigureAwait(false);
+        var plaintext = await vault.Open(context, sealedSecret, cancellationToken).ConfigureAwait(false);
         return plaintext ?? throw new SecretDenied(context);
     }
 
     public async Task<SecretRef> Named(string name, CancellationToken cancellationToken = default)
     {
-        var result = await vault.Named(RuntimeCallerContext.Required(Capability.Secrets.V1Id), name, cancellationToken).ConfigureAwait(false);
+        var result = await vault.Named(name, cancellationToken).ConfigureAwait(false);
         return result.Status == SecretVaultStatus.Ok && result.Secret is not null ? result.Secret : throw new SecretDenied(name);
     }
 }

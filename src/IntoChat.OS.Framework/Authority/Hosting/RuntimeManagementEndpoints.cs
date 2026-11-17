@@ -26,14 +26,14 @@ internal static class RuntimeManagementEndpoints
         http.Response.Headers.CacheControl = "no-store";
         // A synthetic Open-posture caller is not an authenticated management session.
         if (http.User.Identity?.IsAuthenticated != true) { return Results.Unauthorized(); }
-        var caller = RuntimeCallerContext.Require();
+        var caller = HttpCaller.RequiredPerson(http);
         var owner = await identity.OwnerOfBrain(brainId).WaitAsync(ct);
-        if (owner is null || owner.AccountId != caller.AccountId || owner.OwnerPrincipalId != caller.PrincipalId)
+        if (owner is null || owner.AccountId != caller.Account || owner.OwnerPrincipalId != caller.Principal)
         {
             return Results.NotFound();
         }
         var scope = BrainScope.Create(owner.AccountId, brainId).Id;
-        if (await identity.Membership(scope, caller.PrincipalId).WaitAsync(ct) is null)
+        if (await identity.Membership(scope, caller.Principal).WaitAsync(ct) is null)
         {
             return Results.NotFound();
         }

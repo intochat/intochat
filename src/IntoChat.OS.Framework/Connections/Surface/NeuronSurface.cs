@@ -166,19 +166,14 @@ public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel,
         return DigitalBrain.Contracts.PlainNeuronContracts.Is(type) ? DigitalBrain.Contracts.PlainNeuronContracts.IdOf(type, normalizedKey) : null;
     }
 
-    private static string NormalizeBrainPlaceholder(string key)
+    private string NormalizeBrainPlaceholder(string key)
     {
         if (!key.Contains("{brain}", StringComparison.OrdinalIgnoreCase) && !key.Contains("{brainScope}", StringComparison.OrdinalIgnoreCase))
         {
             return key;
         }
 
-        string? currentBrain = null;
-        if (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.TryGet(out var caller)
-            && DigitalBrain.Brains.BrainScope.IsValidId(caller.BrainId))
-        {
-            currentBrain = caller.BrainId;
-        }
+        var currentBrain = (plain?.GetService(typeof(DigitalBrain.Access.ICallerAmbient)) as DigitalBrain.Access.ICallerAmbient)?.Current?.Brain.Value;
 
         if (string.IsNullOrWhiteSpace(currentBrain))
         {

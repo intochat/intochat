@@ -43,8 +43,8 @@ internal static class IdentityEndpoints
         routes.MapPost("/identity/brains", CreateBrainAsync);
         routes.MapGet("/identity/brains", BrainsAsync);
         var grants = OsBrainRoutes.Group(routes, "/grants");
-        grants.MapGet("", async (string brainId, [FromServices] IIdentityClient identity, CancellationToken ct) =>
-            Results.Ok(await identity.ListGrants(BrainScope.Create(RuntimeCallerContext.Require().AccountId, brainId).Id).WaitAsync(ct)));
+        grants.MapGet("", async (string brainId, HttpContext http, [FromServices] IIdentityClient identity, CancellationToken ct) =>
+            Results.Ok(await identity.ListGrants(BrainScope.Create(HttpCaller.RequiredPerson(http).Account, brainId).Id).WaitAsync(ct)));
         grants.MapPost("", async (string brainId, Grant input, [FromServices] IIdentityClient identity, CancellationToken ct) =>
         {
             try { return Results.Ok(await identity.GrantAsOwner(brainId, Grant.Normalize(input)).WaitAsync(ct)); }
@@ -90,8 +90,8 @@ internal static class IdentityEndpoints
     // R126: the brains the signed-in principal is in, with their kind; the shell watches each circle brain's own /live.
     private static async Task<IResult> BrainsAsync(HttpContext http, [FromServices] IIdentityClient identity, IOptions<AuthOptions> auth, CancellationToken ct)
     {
-        if (AccountSession.ResolveCaller(http, auth.Value) is not { } caller) { return Results.Unauthorized(); }
-        var brains = await identity.BrainsOf(caller.PrincipalId).WaitAsync(ct);
+        if (AccountSession.ResolveCaller(http, auth.Value)?.For is not { } person) { return Results.Unauthorized(); }
+        var brains = await identity.BrainsOf(person.Principal).WaitAsync(ct);
         return Results.Ok(brains.Select(brain => new BrainView(brain.Id, brain.Kind.ToString())));
     }
 
@@ -158,10 +158,19 @@ internal static class IdentityEndpoints
     private static IResult Session(HttpContext http, IOptions<AuthOptions> auth)
     {
         var caller = AccountSession.ResolveCaller(http, auth.Value);
-        return caller is null
+        // The fields the session answer always carried, read from the resolved caller.
+        return caller?.For is not { } person
             ? Results.NoContent()
-            : Results.Ok(caller);
+            : Results.Ok(new
+            {
+                principalId = person.Principal,
+                accountId = person.Account,
+                brainId = caller.Brain.Value,
+                appId = caller.Actor is Actor.App app ? app.Key : null,
+                conversationId = caller.Conversation,
+            });
     }
+
 
     private static IResult ExchangeLocalPresence(LocalPresenceRequest input, HttpContext http, IOptions<AuthOptions> auth)
     {

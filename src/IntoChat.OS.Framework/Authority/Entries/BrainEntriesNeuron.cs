@@ -99,7 +99,7 @@ internal sealed class BrainEntriesNeuron : Grain, IBrainEntries
         // As IIntegration.Release: only platform code that entered the kernel scope, read from the stamped caller. Users and
         // assistants (authenticated HTTP), apps (app proxy) and the scheduler never qualify.
         if (!CallerRules.IsKernel(_callers.Current))
-        { throw new UntrustedCallerException("Only trusted platform code can release a brain entry."); }
+        { throw new UnauthorizedAccessException("Only trusted platform code can release a brain entry."); }
         if (_store.State.Entries.FirstOrDefault(entry => entry.Name == name) is not { } entry) { return null; }
         Audit("release", name, entry.Kind);
         return entry.Kind == EntryKind.Variable ? entry.Value : await _sealer.Open(this.GetPrimaryKeyString(), entry.Sealed!);
@@ -130,15 +130,15 @@ internal sealed class BrainEntriesNeuron : Grain, IBrainEntries
         { throw new ArgumentException($"No composed provider is named '{provider}'.", nameof(name)); }
     }
 
-    private static void RefuseAppCalls()
+    private void RefuseAppCalls()
     {
-        if (RuntimeCallerContext.TryGet(out var ambient) && (ambient.Kind == CallerKind.App || ambient.StampedBy == TrustedEdge.AppProxy))
+        if (_callers.Current is { } ambient && Identity.Grants.GrantRules.IsAppCaller(ambient))
         { throw new UnauthorizedAccessException("Installed apps cannot use brain entries."); }
     }
 
     private void Audit(string operation, string name, EntryKind kind)
     {
-        var actor = RuntimeCallerContext.TryGet(out var current) ? current.PrincipalId : "platform";
+        var actor = _callers.Current is { } current ? current.For?.Principal ?? current.Actor.GetType().Name : "none";
         _logger.LogInformation("Brain entry {Operation} for {Entry} ({Kind}) in {Brain} by {Actor}.",
             operation, name, kind, this.GetPrimaryKeyString(), actor);
     }

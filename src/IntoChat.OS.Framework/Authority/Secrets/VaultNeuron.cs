@@ -60,7 +60,7 @@ internal sealed class OsVaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IO
         // ...and an app only for the person whose vault this is.
         if (!(CallerRules.IsApp(Context.Caller, out _) && CallerRules.ActsFor(Context.Caller) == Principal()) && !CallerRules.IsKernel(Context.Caller))
         {
-            throw new UntrustedCallerException("Only a trusted outbound call can resolve a secret.");
+            throw new UnauthorizedAccessException("Only a trusted outbound call can resolve a secret.");
         }
 
         var next = Copy(State);
@@ -72,7 +72,7 @@ internal sealed class OsVaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IO
     {
         if (!CallerRules.IsDirectPerson(Context.Caller, Principal()) && !CallerRules.IsKernel(Context.Caller))
         {
-            throw new UntrustedCallerException("Only the vault's owner can list its values.");
+            throw new UnauthorizedAccessException("Only the vault's owner can list its values.");
         }
 
         return Task.FromResult(_secrets.Values(State));

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Identity;
@@ -18,10 +19,10 @@ namespace IntoChat.OS.Authority.Identity.Grants;
 public interface IEdgeGrantsCache
 {
     Task<IReadOnlyList<Grant>> GetGrantsAsync(string brain, CancellationToken ct = default);
-    Task<PrincipalSet> ExpandAsync(string ownerBrain, CapabilityCaller caller);
-    Task<bool> IsGrantedAsync(string brain, CapabilityCaller caller, string semanticTypeId, string? targetNeuron = null, CancellationToken ct = default);
-    Task<bool> IsConnectionBoundAsync(string brain, CapabilityCaller caller, string targetOrConnectionKey, CancellationToken ct = default);
-    Task<bool> IsConnectionBoundAsync(CapabilityCaller caller, string? targetOrConnectionKey);
+    Task<PrincipalSet> ExpandAsync(string ownerBrain, Caller caller);
+    Task<bool> IsGrantedAsync(string brain, Caller caller, string semanticTypeId, string? targetNeuron = null, CancellationToken ct = default);
+    Task<bool> IsConnectionBoundAsync(string brain, Caller caller, string targetOrConnectionKey, CancellationToken ct = default);
+    Task<bool> IsConnectionBoundAsync(Caller caller, string? targetOrConnectionKey);
     void Invalidate(string brain);
     void Clear();
 }
@@ -30,9 +31,10 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
 {
     public static readonly TimeSpan Ttl = TimeSpan.FromSeconds(30);
 
-    // The authority reads the grants and contacts it decides from as the platform: under the caller being decided,
+    // The authority reads the grants and contacts it decides from as the kernel: under the caller being decided,
     // those reads would be judged by the very grants they fetch. It reads inside the brain it reads from.
-    private static CapabilityCaller AuthorityReader(string brain) => CapabilityCallers.Platform("identity.grants", "system", brain);
+    private Task<T> AsAuthority<T>(string brain, Func<Task<T>> read)
+        => _services?.GetService<EdgeAuthority>() is { } edge ? edge.AsKernel(new BrainId(brain), read) : read();
     public static EdgeGrantsCache Current { get; set; } = new();
 
     private readonly Lock _sync = new();
@@ -106,12 +108,12 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         {
             try
             {
-                using var reader = RuntimeCallerContext.Stamp(AuthorityReader(brain));
                 var grantsNeuron = ResolveNeuron<IGrantsNeuron>(IGrantsNeuron.Key(brain));
                 if (grantsNeuron is not null)
                 {
-                    var grants = await grantsNeuron.List().WaitAsync(ct).ConfigureAwait(false);
-                    var version = await grantsNeuron.GetVersion().WaitAsync(ct).ConfigureAwait(false);
+                    var (grants, version) = await AsAuthority(brain, async () =>
+                        (await grantsNeuron.List().WaitAsync(ct).ConfigureAwait(false), await grantsNeuron.GetVersion().WaitAsync(ct).ConfigureAwait(false)))
+                        .ConfigureAwait(false);
                     var entry = new CachedGrantsEntry(grants, version, now);
                     lock (_sync)
                     {
@@ -133,21 +135,16 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         return cached?.Grants ?? [];
     }
 
-    public Task<PrincipalSet> ExpandAsync(string ownerBrain, CapabilityCaller caller)
+    public async Task<PrincipalSet> ExpandAsync(string ownerBrain, Caller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        return ExpandAsync(ownerBrain, CallerIdentity.From(caller));
-    }
-
-    internal async Task<PrincipalSet> ExpandAsync(string ownerBrain, CallerIdentity caller)
-    {
         var set = PrincipalSet.For(caller);
         if (string.IsNullOrWhiteSpace(ownerBrain))
         {
             return set;
         }
 
-        var callerKey = $"{caller.BrainId}:{caller.AppId}:{caller.PrincipalId}";
+        var callerKey = CallerKey(caller);
         var key = new ExpansionKey(ownerBrain, callerKey);
         var now = _clock.GetUtcNow();
 
@@ -160,33 +157,27 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         {
             try
             {
-                using var reader = RuntimeCallerContext.Stamp(AuthorityReader(ownerBrain));
                 var contactsNeuron = ResolveNeuron<IContactsNeuron>(IContactsNeuron.Key(ownerBrain));
                 if (contactsNeuron is not null)
                 {
-                    var usersets = new List<string>();
-                    if (!string.IsNullOrWhiteSpace(caller.BrainId))
+                    var app = GrantRules.AppOf(caller);
+                    var usersets = await AsAuthority(ownerBrain, async () =>
                     {
-                        var lists = await contactsNeuron.ListsContaining($"brain:{caller.BrainId}").ConfigureAwait(false);
-                        if (lists is not null)
+                        var found = new List<string>();
+                        foreach (var subject in new[] { $"brain:{caller.Brain.Value}", app is null ? null : $"app:{app}" })
                         {
-                            foreach (var list in lists)
+                            if (subject is null) { continue; }
+                            var lists = await contactsNeuron.ListsContaining(subject).ConfigureAwait(false);
+                            if (lists is not null)
                             {
-                                usersets.Add(IContactsNeuron.Userset(list));
+                                foreach (var list in lists)
+                                {
+                                    found.Add(IContactsNeuron.Userset(list));
+                                }
                             }
                         }
-                    }
-                    if (!string.IsNullOrWhiteSpace(caller.AppId))
-                    {
-                        var lists = await contactsNeuron.ListsContaining($"app:{caller.AppId}").ConfigureAwait(false);
-                        if (lists is not null)
-                        {
-                            foreach (var list in lists)
-                            {
-                                usersets.Add(IContactsNeuron.Userset(list));
-                            }
-                        }
-                    }
+                        return found;
+                    }).ConfigureAwait(false);
                     if (usersets.Count > 0)
                     {
                         set = set.With([.. usersets]);
@@ -217,13 +208,7 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         }
     }
 
-    public Task<bool> IsGrantedAsync(string brain, CapabilityCaller caller, string semanticTypeId, string? targetNeuron = null, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(caller);
-        return IsGrantedAsync(brain, CallerIdentity.From(caller), semanticTypeId, targetNeuron, ct);
-    }
-
-    internal async Task<bool> IsGrantedAsync(string brain, CallerIdentity caller, string semanticTypeId, string? targetNeuron = null, CancellationToken ct = default)
+    public async Task<bool> IsGrantedAsync(string brain, Caller caller, string semanticTypeId, string? targetNeuron = null, CancellationToken ct = default)
     {
         var grants = await GetGrantsAsync(brain, ct).ConfigureAwait(false);
         var principals = await ExpandAsync(brain, caller).ConfigureAwait(false);
@@ -259,13 +244,9 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
         return SiloNeurons.Get<T>(_services, key);
     }
 
-    public Task<bool> IsConnectionBoundAsync(string brain, CapabilityCaller caller, string targetOrConnectionKey, CancellationToken ct = default)
-        => caller is null
-            ? Task.FromResult(false)
-            : IsConnectionBoundAsync(brain, CallerIdentity.From(caller), targetOrConnectionKey, ct);
-
-    internal async Task<bool> IsConnectionBoundAsync(string brain, CallerIdentity caller, string targetOrConnectionKey, CancellationToken ct = default)
+    public async Task<bool> IsConnectionBoundAsync(string brain, Caller caller, string targetOrConnectionKey, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(caller);
         if (string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
         var callerAppKey = GrantRules.AppOf(caller);
         if (string.IsNullOrEmpty(callerAppKey)) { return false; }
@@ -300,43 +281,37 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
     }
 
     // The target's brain answers first, then the caller's own. Grain turns await this one.
-    public Task<bool> IsConnectionBoundAsync(CapabilityCaller caller, string? targetOrConnectionKey)
-        => caller is null
-            ? Task.FromResult(false)
-            : IsConnectionBoundAsync(CallerIdentity.From(caller), targetOrConnectionKey);
-
-    internal async Task<bool> IsConnectionBoundAsync(CallerIdentity caller, string? targetOrConnectionKey)
+    public async Task<bool> IsConnectionBoundAsync(Caller caller, string? targetOrConnectionKey)
     {
+        ArgumentNullException.ThrowIfNull(caller);
         if (string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
         if (TryExtractBrain(targetOrConnectionKey, out var targetBrain))
         {
             if (await IsConnectionBoundAsync(targetBrain.Value, caller, targetOrConnectionKey)) { return true; }
-            return !string.IsNullOrWhiteSpace(caller.BrainId) && !string.Equals(caller.BrainId, targetBrain.Value, StringComparison.OrdinalIgnoreCase)
-                && await IsConnectionBoundAsync(caller.BrainId, caller, targetOrConnectionKey);
+            return !string.IsNullOrWhiteSpace(caller.Brain.Value) && !string.Equals(caller.Brain.Value, targetBrain.Value, StringComparison.OrdinalIgnoreCase)
+                && await IsConnectionBoundAsync(caller.Brain.Value, caller, targetOrConnectionKey);
         }
 
-        return !string.IsNullOrWhiteSpace(caller.BrainId)
-            && await IsConnectionBoundAsync(caller.BrainId, caller, targetOrConnectionKey);
+        return !string.IsNullOrWhiteSpace(caller.Brain.Value)
+            && await IsConnectionBoundAsync(caller.Brain.Value, caller, targetOrConnectionKey);
     }
 
-    public bool IsConnectionBound(CapabilityCaller caller, string? targetOrConnectionKey)
-        => caller is not null && IsConnectionBound(CallerIdentity.From(caller), targetOrConnectionKey);
-
-    internal bool IsConnectionBound(CallerIdentity caller, string? targetOrConnectionKey)
+    public bool IsConnectionBound(Caller caller, string? targetOrConnectionKey)
     {
+        ArgumentNullException.ThrowIfNull(caller);
         if (string.IsNullOrWhiteSpace(targetOrConnectionKey)) { return false; }
         if (TryExtractBrain(targetOrConnectionKey, out var targetBrain))
         {
             if (IsConnectionBoundInMemory(targetBrain.Value, caller, targetOrConnectionKey)) { return true; }
-            return !string.IsNullOrWhiteSpace(caller.BrainId) && !string.Equals(caller.BrainId, targetBrain.Value, StringComparison.OrdinalIgnoreCase)
-                && IsConnectionBoundInMemory(caller.BrainId, caller, targetOrConnectionKey);
+            return !string.IsNullOrWhiteSpace(caller.Brain.Value) && !string.Equals(caller.Brain.Value, targetBrain.Value, StringComparison.OrdinalIgnoreCase)
+                && IsConnectionBoundInMemory(caller.Brain.Value, caller, targetOrConnectionKey);
         }
 
-        return !string.IsNullOrWhiteSpace(caller.BrainId)
-            && IsConnectionBoundInMemory(caller.BrainId, caller, targetOrConnectionKey);
+        return !string.IsNullOrWhiteSpace(caller.Brain.Value)
+            && IsConnectionBoundInMemory(caller.Brain.Value, caller, targetOrConnectionKey);
     }
 
-    private bool IsConnectionBoundInMemory(string brain, CallerIdentity caller, string targetOrConnectionKey)
+    private bool IsConnectionBoundInMemory(string brain, Caller caller, string targetOrConnectionKey)
     {
         var callerAppKey = GrantRules.AppOf(caller);
         if (string.IsNullOrEmpty(callerAppKey)) { return false; }
@@ -348,7 +323,7 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
             : !string.IsNullOrWhiteSpace(brain) ? brain : string.Empty;
         if (string.IsNullOrEmpty(ownerBrain)) { return false; }
         if (!_cache.TryGetValue(ownerBrain, out var cached)) { return false; }
-        var principals = _expansions.TryGetValue(new ExpansionKey(ownerBrain, $"{caller.BrainId}:{caller.AppId}:{caller.PrincipalId}"), out var exp)
+        var principals = _expansions.TryGetValue(new ExpansionKey(ownerBrain, CallerKey(caller)), out var exp)
             ? exp.Principals
             : PrincipalSet.For(caller);
         var targets = new List<string> { canonicalKey };
@@ -490,6 +465,8 @@ public sealed class EdgeGrantsCache : IEdgeGrantsCache
             _expansions.Clear();
         }
     }
+
+    private static string CallerKey(Caller caller) => $"{caller.Brain.Value}:{GrantRules.AppOf(caller)}:{caller.For?.Principal}";
 
     private static string StripNeuronPrefix(string value)
         => value.StartsWith("neuron://", StringComparison.Ordinal) ? value["neuron://".Length..] : value;

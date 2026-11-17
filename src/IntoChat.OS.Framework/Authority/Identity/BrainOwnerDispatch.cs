@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections;
@@ -9,7 +11,7 @@ using IntoChat.OS.Framework.Modules.Platform.Identity;
 
 namespace IntoChat.OS.Authority.Identity;
 
-internal sealed class BrainOwnerDispatch(IIdentityClient identity) : IBrainOwnerDispatch
+internal sealed class BrainOwnerDispatch(IIdentityClient identity, EdgeAuthority edge) : IBrainOwnerDispatch
 {
     public Task<bool> RunAsync(string brainId, string originKey, Func<Task> work, object? trace = null,
         CancellationToken cancellationToken = default)
@@ -34,7 +36,9 @@ internal sealed class BrainOwnerDispatch(IIdentityClient identity) : IBrainOwner
         using var traceScope = TraceContext.Enter(trace ?? TraceContext.Begin(owner.AccountId, brainId, TraceContext.OriginOf(brainId, originKey))
             with
         { TraceId = Guid.NewGuid().ToString("N") });
-        using var caller = CallerContextScope.Scoped(AccountSession.ForMember(member));
+        // Work resumed from storage runs as the scheduler of the brain it belongs to (owner decision 3, 17 Nov): no identity is
+        // stored, so it never acts as the owner; anything that needs a person goes through confirmations.
+        using var caller = edge.Enter(edge.Scheduler(new BrainId(brainId)));
         await work();
         return true;
     }

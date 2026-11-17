@@ -1,9 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Access;
-using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Invocation;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Framework;
 using Orleans;
@@ -12,14 +10,10 @@ namespace IntoChat.OS.Authority.Identity.Grants;
 
 public sealed class SiloAccessCallFilter(
     IEnumerable<ICallFilterStage> stages,
-    ICallerAmbient? callerAmbient = null,
-    AccessOptions? accessOptions = null,
-    EdgeAuthority? edgeAuthority = null) : IIncomingGrainCallFilter
+    ICallerAmbient callerAmbient) : IIncomingGrainCallFilter
 {
     private readonly ICallFilterStage[] _stages = [.. (stages ?? throw new ArgumentNullException(nameof(stages))).OrderBy(static s => s.Order)];
-    private readonly ICallerAmbient? _callerAmbient = callerAmbient;
-    private readonly EdgeAuthority? _edgeAuthority = edgeAuthority;
-    private readonly bool _unstampedEdgeIsKernel = accessOptions?.UnstampedEdgeIsKernel ?? false;
+    private readonly ICallerAmbient _callerAmbient = callerAmbient ?? throw new ArgumentNullException(nameof(callerAmbient));
 
     public async Task Invoke(IIncomingGrainCallContext context)
     {
@@ -97,19 +91,9 @@ public sealed class SiloAccessCallFilter(
             targetBrain = EdgeGrantsCache.TryExtractBrain(rawKey, out var parsedBrain) ? parsedBrain.Value : string.Empty;
         }
 
-        var caller = ResolveCurrentCaller();
-
-        // Unstamped in-process kernel scopes carry ProcessSecretToken via EdgeAuthority;
-        // unstamped external/edge calls fail closed when UnstampedEdgeIsKernel is false.
-        if (caller is null)
-        {
-            if (!(_edgeAuthority?.IsKernelActive ?? false) && !_unstampedEdgeIsKernel)
-            {
-                throw new UnauthorizedAccessException($"Unstamped call to '{targetNeuron}' carried no caller provenance.");
-            }
-
-            return;
-        }
+        // No caller is refused: the kernel is only ever an explicitly entered caller.
+        var caller = _callerAmbient.Current
+            ?? throw new UnauthorizedAccessException($"Unstamped call to '{targetNeuron}' carried no caller provenance.");
 
         if (_stages.Length == 0)
         {
@@ -148,10 +132,9 @@ public sealed class SiloAccessCallFilter(
 
     private void AuthorizeGrainCall(IIncomingGrainCallContext context)
     {
-        var caller = ResolveCurrentCaller();
+        var caller = _callerAmbient.Current;
 
-        if (caller is not null
-            && (caller.Actor is Actor.App || (caller.Actor is Actor.Person person && AppPrincipal.IsApp(person.Principal))))
+        if (caller is not null && GrantRules.IsAppCaller(caller))
         {
             var ifaceName = context.InterfaceMethod.DeclaringType?.Name ?? "";
             var methodName = context.InterfaceMethod.Name;
@@ -169,8 +152,4 @@ public sealed class SiloAccessCallFilter(
             }
         }
     }
-
-    private Caller? ResolveCurrentCaller()
-        => _callerAmbient?.Current
-            ?? (_edgeAuthority is not null && RuntimeCallerContext.Current is { } legacy ? _edgeAuthority.From(legacy) : null);
 }

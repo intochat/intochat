@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using DigitalBrain.Capabilities;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Connections;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Contracts.Configuration;
@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.OS.Authority.Connections.OAuth;
 
-internal sealed class OAuthLoginFlow(OAuthLoginRequests requests, OAuthTokenExchange exchange, IOptions<ConnectionsOptions> options)
+internal sealed class OAuthLoginFlow(OAuthLoginRequests requests, OAuthTokenExchange exchange, IOptions<ConnectionsOptions> options, ICallerAmbient? callers = null)
 {
     public Uri CallbackUri(string connectorId, HttpRequest? request = null)
         => new(Origin(request), $"integrations/{Uri.EscapeDataString(connectorId)}/oauth/callback");
@@ -22,16 +22,19 @@ internal sealed class OAuthLoginFlow(OAuthLoginRequests requests, OAuthTokenExch
                 ? new Uri($"{request.Scheme}://{request.Host}")
                 : throw new InvalidOperationException("Configure IntoChatOS:Connections:PublicOrigin before starting a browser login."));
 
-    public Task<Uri> StartAsync(string connectionKey, string authMethodId, string? target, CapabilityCaller owner, CancellationToken ct)
-        => StartAsync(connectionKey, authMethodId, target, owner, request: null, ct);
+    public Task<Uri> StartAsync(string connectionKey, string authMethodId, string? target, CancellationToken ct)
+        => StartAsync(connectionKey, authMethodId, target, request: null, ct);
 
-    public async Task<Uri> StartAsync(string connectionKey, string authMethodId, string? target, CapabilityCaller owner, HttpRequest? request, CancellationToken ct)
+    // The login belongs to the person the stamped caller acts for, in the brain it acts in.
+    public async Task<Uri> StartAsync(string connectionKey, string authMethodId, string? target, HttpRequest? request, CancellationToken ct)
     {
+        var caller = callers?.Current ?? throw new UnauthorizedAccessException("A browser login starts only for a stamped caller.");
+        var owner = CallerRules.ActsFor(caller) ?? throw new UnauthorizedAccessException("A browser login starts only for a person.");
         var (_, connector, _) = ConnectionKeys.Parse(connectionKey);
         var method = exchange.Method(connector, authMethodId);
         var callback = CallbackUri(connector, request);
         var (clientId, _) = await exchange.ClientAsync(method, ct);
-        var (state, verifier) = requests.Begin(connectionKey, authMethodId, target, owner);
+        var (state, verifier) = requests.Begin(connectionKey, authMethodId, target, owner, caller.Brain.Value);
         var query = new Dictionary<string, string>(method.AuthorizationParameters, StringComparer.Ordinal)
         {
             ["response_type"] = "code",

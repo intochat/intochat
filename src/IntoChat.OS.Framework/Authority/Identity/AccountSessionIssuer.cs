@@ -1,8 +1,8 @@
 using System.Diagnostics;
-using DigitalBrain.Capabilities;
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Http;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Authentication;
@@ -26,7 +26,7 @@ internal sealed class AccountSessionIssuer(IServiceProvider services) : DigitalB
         if (services.GetService<IIdentitySessionPort>() is not null && services.GetService<ISessions>() is { } sessions)
         {
             // identity@1 Validate/Issue/End are privileged to the auth module. The cookie edge stamps that module for the call.
-            using (RuntimeCallerContext.Stamp(AuthModuleCaller))
+            using (AsAuthModule())
             {
                 issued = await sessions.Issue(request, cancellationToken).ConfigureAwait(false);
             }
@@ -51,7 +51,7 @@ internal sealed class AccountSessionIssuer(IServiceProvider services) : DigitalB
         {
             try
             {
-                using (RuntimeCallerContext.Stamp(AuthModuleCaller))
+                using (AsAuthModule())
                 {
                     await sessions.End(sid, cancellationToken).ConfigureAwait(false);
                 }
@@ -71,8 +71,12 @@ internal sealed class AccountSessionIssuer(IServiceProvider services) : DigitalB
         await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme).ConfigureAwait(false);
     }
 
-    // AppId is the module id ModuleDeclarations checks. Auth's manifest grants Issue, End and Validate.
-    private static readonly CapabilityCaller AuthModuleCaller = CapabilityCallers.Of("auth", "auth", "system", CallerKind.App, "auth");
+    // The module id ModuleDeclarations checks. Auth's manifest grants Issue, End and Validate.
+    private IDisposable AsAuthModule()
+    {
+        var edge = services.GetRequiredService<EdgeAuthority>();
+        return edge.Enter(edge.Module("auth", new BrainId("system")));
+    }
 
     private static DateTimeOffset Expires(SessionRequest request)
         => DateTimeOffset.UtcNow + (request.Lifetime is { } lifetime && lifetime > TimeSpan.Zero ? lifetime : TimeSpan.FromDays(14));
@@ -81,7 +85,8 @@ internal sealed class AccountSessionIssuer(IServiceProvider services) : DigitalB
     {
         var handlers = http.RequestServices.GetServices<ISignInHandler>().ToArray();
         if (handlers.Length == 0) { return; }
-        RuntimeCallerContext.Stamp(CapabilityCallers.Of(member.PrincipalId, member.AccountId, member.BrainId));
+        using var signedIn = http.RequestServices.GetRequiredService<EdgeAuthority>().Enter(
+            AccountSession.ForMember(http.RequestServices.GetRequiredService<EdgeAuthority>(), member));
         var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ISignInHandler));
         foreach (var handler in handlers)
         {

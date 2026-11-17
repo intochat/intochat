@@ -1,4 +1,6 @@
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using IntoChat.OS.Framework;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Connections.Identity;
 
@@ -10,26 +12,26 @@ public static class ShippedGrants
 
     public static Grant[] ForAssistant(string brain)
     {
-        var assistantKey = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), CapabilityCallers.AssistantApp).Key;
+        var assistantKey = IntoChat.OS.Primitives.AppRef.Of(new DigitalBrain.BrainId(brain), CallerApps.Assistant).Key;
         return
         [
-            Grant.Tuple($"brain:{brain}", $"app:{CapabilityCallers.AssistantApp}", "*", "*"),
-            Grant.Tuple($"brain:{brain}", $"app:{CapabilityCallers.AssistantApp}", "*", GrantRelations.Run),
-            Grant.Tuple($"brain:{brain}", $"app:{CapabilityCallers.AssistantApp}", "*", GrantRelations.View),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", "*", "*"),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", "*", GrantRelations.Run),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", "*", GrantRelations.View),
             Grant.Tuple($"brain:{brain}", $"app:{assistantKey}", "*", "*"),
             Grant.Tuple($"brain:{brain}", $"app:{assistantKey}", "*", GrantRelations.Run),
             Grant.Tuple($"brain:{brain}", $"app:{assistantKey}", "*", GrantRelations.View),
-            Grant.Tuple($"brain:{brain}", $"app:{CapabilityCallers.AssistantApp}", $"agent/{brain}/*", GrantRelations.Run),
-            Grant.Tuple($"brain:{brain}", $"app:{CapabilityCallers.AssistantApp}", $"chat/{brain}/*", GrantRelations.Run),
-            Grant.Tuple($"brain:{brain}", $"app:{CapabilityCallers.AssistantApp}", $"files.vfs/{brain}/*", GrantRelations.Run),
-            Grant.Tuple($"brain:{brain}", $"app:{CapabilityCallers.AssistantApp}", $"ui.workspace/{brain}/*", GrantRelations.Run),
-            Grant.Tuple($"brain:{brain}", $"app:{CapabilityCallers.AssistantApp}", $"person/{brain}/*", GrantRelations.Run),
-            Grant.Tuple($"brain:{brain}", $"app:{CapabilityCallers.AssistantApp}", $"textfield/{brain}/*", GrantRelations.Run),
-            Grant.Tuple($"brain:{brain}", $"app:{CapabilityCallers.AssistantApp}", $"apps.app2/{brain}/*", GrantRelations.Run),
-            Grant.Tuple($"brain:{brain}", $"app:{CapabilityCallers.AssistantApp}", $"apps.artcraft-engine/{brain}/*", GrantRelations.Run),
-            Grant.Tuple($"brain:{brain}", $"app:{CapabilityCallers.AssistantApp}", $"artcraft/{brain}/*", GrantRelations.Run),
-            Grant.Tuple($"brain:{brain}", $"app:{CapabilityCallers.AssistantApp}", $"mcp.server/{brain}/*", GrantRelations.Run),
-            Grant.Tuple($"brain:{brain}", $"app:{CapabilityCallers.AssistantApp}", $"ui.compute/{brain}/*", GrantRelations.Run),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"agent/{brain}/*", GrantRelations.Run),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"chat/{brain}/*", GrantRelations.Run),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"files.vfs/{brain}/*", GrantRelations.Run),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"ui.workspace/{brain}/*", GrantRelations.Run),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"person/{brain}/*", GrantRelations.Run),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"textfield/{brain}/*", GrantRelations.Run),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"apps.app2/{brain}/*", GrantRelations.Run),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"apps.artcraft-engine/{brain}/*", GrantRelations.Run),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"artcraft/{brain}/*", GrantRelations.Run),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"mcp.server/{brain}/*", GrantRelations.Run),
+            Grant.Tuple($"brain:{brain}", $"app:{CallerApps.Assistant}", $"ui.compute/{brain}/*", GrantRelations.Run),
         ];
     }
 
@@ -46,15 +48,17 @@ public static class ShippedGrants
 
     public static Grant[] For(string brain, string app) => app switch
     {
-        CapabilityCallers.AssistantApp => ForAssistant(brain),
+        CallerApps.Assistant => ForAssistant(brain),
         _ => [],
     };
 
     // First-party callers whose grants ship with the OS rather than being stored: added when the brain stores none of its own.
-    public static Grant[] WithImplicit(Grant[] grants, CallerKind kind, string? appId, string brain)
+    public static Grant[] WithImplicit(Grant[] grants, Caller caller, string brain)
     {
-        if (kind == CallerKind.Agent && !grants.Any(g => g.AppId == CapabilityCallers.AssistantApp)) { return [.. grants, .. ForAssistant(brain)]; }
-        if (kind == CallerKind.App && appId == CliApp && !grants.Any(g => g.AppId == CliApp)) { return [.. grants, .. ForCli(brain)]; }
+        ArgumentNullException.ThrowIfNull(caller);
+        var appId = caller.Actor is Actor.App app ? app.Key : null;
+        if (caller.Actor is Actor.Agent && !grants.Any(g => g.AppId == CallerApps.Assistant)) { return [.. grants, .. ForAssistant(brain)]; }
+        if (appId == CliApp && !grants.Any(g => g.AppId == CliApp)) { return [.. grants, .. ForCli(brain)]; }
         return grants;
     }
 }

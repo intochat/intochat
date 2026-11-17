@@ -1,22 +1,14 @@
 using DigitalBrain.Access;
-using DigitalBrain.Capabilities;
-using IntoChat.OS.Framework;
 
 namespace IntoChat.OS.Authority.Identity.Grants;
 
 public sealed record PrincipalSet(string[] Principals)
 {
-    public static PrincipalSet For(CapabilityCaller caller)
+    public static PrincipalSet For(Caller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        return For(caller.BrainId, caller.AppId);
+        return For(caller.Brain.Value, GrantRules.AppOf(caller));
     }
-
-    internal static PrincipalSet For(CallerIdentity caller)
-        => For(caller.BrainId, caller.AppId);
-
-    internal static PrincipalSet For(Caller caller)
-        => For(CallerIdentity.From(caller));
 
     private static PrincipalSet For(string brainId, string? appId)
     {

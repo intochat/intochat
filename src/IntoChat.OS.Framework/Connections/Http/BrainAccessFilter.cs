@@ -31,12 +31,14 @@ public static class BrainAccessFilter
     public static async ValueTask<IResult?> Decide(HttpContext http, string brainId)
     {
         ArgumentNullException.ThrowIfNull(http);
-        if (!RuntimeCallerContext.TryGet(out var caller)) { return Results.Unauthorized(); }
+        if (HttpCaller.Current(http) is not { } caller) { return Results.Unauthorized(); }
+        // Membership is a person's: a caller acting for nobody reaches no brain through a route.
+        if (caller.For is not { } person) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
 
         var access = http.RequestServices.GetRequiredService<IBrainAccess>();
-        if (!await access.CanAccessAsync(caller.PrincipalId, caller.AccountId, brainId, http.RequestAborted))
+        if (!await access.CanAccessAsync(person.Principal, person.Account, brainId, http.RequestAborted))
         { return Results.StatusCode(StatusCodes.Status403Forbidden); }
-        await EnsureCreated(http, caller.AccountId, brainId);
+        await EnsureCreated(http, person.Account, brainId);
         return null;
     }
 

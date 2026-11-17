@@ -17,12 +17,13 @@ internal static class SecretsEndpoints
     {
         endpoints.MapPost("/secrets/{owner}", async (string owner, SecretInput body, AuthorityNeurons neurons, HttpContext http) =>
         {
-            if (!RuntimeCallerContext.TryGet(out var caller))
+            if (HttpCaller.Current(http) is not { } caller)
             {
                 return Results.Unauthorized();
             }
 
-            if (caller.PrincipalId != owner)
+            // The owner, or an agent for the owner; an app never stores into a vault here.
+            if (caller.Actor is not (Actor.Person or Actor.Agent) || caller.For?.Principal != owner)
             {
                 return Results.StatusCode(StatusCodes.Status403Forbidden);
             }

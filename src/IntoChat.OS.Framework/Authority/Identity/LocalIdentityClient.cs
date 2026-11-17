@@ -8,7 +8,7 @@ using IntoChat.OS.Connections.Platform.Identity;
 namespace IntoChat.OS.Authority.Identity;
 
 // The in-module directory facade. State lives on DirectoryNeuron; product callers use ICapabilityBroker.
-internal sealed class LocalIdentityClient(AuthorityNeurons neurons, EdgeAuthority? edge = null) : IIdentityClient
+internal sealed class LocalIdentityClient(AuthorityNeurons neurons, EdgeAuthority? edge = null, Grants.IEdgeGrantsCache? edgeCache = null) : IIdentityClient
 {
     private IDirectoryStore Directory => neurons.Directory();
 
@@ -41,7 +41,13 @@ internal sealed class LocalIdentityClient(AuthorityNeurons neurons, EdgeAuthorit
     public Task<Member?> EnsureMember(Member member) => SystemCall(() => Directory.EnsureMember(member));
     public Task RemoveMember(string brainScopeId, string accountId) => SystemCall(() => Directory.RemoveMember(brainScopeId, accountId));
     public Task RemovePrincipalMember(string brainScopeId, string principalId) => SystemCall(() => Directory.RemovePrincipalMember(brainScopeId, principalId));
-    public Task<CallDecision?> Authorize(Caller? caller, CallRequest request) => SystemCall(() => Directory.Authorize(DirectoryAuthorizeRequest.From(caller, request)));
+    // Decided here, from the caller value, over the directory's state. A one-time grant the decision consumes is spent on the
+    // directory in one turn; when another call spent it first, this call is refused.
+    public Task<CallDecision?> Authorize(Caller? caller, CallRequest request)
+        => BrainAuthorityDecisions.Authorize(caller, request,
+            (brain, grantsBrain) => SystemCall(() => Directory.AuthorityOf(brain, grantsBrain)),
+            (brain, grantsBrain, ids) => SystemCall(() => Directory.SpendOnce(brain, grantsBrain, ids)),
+            edgeCache);
     public Task<Grant[]> ListGrants(string brainScopeId) => SystemCall(() => Directory.ListGrants(brainScopeId));
     // The owner methods keep the stamped owner: no module stamp replaces it.
     public Task<Grant> GrantAsOwner(string brainId, Grant grant) => Directory.GrantAsOwner(brainId, grant);
