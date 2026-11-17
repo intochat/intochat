@@ -9,7 +9,7 @@ public static class MsixPackager
     public const string DefaultName = "IntoChat.OS";
     public const string DefaultPublisher = "CN=IntoChat Dev";
     public const string DefaultPublisherDisplayName = "IntoChat";
-    public const string DefaultBaseUri = "https://github.com/intochat/os/releases/latest/download";
+    public const string DefaultBaseUri = "https://github.com/intochat/intochat/releases/latest/download";
 
     public static async Task<int> RunAsync(string[] args)
     {

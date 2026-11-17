@@ -5,11 +5,11 @@ PackageVersion: PENDING_RELEASE_VERSION
 PackageLocale: en-US
 Publisher: IntoChat
 PublisherUrl: https://intochat.io
-PublisherSupportUrl: https://github.com/intochat/os/issues
+PublisherSupportUrl: https://github.com/intochat/intochat/issues
 PackageName: IntoChat OS
 PackageUrl: https://intochat.io
 License: MIT
-LicenseUrl: https://github.com/intochat/os/blob/master/LICENSE
+LicenseUrl: https://github.com/intochat/intochat/blob/master/LICENSE
 ShortDescription: Local-first AI operating system with Ino, live C# micro-apps, ArtCraft studios, and hardware-confined sandboxes.
 Moniker: intochat
 Tags:

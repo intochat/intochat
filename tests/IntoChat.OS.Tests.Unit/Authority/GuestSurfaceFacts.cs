@@ -4,7 +4,6 @@ using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.Cloud.Lobby;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Authority.Identity.Rules;
 using IntoChat.OS.Connections.Identity.Configuration;
@@ -103,18 +102,6 @@ public sealed class GuestSurfaceFacts
     [InlineData("")]
     [InlineData(null)]
     public void AGuest_MayOpenNothingElse_HoweverItIsSpelled(string? appId) => Assert.False(GuestSurface.MayOpen(appId));
-
-    // The lobby (IntoChat.Cloud) may not use the Authority namespace, so it keeps its own prefix and seed list. This pins them.
-    [Fact]
-    public void TheLobby_IssuesTheBrainsAndNamesTheApps_ThatTheSurfaceKnows()
-    {
-        Assert.Equal(GuestSurface.BrainPrefix, GuestTryToken.BrainIdPrefix);
-        Assert.Equal(GuestSurface.Screens, GuestTrySessionService.DefaultSeedDemoApps.Select(app => app.AppKey));
-
-        var session = new GuestTrySessionService().ProvisionOrResume("203.0.113.10", existingToken: null, new byte[32], DateTimeOffset.UnixEpoch).Session;
-        Assert.NotNull(session);
-        Assert.True(GuestSurface.Is(CapabilityCallers.Of(session.BrainId, session.BrainId, session.BrainId)));
-    }
 
     [Theory]
     [InlineData(Guest)]

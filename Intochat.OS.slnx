@@ -53,8 +53,6 @@
     <Project Path="framework/tests/DigitalBrain.Testing.Tests.Unit/DigitalBrain.Testing.Tests.Unit.csproj" />
     <Project Path="framework/tests/DigitalBrain.Tests.Unit/DigitalBrain.Tests.Unit.csproj" />
   </Folder>
-  <Project Path="src/IntoChat.Cloud/IntoChat.Cloud.csproj" />
-  <Project Path="src/IntoChat.Cloud.Host/IntoChat.Cloud.Host.csproj" />
   <Project Path="src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
   <Project Path="src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
   <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj" />
@@ -83,7 +81,6 @@
   <Project Path="src/Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
   <Project Path="src/Modules/Time/IntoChat.OS.Modules.Time.csproj" />
   <Project Path="src/Modules/Windows/IntoChat.OS.Modules.Windows.csproj" />
-  <Project Path="tests/IntoChat.Cloud.Tests.Unit/IntoChat.Cloud.Tests.Unit.csproj" />
   <Project Path="tests/IntoChat.OS.Architecture.Tests.Unit/IntoChat.OS.Architecture.Tests.Unit.csproj" />
   <Project Path="tests/IntoChat.OS.Tests.Browser/IntoChat.OS.Tests.Browser.csproj" />
   <Project Path="tests/IntoChat.OS.Tests.E2E/IntoChat.OS.Tests.E2E.csproj" />

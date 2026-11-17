@@ -395,13 +395,12 @@ public sealed class HouseRules22Facts
         return false;
     }
 
-    // Rule #4: EnterKernel( only in CloudHost.cs and Kernel.cs.
+    // Rule #4: EnterKernel( only in Kernel.cs.
     [Fact]
     public void HouseRule04_EnterKernelClosedAllowlist()
     {
         var allowed = new HashSet<(string Project, string File)>
         {
-            ("IntoChat.Cloud", "CloudHost.cs"),
             ("IntoChat.OS.Kernel", "Kernel.cs"),
         };
         var offenders = new List<string>();
@@ -418,7 +417,7 @@ public sealed class HouseRules22Facts
             }
         }
 
-        Assert.True(offenders.Count == 0, "EnterKernel() outside closed CloudHost/Kernel composition allowlist:\n" + string.Join('\n', offenders));
+        Assert.True(offenders.Count == 0, "EnterKernel() outside closed Kernel composition allowlist:\n" + string.Join('\n', offenders));
     }
 
     [Fact]
@@ -695,8 +694,6 @@ public sealed class HouseRules22Facts
         // Closed set of non-OS-filesystem single-segment identifier/blob/unit-token guards:
         var nonRelativePathTokenGuards = new HashSet<(string Project, string File)>
         {
-            ("IntoChat.Cloud", "BlobItemId.cs"),
-            ("IntoChat.Cloud", "BlobStorage.cs"),
             ("IntoChat.OS.Framework", "AppRef.cs"),
             ("IntoChat.OS.Framework", "SafeRelativePath.cs"),
             ("IntoChat.OS.Modules.Catalog", "SlotNamesABrainNeuron.cs"),
@@ -1532,29 +1529,6 @@ public sealed class HouseRules22Facts
             // App-internal UI seams
             "IGalleryLibrary",
             "ISecretVault",
-            // Cloud internal / host seams outside OS
-            "IOrganisationIdentity",
-            "IOrganisationMail",
-            "IPersonalOrganisationGuard",
-            "IOrganisationHost",
-            "IAuthHostSeam",
-            "ICodeSource",
-            "IAccountAuth",
-            "ILobbyAuth",
-            "ILobbyTokenKey",
-            "IMailHost",
-            "ICloudSignIn",
-            "ILocalizer",
-            "IIpThrottle",
-            "IAuthCode",
-            "IAuthProfile",
-            "IAuthSystemAudit",
-            "IAccountProvisioning",
-            "IAuthEmailIndex",
-            "IAuthSessions",
-            "IAuthCredential",
-            "IAcsEmailTransport",
-            "IMachineCredential",
         };
 
         var unexpected = new List<string>();

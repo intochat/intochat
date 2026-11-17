@@ -42,9 +42,9 @@ public sealed partial class InternalsVisibleToFacts
         {
             return true;
         }
-        // Consolidated test projects test all OS and Cloud modules
+        // Consolidated test projects test all OS modules
         if (grantee is "IntoChat.OS.Tests.Unit" or "IntoChat.OS.Tests.Integration" or "IntoChat.OS.Tests.E2E"
-            or "IntoChat.OS.Architecture.Tests.Unit" or "IntoChat.OS.Tests.Support" or "IntoChat.Cloud.Tests.Unit")
+            or "IntoChat.OS.Architecture.Tests.Unit" or "IntoChat.OS.Tests.Support")
         {
             return true;
         }

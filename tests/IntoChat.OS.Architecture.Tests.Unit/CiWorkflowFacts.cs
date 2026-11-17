@@ -5,7 +5,7 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // Workflow guard rails that no run can prove while Actions is unavailable:
 // Only ci.yml, release.yml, and artcraft-images.yml exist in .github/workflows/.
 // ci.yml runs unit, integration, e2e, and flutter jobs against a single build.
-// release.yml builds images once and deploys test then prod via Kernel install with zero scripts.
+// release.yml builds images once and packages releases with no deploy scripts; deploy jobs live in the private cloud repository.
 // No workflow references scripts/ directory or PACKAGE_TOKEN or DEPLOYMENT_VALUES_TOKEN.
 // release.yml packages the Windows bundle with eng/release/package-release.ps1 on a Windows runner and attaches it to
 // the release; ci.yml dry-runs the same script on Windows so it cannot rot between releases.
@@ -96,7 +96,7 @@ public sealed partial class CiWorkflowFacts
     }
 
     [Fact]
-    public void ReleaseBuildsImagesOnceAndDeploysTestThenProdViaKernelInstallWithZeroScripts()
+    public void ReleaseBuildsImagesOnceAndHasNoDeployJobs()
     {
         var release = Workflow("release.yml");
 
@@ -110,15 +110,13 @@ public sealed partial class CiWorkflowFacts
         Assert.DoesNotContain("acrintochattest.azurecr.io/os-ui:", package, StringComparison.Ordinal);
         Assert.DoesNotContain("acrintochattest.azurecr.io/os-sandbox:", package, StringComparison.Ordinal);
         Assert.Contains("release-manifest.json", package, StringComparison.Ordinal);
+        Assert.Contains("IntoChat.OS.Kernel.csproj", package, StringComparison.Ordinal);
+        Assert.Contains("IntoChat.OS.Kernel/Dockerfile", package, StringComparison.Ordinal);
 
-        // deploy-test uses pre-built Kernel binary install
-        var deployTest = Job(release, "deploy-test");
-        Assert.Contains("IntoChat.OS.Kernel install --env test --config deploy/test.json --manifest release-manifest.json", deployTest, StringComparison.Ordinal);
-
-        // deploy-prod uses environment: production and promote-from
-        var deployProd = Job(release, "deploy-prod");
-        Assert.Contains("environment: production", deployProd, StringComparison.Ordinal);
-        Assert.Contains("IntoChat.OS.Kernel install --env prod --config deploy/prod.json --manifest release-manifest.json --promote-from", deployProd, StringComparison.Ordinal);
+        // Deploy jobs and deploy config live in the private cloud repository.
+        Assert.DoesNotContain("deploy-test", release, StringComparison.Ordinal);
+        Assert.DoesNotContain("deploy-prod", release, StringComparison.Ordinal);
+        Assert.DoesNotContain("deploy/", release, StringComparison.Ordinal);
 
         // rollback_tag support
         Assert.Contains("rollback_tag", release, StringComparison.Ordinal);
@@ -177,18 +175,15 @@ public sealed partial class CiWorkflowFacts
         Assert.All(Uses(job), action => Assert.Contains(action, known));
     }
 
-    // A Windows packaging failure must not hold back the image or a deploy, and the reverse.
+    // A Windows packaging failure must not hold back the image, and the reverse.
     [Fact]
-    public void TheWindowsPackagingJobAndTheDeployJobsDoNotWaitForEachOther()
+    public void TheWindowsPackagingJobAndThePackageJobDoNotWaitForEachOther()
     {
         var release = Workflow("release.yml");
         Assert.Empty(Needs(Job(release, "package-windows")));
-        foreach (var name in new[] { "package", "deploy-test", "deploy-prod" })
-        {
-            var job = Job(release, name);
-            Assert.DoesNotContain("package-windows", Needs(job));
-            Assert.DoesNotContain("package-windows", job, StringComparison.Ordinal);
-        }
+        var job = Job(release, "package");
+        Assert.DoesNotContain("package-windows", Needs(job));
+        Assert.DoesNotContain("package-windows", job, StringComparison.Ordinal);
     }
 
     [Fact]

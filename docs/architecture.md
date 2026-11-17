@@ -11,7 +11,7 @@ The product has four parts.
 | Modules | Capabilities and connectors the kernel composes. | `src/Modules` |
 | Shell | What you see: the Flutter client and the desktop launcher. | `ui`, `src/IntoChat.OS.Desktop` |
 
-`src/IntoChat.OS.Framework` holds product-side hosting code (identity, connections, the call filter, the gRPC service). `src/IntoChat.Cloud` holds the cloud service modules, which load only under the cloud topology.
+`src/IntoChat.OS.Framework` holds product-side hosting code (identity, connections, the call filter, the gRPC service).
 
 ## Kernel
 

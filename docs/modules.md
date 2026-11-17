@@ -40,7 +40,7 @@ Nothing else registers it. `OperatingSystemModules` walks the assemblies the ker
 A module can declare more through static members that the host reads:
 
 - `RequiresContainer`: the module is left out of the in-process composition used by tests.
-- `LoadsUnder`: the module loads only under the topologies it accepts. The cloud modules use this.
+- `LoadsUnder`: the module loads only under the topologies it accepts.
 - `Contracts`: the assembly that holds the module's contracts.
 - `Integration` or `Integrations`: the secrets and settings a connection of this module asks for.
 

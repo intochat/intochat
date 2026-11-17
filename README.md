@@ -1,13 +1,13 @@
 # IntoChat OS
 
-[![ci](https://github.com/intochat/os/actions/workflows/ci.yml/badge.svg)](https://github.com/intochat/os/actions/workflows/ci.yml)
-[![license](https://img.shields.io/github/license/intochat/os)](LICENSE)
+[![ci](https://github.com/intochat/intochat/actions/workflows/ci.yml/badge.svg)](https://github.com/intochat/intochat/actions/workflows/ci.yml)
+[![license](https://img.shields.io/github/license/intochat/intochat)](LICENSE)
 
-IntoChat OS is a personal AI operating system: a distribution built on [DigitalBrain](https://github.com/intochat/digitalbrain).
+IntoChat OS is a personal AI operating system: a distribution built on [DigitalBrain](https://github.com/intochat/intochat/tree/master/framework).
 
 You have a brain: your data, your apps, your connections and an agent called Ino that does work for you. You choose where the brain runs.
 
-The vocabulary (neuron, signal, synapse, app, module) is defined by the DigitalBrain framework; read it [there](https://github.com/intochat/digitalbrain#core-vocabulary).
+The vocabulary (neuron, signal, synapse, app, module) is defined by the DigitalBrain framework; read it [there](framework/README.md#core-vocabulary).
 
 ## What is in this repo
 
@@ -40,7 +40,7 @@ Run from the repository root. Profiles and options are described in the header o
 
 ## The framework
 
-The DigitalBrain framework (neurons, signals, synapses, brains, apps and modules) lives in its own sibling repository ([`intochat/digitalbrain`](https://github.com/intochat/digitalbrain)) and is consumed by this repository as `DigitalBrain.*` NuGet packages pinned in [`Directory.Packages.props`](Directory.Packages.props).
+The DigitalBrain framework (neurons, signals, synapses, brains, apps and modules) lives in [`framework/`](framework/README.md) ([`intochat/intochat`](https://github.com/intochat/intochat/tree/master/framework)) and is consumed directly by project reference (and packed as `DigitalBrain.*` NuGet packages).
 
 ## Module model
 

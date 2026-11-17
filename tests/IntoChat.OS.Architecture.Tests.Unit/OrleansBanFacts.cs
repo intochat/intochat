@@ -11,7 +11,6 @@ public sealed class OrleansBanFacts
 {
     private static readonly string[] Allow =
     [
-        "IntoChat.Cloud",
         "IntoChat.OS.Modules.AI",
         "IntoChat.OS.Modules.Shell",
     ];
@@ -32,7 +31,7 @@ public sealed class OrleansBanFacts
     [Fact]
     public void TheModuleAllowListIsExactlyTheLedgerFive()
         => Assert.Equal(
-            ["IntoChat.Cloud", "IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.Shell"],
+            ["IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.Shell"],
             Allow.Order(StringComparer.Ordinal).ToArray());
 
     [Fact]

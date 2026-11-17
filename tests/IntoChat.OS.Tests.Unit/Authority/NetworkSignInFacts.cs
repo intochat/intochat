@@ -1,6 +1,5 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
-using IntoChat.Cloud;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Contracts.Configuration;
@@ -133,13 +132,13 @@ public sealed class NetworkSignInFacts
         Assert.Equal(StatusCodes.Status401Unauthorized, await kernel.Server.Send("POST", "/identity/register"));
     }
 
-    // The cloud's own registration, as the kernel's Program applies it under the cloud topology.
+    // A sign-in module composition under the cloud topology starts and keeps built-in password endpoints closed.
     [Theory]
     [InlineData(Network)]
     [InlineData(Loopback)]
     public async Task TheCloudComposition_StartsAndServesAsBefore(string urls)
     {
-        await using var kernel = TestKernel.Build(Settings("cloud", urls), CloudHost.Register);
+        await using var kernel = TestKernel.Build(Settings("cloud", urls), SignInModule);
 
         await kernel.App.StartAsync(Ct);
 

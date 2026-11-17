@@ -49,7 +49,7 @@ A group is a brain that several accounts share. Its members share apps, a chat a
 - Owners and admins can make invite codes.
 - When a member shares an app, the connections that app uses are bound for the group. They are withdrawn when the sharer leaves.
 
-The group server is in `src/IntoChat.Cloud/Circle/Server`. It loads only in the `cloud` topology.
+The group server lives in IntoChat Cloud.
 
 ## App
 
