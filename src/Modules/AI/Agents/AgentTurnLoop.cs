@@ -52,7 +52,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services, Func<string, Canc
         if (failure is not null) { turn?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, failure.Message); yield return failure; }
     }
 
-    // "{brain}/ino/conversations/main" names the agent "ino"; a key with no app segment names itself.
+    // "{brain}/{app}/conversations/{id}" names the agent after its app; a key with no app segment names itself.
     internal static string AgentName(string conversation)
     {
         var parts = conversation.Split('/', StringSplitOptions.RemoveEmptyEntries);
