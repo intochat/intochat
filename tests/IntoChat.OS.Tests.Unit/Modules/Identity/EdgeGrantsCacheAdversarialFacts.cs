@@ -1,4 +1,5 @@
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Hosting;

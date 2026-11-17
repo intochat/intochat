@@ -539,7 +539,8 @@ public sealed class HouseRules22Facts
     }
 
     private static bool IsTypedKeyBuilderFile(ParsedSource src)
-        => src.PathSegments.Contains("Contracts", StringComparer.OrdinalIgnoreCase)
+        => src.ProjectName.EndsWith(".Contracts", StringComparison.Ordinal)
+            || src.PathSegments.Contains("Contracts", StringComparer.OrdinalIgnoreCase)
             || src.PathSegments.Contains("ShellContracts", StringComparer.OrdinalIgnoreCase)
             || (src.ProjectName == "IntoChat.OS.Framework" && src.FileName is "AppRef.cs" or "UnitAlias.cs")
             || (src.ProjectName == "IntoChat.OS" && src.FileName == "NeuronKeys.cs");
@@ -1197,7 +1198,8 @@ public sealed class HouseRules22Facts
         foreach (var src in ProductionSources.Value)
         {
             if (!src.ProjectName.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
-                || !src.PathSegments.Contains("Contracts", StringComparer.OrdinalIgnoreCase))
+                || (!src.ProjectName.EndsWith(".Contracts", StringComparison.Ordinal)
+                    && !src.PathSegments.Contains("Contracts", StringComparer.OrdinalIgnoreCase)))
             {
                 continue;
             }
@@ -1523,7 +1525,7 @@ public sealed class HouseRules22Facts
             "IProcessRunner",
             "ICandidateHost",
             "IGrantPolicySource",
-            "IVault",
+            "IOsVault",
             "IDirectoryStore",
             "IPrincipalCredential",
             "IExternalTicketReplay",
@@ -1558,7 +1560,8 @@ public sealed class HouseRules22Facts
         var unexpected = new List<string>();
         foreach (var src in ProductionSources.Value)
         {
-            if (src.PathSegments.Contains("Contracts", StringComparer.OrdinalIgnoreCase)
+            if (src.ProjectName.EndsWith(".Contracts", StringComparison.Ordinal)
+                || src.PathSegments.Contains("Contracts", StringComparer.OrdinalIgnoreCase)
                 || src.PathSegments.Contains("ShellContracts", StringComparer.OrdinalIgnoreCase))
             {
                 continue;

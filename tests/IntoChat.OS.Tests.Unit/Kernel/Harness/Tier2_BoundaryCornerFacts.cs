@@ -6,6 +6,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Confirmation;
 using IntoChat.OS.Apps.FilmCraft;
 using IntoChat.OS.Apps.PhotoCraft;
@@ -332,8 +333,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F5")]
     public void F5_B03_CallRequest_PathTraversalNeuronName_TreatedAsLiteralString()
     {
-        var caller = CapabilityCallers.Of("u", "a", "b");
-        var req = new CallRequest { Caller = IntoChat.OS.Tests.TestEdge.From(caller), TargetNeuron = "../../etc/shadow", Operation = "read" };
+        var req = new CallRequest { TargetNeuron = "../../etc/shadow", Operation = "read" };
         Assert.Equal("../../etc/shadow", req.TargetNeuron);
     }
 
@@ -352,8 +352,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F5")]
     public void F5_B05_CallRequest_Defaults_EnforceTargetAndPublicOperationFalse()
     {
-        var caller = CapabilityCallers.Of("u", "a", "b");
-        var req = new CallRequest { Caller = IntoChat.OS.Tests.TestEdge.From(caller), TargetNeuron = "target", Operation = "op" };
+        var req = new CallRequest { TargetNeuron = "target", Operation = "op" };
         Assert.False(request_PublicOperation(req));
         Assert.False(req.EnforceTarget);
 

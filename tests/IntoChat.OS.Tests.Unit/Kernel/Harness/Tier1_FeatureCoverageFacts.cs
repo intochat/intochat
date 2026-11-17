@@ -6,6 +6,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Confirmation;
 using IntoChat.OS.Apps.FilmCraft;
 using IntoChat.OS.Apps.PhotoCraft;
@@ -355,14 +356,14 @@ public sealed class Tier1_FeatureCoverageFacts
     public void F5_02_CallRequest_InitializesWithRequiredProvenance()
     {
         var caller = CapabilityCallers.Of("usr_9", "acc_1", "brain_1", CallerKind.User);
+        var edge = IntoChat.OS.Tests.TestEdge.From(caller);
         var request = new CallRequest
         {
-            Caller = IntoChat.OS.Tests.TestEdge.From(caller),
             TargetNeuron = "brain_1/apps/calc",
             Operation = "execute"
         };
 
-        Assert.Equal("usr_9", request.Caller.For?.Principal ?? (request.Caller.Actor as Actor.Person)?.Principal);
+        Assert.Equal("usr_9", edge.For?.Principal ?? (edge.Actor as Actor.Person)?.Principal);
         Assert.Equal("brain_1/apps/calc", request.TargetNeuron);
         Assert.Equal("execute", request.Operation);
         Assert.False(request.PublicOperation);
@@ -692,8 +693,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F13")]
     public void F13_04_FrameworkAssembly_ExportsCanonicalConfigurationTypes()
     {
-        var assembly = typeof(IntoChat.OS.Framework.CallRequest).Assembly;
-        var exportedTypes = assembly.GetExportedTypes().Select(t => t.Name).ToList();
+        var exportedTypes = typeof(CallRequest).Assembly.GetExportedTypes().Select(t => t.Name).ToList();
         Assert.Contains("RuntimeCallerContext", typeof(DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext).Assembly.GetExportedTypes().Select(t => t.Name));
         Assert.Contains("CallRequest", exportedTypes);
     }
@@ -703,7 +703,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F13")]
     public void F13_05_CleanNamespaceIsolation_NoObsoleteShims()
     {
-        var types = typeof(IntoChat.OS.Framework.CallRequest).Assembly.GetTypes();
+        var types = typeof(IntoChat.OS.Framework.Modules.OsModule).Assembly.GetTypes();
         Assert.DoesNotContain(types, t => t.Name.Contains("NamesForward", StringComparison.OrdinalIgnoreCase));
     }
 

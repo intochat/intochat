@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Invocation;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans.Hosting;

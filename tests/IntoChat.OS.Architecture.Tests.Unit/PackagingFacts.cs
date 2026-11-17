@@ -32,7 +32,12 @@ public sealed partial class PackagingFacts
     {
         static bool DeclaresContractsHost(Repository.Project project)
         {
-            if (File.ReadAllText(project.Path).Contains("<IntoChatOSContractsHost>true</IntoChatOSContractsHost>", StringComparison.Ordinal))
+            var xml = File.ReadAllText(project.Path);
+            if (xml.Contains("<IntoChatOSContractsHost>false</IntoChatOSContractsHost>", StringComparison.Ordinal))
+            {
+                return false;
+            }
+            if (xml.Contains("<IntoChatOSContractsHost>true</IntoChatOSContractsHost>", StringComparison.Ordinal))
             {
                 return true;
             }

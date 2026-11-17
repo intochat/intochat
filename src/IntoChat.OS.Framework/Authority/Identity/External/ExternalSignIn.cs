@@ -6,7 +6,6 @@ using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -72,7 +71,7 @@ internal static class ExternalSignIn
         var displayName = string.IsNullOrWhiteSpace(claims.Name) ? email : claims.Name.Trim();
         var provisioning = http.RequestServices.GetRequiredService<IIdentityClient>();
         // Idempotent: a returning principal completes to its existing membership and brain; a new one registers once.
-        IntoChat.OS.Framework.Modules.Platform.Identity.BrainProvision provision;
+        BrainProvision provision;
         try
         {
             provision = await provisioning.CompleteRegistration(principalId).WaitAsync(http.RequestAborted)
@@ -92,17 +91,9 @@ internal static class ExternalSignIn
             new(IssuerClaim, claims.Issuer),
         ];
         await http.RequestServices.GetRequiredService<DigitalBrain.Runtime.Http.ISessionIssuer>()
-            .IssueAsync(http, new DigitalBrain.Capabilities.Identity.SessionRequest
+            .IssueAsync(http, new SessionRequest
             {
-                Member = new DigitalBrain.Capabilities.Identity.Member
-                {
-                    PrincipalId = member.PrincipalId,
-                    AccountId = member.AccountId,
-                    BrainId = member.BrainId,
-                    Role = (DigitalBrain.Capabilities.Identity.MemberRole)(int)member.Role,
-                    DisplayName = member.DisplayName,
-                    JoinedAt = member.JoinedAt,
-                },
+                Member = member,
                 Claims = session.ToDictionary(claim => claim.Type, claim => claim.Value, StringComparer.Ordinal),
             }, http.RequestAborted);
         log.LogInformation("External sign-in from {Issuer} for {Principal} ({NewBrain})", claims.Issuer, principalId, provision.NewBrain ? "new brain" : "existing brain");

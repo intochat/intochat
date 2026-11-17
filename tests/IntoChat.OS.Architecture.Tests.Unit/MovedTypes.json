@@ -32,6 +32,21 @@
       "persisted": true
     },
     {
+      "old": "IntoChat.OS.Connections.Identity.Configuration.IdentityPosture",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Identity.Grant",
+      "alias": "identity.grant",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.Identity.GrantMode",
+      "alias": null,
+      "persisted": false
+    },
+    {
       "old": "IntoChat.OS.Connections.Platform.Connections.BrainSeal",
       "alias": null,
       "persisted": false
@@ -367,6 +382,21 @@
       "persisted": false
     },
     {
+      "old": "IntoChat.OS.Framework.CallDecision",
+      "alias": "enforcement.call-decision",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Framework.CallDenial",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.CallRequest",
+      "alias": null,
+      "persisted": false
+    },
+    {
       "old": "IntoChat.OS.Framework.Caller",
       "alias": null,
       "persisted": false
@@ -533,6 +563,36 @@
     },
     {
       "old": "IntoChat.OS.Framework.Modules.OsModule",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Platform.Identity.Account",
+      "alias": "identity.account",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Platform.Identity.BrainEntry",
+      "alias": "identity.brain-entry",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Platform.Identity.BrainKind",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Platform.Identity.BrainProvision",
+      "alias": "identity.brain-provision",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Platform.Identity.Member",
+      "alias": "identity.member",
+      "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Framework.Modules.Platform.Identity.MemberRole",
       "alias": null,
       "persisted": false
     },

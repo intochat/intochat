@@ -11,8 +11,8 @@ using IntoChat.OS.Framework.Modules;
 namespace IntoChat.OS.Authority.Secrets;
 
 // One principal's vault, in the system brain. The key is the principal id (it may contain '/').
-[NeuronAlias("identity.vault"), DefaultNeuronType(IVault.Type)]
-internal interface IVault
+[NeuronAlias("identity.vault"), DefaultNeuronType(IOsVault.Type)]
+internal interface IOsVault
 {
     const string Type = "identity.vault";
 
@@ -25,10 +25,10 @@ internal interface IVault
 }
 
 [DigitalBrain.Signal("identity.vault-changed")]
-internal sealed record VaultChanged(string Name) : DigitalBrain.Signal;
+internal sealed record OsVaultChanged(string Name) : DigitalBrain.Signal;
 
-[Neuron(IVault.Type)]
-internal sealed class VaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IVault
+[Neuron(IOsVault.Type)]
+internal sealed class OsVaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IOsVault
 {
     private readonly SecretsStore _secrets = new(keys);
 
@@ -40,7 +40,7 @@ internal sealed class VaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IVau
         var next = Copy(State);
         next.Owner = Principal();
         var reference = _secrets.Set(next, name, label, value);
-        await Save(next, new VaultChanged(name));
+        await Save(next, new OsVaultChanged(name));
         return reference;
     }
 
@@ -53,7 +53,7 @@ internal sealed class VaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IVau
         if (!Copy(State).Fields.ContainsKey(name)) { return; }
         var next = Copy(State);
         next.Fields.Remove(name);
-        await Save(next, new VaultChanged(name));
+        await Save(next, new OsVaultChanged(name));
     }
 
     public Task<string> Resolve(CapabilityCaller caller, SecretRef secret)
@@ -86,6 +86,6 @@ internal sealed class VaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IVau
     {
         Owner = state.Owner,
         WrappedOwnerKey = state.WrappedOwnerKey,
-        Fields = new Dictionary<string, SecretRecord>(state.Fields),
+        Fields = new Dictionary<string, OsSecretRecord>(state.Fields),
     };
 }

@@ -1,24 +1,6 @@
+using DigitalBrain.Capabilities.Identity;
+
 namespace IntoChat.OS.Framework.Modules.Platform.Identity;
-
-[GenerateSerializer, Alias("identity.account")]
-public sealed record Account
-{
-    [Id(0)] public required string AccountId { get; init; }
-    [Id(1)] public required string Name { get; init; }
-    [Id(2)] public required string OwnerPrincipalId { get; init; }
-    [Id(3)] public DateTimeOffset CreatedAt { get; init; }
-}
-
-[GenerateSerializer, Alias("identity.member")]
-public sealed record Member
-{
-    [Id(0)] public required string PrincipalId { get; init; }
-    [Id(1)] public required string AccountId { get; init; }
-    [Id(2)] public required string BrainId { get; init; }
-    [Id(3)] public required MemberRole Role { get; init; }
-    [Id(4)] public required string DisplayName { get; init; }
-    [Id(5)] public DateTimeOffset JoinedAt { get; init; }
-}
 
 // The identity front door. Identity and authorization state are held by principal, account,
 // and account/brain-scoped actors.

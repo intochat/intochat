@@ -1,11 +1,11 @@
 using System.Text.RegularExpressions;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Authority.Identity.Authority;
 using IntoChat.OS.Authority.Integrations;
 using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 
 namespace IntoChat.OS.Authority.Identity.Rules;
 
@@ -101,39 +101,6 @@ internal sealed record ConnectionBelongsToBrain(string ConnectionBrainId, string
 {
     public override bool Broken => ConnectionBrainId != ExpectedBrainId;
     public override string Message => "The connection belongs to another brain.";
-}
-
-internal sealed record IntegrationIsAvailable(string Kind, object? Service) : Rule("identity.integration-available")
-{
-    public override bool Broken => Service is null;
-    public override string Message => $"Integration '{Kind}' is not available.";
-}
-
-internal sealed record AuthMethodIsNotBrowserLogin(string ConnectorId, string AuthMethodId) : Rule("identity.auth-method-not-browser-login")
-{
-    public override bool Broken => string.Equals(AuthMethodId, "browser", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(AuthMethodId, "oauth", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(AuthMethodId, "login", StringComparison.OrdinalIgnoreCase);
-    public override string Message => $"Authentication method '{AuthMethodId}' of connector '{ConnectorId}' is a browser login; start it from the login route.";
-}
-
-internal sealed record ConnectionIsConfigured(object? Configuration) : Rule("identity.connection-configured")
-{
-    public override bool Broken => Configuration is null or string { Length: 0 };
-    public override string Message => "The connection is not configured.";
-}
-
-internal sealed record BrainSealerIsAvailable(object? Sealer) : Rule("identity.brain-sealer-available")
-{
-    public override bool Broken => Sealer is null;
-    public override string Message => "Re-sealing a shared credential needs this machine's part keys.";
-}
-
-internal sealed record AuthMethodIsOffered(ConnectorCatalogEntry? Connector, string AuthMethodId) : Rule("identity.auth-method-offered")
-{
-    public override bool Broken => Connector is null
-        || !Connector.AuthMethods.Contains(AuthMethodId, StringComparer.OrdinalIgnoreCase);
-    public override string Message => $"Connector '{Connector?.Id ?? string.Empty}' does not offer authentication method '{AuthMethodId}'.";
 }
 
 internal sealed record CallerCanStoreSecret(CapabilityCaller Caller, string OwnerPrincipal) : Rule("identity.caller-can-store-secret")

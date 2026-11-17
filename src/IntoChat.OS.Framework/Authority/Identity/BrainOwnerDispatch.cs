@@ -1,6 +1,7 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;

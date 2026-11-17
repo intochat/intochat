@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Rules;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority.Connections;
@@ -28,7 +29,7 @@ public sealed class IdentityRulesFacts
             .Select(CreateDefault)
             .ToArray();
 
-        Assert.Equal(22, rules.Length);
+        Assert.Equal(17, rules.Length);
         Assert.All(rules, r => Assert.StartsWith("identity.", r.Name, StringComparison.Ordinal));
         Assert.Equal(rules.Length, rules.Select(r => r.Name).Distinct(StringComparer.Ordinal).Count());
     }
@@ -72,8 +73,8 @@ public sealed class IdentityRulesFacts
     {
         var services = new ServiceCollection();
         services.AddSingleton<IKeyWrapper, PassThroughKeyWrapper>();
-        await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<VaultNeuron>();
-        var vault = os.Get<IVault>(new NeuronId(new BrainId("system"), IVault.Type, "alice"));
+        await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<OsVaultNeuron>();
+        var vault = os.Get<IOsVault>(new NeuronId(new BrainId("system"), IOsVault.Type, "alice"));
 
         var bob = CapabilityCallers.Of("bob", "bob", "bob");
         var ex = await Assert.ThrowsAsync<RuleViolationException>(() => vault.Set(bob, "api", "API", "secret"));

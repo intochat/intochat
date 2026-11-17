@@ -1,10 +1,8 @@
 using System.Collections.Concurrent;
+using DigitalBrain.Access;
 using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Contracts.Configuration;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 
 namespace IntoChat.OS.Authority.Identity.Authority;
 
@@ -21,19 +19,20 @@ internal sealed class AuthorityMirror(IEdgeGrantsCache? edgeCache = null)
         _states[brainScopeId] = state;
     }
 
-    public async Task<(bool Decided, CallDecision? Decision)> TryDecide(CallRequest request)
+    public async Task<(bool Decided, CallDecision? Decision)> TryDecide(Caller? caller, CallRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var brainId = request.Caller.Brain.Value;
+        if (caller is null) { return (false, null); }
+        var brainId = caller.Brain.Value;
         if (string.IsNullOrWhiteSpace(brainId)) { return (false, null); }
         if (!_states.TryGetValue(brainId, out var state))
         {
-            var accountId = request.Caller.For?.Account;
+            var accountId = caller.For?.Account;
             if (string.IsNullOrWhiteSpace(accountId)) { return (false, null); }
             var scope = BrainScope.Create(accountId, brainId).Id;
             if (!_states.TryGetValue(scope, out state)) { return (false, null); }
         }
-        if (GrantRules.OnceToConsume(request, state.Grants).Count > 0) { return (false, null); }
-        return (true, await BrainAuthorityDecisions.Decide(state, request, edgeCache));
+        if (GrantRules.OnceToConsume(caller, request, state.Grants).Count > 0) { return (false, null); }
+        return (true, await BrainAuthorityDecisions.Decide(state, caller, request, edgeCache));
     }
 }

@@ -1,6 +1,6 @@
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Neurons;
-using IntoChat.OS.Connections.Identity;
-using GrantModel = IntoChat.OS.Connections.Identity.Grant;
+using GrantModel = DigitalBrain.Capabilities.Identity.Grant;
 
 namespace IntoChat.OS.Authority.Identity.Grants;
 

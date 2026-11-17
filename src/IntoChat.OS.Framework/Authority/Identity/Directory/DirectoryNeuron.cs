@@ -1,16 +1,15 @@
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Contracts;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Authority.Identity.Rules;
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -53,7 +52,7 @@ internal sealed record DirectoryAuthorizeRequest(
     CapabilityCaller? Caller,
     string TargetNeuron,
     string Operation,
-    string[] SemanticTypeIds,
+    IReadOnlyList<string> SemanticTypeIds,
     decimal EstimatedCompute,
     bool HasSideEffects,
     bool EnforceTarget,
@@ -61,10 +60,10 @@ internal sealed record DirectoryAuthorizeRequest(
     bool PublicOperation,
     bool IsModule = false)
 {
-    public static DirectoryAuthorizeRequest From(CallRequest request)
+    public static DirectoryAuthorizeRequest From(Caller? caller, CallRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var identity = request.Caller is null ? (CallerIdentity?)null : CallerIdentity.From(request.Caller);
+        var identity = caller is null ? (CallerIdentity?)null : CallerIdentity.From(caller);
         return new DirectoryAuthorizeRequest(
             identity?.ToCapabilityCaller(),
             request.TargetNeuron,
@@ -312,7 +311,7 @@ internal sealed class DirectoryNeuron(TimeProvider clock, IOptions<AuthOptions> 
         CallerIdentity caller,
         string targetNeuron,
         string operation,
-        string[] semanticTypeIds,
+        IReadOnlyList<string> semanticTypeIds,
         string? targetScope)
     {
         var brainId = caller.BrainId;

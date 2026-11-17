@@ -14,6 +14,12 @@
     <PackageReference Include="Microsoft.Orleans.Serialization.SystemTextJson" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Remove="Contracts/**" />
+    <EmbeddedResource Remove="Contracts/**" />
+    <None Remove="Contracts/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
     <ProjectReference Include="../Catalog/IntoChat.OS.Modules.Catalog.csproj" />

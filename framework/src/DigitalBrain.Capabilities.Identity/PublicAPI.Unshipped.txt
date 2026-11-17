@@ -80,20 +80,38 @@ DigitalBrain.Capabilities.Identity.Grant.ConversationId.get -> string?
 DigitalBrain.Capabilities.Identity.Grant.ConversationId.init -> void
 DigitalBrain.Capabilities.Identity.Grant.Covers(string! appId, string! semanticTypeId, string! workspaceId, string? conversationId) -> bool
 DigitalBrain.Capabilities.Identity.Grant.Covers(string! appId, string! semanticTypeId, string! workspaceId, string? conversationId, string? targetNeuronKey) -> bool
+DigitalBrain.Capabilities.Identity.Grant.Delegable.get -> bool
+DigitalBrain.Capabilities.Identity.Grant.Delegable.init -> void
 DigitalBrain.Capabilities.Identity.Grant.Equals(DigitalBrain.Capabilities.Identity.Grant? other) -> bool
+DigitalBrain.Capabilities.Identity.Grant.Expires.get -> System.DateTimeOffset?
+DigitalBrain.Capabilities.Identity.Grant.Expires.init -> void
 DigitalBrain.Capabilities.Identity.Grant.Grant() -> void
+DigitalBrain.Capabilities.Identity.Grant.Grant(string! id, string! owner, string! grantee, string! target, string! scope, System.DateTimeOffset? expires = null, bool revoked = false) -> void
 DigitalBrain.Capabilities.Identity.Grant.GrantedAt.get -> System.DateTimeOffset
 DigitalBrain.Capabilities.Identity.Grant.GrantedAt.init -> void
+DigitalBrain.Capabilities.Identity.Grant.Grantee.get -> string!
+DigitalBrain.Capabilities.Identity.Grant.Grantee.init -> void
+DigitalBrain.Capabilities.Identity.Grant.Id.get -> string!
+DigitalBrain.Capabilities.Identity.Grant.Id.init -> void
+DigitalBrain.Capabilities.Identity.Grant.IsCanonical.get -> bool
 DigitalBrain.Capabilities.Identity.Grant.Mode.get -> DigitalBrain.Capabilities.Identity.GrantMode
 DigitalBrain.Capabilities.Identity.Grant.Mode.init -> void
+DigitalBrain.Capabilities.Identity.Grant.Owner.get -> string!
+DigitalBrain.Capabilities.Identity.Grant.Owner.init -> void
 DigitalBrain.Capabilities.Identity.Grant.Revoked.get -> bool
 DigitalBrain.Capabilities.Identity.Grant.Revoked.init -> void
+DigitalBrain.Capabilities.Identity.Grant.Scope.get -> string!
+DigitalBrain.Capabilities.Identity.Grant.Scope.init -> void
 DigitalBrain.Capabilities.Identity.Grant.SemanticTypeId.get -> string!
 DigitalBrain.Capabilities.Identity.Grant.SemanticTypeId.init -> void
+DigitalBrain.Capabilities.Identity.Grant.Target.get -> string!
+DigitalBrain.Capabilities.Identity.Grant.Target.init -> void
 DigitalBrain.Capabilities.Identity.Grant.TargetNeuronKey.get -> string?
 DigitalBrain.Capabilities.Identity.Grant.TargetNeuronKey.init -> void
 DigitalBrain.Capabilities.Identity.Grant.WorkspaceId.get -> string!
 DigitalBrain.Capabilities.Identity.Grant.WorkspaceId.init -> void
+static DigitalBrain.Capabilities.Identity.Grant.Normalize(DigitalBrain.Capabilities.Identity.Grant! g) -> DigitalBrain.Capabilities.Identity.Grant!
+static DigitalBrain.Capabilities.Identity.Grant.Tuple(string! owner, string! grantee, string! target, string! relation, System.DateTimeOffset? expires = null, bool delegable = false) -> DigitalBrain.Capabilities.Identity.Grant!
 DigitalBrain.Capabilities.Identity.GrantMode
 DigitalBrain.Capabilities.Identity.GrantMode.Always = 2 -> DigitalBrain.Capabilities.Identity.GrantMode
 DigitalBrain.Capabilities.Identity.GrantMode.Once = 0 -> DigitalBrain.Capabilities.Identity.GrantMode

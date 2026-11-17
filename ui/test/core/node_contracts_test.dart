@@ -7,7 +7,7 @@ void main() {
       NodeContracts.of('view').contract,
       'IntoChat.OS.Modules.Flutter.Views.IView',
     );
-    expect(NodeContracts.of('view').changed, 'ViewChanged');
+    expect(NodeContracts.of('view').changed, 'FlutterViewChanged');
     expect(
       NodeContracts.of('field').contract,
       'IntoChat.OS.Modules.Flutter.Fields.IField',

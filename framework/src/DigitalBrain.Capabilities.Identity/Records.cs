@@ -1,3 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace DigitalBrain.Capabilities.Identity;
 
@@ -88,29 +91,123 @@ public enum GrantMode
 /// <summary>An owner's permission for an app to use one semantic type in a brain. Semantic type ids double as scopes.</summary>
 public sealed record Grant
 {
+    private const string UseViaPrefix = "use-via:";
+
+    /// <summary>Creates an empty grant with default tuple metadata.</summary>
+    [SetsRequiredMembers]
+    public Grant() { }
+
+    /// <summary>Creates a legacy tuple grant; prefer <see cref="Tuple"/>.</summary>
+    [Obsolete("Use Grant.Tuple")]
+    [SetsRequiredMembers]
+    public Grant(string id, string owner, string grantee, string target, string scope, DateTimeOffset? expires = null, bool revoked = false)
+    {
+        Id = id;
+        Owner = owner;
+        Grantee = grantee;
+        Target = target;
+        Scope = scope;
+        Expires = expires;
+        Revoked = revoked;
+        WorkspaceId = owner.StartsWith("brain:", StringComparison.Ordinal) ? owner["brain:".Length..] : owner;
+        AppId = grantee.StartsWith("app:", StringComparison.Ordinal) ? grantee["app:".Length..] : grantee;
+        SemanticTypeId = scope;
+        TargetNeuronKey = target;
+    }
+
     /// <summary>The app granted.</summary>
-    public required string AppId { get; init; }
+    public required string AppId { get; init; } = "";
 
     /// <summary>The semantic type, for example <c>person.birthDate</c>.</summary>
-    public required string SemanticTypeId { get; init; }
+    public required string SemanticTypeId { get; init; } = "";
 
     /// <summary>How long the grant lasts.</summary>
-    public required GrantMode Mode { get; init; }
+    public required GrantMode Mode { get; init; } = GrantMode.Always;
 
     /// <summary>The brain (workspace) the grant applies in.</summary>
-    public required string WorkspaceId { get; init; }
+    public required string WorkspaceId { get; init; } = "";
 
     /// <summary>The conversation a <see cref="GrantMode.ThisChat"/> grant is bound to.</summary>
     public string? ConversationId { get; init; }
 
     /// <summary>When it was granted.</summary>
-    public DateTimeOffset GrantedAt { get; init; }
+    public DateTimeOffset GrantedAt { get; init; } = DateTimeOffset.UtcNow;
 
     /// <summary>True once revoked; a revoked grant covers nothing.</summary>
     public bool Revoked { get; init; }
 
     /// <summary>Optional specific neuron key the grant is scoped to (neuron-level Circle access).</summary>
     public string? TargetNeuronKey { get; init; }
+
+    /// <summary>Unique grant identifier.</summary>
+    public string Id { get; init; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>Canonical owner principal or brain subject (for example <c>brain:...</c>).</summary>
+    public string Owner { get; init; } = "";
+
+    /// <summary>Canonical grantee subject (for example <c>app:...</c> or <c>brain:...</c>).</summary>
+    public string Grantee { get; init; } = "";
+
+    /// <summary>Canonical target neuron or scope path.</summary>
+    public string Target { get; init; } = "";
+
+    /// <summary>Canonical relation or semantic scope.</summary>
+    public string Scope { get; init; } = "";
+
+    /// <summary>Optional expiration timestamp for tuple grants.</summary>
+    public DateTimeOffset? Expires { get; init; }
+
+    /// <summary>Whether the grantee may delegate this grant onward.</summary>
+    public bool Delegable { get; init; }
+
+    /// <summary>Whether this grant carries canonical tuple fields (<see cref="Grantee"/> and <see cref="Scope"/>).</summary>
+    [IgnoreDataMember, JsonIgnore]
+    public bool IsCanonical => Grantee.Length > 0 && Scope.Length > 0;
+
+    /// <summary>Creates a canonical tuple grant.</summary>
+    public static Grant Tuple(
+        string owner,
+        string grantee,
+        string target,
+        string relation,
+        DateTimeOffset? expires = null,
+        bool delegable = false)
+    {
+#pragma warning disable CS0618
+        return new Grant(
+            id: Guid.NewGuid().ToString("N"),
+            owner: owner,
+            grantee: grantee,
+            target: target,
+            scope: relation,
+            expires: expires)
+        {
+            Delegable = !(relation?.StartsWith(UseViaPrefix, StringComparison.Ordinal) ?? false) && delegable,
+        };
+#pragma warning restore CS0618
+    }
+
+    /// <summary>Populates canonical tuple fields from legacy properties when missing; returns <paramref name="g"/> unchanged when already populated.</summary>
+    public static Grant Normalize(Grant g)
+    {
+        ArgumentNullException.ThrowIfNull(g);
+        if (g.Grantee.Length > 0 && g.Target.Length > 0 && g.Scope.Length > 0)
+        {
+            return g;
+        }
+
+        return g with
+        {
+            Owner = g.Owner.Length > 0
+                ? (g.Owner.StartsWith("brain:", StringComparison.Ordinal) ? g.Owner : "brain:" + g.Owner)
+                : (g.WorkspaceId.StartsWith("brain:", StringComparison.Ordinal) ? g.WorkspaceId : "brain:" + g.WorkspaceId),
+            Grantee = g.Grantee.Length > 0
+                ? g.Grantee
+                : (g.AppId.StartsWith("app:", StringComparison.Ordinal) ? g.AppId : "app:" + g.AppId),
+            Target = g.Target.Length > 0 ? g.Target : (g.TargetNeuronKey ?? (g.WorkspaceId.Length > 0 ? g.WorkspaceId + "/*" : "")),
+            Scope = g.Scope.Length > 0 ? g.Scope : g.SemanticTypeId,
+        };
+    }
 
     /// <summary>
     /// Whether this grant lets <paramref name="appId"/> use <paramref name="semanticTypeId"/> in

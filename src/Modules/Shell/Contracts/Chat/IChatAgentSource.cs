@@ -23,7 +23,7 @@ public interface IChatMigration
 
 // The chat's reconciliation as its own one-way turn: a deferred turn would hold the call that queued it.
 [DigitalBrain.Contracts.NeuronAlias("ui.chat-reconciliation"), DigitalBrain.Contracts.DefaultNeuronType(IChat.Type)]
-internal interface IChatReconciliation
+public interface IChatReconciliation
 {
     [DigitalBrain.Contracts.OneWayCall] Task Reconcile();
 }

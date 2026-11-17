@@ -376,26 +376,50 @@ public abstract class ConnectionNeuron<TState> : Neuron<TState>, IConnection, IC
             ?? throw new InvalidOperationException($"No service for type '{typeof(T)}' has been registered.");
 }
 
-internal sealed record AuthMethodIsNotBrowserLogin(string ConnectorId, string AuthMethodId, bool IsBrowserLogin) : Rule("identity.auth-method-not-browser-login")
+/// <summary>Requires that the chosen authentication method is not a browser-only login flow.</summary>
+/// <param name="ConnectorId">The connector identifier.</param>
+/// <param name="AuthMethodId">The authentication method identifier.</param>
+/// <param name="IsBrowserLogin">Whether the method requires browser login.</param>
+public sealed record AuthMethodIsNotBrowserLogin(string ConnectorId, string AuthMethodId, bool IsBrowserLogin) : Rule("identity.auth-method-not-browser-login")
 {
+    /// <inheritdoc />
     public override bool Broken => IsBrowserLogin;
+
+    /// <inheritdoc />
     public override string Message => $"Authentication method '{AuthMethodId}' of connector '{ConnectorId}' is a browser login; start it from the login route.";
 }
 
-internal sealed record ConnectionIsConfigured(bool Configured) : Rule("identity.connection-configured")
+/// <summary>Requires that the target connection has configuration or credential material available.</summary>
+/// <param name="Configured">Whether the connection is configured.</param>
+public sealed record ConnectionIsConfigured(bool Configured) : Rule("identity.connection-configured")
 {
+    /// <inheritdoc />
     public override bool Broken => !Configured;
+
+    /// <inheritdoc />
     public override string Message => "The connection is not configured.";
 }
 
-internal sealed record BrainSealerIsAvailable(bool Available) : Rule("identity.brain-sealer-available")
+/// <summary>Requires that a brain secret sealer is available for re-sealing shared credentials.</summary>
+/// <param name="Available">Whether the brain secret sealer is available.</param>
+public sealed record BrainSealerIsAvailable(bool Available) : Rule("identity.brain-sealer-available")
 {
+    /// <inheritdoc />
     public override bool Broken => !Available;
+
+    /// <inheritdoc />
     public override string Message => "Re-sealing a shared credential needs this machine's part keys.";
 }
 
-internal sealed record AuthMethodIsOffered(string ConnectorId, string AuthMethodId, bool Offered) : Rule("identity.auth-method-offered")
+/// <summary>Requires that the connector offers the requested authentication method.</summary>
+/// <param name="ConnectorId">The connector identifier.</param>
+/// <param name="AuthMethodId">The authentication method identifier.</param>
+/// <param name="Offered">Whether the authentication method is offered by the connector.</param>
+public sealed record AuthMethodIsOffered(string ConnectorId, string AuthMethodId, bool Offered) : Rule("identity.auth-method-offered")
 {
+    /// <inheritdoc />
     public override bool Broken => !Offered;
+
+    /// <inheritdoc />
     public override string Message => $"Connector '{ConnectorId}' does not offer authentication method '{AuthMethodId}'.";
 }

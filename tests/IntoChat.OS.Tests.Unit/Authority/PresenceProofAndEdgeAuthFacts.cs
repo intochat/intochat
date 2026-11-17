@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -27,7 +28,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using DbIdentity = DigitalBrain.Capabilities.Identity;
-using IdentityPosture = IntoChat.OS.Connections.Identity.Configuration.IdentityPosture;
 
 namespace IntoChat.OS.Tests.Unit.Authority;
 
@@ -257,9 +257,8 @@ public sealed class PresenceProofAndEdgeAuthFacts
         var stage = new GrantCallFilterStage(source);
 
         var personCaller = IntoChat.OS.Tests.TestEdge.From(CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin));
-        var uiDecision = await stage.EvaluateAsync(new CallRequest
+        var uiDecision = await stage.EvaluateAsync(personCaller, new CallRequest
         {
-            Caller = personCaller,
             TargetNeuron = "app.view/owner/main",
             Operation = "IView.Read",
             TargetScope = "owner",
@@ -272,9 +271,8 @@ public sealed class PresenceProofAndEdgeAuthFacts
         var untrustedAppCaller = IntoChat.OS.Tests.TestEdge.From(
             CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin) with { AppId = "untrusted-app" });
 
-        var vaultDecision = await stage.EvaluateAsync(new CallRequest
+        var vaultDecision = await stage.EvaluateAsync(untrustedAppCaller, new CallRequest
         {
-            Caller = untrustedAppCaller,
             TargetNeuron = "identity.vault/owner/main",
             Operation = "IVault.Resolve",
             TargetScope = "owner",
@@ -371,7 +369,7 @@ public sealed class PresenceProofAndEdgeAuthFacts
         public Task<Member?> EnsureMember(Member member) => Task.FromResult<Member?>(member);
         public Task RemoveMember(string brainScopeId, string accountId) => Task.CompletedTask;
         public Task RemovePrincipalMember(string brainScopeId, string principalId) => Task.CompletedTask;
-        public Task<CallDecision?> Authorize(CallRequest request) => Task.FromResult<CallDecision?>(CallDecision.Allow());
+        public Task<CallDecision?> Authorize(Caller? caller, CallRequest request) => Task.FromResult<CallDecision?>(CallDecision.Allow());
         public Task<Grant[]> ListGrants(string brainScopeId) => Task.FromResult<Grant[]>([]);
         public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => Task.FromResult(grant);
         public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => Task.FromResult(grants);

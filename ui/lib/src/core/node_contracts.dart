@@ -15,7 +15,7 @@ abstract final class NodeContracts {
     ),
     'view': NodeContract(
       'IntoChat.OS.Modules.Flutter.Views.IView',
-      'ViewChanged',
+      'FlutterViewChanged',
     ),
     'field': NodeContract(
       'IntoChat.OS.Modules.Flutter.Fields.IField',

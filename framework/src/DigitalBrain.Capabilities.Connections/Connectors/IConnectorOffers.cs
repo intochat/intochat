@@ -43,8 +43,14 @@ public sealed class DefaultConnectorOffers : IConnectorOffers
         => _neuronTypes?.ProvidesOf(connectorId) ?? [];
 }
 
-internal sealed record IntegrationIsAvailable(string Kind, bool Available) : Rule("identity.integration-available")
+/// <summary>Requires that the requested connector integration is available on this host.</summary>
+/// <param name="Kind">The connector kind identifier.</param>
+/// <param name="Available">Whether the connector is available on this host.</param>
+public sealed record IntegrationIsAvailable(string Kind, bool Available) : Rule("identity.integration-available")
 {
+    /// <inheritdoc />
     public override bool Broken => !Available;
+
+    /// <inheritdoc />
     public override string Message => $"Connector '{Kind}' is not available on this host.";
 }

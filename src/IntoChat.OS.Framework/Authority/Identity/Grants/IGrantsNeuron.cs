@@ -1,4 +1,4 @@
-using IntoChat.OS.Connections.Identity;
+using DigitalBrain.Capabilities.Identity;
 
 namespace IntoChat.OS.Authority.Identity.Grants;
 

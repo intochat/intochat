@@ -13,7 +13,7 @@ internal sealed class SecretsStore(IKeyWrapper keys)
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         var ownerKey = OwnerKey(state);
-        state.Fields[name] = new SecretRecord
+        state.Fields[name] = new OsSecretRecord
         {
             FieldPath = name,
             Kind = SemanticFieldKind.Secret,

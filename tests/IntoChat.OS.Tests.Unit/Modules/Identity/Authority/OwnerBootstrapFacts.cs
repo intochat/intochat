@@ -1,6 +1,8 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority.Identity.Authority;
@@ -92,23 +94,25 @@ public sealed class OwnerBootstrapFacts
         Assert.Equal("os.notes", grant.Scope);
 
         // Wire roundtrip check: Authorize over NeuronProxy serializes DirectoryAuthorizeRequest cleanly:
-        var appAllowed = await identity.Authorize(new CallRequest
-        {
-            Caller = os.Edge.From(CapabilityCallers.Of(AppPrincipal.Id("owner/apps/demo"), "owner", "owner", CallerKind.App, "owner/apps/demo")),
-            TargetNeuron = "owner/apps/demo",
-            Operation = "read",
-            SemanticTypeIds = ["os.notes"],
-        });
+        var appAllowed = await identity.Authorize(
+            os.Edge.From(CapabilityCallers.Of(AppPrincipal.Id("owner/apps/demo"), "owner", "owner", CallerKind.App, "owner/apps/demo")),
+            new CallRequest
+            {
+                TargetNeuron = "owner/apps/demo",
+                Operation = "read",
+                SemanticTypeIds = ["os.notes"],
+            });
         Assert.NotNull(appAllowed);
         Assert.True(appAllowed!.Allowed);
 
-        var appDenied = await identity.Authorize(new CallRequest
-        {
-            Caller = os.Edge.From(CapabilityCallers.Of(AppPrincipal.Id("owner/apps/stranger"), "owner", "owner", CallerKind.App, "owner/apps/stranger")),
-            TargetNeuron = "owner/apps/demo",
-            Operation = "read",
-            SemanticTypeIds = ["os.notes"],
-        });
+        var appDenied = await identity.Authorize(
+            os.Edge.From(CapabilityCallers.Of(AppPrincipal.Id("owner/apps/stranger"), "owner", "owner", CallerKind.App, "owner/apps/stranger")),
+            new CallRequest
+            {
+                TargetNeuron = "owner/apps/demo",
+                Operation = "read",
+                SemanticTypeIds = ["os.notes"],
+            });
         Assert.NotNull(appDenied);
         Assert.False(appDenied!.Allowed);
     }
@@ -137,7 +141,7 @@ public sealed class OwnerBootstrapFacts
         public Task<Member?> EnsureMember(Member member) => directory.EnsureMember(member);
         public Task RemoveMember(string brainScopeId, string accountId) => directory.RemoveMember(brainScopeId, accountId);
         public Task RemovePrincipalMember(string brainScopeId, string principalId) => directory.RemovePrincipalMember(brainScopeId, principalId);
-        public Task<CallDecision?> Authorize(CallRequest request) => directory.Authorize(DirectoryAuthorizeRequest.From(request));
+        public Task<CallDecision?> Authorize(Caller? caller, CallRequest request) => directory.Authorize(DirectoryAuthorizeRequest.From(caller, request));
         public Task<Grant[]> ListGrants(string brainScopeId) => directory.ListGrants(brainScopeId);
         public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => directory.GrantAsOwner(caller, grant);
         public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => directory.GrantShipped(brainScopeId, grants);

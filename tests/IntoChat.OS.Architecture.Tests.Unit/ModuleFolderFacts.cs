@@ -17,11 +17,16 @@ public sealed partial class ModuleFolderFacts
     private static IEnumerable<Repository.Project> ModuleProjects() => Repository.Projects.Values
         .Where(project => project.Directory.StartsWith(Repository.ModulesRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
 
+    private static bool IsModuleContractsProject(Repository.Project project)
+        => project.Name.EndsWith(".Contracts", StringComparison.Ordinal)
+            && string.Equals(Path.GetFileName(project.Directory), "Contracts", StringComparison.Ordinal)
+            && string.Equals(Path.GetDirectoryName(Path.GetDirectoryName(project.Directory)), Repository.ModulesRoot, StringComparison.OrdinalIgnoreCase);
+
     [Fact]
     public void EveryModuleProjectSitsInItsModulesContractsSrcOrTestsFolder()
     {
         var misplaced = ModuleProjects()
-            .Where(project => Path.GetDirectoryName(project.Directory) != Repository.ModulesRoot)
+            .Where(project => Path.GetDirectoryName(project.Directory) != Repository.ModulesRoot && !IsModuleContractsProject(project))
             .Select(project => Repository.Relative(project.Directory))
             .ToList();
         Assert.True(misplaced.Count == 0, "Module projects outside src/Modules/<Name>/: " + string.Join(", ", misplaced));
@@ -30,7 +35,10 @@ public sealed partial class ModuleFolderFacts
     [Fact]
     public void EveryModuleHasTestsAndNoRoleFolders()
     {
-        var modules = ModuleProjects().Select(project => project.Directory).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var modules = ModuleProjects()
+            .Select(project => IsModuleContractsProject(project) ? Path.GetDirectoryName(project.Directory)! : project.Directory)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         Assert.NotEmpty(modules);
         var unitTestsDir = Path.Combine(Repository.Root, "tests", "IntoChat.OS.Tests.Unit", "Modules");
         var untested = modules

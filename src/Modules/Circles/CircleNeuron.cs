@@ -315,7 +315,7 @@ internal sealed class CircleNeuron(
         var grantsNeuron = SiloNeurons.Get<IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron>(plain, IntoChat.OS.Authority.Identity.Grants.IGrantsNeuron.Key(source));
         await BrainActs.In(broker, source, async () =>
         {
-            await grantsNeuron.Grant(IntoChat.OS.Connections.Identity.Grant.Tuple(
+            await grantsNeuron.Grant(DigitalBrain.Capabilities.Identity.Grant.Tuple(
                 $"brain:{source}",
                 $"brain:{CircleBrain}",
                 sourceApp.Key,
@@ -335,7 +335,7 @@ internal sealed class CircleNeuron(
             var owned = ConnectionKeys.For(source, slot.Connector, id);
             await BrainActs.In(broker, source, async () =>
             {
-                await grantsNeuron.Grant(IntoChat.OS.Connections.Identity.Grant.Tuple(
+                await grantsNeuron.Grant(DigitalBrain.Capabilities.Identity.Grant.Tuple(
                     $"brain:{source}",
                     $"brain:{CircleBrain}",
                     owned,

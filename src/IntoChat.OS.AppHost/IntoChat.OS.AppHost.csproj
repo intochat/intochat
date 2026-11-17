@@ -23,6 +23,7 @@
     <ProjectReference Include="../Modules/AI/IntoChat.OS.Modules.AI.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../Modules/Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/Shell/IntoChat.OS.Modules.Shell.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/Azure/IntoChat.OS.Modules.Azure.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" IsAspireProjectResource="false" />

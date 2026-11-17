@@ -1,8 +1,6 @@
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
-using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
+using DigitalBrain.Capabilities.Identity;
 
 namespace IntoChat.OS.Connections.Platform.Identity;
 
@@ -46,7 +44,7 @@ public interface IIdentityClient
     // Removes one non-owner member of the brain by principal id; the owner throws, an unknown principal is a no-op.
     Task RemovePrincipalMember(string brainScopeId, string principalId);
 
-    Task<CallDecision?> Authorize(CallRequest request);
+    Task<CallDecision?> Authorize(Caller? caller, CallRequest request);
 
     Task<Grant[]> ListGrants(string brainScopeId);
 

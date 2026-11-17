@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
@@ -45,14 +46,13 @@ public sealed class CircleZeroLeakFacts
             var caller = CapabilityCallers.Of(AppPrincipal.Id(circleAppId), "user-bob", CircleBrain, CallerKind.App, circleAppId);
             var request = new CallRequest
             {
-                Caller = IntoChat.OS.Tests.TestEdge.From(caller),
                 TargetNeuron = connectionKey,
                 Operation = "Add",
                 SemanticTypeIds = [],
             };
 
             // Cross-brain call evaluation: allowed through reference grant without possessing local assembly
-            var decision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(caller));
+            var decision = GrantRules.Evaluate(IntoChat.OS.Tests.TestEdge.From(caller), request, null, [], PrincipalSet.For(caller));
             Assert.NotNull(decision);
             Assert.True(decision.Allowed, $"Cross-brain call to '{connectionKey}' should be allowed via reference grant.");
         }
@@ -83,17 +83,17 @@ public sealed class CircleZeroLeakFacts
                 "oauth-exchange"
             ];
 
+            var edge = IntoChat.OS.Tests.TestEdge.From(caller);
             foreach (var forbiddenTarget in forbiddenTargets)
             {
                 var vaultRequest = new CallRequest
                 {
-                    Caller = IntoChat.OS.Tests.TestEdge.From(caller),
                     TargetNeuron = forbiddenTarget,
                     Operation = "Read",
                     SemanticTypeIds = [],
                 };
 
-                var guardDecision = GrantRules.EvaluateZeroTokenGuard(vaultRequest);
+                var guardDecision = GrantRules.EvaluateZeroTokenGuard(edge, vaultRequest);
                 Assert.NotNull(guardDecision);
                 Assert.False(guardDecision.Allowed);
                 Assert.Equal(CallDenial.UntrustedCaller, guardDecision.Denial);
@@ -113,13 +113,12 @@ public sealed class CircleZeroLeakFacts
             {
                 var secretOpRequest = new CallRequest
                 {
-                    Caller = IntoChat.OS.Tests.TestEdge.From(caller),
                     TargetNeuron = connectionKey,
                     Operation = forbiddenOp,
                     SemanticTypeIds = [],
                 };
 
-                var opGuardDecision = GrantRules.EvaluateZeroTokenGuard(secretOpRequest);
+                var opGuardDecision = GrantRules.EvaluateZeroTokenGuard(edge, secretOpRequest);
                 Assert.NotNull(opGuardDecision);
                 Assert.False(opGuardDecision.Allowed);
                 Assert.Equal(CallDenial.UntrustedCaller, opGuardDecision.Denial);
@@ -128,13 +127,12 @@ public sealed class CircleZeroLeakFacts
             // 3. Mediated business capability call (e.g. ListFiles) through capability broker is permitted
             var businessRequest = new CallRequest
             {
-                Caller = IntoChat.OS.Tests.TestEdge.From(caller),
                 TargetNeuron = connectionKey,
                 Operation = "ListFiles",
                 SemanticTypeIds = [],
             };
 
-            var businessDecision = GrantRules.Evaluate(businessRequest, null, [], PrincipalSet.For(caller));
+            var businessDecision = GrantRules.Evaluate(edge, businessRequest, null, [], PrincipalSet.For(caller));
             Assert.NotNull(businessDecision);
             Assert.True(businessDecision.Allowed);
         }
@@ -150,17 +148,17 @@ public sealed class CircleZeroLeakFacts
         var targetNeuron = $"{SharerBrain}/apps/notes";
         var circleAppId = $"{CircleBrain}/apps/notes";
         var caller = CapabilityCallers.Of(AppPrincipal.Id(circleAppId), "user-bob", CircleBrain, CallerKind.App, circleAppId);
+        var edge = IntoChat.OS.Tests.TestEdge.From(caller);
 
         var request = new CallRequest
         {
-            Caller = IntoChat.OS.Tests.TestEdge.From(caller),
             TargetNeuron = targetNeuron,
             Operation = "ReadNote",
             SemanticTypeIds = [],
         };
 
         // Phase 1: Without grant, invocation is denied
-        var initialDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(caller));
+        var initialDecision = GrantRules.Evaluate(edge, request, null, [], PrincipalSet.For(caller));
         Assert.NotNull(initialDecision);
         Assert.False(initialDecision.Allowed);
         Assert.Equal(CallDenial.MissingGrant, initialDecision.Denial);
@@ -168,14 +166,14 @@ public sealed class CircleZeroLeakFacts
         // Phase 2: Grant is issued when shared into circle -> invocation succeeds
         EdgeGrantsCache.Current.BindFriendConnection(targetNeuron, circleAppId);
 
-        var activeDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(caller));
+        var activeDecision = GrantRules.Evaluate(edge, request, null, [], PrincipalSet.For(caller));
         Assert.NotNull(activeDecision);
         Assert.True(activeDecision.Allowed);
 
         // Phase 3: Circle grant is revoked (e.g., app unshared or circle deleted) -> invocation instantly severed
         EdgeGrantsCache.Current.UnbindFriendConnection(targetNeuron, circleAppId);
 
-        var revokedDecision = GrantRules.Evaluate(request, null, [], PrincipalSet.For(caller));
+        var revokedDecision = GrantRules.Evaluate(edge, request, null, [], PrincipalSet.For(caller));
         Assert.NotNull(revokedDecision);
         Assert.False(revokedDecision.Allowed);
         Assert.Equal(CallDenial.MissingGrant, revokedDecision.Denial);

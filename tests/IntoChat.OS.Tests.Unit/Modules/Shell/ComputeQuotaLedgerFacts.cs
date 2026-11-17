@@ -39,7 +39,7 @@ public sealed class ComputeQuotaLedgerFacts
         Assert.True(ledger.IsBudgetExhausted);
         Assert.True(ComputeQuotaLedger.CheckBudget(ledger.TotalSpentMicros, ledger.MonthlyBudgetMicros));
 
-        var ex = Assert.Throws<BudgetExhaustedException>(ledger.EnforceQuota);
+        var ex = Assert.Throws<ComputeQuotaExceededException>(ledger.EnforceQuota);
         Assert.Equal(350_000L, ex.SpentMicros);
         Assert.Equal(300_000L, ex.BudgetMicros);
     }

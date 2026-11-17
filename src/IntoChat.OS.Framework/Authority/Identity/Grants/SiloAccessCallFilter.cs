@@ -1,10 +1,10 @@
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
 using Orleans;
 
@@ -120,7 +120,6 @@ public sealed class SiloAccessCallFilter(
 
         var request = new CallRequest
         {
-            Caller = caller,
             TargetNeuron = targetNeuron,
             Operation = operation,
             TargetScope = string.IsNullOrEmpty(targetBrain) ? null : targetBrain,
@@ -130,7 +129,7 @@ public sealed class SiloAccessCallFilter(
         CallDecision? decision = null;
         foreach (var stage in _stages)
         {
-            decision = await stage.EvaluateAsync(request);
+            decision = await stage.EvaluateAsync(caller, request);
             if (decision is not null)
             {
                 break;
@@ -158,14 +157,13 @@ public sealed class SiloAccessCallFilter(
             var methodName = context.InterfaceMethod.Name;
             var request = new CallRequest
             {
-                Caller = caller,
                 TargetNeuron = ifaceName,
                 Operation = $"{ifaceName}.{methodName}",
                 TargetScope = caller.Brain.Value,
                 EnforceTarget = true,
             };
 
-            if (GrantRules.EvaluateZeroTokenGuard(request) is { } denial && !denial.Allowed)
+            if (GrantRules.EvaluateZeroTokenGuard(caller, request) is { } denial && !denial.Allowed)
             {
                 throw new UnauthorizedAccessException(denial.Explanation ?? $"Zero-token guard denied access to {ifaceName}.{methodName}");
             }

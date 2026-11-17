@@ -1,5 +1,6 @@
 // os-only: a stage of the os call filter, the single enforcement point for CallRequest.
-using IntoChat.OS.Framework.Modules;
+using DigitalBrain.Access;
+using DigitalBrain.Capabilities.Identity;
 
 namespace IntoChat.OS.Framework;
 
@@ -11,5 +12,5 @@ public interface ICallFilterStage
 {
     int Order => 0;
 
-    ValueTask<CallDecision?> EvaluateAsync(CallRequest request, CancellationToken cancellationToken = default);
+    ValueTask<CallDecision?> EvaluateAsync(Caller? caller, CallRequest request, CancellationToken cancellationToken = default);
 }

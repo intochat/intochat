@@ -1,8 +1,10 @@
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Storage;
 using IntoChat.OS.Authority.Connections;
 using IntoChat.OS.Authority.Connections.OAuth;
@@ -136,30 +138,29 @@ public sealed class IntegrationsAndZeroTokenFacts
     public async Task ZeroTokenAuthEnforcementDeniesDirectSecretAccessFromSandboxAndAppPrincipals()
     {
         var appCaller = CapabilityCallers.Of(AppPrincipal.Id("local/apps/sandbox"), "ada", "local", CallerKind.App, "local/apps/sandbox");
+        var appEdge = IntoChat.OS.Tests.TestEdge.From(appCaller);
 
         var vaultRequest = new CallRequest
         {
-            Caller = IntoChat.OS.Tests.TestEdge.From(appCaller),
             TargetNeuron = "system/identity.vault/ada",
             Operation = "IVault.Resolve",
         };
-        var decision = GrantRules.Evaluate(vaultRequest, null, [], PrincipalSet.For(appCaller));
+        var decision = GrantRules.Evaluate(appEdge, vaultRequest, null, [], PrincipalSet.For(appCaller));
         Assert.NotNull(decision);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, decision.Denial);
 
         var filterStage = new GrantCallFilterStage(new AllowAllPolicySource());
-        var stageDecision = await filterStage.EvaluateAsync(vaultRequest, TestContext.Current.CancellationToken);
+        var stageDecision = await filterStage.EvaluateAsync(appEdge, vaultRequest, TestContext.Current.CancellationToken);
         Assert.NotNull(stageDecision);
         Assert.False(stageDecision!.Allowed);
 
         var exportRequest = new CallRequest
         {
-            Caller = IntoChat.OS.Tests.TestEdge.From(appCaller),
             TargetNeuron = "local/connection/github/personal",
             Operation = "IConnection.ExportFor",
         };
-        var exportDecision = GrantRules.Evaluate(exportRequest, null, [], PrincipalSet.For(appCaller));
+        var exportDecision = GrantRules.Evaluate(appEdge, exportRequest, null, [], PrincipalSet.For(appCaller));
         Assert.NotNull(exportDecision);
         Assert.False(exportDecision!.Allowed);
 
@@ -263,19 +264,17 @@ public sealed class IntegrationsAndZeroTokenFacts
             var friendCaller = CapabilityCallers.Of(AppPrincipal.Id(friendApp), "ada", "local", CallerKind.App, friendApp);
             var strangerCaller = CapabilityCallers.Of(AppPrincipal.Id(strangerApp), "ada", "local", CallerKind.App, strangerApp);
 
-            var friendRequest = new CallRequest
+            var request = new CallRequest
             {
-                Caller = IntoChat.OS.Tests.TestEdge.From(friendCaller),
                 TargetNeuron = connectionKey,
                 Operation = "IGitHub.ReadRepo",
                 SemanticTypeIds = ["repo.contents"],
             };
-            var friendDecision = GrantRules.Evaluate(friendRequest, null, [creatorGrant], PrincipalSet.For(friendCaller));
+            var friendDecision = GrantRules.Evaluate(IntoChat.OS.Tests.TestEdge.From(friendCaller), request, null, [creatorGrant], PrincipalSet.For(friendCaller));
             Assert.NotNull(friendDecision);
             Assert.True(friendDecision!.Allowed);
 
-            var strangerRequest = friendRequest with { Caller = IntoChat.OS.Tests.TestEdge.From(strangerCaller) };
-            var strangerDecision = GrantRules.Evaluate(strangerRequest, null, [creatorGrant], PrincipalSet.For(strangerCaller));
+            var strangerDecision = GrantRules.Evaluate(IntoChat.OS.Tests.TestEdge.From(strangerCaller), request, null, [creatorGrant], PrincipalSet.For(strangerCaller));
             Assert.NotNull(strangerDecision);
             Assert.False(strangerDecision!.Allowed);
         }
@@ -289,16 +288,16 @@ public sealed class IntegrationsAndZeroTokenFacts
     public void GrantRulesFailClosedOnEmptySemanticTypeIdsAndEnforceTypedZeroTokenMatching()
     {
         var appCaller = CapabilityCallers.Of(AppPrincipal.Id("local/apps/calculator"), "ada", "local", CallerKind.App, "local/apps/calculator");
+        var appEdge = IntoChat.OS.Tests.TestEdge.From(appCaller);
 
         // 1. Foreign target with empty SemanticTypeIds must fail closed (Deny MissingGrant).
         var foreignCall = new CallRequest
         {
-            Caller = IntoChat.OS.Tests.TestEdge.From(appCaller),
             TargetNeuron = "local/connection/postgres/main",
             Operation = "Query",
             SemanticTypeIds = [],
         };
-        var foreignDecision = GrantRules.Evaluate(foreignCall, null, [], PrincipalSet.For(appCaller));
+        var foreignDecision = GrantRules.Evaluate(appEdge, foreignCall, null, [], PrincipalSet.For(appCaller));
         Assert.NotNull(foreignDecision);
         Assert.False(foreignDecision!.Allowed);
         Assert.Equal(CallDenial.MissingGrant, foreignDecision.Denial);
@@ -306,36 +305,33 @@ public sealed class IntegrationsAndZeroTokenFacts
         // 2. Own app target with empty SemanticTypeIds is allowed.
         var ownCall = new CallRequest
         {
-            Caller = IntoChat.OS.Tests.TestEdge.From(appCaller),
             TargetNeuron = "local/apps/calculator",
             Operation = "Compute",
             SemanticTypeIds = [],
         };
-        var ownDecision = GrantRules.Evaluate(ownCall, null, [], PrincipalSet.For(appCaller));
+        var ownDecision = GrantRules.Evaluate(appEdge, ownCall, null, [], PrincipalSet.For(appCaller));
         Assert.NotNull(ownDecision);
         Assert.True(ownDecision!.Allowed);
 
         // 3. Typed zero-token guard prevents forbidden types/interfaces/methods.
         var vaultCall = new CallRequest
         {
-            Caller = IntoChat.OS.Tests.TestEdge.From(appCaller),
             TargetNeuron = "system/identity.vault/ada",
             Operation = "Resolve",
             SemanticTypeIds = [],
         };
-        var vaultDecision = GrantRules.Evaluate(vaultCall, null, [], PrincipalSet.For(appCaller));
+        var vaultDecision = GrantRules.Evaluate(appEdge, vaultCall, null, [], PrincipalSet.For(appCaller));
         Assert.NotNull(vaultDecision);
         Assert.False(vaultDecision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, vaultDecision.Denial);
 
         var exportCall = new CallRequest
         {
-            Caller = IntoChat.OS.Tests.TestEdge.From(appCaller),
             TargetNeuron = "local/connection/github/work",
             Operation = "IConnection.ExportFor",
             SemanticTypeIds = [],
         };
-        var exportDecision = GrantRules.Evaluate(exportCall, null, [], PrincipalSet.For(appCaller));
+        var exportDecision = GrantRules.Evaluate(appEdge, exportCall, null, [], PrincipalSet.For(appCaller));
         Assert.NotNull(exportDecision);
         Assert.False(exportDecision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, exportDecision.Denial);
@@ -343,12 +339,13 @@ public sealed class IntegrationsAndZeroTokenFacts
         // 4. Benign substring target (e.g. app named "local/apps/my-vault-helper") does not trigger false positive.
         var benignCall = new CallRequest
         {
-            Caller = IntoChat.OS.Tests.TestEdge.From(CapabilityCallers.Of(AppPrincipal.Id("local/apps/my-vault-helper"), "ada", "local", CallerKind.App, "local/apps/my-vault-helper")),
             TargetNeuron = "local/apps/my-vault-helper",
             Operation = "Help",
             SemanticTypeIds = [],
         };
-        var benignGuardDecision = GrantRules.EvaluateZeroTokenGuard(benignCall);
+        var benignGuardDecision = GrantRules.EvaluateZeroTokenGuard(
+            IntoChat.OS.Tests.TestEdge.From(CapabilityCallers.Of(AppPrincipal.Id("local/apps/my-vault-helper"), "ada", "local", CallerKind.App, "local/apps/my-vault-helper")),
+            benignCall);
         Assert.Null(benignGuardDecision);
     }
 
@@ -364,7 +361,7 @@ public sealed class IntegrationsAndZeroTokenFacts
 
     private sealed class AllowAllPolicySource : IGrantPolicySource
     {
-        public ValueTask<CallDecision?> AuthorizeAsync(CallRequest request, CancellationToken cancellationToken)
+        public ValueTask<CallDecision?> AuthorizeAsync(Caller? caller, CallRequest request, CancellationToken cancellationToken)
             => ValueTask.FromResult<CallDecision?>(CallDecision.Allow());
 
         public ValueTask<IReadOnlyList<Grant>> ListGrantsAsync(CapabilityCaller caller, CancellationToken cancellationToken)

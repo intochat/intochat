@@ -124,9 +124,9 @@ public sealed class VaultPort(
         return bound.StartsWith(prefix, StringComparison.Ordinal) ? Convert.FromBase64String(bound[prefix.Length..]) : null;
     }
 
-    private IVault Vault(CapabilityCaller caller)
+    private IOsVault Vault(CapabilityCaller caller)
         => services is null ? throw new InvalidOperationException("The vault is not hosted.")
-            : SiloNeurons.Get<IVault>(services, IVault.Key(caller.PrincipalId));
+            : SiloNeurons.Get<IOsVault>(services, IOsVault.Key(caller.PrincipalId));
 
     // Set and remove run as the person who owns the vault, even when an app is on the call.
     private static CapabilityCaller Owner(CapabilityCaller caller)

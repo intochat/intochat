@@ -26,7 +26,7 @@ internal sealed class ViewNeuron
         var json = ViewValidation.Serialize(view);
         if (generation < Snapshot.Source || json == Snapshot.Json) { return; }
         var next = checked(Snapshot.Generation + 1);
-        await Save(new() { Json = json, Generation = next, Source = generation, Changes = Snapshot.Changes + 1 }, new ViewChanged(FullKey, next));
+        await Save(new() { Json = json, Generation = next, Source = generation, Changes = Snapshot.Changes + 1 }, new FlutterViewChanged(FullKey, next));
         // The view carries no field values; it tells its own app's field neurons their kind, so a secret is never stored. Values
         // stay with the field: nothing is seeded, the app pre-fills with IField.Set.
         var app = AppPrefix(Id.Key);

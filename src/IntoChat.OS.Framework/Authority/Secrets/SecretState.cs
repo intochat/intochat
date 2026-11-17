@@ -8,11 +8,11 @@ internal sealed class SecretsState
 {
     [Id(0)] public string Owner { get; set; } = "";
     [Id(1)] public string WrappedOwnerKey { get; set; } = "";
-    [Id(2)] public Dictionary<string, SecretRecord> Fields { get; set; } = [];
+    [Id(2)] public Dictionary<string, OsSecretRecord> Fields { get; set; } = [];
 }
 
 [GenerateSerializer, Alias("mydata.field-record")]
-internal sealed class SecretRecord
+internal sealed class OsSecretRecord
 {
     [Id(0)] public string FieldPath { get; set; } = "";
     [Id(1)] public SemanticFieldKind Kind { get; set; }

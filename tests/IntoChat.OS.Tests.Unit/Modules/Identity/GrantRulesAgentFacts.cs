@@ -1,4 +1,6 @@
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Framework;
@@ -16,6 +18,8 @@ public sealed class GrantRulesAgentFacts
 
     private static CapabilityCaller Agent() => new("test-user", "test-account", "test-brain") { AppId = AssistantApp };
 
+    private static Caller Edge(CapabilityCaller caller) => IntoChat.OS.Tests.TestEdge.From(caller);
+
     private static Member MemberOf(CapabilityCaller caller) => new()
     {
         PrincipalId = caller.PrincipalId,
@@ -25,8 +29,8 @@ public sealed class GrantRulesAgentFacts
         DisplayName = "Ino",
     };
 
-    private static CallRequest Req(CapabilityCaller caller, string target, params string[] types)
-        => new() { Caller = IntoChat.OS.Tests.TestEdge.From(caller), TargetNeuron = target, Operation = "read", SemanticTypeIds = types };
+    private static CallRequest Req(string target, params string[] types)
+        => new() { TargetNeuron = target, Operation = "read", SemanticTypeIds = types };
 
     private static Grant AgentGrant(string target, string relation)
         => Grant.Tuple("brain:test-brain", "app:" + AssistantApp, target, relation);
@@ -38,7 +42,7 @@ public sealed class GrantRulesAgentFacts
     public void AnAgentWithoutAGrantIsDeniedMissingGrant()
     {
         var agent = Agent();
-        var decision = GrantRules.Evaluate(Req(agent, "test-brain/apps/files"), MemberOf(agent), [], PrincipalSet.For(agent), connectionBound: false);
+        var decision = GrantRules.Evaluate(Edge(agent), Req("test-brain/apps/files"), MemberOf(agent), [], PrincipalSet.For(agent), connectionBound: false);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.MissingGrant, decision.Denial);
     }
@@ -48,7 +52,7 @@ public sealed class GrantRulesAgentFacts
     {
         var agent = Agent();
         var grants = new[] { AgentGrant("test-brain/apps/files", GrantRelations.Run) };
-        var decision = GrantRules.Evaluate(Req(agent, "test-brain/apps/files"), MemberOf(agent), grants, PrincipalSet.For(agent), connectionBound: false);
+        var decision = GrantRules.Evaluate(Edge(agent), Req("test-brain/apps/files"), MemberOf(agent), grants, PrincipalSet.For(agent), connectionBound: false);
         Assert.True(decision!.Allowed);
     }
 
@@ -57,7 +61,7 @@ public sealed class GrantRulesAgentFacts
     {
         var agent = Agent();
         var grants = new[] { AgentGrant("test-brain/apps/files", "view") };
-        var decision = GrantRules.Evaluate(Req(agent, "test-brain/apps/files"), MemberOf(agent), grants, PrincipalSet.For(agent), connectionBound: false);
+        var decision = GrantRules.Evaluate(Edge(agent), Req("test-brain/apps/files"), MemberOf(agent), grants, PrincipalSet.For(agent), connectionBound: false);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.MissingGrant, decision.Denial);
     }
@@ -67,7 +71,7 @@ public sealed class GrantRulesAgentFacts
     {
         var agent = Agent();
         var grants = new[] { AgentGrant("test-brain/apps/files", GrantRelations.Run) };
-        var decision = GrantRules.Evaluate(Req(agent, "test-brain/apps/files"), null, grants, PrincipalSet.For(agent), connectionBound: false);
+        var decision = GrantRules.Evaluate(Edge(agent), Req("test-brain/apps/files"), null, grants, PrincipalSet.For(agent), connectionBound: false);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.OutsideWorkspace, decision.Denial);
     }
@@ -76,7 +80,7 @@ public sealed class GrantRulesAgentFacts
     public void AnAgentGetsNoOwnTargetAllowance()
     {
         var agent = Agent();
-        var decision = GrantRules.Evaluate(Req(agent, "test-brain/apps/assistant/state"), MemberOf(agent), [], PrincipalSet.For(agent), connectionBound: false);
+        var decision = GrantRules.Evaluate(Edge(agent), Req("test-brain/apps/assistant/state"), MemberOf(agent), [], PrincipalSet.For(agent), connectionBound: false);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.MissingGrant, decision.Denial);
     }
@@ -85,12 +89,12 @@ public sealed class GrantRulesAgentFacts
     public void AnAgentIsNotConnectionBound()
     {
         var agent = Agent();
-        var request = Req(agent, "test-brain/apps/files");
-        var denied = GrantRules.Evaluate(request, MemberOf(agent), [], PrincipalSet.For(agent), connectionBound: true);
+        var request = Req("test-brain/apps/files");
+        var denied = GrantRules.Evaluate(Edge(agent), request, MemberOf(agent), [], PrincipalSet.For(agent), connectionBound: true);
         Assert.False(denied!.Allowed);
         Assert.Equal(CallDenial.MissingGrant, denied.Denial);
         var grants = new[] { AgentGrant("test-brain/apps/files", GrantRelations.Run) };
-        Assert.True(GrantRules.Evaluate(request, MemberOf(agent), grants, PrincipalSet.For(agent), connectionBound: true)!.Allowed);
+        Assert.True(GrantRules.Evaluate(Edge(agent), request, MemberOf(agent), grants, PrincipalSet.For(agent), connectionBound: true)!.Allowed);
     }
 
     [Fact]
@@ -98,7 +102,7 @@ public sealed class GrantRulesAgentFacts
     {
         var agent = Agent();
         var once = new Grant { AppId = AssistantApp, SemanticTypeId = "contacts.read", Mode = GrantMode.Once, WorkspaceId = "test-brain" };
-        var consumed = GrantRules.OnceToConsume(Req(agent, "test-brain/apps/files", "contacts.read"), [once]);
+        var consumed = GrantRules.OnceToConsume(Edge(agent), Req("test-brain/apps/files", "contacts.read"), [once]);
         Assert.Equal(once, Assert.Single(consumed));
     }
 }

@@ -8,6 +8,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Identity;
 using DigitalBrain.Invocation;
 using DigitalBrain.Runtime.Orleans.Hosting;
@@ -32,7 +33,6 @@ using Microsoft.Extensions.Options;
 using Orleans;
 using Orleans.Runtime;
 using Orleans.Serialization.Invocation;
-using IdentityPosture = IntoChat.OS.Connections.Identity.Configuration.IdentityPosture;
 
 namespace IntoChat.OS.Tests.Integration.Security;
 
@@ -76,48 +76,56 @@ public sealed class EdgePresenceSecurityFacts
 
         // 1. Proven Owner person skips Open posture grant check and returns explicit Allow (never null).
         var provenPerson = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin);
-        var personDecision = await source.AuthorizeAsync(new CallRequest
-        {
-            Caller = IntoChat.OS.Tests.TestEdge.From(provenPerson),
-            TargetNeuron = "app.view/owner/main",
-            Operation = "IView.Read",
-            TargetScope = AccountSession.DefaultLogin,
-        }, Ct);
+        var personDecision = await source.AuthorizeAsync(
+            IntoChat.OS.Tests.TestEdge.From(provenPerson),
+            new CallRequest
+            {
+                TargetNeuron = "app.view/owner/main",
+                Operation = "IView.Read",
+                TargetScope = AccountSession.DefaultLogin,
+            },
+            Ct);
         Assert.NotNull(personDecision);
         Assert.True(personDecision.Allowed);
         Assert.Equal(0, denyingIdentity.AuthorizeCalls);
 
         // 2. Agent, App, and Scheduler MUST NOT take the Open-posture skip; they evaluate Decide/Identity.
         var agent = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin, CallerKind.Agent, CapabilityCallers.AssistantApp);
-        var agentDecision = await source.AuthorizeAsync(new CallRequest
-        {
-            Caller = IntoChat.OS.Tests.TestEdge.From(agent),
-            TargetNeuron = "app.view/owner/main",
-            Operation = "IView.Read",
-            TargetScope = AccountSession.DefaultLogin,
-        }, Ct);
+        var agentDecision = await source.AuthorizeAsync(
+            IntoChat.OS.Tests.TestEdge.From(agent),
+            new CallRequest
+            {
+                TargetNeuron = "app.view/owner/main",
+                Operation = "IView.Read",
+                TargetScope = AccountSession.DefaultLogin,
+            },
+            Ct);
         Assert.NotNull(agentDecision);
         Assert.False(agentDecision.Allowed);
 
         var scheduler = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin, CallerKind.Scheduler, CapabilityCallers.SchedulerApp);
-        var schedulerDecision = await source.AuthorizeAsync(new CallRequest
-        {
-            Caller = IntoChat.OS.Tests.TestEdge.From(scheduler),
-            TargetNeuron = "app.view/owner/main",
-            Operation = "IView.Read",
-            TargetScope = AccountSession.DefaultLogin,
-        }, Ct);
+        var schedulerDecision = await source.AuthorizeAsync(
+            IntoChat.OS.Tests.TestEdge.From(scheduler),
+            new CallRequest
+            {
+                TargetNeuron = "app.view/owner/main",
+                Operation = "IView.Read",
+                TargetScope = AccountSession.DefaultLogin,
+            },
+            Ct);
         Assert.NotNull(schedulerDecision);
         Assert.False(schedulerDecision.Allowed);
 
         var arbitraryApp = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin, CallerKind.App, "untrusted-app");
-        var appDecision = await source.AuthorizeAsync(new CallRequest
-        {
-            Caller = IntoChat.OS.Tests.TestEdge.From(arbitraryApp),
-            TargetNeuron = "app.view/owner/main",
-            Operation = "IView.Read",
-            TargetScope = AccountSession.DefaultLogin,
-        }, Ct);
+        var appDecision = await source.AuthorizeAsync(
+            IntoChat.OS.Tests.TestEdge.From(arbitraryApp),
+            new CallRequest
+            {
+                TargetNeuron = "app.view/owner/main",
+                Operation = "IView.Read",
+                TargetScope = AccountSession.DefaultLogin,
+            },
+            Ct);
         Assert.NotNull(appDecision);
         Assert.False(appDecision.Allowed);
     }
@@ -211,7 +219,7 @@ public sealed class EdgePresenceSecurityFacts
     private sealed class NullDecisionStage : ICallFilterStage
     {
         public int Order => 0;
-        public ValueTask<CallDecision?> EvaluateAsync(CallRequest request, CancellationToken cancellationToken = default)
+        public ValueTask<CallDecision?> EvaluateAsync(Caller? caller, CallRequest request, CancellationToken cancellationToken = default)
             => ValueTask.FromResult<CallDecision?>(null);
     }
 
@@ -291,7 +299,7 @@ public sealed class EdgePresenceSecurityFacts
         public Task<Member?> EnsureMember(Member member) => Task.FromResult<Member?>(member);
         public Task RemoveMember(string brainScopeId, string accountId) => Task.CompletedTask;
         public Task RemovePrincipalMember(string brainScopeId, string principalId) => Task.CompletedTask;
-        public Task<CallDecision?> Authorize(CallRequest request)
+        public Task<CallDecision?> Authorize(Caller? caller, CallRequest request)
         {
             AuthorizeCalls++;
             return Task.FromResult<CallDecision?>(CallDecision.Deny(CallDenial.MissingGrant, "Denied by test identity client."));
@@ -330,7 +338,7 @@ public sealed class EdgePresenceSecurityFacts
         public Task<Member?> EnsureMember(Member member) => Task.FromResult<Member?>(member);
         public Task RemoveMember(string brainScopeId, string accountId) => Task.CompletedTask;
         public Task RemovePrincipalMember(string brainScopeId, string principalId) => Task.CompletedTask;
-        public Task<CallDecision?> Authorize(CallRequest request) => Task.FromResult<CallDecision?>(CallDecision.Allow());
+        public Task<CallDecision?> Authorize(Caller? caller, CallRequest request) => Task.FromResult<CallDecision?>(CallDecision.Allow());
         public Task<Grant[]> ListGrants(string brainScopeId) => Task.FromResult<Grant[]>([]);
         public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => Task.FromResult(grant);
         public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => Task.FromResult(grants);

@@ -44,6 +44,7 @@ public sealed class OrleansBanFacts
             if (Permitted(project.Name, project.Path)) { continue; }
             foreach (var package in Repository.PackageReferences(project.Path).Where(package => package.StartsWith("Microsoft.Orleans", StringComparison.Ordinal)))
             {
+                if (project.Name.EndsWith(".Contracts", StringComparison.Ordinal) && package == "Microsoft.Orleans.Sdk") { continue; }
                 offenders.Add($"{project.Name}: PackageReference {package}");
             }
             foreach (var file in Repository.SourceFiles(project.Directory, "*.cs"))

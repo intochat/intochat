@@ -1,4 +1,6 @@
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Authority.Identity.Authority;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections.Identity;
@@ -16,14 +18,16 @@ public sealed class GrantModelFacts
     private static CapabilityCaller App(string key, string brain = "test-brain")
         => CapabilityCallers.Of(AppPrincipal.Id(key), "test-user", brain, CallerKind.App, key);
 
-    private static CallRequest Req(CapabilityCaller caller, string target, params string[] types)
-        => new() { Caller = IntoChat.OS.Tests.TestEdge.From(caller), TargetNeuron = target, Operation = "read", SemanticTypeIds = types };
+    private static Caller Edge(CapabilityCaller caller) => IntoChat.OS.Tests.TestEdge.From(caller);
+
+    private static CallRequest Req(string target, params string[] types)
+        => new() { TargetNeuron = target, Operation = "read", SemanticTypeIds = types };
 
     [Fact]
     public void RunGrantAllowsInvocationWithoutSemanticTypes()
     {
         var grant = Grant.Tuple("brain:test-brain", "app:photocraft", "test-brain/apps/gallery", GrantRelations.Run);
-        var decision = GrantRules.Evaluate(Req(App("photocraft"), "test-brain/apps/gallery"), null, [grant], PrincipalSet.For(App("photocraft")));
+        var decision = GrantRules.Evaluate(Edge(App("photocraft")), Req("test-brain/apps/gallery"), null, [grant], PrincipalSet.For(App("photocraft")));
         Assert.True(decision!.Allowed);
     }
 
@@ -52,9 +56,9 @@ public sealed class GrantModelFacts
     public void AuthorityEvaluatesTheTargetBrainNotTheCallerBrain()
     {
         var caller = App("y/apps/foo", "y");
-        Assert.Equal("x", BrainAuthorityDecisions.GrantsBrainOf(Req(caller, "x/apps/secret")));
-        Assert.Equal("y", BrainAuthorityDecisions.GrantsBrainOf(Req(caller, "")));
-        Assert.Equal("y", BrainAuthorityDecisions.GrantsBrainOf(Req(caller, "neuron://y/person/me")));
+        Assert.Equal("x", BrainAuthorityDecisions.GrantsBrainOf(Edge(caller), Req("x/apps/secret")));
+        Assert.Equal("y", BrainAuthorityDecisions.GrantsBrainOf(Edge(caller), Req("")));
+        Assert.Equal("y", BrainAuthorityDecisions.GrantsBrainOf(Edge(caller), Req("neuron://y/person/me")));
     }
 
     [Fact]

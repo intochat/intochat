@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Http.Surface;
 using IntoChat.OS.Authority.Identity.Directory;
 using IntoChat.OS.Connections;

@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority.Identity;

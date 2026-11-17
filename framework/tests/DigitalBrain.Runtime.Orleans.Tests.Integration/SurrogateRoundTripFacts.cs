@@ -2,6 +2,7 @@ using DigitalBrain.Brains;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Integrations;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Capabilities.Secrets;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,12 @@ public interface ISurrogateEchoGrain : IGrainWithStringKey
     Task<BrainState> EchoBrainState(BrainState value);
     Task<SealedSecret> EchoSealedSecret(SealedSecret value);
     Task<SecretRef> EchoSecretRef(SecretRef value);
+    Task<Account> EchoAccount(Account value);
+    Task<Member> EchoMember(Member value);
+    Task<DigitalBrain.Capabilities.Identity.BrainEntry> EchoBrainEntry(DigitalBrain.Capabilities.Identity.BrainEntry value);
+    Task<BrainProvision> EchoBrainProvision(BrainProvision value);
+    Task<CallDecision> EchoCallDecision(CallDecision value);
+    Task<Grant> EchoGrant(Grant value);
     Task<Trace?> ReadAmbientTrace();
 }
 
@@ -38,6 +45,12 @@ public sealed class SurrogateEchoGrain : Grain, ISurrogateEchoGrain
     public Task<BrainState> EchoBrainState(BrainState value) => Task.FromResult(value);
     public Task<SealedSecret> EchoSealedSecret(SealedSecret value) => Task.FromResult(value);
     public Task<SecretRef> EchoSecretRef(SecretRef value) => Task.FromResult(value);
+    public Task<Account> EchoAccount(Account value) => Task.FromResult(value);
+    public Task<Member> EchoMember(Member value) => Task.FromResult(value);
+    public Task<DigitalBrain.Capabilities.Identity.BrainEntry> EchoBrainEntry(DigitalBrain.Capabilities.Identity.BrainEntry value) => Task.FromResult(value);
+    public Task<BrainProvision> EchoBrainProvision(BrainProvision value) => Task.FromResult(value);
+    public Task<CallDecision> EchoCallDecision(CallDecision value) => Task.FromResult(value);
+    public Task<Grant> EchoGrant(Grant value) => Task.FromResult(value);
     public Task<Trace?> ReadAmbientTrace() => Task.FromResult(TraceContext.Current);
 }
 
@@ -134,5 +147,28 @@ public sealed class SurrogateRoundTripFacts
 
         var secretRef = new SecretRef { Reference = "secret://acc-1/api-key", Label = "API Key", Status = SecretStatus.Set };
         Assert.Equal(secretRef, await grain.EchoSecretRef(secretRef));
+
+        var account = new Account { AccountId = "acc-1", Name = "Ada", OwnerPrincipalId = "ada", CreatedAt = now };
+        Assert.Equal(account, await grain.EchoAccount(account));
+
+        var member = new Member { PrincipalId = "ada", AccountId = "acc-1", BrainId = "brain-1", Role = MemberRole.Owner, DisplayName = "Ada", JoinedAt = now };
+        Assert.Equal(member, await grain.EchoMember(member));
+
+        var brainEntry = new DigitalBrain.Capabilities.Identity.BrainEntry("brain-1", BrainKind.Circle);
+        Assert.Equal(brainEntry, await grain.EchoBrainEntry(brainEntry));
+
+        var provision = new BrainProvision(member, NewBrain: true);
+        Assert.Equal(provision, await grain.EchoBrainProvision(provision));
+
+        var callDecision = new CallDecision { Allowed = false, Denial = CallDenial.MissingGrant, Explanation = "missing", ConsumesOnce = true };
+        Assert.Equal(callDecision, await grain.EchoCallDecision(callDecision));
+
+        var identityGrant = Grant.Tuple("brain:brain-1", "app:notes", "notes/*", "read", expires: now.AddDays(1), delegable: true) with
+        {
+            Mode = GrantMode.ThisChat,
+            ConversationId = "conv-1",
+            GrantedAt = now,
+        };
+        Assert.Equal(identityGrant, await grain.EchoGrant(identityGrant));
     }
 }

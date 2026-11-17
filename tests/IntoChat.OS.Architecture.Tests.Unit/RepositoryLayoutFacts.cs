@@ -21,6 +21,7 @@ public sealed class RepositoryLayoutFacts
         ["IntoChat.OS.Modules.Playwright"] = "IntoChat.OS.Modules.Microsoft.Playwright",
         ["IntoChat.OS.Modules.Roslyn"] = "IntoChat.OS.Modules.Microsoft.Roslyn",
         ["IntoChat.OS.Modules.Shell"] = "IntoChat.OS.Modules.Flutter",
+        ["IntoChat.OS.Modules.Shell.Contracts"] = "IntoChat.OS.Modules.Flutter",
         ["IntoChat.OS.Modules.Storage"] = "IntoChat.OS.Modules.LocalDisk",
         ["IntoChat.OS.Modules.Windows"] = "IntoChat.OS.Modules.Microsoft.Windows",
     };
@@ -96,7 +97,10 @@ public sealed class RepositoryLayoutFacts
             var directory = Path.GetDirectoryName(path)!.Replace('\\', '/');
             var name = Path.GetFileNameWithoutExtension(path);
             var folderName = Path.GetFileName(directory);
-            Assert.True(folderName == name || name == Prefix + folderName || name == "IntoChat.OS.Modules." + folderName,
+            Assert.True(folderName == name
+                    || name == Prefix + folderName
+                    || name == "IntoChat.OS.Modules." + folderName
+                    || (folderName == "Contracts" && name == "IntoChat.OS.Modules." + Path.GetFileName(Path.GetDirectoryName(directory)) + ".Contracts"),
                 $"{path} directory '{folderName}' is not the project name.");
             var group = directory[..directory.LastIndexOf('/')];
             var folder = entry.Parent!.Name.LocalName == "Folder" ? entry.Parent.Attribute("Name")!.Value : null;

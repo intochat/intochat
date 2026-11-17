@@ -16,7 +16,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using IdentityPosture = IntoChat.OS.Connections.Identity.Configuration.IdentityPosture;
 
 namespace IntoChat.OS.Authority;
 

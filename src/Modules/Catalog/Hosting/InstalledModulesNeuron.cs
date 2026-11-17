@@ -3,6 +3,7 @@ using System.Text.Json;
 using DigitalBrain.Access;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Log;
 using DigitalBrain.Modules;
 using DigitalBrain.Runtime.Orleans.Capabilities;

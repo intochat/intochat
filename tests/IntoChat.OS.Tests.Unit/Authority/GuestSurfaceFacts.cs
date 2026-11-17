@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.Cloud.Lobby;
 using IntoChat.OS.Authority.Identity;
@@ -16,7 +17,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using IdentityPosture = IntoChat.OS.Connections.Identity.Configuration.IdentityPosture;
 
 namespace IntoChat.OS.Tests.Unit.Authority;
 

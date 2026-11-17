@@ -1,36 +1,13 @@
 # Duplicate public/internal type names declared in both framework/src and src/.
 # Ordered with StringComparer.Ordinal; this allowlist may only shrink.
-Account
-AuthMethodIsNotBrowserLogin
-AuthMethodIsOffered
-BrainEntry
-BrainKind
-BrainProvision
 BrainRoutes
 BrainRow
-BrainSealerIsAvailable
 BrainStoreOptions
-BudgetExhaustedException
-CallDecision
-CallDenial
-CallRequest
-ConnectionIsConfigured
 DirectoryChanged
 DirectoryNeuron
 DirectoryState
-Grant
-GrantMode
-IVault
-IdentityPosture
-IntegrationIsAvailable
 LoadedContracts
-Member
-MemberRole
 NeuronInstance
 NeuronSurface
 NeuronsService
 NeutralCallMapping
-SecretRecord
-VaultChanged
-VaultNeuron
-ViewChanged

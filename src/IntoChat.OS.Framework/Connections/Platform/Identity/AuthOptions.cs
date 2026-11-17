@@ -1,15 +1,8 @@
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Framework.Modules;
 
 namespace IntoChat.OS.Connections.Identity.Configuration;
-
-// Open: single-tenant development and test — anonymous requests act as the synthetic "owner".
-// Secured: cookie sessions plus an optional Basic bootstrap credential — anonymous gets 401.
-public enum IdentityPosture
-{
-    Open,
-    Secured,
-}
 
 // The host declares its security posture; it is never inferred from what a request carries or
 // which keys happen to be configured, and a host that declares nothing refuses to start.

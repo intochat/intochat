@@ -1,13 +1,12 @@
 using System.Security.Claims;
 using DigitalBrain.Brains;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Runtime.Http;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Connections;
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Connections.Platform.Identity;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
@@ -17,8 +16,6 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Cap = DigitalBrain.Capabilities.Identity;
-using OsMember = IntoChat.OS.Framework.Modules.Platform.Identity.Member;
 
 namespace IntoChat.OS.Authority.Identity;
 
@@ -26,7 +23,7 @@ namespace IntoChat.OS.Authority.Identity;
 // and grants remain scoped to the owning account and workspace.
 internal static class IdentityEndpoints
 {
-    private const string PrincipalClaim = Cap.SessionClaims.Principal;
+    private const string PrincipalClaim = SessionClaims.Principal;
 
     public static void Map(IEndpointRouteBuilder routes)
     {
@@ -76,7 +73,7 @@ internal static class IdentityEndpoints
     internal static async Task<IResult> CreateBrainAsync(HttpContext http, [FromServices] IIdentityClient identity, [FromServices] BrainBirths births, CancellationToken ct)
     {
         var principal = http.User.FindFirstValue(PrincipalClaim);
-        var account = http.User.FindFirstValue(Cap.SessionClaims.Account);
+        var account = http.User.FindFirstValue(SessionClaims.Account);
         if (http.User.Identity?.IsAuthenticated != true || string.IsNullOrEmpty(principal) || string.IsNullOrEmpty(account))
         {
             return Results.Unauthorized();
@@ -131,27 +128,19 @@ internal static class IdentityEndpoints
         catch (InvalidOperationException error) { return Results.Conflict(new { error = error.Message }); }
     }
 
-    private static async Task<IResult> IssueSessionAsync(OsMember member, HttpContext http, IReadOnlyCollection<Claim>? carried = null)
+    private static async Task<IResult> IssueSessionAsync(Member member, HttpContext http, IReadOnlyCollection<Claim>? carried = null)
     {
         await http.RequestServices.GetRequiredService<ISessionIssuer>()
             .IssueAsync(http, SessionFor(member, carried), http.RequestAborted);
         return Results.Ok(member);
     }
 
-    private static Cap.SessionRequest SessionFor(OsMember member, IReadOnlyCollection<Claim>? carried) => new()
+    private static SessionRequest SessionFor(Member member, IReadOnlyCollection<Claim>? carried) => new()
     {
-        Member = new Cap.Member
-        {
-            PrincipalId = member.PrincipalId,
-            AccountId = member.AccountId,
-            BrainId = member.BrainId,
-            Role = (Cap.MemberRole)(int)member.Role,
-            DisplayName = member.DisplayName,
-            JoinedAt = member.JoinedAt,
-        },
+        Member = member,
         Claims = carried is null
             ? new Dictionary<string, string>()
-            : carried.Where(claim => !Cap.SessionClaims.IsIdentityOwned(claim.Type)).GroupBy(claim => claim.Type, StringComparer.Ordinal)
+            : carried.Where(claim => !SessionClaims.IsIdentityOwned(claim.Type)).GroupBy(claim => claim.Type, StringComparer.Ordinal)
                 .ToDictionary(group => group.Key, group => group.Last().Value, StringComparer.Ordinal),
     };
 
@@ -159,7 +148,7 @@ internal static class IdentityEndpoints
     // still end it. The claims the issuer reserves are never copied: they come from the selected membership alone.
     private static Claim[] CarriedClaims(HttpContext http)
     {
-        return [.. http.User.Claims.Where(claim => !Cap.SessionClaims.IsIdentityOwned(claim.Type) && claim.Type != SessionPrincipal.SessionIdClaim)
+        return [.. http.User.Claims.Where(claim => !SessionClaims.IsIdentityOwned(claim.Type) && claim.Type != SessionPrincipal.SessionIdClaim)
             .Select(claim => new Claim(claim.Type, claim.Value, claim.ValueType))];
     }
 

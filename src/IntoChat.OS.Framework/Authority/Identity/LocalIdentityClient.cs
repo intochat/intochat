@@ -1,11 +1,9 @@
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Authority.Identity.Authority;
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 
 namespace IntoChat.OS.Authority.Identity;
 
@@ -43,7 +41,7 @@ internal sealed class LocalIdentityClient(AuthorityNeurons neurons, EdgeAuthorit
     public Task<Member?> EnsureMember(Member member) => SystemCall(() => Directory.EnsureMember(member));
     public Task RemoveMember(string brainScopeId, string accountId) => SystemCall(() => Directory.RemoveMember(brainScopeId, accountId));
     public Task RemovePrincipalMember(string brainScopeId, string principalId) => SystemCall(() => Directory.RemovePrincipalMember(brainScopeId, principalId));
-    public Task<CallDecision?> Authorize(CallRequest request) => SystemCall(() => Directory.Authorize(DirectoryAuthorizeRequest.From(request)));
+    public Task<CallDecision?> Authorize(Caller? caller, CallRequest request) => SystemCall(() => Directory.Authorize(DirectoryAuthorizeRequest.From(caller, request)));
     public Task<Grant[]> ListGrants(string brainScopeId) => SystemCall(() => Directory.ListGrants(brainScopeId));
     public Task<Grant> GrantAsOwner(CapabilityCaller caller, Grant grant) => SystemCall(() => Directory.GrantAsOwner(caller, grant));
     public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => SystemCall(() => Directory.GrantShipped(brainScopeId, grants));

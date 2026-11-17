@@ -2,6 +2,7 @@
 
 using DigitalBrain;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority.Identity.Contacts;
 using IntoChat.OS.Authority.Identity.Grants;

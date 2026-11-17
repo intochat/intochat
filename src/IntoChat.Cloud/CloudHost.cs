@@ -125,7 +125,7 @@ public static class CloudHost
 
             if (services.GetService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>() is { } identity)
             {
-                await identity.EnsureAccount(new IntoChat.OS.Framework.Modules.Platform.Identity.Account
+                await identity.EnsureAccount(new Account
                 {
                     AccountId = session.BrainId,
                     OwnerPrincipalId = session.BrainId,
@@ -133,12 +133,12 @@ public static class CloudHost
                     CreatedAt = session.IssuedAt,
                 }).WaitAsync(cancellationToken).ConfigureAwait(false);
 
-                var provision = await identity.EnsureBrain(new IntoChat.OS.Framework.Modules.Platform.Identity.Member
+                var provision = await identity.EnsureBrain(new Member
                 {
                     PrincipalId = session.BrainId,
                     AccountId = session.BrainId,
                     BrainId = session.BrainId,
-                    Role = IntoChat.OS.Framework.Modules.Platform.Identity.MemberRole.Owner,
+                    Role = MemberRole.Owner,
                     DisplayName = "Guest",
                     JoinedAt = session.IssuedAt,
                 }).WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -402,39 +402,17 @@ internal sealed class CloudOrganisationIdentity(IServiceProvider services) : IOr
 {
     private IntoChat.OS.Connections.Platform.Identity.IIdentityClient Identity => services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>();
 
-    public async Task<Member?> Membership(string brainId, string principalId, CancellationToken cancellationToken = default)
-    {
-        var member = await Identity.Membership(brainId, principalId).WaitAsync(cancellationToken).ConfigureAwait(false);
-        return member is null ? null : ToCapabilityMember(member);
-    }
+    public Task<Member?> Membership(string brainId, string principalId, CancellationToken cancellationToken = default)
+        => Identity.Membership(brainId, principalId).WaitAsync(cancellationToken);
 
-    public async Task<Member?> EnsureMember(Member member, CancellationToken cancellationToken = default)
+    public Task<Member?> EnsureMember(Member member, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(member);
-        var ensured = await Identity.EnsureMember(new IntoChat.OS.Framework.Modules.Platform.Identity.Member
-        {
-            PrincipalId = member.PrincipalId,
-            AccountId = member.AccountId,
-            BrainId = member.BrainId,
-            Role = (IntoChat.OS.Framework.Modules.Platform.Identity.MemberRole)(int)member.Role,
-            DisplayName = member.DisplayName,
-            JoinedAt = member.JoinedAt,
-        }).WaitAsync(cancellationToken).ConfigureAwait(false);
-        return ensured is null ? null : ToCapabilityMember(ensured);
+        return Identity.EnsureMember(member).WaitAsync(cancellationToken);
     }
 
     public Task RemovePrincipalMember(string brainId, string principalId, CancellationToken cancellationToken = default)
         => Identity.RemovePrincipalMember(brainId, principalId).WaitAsync(cancellationToken);
-
-    private static Member ToCapabilityMember(IntoChat.OS.Framework.Modules.Platform.Identity.Member member) => new()
-    {
-        PrincipalId = member.PrincipalId,
-        AccountId = member.AccountId,
-        BrainId = member.BrainId,
-        Role = (MemberRole)(int)member.Role,
-        DisplayName = member.DisplayName,
-        JoinedAt = member.JoinedAt,
-    };
 }
 
 internal sealed class CloudGuestTryBrainAccess(IBrainAccess inner, GuestTrySessionService trySessions, TimeProvider clock) : IBrainAccess

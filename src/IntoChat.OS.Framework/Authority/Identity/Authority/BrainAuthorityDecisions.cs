@@ -1,11 +1,8 @@
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Authority.Identity.Grants;
-using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 
 namespace IntoChat.OS.Authority.Identity.Authority;
 
@@ -14,17 +11,17 @@ namespace IntoChat.OS.Authority.Identity.Authority;
 internal static class BrainAuthorityDecisions
 {
     // Awaited, never blocked on: the expansion calls neurons, and a grain turn that blocks its scheduler on them deadlocks.
-    public static Task<CallDecision?> Decide(BrainRow state, CallRequest request, IEdgeGrantsCache? edgeCache = null)
+    public static Task<CallDecision?> Decide(BrainRow state, Caller? caller, CallRequest request, IEdgeGrantsCache? edgeCache = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Caller is null)
+        if (caller is null)
         {
             return Task.FromResult<CallDecision?>(CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no caller."));
         }
         return Decide(
             state,
-            CallerIdentity.From(request.Caller),
+            CallerIdentity.From(caller),
             request.TargetNeuron,
             request.Operation,
             request.SemanticTypeIds,
@@ -37,7 +34,7 @@ internal static class BrainAuthorityDecisions
         CallerIdentity caller,
         string targetNeuron,
         string operation,
-        string[] semanticTypeIds,
+        IReadOnlyList<string> semanticTypeIds,
         string? targetScope,
         IEdgeGrantsCache? edgeCache = null)
     {
@@ -52,7 +49,7 @@ internal static class BrainAuthorityDecisions
         var principals = cache is EdgeGrantsCache concrete
             ? await concrete.ExpandAsync(grantsBrain, caller)
             : await cache.ExpandAsync(grantsBrain, capCaller);
-        var connectionBound = caller.Kind == CallerKind.App && semanticTypeIds.Length == 0 && GrantRules.AppOf(caller) is not null
+        var connectionBound = caller.Kind == CallerKind.App && semanticTypeIds.Count == 0 && GrantRules.AppOf(caller) is not null
             && (cache is EdgeGrantsCache directCache
                 ? await directCache.IsConnectionBoundAsync(caller, targetNeuron)
                 : await cache.IsConnectionBoundAsync(capCaller, targetNeuron));
@@ -66,10 +63,10 @@ internal static class BrainAuthorityDecisions
 
     // Grants are owner-declared, so the brain whose grants decide a call is the target's, falling back to the
     // caller's own brain when the target names none.
-    internal static string GrantsBrainOf(CallRequest request)
+    internal static string GrantsBrainOf(Caller? caller, CallRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return GrantsBrainOf(request.Caller?.Brain.Value ?? "", request.TargetNeuron, request.TargetScope);
+        return GrantsBrainOf(caller?.Brain.Value ?? "", request.TargetNeuron, request.TargetScope);
     }
 
     internal static string GrantsBrainOf(string callerBrain, string targetNeuron, string? targetScope)

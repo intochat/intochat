@@ -9,7 +9,7 @@ void main() {
       final f = await ApplicationFixture.start(tester);
       expect(
         f.link.watches.any(
-          (w) => w.$2.any((s) => s.types.contains('ViewChanged')),
+          (w) => w.$2.any((s) => s.types.contains('FlutterViewChanged')),
         ),
         isTrue,
       );
@@ -18,7 +18,7 @@ void main() {
           (w) => w.$2.any(
             (s) =>
                 s.key == 'brain-1/apps/ino/surface' &&
-                s.types.contains('ViewChanged'),
+                s.types.contains('FlutterViewChanged'),
           ),
         ),
         isTrue,

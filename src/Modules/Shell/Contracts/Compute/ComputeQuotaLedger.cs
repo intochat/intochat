@@ -66,7 +66,7 @@ public sealed class ComputeQuotaLedger
         var spent = TotalSpentMicros;
         if (spent > _monthlyBudgetMicros)
         {
-            throw new BudgetExhaustedException(spent, _monthlyBudgetMicros);
+            throw new ComputeQuotaExceededException(spent, _monthlyBudgetMicros);
         }
     }
 
@@ -77,9 +77,9 @@ public sealed class ComputeQuotaLedger
 /// <summary>
 /// Thrown when an actor, app, or external call attempts execution after the monthly compute budget has been exhausted.
 /// </summary>
-public sealed class BudgetExhaustedException : InvalidOperationException
+public sealed class ComputeQuotaExceededException : InvalidOperationException
 {
-    public BudgetExhaustedException(long spentMicros, long budgetMicros)
+    public ComputeQuotaExceededException(long spentMicros, long budgetMicros)
         : base($"Compute quota exhausted: {spentMicros} micros spent out of {budgetMicros} micros monthly budget.")
     {
         SpentMicros = spentMicros;

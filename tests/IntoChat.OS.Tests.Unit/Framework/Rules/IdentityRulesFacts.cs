@@ -1,5 +1,8 @@
 using System.Reflection;
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Connections.Connectors;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using IntoChat.OS.Authority.Identity.Authority;
@@ -102,21 +105,20 @@ public sealed class IdentityRulesFacts
         Assert.True(new ConnectionBelongsToBrain("brain-2", "brain-1").Broken);
         Assert.False(new ConnectionBelongsToBrain("brain-1", "brain-1").Broken);
 
-        Assert.True(new IntegrationIsAvailable("github", Service: null).Broken);
-        Assert.False(new IntegrationIsAvailable("github", new object()).Broken);
+        Assert.True(new IntegrationIsAvailable("github", Available: false).Broken);
+        Assert.False(new IntegrationIsAvailable("github", Available: true).Broken);
 
-        Assert.True(new AuthMethodIsNotBrowserLogin("github", "browser").Broken);
-        Assert.False(new AuthMethodIsNotBrowserLogin("github", "token").Broken);
+        Assert.True(new AuthMethodIsNotBrowserLogin("github", "browser", IsBrowserLogin: true).Broken);
+        Assert.False(new AuthMethodIsNotBrowserLogin("github", "token", IsBrowserLogin: false).Broken);
 
-        Assert.True(new ConnectionIsConfigured(Configuration: null).Broken);
-        Assert.False(new ConnectionIsConfigured("configured-secret").Broken);
+        Assert.True(new ConnectionIsConfigured(Configured: false).Broken);
+        Assert.False(new ConnectionIsConfigured(Configured: true).Broken);
 
-        Assert.True(new BrainSealerIsAvailable(Sealer: null).Broken);
-        Assert.False(new BrainSealerIsAvailable(new object()).Broken);
+        Assert.True(new BrainSealerIsAvailable(Available: false).Broken);
+        Assert.False(new BrainSealerIsAvailable(Available: true).Broken);
 
-        var connector = new ConnectorCatalogEntry("github", "GitHub", ["token", "oauth"], [], [], "github");
-        Assert.True(new AuthMethodIsOffered(connector, "saml").Broken);
-        Assert.False(new AuthMethodIsOffered(connector, "token").Broken);
+        Assert.True(new AuthMethodIsOffered("github", "saml", Offered: false).Broken);
+        Assert.False(new AuthMethodIsOffered("github", "token", Offered: true).Broken);
 
         var ownerCaller = new CapabilityCaller("alice", "acct-1", "brain-1");
         var otherCaller = new CapabilityCaller("mallory", "acct-2", "brain-1");

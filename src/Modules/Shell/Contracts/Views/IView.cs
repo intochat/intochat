@@ -36,4 +36,4 @@ public sealed record ViewActivation(ViewActivationKind Kind, Emit? Emit = null, 
 }
 
 [Signal("ui.view-changed")]
-public sealed record ViewChanged(string Name, long Generation) : DigitalBrain.Signal;
+public sealed record FlutterViewChanged(string Name, long Generation) : DigitalBrain.Signal;

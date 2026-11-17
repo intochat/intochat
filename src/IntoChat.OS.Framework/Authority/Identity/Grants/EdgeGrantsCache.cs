@@ -3,14 +3,13 @@ using System.Diagnostics;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Runtime.Orleans.Hosting;
 using IntoChat.OS.Authority.Identity.Contacts;
-using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Connections.Platform.Connections;
 using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 

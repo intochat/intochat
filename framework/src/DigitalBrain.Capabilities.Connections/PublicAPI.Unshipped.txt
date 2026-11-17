@@ -808,3 +808,88 @@ DigitalBrain.Capabilities.Connections.Catalog.ConnectionCatalogNeuron.ListConnec
 DigitalBrain.Capabilities.Connections.Catalog.ConnectionCatalogNeuron.Reorder(string![]! keys) -> System.Threading.Tasks.Task!
 DigitalBrain.Capabilities.Connections.Catalog.ConnectionCatalogNeuron.Request(string! kind) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Connections.Requests.ConnectionRef!>!
 DigitalBrain.Capabilities.Connections.Catalog.ConnectionCatalogNeuron.ListOffers() -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Connections.Requests.ConnectorOffer![]!>!
+DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin
+DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.AuthMethodId.get -> string!
+DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.AuthMethodId.init -> void
+DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.AuthMethodIsNotBrowserLogin(string! ConnectorId, string! AuthMethodId, bool IsBrowserLogin) -> void
+DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.ConnectorId.get -> string!
+DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.ConnectorId.init -> void
+DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.Deconstruct(out string! ConnectorId, out string! AuthMethodId, out bool IsBrowserLogin) -> void
+DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.Equals(DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin? other) -> bool
+DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.IsBrowserLogin.get -> bool
+DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.IsBrowserLogin.init -> void
+override DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.<Clone>$() -> DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin!
+override DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.Broken.get -> bool
+override DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.Equals(object? obj) -> bool
+override DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.GetHashCode() -> int
+override DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.Message.get -> string!
+override DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.ToString() -> string!
+override sealed DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.Equals(DigitalBrain.Rules.Rule? other) -> bool
+static DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.operator !=(DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin? left, DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin? right) -> bool
+static DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin.operator ==(DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin? left, DigitalBrain.Capabilities.Connections.AuthMethodIsNotBrowserLogin? right) -> bool
+DigitalBrain.Capabilities.Connections.AuthMethodIsOffered
+DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.AuthMethodId.get -> string!
+DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.AuthMethodId.init -> void
+DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.AuthMethodIsOffered(string! ConnectorId, string! AuthMethodId, bool Offered) -> void
+DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.ConnectorId.get -> string!
+DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.ConnectorId.init -> void
+DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.Deconstruct(out string! ConnectorId, out string! AuthMethodId, out bool Offered) -> void
+DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.Equals(DigitalBrain.Capabilities.Connections.AuthMethodIsOffered? other) -> bool
+DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.Offered.get -> bool
+DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.Offered.init -> void
+override DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.<Clone>$() -> DigitalBrain.Capabilities.Connections.AuthMethodIsOffered!
+override DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.Broken.get -> bool
+override DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.Equals(object? obj) -> bool
+override DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.GetHashCode() -> int
+override DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.Message.get -> string!
+override DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.ToString() -> string!
+override sealed DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.Equals(DigitalBrain.Rules.Rule? other) -> bool
+static DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.operator !=(DigitalBrain.Capabilities.Connections.AuthMethodIsOffered? left, DigitalBrain.Capabilities.Connections.AuthMethodIsOffered? right) -> bool
+static DigitalBrain.Capabilities.Connections.AuthMethodIsOffered.operator ==(DigitalBrain.Capabilities.Connections.AuthMethodIsOffered? left, DigitalBrain.Capabilities.Connections.AuthMethodIsOffered? right) -> bool
+DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable
+DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable.Available.get -> bool
+DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable.Available.init -> void
+DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable.BrainSealerIsAvailable(bool Available) -> void
+DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable.Deconstruct(out bool Available) -> void
+DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable.Equals(DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable? other) -> bool
+override DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable.<Clone>$() -> DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable!
+override DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable.Broken.get -> bool
+override DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable.Equals(object? obj) -> bool
+override DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable.GetHashCode() -> int
+override DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable.Message.get -> string!
+override DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable.ToString() -> string!
+override sealed DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable.Equals(DigitalBrain.Rules.Rule? other) -> bool
+static DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable.operator !=(DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable? left, DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable? right) -> bool
+static DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable.operator ==(DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable? left, DigitalBrain.Capabilities.Connections.BrainSealerIsAvailable? right) -> bool
+DigitalBrain.Capabilities.Connections.ConnectionIsConfigured
+DigitalBrain.Capabilities.Connections.ConnectionIsConfigured.Configured.get -> bool
+DigitalBrain.Capabilities.Connections.ConnectionIsConfigured.Configured.init -> void
+DigitalBrain.Capabilities.Connections.ConnectionIsConfigured.ConnectionIsConfigured(bool Configured) -> void
+DigitalBrain.Capabilities.Connections.ConnectionIsConfigured.Deconstruct(out bool Configured) -> void
+DigitalBrain.Capabilities.Connections.ConnectionIsConfigured.Equals(DigitalBrain.Capabilities.Connections.ConnectionIsConfigured? other) -> bool
+override DigitalBrain.Capabilities.Connections.ConnectionIsConfigured.<Clone>$() -> DigitalBrain.Capabilities.Connections.ConnectionIsConfigured!
+override DigitalBrain.Capabilities.Connections.ConnectionIsConfigured.Broken.get -> bool
+override DigitalBrain.Capabilities.Connections.ConnectionIsConfigured.Equals(object? obj) -> bool
+override DigitalBrain.Capabilities.Connections.ConnectionIsConfigured.GetHashCode() -> int
+override DigitalBrain.Capabilities.Connections.ConnectionIsConfigured.Message.get -> string!
+override DigitalBrain.Capabilities.Connections.ConnectionIsConfigured.ToString() -> string!
+override sealed DigitalBrain.Capabilities.Connections.ConnectionIsConfigured.Equals(DigitalBrain.Rules.Rule? other) -> bool
+static DigitalBrain.Capabilities.Connections.ConnectionIsConfigured.operator !=(DigitalBrain.Capabilities.Connections.ConnectionIsConfigured? left, DigitalBrain.Capabilities.Connections.ConnectionIsConfigured? right) -> bool
+static DigitalBrain.Capabilities.Connections.ConnectionIsConfigured.operator ==(DigitalBrain.Capabilities.Connections.ConnectionIsConfigured? left, DigitalBrain.Capabilities.Connections.ConnectionIsConfigured? right) -> bool
+DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable
+DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.Available.get -> bool
+DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.Available.init -> void
+DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.Deconstruct(out string! Kind, out bool Available) -> void
+DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.Equals(DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable? other) -> bool
+DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.IntegrationIsAvailable(string! Kind, bool Available) -> void
+DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.Kind.get -> string!
+DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.Kind.init -> void
+override DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.<Clone>$() -> DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable!
+override DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.Broken.get -> bool
+override DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.Equals(object? obj) -> bool
+override DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.GetHashCode() -> int
+override DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.Message.get -> string!
+override DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.ToString() -> string!
+override sealed DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.Equals(DigitalBrain.Rules.Rule? other) -> bool
+static DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.operator !=(DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable? left, DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable? right) -> bool
+static DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.operator ==(DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable? left, DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable? right) -> bool

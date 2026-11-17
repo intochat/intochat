@@ -4,11 +4,11 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Sealing;
+using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Connections.Identity;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
-using IntoChat.OS.Framework.Modules.Platform.Identity;
 
 namespace IntoChat.OS.Authority.Identity.Grants;
 
@@ -28,6 +28,7 @@ public static class GrantRules
 
     private static readonly HashSet<string> ForbiddenInterfaces = new(StringComparer.OrdinalIgnoreCase)
     {
+        "IOsVault",
         "IVault",
         "ISecretValueSource",
         "VaultSecretValueSource",
@@ -48,11 +49,11 @@ public static class GrantRules
     };
 
     // Zero-token auth enforcement: sandbox and app callers can never read raw OAuth credentials or unsealed secrets directly.
-    public static CallDecision? EvaluateZeroTokenGuard(CallRequest request)
+    public static CallDecision? EvaluateZeroTokenGuard(Caller? caller, CallRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Caller is null) { return null; }
-        return EvaluateZeroTokenGuard(CallerIdentity.From(request.Caller), request.TargetNeuron, request.Operation);
+        if (caller is null) { return null; }
+        return EvaluateZeroTokenGuard(CallerIdentity.From(caller), request.TargetNeuron, request.Operation);
     }
 
     internal static CallDecision? EvaluateZeroTokenGuard(CallerIdentity caller, string? targetNeuron, string? operationText)
@@ -106,15 +107,15 @@ public static class GrantRules
     }
 
     // connectionBound: the caller's awaited answer; without one the cache is asked synchronously, which a grain turn must not do.
-    public static CallDecision? Evaluate(CallRequest request, Member? member, IReadOnlyList<Grant> grants, PrincipalSet principals, bool? connectionBound = null)
+    public static CallDecision? Evaluate(Caller? caller, CallRequest request, Member? member, IReadOnlyList<Grant> grants, PrincipalSet principals, bool? connectionBound = null)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Caller is null)
+        if (caller is null)
         {
             return CallDecision.Deny(CallDenial.NotAuthenticated, "The request carries no caller.");
         }
         return Evaluate(
-            CallerIdentity.From(request.Caller),
+            CallerIdentity.From(caller),
             request.TargetNeuron,
             request.Operation,
             request.SemanticTypeIds,
@@ -129,7 +130,7 @@ public static class GrantRules
         CallerIdentity caller,
         string? targetNeuron,
         string? operation,
-        string[] semanticTypeIds,
+        IReadOnlyList<string> semanticTypeIds,
         string? targetScope,
         Member? member,
         IReadOnlyList<Grant> grants,
@@ -162,7 +163,7 @@ public static class GrantRules
 
         // An agent reaches everything through grants only: no connection-bound shortcut, no own-target allowance.
         var isAgent = caller.Kind == CallerKind.Agent;
-        if (!isAgent && semanticTypeIds.Length == 0 && (connectionBound ?? EdgeGrantsCache.Current.IsConnectionBound(caller, targetNeuron)))
+        if (!isAgent && semanticTypeIds.Count == 0 && (connectionBound ?? EdgeGrantsCache.Current.IsConnectionBound(caller, targetNeuron)))
         {
             return CallDecision.Allow();
         }
@@ -195,7 +196,7 @@ public static class GrantRules
             return CallDecision.Allow();
         }
 
-        if (semanticTypeIds.Length == 0)
+        if (semanticTypeIds.Count == 0)
         {
             if (IsGranted(GrantRelations.Run, targetNeuron ?? "", grants, principals, caller, targetScope))
             {
@@ -217,16 +218,16 @@ public static class GrantRules
 
     // The one-time grants a successful app read just spent. An always grant is left in place; only
     // a live Once grant for a requested semantic type is returned, so the store clears exactly those.
-    public static IReadOnlyList<Grant> OnceToConsume(CallRequest request, IReadOnlyList<Grant> grants)
+    public static IReadOnlyList<Grant> OnceToConsume(Caller? caller, CallRequest request, IReadOnlyList<Grant> grants)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Caller is null) { return []; }
-        return OnceToConsume(CallerIdentity.From(request.Caller), request.TargetNeuron, request.SemanticTypeIds, grants);
+        if (caller is null) { return []; }
+        return OnceToConsume(CallerIdentity.From(caller), request.TargetNeuron, request.SemanticTypeIds, grants);
     }
 
-    internal static IReadOnlyList<Grant> OnceToConsume(CallerIdentity caller, string targetNeuron, string[] semanticTypeIds, IReadOnlyList<Grant> grants)
+    internal static IReadOnlyList<Grant> OnceToConsume(CallerIdentity caller, string targetNeuron, IReadOnlyList<string> semanticTypeIds, IReadOnlyList<Grant> grants)
     {
-        if (grants is null || grants.Count == 0 || semanticTypeIds.Length == 0) { return []; }
+        if (grants is null || grants.Count == 0 || semanticTypeIds.Count == 0) { return []; }
         if (caller.Kind is not (CallerKind.App or CallerKind.Agent) || AppOf(caller) is not { } app) { return []; }
 
         return

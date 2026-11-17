@@ -19,6 +19,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Framework` (`IBrainBirths`, `IBrainEntries`, `IBrainMembership`, `IBrainProviderKeys`, `ICallFilterStage`, `IChatIndex`, `IChat`, `IClusterMembershipFeed`, `ICluster`, `ICompute`, `IConfinedProcessRunner`, `IConnectionBindings`, `IContactsNeuron`, `IEdgeGrantsCache`, `IField`, `IGrantsNeuron`, `IHandleDirectory`, `IHostedAppTypes`, `IIdentityClient`, `IIdentityDirectory`, `IIntegration`, `IIntoChatOSBrains`, `IKernel`, `IKeyWrapper`, `ILicenseCheck`, `IMachineIdentity`, `IMachineKeyStore`, `IModuleTypeSource`, `IPresenceProof`, `IScreenDirectory`, `ISecretRedactor`, `ISecretValueSource`, `ITopologyModule`, `IView`, `IViewport`, `IWebBrowser`, `IWorkspace`).
+Contracts: assembly `IntoChat.OS.Framework` (`IBrainBirths`, `IBrainEntries`, `IBrainMembership`, `IBrainProviderKeys`, `ICallFilterStage`, `IClusterMembershipFeed`, `ICluster`, `IConfinedProcessRunner`, `IConnectionBindings`, `IContactsNeuron`, `IEdgeGrantsCache`, `IGrantsNeuron`, `IHandleDirectory`, `IHostedAppTypes`, `IIdentityClient`, `IIdentityDirectory`, `IIntegration`, `IIntoChatOSBrains`, `IKernel`, `IKeyWrapper`, `ILicenseCheck`, `IMachineIdentity`, `IMachineKeyStore`, `IModuleTypeSource`, `IPresenceProof`, `ISecretRedactor`, `ISecretValueSource`, `ITopologyModule`).
 Hosting: runs in process.
 <!-- END GENERATED -->
