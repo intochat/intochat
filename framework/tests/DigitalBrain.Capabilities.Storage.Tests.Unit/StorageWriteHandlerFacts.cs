@@ -68,6 +68,28 @@ public sealed class StorageWriteHandlerFacts
     }
 
     [Fact]
+    public async Task ANewFileAsksNobodyUnderTheDefaultPolicy()
+    {
+        var handler = new StorageWriteHandler(new FakeOwnerSource(new("conn", "storage", new FakeStorage())), FakeWriteResult);
+        var plan = WritePlan.WriteFile(new ItemId("root"), "hello.txt", "hi"u8.ToArray());
+
+        Assert.Null(await handler.Describe(plan, CreateScope(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ANewFileThatRequiresAPersonAsksUnderTheDefaultPolicy()
+    {
+        var handler = new StorageWriteHandler(new FakeOwnerSource(new("conn", "storage", new FakeStorage())), FakeWriteResult);
+        var plan = WritePlan.WriteFile(new ItemId("root"), "hello.txt", "hi"u8.ToArray()) with { RequiresPerson = true };
+
+        var approval = await handler.Describe(plan, CreateScope(), CancellationToken.None);
+
+        Assert.NotNull(approval);
+        Assert.True(approval.Question.RequiresPerson);
+        Assert.False(approval.Question.Destructive);
+    }
+
+    [Fact]
     public async Task DescribeReturnsApprovalForDestructivePlan()
     {
         var storage = new FakeStorage { ItemStamp = "hash-123" };

@@ -1,4 +1,8 @@
 using DigitalBrain.Capabilities;
+using DigitalBrain.Capabilities.Storage;
+using DigitalBrain.Operations;
+using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Signals;
 
 namespace IntoChat.OS.Modules.Apps;
 
@@ -7,8 +11,11 @@ namespace IntoChat.OS.Modules.Apps;
 // service instance's in-memory overlay (for example the compiled-app host's cached instance) with no storage connected
 // are not visible here.
 [DigitalBrain.Neurons.Neuron("ino.files")]
-internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceProvider? services = null) : DigitalBrain.Neurons.Neuron, IInoFiles
+internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceProvider? services = null, IOperations? operations = null)
+    : DigitalBrain.Neurons.Neuron<InoFilesState>, IInoFiles
 {
+    private const int KeptWrites = 32;
+
     private IFilesVfsService? _vfs;
 
     private IFilesVfsService Vfs => _vfs ??= WorkspaceFilesService.ForBrain(services, Id.Brain.Value, broker);
@@ -54,6 +61,62 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
         var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var excerpt = string.Join("\n", lines.Take(6).Select(l => $"> {l}"));
         return new InoToolResult($"{file.Name} ({file.NeuronUri}): {lines.Length} non-empty line(s), {text.Length} chars.\n{excerpt}", FileCard(file, Excerpt(text)!, Id.Brain));
+    }
+
+    // A write is a durable storage operation: it waits for the owner's approval (across restarts), runs, and ends with
+    // OperationDone. This neuron remembers which conversation asked and posts the outcome there; it never writes itself.
+    public async Task<InoToolResult> Write(string name, string content)
+    {
+        var broken = InoFileWriteRules.Check(name, content);
+        if (broken is not null) { return new InoToolResult(broken); }
+        if (operations is null) { throw new InvalidOperationException("Durable operations are not available in this host."); }
+
+        // Storage is reached through the broker only (D-18); the local disk is the connection whose key names it.
+        if (broker is null) { throw new InvalidOperationException("No storage is connected in this brain."); }
+        var connections = await broker.ResolveAll<IStorage>(Id.Brain, CancellationToken.None);
+        var disk = connections.FirstOrDefault(item => item.ConnectionKey.Contains("local-disk", StringComparison.OrdinalIgnoreCase))?.Capability
+            ?? throw new InvalidOperationException("The local disk is not connected in this brain.");
+        var roots = await disk.Roots();
+        var root = roots.FirstOrDefault(item => item.Flags.HasFlag(ItemFlags.Write))
+            ?? throw new InvalidOperationException("No writable local folder is allowed. Allow one in Files first.");
+
+        var conversation = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Current?.ConversationId ?? string.Empty;
+        // An agent never creates a file unasked: RequiresPerson makes even a new, non-destructive file ask the owner.
+        var plan = WritePlan.WriteFile(root.Id, name, System.Text.Encoding.UTF8.GetBytes(content ?? string.Empty), ConflictPolicy.Fail)
+            with { RequiresPerson = true };
+
+        await Context.Synapses.EnsureBrainWide(typeof(OperationDone), typeof(TurnCompleted));
+        var operation = await operations.Start(plan, CancellationToken.None);
+        var write = new InoFileWrite(operation.Id.Value, conversation, name, root.Name);
+        await Save(State with { Writes = [.. State.Writes.TakeLast(KeptWrites - 1), write] },
+            new InoFileWriteRequested(write.Operation, conversation, name));
+        return new InoToolResult($"Asked the owner to approve creating {name} in {root.Name}. Nothing is written until they approve; the result will be posted here.");
+    }
+
+    [DigitalBrain.Neurons.On]
+    public async Task OnOperationDone(OperationDone done)
+    {
+        if (InoFileWriteReports.Settle(State, done) is not { } settled) { return; }
+        await Save(settled.Next, new InoFileWriteReported(done.Operation.Value, settled.Outcome));
+        await Report();
+    }
+
+    // A post fails while the agent is answering; the next TurnCompleted retries every outcome still unposted.
+    [DigitalBrain.Neurons.On]
+    public Task OnTurnCompleted(TurnCompleted completed) => completed is null ? Task.CompletedTask : Report();
+
+    private async Task Report()
+    {
+        foreach (var write in InoFileWriteReports.Unposted(State))
+        {
+            try
+            {
+                await Context.Get<IAgent>(new DigitalBrain.NeuronId(Id.Brain, "agent", write.Conversation)).Post(write.Outcome!, "file/" + write.Operation);
+            }
+            catch (InvalidOperationException) { continue; }
+            await Save(State with { Writes = [.. State.Writes.Where(item => item.Operation != write.Operation)] },
+                new InoFileWriteReported(write.Operation, "posted"));
+        }
     }
 
     private static string? Excerpt(string? text)

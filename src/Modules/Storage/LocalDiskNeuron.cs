@@ -129,7 +129,9 @@ internal sealed class LocalDiskNeuron(
     private async Task AuthorizeWrite(WritePlan plan, CancellationToken ct)
     {
         if (authorizer is not null && await authorizer.Consume(Context.Id, plan, ct).ConfigureAwait(false)) { return; }
-        if (confirmations is null || plan.DryRun) { return; }
+        if (plan.DryRun) { return; }
+        // Fail closed: a host without the confirmation gate must not write on anyone's behalf.
+        if (confirmations is null) { throw new InvalidOperationException("Local disk writes need the confirmation gate, and this host has none."); }
         var descriptor = await Describe(ct).ConfigureAwait(false);
         var connection = new CapabilityConnection<IStorage>("storage", descriptor.Label, this);
         var runner = new StorageWriteRunner((_, _) => Task.FromResult(connection),

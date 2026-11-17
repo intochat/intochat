@@ -259,7 +259,10 @@ public sealed class NeuronOperations(IServiceProvider services, BrainId brain, s
             now,
             Driver: driver,
             DriverLifetime: driverLifetime,
-            TraceId: traceId);
+            TraceId: traceId)
+        {
+            Payload = plan.Payload is { Length: > 0 and <= OperationState.MaxPersistedPayloadBytes } kept ? kept.ToArray() : null,
+        };
 
         var neuron = NeuronOperationsQuery.ResolveNeuron(services, brain, id);
         await neuron.Begin(initial).ConfigureAwait(false);

@@ -26,6 +26,7 @@ public sealed class StorageWriteHandler(IStorageOwnerSource ownerSource, Storage
         var resultHandler = _writeResult ?? (scope.Services.GetService(typeof(StorageWriteResult)) as StorageWriteResult) ?? DefaultResult;
         var runner = new StorageWriteRunner(owner, resultHandler);
         var question = await runner.Confirmation(plan, ct).ConfigureAwait(false);
+        if (plan.RequiresPerson) { question = question with { RequiresPerson = true }; }
 
         var policies = scope.Services.GetService(typeof(ConfirmationPolicies)) as ConfirmationPolicies;
         var policy = policies?.For(scope.Brain.Value) ?? ConfirmationPolicy.DestructiveOnly;

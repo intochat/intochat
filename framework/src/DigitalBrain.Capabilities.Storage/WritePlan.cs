@@ -60,6 +60,12 @@ public sealed record WritePlan(
     ReadOnlyMemory<byte>? Inline = null,
     bool DryRun = false) : OperationPlan(DryRun)
 {
+    /// <summary>
+    /// True when a person must approve this write under every policy but <c>Never</c>, even when it is not destructive (an agent
+    /// creating a file). It can only add a question, never remove one, so callers may set it without being trusted.
+    /// </summary>
+    public bool RequiresPerson { get; init; }
+
     /// <inheritdoc />
     [JsonIgnore]
     public override ReadOnlyMemory<byte>? Payload => Inline;

@@ -230,7 +230,7 @@ public sealed class OperationNeuron : Neuron<OperationState>, IOperationNeuron, 
             State.Guard,
             Seat.Services.GetService(typeof(IOperationsQuery)) as IOperationsQuery ?? new NeuronOperationsQuery(Seat.Services, Id.Brain));
 
-        var plan = OperationPlanRegistry.Take(State.Id) ?? execution.Deserialize(State.PlanJson);
+        var plan = OperationPlanRegistry.Take(State.Id) ?? State.Restore(execution.Deserialize(State.PlanJson));
         var self = Context.Get<IOperationNeuron>(Id);
 
         Context.Detach(async ct =>

@@ -47,6 +47,20 @@ public sealed record OperationState(
     string? Guard = null,
     DateTimeOffset? Resumed = null)
 {
+    /// <summary>The largest inline payload kept in state so an approved operation can still run after a restart.</summary>
+    public const int MaxPersistedPayloadBytes = 256 * 1024;
+
+    /// <summary>The inline payload while the operation is not done, when it fits <see cref="MaxPersistedPayloadBytes"/>; null otherwise.</summary>
+    public byte[]? Payload { get; init; }
+
+    // After a restart the in-memory plan is gone; the kept payload is put back only when it is exactly the one that was planned.
+    internal OperationPlan Restore(OperationPlan persisted)
+    {
+        if (Payload is not { Length: > 0 } payload || InlineHash is not { } expected) { return persisted; }
+        var actual = "sha256:" + Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(payload));
+        return string.Equals(actual, expected, StringComparison.Ordinal) ? persisted.WithPayload(payload) : persisted;
+    }
+
     /// <summary>Creates an empty, uninitialized operation state.</summary>
     public OperationState()
         : this(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, null, null, OperationPhase.Running, false, 0d, null, default, default)
@@ -149,6 +163,7 @@ public sealed record OperationState(
         {
             Phase = OperationPhase.Done,
             Result = result,
+            Payload = null,
             Fraction = result is OperationResult.Succeeded ? 1d : Fraction,
             Updated = now,
         };

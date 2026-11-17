@@ -3763,3 +3763,6 @@ virtual DigitalBrain.Rules.Rule.PrintMembers(System.Text.StringBuilder! builder)
 virtual DigitalBrain.Signal.EqualityContract.get -> System.Type!
 virtual DigitalBrain.Signal.Equals(DigitalBrain.Signal? other) -> bool
 virtual DigitalBrain.Signal.PrintMembers(System.Text.StringBuilder! builder) -> bool
+const DigitalBrain.Operations.OperationState.MaxPersistedPayloadBytes = 262144 -> int
+DigitalBrain.Operations.OperationState.Payload.get -> byte[]?
+DigitalBrain.Operations.OperationState.Payload.init -> void
