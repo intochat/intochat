@@ -1,29 +1,30 @@
 namespace DigitalBrain.Capabilities.Identity;
 
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 
 /// <summary>
 /// Capability binding for <see cref="IIdentity"/> and <see cref="IGrants"/> over an <see cref="IIdentityDirectoryPort"/>,
-/// resolving the caller via an ambient delegate.
+/// reading the stamped caller from an <see cref="ICallerAmbient"/>.
 /// </summary>
 public sealed class BoundIdentity : IIdentity, IGrants
 {
     private readonly IIdentityDirectoryPort _port;
-    private readonly Func<CapabilityCaller?> _caller;
+    private readonly ICallerAmbient _callers;
 
     /// <summary>Creates a new instance of <see cref="BoundIdentity"/>.</summary>
     /// <param name="port">The underlying directory port.</param>
-    /// <param name="caller">The caller resolution delegate.</param>
-    public BoundIdentity(IIdentityDirectoryPort port, Func<CapabilityCaller?> caller)
+    /// <param name="callers">The ambient the stamped caller is read from.</param>
+    public BoundIdentity(IIdentityDirectoryPort port, ICallerAmbient callers)
     {
         ArgumentNullException.ThrowIfNull(port);
-        ArgumentNullException.ThrowIfNull(caller);
+        ArgumentNullException.ThrowIfNull(callers);
         _port = port;
-        _caller = caller;
+        _callers = callers;
     }
 
-    private CapabilityCaller RequiredCaller()
-        => _caller() ?? throw new UnauthorizedAccessException("identity@1: the call carries no caller.");
+    private Caller RequiredCaller()
+        => _callers.Current ?? throw new UnauthorizedAccessException("identity@1: the call carries no caller.");
 
     /// <inheritdoc />
     public Task<Account?> ReadAccount(string accountId, CancellationToken cancellationToken = default)
@@ -79,27 +80,35 @@ public sealed class BoundIdentity : IIdentity, IGrants
 
     /// <inheritdoc />
     public Task<Member?> EnsureMember(Member member, CancellationToken cancellationToken = default)
-        => _port.EnsureMember(RequiredCaller(), member, cancellationToken);
+    {
+        RequiredCaller();
+        return _port.EnsureMember(member, cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task RemoveMember(string brainScopeId, string accountId, CancellationToken cancellationToken = default)
-        => _port.RemoveMember(RequiredCaller(), brainScopeId, accountId, cancellationToken);
+    {
+        RequiredCaller();
+        return _port.RemoveMember(brainScopeId, accountId, cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task RemovePrincipalMember(string brainScopeId, string principalId, CancellationToken cancellationToken = default)
-        => _port.RemovePrincipalMember(RequiredCaller(), brainScopeId, principalId, cancellationToken);
+    {
+        RequiredCaller();
+        return _port.RemovePrincipalMember(brainScopeId, principalId, cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task<CallDecision?> Authorize(CallRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var caller = _caller();
-        if (caller is null)
+        if (_callers.Current is null)
         {
             return Task.FromResult<CallDecision?>(CallDecision.Deny(CallDenial.NotAuthenticated, "identity@1: the call carries no caller."));
         }
 
-        return _port.Authorize(caller, request, cancellationToken);
+        return _port.Authorize(request, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -111,18 +120,20 @@ public sealed class BoundIdentity : IIdentity, IGrants
     {
         ArgumentNullException.ThrowIfNull(grant);
         var caller = RequiredCaller();
-        var result = await _port.GrantAsOwner(caller, grant, cancellationToken).ConfigureAwait(false);
-        return result ?? throw new UnauthorizedAccessException($"{caller.PrincipalId} is not the owner of {grant.WorkspaceId}.");
+        var result = await _port.GrantAsOwner(grant, cancellationToken).ConfigureAwait(false);
+        return result ?? throw new UnauthorizedAccessException($"{Who(caller)} is not the owner of {grant.WorkspaceId}.");
     }
 
     /// <inheritdoc />
     public async Task RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode, CancellationToken cancellationToken = default)
     {
         var caller = RequiredCaller();
-        var revoked = await _port.RevokeAsOwner(caller, appId, semanticTypeId, mode, cancellationToken).ConfigureAwait(false);
+        var revoked = await _port.RevokeAsOwner(appId, semanticTypeId, mode, cancellationToken).ConfigureAwait(false);
         if (!revoked)
         {
-            throw new UnauthorizedAccessException($"{caller.PrincipalId} is not the owner of {caller.BrainId}.");
+            throw new UnauthorizedAccessException($"{Who(caller)} is not the owner of {caller.Brain}.");
         }
     }
+
+    private static string Who(Caller caller) => caller.For?.Principal ?? caller.Actor.GetType().Name;
 }

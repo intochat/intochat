@@ -2,6 +2,7 @@ namespace DigitalBrain.Capabilities.Identity.Model;
 
 using System.Collections.Immutable;
 using DigitalBrain;
+using DigitalBrain.Access;
 
 /// <summary>Why a directory transition was refused by the aggregate.</summary>
 public enum Refusal
@@ -27,17 +28,17 @@ public readonly record struct Outcome<TState>(TState Next, ImmutableArray<Signal
     public bool Changed => Refused == Refusal.None && Facts.Length > 0;
 
     /// <summary>Returns the next state or throws an exception matching the refusal.</summary>
-    /// <param name="by">The calling capability caller.</param>
+    /// <param name="by">The stamped caller.</param>
     /// <param name="brainId">The target brain identifier.</param>
     /// <returns>The next state.</returns>
     /// <exception cref="UnauthorizedAccessException">Thrown if <see cref="Refused"/> is <see cref="Refusal.NotOwner"/>.</exception>
     /// <exception cref="InvalidOperationException">Thrown if <see cref="Refused"/> is <see cref="Refusal.OwnerStays"/>.</exception>
-    public TState OrThrow(CapabilityCaller by, string brainId)
+    public TState OrThrow(Caller by, string brainId)
     {
         ArgumentNullException.ThrowIfNull(by);
         if (Refused == Refusal.NotOwner)
         {
-            throw new UnauthorizedAccessException($"{by.PrincipalId} is not the owner of {brainId}.");
+            throw new UnauthorizedAccessException($"{(by.For?.Principal ?? by.Actor.GetType().Name)} is not the owner of {brainId}.");
         }
 
         if (Refused == Refusal.OwnerStays)

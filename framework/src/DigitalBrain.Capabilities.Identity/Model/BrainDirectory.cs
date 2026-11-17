@@ -2,6 +2,7 @@ namespace DigitalBrain.Capabilities.Identity.Model;
 
 using System.Collections.Immutable;
 using DigitalBrain;
+using DigitalBrain.Access;
 
 /// <summary>Pure domain aggregate governing membership and grants within a single brain.</summary>
 public sealed record BrainDirectory
@@ -31,26 +32,26 @@ public sealed record BrainDirectory
         => Members.FirstOrDefault(m => m.PrincipalId == principalId);
 
     /// <summary>Checks whether the given caller owns this brain.</summary>
-    /// <param name="caller">The caller.</param>
-    /// <returns>True if caller is the brain owner without an app context.</returns>
-    public bool OwnedBy(CapabilityCaller caller)
+    /// <param name="caller">The stamped caller.</param>
+    /// <returns>True if the caller is the brain owner in person, not through an app, an agent or an intermediary.</returns>
+    public bool OwnedBy(Caller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        if (!string.IsNullOrWhiteSpace(caller.AppId))
+        if (caller.Actor is not Actor.Person person || !caller.Direct)
         {
             return false;
         }
 
         var owner = Owner;
-        return owner is not null && owner.PrincipalId == caller.PrincipalId;
+        return owner is not null && owner.PrincipalId == person.Principal;
     }
 
     /// <summary>Adds a member to the brain.</summary>
-    /// <param name="by">The calling capability caller.</param>
+    /// <param name="by">The stamped caller.</param>
     /// <param name="member">The member to add.</param>
     /// <param name="now">The current timestamp.</param>
     /// <returns>The transition outcome.</returns>
-    public Outcome<BrainDirectory> AddMember(CapabilityCaller by, Member member, DateTimeOffset now)
+    public Outcome<BrainDirectory> AddMember(Caller by, Member member, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(by);
         ArgumentNullException.ThrowIfNull(member);
@@ -76,10 +77,10 @@ public sealed record BrainDirectory
     }
 
     /// <summary>Removes all members associated with an account from the brain.</summary>
-    /// <param name="by">The calling capability caller.</param>
+    /// <param name="by">The stamped caller.</param>
     /// <param name="accountId">The account identifier.</param>
     /// <returns>The transition outcome.</returns>
-    public Outcome<BrainDirectory> RemoveMember(CapabilityCaller by, string accountId)
+    public Outcome<BrainDirectory> RemoveMember(Caller by, string accountId)
     {
         ArgumentNullException.ThrowIfNull(by);
         ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
@@ -106,10 +107,10 @@ public sealed record BrainDirectory
     }
 
     /// <summary>Removes a specific principal from the brain.</summary>
-    /// <param name="by">The calling capability caller.</param>
+    /// <param name="by">The stamped caller.</param>
     /// <param name="principalId">The principal identifier.</param>
     /// <returns>The transition outcome.</returns>
-    public Outcome<BrainDirectory> RemovePrincipal(CapabilityCaller by, string principalId)
+    public Outcome<BrainDirectory> RemovePrincipal(Caller by, string principalId)
     {
         ArgumentNullException.ThrowIfNull(by);
         ArgumentException.ThrowIfNullOrWhiteSpace(principalId);
@@ -136,11 +137,11 @@ public sealed record BrainDirectory
     }
 
     /// <summary>Records or updates a capability grant.</summary>
-    /// <param name="by">The calling capability caller.</param>
+    /// <param name="by">The stamped caller.</param>
     /// <param name="grant">The grant to record.</param>
     /// <param name="grantedAt">The timestamp when granted.</param>
     /// <returns>The transition outcome.</returns>
-    public Outcome<BrainDirectory> RecordGrant(CapabilityCaller by, Grant grant, DateTimeOffset grantedAt)
+    public Outcome<BrainDirectory> RecordGrant(Caller by, Grant grant, DateTimeOffset grantedAt)
     {
         ArgumentNullException.ThrowIfNull(by);
         ArgumentNullException.ThrowIfNull(grant);
@@ -163,12 +164,12 @@ public sealed record BrainDirectory
     }
 
     /// <summary>Revokes grants matching criteria.</summary>
-    /// <param name="by">The calling capability caller.</param>
+    /// <param name="by">The stamped caller.</param>
     /// <param name="appId">The application identifier.</param>
     /// <param name="semanticTypeId">The semantic type identifier.</param>
     /// <param name="mode">The grant mode.</param>
     /// <returns>The transition outcome.</returns>
-    public Outcome<BrainDirectory> RevokeGrant(CapabilityCaller by, string appId, string semanticTypeId, GrantMode mode)
+    public Outcome<BrainDirectory> RevokeGrant(Caller by, string appId, string semanticTypeId, GrantMode mode)
     {
         ArgumentNullException.ThrowIfNull(by);
         ArgumentException.ThrowIfNullOrWhiteSpace(appId);
@@ -207,17 +208,22 @@ public sealed record BrainDirectory
     }
 
     /// <summary>Evaluates an authorization request and spends Once grants deterministically.</summary>
-    /// <param name="caller">The calling capability caller.</param>
+    /// <param name="caller">The stamped caller.</param>
     /// <param name="request">The call request.</param>
     /// <returns>The aggregate outcome and the call decision.</returns>
-    public (Outcome<BrainDirectory> Outcome, CallDecision Decision) Authorize(CapabilityCaller caller, CallRequest request)
+    public (Outcome<BrainDirectory> Outcome, CallDecision Decision) Authorize(Caller caller, CallRequest request)
     {
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentNullException.ThrowIfNull(request);
 
-        if (string.IsNullOrWhiteSpace(caller.AppId))
+        if (caller.Actor is Actor.Person)
         {
             return (new Outcome<BrainDirectory>(this, [], Refusal.None), CallDecision.Allow());
+        }
+
+        if (caller.Actor is not Actor.App app)
+        {
+            return (new Outcome<BrainDirectory>(this, [], Refusal.None), CallDecision.Deny(CallDenial.MissingGrant, $"a {caller.Actor.GetType().Name} caller holds no grants"));
         }
 
         var consumesOnce = false;
@@ -227,7 +233,7 @@ public sealed record BrainDirectory
             var matchedIndex = -1;
             for (var i = 0; i < Grants.Length; i++)
             {
-                if (Grants[i].Covers(caller.AppId, type, caller.BrainId, caller.ConversationId))
+                if (Grants[i].Covers(app.Key, type, caller.Brain.Value, caller.Conversation))
                 {
                     matchedIndex = i;
                     break;
@@ -236,7 +242,7 @@ public sealed record BrainDirectory
 
             if (matchedIndex < 0)
             {
-                return (new Outcome<BrainDirectory>(this, [], Refusal.None), CallDecision.Deny(CallDenial.MissingGrant, $"app {caller.AppId} has no grant for {type}"));
+                return (new Outcome<BrainDirectory>(this, [], Refusal.None), CallDecision.Deny(CallDenial.MissingGrant, $"app {app.Key} has no grant for {type}"));
             }
 
             if (Grants[matchedIndex].Mode == GrantMode.Once)

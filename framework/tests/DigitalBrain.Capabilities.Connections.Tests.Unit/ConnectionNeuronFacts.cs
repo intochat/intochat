@@ -16,7 +16,7 @@ public sealed class ConnectionNeuronFacts
         var key = ConnectionKeys.For("b", "demo", "1");
         var connection = os.Get<IConnection>(ConnectionKeys.IdFor(key));
 
-        using var _ = ConnectionNeuron<DemoConnectionState>.StampCaller(new CapabilityCaller("ada", "ada", "b"));
+        using var _ = os.Edge.Enter(os.Edge.Person("ada", "ada", new BrainId("b")));
         var connected = await connection.Connect("api-key", "secret-token-value");
         var read = await connection.Read();
 
@@ -34,7 +34,7 @@ public sealed class ConnectionNeuronFacts
         var key = ConnectionKeys.For("b", "demo", "1");
         var connection = os.Get<IConnection>(ConnectionKeys.IdFor(key));
 
-        using var _ = ConnectionNeuron<DemoConnectionState>.StampCaller(new CapabilityCaller("ada", "ada", "b"));
+        using var _ = os.Edge.Enter(os.Edge.Person("ada", "ada", new BrainId("b")));
         await connection.Connect("api-key", "secret-token-value");
         await connection.Disconnect();
         var read = await connection.Read();

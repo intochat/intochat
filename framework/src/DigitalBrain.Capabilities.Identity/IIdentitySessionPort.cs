@@ -10,11 +10,11 @@ namespace DigitalBrain.Capabilities.Identity;
 /// </summary>
 public interface IIdentitySessionPort
 {
-    /// <summary>Issues a session for the checked <paramref name="request"/>, on behalf of <paramref name="caller"/>.</summary>
-    Task<SessionIssued> Issue(CapabilityCaller caller, SessionRequest request, CancellationToken cancellationToken);
+    /// <summary>Issues a session for the checked <paramref name="request"/>, on behalf of the stamped caller.</summary>
+    Task<SessionIssued> Issue(SessionRequest request, CancellationToken cancellationToken);
 
     /// <summary>Ends the session; an unknown session is a no-op.</summary>
-    Task End(CapabilityCaller caller, string sessionId, CancellationToken cancellationToken);
+    Task End(string sessionId, CancellationToken cancellationToken);
 
     /// <summary>The member of a live session, or null.</summary>
     Task<Member?> Validate(string sessionId, CancellationToken cancellationToken);

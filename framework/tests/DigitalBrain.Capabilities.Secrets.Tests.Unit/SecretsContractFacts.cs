@@ -109,21 +109,28 @@ public sealed class SealedSecretFacts
     public async Task Port_defaults_refuse()
     {
         ISecretVaultPort port = new LegacyPort();
-        var caller = new CapabilityCaller("p", "a", "b", "auth");
         var ct = TestContext.Current.CancellationToken;
-        Assert.Null(await port.Seal(caller, "auth/totp/p", new byte[] { 1 }, ct));
-        Assert.Null(await port.Open(caller, "auth/totp/p", new SealedSecret { Cipher = "AAAA", KeyId = "k" }, ct));
-        Assert.Equal(SecretVaultStatus.Denied, (await port.Named(caller, "signin-issuer", ct)).Status);
+        Assert.Null(await port.Seal("auth/totp/p", new byte[] { 1 }, ct));
+        Assert.Null(await port.Open("auth/totp/p", new SealedSecret { Cipher = "AAAA", KeyId = "k" }, ct));
+        Assert.Equal(SecretVaultStatus.Denied, (await port.Named("signin-issuer", ct)).Status);
+    }
+
+    [Fact]
+    public void No_port_member_takes_a_caller()
+    {
+        var parameters = typeof(ISecretVaultPort).GetMethods().SelectMany(method => method.GetParameters()).ToList();
+        Assert.NotEmpty(parameters);
+        Assert.DoesNotContain(parameters, parameter => parameter.ParameterType.Name.Contains("Caller", StringComparison.Ordinal));
     }
 
     // A port written before 09-03: only Set, Remove and Resolve.
     private sealed class LegacyPort : ISecretVaultPort
     {
-        public Task<SecretVaultResult> Set(CapabilityCaller caller, string name, string label, string value, CancellationToken cancellationToken) => Task.FromResult(SecretVaultResult.Denied);
+        public Task<SecretVaultResult> Set(string name, string label, string value, CancellationToken cancellationToken) => Task.FromResult(SecretVaultResult.Denied);
 
-        public Task<SecretVaultStatus> Remove(CapabilityCaller caller, string name, CancellationToken cancellationToken) => Task.FromResult(SecretVaultStatus.Denied);
+        public Task<SecretVaultStatus> Remove(string name, CancellationToken cancellationToken) => Task.FromResult(SecretVaultStatus.Denied);
 
-        public Task<SecretVaultResult> Resolve(CapabilityCaller caller, SecretRef secret, CancellationToken cancellationToken) => Task.FromResult(SecretVaultResult.Denied);
+        public Task<SecretVaultResult> Resolve(SecretRef secret, CancellationToken cancellationToken) => Task.FromResult(SecretVaultResult.Denied);
     }
 }
 

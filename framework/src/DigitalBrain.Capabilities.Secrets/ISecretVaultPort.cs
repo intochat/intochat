@@ -48,37 +48,38 @@ public sealed record SecretVaultResult
 }
 
 /// <summary>
-/// The SPI a host implements so the runtime's secrets@1 capability reaches its vault (R4-02, D-15). Every member takes the
-/// caller the runtime read from the stamped call context; the port authorizes that caller and never sees an unstamped call.
+/// The SPI a host implements so the runtime's secrets@1 capability reaches its vault (R4-02, D-15). No member takes a
+/// caller: the port reads the caller the runtime stamped on the call (<see cref="DigitalBrain.Access.ICallerAmbient"/>) and
+/// authorizes it; an unstamped call is refused.
 /// Later capability versions add members additively, with fail-closed defaults (09-03: Seal, Open, Named). Resolve also
 /// answers named references (<see cref="SecretRef.NamedPrefix"/>) once the runtime has checked the manifest declaration.
 /// </summary>
 public interface ISecretVaultPort
 {
     /// <summary>Stores <paramref name="value"/> as <paramref name="name"/> in the caller's brain.</summary>
-    Task<SecretVaultResult> Set(CapabilityCaller caller, string name, string label, string value, CancellationToken cancellationToken);
+    Task<SecretVaultResult> Set(string name, string label, string value, CancellationToken cancellationToken);
 
     /// <summary>Removes <paramref name="name"/> from the caller's brain; an unknown name is <see cref="SecretVaultStatus.Ok"/>.</summary>
-    Task<SecretVaultStatus> Remove(CapabilityCaller caller, string name, CancellationToken cancellationToken);
+    Task<SecretVaultStatus> Remove(string name, CancellationToken cancellationToken);
 
     /// <summary>The value behind <paramref name="secret"/>, if the caller may read it.</summary>
-    Task<SecretVaultResult> Resolve(CapabilityCaller caller, SecretRef secret, CancellationToken cancellationToken);
+    Task<SecretVaultResult> Resolve(SecretRef secret, CancellationToken cancellationToken);
 
     /// <summary>
     /// Seals <paramref name="plaintext"/> bound to <paramref name="context"/> as associated data; null when the vault cannot seal
     /// for the caller. The default refuses (fail closed), so a port written before 09-03 keeps compiling.
     /// </summary>
-    Task<SealedSecret?> Seal(CapabilityCaller caller, string context, ReadOnlyMemory<byte> plaintext, CancellationToken cancellationToken)
+    Task<SealedSecret?> Seal(string context, ReadOnlyMemory<byte> plaintext, CancellationToken cancellationToken)
         => Task.FromResult<SealedSecret?>(null);
 
     /// <summary>The plaintext of <paramref name="sealedSecret"/> for <paramref name="context"/>; null when it does not open. Refuses by default.</summary>
-    Task<byte[]?> Open(CapabilityCaller caller, string context, SealedSecret sealedSecret, CancellationToken cancellationToken)
+    Task<byte[]?> Open(string context, SealedSecret sealedSecret, CancellationToken cancellationToken)
         => Task.FromResult<byte[]?>(null);
 
     /// <summary>
     /// The reference of the deployment-provided secret <paramref name="name"/> (<see cref="SecretRef.NamedPrefix"/>; unset when no
     /// value is configured). The runtime has already checked the caller's manifest declares it. Refuses by default.
     /// </summary>
-    Task<SecretVaultResult> Named(CapabilityCaller caller, string name, CancellationToken cancellationToken)
+    Task<SecretVaultResult> Named(string name, CancellationToken cancellationToken)
         => Task.FromResult(SecretVaultResult.Denied);
 }

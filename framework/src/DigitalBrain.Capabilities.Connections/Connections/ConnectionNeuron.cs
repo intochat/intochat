@@ -33,8 +33,6 @@ public abstract class ConnectionNeuron<TState> : Neuron<TState>, IConnection, IC
     /// <summary>The seat's service container.</summary>
     protected IServiceProvider ServiceProvider => Seat.Services;
 
-    internal static IDisposable StampCaller(CapabilityCaller? caller) => CallerAdmission.Stamp(caller);
-
     private bool _catalogued;
 
     /// <summary>Records next state and publishes the domain fact atomically.</summary>

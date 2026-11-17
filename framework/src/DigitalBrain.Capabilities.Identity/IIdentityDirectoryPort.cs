@@ -4,8 +4,8 @@ namespace DigitalBrain.Capabilities.Identity;
 
 /// <summary>
 /// The SPI a host implements so the runtime's identity@1 capability (<see cref="IIdentity"/> and <see cref="IGrants"/>) reaches
-/// its identity directory (R4-02, D-09, D-15). Members that act for someone take the caller the runtime read from the stamped
-/// call context; the rest mirror <see cref="IIdentity"/>. Neutral DigitalBrain records only. Sessions and the
+/// its identity directory (R4-02, D-09, D-15). Members that act for someone read the caller the runtime stamped on the call
+/// (<see cref="DigitalBrain.Access.ICallerAmbient"/>); they take no caller argument. The rest mirror <see cref="IIdentity"/>. Neutral DigitalBrain records only. Sessions and the
 /// description use the separate <see cref="IIdentitySessionPort"/> (09-03).
 /// </summary>
 public interface IIdentityDirectoryPort
@@ -49,24 +49,24 @@ public interface IIdentityDirectoryPort
     /// <summary>See <see cref="IIdentity.Membership"/>.</summary>
     Task<Member?> Membership(string brainScopeId, string principalId, CancellationToken cancellationToken);
 
-    /// <summary>Adds the member when <paramref name="caller"/> may; throws <see cref="UnauthorizedAccessException"/> when it may not.</summary>
-    Task<Member?> EnsureMember(CapabilityCaller caller, Member member, CancellationToken cancellationToken);
+    /// <summary>Adds the member when the stamped caller may; throws <see cref="UnauthorizedAccessException"/> when it may not.</summary>
+    Task<Member?> EnsureMember(Member member, CancellationToken cancellationToken);
 
-    /// <summary>Removes the account's memberships as <paramref name="caller"/>; never the owner.</summary>
-    Task RemoveMember(CapabilityCaller caller, string brainScopeId, string accountId, CancellationToken cancellationToken);
+    /// <summary>Removes the account's memberships as the stamped caller; never the owner.</summary>
+    Task RemoveMember(string brainScopeId, string accountId, CancellationToken cancellationToken);
 
-    /// <summary>Removes one non-owner member as <paramref name="caller"/>; an unknown principal is a no-op.</summary>
-    Task RemovePrincipalMember(CapabilityCaller caller, string brainScopeId, string principalId, CancellationToken cancellationToken);
+    /// <summary>Removes one non-owner member as the stamped caller; an unknown principal is a no-op.</summary>
+    Task RemovePrincipalMember(string brainScopeId, string principalId, CancellationToken cancellationToken);
 
-    /// <summary>Authorizes <paramref name="request"/> for <paramref name="caller"/>; null when no decision applies.</summary>
-    Task<CallDecision?> Authorize(CapabilityCaller caller, CallRequest request, CancellationToken cancellationToken);
+    /// <summary>Authorizes <paramref name="request"/> for the stamped caller; null when no decision applies.</summary>
+    Task<CallDecision?> Authorize(CallRequest request, CancellationToken cancellationToken);
 
     /// <summary>See <see cref="IGrants.ListGrants"/>.</summary>
     Task<IReadOnlyList<Grant>> ListGrants(string brainScopeId, CancellationToken cancellationToken);
 
-    /// <summary>Records <paramref name="grant"/> when <paramref name="caller"/> owns its brain; null when it does not.</summary>
-    Task<Grant?> GrantAsOwner(CapabilityCaller caller, Grant grant, CancellationToken cancellationToken);
+    /// <summary>Records <paramref name="grant"/> when the stamped caller owns its brain; null when it does not.</summary>
+    Task<Grant?> GrantAsOwner(Grant grant, CancellationToken cancellationToken);
 
-    /// <summary>Revokes in the caller's brain when <paramref name="caller"/> owns it; false when it does not.</summary>
-    Task<bool> RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode, CancellationToken cancellationToken);
+    /// <summary>Revokes in the caller's brain when the stamped caller owns it; false when it does not.</summary>
+    Task<bool> RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode, CancellationToken cancellationToken);
 }

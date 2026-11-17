@@ -23,7 +23,7 @@ public sealed class AFailedSaveLeavesTheConnectionUntouched
         var key = ConnectionKeys.For("b", "faulty", "1");
         var connection = os.Get<IConnection>(ConnectionKeys.IdFor(key));
 
-        using var _ = ConnectionNeuron<DemoConnectionState>.StampCaller(new CapabilityCaller("ada", "ada", "b"));
+        using var _ = os.Edge.Enter(os.Edge.Person("ada", "ada", new BrainId("b")));
 
         // First connect succeeds
         FaultyConnectionNeuron.FailSave = false;

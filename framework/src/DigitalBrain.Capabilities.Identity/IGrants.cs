@@ -5,8 +5,8 @@ namespace DigitalBrain.Capabilities.Identity;
 /// identity@1, second half: grants and call authorization. Same capability id as <see cref="IIdentity"/>.
 /// </summary>
 /// <remarks>
-/// The os <c>CapabilityCaller</c> parameter of <c>GrantAsOwner</c>/<c>RevokeAsOwner</c> and the caller inside
-/// <see cref="CallRequest"/> are gone (D-15): the implementation reads the runtime-stamped caller.
+/// <c>GrantAsOwner</c>/<c>RevokeAsOwner</c> and <see cref="CallRequest"/> carry no caller (D-15): the implementation reads
+/// the runtime-stamped caller.
 /// </remarks>
 [Capability("identity", 1)]
 public interface IGrants

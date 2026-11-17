@@ -35,7 +35,7 @@ public sealed class AdversarialConnectionsChallengeFacts
         var connection = os.Get<IConnection>(ConnectionKeys.IdFor(key));
         var neuronDirect = os.Get<IFaultInjectableInspection>(ConnectionKeys.IdFor(key));
 
-        using var _ = ConnectionNeuron<StressConnectionState>.StampCaller(new CapabilityCaller("caller-1", "caller-1", "b-stress"));
+        using var _ = os.Edge.Enter(os.Edge.Person("caller-1", "caller-1", new BrainId("b-stress")));
 
         // Scenario 1: Initial Connect fails on save -> remains Disconnected with 0 secrets
         FaultInjectableConnectionNeuron.FailRecord = true;

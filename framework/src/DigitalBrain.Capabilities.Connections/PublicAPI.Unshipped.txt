@@ -267,9 +267,9 @@ DigitalBrain.Capabilities.Connections.Integrations.ConfigureIntegration.Equals(D
 DigitalBrain.Capabilities.Connections.Integrations.ConfigureIntegration.Values.get -> System.Collections.Generic.Dictionary<string!, string!>!
 DigitalBrain.Capabilities.Connections.Integrations.ConfigureIntegration.Values.init -> void
 DigitalBrain.Capabilities.Connections.Integrations.ICapabilities
-DigitalBrain.Capabilities.Connections.Integrations.ICapabilities.List(DigitalBrain.Capabilities.CapabilityCaller! caller, string? kind = null, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Connections.Integrations.IntegrationCapability![]!>!
+DigitalBrain.Capabilities.Connections.Integrations.ICapabilities.List(string? kind = null, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Connections.Integrations.IntegrationCapability![]!>!
 DigitalBrain.Capabilities.Connections.Integrations.ICapabilitySource
-DigitalBrain.Capabilities.Connections.Integrations.ICapabilitySource.Derive(DigitalBrain.Capabilities.CapabilityCaller! caller, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Connections.Integrations.IntegrationCapability![]!>!
+DigitalBrain.Capabilities.Connections.Integrations.ICapabilitySource.Derive(System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Connections.Integrations.IntegrationCapability![]!>!
 DigitalBrain.Capabilities.Connections.Integrations.IIntegrationHandle
 DigitalBrain.Capabilities.Connections.Integrations.IIntegrationHandle.IntegrationId.get -> string!
 DigitalBrain.Capabilities.Connections.Integrations.IIntegrationHandle.ReadAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Connections.Integrations.IntegrationSnapshot!>!
