@@ -28,11 +28,12 @@ public sealed class LobbyFlowFacts
     }
 
     [Theory]
-    [InlineData("cloud", true)]
-    [InlineData("local", false)]
-    [InlineData("local+cloud", false)]
-    [InlineData(null, false)]
-    public void OnlyCloudLoadsTheLobby(string? topology, bool loads) => Assert.Equal(loads, LobbyModule.LoadsUnder(topology));
+    [InlineData("cloud")]
+    [InlineData("local")]
+    [InlineData("local+cloud")]
+    [InlineData(null)]
+    public void LobbyLoadsRegardlessOfTopology(string? topology)
+        => Assert.True(IntoChat.OS.Framework.Modules.OsModule.FromDigital(typeof(LobbyModule)).LoadsUnder(topology));
 
     [Fact]
     public void TheManifestRequiresIdentityAndNamesTheTokenSecret()

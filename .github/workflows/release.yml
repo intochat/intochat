@@ -81,9 +81,9 @@ jobs:
       - name: Log in to Azure Container Registry (Test)
         run: az acr login --name acrintochattest
 
-      - name: Publish IntoChat.OS.Kernel binary
+      - name: Publish IntoChat.Cloud.Host binary
         run: |
-          dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
+          dotnet publish src/IntoChat.Cloud.Host/IntoChat.Cloud.Host.csproj \
             -c Release -r linux-x64 --self-contained \
             -o artifacts/kernel-bin -p:CodeGraphRefresh=false -p:DebugType=none
           tar -I 'gzip -1' -cf artifacts/kernel-bin.tar.gz -C artifacts/kernel-bin .
@@ -98,7 +98,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Dockerfile
+          file: src/IntoChat.Cloud.Host/Dockerfile
           push: true
           build-args: |
             GITHUB_ACTOR=${{ github.actor }}
@@ -271,6 +271,8 @@ jobs:
         run: |
           cp ./artifacts-in/release-manifest.json ./release-manifest.json
           tar -xzf ./artifacts-in/artifacts/kernel-bin.tar.gz -C .
+          chmod +x ./IntoChat.Cloud.Host
+          printf '#!/bin/sh\nexec "$(dirname "$0")/IntoChat.Cloud.Host" "$@"\n' > ./IntoChat.OS.Kernel
           chmod +x ./IntoChat.OS.Kernel
 
       - uses: azure/login@v2
@@ -302,10 +304,12 @@ jobs:
           ROLLBACK_TAG: ${{ inputs.rollback_tag }}
         run: |
           gh release download "$ROLLBACK_TAG" --pattern "release-manifest.json" --output release-manifest.json
-          dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
+          dotnet publish src/IntoChat.Cloud.Host/IntoChat.Cloud.Host.csproj \
             -c Release -r linux-x64 --self-contained \
             -o ./kernel-build -p:CodeGraphRefresh=false -p:DebugType=none
           cp -r ./kernel-build/* .
+          chmod +x ./IntoChat.Cloud.Host
+          printf '#!/bin/sh\nexec "$(dirname "$0")/IntoChat.Cloud.Host" "$@"\n' > ./IntoChat.OS.Kernel
           chmod +x ./IntoChat.OS.Kernel
 
       - name: Use artifacts from package job
@@ -320,6 +324,8 @@ jobs:
         run: |
           cp ./artifacts-in/release-manifest.json ./release-manifest.json
           tar -xzf ./artifacts-in/artifacts/kernel-bin.tar.gz -C .
+          chmod +x ./IntoChat.Cloud.Host
+          printf '#!/bin/sh\nexec "$(dirname "$0")/IntoChat.Cloud.Host" "$@"\n' > ./IntoChat.OS.Kernel
           chmod +x ./IntoChat.OS.Kernel
 
       - uses: azure/login@v2

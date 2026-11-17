@@ -6,6 +6,7 @@ using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Modules.Configuration;
 using IntoChat.OS;
 using IntoChat.OS.Connections;
+using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
@@ -177,6 +178,44 @@ public static class IntoChatOSHostingExtensions
         }
         WaitUntilHealthy(builder, client.Brain.StartupDependencies);
         return builder;
+    }
+
+    public static IResourceBuilder<ContainerResource> AddIntoChatOSContainer(
+        this IDistributedApplicationBuilder builder,
+        string name,
+        string image = "ghcr.io/intochat/os",
+        string tag = "latest",
+        int? httpPort = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(image);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tag);
+        return builder.AddContainer(name, image, tag)
+            .WithHttpEndpoint(port: httpPort, targetPort: 8080, name: "http")
+            .WithHttpHealthCheck("/health", endpointName: "http");
+    }
+
+    public static IResourceBuilder<ContainerResource> WithBootstrapOwner(
+        this IResourceBuilder<ContainerResource> builder,
+        string username,
+        string password)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(username);
+        ArgumentException.ThrowIfNullOrWhiteSpace(password);
+        return builder
+            .WithEnvironment(ModuleConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Username))), username)
+            .WithEnvironment(ModuleConfiguration.EnvironmentName(AuthOptions.Key(nameof(AuthOptions.Password))), password);
+    }
+
+    public static IResourceBuilder<ContainerResource> WithTopology(
+        this IResourceBuilder<ContainerResource> builder,
+        string topology)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(topology);
+        return builder.WithEnvironment(ModuleConfiguration.EnvironmentName(IntoChatOSNames.TopologyKey), topology);
     }
 
     private static bool IsOrleansProviderKey(string key)

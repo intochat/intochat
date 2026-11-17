@@ -16,23 +16,17 @@ using IntoChat.Cloud.Lobby;
 using IntoChat.Cloud.Mail;
 using IntoChat.Cloud.Mail.Templates;
 using IntoChat.Cloud.Organisations;
-using IntoChat.OS.Authority.Identity;
-using IntoChat.OS.Connections.Identity.Configuration;
-using IntoChat.OS.Connections.Platform.Identity;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using OsIdentity = IntoChat.OS.Framework.Modules.Platform.Identity;
 
-namespace IntoChat.OS.Kernel;
+namespace IntoChat.Cloud;
 
-// Services the cloud modules TryAdd. Registered on the host before module ConfigureServices, and only when Topology=cloud,
-// so a local host never resolves IMailSender or the lobby token.
+// Services the cloud modules TryAdd. Registered on the cloud host before module ConfigureServices,
+// so a plain kernel host never resolves IMailSender, the lobby token, or cloud session handling.
 public static class CloudHost
 {
     public static bool IsCloud(string? topology) => string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
@@ -47,7 +41,7 @@ public static class CloudHost
         // Cloud sign-in is the auth module's. The built-in password routes would give any visitor an owner account. This option
         // and the sessions bound below are how the kernel knows a sign-in module is present (NetworkSignInGuard); without them
         // it closes registration beyond loopback by itself.
-        services.PostConfigure<IdentityHostOptions>(identity => identity.BuiltInPasswordEndpoints = false);
+        services.PostConfigure<IntoChat.OS.Connections.Identity.Configuration.IdentityHostOptions>(identity => identity.BuiltInPasswordEndpoints = false);
         services.AddIdentitySessions<AuthIdentityProvider>();
         services.TryAddSingleton<ISessions>(provider => provider.GetRequiredKeyedService<ISessions>(Capability.Identity.V1Id));
         AuthCloudRegistration.Register(services);
@@ -56,7 +50,7 @@ public static class CloudHost
         services.TryAddSingleton<IOrganisationMail, CloudOrganisationMail>();
         services.TryAddSingleton<IOrganisationIdentity, CloudOrganisationIdentity>();
         services.TryAddSingleton<IBrainAccess>(provider => new CloudGuestTryBrainAccess(
-            IdentityHosting.LocalBrainAccess(provider),
+            IntoChat.OS.Authority.Identity.IdentityHosting.LocalBrainAccess(provider),
             provider.GetRequiredService<GuestTrySessionService>(),
             provider.GetService<TimeProvider>() ?? TimeProvider.System));
         services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -72,7 +66,7 @@ public static class CloudHost
             // Shut by default: a try token makes a guest (and its brain) only on an endpoint marked for guests. Anywhere
             // else the request stays anonymous and the account session answers 401.
             if (context.User.Identity?.IsAuthenticated != true
-                && context.GetEndpoint()?.Metadata.GetMetadata<GuestSurface.Door>() is not null
+                && context.GetEndpoint()?.Metadata.GetMetadata<IntoChat.OS.Authority.Identity.GuestSurface.Door>() is not null
                 && TryMatchGuestBrainPath(context.Request.Path, out var targetBrainId)
                 && GuestTrySessionService.ExtractToken(context.Request) is { Length: > 0 } rawToken
                 && context.RequestServices.GetService<GuestTrySessionService>() is { } trySessions
@@ -87,10 +81,10 @@ public static class CloudHost
                     // The lobby names the brain, and the brain id is the guest's principal. A session the walls would not
                     // know as a guest's is not admitted.
                     var guest = CapabilityCallers.Of(session.BrainId, session.BrainId, session.BrainId);
-                    if (GuestSurface.Is(guest))
+                    if (IntoChat.OS.Authority.Identity.GuestSurface.Is(guest))
                     {
                         await EnsureGuestBrainAsync(context.RequestServices, session, now, provisionedBrains, context.RequestAborted).ConfigureAwait(false);
-                        context.User = AccountSession.SessionUser(guest);
+                        context.User = IntoChat.OS.Authority.Identity.AccountSession.SessionUser(guest);
                     }
                 }
             }
@@ -129,9 +123,9 @@ public static class CloudHost
                 return;
             }
 
-            if (services.GetService<IIdentityClient>() is { } identity)
+            if (services.GetService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>() is { } identity)
             {
-                await identity.EnsureAccount(new OsIdentity.Account
+                await identity.EnsureAccount(new IntoChat.OS.Framework.Modules.Platform.Identity.Account
                 {
                     AccountId = session.BrainId,
                     OwnerPrincipalId = session.BrainId,
@@ -139,17 +133,17 @@ public static class CloudHost
                     CreatedAt = session.IssuedAt,
                 }).WaitAsync(cancellationToken).ConfigureAwait(false);
 
-                var provision = await identity.EnsureBrain(new OsIdentity.Member
+                var provision = await identity.EnsureBrain(new IntoChat.OS.Framework.Modules.Platform.Identity.Member
                 {
                     PrincipalId = session.BrainId,
                     AccountId = session.BrainId,
                     BrainId = session.BrainId,
-                    Role = OsIdentity.MemberRole.Owner,
+                    Role = IntoChat.OS.Framework.Modules.Platform.Identity.MemberRole.Owner,
                     DisplayName = "Guest",
                     JoinedAt = session.IssuedAt,
                 }).WaitAsync(cancellationToken).ConfigureAwait(false);
 
-                if (services.GetService<IBrainBirths>() is { } births)
+                if (services.GetService<IntoChat.OS.Authority.Identity.IBrainBirths>() is { } births)
                 {
                     await births.Born(provision).WaitAsync(cancellationToken).ConfigureAwait(false);
                 }
@@ -223,19 +217,19 @@ public static class CloudHost
     }
 }
 
-public sealed class CloudLicenseCheck : ILicenseCheck
+public sealed class CloudLicenseCheck : IntoChat.OS.Framework.Modules.ILicenseCheck
 {
-    public LicenseResult Check(ModuleId module, LicenseContext context)
+    public IntoChat.OS.Framework.Modules.LicenseResult Check(ModuleId module, IntoChat.OS.Framework.Modules.LicenseContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         if (!string.Equals(module.Value, AuthModule.Id, StringComparison.OrdinalIgnoreCase))
         {
-            return new LicenseResult(true, null, null, null);
+            return new IntoChat.OS.Framework.Modules.LicenseResult(true, null, null, null);
         }
 
         var result = new AuthLicenseGate().Check(context.Configuration[AuthLicenseGate.TokenKey]);
         var reason = result.Failure is "missing" or "invalid" or "expired" ? result.Failure : null;
-        return new LicenseResult(result.Ok, result.Holder, result.ExpiresAt, result.Ok ? null : reason ?? "invalid");
+        return new IntoChat.OS.Framework.Modules.LicenseResult(result.Ok, result.Holder, result.ExpiresAt, result.Ok ? null : reason ?? "invalid");
     }
 }
 
@@ -406,7 +400,7 @@ internal sealed class CloudOrganisationMail(IMailSender sender) : IOrganisationM
 
 internal sealed class CloudOrganisationIdentity(IServiceProvider services) : IOrganisationIdentity
 {
-    private IIdentityClient Identity => services.GetRequiredService<IIdentityClient>();
+    private IntoChat.OS.Connections.Platform.Identity.IIdentityClient Identity => services.GetRequiredService<IntoChat.OS.Connections.Platform.Identity.IIdentityClient>();
 
     public async Task<Member?> Membership(string brainId, string principalId, CancellationToken cancellationToken = default)
     {
@@ -417,12 +411,12 @@ internal sealed class CloudOrganisationIdentity(IServiceProvider services) : IOr
     public async Task<Member?> EnsureMember(Member member, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(member);
-        var ensured = await Identity.EnsureMember(new OsIdentity.Member
+        var ensured = await Identity.EnsureMember(new IntoChat.OS.Framework.Modules.Platform.Identity.Member
         {
             PrincipalId = member.PrincipalId,
             AccountId = member.AccountId,
             BrainId = member.BrainId,
-            Role = (OsIdentity.MemberRole)(int)member.Role,
+            Role = (IntoChat.OS.Framework.Modules.Platform.Identity.MemberRole)(int)member.Role,
             DisplayName = member.DisplayName,
             JoinedAt = member.JoinedAt,
         }).WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -432,7 +426,7 @@ internal sealed class CloudOrganisationIdentity(IServiceProvider services) : IOr
     public Task RemovePrincipalMember(string brainId, string principalId, CancellationToken cancellationToken = default)
         => Identity.RemovePrincipalMember(brainId, principalId).WaitAsync(cancellationToken);
 
-    private static Member ToCapabilityMember(OsIdentity.Member member) => new()
+    private static Member ToCapabilityMember(IntoChat.OS.Framework.Modules.Platform.Identity.Member member) => new()
     {
         PrincipalId = member.PrincipalId,
         AccountId = member.AccountId,

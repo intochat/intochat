@@ -7,21 +7,21 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace IntoChat.Cloud.Circle.Server.Tests;
 
-// R4-01, CLOUD-02: the circle server module is composed only for Topology=cloud and declares what it needs.
+// R4-01, CLOUD-02: the circle server module is composed by the cloud host and declares what it needs.
 public sealed class CircleServerModuleFacts
 {
     [Theory]
-    [InlineData("cloud", true)]
-    [InlineData("Cloud", true)]
-    [InlineData("local", false)]
-    [InlineData("local+cloud", false)]
-    [InlineData("", false)]
-    [InlineData(null, false)]
-    public void OnlyTheCloudTopologyLoadsTheModule(string? topology, bool loads)
+    [InlineData("cloud")]
+    [InlineData("Cloud")]
+    [InlineData("local")]
+    [InlineData("local+cloud")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void CircleServerLoadsRegardlessOfTopology(string? topology)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["IntoChatOS:Topology"] = topology }).Build();
-        Assert.Equal(loads, CircleServerModule.For(configuration) is not null);
-        Assert.Equal(loads, CircleServerModule.LoadsUnder(topology));
+        Assert.NotNull(CircleServerModule.For(configuration));
+        Assert.True(IntoChat.OS.Framework.Modules.OsModule.FromDigital(typeof(CircleServerModule)).LoadsUnder(topology));
     }
 
     [Fact]

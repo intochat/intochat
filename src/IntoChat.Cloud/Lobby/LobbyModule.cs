@@ -19,9 +19,6 @@ public sealed class LobbyModule : Module
     public const string OptionsSection = "IntoChatOS:Modules:" + Id + ":Options";
     public const string TokenSecret = "lobby-token-key";
 
-    // The plan's secret spelling auth-lobby/TokenKey is not a secrets@1 name (no slash). This is that key.
-    public static bool LoadsUnder(string? topology) => string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
-
     public static IdentityPosture Posture => IdentityPosture.Secured;
 
     public static ModuleManifest Manifest { get; } = new(

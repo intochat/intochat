@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
+    <IsIntoChatOSModule>true</IsIntoChatOSModule>
     <IntoChatOSContractsHost>true</IntoChatOSContractsHost>
     <RootNamespace>IntoChat.Cloud</RootNamespace>
     <Description>IntoChat Cloud modules: Auth, Blob storage, Circle relay, Hosting, Lobby, Localization, Mail, and Organisations.</Description>

@@ -422,7 +422,7 @@ public sealed class KernelLayoutFacts
         var hostingFile = SystemOneHostingStatePath();
         Assert.True(File.Exists(hostingFile), $"SystemOneHostingState.cs must exist at '{hostingFile}'");
 
-        var kernelAssembly = typeof(IntoChat.OS.Kernel.CloudHost).Assembly;
+        var kernelAssembly = typeof(IntoChat.OS.Kernel.OperatingSystemModules).Assembly;
         var kernelTypes = kernelAssembly.GetTypes().Select(t => t.Name).ToList();
 
         Assert.DoesNotContain("IntoChatOSNamesForward", kernelTypes);

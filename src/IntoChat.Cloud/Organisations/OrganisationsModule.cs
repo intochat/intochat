@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.Cloud.Organisations;
 
-// Personal organisations, membership and invitations. Loaded only when Topology=cloud. The kernel composes it in 09-09.
+// Personal organisations, membership and invitations. Composed by the cloud host.
 [Module(Id)]
 public sealed class OrganisationsModule : Module
 {
@@ -18,8 +18,6 @@ public sealed class OrganisationsModule : Module
     public const string OptionsSection = "IntoChatOS:Modules:" + Id + ":Options";
 
     public static System.Reflection.Assembly? Contracts { get; } = typeof(IOrganisation).Assembly;
-
-    public static bool LoadsUnder(string? topology) => string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
 
     public static ModuleManifest Manifest { get; } = new(
         Provides: [],

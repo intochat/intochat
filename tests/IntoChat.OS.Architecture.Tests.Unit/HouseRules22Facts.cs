@@ -401,7 +401,7 @@ public sealed class HouseRules22Facts
     {
         var allowed = new HashSet<(string Project, string File)>
         {
-            ("IntoChat.OS.Kernel", "CloudHost.cs"),
+            ("IntoChat.Cloud", "CloudHost.cs"),
             ("IntoChat.OS.Kernel", "Kernel.cs"),
         };
         var offenders = new List<string>();

@@ -45,10 +45,7 @@ public sealed class PackageReleaseInputFacts
     [Fact]
     public void DryRunFindsEveryInputInThisRepository()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows bundle packaging requires Windows.");
 
         var run = DryRun(Path.Combine(RepoRoot(), "eng", "release", "package-release.ps1"));
 
@@ -62,10 +59,7 @@ public sealed class PackageReleaseInputFacts
     [Fact]
     public void DryRunFailsAndNamesAnInputThatIsNoLongerThere()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows bundle packaging requires Windows.");
 
         // A copy of the script in a tree that has a VERSION and nothing to publish.
         var temp = Directory.CreateTempSubdirectory("intochat-pkg-inputs-");

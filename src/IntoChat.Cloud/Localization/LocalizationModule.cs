@@ -19,8 +19,6 @@ public sealed class LocalizationModule : Module
 {
     public const string Id = "localization";
 
-    public static bool LoadsUnder(string? topology) => string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
-
     public static ModuleManifest Manifest { get; } = new([], [], [], [], []);
 
     public void ConfigureServices(IServiceCollection services)

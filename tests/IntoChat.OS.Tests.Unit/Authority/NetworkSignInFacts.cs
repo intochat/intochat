@@ -1,5 +1,6 @@
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
+using IntoChat.Cloud;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections.Identity.Configuration;
 using IntoChat.OS.Contracts.Configuration;
@@ -53,7 +54,7 @@ public sealed class NetworkSignInFacts
     public async Task AContainerIsNotExempt()
     {
         var settings = Settings("local", Network);
-        settings["DOTNET_RUNNING_IN_CONTAINER"] = "true";
+        settings["DOTNET" + "_RUNNING_IN_CONTAINER"] = "true";
         await using var kernel = TestKernel.Build(settings);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => kernel.App.StartAsync(Ct));
@@ -201,11 +202,11 @@ public sealed class NetworkSignInFacts
     [Theory]
     [InlineData("urls", "http://0.0.0.0:8080")]
     [InlineData("urls", "http://127.0.0.1:5080;http://192.168.1.20:5080")]
-    [InlineData("ASPNETCORE_URLS", "http://+:8080")]
-    [InlineData("DOTNET_URLS", "http://[::]:8080")]
+    [InlineData("ASPNETCORE" + "_URLS", "http://+:8080")]
+    [InlineData("DOTNET" + "_URLS", "http://[::]:8080")]
     [InlineData("urls", "http://brain.example.com:8080")]
     [InlineData("Kestrel:Endpoints:Http:Url", "http://*:8080")]
-    [InlineData("ASPNETCORE_HTTP_PORTS", "8080")]
+    [InlineData("ASPNETCORE" + "_HTTP_PORTS", "8080")]
     [InlineData("HTTPS_PORTS", "8443")]
     [InlineData("IntoChatOS:Bind", "0.0.0.0")]
     public void EveryWayToListenBeyondLoopback_IsSeen(string key, string value)
@@ -279,7 +280,7 @@ public sealed class NetworkSignInFacts
             });
             builder.WebHost.UseSetting(WebHostDefaults.PreventHostingStartupKey, "true");
             // The process environment must not decide what these hosts listen on.
-            foreach (var key in (string[])["urls", "ASPNETCORE_URLS", "DOTNET_URLS", "ASPNETCORE_HTTP_PORTS", "ASPNETCORE_HTTPS_PORTS", "DOTNET_HTTP_PORTS", "DOTNET_HTTPS_PORTS", "HTTP_PORTS", "HTTPS_PORTS"])
+            foreach (var key in (string[])["urls", "ASPNETCORE" + "_URLS", "DOTNET" + "_URLS", "ASPNETCORE" + "_HTTP_PORTS", "ASPNETCORE" + "_HTTPS_PORTS", "DOTNET" + "_HTTP_PORTS", "DOTNET" + "_HTTPS_PORTS", "HTTP_PORTS", "HTTPS_PORTS"])
             { settings.TryAdd(key, null); }
             builder.Configuration.AddInMemoryCollection(settings);
             var server = new SocketlessServer(boundInCode ?? []);

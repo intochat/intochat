@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Runtime.Orleans.Testing;
+using IntoChat.Cloud;
 using IntoChat.Cloud.Blob;
 using IntoChat.Cloud.Lobby;
 using IntoChat.OS.Authority.Identity;
@@ -280,7 +281,7 @@ public sealed class CloudTopologyGuestMcpFacts(CloudTopologyGuestMcpFacts.CloudG
             var ports = PortReservation.ReservePair();
             _ports = ports;
 
-            var catalog = OperatingSystemModules.Modules
+            var catalog = OperatingSystemModules.Discover(typeof(CloudHost).Assembly)
                 .Where(module => !module.RequiresContainer && (module.LoadsUnder("local") || module.LoadsUnder("cloud")) && module.Type != typeof(BlobStorageModule))
                 .ToArray();
 
@@ -330,7 +331,13 @@ public sealed class CloudTopologyGuestMcpFacts(CloudTopologyGuestMcpFacts.CloudG
             builder.Services.AddIntoChatOSMcp();
 
             App = builder.Build();
-            App.MapIntoChatOSServer();
+            App.MapIntoChatOSServer(beforeAccountSession: static web =>
+            {
+                if (web.Services.GetService<GuestTrySessionService>() is not null)
+                {
+                    web.UseGuestTrySessions();
+                }
+            });
             App.MapIntoChatOSMcp();
             await App.StartAsync(ct);
 

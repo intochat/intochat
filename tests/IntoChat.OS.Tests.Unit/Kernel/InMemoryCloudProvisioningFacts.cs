@@ -36,7 +36,7 @@ public sealed class InMemoryCloudProvisioningFacts
             var code = await AzureInstaller.Run(
                 ["install", "--env", "test", "--config", configPath],
                 cloud,
-                OperatingSystemModules.Modules,
+                OperatingSystemModules.Discover(typeof(IntoChat.Cloud.CloudHost).Assembly),
                 output,
                 error,
                 TestContext.Current.CancellationToken);

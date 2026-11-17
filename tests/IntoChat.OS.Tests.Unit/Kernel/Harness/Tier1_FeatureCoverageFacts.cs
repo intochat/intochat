@@ -665,7 +665,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F13")]
     public void F13_01_IntoChatOSNamesForward_IsIsolatedFromKernel()
     {
-        var kernelTypes = typeof(IntoChat.OS.Kernel.CloudHost).Assembly.GetTypes();
+        var kernelTypes = typeof(IntoChat.OS.Kernel.OperatingSystemModules).Assembly.GetTypes();
         Assert.DoesNotContain(kernelTypes, t => t.Name.Contains("NamesForward", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -674,7 +674,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F13")]
     public void F13_02_LegacyTypeNames_IsIsolatedFromKernel()
     {
-        var kernelTypes = typeof(IntoChat.OS.Kernel.CloudHost).Assembly.GetTypes();
+        var kernelTypes = typeof(IntoChat.OS.Kernel.OperatingSystemModules).Assembly.GetTypes();
         Assert.DoesNotContain(kernelTypes, t => t.Name.Contains("LegacyTypeNames", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -683,7 +683,7 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F13")]
     public void F13_03_LegacyConfigurationGuard_IsIsolatedFromKernel()
     {
-        var kernelTypes = typeof(IntoChat.OS.Kernel.CloudHost).Assembly.GetTypes();
+        var kernelTypes = typeof(IntoChat.OS.Kernel.OperatingSystemModules).Assembly.GetTypes();
         Assert.DoesNotContain(kernelTypes, t => t.Name.Contains("LegacyConfigurationGuard", StringComparison.OrdinalIgnoreCase));
     }
 

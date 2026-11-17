@@ -54,6 +54,7 @@
     <Project Path="framework/tests/DigitalBrain.Tests.Unit/DigitalBrain.Tests.Unit.csproj" />
   </Folder>
   <Project Path="src/IntoChat.Cloud/IntoChat.Cloud.csproj" />
+  <Project Path="src/IntoChat.Cloud.Host/IntoChat.Cloud.Host.csproj" />
   <Project Path="src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
   <Project Path="src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
   <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj" />

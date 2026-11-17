@@ -32,13 +32,11 @@ public sealed partial class CircleServerModule : Module
         Secrets: [Secret.Named("circle-deployment-key")]);
 
     public static System.Reflection.Assembly? Contracts { get; } = typeof(ICircleConnection).Assembly;
-    public static bool LoadsUnder(string? topology) => string.Equals(topology?.Trim(), CloudTopology, StringComparison.OrdinalIgnoreCase);
 
-    // The module for this host's configuration, or null for any topology but cloud.
-    public static CircleServerModule? For(IConfiguration configuration)
+    public static CircleServerModule For(IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-        return LoadsUnder(configuration[TopologyKey]) ? new CircleServerModule() : null;
+        return new CircleServerModule();
     }
 
     // Silo services. The host also supplies ICircleInviteRedeemer (the os circles module, 10-03).

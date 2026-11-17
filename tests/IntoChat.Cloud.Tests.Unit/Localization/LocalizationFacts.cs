@@ -3,10 +3,11 @@ namespace IntoChat.Cloud.Localization.Tests;
 public sealed class LocalizationFacts
 {
     [Theory]
-    [InlineData("cloud", true)]
-    [InlineData("local", false)]
-    [InlineData(null, false)]
-    public void OnlyCloudLoadsLocalization(string? topology, bool loads) => Assert.Equal(loads, LocalizationModule.LoadsUnder(topology));
+    [InlineData("cloud")]
+    [InlineData("local")]
+    [InlineData(null)]
+    public void LocalizationLoadsRegardlessOfTopology(string? topology)
+        => Assert.True(IntoChat.OS.Framework.Modules.OsModule.FromDigital(typeof(LocalizationModule)).LoadsUnder(topology));
 
     [Fact]
     public void EnglishAndRussianTablesResolveTheLoginHeading()

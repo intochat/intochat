@@ -9,11 +9,12 @@ namespace IntoChat.Cloud.Auth.Tests;
 public sealed class AuthModuleFacts
 {
     [Theory]
-    [InlineData("cloud", true)]
-    [InlineData("local", false)]
-    [InlineData("local+cloud", false)]
-    [InlineData(null, false)]
-    public void OnlyCloudLoadsAuth(string? topology, bool loads) => Assert.Equal(loads, AuthModule.LoadsUnder(topology));
+    [InlineData("cloud")]
+    [InlineData("local")]
+    [InlineData("local+cloud")]
+    [InlineData(null)]
+    public void AuthLoadsRegardlessOfTopology(string? topology)
+        => Assert.True(IntoChat.OS.Framework.Modules.OsModule.FromDigital(typeof(AuthModule)).LoadsUnder(topology));
 
     [Fact]
     public void TheManifestRequiresIdentityAndDoesNotProvideIt()

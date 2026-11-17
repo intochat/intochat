@@ -16,8 +16,6 @@ public sealed class HostingModule : Module
     public const string Id = "hosting";
     public const string OptionsSection = "IntoChatOS:Modules:" + Id + ":Options";
 
-    public static bool LoadsUnder(string? topology) => string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
-
     public static ModuleManifest Manifest { get; } = new(
         Provides: [],
         Requires: [],

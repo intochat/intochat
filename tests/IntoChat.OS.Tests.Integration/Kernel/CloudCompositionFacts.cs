@@ -1,31 +1,48 @@
+using IntoChat.Cloud;
 using IntoChat.OS.Kernel;
 
 namespace IntoChat.OS.Kernel.Tests.Integration;
 
 public sealed class CloudCompositionFacts
 {
+    private static readonly string[] CloudModuleIds =
+    [
+        "auth",
+        "blob",
+        "circle-server",
+        "hosting",
+        "lobby",
+        "localization",
+        "mail",
+        "organisations",
+    ];
+
     [Fact]
-    public void CloudModulesLoadUnderCloudAndNeverUnderLocal()
+    public void KernelModulesExcludeAllCloudModules()
     {
         var ids = OperatingSystemModules.Modules
-            .Where(module => module.LoadsUnder("cloud") && !module.LoadsUnder("local"))
             .Select(module => module.Id.Value)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-        Assert.Equal(["auth", "blob", "circle-server", "hosting", "lobby", "localization", "mail", "organisations"], ids);
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var id in CloudModuleIds)
+        {
+            Assert.DoesNotContain(id, ids);
+        }
     }
 
     [Fact]
-    public void CloudOnlyModulesNeverLoadUnderLocalOrLocalCloud()
+    public void CloudHostDiscoveryIncludesAllCloudAndKernelModules()
     {
-        string[] ids = ["auth", "circle-server", "hosting", "lobby", "localization", "mail", "organisations"];
-        var modules = OperatingSystemModules.Modules;
-        foreach (var id in ids)
+        var cloudIds = OperatingSystemModules.Discover(typeof(CloudHost).Assembly)
+            .Select(module => module.Id.Value)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var id in CloudModuleIds)
         {
-            var module = Assert.Single(modules, candidate => string.Equals(candidate.Id.Value, id, StringComparison.Ordinal));
-            Assert.True(module.LoadsUnder("cloud"));
-            Assert.False(module.LoadsUnder("local"));
-            Assert.False(module.LoadsUnder("local+cloud"));
+            Assert.Contains(id, cloudIds);
+        }
+
+        foreach (var id in OperatingSystemModules.Modules.Select(module => module.Id.Value))
+        {
+            Assert.Contains(id, cloudIds);
         }
     }
 }

@@ -1,5 +1,6 @@
 using System.Reflection;
 using DigitalBrain.Modules;
+using IntoChat.OS.Kernel;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -7,12 +8,10 @@ namespace IntoChat.OS.Architecture.Tests.Unit;
 // Every module class declares one. There is no missing-manifest baseline.
 public sealed class ModuleManifestFacts
 {
-    private static readonly string[] ModuleAssemblyPrefixes = ["IntoChat.OS.Modules.", "IntoChat.Cloud"];
-
     internal static string[] Modules(bool withManifest)
         => ProductionArchitecture.Types
             .Where(type => type is { IsClass: true, IsAbstract: false } && IsModule(type))
-            .Where(type => ModuleAssemblyPrefixes.Any(prefix => type.Assembly.GetName().Name!.StartsWith(prefix, StringComparison.Ordinal)))
+            .Where(type => OperatingSystemModules.DeclaresModule(type.Assembly))
             .Where(type => HasManifest(type) == withManifest)
             .Select(type => type.FullName!)
             .Distinct(StringComparer.Ordinal)

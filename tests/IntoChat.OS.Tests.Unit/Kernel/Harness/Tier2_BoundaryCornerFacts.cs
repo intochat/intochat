@@ -642,7 +642,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F13")]
     public void F13_B01_CloudHostAssembly_NoNamesForwardTypes()
     {
-        var types = typeof(IntoChat.OS.Kernel.CloudHost).Assembly.GetTypes();
+        var types = typeof(IntoChat.OS.Kernel.OperatingSystemModules).Assembly.GetTypes();
         Assert.DoesNotContain(types, t => t.Name.Contains("NamesForward"));
     }
 
@@ -651,7 +651,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F13")]
     public void F13_B02_CloudHostAssembly_NoLegacyConfigurationTypes()
     {
-        var types = typeof(IntoChat.OS.Kernel.CloudHost).Assembly.GetTypes();
+        var types = typeof(IntoChat.OS.Kernel.OperatingSystemModules).Assembly.GetTypes();
         Assert.DoesNotContain(types, t => t.Name.Contains("LegacyConfigurationGuard"));
     }
 

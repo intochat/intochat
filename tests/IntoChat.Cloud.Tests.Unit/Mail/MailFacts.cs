@@ -11,11 +11,12 @@ namespace IntoChat.Cloud.Mail.Tests;
 public sealed class MailFacts
 {
     [Theory]
-    [InlineData("cloud", true)]
-    [InlineData("local", false)]
-    [InlineData("local+cloud", false)]
-    [InlineData(null, false)]
-    public void OnlyCloudLoadsMail(string? topology, bool loads) => Assert.Equal(loads, MailModule.LoadsUnder(topology));
+    [InlineData("cloud")]
+    [InlineData("local")]
+    [InlineData("local+cloud")]
+    [InlineData(null)]
+    public void MailLoadsRegardlessOfTopology(string? topology)
+        => Assert.True(IntoChat.OS.Framework.Modules.OsModule.FromDigital(typeof(MailModule)).LoadsUnder(topology));
 
     [Fact]
     public void TheManifestNamesTheAcsAndHashingSecrets()

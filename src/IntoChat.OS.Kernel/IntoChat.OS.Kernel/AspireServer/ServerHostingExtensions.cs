@@ -169,18 +169,12 @@ public static class ServerHostingExtensions
     private static readonly DigitalBrain.Runtime.Orleans.RetiredSetting[] RetiredTopologySettings =
         [.. LegacyConfigurationGuard.RetiredSettings.Select(static row => new DigitalBrain.Runtime.Orleans.RetiredSetting(row.Name, row.Replacement))];
 
-    public static WebApplication MapIntoChatOSServer(this WebApplication app)
+    public static WebApplication MapIntoChatOSServer(this WebApplication app, Action<WebApplication>? beforeAccountSession = null)
     {
         ArgumentNullException.ThrowIfNull(app);
         if (!((IApplicationBuilder)app).Properties.TryAdd("IntoChat.OS.Mapped", true)) { throw new InvalidOperationException("MapIntoChatOSServer runs once per application."); }
         UseStaticWebShell(app);
-        app.UsePlatformHttp(beforeAccountSession: web =>
-        {
-            if (web.Services.GetService<IntoChat.Cloud.Lobby.GuestTrySessionService>() is not null)
-            {
-                IntoChat.OS.Kernel.CloudHost.UseGuestTrySessions(web);
-            }
-        });
+        app.UsePlatformHttp(beforeAccountSession: beforeAccountSession);
         if (app.Services.GetRequiredService<IntoChatOSServerBuilder>().Dashboard) { app.MapOrleansDashboard(); }
         // /health, /ready and /alive (ServiceDefaults.HealthProbes): deployments and the YARP front probe them.
         app.MapDefaultEndpoints();

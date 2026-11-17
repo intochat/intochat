@@ -6,24 +6,35 @@ using Microsoft.Extensions.DependencyModel;
 
 namespace IntoChat.OS.Kernel;
 
-// The operating system's module list: every assembly the Kernel project references that declares a [Module] type.
-// Cloud modules are project references and declare LoadsUnder; the host skips them unless Topology matches.
+// The operating system's module list: every module assembly reachable from the host root (and the kernel itself).
+// Hosts may pass their own root assembly to compose extra module assemblies on top of the kernel's catalog.
 public static class OperatingSystemModules
 {
-    public static IReadOnlyList<OsModule> Modules { get; } = Discover();
+    public const string ModuleMetadataKey = "IntoChat.OS.Module";
+
+    private static readonly string[] KernelBuiltInAssemblies = ["IntoChat.OS.Framework", "IntoChat.OS.Kernel"];
+
+    public static IReadOnlyList<OsModule> Modules { get; } = Discover(typeof(OperatingSystemModules).Assembly);
 
     // The composition a test process can host by itself: every module that needs no container and loads under local.
     public static IReadOnlyList<OsModule> InProcessModules { get; } = [.. Modules.Where(module => !module.RequiresContainer && module.LoadsUnder("local"))];
+
+    public static bool DeclaresModule(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        return assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .Any(entry => entry.Key == ModuleMetadataKey && string.Equals(entry.Value, "true", StringComparison.Ordinal));
+    }
 
     // Module types that are deliberately not in the portable composition: the Windows edge
     // (added by WithWindowsEdge) and the template sample.
     internal static bool IsExcluded(Type type)
         => type == typeof(IntoChat.OS.Modules.Microsoft.Windows.WindowsModule) || type.Name == "SampleModule";
 
-    private static OsModule[] Discover()
+    public static IReadOnlyList<OsModule> Discover(Assembly? root = null)
     {
         var modules = new List<OsModule>();
-        foreach (var assembly in CandidateAssemblies())
+        foreach (var assembly in CandidateAssemblies(root))
         {
             foreach (var type in assembly.GetExportedTypes())
             {
@@ -39,28 +50,38 @@ public static class OperatingSystemModules
     private static bool IsProductModule(Type type)
     {
         if (!typeof(DigitalBrain.Modules.Module).IsAssignableFrom(type) || type.GetCustomAttribute<DigitalBrain.Modules.ModuleAttribute>() is null) { return false; }
-        // The kernel composition carries two product modules of its own: Orleans and the http@1 connector.
+        // The kernel composition carries three product modules of its own: Orleans, the http@1 connector, and Identity.
         if (type == typeof(IntoChat.OS.Kernel.Composition.OrleansModule)) { return true; }
         if (type == typeof(IntoChat.OS.Kernel.Composition.Capabilities.HttpModule)) { return true; }
         if (type == typeof(IntoChat.OS.Authority.IdentityModule)) { return true; }
-        var name = type.Assembly.GetName().Name ?? "";
-        return name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) || name.StartsWith("IntoChat.Cloud", StringComparison.Ordinal);
+        return DeclaresModule(type.Assembly);
     }
 
-    // Assemblies named by the Kernel dependency closure, not a directory listing of whatever sits beside the process.
-    private static IEnumerable<Assembly> CandidateAssemblies()
+    // Assemblies named by the Kernel + host root dependency closure, not a directory listing of whatever sits beside the process.
+    private static IEnumerable<Assembly> CandidateAssemblies(Assembly? root = null)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var found = new List<Assembly>();
         var queue = new Queue<Assembly>();
+
+        void Track(Assembly assembly)
+        {
+            var assemblyName = assembly.GetName().Name;
+            if (assemblyName is null || !seen.Add(assemblyName)) { return; }
+            if (DeclaresModule(assembly) || KernelBuiltInAssemblies.Contains(assemblyName, StringComparer.Ordinal))
+            {
+                found.Add(assembly);
+            }
+            queue.Enqueue(assembly);
+        }
+
         void Consider(AssemblyName name)
         {
-            if (name.Name is null || !IsModuleAssembly(name.Name) || !seen.Add(name.Name)) { return; }
+            if (name.Name is null || ShouldSkipAssembly(name.Name) || seen.Contains(name.Name)) { return; }
             try
             {
                 var loaded = Assembly.Load(name);
-                found.Add(loaded);
-                queue.Enqueue(loaded);
+                Track(loaded);
             }
             catch (FileNotFoundException) { return; }
             catch (FileLoadException) { return; }
@@ -68,16 +89,22 @@ public static class OperatingSystemModules
         }
 
         var self = typeof(OperatingSystemModules).Assembly;
-        seen.Add(self.GetName().Name!);
-        found.Add(self);
-        queue.Enqueue(self);
-
-        var context = DependencyContext.Load(self) ?? DependencyContext.Default;
-        if (context is not null)
+        var rootAssembly = root ?? self;
+        Track(self);
+        if (rootAssembly != self)
         {
-            foreach (var library in context.RuntimeLibraries) { Consider(new AssemblyName(library.Name)); }
+            Track(rootAssembly);
         }
-        foreach (var reference in self.GetReferencedAssemblies()) { Consider(reference); }
+
+        if (DependencyContext.Load(self) is { } selfContext)
+        {
+            foreach (var library in selfContext.RuntimeLibraries) { Consider(new AssemblyName(library.Name)); }
+        }
+        if (rootAssembly != self && DependencyContext.Load(rootAssembly) is { } rootContext)
+        {
+            foreach (var library in rootContext.RuntimeLibraries) { Consider(new AssemblyName(library.Name)); }
+        }
+
         while (queue.TryDequeue(out var assembly))
         {
             foreach (var reference in assembly.GetReferencedAssemblies()) { Consider(reference); }
@@ -85,16 +112,22 @@ public static class OperatingSystemModules
         return found;
     }
 
-    private static bool IsModuleAssembly(string? name)
-        => name is not null && (name.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal)
-            || name.StartsWith("IntoChat.Cloud", StringComparison.Ordinal)
-            || name == "IntoChat.OS.Framework"
-            || name == "IntoChat.OS.Kernel");
+    private static bool ShouldSkipAssembly(string name)
+        => name is "netstandard" or "mscorlib" or "System" or "Orleans"
+            || name.StartsWith("System.", StringComparison.Ordinal)
+            || name.StartsWith("Microsoft.", StringComparison.Ordinal)
+            || name.StartsWith("Orleans.", StringComparison.Ordinal)
+            || name.StartsWith("Aspire.", StringComparison.Ordinal)
+            || name.StartsWith("DigitalBrain", StringComparison.Ordinal);
 
     // The Windows edge: the composition plus desktop automation of the Windows machine the host runs on.
     // Only a host on Windows opts in; the portable composition never carries it.
-    public static IReadOnlyList<OsModule> WithWindowsEdge()
-        => [.. Modules, OsModule.FromDigital(typeof(IntoChat.OS.Modules.Microsoft.Windows.WindowsModule))];
+    public static IReadOnlyList<OsModule> WithWindowsEdge(Assembly? root = null)
+    {
+        var baseModules = root is null ? Modules : Discover(root);
+        var windows = OsModule.FromDigital(typeof(IntoChat.OS.Modules.Microsoft.Windows.WindowsModule));
+        return baseModules.Any(module => module.Type == windows.Type) ? baseModules : [.. baseModules, windows];
+    }
 
     // Composes the given modules (the portable composition by default) and the OS apps.
     public static IntoChatOSServerBuilder AddOperatingSystem(this IntoChatOSServerBuilder server, IReadOnlyList<OsModule>? modules = null)

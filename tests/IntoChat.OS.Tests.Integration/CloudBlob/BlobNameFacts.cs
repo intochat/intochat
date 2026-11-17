@@ -51,15 +51,15 @@ public sealed class BlobNameFacts
     }
 
     [Theory]
-    [InlineData(null, false)]
-    [InlineData("", false)]
-    [InlineData("local", false)]
-    [InlineData("cloud", true)]
-    [InlineData("local+cloud", true)]
-    [InlineData("local-cloud", true)]
-    [InlineData("CLOUD", true)]
-    public void LoadsUnderCloudTopologiesOnly(string? topology, bool loads) =>
-        Assert.Equal(loads, BlobStorageModule.LoadsUnder(topology));
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("local")]
+    [InlineData("cloud")]
+    [InlineData("local+cloud")]
+    [InlineData("local-cloud")]
+    [InlineData("CLOUD")]
+    public void LoadsRegardlessOfTopology(string? topology) =>
+        Assert.True(IntoChat.OS.Framework.Modules.OsModule.FromDigital(typeof(BlobStorageModule)).LoadsUnder(topology));
 
     [Fact]
     public async Task QuotaIsUnknownNeverZero()

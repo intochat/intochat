@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace IntoChat.Cloud.Mail;
 
-// Transactional mail. ACS is the real sender; Log is the development and test sender. Loaded only when Topology=cloud.
+// Transactional mail. ACS is the real sender; Log is the development and test sender. Composed by the cloud host.
 [Module(Id)]
 public sealed class MailModule : Module
 {
@@ -18,8 +18,6 @@ public sealed class MailModule : Module
     public const string OptionsSection = "IntoChatOS:Modules:" + Id + ":Options";
 
     public static System.Reflection.Assembly? Contracts { get; } = typeof(IMailRate).Assembly;
-
-    public static bool LoadsUnder(string? topology) => string.Equals(topology?.Trim(), "cloud", StringComparison.OrdinalIgnoreCase);
 
     public static ModuleManifest Manifest { get; } = new(
         Provides: [],

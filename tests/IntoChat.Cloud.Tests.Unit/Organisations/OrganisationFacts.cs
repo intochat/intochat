@@ -14,11 +14,12 @@ namespace IntoChat.Cloud.Organisations.Tests;
 public sealed class OrganisationFacts
 {
     [Theory]
-    [InlineData("cloud", true)]
-    [InlineData("local", false)]
-    [InlineData("local+cloud", false)]
-    [InlineData(null, false)]
-    public void OnlyCloudLoadsOrganisations(string? topology, bool loads) => Assert.Equal(loads, OrganisationsModule.LoadsUnder(topology));
+    [InlineData("cloud")]
+    [InlineData("local")]
+    [InlineData("local+cloud")]
+    [InlineData(null)]
+    public void OrganisationsLoadRegardlessOfTopology(string? topology)
+        => Assert.True(IntoChat.OS.Framework.Modules.OsModule.FromDigital(typeof(OrganisationsModule)).LoadsUnder(topology));
 
     [Fact]
     public void TheManifestRequiresIdentity()

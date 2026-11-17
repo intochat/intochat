@@ -4,15 +4,14 @@ namespace IntoChat.Cloud.Hosting.Tests.Unit;
 
 public sealed class HostedStorageGuardFacts
 {
-    [Fact]
-    public void LoadsOnlyUnderCloud()
-    {
-        Assert.True(HostingModule.LoadsUnder("cloud"));
-        Assert.True(HostingModule.LoadsUnder(" Cloud "));
-        Assert.False(HostingModule.LoadsUnder("local"));
-        Assert.False(HostingModule.LoadsUnder("local+cloud"));
-        Assert.False(HostingModule.LoadsUnder(null));
-    }
+    [Theory]
+    [InlineData("cloud")]
+    [InlineData(" Cloud ")]
+    [InlineData("local")]
+    [InlineData("local+cloud")]
+    [InlineData(null)]
+    public void LoadsRegardlessOfTopology(string? topology)
+        => Assert.True(IntoChat.OS.Framework.Modules.OsModule.FromDigital(typeof(HostingModule)).LoadsUnder(topology));
 
     [Fact]
     public void ARuntimeIdAloneDoesNotThrow()
