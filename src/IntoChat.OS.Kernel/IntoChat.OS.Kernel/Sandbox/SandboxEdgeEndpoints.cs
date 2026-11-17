@@ -226,7 +226,22 @@ internal static class SandboxEdgeEndpoints
             return await DispatchTableAsync(identity.BrainId, identity.AppKey, tableName, request.Method, args, tables, ct).ConfigureAwait(false);
         }
 
+        await HoldToNeedsAsync(identity, request, services).ConfigureAwait(false);
         return await DispatchGenericSlotAsync(identity, request, args, services, ct).ConfigureAwait(false);
+    }
+
+    // A code block reaches only the contracts its approved needs name; every call it makes, allowed or refused, is a step on its run.
+    private static async Task HoldToNeedsAsync(VerifiedAppToken identity, EdgeInvokeRequest request, IServiceProvider services)
+    {
+        if (!identity.AppKey.StartsWith(IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants.CodeBlockAppPrefix, StringComparison.Ordinal)) { return; }
+        var grants = SiloNeurons.Get<IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants>(services,
+            new NeuronId(new BrainId(identity.BrainId), "client.grants", IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants.DefaultKey));
+        var allowed = (await grants.Allowed(identity.AppKey).ConfigureAwait(false)).Contains(request.Contract, StringComparer.Ordinal);
+        await grants.Record(identity.AppKey, $"{request.Contract[(request.Contract.LastIndexOf('.') + 1)..]}.{request.Method}", allowed).ConfigureAwait(false);
+        if (!allowed)
+        {
+            throw new UnauthorizedAccessException($"{request.Contract} is not among this code block's approved needs.");
+        }
     }
 
     private static async Task<string?> DispatchNotificationsAsync(

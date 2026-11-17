@@ -33,4 +33,35 @@ public sealed class CodeBlockSourceFacts
 
     [Fact]
     public void AStringResultReadsAsItsText() => Assert.Equal("c b a", CodeBlockSource.Output("\"c b a\""));
+
+    private const string Orchestrates = """
+        using System.Threading.Tasks;
+        using IntoChat.Sdk;
+        using IntoChat.OS.Modules.Apps.Runs;
+
+        public static class Block
+        {
+            public static async Task<string> Run(string input, ISandboxBrain brain)
+            {
+                var runs = await brain.Get<IRuns>("runs/index").List(10);
+                return $"{runs.Length} run(s)";
+            }
+        }
+        """;
+
+    [Fact]
+    public void ABlockThatCallsTheBrainNeedsExactlyTheContractsItUses()
+    {
+        var compiled = new AppPackageCompiler().Compile(CodeBlockSource.Package(CodeBlockSource.AppKey("r3"), "count runs", Orchestrates));
+        Assert.True(compiled.Succeeded, string.Join("; ", compiled.Errors));
+        Assert.Equal(["IntoChat.OS.Modules.Apps.Runs.IRuns"], CodeBlockNeeds.Infer(compiled.AssemblyBytes));
+    }
+
+    [Fact]
+    public void ABlockWithoutBrainCallsNeedsNothing()
+        => Assert.Empty(CodeBlockNeeds.Infer(new AppPackageCompiler().Compile(CodeBlockSource.Package(CodeBlockSource.AppKey("r4"), "reverse", Good)).AssemblyBytes));
+
+    [Fact]
+    public void TheNeedsHashIgnoresOrder()
+        => Assert.Equal(CodeBlockNeeds.Hash(["b", "a"]), CodeBlockNeeds.Hash(["a", "b"]));
 }

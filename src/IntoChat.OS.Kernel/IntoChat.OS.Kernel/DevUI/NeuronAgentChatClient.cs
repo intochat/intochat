@@ -38,12 +38,12 @@ internal sealed class NeuronAgentChatClient(IServiceProvider services) : IChatCl
     }
 
     // The newest conversation Ino uses for this brain; the main one when Ino has none yet.
-    private async Task<string> ConversationKey()
+    private async Task<DigitalBrain.NeuronId> ConversationKey()
     {
         var brain = RuntimeCallerContext.Require().BrainId;
         var current = await SiloNeurons.Get<IInoConversations>(services, new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), "ino.conversations", IInoConversations.DefaultKey)).Current();
         var key = current.FirstOrDefault(item => item.Length > 0) ?? DefaultConversation;
-        return key.StartsWith(brain + "/", StringComparison.Ordinal) ? key : $"{brain}/{key}";
+        return new DigitalBrain.NeuronId(new DigitalBrain.BrainId(brain), "agent", key.StartsWith(brain + "/", StringComparison.Ordinal) ? key[(brain.Length + 1)..] : key);
     }
 
     internal static ChatResponseUpdate? Update(AgentTurnEvent turn) => turn switch

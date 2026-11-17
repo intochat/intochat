@@ -14,7 +14,7 @@ internal sealed class RunsNeuron : DigitalBrain.Neurons.Neuron<RunsState>, IRuns
     protected override async Task OnActivate(CancellationToken cancellationToken)
         => await Context.Wires.EnsureBrainWide(typeof(TurnStarted), typeof(TurnCompleted), typeof(TurnFailed),
             typeof(OperationStarted), typeof(OperationAwaitingApproval), typeof(OperationDone),
-            typeof(WorkflowRunStarted), typeof(WorkflowRunWaiting), typeof(WorkflowRunDone), typeof(CodeBlockRunStarted), typeof(CodeBlockRunDone));
+            typeof(WorkflowRunStarted), typeof(WorkflowRunWaiting), typeof(WorkflowRunDone), typeof(CodeBlockRunStarted), typeof(CodeBlockRunWaiting), typeof(CodeBlockRunDone));
 
     public async Task<RunView[]> List(int limit = 50)
         => RunsState.Order([.. await Flows(), .. State.Runs], limit);
@@ -32,6 +32,7 @@ internal sealed class RunsNeuron : DigitalBrain.Neurons.Neuron<RunsState>, IRuns
     [DigitalBrain.Neurons.On] public Task On(WorkflowRunWaiting signal) => Fold(signal);
     [DigitalBrain.Neurons.On] public Task On(WorkflowRunDone signal) => Fold(signal);
     [DigitalBrain.Neurons.On] public Task On(CodeBlockRunStarted signal) => Fold(signal);
+    [DigitalBrain.Neurons.On] public Task On(CodeBlockRunWaiting signal) => Fold(signal);
     [DigitalBrain.Neurons.On] public Task On(CodeBlockRunDone signal) => Fold(signal);
 
     private async Task Fold(DigitalBrain.Signal signal)
