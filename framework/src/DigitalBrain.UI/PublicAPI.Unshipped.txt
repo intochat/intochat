@@ -1466,3 +1466,64 @@ virtual DigitalBrain.UI.ControlProps.EqualityContract.get -> System.Type!
 virtual DigitalBrain.UI.ControlProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
 virtual DigitalBrain.UI.ControlProps.PrintMembers(System.Text.StringBuilder! builder) -> bool
 DigitalBrain.UI.IControl<TProps>
+DigitalBrain.UI.Controls.TabStripState
+DigitalBrain.UI.Controls.TabStripState.<Clone>$() -> DigitalBrain.UI.Controls.TabStripState!
+DigitalBrain.UI.Controls.TabStripState.Equals(DigitalBrain.UI.Controls.TabStripState? other) -> bool
+DigitalBrain.UI.Controls.TabStripState.SelectedId.get -> string?
+DigitalBrain.UI.Controls.TabStripState.SelectedId.init -> void
+DigitalBrain.UI.Controls.TabStripState.TabStripState() -> void
+DigitalBrain.UI.Controls.TabStripView
+DigitalBrain.UI.Controls.TabStripView.Deconstruct(out string! Key, out string? SelectedId) -> void
+DigitalBrain.UI.Controls.TabStripView.Equals(DigitalBrain.UI.Controls.TabStripView? other) -> bool
+DigitalBrain.UI.Controls.TabStripView.Key.get -> string!
+DigitalBrain.UI.Controls.TabStripView.Key.init -> void
+DigitalBrain.UI.Controls.TabStripView.SelectedId.get -> string?
+DigitalBrain.UI.Controls.TabStripView.SelectedId.init -> void
+DigitalBrain.UI.Controls.TabStripView.TabStripView(string! Key, string? SelectedId) -> void
+DigitalBrain.UI.ISelectionProps
+DigitalBrain.UI.ISelectionProps.RefusalOf(string? id) -> string?
+DigitalBrain.UI.SelectionRefusals
+DigitalBrain.UI.TabStripItem
+DigitalBrain.UI.TabStripItem.<Clone>$() -> DigitalBrain.UI.TabStripItem!
+DigitalBrain.UI.TabStripItem.Deconstruct(out string! Id, out string! Label, out string? Icon) -> void
+DigitalBrain.UI.TabStripItem.Equals(DigitalBrain.UI.TabStripItem? other) -> bool
+DigitalBrain.UI.TabStripItem.Icon.get -> string?
+DigitalBrain.UI.TabStripItem.Icon.init -> void
+DigitalBrain.UI.TabStripItem.Id.get -> string!
+DigitalBrain.UI.TabStripItem.Id.init -> void
+DigitalBrain.UI.TabStripItem.Label.get -> string!
+DigitalBrain.UI.TabStripItem.Label.init -> void
+DigitalBrain.UI.TabStripItem.TabStripItem(string! Id, string! Label, string? Icon = null) -> void
+DigitalBrain.UI.TabStripProps
+DigitalBrain.UI.TabStripProps.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.TabStripItem!>! Items, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.TabStripProps.Equals(DigitalBrain.UI.TabStripProps? other) -> bool
+DigitalBrain.UI.TabStripProps.Items.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.TabStripItem!>!
+DigitalBrain.UI.TabStripProps.Items.init -> void
+DigitalBrain.UI.TabStripProps.RefusalOf(string? id) -> string?
+DigitalBrain.UI.TabStripProps.TabStripProps(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.TabStripItem!>! Items, bool IsEnabled = true, string? AutomationName = null) -> void
+const DigitalBrain.UI.SelectionRefusals.SelectionOff = "control.selectionOff" -> string!
+const DigitalBrain.UI.SelectionRefusals.UnknownItem = "control.unknownItem" -> string!
+override DigitalBrain.UI.Controls.TabStripState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.TabStripState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.TabStripState.ToString() -> string!
+override DigitalBrain.UI.Controls.TabStripView.<Clone>$() -> DigitalBrain.UI.Controls.TabStripView!
+override DigitalBrain.UI.Controls.TabStripView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.TabStripView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.TabStripView.ToString() -> string!
+override DigitalBrain.UI.TabStripItem.Equals(object? obj) -> bool
+override DigitalBrain.UI.TabStripItem.GetHashCode() -> int
+override DigitalBrain.UI.TabStripItem.ToString() -> string!
+override DigitalBrain.UI.TabStripProps.<Clone>$() -> DigitalBrain.UI.TabStripProps!
+override DigitalBrain.UI.TabStripProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.TabStripProps.GetHashCode() -> int
+override DigitalBrain.UI.TabStripProps.ToString() -> string!
+override sealed DigitalBrain.UI.Controls.TabStripView.Equals(DigitalBrain.UI.Node? other) -> bool
+override sealed DigitalBrain.UI.TabStripProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+static DigitalBrain.UI.Controls.TabStripState.operator !=(DigitalBrain.UI.Controls.TabStripState? left, DigitalBrain.UI.Controls.TabStripState? right) -> bool
+static DigitalBrain.UI.Controls.TabStripState.operator ==(DigitalBrain.UI.Controls.TabStripState? left, DigitalBrain.UI.Controls.TabStripState? right) -> bool
+static DigitalBrain.UI.Controls.TabStripView.operator !=(DigitalBrain.UI.Controls.TabStripView? left, DigitalBrain.UI.Controls.TabStripView? right) -> bool
+static DigitalBrain.UI.Controls.TabStripView.operator ==(DigitalBrain.UI.Controls.TabStripView? left, DigitalBrain.UI.Controls.TabStripView? right) -> bool
+static DigitalBrain.UI.TabStripItem.operator !=(DigitalBrain.UI.TabStripItem? left, DigitalBrain.UI.TabStripItem? right) -> bool
+static DigitalBrain.UI.TabStripItem.operator ==(DigitalBrain.UI.TabStripItem? left, DigitalBrain.UI.TabStripItem? right) -> bool
+static DigitalBrain.UI.TabStripProps.operator !=(DigitalBrain.UI.TabStripProps? left, DigitalBrain.UI.TabStripProps? right) -> bool
+static DigitalBrain.UI.TabStripProps.operator ==(DigitalBrain.UI.TabStripProps? left, DigitalBrain.UI.TabStripProps? right) -> bool

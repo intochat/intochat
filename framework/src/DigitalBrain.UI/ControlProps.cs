@@ -41,3 +41,47 @@ public sealed record ToggleSwitchProps(string Label, string? OnContent = null, s
 /// <param name="AutomationName">The accessible name; null falls back to the header.</param>
 public sealed record ExpanderProps(string Header, IReadOnlyList<Node> Children, bool IsEnabled = true, string? AutomationName = null)
     : ControlProps(IsEnabled, AutomationName);
+
+/// <summary>
+/// The props of a control that selects one of its items. The parent checks a <c>Select(Id)</c> routed to the slot against them before the
+/// child is reached, because the items are the parent's: the child stores only the selected id.
+/// </summary>
+public interface ISelectionProps
+{
+    /// <summary>The refusal reason of selecting <paramref name="id"/>, or null when it may be selected.</summary>
+    /// <param name="id">The item id the command selects; null when the command names none.</param>
+    string? RefusalOf(string? id);
+}
+
+/// <summary>The refusal reasons of a selection routed to a slot.</summary>
+public static class SelectionRefusals
+{
+    /// <summary>The id names no item of the slot's props.</summary>
+    public const string UnknownItem = "control.unknownItem";
+
+    /// <summary>The slot's props allow no selection.</summary>
+    public const string SelectionOff = "control.selectionOff";
+}
+
+/// <summary>An item of a tab strip.</summary>
+/// <param name="Id">The id a selection names.</param>
+/// <param name="Label">The tab's text.</param>
+/// <param name="Icon">An optional icon name.</param>
+public sealed record TabStripItem(string Id, string Label, string? Icon = null);
+
+/// <summary>The props of a tab strip: what its parent decides.</summary>
+/// <param name="Items">The tabs, in order.</param>
+/// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
+public sealed record TabStripProps(IReadOnlyList<TabStripItem> Items, bool IsEnabled = true, string? AutomationName = null)
+    : ControlProps(IsEnabled, AutomationName), ISelectionProps
+{
+    /// <inheritdoc />
+    public string? RefusalOf(string? id) => Items.Any(item => item.Id == id) ? null : SelectionRefusals.UnknownItem;
+
+    /// <inheritdoc />
+    public bool Equals(TabStripProps? other) => other is not null && base.Equals(other) && Items.SequenceEqual(other.Items);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Items.Count);
+}

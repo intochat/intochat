@@ -104,6 +104,7 @@ sealed class Node {
     'checkBoxView' => CheckBoxViewNode.fromJson(json),
     'toggleSwitchView' => ToggleSwitchViewNode.fromJson(json),
     'expanderView' => ExpanderViewNode.fromJson(json),
+    'tabStripView' => TabStripViewNode.fromJson(json),
     final kind => UnknownNode(kind is String ? kind : '', json),
   };
 }
@@ -1750,6 +1751,61 @@ final class TabItem {
     emit: Emit.fromJson(_map(json['emit'])),
     icon: _stringOrNull(json['icon']),
   );
+}
+
+final class TabStripItem {
+  const TabStripItem({
+    required this.id,
+    required this.label,
+    required this.icon,
+  });
+
+  final String id;
+  final String label;
+  final String? icon;
+
+  factory TabStripItem.fromJson(Map<String, dynamic> json) => TabStripItem(
+    id: _string(json['id']),
+    label: _string(json['label']),
+    icon: _stringOrNull(json['icon']),
+  );
+}
+
+final class TabStripProps {
+  const TabStripProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.items,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final List<TabStripItem> items;
+
+  factory TabStripProps.fromJson(Map<String, dynamic> json) => TabStripProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    items: [
+      for (final item in _list(json['items']))
+        TabStripItem.fromJson(_map(item)),
+    ],
+  );
+}
+
+final class TabStripViewNode extends Node {
+  const TabStripViewNode({required this.key, required this.selectedId});
+
+  @override
+  String get kind => 'tabStripView';
+
+  final String key;
+  final String? selectedId;
+
+  factory TabStripViewNode.fromJson(Map<String, dynamic> json) =>
+      TabStripViewNode(
+        key: _string(json['key']),
+        selectedId: _stringOrNull(json['selectedId']),
+      );
 }
 
 final class TabsNode extends Node {

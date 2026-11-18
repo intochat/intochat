@@ -22,6 +22,13 @@ Future<ActivationOutcome> actExpanderExpand(
   required bool isExpanded,
 }) => ctx.act(address, 'control.expand', {'isExpanded': isExpanded});
 
+/// Sends `Select` to the `tabStrip` neuron at [address].
+Future<ActivationOutcome> actTabStripSelect(
+  NodeContext ctx,
+  String address, {
+  required String id,
+}) => ctx.act(address, 'control.select', {'id': id});
+
 /// Sends `SetChecked` to the `toggleSwitch` neuron at [address].
 Future<ActivationOutcome> actToggleSwitchSetChecked(
   NodeContext ctx,

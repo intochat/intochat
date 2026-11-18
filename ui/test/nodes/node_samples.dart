@@ -325,6 +325,11 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'key': 'advanced',
     'isExpanded': true,
   },
+  'tabStripView': {
+    'kind': 'tabStripView',
+    'key': 'sections',
+    'selectedId': 'general',
+  },
   'diffCard': {
     'kind': 'diffCard',
     'id': 'diff-1',

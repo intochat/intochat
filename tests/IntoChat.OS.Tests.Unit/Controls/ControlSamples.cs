@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
+using SelectCommand = DigitalBrain.UI.Commands.Select;
 using DigitalBrain.UI.Controls;
 using IntoChat.OS.Apps.Controls;
 
@@ -17,5 +18,6 @@ internal static class ControlSamples
         [typeof(CheckBoxNeuron)] = new(new CheckBoxProps("Terms"), new CheckBoxState(), [new Toggle(), new SetChecked(false), new SetChecked(true)]),
         [typeof(ToggleSwitchNeuron)] = new(new ToggleSwitchProps("Dark mode"), new ToggleSwitchState(), [new Toggle(), new SetChecked(false), new SetChecked(true)]),
         [typeof(ExpanderNeuron)] = new(new ExpanderProps("Advanced", [new Text("Inside")]), new ExpanderState(), [new Expand(true), new Expand(false)]),
+        [typeof(TabStripNeuron)] = new(new TabStripProps([new TabStripItem("a", "A"), new TabStripItem("b", "B")]), new TabStripState(), [new SelectCommand("a"), new SelectCommand("b")]),
     };
 }

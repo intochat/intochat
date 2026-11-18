@@ -43,6 +43,7 @@ import 'split_pane.dart';
 import 'stat_card.dart';
 import 'surface.dart';
 import 'switch.dart';
+import 'tab_strip_view.dart';
 import 'tabs.dart';
 import 'tag_pill.dart';
 import 'text.dart';
@@ -81,6 +82,7 @@ abstract final class NodeRenderer {
     ButtonNode(:final key) ||
     CheckBoxViewNode(:final key) ||
     ExpanderViewNode(:final key) ||
+    TabStripViewNode(:final key) ||
     ConversationNode(:final key) ||
     FieldNode(:final key) ||
     IconButtonNode(:final key) ||
@@ -141,6 +143,7 @@ abstract final class NodeRenderer {
       CheckBoxViewNode() => renderCheckBoxView(node, ctx),
       ToggleSwitchViewNode() => renderToggleSwitchView(node, ctx),
       ExpanderViewNode() => renderExpanderView(node, ctx),
+      TabStripViewNode() => renderTabStripView(node, ctx),
       UnknownNode() => const _Unsupported(),
     };
   }

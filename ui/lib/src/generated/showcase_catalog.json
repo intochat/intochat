@@ -1707,6 +1707,118 @@
     "examples": []
   },
   {
+    "kind": "tabStrip",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "items",
+        "type": "List<TabStripItem>",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "Select",
+        "signal": "control.select",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "SelectionChanged",
+        "signal": "control.selectionChanged",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "tabStripView",
+        "key": "sections",
+        "selectedId": "general",
+        "props": {
+          "items": [
+            {
+              "id": "general",
+              "label": "General",
+              "icon": "settings"
+            },
+            {
+              "id": "privacy",
+              "label": "Privacy",
+              "icon": "lock"
+            },
+            {
+              "id": "about",
+              "label": "About"
+            }
+          ],
+          "isEnabled": true,
+          "automationName": "Settings sections"
+        }
+      },
+      {
+        "kind": "tabStripView",
+        "key": "locked",
+        "selectedId": "day",
+        "props": {
+          "items": [
+            {
+              "id": "day",
+              "label": "Day"
+            },
+            {
+              "id": "week",
+              "label": "Week"
+            }
+          ],
+          "isEnabled": false,
+          "automationName": "Range"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "tabStripView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
     "kind": "tabs",
     "isNeuron": false,
     "props": [

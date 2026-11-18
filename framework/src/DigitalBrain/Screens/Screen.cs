@@ -87,6 +87,13 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         return new NeuronRef("slot", child.ToString(), wire);
     }
 
+    private static readonly string SelectAlias = SignalAliases.Of(typeof(DigitalBrain.UI.Commands.Select));
+
+    private static string? SelectedIdOf(JsonElement? args)
+        => args is { ValueKind: JsonValueKind.Object } json && json.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String
+            ? id.GetString()
+            : null;
+
     // True when the JSON holds a neuronRef node of refKind "slot" at any depth.
     private static bool HoldsSlot(JsonElement json) => json.ValueKind switch
     {
@@ -116,6 +123,12 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
             if (!_children.TryGetValue(key, out var slot)) { throw new ActivationRefusedException(ActivationRefusedException.UnknownChild); }
             // The parent decides whether a slot is enabled: its props in the current view gate every command routed to the child.
             if (slot.Props is { IsEnabled: false }) { throw new ActivationRefusedException(ControlProps.Disabled); }
+            // The items are the parent's too: a Select to the slot must name one of them (the child stores only the selected id).
+            if (rest == "." && slot.Props is ISelectionProps selection && command.Signal == SelectAlias
+                && selection.RefusalOf(SelectedIdOf(command.Args)) is { } refusal)
+            {
+                throw new ActivationRefusedException(refusal);
+            }
             if (rest != "." && rest.Split('/').Any(hop => hop is "" or "." or "..")) { throw new ArgumentException($"Target path '{command.Target}' has an empty, '.' or '..' hop.", nameof(command)); }
             // Each hop is the next parent's Dispatch, which applies its own gate; awaited, so the child's failure reaches the caller.
             return Get<IScreen>(slot.Id).Dispatch(command with { Target = rest });
