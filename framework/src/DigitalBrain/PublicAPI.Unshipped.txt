@@ -3607,6 +3607,7 @@ DigitalBrain.Rules.Transition<T>.Transition(T Next, System.Collections.Generic.I
 DigitalBrain.Rules.Transition<T>.Transition(T next) -> void
 abstract DigitalBrain.Rules.Refusal.<Clone>$() -> DigitalBrain.Rules.Refusal!
 abstract DigitalBrain.Rules.Refusal.Message.get -> string!
+const DigitalBrain.Units.ActivationRefusedException.NoSlots = "NoSlots" -> string!
 override DigitalBrain.Rules.Refusal.Equals(object? obj) -> bool
 override DigitalBrain.Rules.Refusal.GetHashCode() -> int
 override DigitalBrain.Rules.Refusal.ToString() -> string!

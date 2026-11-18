@@ -76,7 +76,7 @@ internal sealed class UnitMachine<TState>(string alias, string neuron) where TSt
         {
             return command.Target == "."
                 ? new EmittedSignal(command.Signal, ViewNodes.Payload(command.Args, fieldValue, by))
-                : throw new ActivationRefusedException(ActivationRefusedException.UnknownChild);
+                : throw new ActivationRefusedException(ActivationRefusedException.NoSlots);
         }
         var emit = ViewNodes.EmitOf(node) ?? throw new ActivationRefusedException(ActivationRefusedException.NoEmit);
         if (!string.Equals(emit.Owner, claimed, StringComparison.Ordinal))

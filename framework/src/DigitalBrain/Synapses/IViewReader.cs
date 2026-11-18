@@ -67,6 +67,9 @@ public sealed class ActivationRefusedException : InvalidOperationException
     /// <summary>A command names a child key that no slot of the current view names.</summary>
     public const string UnknownChild = "UnknownChild";
 
+    /// <summary>A command names a child address, but the view's owner has no child slots (a unit or a slotless app).</summary>
+    public const string NoSlots = "NoSlots";
+
     /// <summary>No reason was given (the standard exception constructors).</summary>
     public const string Unspecified = "Unspecified";
 

@@ -465,10 +465,17 @@ internal static class AppUiEndpoints
                 return IntentResult(activation.Intent!);
             case ViewActivationKind.Resolve:
                 throw new UnauthorizedAccessException($"Only the OS confirmation inbox can answer a confirmation; {name} cannot.");
+            case ViewActivationKind.Command:
+                // A slotless app: a command to a child address has nowhere to go.
+                return NoSlots(name, activation.Command!.Target);
             default:
                 throw new ArgumentException("This view node does nothing.");
         }
     }
+
+    // 409 {error, reason: NoSlots}: the client's refusal snackbar shows it.
+    private static IResult NoSlots(string name, string target)
+        => Results.Conflict(new { error = $"{name} has no child slots, so the command to '{target}' has nowhere to go.", reason = ActivationRefusedException.NoSlots });
 
     private static async Task<IResult> ActivateUnitViewAsync(
         INeuronProxies brain,
@@ -527,6 +534,8 @@ internal static class AppUiEndpoints
             { throw new StaleActionException("This action is no longer available. Read the view again."); }
             catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)
             { throw new UnauthorizedAccessException($"A view of {alias} cannot emit to another owner."); }
+            catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.NoSlots)
+            { return NoSlots(alias, key); }
             catch (ActivationRefusedException refused)
             { throw new ArgumentException($"This view node does nothing ({refused.Reason})."); }
             return Results.Ok(new { delivered = true });
@@ -536,6 +545,8 @@ internal static class AppUiEndpoints
         { throw new StaleActionException("This action is no longer available. Read the view again."); }
         catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.ForeignOwner)
         { throw new UnauthorizedAccessException($"A view of {alias} cannot emit to another owner."); }
+        catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.NoSlots)
+        { return NoSlots(alias, key); }
         catch (ActivationRefusedException refused)
         { throw new ArgumentException($"This view node does nothing ({refused.Reason})."); }
         return Results.Ok(new { delivered = true });

@@ -68,6 +68,28 @@ public sealed class AppUiEventFacts
     }
 
     [Fact]
+    public async Task A_command_to_a_child_of_a_slotless_app_is_refused_with_NoSlots()
+    {
+        var brain = new RecordingBrain(new(ViewActivationKind.Command, Command: new Command("child", "toggle")));
+
+        var result = await AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "x"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
+
+        Assert.Equal(StatusCodes.Status409Conflict, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Contains($"\"reason\":\"{ActivationRefusedException.NoSlots}\"", await Body(result), StringComparison.Ordinal);
+        Assert.Empty(brain.Emitted);
+    }
+
+    [Fact]
+    public void Only_an_info_bar_close_resolves_to_an_action()
+    {
+        using var stray = JsonDocument.Parse("""{"kind":"button","key":"b","label":"B","close":{"target":".","signal":"x"}}""");
+        using var bar = JsonDocument.Parse("""{"kind":"infoBar","key":"i","title":"T","message":"M","close":{"target":".","signal":"dismissed"}}""");
+
+        Assert.Equal(ViewActivationKind.None, ViewValidation.ActionOf(stray.RootElement, "owner/apps/tasks").Kind);
+        Assert.Equal(("owner/apps/tasks", "dismissed"), (ViewValidation.ActionOf(bar.RootElement, "owner/apps/tasks").Emit!.Owner, ViewValidation.ActionOf(bar.RootElement, "owner/apps/tasks").Emit!.Signal));
+    }
+
+    [Fact]
     public async Task ActivateReturnsAnIntentToTheClient()
     {
         var brain = new RecordingBrain(new(ViewActivationKind.Intent, Intent: new Intent(IntentKind.OpenWindow, "os://window/open?app=trace")));

@@ -456,6 +456,9 @@ internal sealed partial class ScreenDirectoryNeuron(
                             throw new UnauthorizedAccessException("Only the OS confirmation inbox can answer a confirmation.");
                         case ViewActivationKind.Intent:
                             break;
+                        case ViewActivationKind.Command:
+                            // A slotless app: a command to a child address has nowhere to go.
+                            return new ScreenActionResult(false, $"{ActivationRefusedException.NoSlots}: {appId} has no child slots, so the command to '{activation.Command!.Target}' has nowhere to go.");
                     }
 
                     var updated = await Read(appId, instanceId);

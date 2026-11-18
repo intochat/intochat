@@ -53,6 +53,17 @@ public sealed class ViewKeyResolutionFacts
     }
 
     [Fact]
+    public void Only_an_info_bar_reads_its_close_as_a_command()
+    {
+        using var stray = JsonDocument.Parse("""{"kind":"button","key":"b","label":"B","close":{"target":".","signal":"x"}}""");
+        using var bar = JsonDocument.Parse("""{"kind":"infoBar","key":"i","title":"T","message":"M","close":{"target":".","signal":"dismissed"}}""");
+
+        Assert.Null(ViewNodes.CommandOf(stray.RootElement));
+        Assert.Null(ViewNodes.EmitOf(stray.RootElement));
+        Assert.Equal("dismissed", ViewNodes.CommandOf(bar.RootElement)!.Signal);
+    }
+
+    [Fact]
     public void CardChildButtonsSerialiseWithTheWireShape()
     {
         var wire = Wire(new DraftCardNode("d", "mail", "a@b", "hi", "me", Send: new Button("send", "Send", new Command(".", "draft.send"))));

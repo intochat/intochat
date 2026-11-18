@@ -181,8 +181,9 @@ internal static class ViewValidation
     // is left for the owning screen's Dispatch.
     public static ViewActivation ActionOf(JsonElement node, string self)
     {
-        if (node.TryGetProperty("command", out var command) && command.ValueKind == JsonValueKind.Object
-            || node.TryGetProperty("close", out command) && command.ValueKind == JsonValueKind.Object)
+        // An info bar's command is its "close"; no other kind's "close" is read.
+        var member = Text(node, "kind") == "infoBar" ? "close" : "command";
+        if (node.TryGetProperty(member, out var command) && command.ValueKind == JsonValueKind.Object)
         {
             if (Text(command, "target") is not { Length: > 0 } target || Text(command, "signal") is not { Length: > 0 } sent) { return ViewActivation.None; }
             JsonElement? sentArgs = command.TryGetProperty("args", out var c) && c.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? c.Clone() : null;

@@ -240,6 +240,38 @@ public sealed class UnitMachineAdversarialFacts
     }
 
     [Fact]
+    public void Press_CommandToAChild_IsRefusedWithNoSlots()
+    {
+        var wire = JsonSerializer.SerializeToElement(new
+        {
+            kind = "button",
+            key = "btn",
+            command = new { target = "child", signal = "adv.bump" }
+        });
+        var published = new PublishedView(StateAlias, 1, wire);
+
+        var ex = Assert.Throws<ActivationRefusedException>(() =>
+            _machine.Press(published, StateAlias, generation: 1, "btn", null, "user1"));
+        Assert.Equal(ActivationRefusedException.NoSlots, ex.Reason);
+    }
+
+    [Fact]
+    public void Press_StrayCloseOnAButton_IsNotActivatable()
+    {
+        var wire = JsonSerializer.SerializeToElement(new
+        {
+            kind = "button",
+            key = "btn",
+            close = new { target = ".", signal = "adv.bump" }
+        });
+        var published = new PublishedView(StateAlias, 1, wire);
+
+        var ex = Assert.Throws<ActivationRefusedException>(() =>
+            _machine.Press(published, StateAlias, generation: 1, "btn", null, "user1"));
+        Assert.Equal(ActivationRefusedException.NoEmit, ex.Reason);
+    }
+
+    [Fact]
     public void Press_NullView_ThrowsActivationRefusedException()
     {
         var ex = Assert.Throws<ActivationRefusedException>(() =>

@@ -51,11 +51,11 @@ internal static class ViewNodes
         return (owner.GetString()!, signal.GetString()!, args);
     }
 
-    // The node's command (an info bar's is its "close"): target and signal are strings, args optional; null when it has none.
+    // The node's command (an info bar's is its "close", read on no other kind): target and signal are strings, args optional; null when it has none.
     public static DigitalBrain.UI.Command? CommandOf(JsonElement node)
     {
-        if (!(node.TryGetProperty("command", out var command) && command.ValueKind == JsonValueKind.Object)
-            && !(node.TryGetProperty("close", out command) && command.ValueKind == JsonValueKind.Object)) { return null; }
+        var member = node.TryGetProperty("kind", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "infoBar" ? "close" : "command";
+        if (!node.TryGetProperty(member, out var command) || command.ValueKind != JsonValueKind.Object) { return null; }
         if (!command.TryGetProperty("target", out var target) || target.ValueKind != JsonValueKind.String
             || !command.TryGetProperty("signal", out var signal) || signal.ValueKind != JsonValueKind.String) { return null; }
         JsonElement? args = command.TryGetProperty("args", out var a) && a.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? a : null;
