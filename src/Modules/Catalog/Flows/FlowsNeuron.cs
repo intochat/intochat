@@ -199,11 +199,9 @@ internal sealed class FlowsNeuron(
             await kernel.CancelFlow(Id.Brain, neuronId, head.OperationId, reason, ct);
             return;
         }
-        var edge = services?.GetService<EdgeAuthority>();
-        using (edge?.ClearCaller())
-        {
-            await Stop(flow, head, reason, ct);
-        }
+        // Past the rule, the cancel is platform code: it runs as the kernel of this brain, never as an unstamped call.
+        var edge = services?.GetService<EdgeAuthority>() ?? throw new InvalidOperationException("Stopping a flow needs the host's edge authority.");
+        await edge.AsKernel(Id.Brain, async () => { await Stop(flow, head, reason, ct); return true; });
     }
 
     // The cancel itself, past the rule: the running step's leaf operation, then the flow.

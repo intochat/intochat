@@ -52,6 +52,17 @@ public sealed class ContractManifestFacts
             "New identities are not pinned yet; run CaptureContractManifest and commit ContractManifest.json:\n" + string.Join('\n', unpinned));
     }
 
+    // A retired alias stays reserved: no live contract may take it, or a stored value would bind to the wrong type.
+    [Fact]
+    public void NoLiveContractReusesARetiredAlias()
+    {
+        var current = ContractManifest.Capture();
+        var retired = ContractManifest.RetiredContracts.Select(entry => entry.Recorded.Split(';')[0]).ToHashSet(StringComparer.Ordinal);
+        var reused = current.Contracts.Where(pair => !ContractManifest.RetiredContracts.Any(entry => entry.Old == pair.Key))
+            .Where(pair => retired.Contains(pair.Value.Split(';')[0])).Select(pair => pair.Key).ToArray();
+        Assert.Empty(reused);
+    }
+
     // The capture finds what the W1 design counted, so the fact above cannot pass vacuously.
     [Fact]
     public void TheBaselineCoversTheKnownIdentities()

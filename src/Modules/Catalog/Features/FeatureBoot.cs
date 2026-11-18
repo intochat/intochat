@@ -48,9 +48,9 @@ internal sealed class FeatureBoot(
 
     private async Task ReconcileAsync(string brainId, CancellationToken cancellationToken)
     {
-        // The listener runs in the turn that published Activated, under that turn's caller; reconciling is the module's own act.
+        // The listener runs in the turn that published Activated, under that turn's caller; reconciling is the module's own act,
+        // so it enters the module caller below rather than clearing the turn's.
         var edge = plain.GetService<EdgeAuthority>();
-        using var cleared = edge?.ClearCaller();
         try
         {
             using var module = edge?.Enter(edge.Module("apps.feature-boot", new BrainId(brainId)));

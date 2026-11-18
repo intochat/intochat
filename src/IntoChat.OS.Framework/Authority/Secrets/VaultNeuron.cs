@@ -70,9 +70,11 @@ internal sealed class OsVaultNeuron(IKeyWrapper keys) : Neuron<SecretsState>, IO
 
     public Task<string[]> Values()
     {
-        if (!CallerRules.IsDirectPerson(Context.Caller, Principal()) && !CallerRules.IsKernel(Context.Caller))
+        // The one reader is the secret redactor, which lists values as the kernel (VaultSecretValueSource). No edge route lists a
+        // vault for its owner, and identity.vault is cluster-internal, so a person never reaches this.
+        if (!CallerRules.IsKernel(Context.Caller))
         {
-            throw new UnauthorizedAccessException("Only the vault's owner can list its values.");
+            throw new UnauthorizedAccessException("Only the platform's secret redactor lists a vault's values.");
         }
 
         return Task.FromResult(_secrets.Values(State));

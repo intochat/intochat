@@ -29,6 +29,14 @@ internal sealed record ContractManifest(
 
     private static readonly JsonSerializerOptions Format = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
+    // Contracts whose type is gone but whose alias may still sit in a stored brain or journal: the alias stays reserved and is
+    // never reused, so the manifest keeps the entry exactly as it was recorded.
+    internal static readonly (string Old, string Recorded)[] RetiredContracts =
+    [
+        // The caller model's exception (deleted with the one-caller model); it crossed the wire inside failed call results.
+        ("IntoChat.OS.Framework.UntrustedCallerException", "enforcement.untrusted-caller; "),
+    ];
+
     private static readonly (string Old, Type Current, string? Alias)[] MovedContracts =
     [
         ("IntoChat.OS.Connections.Contracts.NeuronType", typeof(DigitalBrain.Capabilities.Connections.Integrations.NeuronType), "registry.neuron-type"),
@@ -116,6 +124,11 @@ internal sealed record ContractManifest(
         foreach (var (old, current, alias) in MovedContracts)
         {
             manifest.Contracts[old] = MovedContract(current, alias, surrogates);
+        }
+
+        foreach (var (old, recorded) in RetiredContracts)
+        {
+            manifest.Contracts[old] = recorded;
         }
 
         foreach (var (old, current) in MovedSignals)

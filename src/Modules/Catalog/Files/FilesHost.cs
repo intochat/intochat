@@ -41,7 +41,6 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
     private async Task EnsureAsync(string brain)
     {
         var edge = services.GetService<EdgeAuthority>();
-        using var cleared = edge?.ClearCaller();
         try
         {
             var gate = _gates.GetOrAdd(brain, static _ => new SemaphoreSlim(1, 1));
@@ -112,7 +111,6 @@ internal sealed class FilesHost(IServiceProvider services, DigitalBrain.Kernel.I
     private async Task OpenAsync(string brain, AppRequested request, CancellationToken cancellationToken)
     {
         var edge = services.GetService<EdgeAuthority>();
-        using var cleared = edge?.ClearCaller();
         try
         {
             var brainId = new BrainId(brain);

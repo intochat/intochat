@@ -64,6 +64,7 @@
     "IntoChat.OS.Framework.Modules.Platform.Identity.BrainProvision": "identity.brain-provision; Member=0, NewBrain=1",
     "IntoChat.OS.Framework.Modules.Platform.Identity.IIdentityDirectory": "identity.directory (not generated); ",
     "IntoChat.OS.Framework.Modules.Platform.Identity.Member": "identity.member; PrincipalId=0, AccountId=1, BrainId=2, Role=3, DisplayName=4, JoinedAt=5",
+    "IntoChat.OS.Framework.UntrustedCallerException": "enforcement.untrusted-caller; ",
     "IntoChat.OS.Kernel.Composition.InstanceDirectoryGrain+State": "kernel.instances.state; Entries=0",
     "IntoChat.OS.Kernel.Composition.InstanceTypesGrain+State": "kernel.types.state; Types=0",
     "IntoChat.OS.Kernel.Composition.TypeTableGrain+State": "kernel.typetable.state; Features=0, Loaded=1",

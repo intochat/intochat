@@ -189,7 +189,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         var sql = string.IsNullOrWhiteSpace(request.Sql) ? InoDataCards.DefaultSql : request.Sql.Trim();
         var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase) ? InoDataCards.DefaultDatabase : State.ConnectedDatabase;
         DataQueryResult result;
-        try { result = await DataAnalyticsEngine.ExecuteAsync(sql, database, FilesVfs); }
+        try { result = await DataAnalyticsEngine.ExecuteAsync(sql, database, FilesVfs, Context.Caller?.Brain ?? default); }
         catch (Exception error) when (error is not OperationCanceledException) { if (_logger is { } log) { InoLog.LogDatabaseFailed(log, error, "query-db"); } await Show(State with { Status = $"Could not run the query: {error.Message}" }); return; }
         if (TryGetOptional<IMemory>("memory") is { } memory) { await TryOptionalAsync("memory", () => memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {result.Rows.Length} | Chart: {result.ChartTitle}", importance: 6)); }
         await Show(InoModel.DecideQueryDbSuccess(State, result, database));

@@ -119,7 +119,10 @@ public sealed class McpScreenUserJourneysFacts(OsAppHostFixture host)
             reason = "Agent self-approve attempt must be refused",
         }, ct))
         {
-            Assert.Null(agentApproveAttempt);
+            // The refusal now comes back as the tool's answer: accepted false, the person answers confirmations in the shell (by design).
+            Assert.NotNull(agentApproveAttempt);
+            Assert.False(agentApproveAttempt.RootElement.GetProperty("accepted").GetBoolean());
+            Assert.Contains("the person answers it in the shell", agentApproveAttempt.RootElement.GetProperty("message").GetString(), StringComparison.Ordinal);
         }
 
         // Approve the staged unit install through the human presence-proved HTTP edge.

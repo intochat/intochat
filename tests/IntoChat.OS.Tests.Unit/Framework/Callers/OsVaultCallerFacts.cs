@@ -61,10 +61,11 @@ public sealed class OsVaultCallerFacts : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ValuesAllowsTheOwnerAndRefusesAnApp()
+    public async Task ValuesServeOnlyTheKernelsRedactor()
     {
         await Stored();
-        using (Edge.Enter(Edge.RelayedPerson("alice", "acc-1", Brain))) { Assert.Equal(["s3cret"], await Vault.Values()); }
+        using (Edge.EnterKernel(Brain)) { Assert.Equal(["s3cret"], await Vault.Values()); }
+        using (Edge.Enter(Edge.RelayedPerson("alice", "acc-1", Brain))) { await Assert.ThrowsAsync<UnauthorizedAccessException>(Vault.Values); }
         using (Edge.Enter(Edge.OnBehalfOf(Alice, Brain, viaApp: "assistant", via: Relay))) { await Assert.ThrowsAsync<UnauthorizedAccessException>(Vault.Values); }
     }
 

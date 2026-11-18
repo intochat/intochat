@@ -225,7 +225,7 @@ public sealed class DataStudioApp : AggregateScreen<DataStudioAppState>, IWithFi
             ? $"{queryText} FROM {source}"
             : queryText;
 
-        var result = await DataAnalyticsEngine.ExecuteAsync(effectiveQuery, database: source, filesVfs: FilesVfs);
+        var result = await DataAnalyticsEngine.ExecuteAsync(effectiveQuery, database: source, filesVfs: FilesVfs, brain: Context.Caller?.Brain ?? default);
         await Show(DataStudioDecisions.DecideQueryResult(State, source, queryText, preferredChartKind, result, await ListWorkspaceDatasetsAsync(source), CurrentBrainId));
     }
 
