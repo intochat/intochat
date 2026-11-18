@@ -387,6 +387,24 @@ public sealed class InoAppFacts
     }
 
     [Fact]
+    public async Task A_raw_send_while_a_reply_runs_is_refused_and_starts_nothing()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("hello"));
+        Assert.Equal("run-1", ino.App.State.ActiveRunId);
+
+        // Ino's own not_busy rule: the request reaches Ino while the run is active and is refused.
+        await ino.Request("send", new InoSend("second question"));
+
+        Assert.Equal(1, BackgroundAgent.Starts);
+        Assert.Equal("run-1", ino.App.State.ActiveRunId);
+        Assert.NotEqual("second question", ino.App.State.Pending?.Text);
+        Assert.DoesNotContain(ino.App.Messages, m => m.Text == "second question");
+    }
+
+    [Fact]
     public async Task A_second_send_through_the_thread_while_a_reply_runs_starts_nothing()
     {
         using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
