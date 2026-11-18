@@ -1322,3 +1322,47 @@ static DigitalBrain.UI.IconButton.operator !=(DigitalBrain.UI.IconButton? left, 
 static DigitalBrain.UI.IconButton.operator ==(DigitalBrain.UI.IconButton? left, DigitalBrain.UI.IconButton? right) -> bool
 static DigitalBrain.UI.Markdown.operator !=(DigitalBrain.UI.Markdown? left, DigitalBrain.UI.Markdown? right) -> bool
 static DigitalBrain.UI.Markdown.operator ==(DigitalBrain.UI.Markdown? left, DigitalBrain.UI.Markdown? right) -> bool
+DigitalBrain.UI.Controls.CheckBoxState
+DigitalBrain.UI.Controls.CheckBoxState.<Clone>$() -> DigitalBrain.UI.Controls.CheckBoxState!
+DigitalBrain.UI.Controls.CheckBoxState.AutomationName.get -> string?
+DigitalBrain.UI.Controls.CheckBoxState.AutomationName.init -> void
+DigitalBrain.UI.Controls.CheckBoxState.CheckBoxState() -> void
+DigitalBrain.UI.Controls.CheckBoxState.Equals(DigitalBrain.UI.Controls.CheckBoxState? other) -> bool
+DigitalBrain.UI.Controls.CheckBoxState.IsEnabled.get -> bool
+DigitalBrain.UI.Controls.CheckBoxState.IsEnabled.init -> void
+DigitalBrain.UI.Controls.CheckBoxState.IsOn.get -> bool
+DigitalBrain.UI.Controls.CheckBoxState.IsOn.init -> void
+DigitalBrain.UI.Controls.CheckBoxState.IsThreeState.get -> bool
+DigitalBrain.UI.Controls.CheckBoxState.IsThreeState.init -> void
+DigitalBrain.UI.Controls.CheckBoxState.Label.get -> string!
+DigitalBrain.UI.Controls.CheckBoxState.Label.init -> void
+DigitalBrain.UI.Controls.CheckBoxView
+DigitalBrain.UI.Controls.CheckBoxView.AutomationName.get -> string!
+DigitalBrain.UI.Controls.CheckBoxView.AutomationName.init -> void
+DigitalBrain.UI.Controls.CheckBoxView.CheckBoxView(string! Key, string! Label, bool IsOn, bool IsEnabled, string! AutomationName, bool IsThreeState = false) -> void
+DigitalBrain.UI.Controls.CheckBoxView.Deconstruct(out string! Key, out string! Label, out bool IsOn, out bool IsEnabled, out string! AutomationName, out bool IsThreeState) -> void
+DigitalBrain.UI.Controls.CheckBoxView.Equals(DigitalBrain.UI.Controls.CheckBoxView? other) -> bool
+DigitalBrain.UI.Controls.CheckBoxView.IsEnabled.get -> bool
+DigitalBrain.UI.Controls.CheckBoxView.IsEnabled.init -> void
+DigitalBrain.UI.Controls.CheckBoxView.IsOn.get -> bool
+DigitalBrain.UI.Controls.CheckBoxView.IsOn.init -> void
+DigitalBrain.UI.Controls.CheckBoxView.IsThreeState.get -> bool
+DigitalBrain.UI.Controls.CheckBoxView.IsThreeState.init -> void
+DigitalBrain.UI.Controls.CheckBoxView.Key.get -> string!
+DigitalBrain.UI.Controls.CheckBoxView.Key.init -> void
+DigitalBrain.UI.Controls.CheckBoxView.Label.get -> string!
+DigitalBrain.UI.Controls.CheckBoxView.Label.init -> void
+DigitalBrain.UI.Controls.ControlRefusals
+const DigitalBrain.UI.Controls.ControlRefusals.Disabled = "control.disabled" -> string!
+override DigitalBrain.UI.Controls.CheckBoxState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.CheckBoxState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.CheckBoxState.ToString() -> string!
+override DigitalBrain.UI.Controls.CheckBoxView.<Clone>$() -> DigitalBrain.UI.Controls.CheckBoxView!
+override DigitalBrain.UI.Controls.CheckBoxView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.CheckBoxView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.CheckBoxView.ToString() -> string!
+override sealed DigitalBrain.UI.Controls.CheckBoxView.Equals(DigitalBrain.UI.Node? other) -> bool
+static DigitalBrain.UI.Controls.CheckBoxState.operator !=(DigitalBrain.UI.Controls.CheckBoxState? left, DigitalBrain.UI.Controls.CheckBoxState? right) -> bool
+static DigitalBrain.UI.Controls.CheckBoxState.operator ==(DigitalBrain.UI.Controls.CheckBoxState? left, DigitalBrain.UI.Controls.CheckBoxState? right) -> bool
+static DigitalBrain.UI.Controls.CheckBoxView.operator !=(DigitalBrain.UI.Controls.CheckBoxView? left, DigitalBrain.UI.Controls.CheckBoxView? right) -> bool
+static DigitalBrain.UI.Controls.CheckBoxView.operator ==(DigitalBrain.UI.Controls.CheckBoxView? left, DigitalBrain.UI.Controls.CheckBoxView? right) -> bool

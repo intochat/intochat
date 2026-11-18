@@ -2,4 +2,15 @@
 //
 // Generated from the control neurons by DartCommandsFacts (IntoChat.OS.Architecture.Tests.Unit).
 
-// No control neuron declares a command yet.
+import '../nodes/node_context.dart';
+
+/// Sends `SetChecked` to the `checkBox` neuron at [address].
+Future<ActivationOutcome> actCheckBoxSetChecked(
+  NodeContext ctx,
+  String address, {
+  required bool isOn,
+}) => ctx.act(address, 'control.setChecked', {'isOn': isOn});
+
+/// Sends `Toggle` to the `checkBox` neuron at [address].
+Future<ActivationOutcome> actCheckBoxToggle(NodeContext ctx, String address) =>
+    ctx.act(address, 'control.toggle', {});

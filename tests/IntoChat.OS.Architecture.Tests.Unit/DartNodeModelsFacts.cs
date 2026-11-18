@@ -75,6 +75,9 @@ public sealed partial class DartNodeModelsFacts
         return name is "default" or "switch" or "enum" or "class" ? name + "Value" : name;
     }
 
+    // DigitalBrain.UI and its sub-namespaces (DigitalBrain.UI.Controls holds what control neurons draw).
+    private static bool IsUiModel(Type type) => type.Namespace == typeof(Node).Namespace || type.Namespace?.StartsWith(typeof(Node).Namespace + ".", StringComparison.Ordinal) == true;
+
     internal static string Generate()
     {
         var records = new SortedDictionary<string, Type>(StringComparer.Ordinal);
@@ -84,7 +87,7 @@ public sealed partial class DartNodeModelsFacts
             type = Nullable.GetUnderlyingType(type) ?? type;
             if (type.IsEnum) { enums.TryAdd(type.Name, type); return; }
             if (Element(type) is { } element) { Walk(element); return; }
-            if (type.Namespace != typeof(Node).Namespace || type == typeof(Node) || !type.IsClass) { return; }
+            if (!IsUiModel(type) || type == typeof(Node) || !type.IsClass) { return; }
             if (!records.TryAdd(DartName(type), type)) { return; }
             foreach (var property in Properties(type)) { Walk(property.PropertyType); }
         }

@@ -101,6 +101,7 @@ sealed class Node {
     'emptyState' => EmptyStateNode.fromJson(json),
     'metricTile' => MetricTileNode.fromJson(json),
     'diffCard' => DiffCardNode.fromJson(json),
+    'checkBoxView' => CheckBoxViewNode.fromJson(json),
     final kind => UnknownNode(kind is String ? kind : '', json),
   };
 }
@@ -519,6 +520,37 @@ final class ChartPointNode {
     label: _string(json['label']),
     value: _double(json['value']),
   );
+}
+
+final class CheckBoxViewNode extends Node {
+  const CheckBoxViewNode({
+    required this.key,
+    required this.label,
+    required this.isOn,
+    required this.isEnabled,
+    required this.automationName,
+    required this.isThreeState,
+  });
+
+  @override
+  String get kind => 'checkBoxView';
+
+  final String key;
+  final String label;
+  final bool isOn;
+  final bool isEnabled;
+  final String automationName;
+  final bool isThreeState;
+
+  factory CheckBoxViewNode.fromJson(Map<String, dynamic> json) =>
+      CheckBoxViewNode(
+        key: _string(json['key']),
+        label: _string(json['label']),
+        isOn: _bool(json['isOn']),
+        isEnabled: _bool(json['isEnabled']),
+        automationName: _string(json['automationName']),
+        isThreeState: _bool(json['isThreeState']),
+      );
 }
 
 final class ChoiceCardNode extends Node {

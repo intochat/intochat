@@ -381,6 +381,117 @@
     "examples": []
   },
   {
+    "kind": "checkBox",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "isOn",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "isThreeState",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "SetChecked",
+        "signal": "control.setChecked",
+        "args": {
+          "isOn": "bool"
+        }
+      },
+      {
+        "name": "Toggle",
+        "signal": "control.toggle",
+        "args": {}
+      }
+    ],
+    "signals": [
+      {
+        "name": "Toggled",
+        "signal": "control.toggled",
+        "args": {
+          "isOn": "bool"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "checkBoxView",
+        "key": "terms",
+        "label": "I accept the terms",
+        "isOn": false,
+        "isEnabled": true,
+        "automationName": "Accept the terms"
+      },
+      {
+        "kind": "checkBoxView",
+        "key": "locked",
+        "label": "Managed by your organisation",
+        "isOn": true,
+        "isEnabled": false,
+        "automationName": "Managed setting"
+      }
+    ]
+  },
+  {
+    "kind": "checkBoxView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "isOn",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "isThreeState",
+        "type": "bool",
+        "default": false
+      }
+    ],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
     "kind": "choiceCard",
     "isNeuron": false,
     "props": [

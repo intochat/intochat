@@ -94,6 +94,8 @@ public sealed class ShellAppsScreenBaselineFacts
         var appAssembly = typeof(CalculatorApp).Assembly;
         var concreteScreens = appAssembly.GetTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false } && IsScreenType(t))
+            // Control neurons (IntoChat.OS.Apps.Controls) are screens too, but they are slotted into apps, not shell apps.
+            .Where(t => t.Namespace != typeof(IntoChat.OS.Apps.Controls.CheckBoxNeuron).Namespace)
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
 

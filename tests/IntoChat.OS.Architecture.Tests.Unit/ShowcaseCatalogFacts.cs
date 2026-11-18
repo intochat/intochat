@@ -31,6 +31,23 @@ public sealed class ShowcaseCatalogFacts
     {
         using var catalog = JsonDocument.Parse(NodeSchema.GenerateCatalog());
         var kinds = catalog.RootElement.EnumerateArray().Select(entry => entry.GetProperty("kind").GetString()!).ToArray();
-        Assert.Equal(ViewNodeAttribute.DiscoverAll().Keys.Order(StringComparer.Ordinal), kinds);
+        Assert.Equal(ViewNodeAttribute.DiscoverAll().Keys.Concat(NodeSchema.ControlNeurons().Select(NodeSchema.NeuronKind)).Order(StringComparer.Ordinal), kinds);
+    }
+
+    [Fact]
+    public void Every_control_neuron_has_a_showcase_example_of_a_node_it_draws()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        foreach (var neuron in NodeSchema.ControlNeurons())
+        {
+            var examples = NodeSchema.NeuronExamples(neuron).ToArray();
+            Assert.True(examples.Length > 0, $"{neuron.Name} has no [Showcase] example on its state.");
+            foreach (var example in examples)
+            {
+                var node = example.Deserialize<Node>(options);
+                Assert.True(node?.GetType().Namespace == typeof(DigitalBrain.UI.Controls.ControlRefusals).Namespace,
+                    $"A showcase example of {neuron.Name} is not a control view node: {example}");
+            }
+        }
     }
 }

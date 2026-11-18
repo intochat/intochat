@@ -11,6 +11,7 @@ import 'icon_button.dart';
 import 'markdown.dart';
 import 'card.dart';
 import 'chart.dart';
+import 'check_box_view.dart';
 import 'choice_card.dart';
 import 'collection.dart';
 import 'column.dart';
@@ -76,6 +77,7 @@ abstract final class NodeRenderer {
     AppShellNode(:final key) ||
     ApprovalCardNode(:final key) ||
     ButtonNode(:final key) ||
+    CheckBoxViewNode(:final key) ||
     ConversationNode(:final key) ||
     FieldNode(:final key) ||
     IconButtonNode(:final key) ||
@@ -132,6 +134,7 @@ abstract final class NodeRenderer {
       EmptyStateNode() => renderEmptyState(node, ctx),
       MetricTileNode() => renderMetricTile(node, ctx),
       DiffCardNode() => renderDiffCard(node, ctx),
+      CheckBoxViewNode() => renderCheckBoxView(node, ctx),
       UnknownNode() => const _Unsupported(),
     };
   }

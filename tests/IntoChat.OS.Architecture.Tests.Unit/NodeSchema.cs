@@ -175,7 +175,7 @@ internal static class NodeSchema
                 WriteRecords(json, "commands", isNeuron ? Commands(type) : []);
                 WriteRecords(json, "signals", isNeuron ? Signals(type) : []);
                 json.WriteStartArray("examples");
-                if (!isNeuron) { foreach (var example in Examples(kind, type)) { example.WriteTo(json); } }
+                foreach (var example in isNeuron ? NeuronExamples(type) : Examples(kind, type)) { example.WriteTo(json); }
                 json.WriteEndArray();
                 json.WriteEndObject();
             }
@@ -213,6 +213,14 @@ internal static class NodeSchema
                 yield return JsonSerializer.SerializeToElement(node);
             }
         }
+    }
+
+    // A control neuron's examples are [Showcase] attributes on its state's properties, each a whole node of the kind its Render draws.
+    internal static IEnumerable<JsonElement> NeuronExamples(Type neuron)
+    {
+        var state = StateOf(neuron)!;
+        return Properties(state).SelectMany(property => Attributes<ShowcaseAttribute>(state, property))
+            .Select(showcase => JsonDocument.Parse(showcase.ExampleJson).RootElement.Clone());
     }
 
     // Check-or-regenerate: with INTOCHAT_REGENERATE_DART=1 the file is rewritten; otherwise it must match (layout ignored).

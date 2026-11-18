@@ -67,7 +67,7 @@ public sealed class ControlSchemaFacts
     {
         var factories = typeof(Kit).GetMethods(BindingFlags.Public | BindingFlags.Static).ToArray();
         Check(KitFactoryOffenders, ViewNodeAttribute.DiscoverAll()
-            .Where(entry => !StructuralNodes.Contains(entry.Value.Name) && !factories.Any(method => Builds(method, entry.Key, entry.Value)))
+            .Where(entry => !StructuralNodes.Contains(entry.Value.Name) && !IsDrawnByANeuron(entry.Value) && !factories.Any(method => Builds(method, entry.Key, entry.Value)))
             .Select(entry => entry.Value.Name));
     }
 
@@ -94,6 +94,9 @@ public sealed class ControlSchemaFacts
         Assert.True(added.Length == 0, "New offenders (fix them, do not list them): " + string.Join(", ", added));
         Assert.True(fixedOnes.Length == 0, "Fixed, so remove from the known offenders: " + string.Join(", ", fixedOnes));
     }
+
+    // A node in DigitalBrain.UI.Controls is what a control neuron draws: apps slot the neuron, they never build its node.
+    private static bool IsDrawnByANeuron(Type node) => node.Namespace == typeof(DigitalBrain.UI.Controls.ControlRefusals).Namespace;
 
     private static bool IsEmit(Type type) => (Nullable.GetUnderlyingType(type) ?? type) == typeof(Emit);
 

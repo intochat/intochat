@@ -314,6 +314,15 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'threshold': 85000.0,
     'actions': [_button],
   },
+  'checkBoxView': {
+    'kind': 'checkBoxView',
+    'key': 'terms',
+    'label': 'I accept the terms',
+    'isOn': true,
+    'isEnabled': true,
+    'automationName': 'Accept the terms',
+    'isThreeState': false,
+  },
   'diffCard': {
     'kind': 'diffCard',
     'id': 'diff-1',
