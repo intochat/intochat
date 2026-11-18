@@ -92,6 +92,7 @@ public sealed record View(string Title, Node Root);
 [JsonDerivedType(typeof(Controls.TabStripView), "tabStripView")]
 [JsonDerivedType(typeof(Controls.ComboBoxView), "comboBoxView")]
 [JsonDerivedType(typeof(Controls.FormView), "formView")]
+[JsonDerivedType(typeof(Controls.LiveChartView), "liveChartView")]
 [JsonDerivedType(typeof(Controls.ListBoxView), "listBoxView")]
 public abstract record Node;
 

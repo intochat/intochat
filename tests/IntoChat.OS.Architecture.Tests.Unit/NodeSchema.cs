@@ -117,7 +117,13 @@ internal static class NodeSchema
         : type.Name.EndsWith("Node", StringComparison.Ordinal) ? type.Name[..^"Node".Length] : type.Name;
 
     private static string ArgDartType(PropertyInfo field)
-        => field.PropertyType == typeof(IReadOnlyDictionary<string, string>) ? "Map<String, String>" : DartType(field);
+        => field.PropertyType == typeof(IReadOnlyDictionary<string, string>) ? "Map<String, String>"
+            : IsRecordArg(field.PropertyType) ? "Map<String, Object?>"
+            : Element(field.PropertyType) is { } element && IsRecordArg(element) ? "List<Map<String, Object?>>"
+            : DartType(field);
+
+    // A record argument (a live chart's point) is sent as its wire JSON object; the client holds no model for it.
+    private static bool IsRecordArg(Type type) => type is { IsClass: true } && type != typeof(string) && !typeof(Node).IsAssignableFrom(type) && type.Namespace == typeof(Node).Namespace;
 
     internal static string SenderName(Type neuron, Type command) => $"act{ControlName(neuron)}{command.Name}";
 

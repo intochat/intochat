@@ -52,3 +52,18 @@ public sealed record Submitted(IReadOnlyDictionary<string, string> Values) : Sig
 /// <summary>A control was closed or dismissed.</summary>
 [Signal("control.closed")]
 public sealed record Closed : Signal;
+
+/// <summary>Replaces a live chart's points (only the last 200 are kept).</summary>
+/// <param name="Points">The new points, oldest first.</param>
+[Signal("control.replace")]
+public sealed record Replace(IReadOnlyList<DigitalBrain.UI.LivePoint> Points) : Signal;
+
+/// <summary>Appends a point to a live chart; a point whose event id the chart still holds is ignored.</summary>
+/// <param name="Point">The point.</param>
+[Signal("control.append")]
+public sealed record Append(DigitalBrain.UI.LivePoint Point) : Signal;
+
+/// <summary>A live chart changed.</summary>
+/// <param name="Version">The chart's change counter after the change.</param>
+[Signal("control.chartChanged")]
+public sealed record ChartChanged(int Version) : Signal;

@@ -113,6 +113,7 @@ sealed class Node {
     'tabStripView' => TabStripViewNode.fromJson(json),
     'comboBoxView' => ComboBoxViewNode.fromJson(json),
     'formView' => FormViewNode.fromJson(json),
+    'liveChartView' => LiveChartViewNode.fromJson(json),
     'listBoxView' => ListBoxViewNode.fromJson(json),
     final kind => UnknownNode(kind is String ? kind : '', json),
   };
@@ -1450,6 +1451,52 @@ final class ListBoxViewNode extends Node {
       ListBoxViewNode(
         key: _string(json['key']),
         selectedId: _stringOrNull(json['selectedId']),
+      );
+}
+
+final class LiveChartProps {
+  const LiveChartProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.title,
+    required this.kind,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String title;
+  final String kind;
+
+  factory LiveChartProps.fromJson(Map<String, dynamic> json) => LiveChartProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    title: _string(json['title']),
+    kind: _string(json['kind'], 'bar'),
+  );
+}
+
+final class LiveChartViewNode extends Node {
+  const LiveChartViewNode({
+    required this.key,
+    required this.version,
+    required this.points,
+  });
+
+  @override
+  String get kind => 'liveChartView';
+
+  final String key;
+  final int version;
+  final List<ChartPointNode> points;
+
+  factory LiveChartViewNode.fromJson(Map<String, dynamic> json) =>
+      LiveChartViewNode(
+        key: _string(json['key']),
+        version: _int(json['version']),
+        points: [
+          for (final item in _list(json['points']))
+            ChartPointNode.fromJson(_map(item)),
+        ],
       );
 }
 

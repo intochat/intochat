@@ -60,7 +60,7 @@
       },
       {
         "name": "rows",
-        "type": "List<ApprovalRowNode>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       },
       {
@@ -80,7 +80,7 @@
       },
       {
         "name": "resolve",
-        "type": "Resolve?",
+        "type": "Map<String, Object?>",
         "default": null
       },
       {
@@ -135,12 +135,12 @@
     "props": [
       {
         "name": "nodes",
-        "type": "List<BrainGraphNode>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       },
       {
         "name": "synapses",
-        "type": "List<BrainGraphSynapse>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       },
       {
@@ -185,7 +185,7 @@
       },
       {
         "name": "command",
-        "type": "Command?",
+        "type": "Map<String, Object?>",
         "default": null
       },
       {
@@ -348,7 +348,7 @@
       },
       {
         "name": "points",
-        "type": "List<ChartPointNode>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       },
       {
@@ -501,7 +501,7 @@
       },
       {
         "name": "options",
-        "type": "List<ChoiceOptionNode>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       },
       {
@@ -521,7 +521,7 @@
     "props": [
       {
         "name": "entries",
-        "type": "List<Entry>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       }
     ],
@@ -581,7 +581,7 @@
       },
       {
         "name": "options",
-        "type": "List<ComboBoxOption>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       },
       {
@@ -693,12 +693,12 @@
       },
       {
         "name": "messages",
-        "type": "List<MessageNode>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       },
       {
         "name": "composer",
-        "type": "ComposerNode",
+        "type": "Map<String, Object?>",
         "default": null
       },
       {
@@ -808,7 +808,7 @@
       },
       {
         "name": "files",
-        "type": "List<DiffFileNode>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       }
     ],
@@ -1068,7 +1068,7 @@
       },
       {
         "name": "onSubmit",
-        "type": "Emit?",
+        "type": "Map<String, Object?>",
         "default": null
       }
     ],
@@ -1093,7 +1093,7 @@
       },
       {
         "name": "fields",
-        "type": "List<FormInput>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       },
       {
@@ -1200,7 +1200,7 @@
       },
       {
         "name": "values",
-        "type": "List<FormValue>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       }
     ],
@@ -1280,7 +1280,7 @@
       },
       {
         "name": "command",
-        "type": "Command?",
+        "type": "Map<String, Object?>",
         "default": null
       },
       {
@@ -1359,7 +1359,7 @@
       },
       {
         "name": "close",
-        "type": "Command?",
+        "type": "Map<String, Object?>",
         "default": null
       },
       {
@@ -1430,7 +1430,7 @@
       },
       {
         "name": "steps",
-        "type": "List<JobStepNode>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       },
       {
@@ -1475,7 +1475,7 @@
       },
       {
         "name": "items",
-        "type": "List<ListBoxItem>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       },
       {
@@ -1576,6 +1576,142 @@
       {
         "name": "selectedId",
         "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "liveChart",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "kind",
+        "type": "String",
+        "default": "bar"
+      }
+    ],
+    "state": [
+      {
+        "name": "version",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "points",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "Append",
+        "signal": "control.append",
+        "args": {
+          "point": "Map<String, Object?>"
+        }
+      },
+      {
+        "name": "Replace",
+        "signal": "control.replace",
+        "args": {
+          "points": "List<Map<String, Object?>>"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "ChartChanged",
+        "signal": "control.chartChanged",
+        "args": {
+          "version": "int"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "liveChartView",
+        "key": "spend",
+        "version": 2,
+        "points": [
+          {
+            "label": "Mon",
+            "value": 12
+          },
+          {
+            "label": "Tue",
+            "value": 30
+          },
+          {
+            "label": "Wed",
+            "value": 21
+          }
+        ],
+        "props": {
+          "title": "Daily spend",
+          "kind": "bar",
+          "isEnabled": true,
+          "automationName": "Daily spend"
+        }
+      },
+      {
+        "kind": "liveChartView",
+        "key": "share",
+        "version": 1,
+        "points": [
+          {
+            "label": "Chat",
+            "value": 60
+          },
+          {
+            "label": "Files",
+            "value": 40
+          }
+        ],
+        "props": {
+          "title": "Share of use",
+          "kind": "pie",
+          "isEnabled": true,
+          "automationName": "Share of use"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "liveChartView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "version",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "points",
+        "type": "List<Map<String, Object?>>",
         "default": null
       }
     ],
@@ -1705,7 +1841,7 @@
       },
       {
         "name": "emit",
-        "type": "Emit?",
+        "type": "Map<String, Object?>",
         "default": null
       }
     ],
@@ -1816,7 +1952,7 @@
       },
       {
         "name": "fields",
-        "type": "List<RecordFieldNode>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       },
       {
@@ -1926,7 +2062,7 @@
       },
       {
         "name": "options",
-        "type": "List<SelectOption>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       }
     ],
@@ -2076,7 +2212,7 @@
       },
       {
         "name": "emit",
-        "type": "Emit?",
+        "type": "Map<String, Object?>",
         "default": null
       },
       {
@@ -2106,7 +2242,7 @@
       },
       {
         "name": "items",
-        "type": "List<TabStripItem>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       },
       {
@@ -2213,7 +2349,7 @@
     "props": [
       {
         "name": "items",
-        "type": "List<TabItem>",
+        "type": "List<Map<String, Object?>>",
         "default": null
       },
       {

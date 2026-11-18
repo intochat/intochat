@@ -4250,3 +4250,42 @@ DigitalBrain.Screen<TState>.FollowSlot<TChild, TSignal>(string! key) -> System.T
 DigitalBrain.Screen<TState>.RenderDetached(TState! state) -> DigitalBrain.UI.View!
 DigitalBrain.Screen<TState>.SignalSlot.get -> string?
 DigitalBrain.Screen<TState>.CommandProps.get -> System.Text.Json.JsonElement?
+DigitalBrain.UI.Commands.Append
+DigitalBrain.UI.Commands.Append.Append(DigitalBrain.UI.LivePoint! Point) -> void
+DigitalBrain.UI.Commands.Append.Deconstruct(out DigitalBrain.UI.LivePoint! Point) -> void
+DigitalBrain.UI.Commands.Append.Equals(DigitalBrain.UI.Commands.Append? other) -> bool
+DigitalBrain.UI.Commands.Append.Point.get -> DigitalBrain.UI.LivePoint!
+DigitalBrain.UI.Commands.Append.Point.init -> void
+DigitalBrain.UI.Commands.ChartChanged
+DigitalBrain.UI.Commands.ChartChanged.ChartChanged(int Version) -> void
+DigitalBrain.UI.Commands.ChartChanged.Deconstruct(out int Version) -> void
+DigitalBrain.UI.Commands.ChartChanged.Equals(DigitalBrain.UI.Commands.ChartChanged? other) -> bool
+DigitalBrain.UI.Commands.ChartChanged.Version.get -> int
+DigitalBrain.UI.Commands.ChartChanged.Version.init -> void
+DigitalBrain.UI.Commands.Replace
+DigitalBrain.UI.Commands.Replace.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.LivePoint!>! Points) -> void
+DigitalBrain.UI.Commands.Replace.Equals(DigitalBrain.UI.Commands.Replace? other) -> bool
+DigitalBrain.UI.Commands.Replace.Points.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.LivePoint!>!
+DigitalBrain.UI.Commands.Replace.Points.init -> void
+DigitalBrain.UI.Commands.Replace.Replace(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.LivePoint!>! Points) -> void
+override DigitalBrain.UI.Commands.Append.<Clone>$() -> DigitalBrain.UI.Commands.Append!
+override DigitalBrain.UI.Commands.Append.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Append.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Append.ToString() -> string!
+override DigitalBrain.UI.Commands.ChartChanged.<Clone>$() -> DigitalBrain.UI.Commands.ChartChanged!
+override DigitalBrain.UI.Commands.ChartChanged.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.ChartChanged.GetHashCode() -> int
+override DigitalBrain.UI.Commands.ChartChanged.ToString() -> string!
+override DigitalBrain.UI.Commands.Replace.<Clone>$() -> DigitalBrain.UI.Commands.Replace!
+override DigitalBrain.UI.Commands.Replace.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Replace.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Replace.ToString() -> string!
+override sealed DigitalBrain.UI.Commands.Append.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.ChartChanged.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.Replace.Equals(DigitalBrain.Signal? other) -> bool
+static DigitalBrain.UI.Commands.Append.operator !=(DigitalBrain.UI.Commands.Append? left, DigitalBrain.UI.Commands.Append? right) -> bool
+static DigitalBrain.UI.Commands.Append.operator ==(DigitalBrain.UI.Commands.Append? left, DigitalBrain.UI.Commands.Append? right) -> bool
+static DigitalBrain.UI.Commands.ChartChanged.operator !=(DigitalBrain.UI.Commands.ChartChanged? left, DigitalBrain.UI.Commands.ChartChanged? right) -> bool
+static DigitalBrain.UI.Commands.ChartChanged.operator ==(DigitalBrain.UI.Commands.ChartChanged? left, DigitalBrain.UI.Commands.ChartChanged? right) -> bool
+static DigitalBrain.UI.Commands.Replace.operator !=(DigitalBrain.UI.Commands.Replace? left, DigitalBrain.UI.Commands.Replace? right) -> bool
+static DigitalBrain.UI.Commands.Replace.operator ==(DigitalBrain.UI.Commands.Replace? left, DigitalBrain.UI.Commands.Replace? right) -> bool

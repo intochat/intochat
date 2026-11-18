@@ -1750,3 +1750,72 @@ DigitalBrain.UI.ToggleSwitchProps.IsOn.get -> bool?
 DigitalBrain.UI.ToggleSwitchProps.IsOn.init -> void
 DigitalBrain.UI.ToggleSwitchProps.ToggleSwitchProps(string! Label, string? OnContent = null, string? OffContent = null, bool IsEnabled = true, string? AutomationName = null, bool? IsOn = null) -> void
 const DigitalBrain.UI.FormRefusals.SecretUnsupported = "control.secretUnsupported" -> string!
+DigitalBrain.UI.ChartRefusals
+DigitalBrain.UI.Controls.LiveChartState
+DigitalBrain.UI.Controls.LiveChartState.<Clone>$() -> DigitalBrain.UI.Controls.LiveChartState!
+DigitalBrain.UI.Controls.LiveChartState.Equals(DigitalBrain.UI.Controls.LiveChartState? other) -> bool
+DigitalBrain.UI.Controls.LiveChartState.LiveChartState() -> void
+DigitalBrain.UI.Controls.LiveChartState.Points.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.LivePoint!>!
+DigitalBrain.UI.Controls.LiveChartState.Points.init -> void
+DigitalBrain.UI.Controls.LiveChartState.Version.get -> int
+DigitalBrain.UI.Controls.LiveChartState.Version.init -> void
+DigitalBrain.UI.Controls.LiveChartView
+DigitalBrain.UI.Controls.LiveChartView.Deconstruct(out string! Key, out int Version, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ChartPointNode!>! Points) -> void
+DigitalBrain.UI.Controls.LiveChartView.Equals(DigitalBrain.UI.Controls.LiveChartView? other) -> bool
+DigitalBrain.UI.Controls.LiveChartView.Key.get -> string!
+DigitalBrain.UI.Controls.LiveChartView.Key.init -> void
+DigitalBrain.UI.Controls.LiveChartView.LiveChartView(string! Key, int Version, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ChartPointNode!>! Points) -> void
+DigitalBrain.UI.Controls.LiveChartView.Points.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ChartPointNode!>!
+DigitalBrain.UI.Controls.LiveChartView.Points.init -> void
+DigitalBrain.UI.Controls.LiveChartView.Version.get -> int
+DigitalBrain.UI.Controls.LiveChartView.Version.init -> void
+DigitalBrain.UI.LivePoint
+DigitalBrain.UI.LivePoint.<Clone>$() -> DigitalBrain.UI.LivePoint!
+DigitalBrain.UI.LivePoint.Deconstruct(out string! EventId, out string! Label, out double Value) -> void
+DigitalBrain.UI.LivePoint.Equals(DigitalBrain.UI.LivePoint? other) -> bool
+DigitalBrain.UI.LivePoint.EventId.get -> string!
+DigitalBrain.UI.LivePoint.EventId.init -> void
+DigitalBrain.UI.LivePoint.Label.get -> string!
+DigitalBrain.UI.LivePoint.Label.init -> void
+DigitalBrain.UI.LivePoint.LivePoint(string! EventId, string! Label, double Value) -> void
+DigitalBrain.UI.LivePoint.Value.get -> double
+DigitalBrain.UI.LivePoint.Value.init -> void
+DigitalBrain.UI.LiveChartProps
+DigitalBrain.UI.LiveChartProps.Deconstruct(out string! Title, out string! Kind, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.LiveChartProps.Equals(DigitalBrain.UI.LiveChartProps? other) -> bool
+DigitalBrain.UI.LiveChartProps.Kind.get -> string!
+DigitalBrain.UI.LiveChartProps.Kind.init -> void
+DigitalBrain.UI.LiveChartProps.KindIsKnown.get -> bool
+DigitalBrain.UI.LiveChartProps.LiveChartProps(string! Title, string! Kind = "bar", bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.LiveChartProps.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
+DigitalBrain.UI.LiveChartProps.Title.get -> string!
+DigitalBrain.UI.LiveChartProps.Title.init -> void
+const DigitalBrain.UI.ChartRefusals.AppendSignal = "control.append" -> string!
+const DigitalBrain.UI.ChartRefusals.ReplaceSignal = "control.replace" -> string!
+const DigitalBrain.UI.ChartRefusals.UnknownKind = "control.unknownKind" -> string!
+const DigitalBrain.UI.Controls.LiveChartState.MaxPoints = 200 -> int
+override DigitalBrain.UI.Controls.LiveChartState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.LiveChartState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.LiveChartState.ToString() -> string!
+override DigitalBrain.UI.Controls.LiveChartView.<Clone>$() -> DigitalBrain.UI.Controls.LiveChartView!
+override DigitalBrain.UI.Controls.LiveChartView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.LiveChartView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.LiveChartView.ToString() -> string!
+override DigitalBrain.UI.LivePoint.Equals(object? obj) -> bool
+override DigitalBrain.UI.LivePoint.GetHashCode() -> int
+override DigitalBrain.UI.LivePoint.ToString() -> string!
+override DigitalBrain.UI.LiveChartProps.<Clone>$() -> DigitalBrain.UI.LiveChartProps!
+override DigitalBrain.UI.LiveChartProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.LiveChartProps.GetHashCode() -> int
+override DigitalBrain.UI.LiveChartProps.ToString() -> string!
+override sealed DigitalBrain.UI.Controls.LiveChartView.Equals(DigitalBrain.UI.Node? other) -> bool
+override sealed DigitalBrain.UI.LiveChartProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+static DigitalBrain.UI.Controls.LiveChartState.operator !=(DigitalBrain.UI.Controls.LiveChartState? left, DigitalBrain.UI.Controls.LiveChartState? right) -> bool
+static DigitalBrain.UI.Controls.LiveChartState.operator ==(DigitalBrain.UI.Controls.LiveChartState? left, DigitalBrain.UI.Controls.LiveChartState? right) -> bool
+static DigitalBrain.UI.Controls.LiveChartView.operator !=(DigitalBrain.UI.Controls.LiveChartView? left, DigitalBrain.UI.Controls.LiveChartView? right) -> bool
+static DigitalBrain.UI.Controls.LiveChartView.operator ==(DigitalBrain.UI.Controls.LiveChartView? left, DigitalBrain.UI.Controls.LiveChartView? right) -> bool
+static DigitalBrain.UI.LivePoint.operator !=(DigitalBrain.UI.LivePoint? left, DigitalBrain.UI.LivePoint? right) -> bool
+static DigitalBrain.UI.LivePoint.operator ==(DigitalBrain.UI.LivePoint? left, DigitalBrain.UI.LivePoint? right) -> bool
+static DigitalBrain.UI.LiveChartProps.operator !=(DigitalBrain.UI.LiveChartProps? left, DigitalBrain.UI.LiveChartProps? right) -> bool
+static DigitalBrain.UI.LiveChartProps.operator ==(DigitalBrain.UI.LiveChartProps? left, DigitalBrain.UI.LiveChartProps? right) -> bool
+static readonly DigitalBrain.UI.ChartRefusals.Kinds -> System.Collections.Generic.IReadOnlyList<string!>!

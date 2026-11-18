@@ -46,6 +46,7 @@ import 'switch.dart';
 import 'combo_box_view.dart';
 import 'form_view.dart';
 import 'list_box_view.dart';
+import 'live_chart_view.dart';
 import 'tab_strip_view.dart';
 import 'tabs.dart';
 import 'tag_pill.dart';
@@ -89,6 +90,7 @@ abstract final class NodeRenderer {
     ComboBoxViewNode(:final key) ||
     FormViewNode(:final key) ||
     ListBoxViewNode(:final key) ||
+    LiveChartViewNode(:final key) ||
     ConversationNode(:final key) ||
     FieldNode(:final key) ||
     IconButtonNode(:final key) ||
@@ -153,6 +155,7 @@ abstract final class NodeRenderer {
       ComboBoxViewNode() => renderComboBoxView(node, ctx),
       FormViewNode() => renderFormView(node, ctx),
       ListBoxViewNode() => renderListBoxView(node, ctx),
+      LiveChartViewNode() => renderLiveChartView(node, ctx),
       UnknownNode() => const _Unsupported(),
     };
   }

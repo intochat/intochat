@@ -23,5 +23,6 @@ internal static class ControlSamples
         [typeof(FormNeuron)] = new(new FormProps([new FormInput("name", "Name"), new FormInput("bio", "Bio", FormFieldKind.Multiline)]), new FormState(),
             [new Submit(new Dictionary<string, string> { ["name"] = "Ada", ["bio"] = "Engineer" })]),
         [typeof(ListBoxNeuron)] = new(new ListBoxProps([new ListBoxItem("a", "A"), new ListBoxItem("b", "B", "Second")]), new ListBoxState(), [new SelectCommand("a"), new SelectCommand("b")]),
+        [typeof(LiveChartNeuron)] = new(new LiveChartProps("Spend"), new LiveChartState(), [new Replace([new LivePoint("a", "Mon", 1)]), new Append(new LivePoint("b", "Tue", 2))]),
     };
 }

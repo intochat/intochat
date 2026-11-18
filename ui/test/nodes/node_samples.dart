@@ -347,6 +347,12 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'key': 'devices',
     'selectedId': 'laptop',
   },
+  'liveChartView': {
+    'kind': 'liveChartView',
+    'key': 'spend',
+    'version': 1,
+    'points': [],
+  },
   'diffCard': {
     'kind': 'diffCard',
     'id': 'diff-1',

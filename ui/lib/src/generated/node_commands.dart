@@ -43,6 +43,20 @@ Future<ActivationOutcome> actListBoxSelect(
   required String id,
 }) => ctx.act(address, 'control.select', {'id': id});
 
+/// Sends `Append` to the `liveChart` neuron at [address].
+Future<ActivationOutcome> actLiveChartAppend(
+  NodeContext ctx,
+  String address, {
+  required Map<String, Object?> point,
+}) => ctx.act(address, 'control.append', {'point': point});
+
+/// Sends `Replace` to the `liveChart` neuron at [address].
+Future<ActivationOutcome> actLiveChartReplace(
+  NodeContext ctx,
+  String address, {
+  required List<Map<String, Object?>> points,
+}) => ctx.act(address, 'control.replace', {'points': points});
+
 /// Sends `Select` to the `tabStrip` neuron at [address].
 Future<ActivationOutcome> actTabStripSelect(
   NodeContext ctx,

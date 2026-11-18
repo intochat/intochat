@@ -276,3 +276,42 @@ public sealed record FormProps(IReadOnlyList<FormInput> Fields, string SubmitLab
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), SubmitLabel, Fields.Count);
 }
+
+/// <summary>The refusal reasons of a command routed to a live chart slot.</summary>
+public static class ChartRefusals
+{
+    /// <summary>The alias of the replace command (<c>DigitalBrain.UI.Commands.Replace</c>, which this assembly cannot reference).</summary>
+    public const string ReplaceSignal = "control.replace";
+
+    /// <summary>The alias of the append command (<c>DigitalBrain.UI.Commands.Append</c>, which this assembly cannot reference).</summary>
+    public const string AppendSignal = "control.append";
+
+    /// <summary>The slot's props name a chart kind the chart cannot draw.</summary>
+    public const string UnknownKind = "control.unknownKind";
+
+    /// <summary>The chart kinds: bar, line, area, pie.</summary>
+    public static readonly IReadOnlyList<string> Kinds = ["bar", "line", "area", "pie"];
+}
+
+/// <summary>The props of a live chart: what its parent decides. The chart owns the points.</summary>
+/// <param name="Title">The chart's title.</param>
+/// <param name="Kind">How it draws: bar, line, area or pie. Any other kind is refused (control.unknownKind) and the client draws an error.</param>
+/// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the title.</param>
+public sealed record LiveChartProps(string Title, string Kind = "bar", bool IsEnabled = true, string? AutomationName = null)
+    : ControlProps(IsEnabled, AutomationName), ICommandGate
+{
+    /// <summary>Whether <see cref="Kind"/> is one the chart can draw.</summary>
+    [JsonIgnore]
+    public bool KindIsKnown => ChartRefusals.Kinds.Contains(Kind, StringComparer.Ordinal);
+
+    /// <inheritdoc />
+    public string? RefusalOf(string signal, JsonElement? args)
+        => signal is ChartRefusals.ReplaceSignal or ChartRefusals.AppendSignal && !KindIsKnown ? ChartRefusals.UnknownKind : null;
+}
+
+/// <summary>A point of a live chart. The event id is how a feed's repeated delivery is recognised and ignored.</summary>
+/// <param name="EventId">The id of the event the point came from; blank is never deduplicated.</param>
+/// <param name="Label">The point's label.</param>
+/// <param name="Value">The point's value.</param>
+public sealed record LivePoint(string EventId, string Label, double Value);
