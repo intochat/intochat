@@ -22,7 +22,7 @@ internal static class ViewNodes
                 if (element.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String && k.GetString() == key
                     && (Has(element, "kind", JsonValueKind.String) || CarriesAction(element))) { return element; }
                 // An emit (and its args) is data, not view: a "key" inside it names no node.
-                foreach (var property in element.EnumerateObject().Reverse().Where(p => p.Name is not ("command" or "emit" or "args"))) { pending.Push(property.Value); }
+                foreach (var property in element.EnumerateObject().Reverse().Where(p => p.Name is not ("command" or "close" or "emit" or "args"))) { pending.Push(property.Value); }
             }
             else if (element.ValueKind == JsonValueKind.Array)
             {
@@ -35,7 +35,7 @@ internal static class ViewNodes
 
     // A tab item or select option has no "kind" (only base-typed slots write the discriminator), nor has a card's child button: an action member marks the object.
     private static bool CarriesAction(JsonElement element)
-        => Has(element, "command", JsonValueKind.Object) || Has(element, "emit", JsonValueKind.Object) || Has(element, "intent", JsonValueKind.Object) || Has(element, "resolve", JsonValueKind.Object) || Has(element, "onSubmit", JsonValueKind.Object);
+        => Has(element, "command", JsonValueKind.Object) || Has(element, "close", JsonValueKind.Object) || Has(element, "emit", JsonValueKind.Object) || Has(element, "intent", JsonValueKind.Object) || Has(element, "resolve", JsonValueKind.Object) || Has(element, "onSubmit", JsonValueKind.Object);
 
     private static bool Has(JsonElement element, string name, JsonValueKind kind) => element.TryGetProperty(name, out var value) && value.ValueKind == kind;
 
@@ -51,11 +51,12 @@ internal static class ViewNodes
         return (owner.GetString()!, signal.GetString()!, args);
     }
 
-    // The node's command: target and signal are strings, args optional; null when it has none.
+    // The node's command (an info bar's is its "close"): target and signal are strings, args optional; null when it has none.
     public static DigitalBrain.UI.Command? CommandOf(JsonElement node)
     {
-        if (!node.TryGetProperty("command", out var command) || command.ValueKind != JsonValueKind.Object
-            || !command.TryGetProperty("target", out var target) || target.ValueKind != JsonValueKind.String
+        if (!(node.TryGetProperty("command", out var command) && command.ValueKind == JsonValueKind.Object)
+            && !(node.TryGetProperty("close", out command) && command.ValueKind == JsonValueKind.Object)) { return null; }
+        if (!command.TryGetProperty("target", out var target) || target.ValueKind != JsonValueKind.String
             || !command.TryGetProperty("signal", out var signal) || signal.ValueKind != JsonValueKind.String) { return null; }
         JsonElement? args = command.TryGetProperty("args", out var a) && a.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? a : null;
         return new DigitalBrain.UI.Command(target.GetString()!, signal.GetString()!, args);
@@ -103,7 +104,7 @@ internal static class ViewNodes
             {
                 foreach (var property in element.EnumerateObject())
                 {
-                    if (property.Name is "command" or "emit" or "onSubmit" && property.Value.ValueKind == JsonValueKind.Object
+                    if (property.Name is "command" or "close" or "emit" or "onSubmit" && property.Value.ValueKind == JsonValueKind.Object
                         && property.Value.TryGetProperty("args", out var args) && HasBy(args)) { return true; }
                     pending.Push(property.Value);
                 }

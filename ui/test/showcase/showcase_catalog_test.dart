@@ -120,9 +120,16 @@ Future<void> _trigger(WidgetTester tester, Finder finder) async {
     of: finder,
     matching: find.byType(EditableText),
   );
+  // A closable control (an info bar) is triggered by its dismiss control.
+  final dismiss = find.descendant(
+    of: finder,
+    matching: find.byTooltip('Dismiss'),
+  );
   if (field.evaluate().isNotEmpty) {
     await tester.enterText(field.first, 'hello');
     await tester.testTextInput.receiveAction(TextInputAction.done);
+  } else if (dismiss.evaluate().isNotEmpty) {
+    await tester.tap(dismiss.first);
   } else {
     await tester.tap(finder.first);
   }

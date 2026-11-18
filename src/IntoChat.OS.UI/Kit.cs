@@ -1126,9 +1126,9 @@ public static class Kit
     public static EmptyStateNode Empty(string title, string? body = null, params Button[] suggestions)
         => new(title, body, suggestions.Length == 0 ? null : suggestions);
 
-    /// <summary>Inline status or warning banner (<see cref="InfoBar"/>).</summary>
-    public static InfoBar Banner(string title, string message, string tone = "neutral", Button? action = null)
-        => new(title, message, tone, action);
+    /// <summary>Inline status or warning banner (<see cref="InfoBar"/>); a closable one names its <paramref name="key"/> and <paramref name="close"/> command.</summary>
+    public static InfoBar Banner(string title, string message, string tone = "neutral", Button? action = null, Command? close = null, string key = "")
+        => new(title, message, tone, action, close, key);
 
     // ── Interactive Controls ─────────────────────────────────────────────────
 

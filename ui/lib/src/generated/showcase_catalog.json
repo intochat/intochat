@@ -833,11 +833,47 @@
         "name": "action",
         "type": "ButtonNode?",
         "default": null
+      },
+      {
+        "name": "close",
+        "type": "Command?",
+        "default": null
+      },
+      {
+        "name": "key",
+        "type": "String",
+        "default": ""
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": ""
       }
     ],
     "commands": [],
     "signals": [],
-    "examples": []
+    "examples": [
+      {
+        "kind": "infoBar",
+        "key": "sync-paused",
+        "title": "Sync paused",
+        "message": "Reconnect storage to resume.",
+        "tone": "warning",
+        "close": {
+          "target": ".",
+          "signal": "Dismissed"
+        },
+        "automationName": "Sync paused"
+      },
+      {
+        "kind": "infoBar",
+        "key": "saved",
+        "title": "Saved",
+        "message": "Your changes are stored.",
+        "tone": "success",
+        "automationName": "Saved"
+      }
+    ]
   },
   {
     "kind": "intent",

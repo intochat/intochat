@@ -657,6 +657,9 @@ void main() {
                 title: 'Sync paused',
                 message: 'Reconnect storage to resume.',
                 tone: 'working',
+                close: null,
+                key: '',
+                automationName: '',
                 action: ButtonNode(
                   key: 'reconnect',
                   label: 'Reconnect',

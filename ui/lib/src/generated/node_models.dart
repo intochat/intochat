@@ -1068,6 +1068,9 @@ final class InfoBarNode extends Node {
     required this.message,
     required this.tone,
     required this.action,
+    required this.close,
+    required this.key,
+    required this.automationName,
   });
 
   @override
@@ -1077,6 +1080,9 @@ final class InfoBarNode extends Node {
   final String message;
   final String tone;
   final ButtonNode? action;
+  final Command? close;
+  final String key;
+  final String automationName;
 
   factory InfoBarNode.fromJson(Map<String, dynamic> json) => InfoBarNode(
     title: _string(json['title']),
@@ -1085,6 +1091,9 @@ final class InfoBarNode extends Node {
     action: json['action'] is Map
         ? ButtonNode.fromJson(_map(json['action']))
         : null,
+    close: json['close'] is Map ? Command.fromJson(_map(json['close'])) : null,
+    key: _string(json['key']),
+    automationName: _string(json['automationName']),
   );
 }
 

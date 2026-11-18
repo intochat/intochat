@@ -483,9 +483,7 @@ DigitalBrain.UI.Heading.Value.init -> void
 DigitalBrain.UI.InfoBar
 DigitalBrain.UI.InfoBar.Action.get -> DigitalBrain.UI.Button?
 DigitalBrain.UI.InfoBar.Action.init -> void
-DigitalBrain.UI.InfoBar.Deconstruct(out string! Title, out string! Message, out string! Tone, out DigitalBrain.UI.Button? Action) -> void
 DigitalBrain.UI.InfoBar.Equals(DigitalBrain.UI.InfoBar? other) -> bool
-DigitalBrain.UI.InfoBar.InfoBar(string! Title, string! Message, string! Tone = "neutral", DigitalBrain.UI.Button? Action = null) -> void
 DigitalBrain.UI.InfoBar.Message.get -> string!
 DigitalBrain.UI.InfoBar.Message.init -> void
 DigitalBrain.UI.InfoBar.Title.get -> string!
@@ -1286,6 +1284,14 @@ DigitalBrain.UI.IconButton.Tooltip.get -> string!
 DigitalBrain.UI.IconButton.Tooltip.init -> void
 DigitalBrain.UI.IconButton.Visible.get -> bool
 DigitalBrain.UI.IconButton.Visible.init -> void
+DigitalBrain.UI.InfoBar.AutomationName.get -> string!
+DigitalBrain.UI.InfoBar.AutomationName.init -> void
+DigitalBrain.UI.InfoBar.Close.get -> DigitalBrain.UI.Command?
+DigitalBrain.UI.InfoBar.Close.init -> void
+DigitalBrain.UI.InfoBar.Deconstruct(out string! Title, out string! Message, out string! Tone, out DigitalBrain.UI.Button? Action, out DigitalBrain.UI.Command? Close, out string! Key, out string! AutomationName) -> void
+DigitalBrain.UI.InfoBar.InfoBar(string! Title, string! Message, string! Tone = "neutral", DigitalBrain.UI.Button? Action = null, DigitalBrain.UI.Command? Close = null, string! Key = "", string! AutomationName = "") -> void
+DigitalBrain.UI.InfoBar.Key.get -> string!
+DigitalBrain.UI.InfoBar.Key.init -> void
 override DigitalBrain.UI.IconButton.<Clone>$() -> DigitalBrain.UI.IconButton!
 override DigitalBrain.UI.IconButton.Equals(object? obj) -> bool
 override DigitalBrain.UI.IconButton.GetHashCode() -> int

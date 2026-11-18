@@ -114,7 +114,7 @@ internal static class ViewValidation
                 {
                     if (++depth > 32 || ++count > 512) { throw new ArgumentException("A view is a tree of at most 512 nodes and depth 32."); }
                 }
-                foreach (var property in element.EnumerateObject().Where(p => p.Name is not ("command" or "emit" or "args"))) { Walk(property.Value, depth); }
+                foreach (var property in element.EnumerateObject().Where(p => p.Name is not ("command" or "close" or "emit" or "args"))) { Walk(property.Value, depth); }
             }
             else if (element.ValueKind == JsonValueKind.Array)
             {
@@ -134,7 +134,7 @@ internal static class ViewValidation
             {
                 if (Text(element, "name") is { Length: > 0 } name && element.TryGetProperty("fieldKind", out var kind) && KindOf(kind) is { } parsed)
                 { yield return (name, parsed); }
-                foreach (var property in element.EnumerateObject().Where(p => p.Name is not ("command" or "emit" or "args"))) { pending.Push(property.Value); }
+                foreach (var property in element.EnumerateObject().Where(p => p.Name is not ("command" or "close" or "emit" or "args"))) { pending.Push(property.Value); }
             }
             else if (element.ValueKind == JsonValueKind.Array)
             {
@@ -164,10 +164,10 @@ internal static class ViewValidation
             if (element.ValueKind == JsonValueKind.Object)
             {
                 if (element.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String && k.GetString() == key
-                    && (Has(element, "kind", JsonValueKind.String) || Has(element, "command", JsonValueKind.Object) || Has(element, "emit", JsonValueKind.Object) || Has(element, "intent", JsonValueKind.Object)
+                    && (Has(element, "kind", JsonValueKind.String) || Has(element, "command", JsonValueKind.Object) || Has(element, "close", JsonValueKind.Object) || Has(element, "emit", JsonValueKind.Object) || Has(element, "intent", JsonValueKind.Object)
                         || Has(element, "resolve", JsonValueKind.Object) || Has(element, "onSubmit", JsonValueKind.Object)))
                 { return element; }
-                foreach (var property in element.EnumerateObject().Reverse().Where(p => p.Name is not ("command" or "emit" or "args"))) { pending.Push(property.Value); }
+                foreach (var property in element.EnumerateObject().Reverse().Where(p => p.Name is not ("command" or "close" or "emit" or "args"))) { pending.Push(property.Value); }
             }
             else if (element.ValueKind == JsonValueKind.Array)
             {
@@ -181,7 +181,8 @@ internal static class ViewValidation
     // is left for the owning screen's Dispatch.
     public static ViewActivation ActionOf(JsonElement node, string self)
     {
-        if (node.TryGetProperty("command", out var command) && command.ValueKind == JsonValueKind.Object)
+        if (node.TryGetProperty("command", out var command) && command.ValueKind == JsonValueKind.Object
+            || node.TryGetProperty("close", out command) && command.ValueKind == JsonValueKind.Object)
         {
             if (Text(command, "target") is not { Length: > 0 } target || Text(command, "signal") is not { Length: > 0 } sent) { return ViewActivation.None; }
             JsonElement? sentArgs = command.TryGetProperty("args", out var c) && c.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined) ? c.Clone() : null;

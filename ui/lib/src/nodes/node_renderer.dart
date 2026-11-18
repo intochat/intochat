@@ -78,6 +78,7 @@ abstract final class NodeRenderer {
     ConversationNode(:final key) ||
     FieldNode(:final key) ||
     IconButtonNode(:final key) ||
+    InfoBarNode(:final key) ||
     NavItemNode(:final key) ||
     StatCardNode(:final key) ||
     SwitchNode(:final key) ||

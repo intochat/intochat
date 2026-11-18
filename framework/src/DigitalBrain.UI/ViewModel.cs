@@ -304,9 +304,34 @@ public sealed record Select(string Label, string Selected, IReadOnlyList<SelectO
 [ViewNode("progress")]
 public sealed record Progress(string Label, double Value, string? Detail = null) : Node;
 
-/// <summary>An inline status/alert banner.</summary>
+/// <summary>An inline status/alert banner: plain data whose close control sends a <see cref="Command"/>.</summary>
+/// <param name="Title">The bold lead text.</param>
+/// <param name="Message">The body text.</param>
+/// <param name="Tone">neutral, accent, success, warning, danger or error.</param>
+/// <param name="Action">An optional trailing button.</param>
+/// <param name="Close">The command the close control sends; null shows no close control.</param>
+/// <param name="Key">The node's key within its view, by which its close names it; required with <paramref name="Close"/>.</param>
+/// <param name="AutomationName">The accessible name; empty falls back to <paramref name="Key"/>.</param>
 [ViewNode("infoBar")]
-public sealed record InfoBar(string Title, string Message, string Tone = "neutral", Button? Action = null) : Node;
+public sealed record InfoBar(
+    [Showcase("""{"kind":"infoBar","key":"sync-paused","title":"Sync paused","message":"Reconnect storage to resume.","tone":"warning","close":{"target":".","signal":"Dismissed"},"automationName":"Sync paused"}""")]
+    [Showcase("""{"kind":"infoBar","key":"saved","title":"Saved","message":"Your changes are stored.","tone":"success","automationName":"Saved"}""")]
+    string Title,
+    string Message,
+    string Tone = "neutral",
+    Button? Action = null,
+    Command? Close = null,
+    string Key = "",
+    string AutomationName = "") : Node
+{
+    // Not serialised (private); a close control is activated by key, so a closable bar has one.
+    private readonly bool _keyedClose = Close is null || !string.IsNullOrWhiteSpace(Key)
+        ? true
+        : throw new ArgumentException("An info bar with a Close command needs a Key.", nameof(Key));
+
+    /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
+    public string AutomationName { get; init; } = string.IsNullOrEmpty(AutomationName) ? Key : AutomationName;
+}
 
 /// <summary>A transient message.</summary>
 [ViewNode("toast")]

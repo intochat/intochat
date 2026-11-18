@@ -11,11 +11,11 @@ public sealed class ViewModelJsonFacts
 {
     private static readonly string[] ActionMembers = ["Command", "Emit", "Intent", "Resolve", "OnSubmit"];
 
-    private static readonly Type[] ActionCarriers = [typeof(Button), typeof(IconButton), typeof(TabItem), typeof(Switch), typeof(SelectOption), typeof(Field), typeof(ApprovalCardNode), typeof(NavItemNode), typeof(ComposerNode)];
+    private static readonly Type[] ActionCarriers = [typeof(Button), typeof(IconButton), typeof(InfoBar), typeof(TabItem), typeof(Switch), typeof(SelectOption), typeof(Field), typeof(ApprovalCardNode), typeof(NavItemNode), typeof(ComposerNode)];
 
     private static bool CarriesAction(Type type) => type.GetProperties().Any(p => ActionMembers.Contains(p.Name)
         || p.PropertyType == typeof(Emit) || Nullable.GetUnderlyingType(p.PropertyType) == typeof(Emit)
-        || p.PropertyType == typeof(Intent) || p.PropertyType == typeof(Resolve));
+        || p.PropertyType == typeof(Command) || p.PropertyType == typeof(Intent) || p.PropertyType == typeof(Resolve));
 
     [Fact]
     public void EveryInteractiveNodeHasAKey()
@@ -92,6 +92,20 @@ public sealed class ViewModelJsonFacts
         Assert.Equal("r", wire.GetProperty("automationName").GetString());
         Assert.Equal("Refresh", wire.GetProperty("tooltip").GetString());
         Assert.Equal(icon, JsonSerializer.Deserialize<Node>(wire.GetRawText(), RuntimeProtocol.OptionsFor(typeof(View))));
+    }
+
+    [Fact]
+    public void An_info_bar_close_is_a_command_found_by_the_bar_key()
+    {
+        Assert.Throws<ArgumentException>(() => new InfoBar("Paused", "Reconnect.", Close: new Command(".", "dismissed")));
+        var view = new View("v", new Column([new InfoBar("Paused", "Reconnect.", "warning", Close: new Command(".", "dismissed"), Key: "paused")]));
+
+        var wire = JsonSerializer.SerializeToElement(view, RuntimeProtocol.OptionsFor(typeof(View)));
+        var bar = ViewNodes.Find(wire, "paused");
+
+        Assert.NotNull(bar);
+        Assert.Equal(new Command(".", "dismissed"), ViewNodes.CommandOf(bar.Value));
+        Assert.Equal("paused", bar.Value.GetProperty("automationName").GetString());
     }
 
     [Fact]
