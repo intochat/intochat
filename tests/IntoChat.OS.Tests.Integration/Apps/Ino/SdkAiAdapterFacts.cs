@@ -42,7 +42,7 @@ public sealed class SdkAiAdapterFacts(InoSiloFixture fixture) : IClassFixture<In
         client.Reply("configured-answer");
         var config = new ConfigurationBuilder().AddInMemoryCollection([]).Build();
         var factory = new LocalSiloHostFactory(
-            new BrainStorageRegistration([typeof(AIModule).Assembly]),
+            new BrainStorageRegistration([typeof(AIModule).Assembly, typeof(AIModule).Assembly == AIModule.Contracts ? typeof(AIModule).Assembly : AIModule.Contracts!]),
             services =>
             {
                 AIModule.ConfigureServices(services, config);
@@ -81,7 +81,7 @@ public sealed class SdkAiAdapterFacts(InoSiloFixture fixture) : IClassFixture<In
 
         var recording = new RecordingInference();
         var factory = new LocalSiloHostFactory(
-            new BrainStorageRegistration([typeof(AIModule).Assembly]),
+            new BrainStorageRegistration([typeof(AIModule).Assembly, typeof(AIModule).Assembly == AIModule.Contracts ? typeof(AIModule).Assembly : AIModule.Contracts!]),
             services =>
             {
                 AIModule.ConfigureServices(services, config);
@@ -110,7 +110,7 @@ public sealed class SdkAiAdapterFacts(InoSiloFixture fixture) : IClassFixture<In
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection([]).Build();
         var factory = new LocalSiloHostFactory(
-            new BrainStorageRegistration([typeof(AIModule).Assembly]),
+            new BrainStorageRegistration([typeof(AIModule).Assembly, typeof(AIModule).Assembly == AIModule.Contracts ? typeof(AIModule).Assembly : AIModule.Contracts!]),
             services =>
             {
                 AIModule.ConfigureServices(services, config);

@@ -188,7 +188,7 @@ internal sealed class CallCatalog
         {
             if (type == typeof(CancellationToken)) { continue; }
             if (argument >= arguments.Length) { return false; }
-            try { _ = arguments[argument++].Deserialize(type, RuntimeProtocol.OptionsFor(type)); }
+            try { _ = RuntimeProtocol.Deserialize(arguments[argument++], type); }
             catch (Exception error) when (error is JsonException or NotSupportedException or InvalidOperationException) { return false; }
         }
 
@@ -201,8 +201,6 @@ internal sealed class CallCatalog
         var methods = EligibleMethods(contract);
         var descriptors = new List<CallDescriptor>();
 
-        Dictionary<Type, InterfaceMapping>? interfaceMaps = null;
-
         foreach (var method in methods)
         {
             var parameterTypes = method.GetParameters().Select(p => p.ParameterType).ToArray();
@@ -211,15 +209,7 @@ internal sealed class CallCatalog
             MethodInfo? implementation = null;
             if (hostClass != contract && contract.IsInterface && contract.IsAssignableFrom(hostClass))
             {
-                interfaceMaps ??= new Dictionary<Type, InterfaceMapping>();
-                var declaring = method.DeclaringType ?? contract;
-                if (!interfaceMaps.TryGetValue(declaring, out var map))
-                {
-                    interfaceMaps[declaring] = map = hostClass.GetInterfaceMap(declaring);
-                }
-
-                var index = Array.IndexOf(map.InterfaceMethods, method);
-                if (index >= 0) { implementation = map.TargetMethods[index]; }
+                implementation = CallPolicy.FindImplementationMethod(hostClass, method);
             }
 
             var readOnly = Marked<ReadOnlyCallAttribute>(method, implementation);
@@ -292,7 +282,9 @@ internal sealed class CallCatalog
         {
             kind = InvocationResultKind.Stream;
             resultType = returnType.GetGenericArguments()[0];
-            streamer = ItemsMethod.MakeGenericMethod(resultType).CreateDelegate<Func<object, CancellationToken, IAsyncEnumerable<object?>>>();
+            streamer = RuntimeFeature.IsDynamicCodeSupported && !resultType.IsValueType
+                ? ItemsMethod.MakeGenericMethod(resultType).CreateDelegate<Func<object, CancellationToken, IAsyncEnumerable<object?>>>()
+                : ReflectItemsAsync;
         }
         else
         {
@@ -305,119 +297,141 @@ internal sealed class CallCatalog
 
     internal static Func<object, object?[], Task<object?>> CompileInvoker(MethodInfo method)
     {
-        var targetParam = Expression.Parameter(typeof(object), "target");
-        var argsParam = Expression.Parameter(typeof(object?[]), "args");
         var parameters = method.GetParameters();
-
-        var targetCast = Expression.Convert(targetParam, method.DeclaringType!);
-        var argExpressions = new Expression[parameters.Length];
-
-        for (int i = 0; i < parameters.Length; i++)
+        if (!RuntimeFeature.IsDynamicCodeSupported)
         {
-            var paramType = parameters[i].ParameterType;
-            if (paramType == typeof(CancellationToken))
-            {
-                var inBounds = Expression.GreaterThan(Expression.ArrayLength(argsParam), Expression.Constant(i));
-                var fromArray = Expression.Convert(Expression.ArrayIndex(argsParam, Expression.Constant(i)), typeof(CancellationToken));
-                argExpressions[i] = Expression.Condition(inBounds, fromArray, Expression.Constant(CancellationToken.None, typeof(CancellationToken)));
-            }
-            else
-            {
-                var arrayElem = Expression.ArrayIndex(argsParam, Expression.Constant(i));
-                argExpressions[i] = Expression.Convert(arrayElem, paramType);
-            }
-        }
-
-        Expression callExpr = Expression.Call(targetCast, method, argExpressions);
-        Expression body;
-
-        var returnType = method.ReturnType;
-        if (returnType == typeof(void))
-        {
-            var completed = Expression.Constant(Task.FromResult<object?>(null), typeof(Task<object?>));
-            body = Expression.Block(callExpr, completed);
-        }
-        else if (returnType == typeof(Task))
-        {
-            body = Expression.Call(VoidTaskMethod, callExpr);
-        }
-        else if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>))
-        {
-            var resultType = returnType.GetGenericArguments()[0];
-            var castMethod = CastTaskMethod.MakeGenericMethod(resultType);
-            body = Expression.Call(castMethod, callExpr);
-        }
-        else if (returnType == typeof(ValueTask))
-        {
-            body = Expression.Call(VoidValueTaskMethod, callExpr);
-        }
-        else if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(ValueTask<>))
-        {
-            var resultType = returnType.GetGenericArguments()[0];
-            var castMethod = CastValueTaskMethod.MakeGenericMethod(resultType);
-            body = Expression.Call(castMethod, callExpr);
-        }
-        else
-        {
-            var boxed = Expression.Convert(callExpr, typeof(object));
-            body = Expression.Call(FromResultMethod, boxed);
+            return CreateReflectionInvoker(method, parameters);
         }
 
         try
         {
+            var targetParam = Expression.Parameter(typeof(object), "target");
+            var argsParam = Expression.Parameter(typeof(object?[]), "args");
+
+            var targetCast = Expression.Convert(targetParam, method.DeclaringType!);
+            var argExpressions = new Expression[parameters.Length];
+
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var paramType = parameters[i].ParameterType;
+                if (paramType == typeof(CancellationToken))
+                {
+                    var inBounds = Expression.GreaterThan(Expression.ArrayLength(argsParam), Expression.Constant(i));
+                    var fromArray = Expression.Convert(Expression.ArrayIndex(argsParam, Expression.Constant(i)), typeof(CancellationToken));
+                    argExpressions[i] = Expression.Condition(inBounds, fromArray, Expression.Constant(CancellationToken.None, typeof(CancellationToken)));
+                }
+                else
+                {
+                    var arrayElem = Expression.ArrayIndex(argsParam, Expression.Constant(i));
+                    argExpressions[i] = Expression.Convert(arrayElem, paramType);
+                }
+            }
+
+            Expression callExpr = Expression.Call(targetCast, method, argExpressions);
+            Expression body;
+
+            var returnType = method.ReturnType;
+            if (returnType == typeof(void))
+            {
+                var completed = Expression.Constant(Task.FromResult<object?>(null), typeof(Task<object?>));
+                body = Expression.Block(callExpr, completed);
+            }
+            else if (returnType == typeof(Task))
+            {
+                body = Expression.Call(VoidTaskMethod, callExpr);
+            }
+            else if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>))
+            {
+                var resultType = returnType.GetGenericArguments()[0];
+                var castMethod = CastTaskMethod.MakeGenericMethod(resultType);
+                body = Expression.Call(castMethod, callExpr);
+            }
+            else if (returnType == typeof(ValueTask))
+            {
+                body = Expression.Call(VoidValueTaskMethod, callExpr);
+            }
+            else if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(ValueTask<>))
+            {
+                var resultType = returnType.GetGenericArguments()[0];
+                var castMethod = CastValueTaskMethod.MakeGenericMethod(resultType);
+                body = Expression.Call(castMethod, callExpr);
+            }
+            else
+            {
+                var boxed = Expression.Convert(callExpr, typeof(object));
+                body = Expression.Call(FromResultMethod, boxed);
+            }
+
             return Expression.Lambda<Func<object, object?[], Task<object?>>>(body, targetParam, argsParam).Compile();
         }
         catch (Exception)
         {
-            // Fallback invoker
-            return async (target, args) =>
-            {
-                var actualArgs = new object?[parameters.Length];
-                for (int i = 0; i < parameters.Length; i++)
-                {
-                    if (parameters[i].ParameterType == typeof(CancellationToken))
-                    {
-                        actualArgs[i] = i < args.Length && args[i] is CancellationToken ct ? ct : CancellationToken.None;
-                    }
-                    else
-                    {
-                        actualArgs[i] = i < args.Length ? args[i] : null;
-                    }
-                }
-
-                object? ret;
-                try
-                {
-                    ret = method.Invoke(target, actualArgs);
-                }
-                catch (TargetInvocationException ex) when (ex.InnerException is not null)
-                {
-                    ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
-                    throw;
-                }
-
-                if (ret is Task task)
-                {
-                    await task.ConfigureAwait(false);
-                    var taskType = task.GetType();
-                    if (taskType.IsGenericType)
-                    {
-                        var prop = taskType.GetProperty("Result");
-                        return prop?.GetValue(task);
-                    }
-
-                    return null;
-                }
-
-                if (ret is ValueTask vt)
-                {
-                    await vt.ConfigureAwait(false);
-                    return null;
-                }
-
-                return ret;
-            };
+            return CreateReflectionInvoker(method, parameters);
         }
+    }
+
+    private static Func<object, object?[], Task<object?>> CreateReflectionInvoker(MethodInfo method, ParameterInfo[] parameters)
+    {
+        return async (target, args) =>
+        {
+            var actualArgs = new object?[parameters.Length];
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                if (parameters[i].ParameterType == typeof(CancellationToken))
+                {
+                    actualArgs[i] = i < args.Length && args[i] is CancellationToken ct ? ct : CancellationToken.None;
+                }
+                else
+                {
+                    actualArgs[i] = i < args.Length ? args[i] : null;
+                }
+            }
+
+            object? ret;
+            try
+            {
+                ret = method.Invoke(target, actualArgs);
+            }
+            catch (TargetInvocationException ex) when (ex.InnerException is not null)
+            {
+                ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+                throw;
+            }
+
+            if (ret is Task task)
+            {
+                await task.ConfigureAwait(false);
+                var taskType = task.GetType();
+                if (taskType.IsGenericType)
+                {
+                    var prop = taskType.GetProperty("Result");
+                    return prop?.GetValue(task);
+                }
+
+                return null;
+            }
+
+            if (ret is ValueTask vt)
+            {
+                await vt.ConfigureAwait(false);
+                return null;
+            }
+
+            if (ret is not null)
+            {
+                var retType = ret.GetType();
+                if (retType.IsGenericType && retType.GetGenericTypeDefinition() == typeof(ValueTask<>))
+                {
+                    if (retType.GetMethod("AsTask", Type.EmptyTypes)?.Invoke(ret, null) is Task asTask)
+                    {
+                        await asTask.ConfigureAwait(false);
+                        return asTask.GetType().GetProperty("Result")?.GetValue(asTask);
+                    }
+                }
+            }
+
+            return ret;
+        };
     }
 
     private static IEnumerable<MethodInfo> EligibleMethods(Type contract)
@@ -426,18 +440,42 @@ internal sealed class CallCatalog
             ? contract.GetMethods().Concat(contract.GetInterfaces().SelectMany(inherited => inherited.GetMethods()))
             : contract.GetMethods(BindingFlags.Public | BindingFlags.Instance);
 
-        HashSet<MethodInfo> excluded = contract.IsInterface ? [] : contract.GetInterfaces()
-            .Where(inherited => inherited == typeof(IDisposable) || inherited == typeof(IAsyncDisposable))
-            .SelectMany(inherited => contract.GetInterfaceMap(inherited).TargetMethods)
-            .ToHashSet();
-
         return methods.Where(method => !method.IsSpecialName && !method.IsGenericMethodDefinition && !method.IsStatic
             && method.DeclaringType != typeof(object)
             && method.DeclaringType != typeof(IDisposable)
             && method.DeclaringType != typeof(IAsyncDisposable)
-            && !excluded.Contains(method)
+            && (contract.IsInterface || !CallPolicy.IsDisposeMethod(method))
             && method.GetParameters().All(parameter => !parameter.ParameterType.IsByRef))
             .DistinctBy(m => (m.Name, string.Join(",", m.GetParameters().Select(p => p.ParameterType.FullName))));
+    }
+
+    private static async IAsyncEnumerable<object?> ReflectItemsAsync(object source, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var getAsyncEnumerator = source.GetType().GetMethod("GetAsyncEnumerator", [typeof(CancellationToken)])
+            ?? source.GetType().GetInterfaces()
+                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
+                ?.GetMethod("GetAsyncEnumerator", [typeof(CancellationToken)])
+            ?? throw new InvalidOperationException($"Type '{source.GetType().FullName}' does not expose GetAsyncEnumerator.");
+        var enumerator = getAsyncEnumerator.Invoke(source, [cancellationToken])!;
+        var enumType = enumerator.GetType();
+        var moveNextMethod = enumType.GetMethod("MoveNextAsync", Type.EmptyTypes)
+            ?? enumType.GetInterfaces().Select(i => i.GetMethod("MoveNextAsync", Type.EmptyTypes)).FirstOrDefault(m => m is not null)!;
+        var currentProp = enumType.GetProperty("Current")
+            ?? enumType.GetInterfaces().Select(i => i.GetProperty("Current")).FirstOrDefault(p => p is not null)!;
+        try
+        {
+            while (await ((ValueTask<bool>)moveNextMethod.Invoke(enumerator, null)!).ConfigureAwait(false))
+            {
+                yield return currentProp.GetValue(enumerator);
+            }
+        }
+        finally
+        {
+            if (enumerator is IAsyncDisposable asyncDisposable)
+            {
+                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+            }
+        }
     }
 
     private static async Task<object?> CastTask<T>(Task<T> task)

@@ -26,7 +26,7 @@ internal sealed class LocalOperationDriverLifetime(IMachineIdentity? identity, I
             if (pid <= 0) { return null; }
             var process = processes.Observe(pid);
             return process is { Alive: true, StartedUtcTicks: > 0 } && process.StartedUtcTicks <= DateTime.MaxValue.Ticks
-                ? JsonSerializer.Serialize(new Token(1, machine, space, pid, process.StartedUtcTicks)) : null;
+                ? System.Text.Encoding.UTF8.GetString(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(new Token(1, machine, space, pid, process.StartedUtcTicks), typeof(Token))) : null;
         }
         catch (Exception error) when (Unavailable(error))
         {
@@ -40,7 +40,7 @@ internal sealed class LocalOperationDriverLifetime(IMachineIdentity? identity, I
         if (string.IsNullOrWhiteSpace(token) || token.Length > 2048) { return null; }
         try
         {
-            var saved = JsonSerializer.Deserialize<Token>(token);
+            var saved = DigitalBrain.Invocation.RuntimeProtocol.Deserialize(System.Text.Encoding.UTF8.GetBytes(token), typeof(Token)) as Token;
             if (saved is not { Version: 1, ProcessId: > 0, StartedUtcTicks: > 0 }
                 || saved.StartedUtcTicks > DateTime.MaxValue.Ticks || string.IsNullOrWhiteSpace(saved.Machine)
                 || string.IsNullOrWhiteSpace(saved.Namespace) || saved.Machine != identity?.Id || saved.Namespace != processes.Namespace)

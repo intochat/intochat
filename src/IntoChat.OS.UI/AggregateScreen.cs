@@ -167,7 +167,7 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
             return;
         }
 
-        var candidate = JsonSerializer.SerializeToElement(Render(State), RuntimeProtocol.OptionsFor(typeof(View)));
+        var candidate = RuntimeProtocol.SerializeToElement(Render(State), typeof(View));
         if (candidate.GetRawText() != published.View.GetRawText())
         {
             // State stays identical (SameState); only refresh the published view when Render(State) projects LastRejection.

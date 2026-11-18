@@ -8,12 +8,11 @@ namespace IntoChat.OS.Kernel;
 /// <see cref="ManifestEnvironment"/>, and <see cref="ModuleDeployment{T}"/> specifications used by Azure Cloud
 /// and <see cref="InMemoryCloud"/> into local Docker container specs, local endpoints, and resolved host environment variables.
 /// </summary>
-public sealed class AspireCloud(string localHost = "localhost", int basePort = 18080, bool autoSeedVaultSecrets = true) : IAzureArm
+public sealed class AspireCloud(string localHost = "localhost", bool autoSeedVaultSecrets = true) : IAzureArm
 {
     private readonly List<ResourceSpec> _ensured = [];
     private readonly List<LocalContainerBinding> _containers = [];
     private readonly Dictionary<string, ResourceRef> _resources = new(StringComparer.OrdinalIgnoreCase);
-    private int _nextPort = basePort;
 
     public IReadOnlyList<ResourceSpec> Ensured => _ensured;
 
@@ -72,13 +71,7 @@ public sealed class AspireCloud(string localHost = "localhost", int basePort = 1
         }
 
         var endpoint = "";
-        if (spec is SessionPoolSpec pool)
-        {
-            var port = _nextPort++;
-            endpoint = $"http://{localHost}:{port}/";
-            _containers.Add(new LocalContainerBinding(pool.Name, pool.Image, port, pool.TargetPort, pool.MaxSessions, pool.ReadySessions));
-        }
-        else if (spec is ContainerAppSpec)
+        if (spec is ContainerAppSpec)
         {
             endpoint = $"{spec.Name}.local.azurecontainerapps.io";
         }

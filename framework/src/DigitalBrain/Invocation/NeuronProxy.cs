@@ -16,6 +16,7 @@ public class NeuronProxy : DispatchProxy
 #pragma warning restore CA1852
 {
     private static readonly ConcurrentDictionary<Type, string> ContractNames = new();
+    private static readonly ConcurrentDictionary<Type, Func<NeuronId, IInvocationSink, object>> Factories = new();
     private static readonly ConcurrentDictionary<MethodInfo, ProxyMethod> Methods = new();
     private static readonly MethodInfo InvokeValueMethod = typeof(NeuronProxy).GetMethod(nameof(InvokeValue), BindingFlags.NonPublic | BindingFlags.Instance)!;
     private static readonly MethodInfo InvokeValueTaskMethod = typeof(NeuronProxy).GetMethod(nameof(InvokeValueTask), BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -28,19 +29,52 @@ public class NeuronProxy : DispatchProxy
     /// <summary>The neuron this proxy calls.</summary>
     public NeuronId Target { get; private set; }
 
+    /// <summary>Registers a compile-time proxy factory for contract <typeparamref name="T"/>.</summary>
+    public static void Register<T>(Func<NeuronId, IInvocationSink, T> factory) where T : class
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        Factories[typeof(T)] = (id, sink) => factory(id, sink);
+    }
+
+    /// <summary>Initializes a generated <see cref="NeuronProxy"/> subclass for contract <typeparamref name="T"/>.</summary>
+    public static T Initialize<T>(NeuronProxy proxy, NeuronId id, IInvocationSink sink) where T : class
+    {
+        ArgumentNullException.ThrowIfNull(proxy);
+        ArgumentNullException.ThrowIfNull(sink);
+        proxy._sink = sink;
+        proxy._contract = ContractName(typeof(T));
+        proxy.Target = id;
+        proxy._key = id.ToString();
+        return (T)(object)proxy;
+    }
+
+    /// <summary>A proxy for contract <paramref name="contract"/> on neuron <paramref name="id"/> that hands calls to <paramref name="sink"/>.</summary>
+    public static object Create(Type contract, NeuronId id, IInvocationSink sink)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(sink);
+        if (!contract.IsInterface) { throw new ArgumentException($"{contract.Name} is not an interface; neuron contracts are interfaces.", nameof(contract)); }
+        if (Factories.TryGetValue(contract, out var factory))
+        {
+            return factory(id, sink);
+        }
+        var generic = typeof(NeuronProxy).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Single(m => m.Name == nameof(Create) && m.IsGenericMethodDefinition);
+        return generic.MakeGenericMethod(contract).Invoke(null, [id, sink])!;
+    }
+
     /// <summary>A proxy for contract <typeparamref name="T"/> on neuron <paramref name="id"/> that hands calls to <paramref name="sink"/>.</summary>
     /// <exception cref="ArgumentException"><typeparamref name="T"/> is not an interface.</exception>
     public static T Create<T>(NeuronId id, IInvocationSink sink) where T : class
     {
         ArgumentNullException.ThrowIfNull(sink);
         if (!typeof(T).IsInterface) { throw new ArgumentException($"{typeof(T).Name} is not an interface; neuron contracts are interfaces.", nameof(T)); }
+        if (Factories.TryGetValue(typeof(T), out var factory))
+        {
+            return (T)factory(id, sink);
+        }
         var proxy = Create<T, NeuronProxy>();
-        var neuron = (NeuronProxy)(object)proxy;
-        neuron._sink = sink;
-        neuron._contract = ContractName(typeof(T));
-        neuron.Target = id;
-        neuron._key = id.ToString();
-        return proxy;
+        return Initialize<T>((NeuronProxy)(object)proxy, id, sink);
     }
 
     /// <summary>The wire name of a contract: its <see cref="NeuronAliasAttribute"/> alias, or its full name.</summary>
@@ -84,7 +118,7 @@ public class NeuronProxy : DispatchProxy
             ? new ProxyMethod(targetMethod, Dispatch(targetMethod))
             : Methods.GetOrAdd(targetMethod, static method => new ProxyMethod(method, Dispatch(method)));
         var call = new RuntimeInvocation(string.Empty, _contract, _key, targetMethod.Name, bound.Encode(args));
-        return bound.Dispatch(this, call, bound.Shape, bound.TokenOf(args));
+        return (bound.Dispatch ?? Dispatch(targetMethod))(this, call, bound.Shape, bound.TokenOf(args));
     }
 
     private sealed class ProxyMethod
@@ -92,7 +126,7 @@ public class NeuronProxy : DispatchProxy
         private readonly Type[] _parameters;
         private readonly int _token = -1;
 
-        public ProxyMethod(MethodInfo method, Func<NeuronProxy, RuntimeInvocation, CallShape, CancellationToken, object?> dispatch)
+        public ProxyMethod(MethodInfo method, Func<NeuronProxy, RuntimeInvocation, CallShape, CancellationToken, object?>? dispatch)
         {
             _parameters = [.. method.GetParameters().Select(parameter => parameter.ParameterType)];
             _token = Array.IndexOf(_parameters, typeof(CancellationToken));
@@ -105,7 +139,7 @@ public class NeuronProxy : DispatchProxy
 
         public CallShape Shape { get; }
 
-        public Func<NeuronProxy, RuntimeInvocation, CallShape, CancellationToken, object?> Dispatch { get; }
+        public Func<NeuronProxy, RuntimeInvocation, CallShape, CancellationToken, object?>? Dispatch { get; }
 
         public JsonElement[] Encode(object?[]? args)
         {
@@ -161,11 +195,56 @@ public class NeuronProxy : DispatchProxy
         }
     }
 
+    /// <summary>Executes a compile-time generated one-way call without reflection or <c>MakeGenericMethod</c>.</summary>
+    public Task CallOneWay(MethodInfo method, object?[] args)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        var bound = GetBoundMetadata(method);
+        var call = new RuntimeInvocation(string.Empty, _contract, _key, method.Name, bound.Encode(args));
+        return _sink.Post(Target, call);
+    }
+
+    /// <summary>Executes a compile-time generated <see cref="Task"/> call without reflection or <c>MakeGenericMethod</c>.</summary>
+    public Task CallNone(MethodInfo method, object?[] args)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        var bound = GetBoundMetadata(method);
+        var call = new RuntimeInvocation(string.Empty, _contract, _key, method.Name, bound.Encode(args));
+        return InvokeNone(call, bound.Shape, bound.TokenOf(args));
+    }
+
+    /// <summary>Executes a compile-time generated <see cref="Task{TResult}"/> call without reflection or <c>MakeGenericMethod</c>.</summary>
+    public Task<TResult> CallTask<TResult>(MethodInfo method, object?[] args)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        var bound = GetBoundMetadata(method);
+        var call = new RuntimeInvocation(string.Empty, _contract, _key, method.Name, bound.Encode(args));
+        return Typed<TResult>(call, bound.Shape, bound.TokenOf(args));
+    }
+
+    /// <summary>Executes a compile-time generated <see cref="ValueTask{TResult}"/> call without reflection or <c>MakeGenericMethod</c>.</summary>
+    public ValueTask<TResult> CallValueTask<TResult>(MethodInfo method, object?[] args)
+        => new(CallTask<TResult>(method, args));
+
+    /// <summary>Executes a compile-time generated <see cref="IAsyncEnumerable{TItem}"/> stream call without reflection or <c>MakeGenericMethod</c>.</summary>
+    public IAsyncEnumerable<TItem> CallStream<TItem>(MethodInfo method, object?[] args)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        var bound = GetBoundMetadata(method);
+        var call = new RuntimeInvocation(string.Empty, _contract, _key, method.Name, bound.Encode(args));
+        return Items<TItem>(call, bound.TokenOf(args));
+    }
+
+    private static ProxyMethod GetBoundMetadata(MethodInfo method)
+        => method.DeclaringType?.IsCollectible == true || method.ReflectedType?.IsCollectible == true
+            ? new ProxyMethod(method, null)
+            : Methods.GetOrAdd(method, static m => new ProxyMethod(m, null));
+
     private async Task InvokeNone(RuntimeInvocation call, CallShape shape, CancellationToken cancellationToken)
         => await Send(call, shape, cancellationToken).ConfigureAwait(false);
 
     // CA1859: these bind to one delegate shape, so they return object.
-#pragma warning disable CA1859
+#pragma warning disable CA1859, CA2263
     private object? InvokeValue<TResult>(RuntimeInvocation call, CallShape shape, CancellationToken cancellationToken)
         => Typed<TResult>(call, shape, cancellationToken);
 
@@ -177,7 +256,7 @@ public class NeuronProxy : DispatchProxy
     private async Task<TResult> Typed<TResult>(RuntimeInvocation call, CallShape shape, CancellationToken cancellationToken)
     {
         var value = await Send(call, shape, cancellationToken).ConfigureAwait(false);
-        return value is { } json ? json.Deserialize<TResult>(RuntimeProtocol.OptionsFor(typeof(TResult)))! : default!;
+        return value is { } json ? (TResult)RuntimeProtocol.Deserialize(json, typeof(TResult))! : default!;
     }
 
     private object? StreamItems<TItem>(RuntimeInvocation call, CallShape shape, CancellationToken cancellationToken)
@@ -190,7 +269,7 @@ public class NeuronProxy : DispatchProxy
     {
         await foreach (var item in _sink.Stream(Target, call, cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(false))
         {
-            yield return item.Deserialize<TItem>(RuntimeProtocol.OptionsFor(typeof(TItem)))!;
+            yield return (TItem)RuntimeProtocol.Deserialize(item, typeof(TItem))!;
         }
     }
 

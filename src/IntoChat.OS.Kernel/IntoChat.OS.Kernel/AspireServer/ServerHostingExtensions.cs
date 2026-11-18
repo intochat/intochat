@@ -46,6 +46,12 @@ public static class ServerHostingExtensions
         ArgumentNullException.ThrowIfNull(builder);
         // Every IntoChat.OS server carries the process defaults; hosts cannot forget them.
         builder.AddServiceDefaults();
+        DigitalBrain.Invocation.RuntimeProtocol.Register(IntoChat.OS.Kernel.Mcp.KernelMcpJsonContext.Default);
+        builder.Services.ConfigureHttpJsonOptions(static options =>
+        {
+            options.SerializerOptions.TypeInfoResolverChain.Insert(0, IntoChat.OS.Kernel.Mcp.KernelMcpJsonContext.Default);
+            options.SerializerOptions.TypeInfoResolverChain.Add(DigitalBrain.Invocation.RuntimeProtocol.Json.TypeInfoResolver!);
+        });
         // The stop holds the drain (DrainDelay, then the web server's bounded stop), then Orleans deactivates every
         // grain (GrainCollectionOptions.DeactivationTimeout) before it writes Dead: the host waits for all of it.
         builder.Services.AddOptions<HostOptions>().Configure<IOptions<GrainCollectionOptions>, IConfiguration>(
@@ -148,6 +154,7 @@ public static class ServerHostingExtensions
                 module.Register(silo.Services);
             }
             OsModule.HostIndependents(silo.Services, silo.Configuration, neuronModules, modules);
+            OrleansAotResponses.Register(silo.Services);
         });
         builder.Services.Configure<IntoChat.OS.Kernel.Sandbox.SandboxOptions>(
             builder.Configuration.GetSection(

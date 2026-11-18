@@ -70,9 +70,19 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
       -c Release \
       -r linux-x64 \
       --self-contained false \
+      -p:PublishAot=false \
       -p:CodeGraphRefresh=false \
       -p:DebugType=none \
       -o /out/silo \
+      --nologo \
+    && dotnet publish src/IntoChat.OS.Sandbox/IntoChat.OS.Sandbox.csproj \
+      --configfile nuget.config \
+      -c Release \
+      -r linux-x64 \
+      --self-contained false \
+      -p:CodeGraphRefresh=false \
+      -p:DebugType=none \
+      -o /out/unithost \
       --nologo \
     && rm -rf /src/artifacts
 
@@ -80,6 +90,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:11.0.0 AS final
 WORKDIR /app
 
 COPY --from=build /out/silo /app/silo
+COPY --from=build /out/unithost /app/unithost
 COPY --from=ui-build /workspace/build/web /app/wwwroot
 
 # The image enables the OS catalog; configuration may disable modules

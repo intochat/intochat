@@ -16,6 +16,18 @@ namespace IntoChat.OS.Sandbox;
 /// <summary>Metadata describing an exposed <see cref="OnCommandAttribute"/> handler on a deployed app.</summary>
 public sealed record SandboxCommandDescriptor(string Name, string Description);
 
+/// <summary>Request payload to compile C# source files into a sandbox-ready PE assembly inside the Sandbox/DevKit worker.</summary>
+public sealed record CompileAppRequest(
+    string Key,
+    Dictionary<string, string> SourceFiles,
+    string? AssemblyName = null);
+
+/// <summary>Result of compiling C# source files in the Sandbox/DevKit worker.</summary>
+public sealed record CompileAppResponse(
+    bool Succeeded,
+    string? AssemblyBase64,
+    string[] Errors);
+
 /// <summary>Request payload to load and bind a compiled app assembly into the sandbox worker.</summary>
 public sealed record DeployAppRequest(
     string BrainId,
@@ -107,6 +119,36 @@ public sealed class AppSandboxHost
     }
 
     public int LoadedAppCount => _apps.Count;
+
+    public CompileAppResponse Compile(CompileAppRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.SourceFiles is null || request.SourceFiles.Count == 0)
+        {
+            return new CompileAppResponse(false, null, ["Package contains no C# source files."]);
+        }
+
+        var files = new Dictionary<string, string>(request.SourceFiles, StringComparer.Ordinal);
+        var isSynapseUnit = files.Values.Any(static code =>
+            code.Contains("[Synapse", StringComparison.Ordinal)
+            || code.Contains("[DigitalBrain.Synapse", StringComparison.Ordinal));
+        if (!isSynapseUnit && !files.ContainsKey("AppGlobalUsings.g.cs"))
+        {
+            files["AppGlobalUsings.g.cs"] = "global using System.Linq;\nglobal using IntoChat.OS.UI;\nglobal using IntoChat.Sdk;\n";
+        }
+
+        var compiler = new DigitalBrain.Runtime.Synapses.SynapseCompiler(DigitalBrain.Runtime.Synapses.ReferenceSet.FromDefaultContext());
+        var build = compiler.Compile(new DigitalBrain.Units.SynapseSource(request.Key, files, null));
+        if (!build.Success)
+        {
+            var errors = build.Diagnostics
+                .Select(d => $"{d.File}({d.Line}): {d.Id}: {d.Message}")
+                .ToArray();
+            return new CompileAppResponse(false, null, errors.Length == 0 ? ["Compilation failed."] : errors);
+        }
+
+        return new CompileAppResponse(true, Convert.ToBase64String(build.Assembly), []);
+    }
 
     public async Task<DeployAppResponse> DeployAsync(DeployAppRequest request, CancellationToken cancellationToken = default)
     {

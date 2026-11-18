@@ -120,5 +120,5 @@ internal sealed partial class ChatNeuron(IChatAgentSource adapter) : UiNeuron<Ch
         return Task.FromResult(Snapshot with { ReadReceipts = [], SelectionReceipts = [], UnreadMessageIds = unread });
     }
 
-    private static string ContentHash(ChatEntry message) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(message)));
+    private static string ContentHash(ChatEntry message) => Convert.ToHexString(SHA256.HashData(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(message, typeof(ChatEntry))));
 }

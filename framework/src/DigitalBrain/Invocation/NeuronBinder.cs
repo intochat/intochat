@@ -48,7 +48,7 @@ internal sealed class NeuronBinder(int maximumArgumentBytes = NeuronBinder.Defau
         foreach (var type in candidate.ParameterTypes)
         {
             if (type == typeof(CancellationToken)) { continue; }
-            try { _ = arguments[argument++].Deserialize(type, RuntimeProtocol.OptionsFor(type)); }
+            try { _ = RuntimeProtocol.Deserialize(arguments[argument++], type); }
             catch (Exception error) when (error is JsonException or NotSupportedException or InvalidOperationException) { return false; }
         }
         return true;

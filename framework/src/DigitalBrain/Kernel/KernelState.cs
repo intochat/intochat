@@ -1,3 +1,4 @@
+#pragma warning disable CA2263
 using DigitalBrain.Neurons;
 using System.Text.Json;
 using DigitalBrain.Invocation;
@@ -21,7 +22,7 @@ internal sealed class KernelState(
         if (stateless) { return default; }
         var record = await journal.ReadRecord(id, stateName, CancellationToken.None).ConfigureAwait(true);
         _version = record?.Version;
-        return record is null ? default : JsonSerializer.Deserialize<T>(record.Bytes.Span, RuntimeProtocol.OptionsFor(typeof(T)));
+        return record is null ? default : (T?)RuntimeProtocol.Deserialize(record.Bytes.Span, typeof(T));
     }
 
     public Task Save<T>(T next, IReadOnlyList<Signal> signals)
@@ -83,8 +84,9 @@ internal sealed class KernelState(
     private StateWrite Write<T>(T next)
     {
         RefuseStateless();
+        var type = next?.GetType() ?? typeof(T);
         return new StateWrite(stateName, StateChange.Write,
-            JsonSerializer.SerializeToUtf8Bytes(next, RuntimeProtocol.OptionsFor(next?.GetType() ?? typeof(T))), _version);
+            RuntimeProtocol.SerializeToUtf8Bytes(next, type), _version);
     }
 
     private void RefuseStateless()

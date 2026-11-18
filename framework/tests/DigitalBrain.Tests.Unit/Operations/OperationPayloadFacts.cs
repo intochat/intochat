@@ -22,7 +22,8 @@ public sealed class OperationPayloadFacts
 
     private static OperationState State(byte[]? payload, string? hash) =>
         new("op-1", "b1", "origin", nameof(PayloadPlan), "{}", payload?.Length, hash, OperationPhase.AwaitingApproval, false, 0d, null,
-            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch) { Payload = payload };
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
+        { Payload = payload };
 
     [Fact]
     public void AKeptPayloadMatchingThePlannedHashIsRestored()

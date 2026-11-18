@@ -209,6 +209,17 @@ internal static class UnitHostWorker
                         return new UnitHostFrameResponse(request.Id, Ok: true, Unload: unloaded, ProcessId: Environment.ProcessId);
                     }
 
+                case "compile":
+                    {
+                        if (request.Compile is null)
+                        {
+                            return new UnitHostFrameResponse(request.Id, Ok: false, Error: "Compile payload is required.");
+                        }
+
+                        var compiled = host.Compile(request.Compile);
+                        return new UnitHostFrameResponse(request.Id, Ok: compiled.Succeeded, Compile: compiled, Error: compiled.Succeeded ? null : string.Join("; ", compiled.Errors), ProcessId: Environment.ProcessId);
+                    }
+
                 default:
                     return new UnitHostFrameResponse(request.Id, Ok: false, Error: $"Unsupported UnitHost op '{request.Op}'.");
             }

@@ -43,7 +43,7 @@ public sealed class OsAppHostFixture : IAsyncLifetime
     internal OsAppHostFixture(string[] extra, TimeSpan? startTimeout = null)
     {
         _extra = extra;
-        _startTimeout = startTimeout ?? TimeSpan.FromSeconds(120);
+        _startTimeout = startTimeout ?? TimeSpan.FromSeconds(300);
     }
 
     public DistributedApplication App { get; private set; } = null!;

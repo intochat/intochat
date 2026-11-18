@@ -19,7 +19,7 @@ public static class AzureInstaller
 
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    public static bool IsInstall(string[] args) => args is [var verb, ..] && verb == "install";
+    public static bool IsInstall(string[] args) => args is [var verb, ..] && verb is "install" or "pulumi";
 
     public static Task<int> Run(string[] args, IAzureArm arm, IEnumerable<OsModule> modules, TextWriter output, TextWriter error, CancellationToken ct) =>
         Run(args, arm, modules, output, error, null, ct);
@@ -32,13 +32,14 @@ public static class AzureInstaller
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
         InstallConfig config;
-        bool dryRun, printEnv;
-        string? secretsFrom, manifestPath, promoteFrom;
+        bool dryRun, printEnv, emitPulumi;
+        string? secretsFrom, manifestPath, promoteFrom, pulumiOut;
         ReleaseManifest? manifest = null;
         try
         {
             var options = Options.Parse(args);
-            (dryRun, secretsFrom, printEnv, manifestPath, promoteFrom) = (options.DryRun, options.SecretsFrom, options.PrintEnv, options.Manifest, options.PromoteFrom);
+            (dryRun, secretsFrom, printEnv, manifestPath, promoteFrom, emitPulumi, pulumiOut) =
+                (options.DryRun, options.SecretsFrom, options.PrintEnv, options.Manifest, options.PromoteFrom, options.EmitPulumi, options.PulumiOut);
             config = InstallConfig.Parse(await File.ReadAllTextAsync(options.Config, ct));
             if (!string.Equals(config.Env, options.Env, StringComparison.Ordinal))
             {
@@ -67,6 +68,31 @@ public static class AzureInstaller
         }
 
         var manifests = ManifestEnvironment.ManifestsOf(modules);
+        if (emitPulumi)
+        {
+            try
+            {
+                var secretsDict = !dryRun ? await SecretValues(secretsFrom, ct) : new Dictionary<string, string>(StringComparer.Ordinal);
+                var stackPlan = PulumiStackSynthesizer.Synthesize(config, modules, secretsDict);
+                if (!string.IsNullOrWhiteSpace(pulumiOut))
+                {
+                    await PulumiStackSynthesizer.WriteWorkspaceAsync(stackPlan, pulumiOut, ct);
+                    var importJson = PulumiStackSynthesizer.ExportImportEntries(stackPlan).ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+                    await File.WriteAllTextAsync(Path.Combine(pulumiOut, $"import.{config.Env}.json"), importJson + "\n", ct);
+                    await output.WriteLineAsync($"Synthesized Pulumi workspace in '{pulumiOut}' ({stackPlan.Resources.Count} resources, {stackPlan.Secrets.Count} secrets, {stackPlan.Variables.Count} module settings, 0 SessionPools).", ct);
+                }
+                else
+                {
+                    await output.WriteAsync(stackPlan.PulumiYaml, ct);
+                }
+                return 0;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or IOException or JsonException or ArgumentException)
+            {
+                await error.WriteLineAsync($"pulumi: {ex.Message}", ct);
+                return 2;
+            }
+        }
         if (printEnv)
         {
             // R4-03: the names the OS app will carry, rendered from the profile's foundation and the composed manifests. No Azure call.
@@ -347,13 +373,14 @@ public static class AzureInstaller
         });
     }
 
-    private sealed record Options(string Env, string Config, bool DryRun, string? SecretsFrom, bool PrintEnv, string? Manifest, string? PromoteFrom)
+    private sealed record Options(string Env, string Config, bool DryRun, string? SecretsFrom, bool PrintEnv, string? Manifest, string? PromoteFrom, bool EmitPulumi, string? PulumiOut)
     {
         public static Options Parse(string[] args)
         {
-            string? env = null, config = null, secrets = null, manifest = null, promoteFrom = null;
+            string? env = null, config = null, secrets = null, manifest = null, promoteFrom = null, pulumiOut = null;
             var dryRun = false;
             var printEnv = false;
+            var emitPulumi = args is ["pulumi", ..];
             for (var i = 1; i < args.Length; i++)
             {
                 switch (args[i])
@@ -363,6 +390,8 @@ public static class AzureInstaller
                     case "--secrets-from": secrets = Value(args, ref i); break;
                     case "--manifest": manifest = Value(args, ref i); break;
                     case "--promote-from": promoteFrom = Value(args, ref i); break;
+                    case "--pulumi-out" or "--output" or "-o": pulumiOut = Value(args, ref i); emitPulumi = true; break;
+                    case "--emit-pulumi": emitPulumi = true; break;
                     case "--dry-run": dryRun = true; break;
                     case "--print-env": printEnv = true; break;
                     default: throw new ArgumentException($"Unknown install argument '{args[i]}'.");
@@ -375,7 +404,9 @@ public static class AzureInstaller
                 secrets,
                 printEnv,
                 manifest,
-                promoteFrom);
+                promoteFrom,
+                emitPulumi,
+                pulumiOut);
         }
 
         private static string Value(string[] args, ref int i) =>

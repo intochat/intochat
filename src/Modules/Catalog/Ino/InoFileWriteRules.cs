@@ -8,6 +8,7 @@ namespace IntoChat.OS.Modules.Apps;
 internal static class InoFileWriteRules
 {
     internal const int MaxContentCharacters = 1_000_000;
+    private static readonly char[] InvalidFileNameChars = ['"', '<', '>', '|', ':', '*', '?', '\\', '/', '\0'];
 
     // The first broken rule, explained for the model; null when the request is acceptable.
     internal static string? Check(string? name, string? content)
@@ -15,7 +16,8 @@ internal static class InoFileWriteRules
         if (string.IsNullOrWhiteSpace(name)) { return "Give a file name, for example hello.txt."; }
         if (!SafeRelativePath.TryParse(name, out var path) || path.Value != name || name.Contains('/', StringComparison.Ordinal))
         { return $"'{name}' must be a file name only, without folders."; }
-        if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) { return $"'{name}' contains characters a file name cannot have."; }
+        if (name.IndexOfAny(InvalidFileNameChars) >= 0 || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        { return $"'{name}' contains characters a file name cannot have."; }
         if ((content?.Length ?? 0) > MaxContentCharacters) { return $"The content is longer than {MaxContentCharacters:N0} characters."; }
         return null;
     }
@@ -25,7 +27,9 @@ internal static class InoFileWriteRules
     internal static Item? Target(IReadOnlyList<Item> roots, string? documents = null)
     {
         var writable = roots.Where(item => item.Flags.HasFlag(ItemFlags.Write)).ToArray();
-        var name = Path.GetFileName((documents ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)).TrimEnd('\\', '/'));
+        var trimmed = (documents ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)).TrimEnd('\\', '/');
+        var lastSep = trimmed.LastIndexOfAny(['\\', '/']);
+        var name = lastSep >= 0 ? trimmed[(lastSep + 1)..] : trimmed;
         return writable.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase)) ?? writable.FirstOrDefault();
     }
 }

@@ -1,3 +1,4 @@
+#pragma warning disable CA2263
 using System.Text.Json;
 using DigitalBrain.Invocation;
 using DigitalBrain.Units;
@@ -27,7 +28,7 @@ internal sealed class JournalPayloads(SignalTypeMap types)
 
     public static byte[] EncodeState<T>(T value)
     {
-        try { return JsonSerializer.SerializeToUtf8Bytes(value, RuntimeProtocol.OptionsFor(value?.GetType() ?? typeof(T))); }
+        try { return RuntimeProtocol.SerializeToUtf8Bytes(value, value?.GetType() ?? typeof(T)); }
         catch (Exception error) when (error is JsonException or NotSupportedException)
         { throw new JournalPayloadException($"State {typeof(T).FullName} cannot be written as JSON.", error); }
     }
@@ -35,7 +36,7 @@ internal sealed class JournalPayloads(SignalTypeMap types)
     public static T? DecodeState<T>(byte[] json)
     {
         ArgumentNullException.ThrowIfNull(json);
-        try { return JsonSerializer.Deserialize<T>(json, RuntimeProtocol.OptionsFor(typeof(T))); }
+        try { return (T?)RuntimeProtocol.Deserialize(json, typeof(T)); }
         catch (Exception error) when (error is JsonException or NotSupportedException)
         { throw new JournalPayloadException($"Stored state is not a valid {typeof(T).FullName}.", error); }
     }
@@ -48,7 +49,7 @@ internal sealed class JournalPayloads(SignalTypeMap types)
         var type = signal.GetType();
         if (!Types.TryAliasOf(type, out var alias))
         { throw new JournalPayloadException($"Signal {type.FullName} has no registered [Signal] alias; register its assembly with AddJournalPayloads."); }
-        try { return new JournaledSignalPayload(alias, JsonSerializer.SerializeToUtf8Bytes(signal, type, RuntimeProtocol.OptionsFor(type))); }
+        try { return new JournaledSignalPayload(alias, RuntimeProtocol.SerializeToUtf8Bytes(signal, type)); }
         catch (Exception error) when (error is JsonException or NotSupportedException)
         { throw new JournalPayloadException($"Signal {alias} cannot be written as JSON.", error); }
     }
@@ -60,7 +61,7 @@ internal sealed class JournalPayloads(SignalTypeMap types)
         { throw new JournalPayloadException($"Journaled signal '{payload.Type}' is not a registered [Signal] alias."); }
         try
         {
-            return JsonSerializer.Deserialize(payload.Json, type, RuntimeProtocol.OptionsFor(type)) as Signal
+            return RuntimeProtocol.Deserialize(payload.Json, type) as Signal
                 ?? throw new JournalPayloadException($"Journaled signal '{payload.Type}' is null.");
         }
         catch (Exception error) when (error is JsonException or NotSupportedException)

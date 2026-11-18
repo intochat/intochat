@@ -16,7 +16,7 @@ internal static class UnitLimits
 
     public static void RequireFits<TState>(TState state, NeuronId id)
     {
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(state, RuntimeProtocol.OptionsFor(typeof(TState)));
+        var bytes = RuntimeProtocol.SerializeToUtf8Bytes(state, typeof(TState));
         if (bytes.Length > MaxStateBytes)
         {
             throw new InvalidOperationException(
@@ -78,7 +78,7 @@ internal sealed class UnitNeuron<TState> : Neuron<StoredUnit<TState>>, ISynapseR
         var state = State.State;
         if (state is null) { return Task.FromResult<JsonElement?>(null); }
         var type = typeof(TState);
-        return Task.FromResult<JsonElement?>(JsonSerializer.SerializeToElement(state, type, RuntimeProtocol.OptionsFor(type)));
+        return Task.FromResult<JsonElement?>(PooledJson.Encode(state, type));
     }
 
     protected override Task OnActivate(CancellationToken cancellationToken) => OnActivateAsync(cancellationToken);
@@ -119,7 +119,8 @@ internal sealed class UnitNeuron<TState> : Neuron<StoredUnit<TState>>, ISynapseR
 
         if (step.View is null)
         {
-            var empty = JsonSerializer.SerializeToElement(new { });
+            using var doc = JsonDocument.Parse("{}");
+            var empty = doc.RootElement.Clone();
             var view = new PublishedView(_stateAlias, 1, empty);
             step = step with { View = view, Signals = [.. step.Signals, new ViewChanged(_stateAlias, 1)] };
         }
@@ -146,8 +147,8 @@ internal sealed class UnitNeuron<TState> : Neuron<StoredUnit<TState>>, ISynapseR
 
     Task<JsonElement> IStateReader.Read(string alias) =>
         Task.FromResult(State.State is not null && string.Equals(Functions.Alias, alias, StringComparison.Ordinal)
-            ? JsonSerializer.SerializeToElement(State.State, RuntimeProtocol.OptionsFor(typeof(TState)))
-            : JsonSerializer.SerializeToElement<object?>(null));
+            ? PooledJson.Encode(State.State, typeof(TState))
+            : AskRules.NoResult);
 
     public Task Receive(Signal signal, CancellationToken ct)
     {
@@ -188,27 +189,27 @@ internal sealed class UnitNeuron<TState> : Neuron<StoredUnit<TState>>, ISynapseR
                 string.Equals(ask.Operation, "readState", StringComparison.OrdinalIgnoreCase))
             {
                 var val = State.State is not null
-                    ? JsonSerializer.SerializeToElement(State.State, RuntimeProtocol.OptionsFor(typeof(TState)))
-                    : JsonSerializer.SerializeToElement<object?>(null);
+                    ? PooledJson.Encode(State.State, typeof(TState))
+                    : AskRules.NoResult;
                 return new Answer(ask.Slot, ask.Operation, ask.Key, AnswerStatus.Ok, val, null, 0);
             }
             if (string.Equals(ask.Operation, "view", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(ask.Operation, "readView", StringComparison.OrdinalIgnoreCase))
             {
                 var val = State.View is not null
-                    ? JsonSerializer.SerializeToElement(State.View, RuntimeProtocol.OptionsFor(typeof(PublishedView)))
-                    : JsonSerializer.SerializeToElement<object?>(null);
+                    ? PooledJson.Encode(State.View, typeof(PublishedView))
+                    : AskRules.NoResult;
                 return new Answer(ask.Slot, ask.Operation, ask.Key, AnswerStatus.Ok, val, null, 0);
             }
 
             var payload = ask.Arguments.ValueKind is JsonValueKind.Undefined
-                ? JsonSerializer.SerializeToElement<object?>(null)
+                ? AskRules.NoResult
                 : ask.Arguments;
             var signal = new EmittedSignal(ask.Operation, payload);
             await Turn(signal, Context.TraceId, null, said: signal, ct).ConfigureAwait(true);
             var resultState = State.State is not null
-                ? JsonSerializer.SerializeToElement(State.State, RuntimeProtocol.OptionsFor(typeof(TState)))
-                : JsonSerializer.SerializeToElement<object?>(null);
+                ? PooledJson.Encode(State.State, typeof(TState))
+                : AskRules.NoResult;
             return new Answer(ask.Slot, ask.Operation, ask.Key, AnswerStatus.Ok, resultState, null, 0);
         }
         catch (OperationCanceledException)

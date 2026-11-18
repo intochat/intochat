@@ -63,6 +63,11 @@ public static class IntoChatOSHostingExtensions
                 CreationTimeStamp = DateTime.UtcNow,
                 State = KnownResourceStates.Running,
                 Properties = [new(CustomResourceKnownProperties.Source, "IntoChat.OS modules")],
+            })
+            .WithCommand("reset-state", "Reset Local State", async _ =>
+            {
+                var code = await LocalReset.RunFromAppHostAsync(builder, ["--yes"]);
+                return code == 0 ? CommandResults.Success() : CommandResults.Failure("Local reset failed.");
             });
         // Cluster membership may change between runs; persistence identity must not.
         var clusterId = options.ClusterId ?? builder.Configuration[IntoChatOSHostingOptions.ClusterIdKey]
@@ -98,7 +103,7 @@ public static class IntoChatOSHostingExtensions
         });
         // Development clustering advertises localhost gateways. Local executables must bind
         // that address too, rather than Orleans selecting a VPN/container adapter address.
-        if (brain.Clustering is null && builder.Resource is ProjectResource or ExecutableResource)
+        if (brain.Clustering is null && builder.Resource is ProjectResource or ExecutableResource or global::Aspire.Hosting.Dotnet.DotnetProjectResource)
         {
             builder.WithEnvironment("Orleans__Endpoints__AdvertisedIPAddress", "127.0.0.1");
             // Orleans system-target addresses carry the real port; a TCP proxy port cannot

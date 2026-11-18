@@ -11,6 +11,6 @@ public static class InoLinks
     {
         ArgumentNullException.ThrowIfNull(services);
         var records = await SiloNeurons.Get<IInoRecords>(services, $"{brain}/{IInoRecords.Key}").Read();
-        return JsonSerializer.Serialize(records.Links, JsonSerializerOptions.Web);
+        return System.Text.Encoding.UTF8.GetString(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(records.Links, typeof(InoLink[])));
     }
 }

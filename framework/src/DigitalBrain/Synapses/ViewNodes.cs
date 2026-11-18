@@ -77,7 +77,8 @@ internal static class ViewNodes
             foreach (var key in byKeys) { payload.Remove(key); }
         }
         if (by is not null) { payload[By] = by; }
-        return JsonSerializer.SerializeToElement(payload);
+        using var doc = JsonDocument.Parse(payload.ToJsonString());
+        return doc.RootElement.Clone();
     }
 
     // Whether any emit (or field onSubmit) in the view declares the host-reserved "by" in its args.

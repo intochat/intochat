@@ -23,6 +23,28 @@ public static class RuntimeProtocol
     /// </summary>
     public static void Register(IJsonTypeInfoResolver resolver) => Resolver.Register(resolver);
 
+    /// <summary>Encodes <paramref name="value"/> to a self-owned <see cref="JsonElement"/> using AOT-safe reflection when dynamic code is unavailable.</summary>
+    public static JsonElement SerializeToElement(object? value, Type type)
+        => PooledJson.Encode(value, type);
+
+    /// <summary>Encodes <paramref name="value"/> to UTF-8 JSON bytes using AOT-safe reflection when dynamic code is unavailable.</summary>
+    public static byte[] SerializeToUtf8Bytes(object? value, Type type)
+        => !System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported
+            ? RuntimeTypeInfoResolver.SerializeAotBytes(value, type)
+            : JsonSerializer.SerializeToUtf8Bytes(value, type, OptionsFor(value?.GetType() ?? type));
+
+    /// <summary>Decodes UTF-8 JSON bytes to <paramref name="type"/> using AOT-safe reflection when dynamic code is unavailable.</summary>
+    public static object? Deserialize(ReadOnlySpan<byte> utf8Json, Type type)
+        => !System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported
+            ? RuntimeTypeInfoResolver.DeserializeAotSpan(utf8Json, type)
+            : JsonSerializer.Deserialize(utf8Json, type, OptionsFor(type));
+
+    /// <summary>Decodes a <see cref="JsonElement"/> to <paramref name="type"/> using AOT-safe reflection when dynamic code is unavailable.</summary>
+    public static object? Deserialize(JsonElement element, Type type)
+        => !System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported
+            ? RuntimeTypeInfoResolver.DeserializeAotElement(element, type)
+            : element.Deserialize(type, OptionsFor(type));
+
     private static readonly ConcurrentDictionary<AssemblyLoadContext, JsonSerializerOptions> PerContext = new();
 
     /// <summary>

@@ -10,19 +10,14 @@ namespace IntoChat.OS.Apps;
 // Emits<TSignal>(appName, signal) for strongly typed screen reactions, Intent for what the client does itself.
 public static class AppSignals
 {
-    private static readonly JsonSerializerOptions EmitJson = new(JsonSerializerDefaults.Web)
-    {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
-
     public static Emit Emit(string owner, string signal, params string[] args)
     {
         var normalizedOwner = owner.StartsWith("app.", StringComparison.Ordinal) || owner.Contains('/') ? owner : "app." + owner;
         return new(normalizedOwner, signal, args.Length switch
         {
             0 => null,
-            1 => JsonSerializer.SerializeToElement(args[0]),
-            _ => JsonSerializer.SerializeToElement(args),
+            1 => DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(args[0], typeof(string)),
+            _ => DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(args, typeof(string[])),
         });
     }
 
@@ -33,7 +28,35 @@ public static class AppSignals
     {
         ArgumentNullException.ThrowIfNull(signal);
         var owner = appName.StartsWith("app.", StringComparison.Ordinal) || appName.Contains('/') ? appName : "app." + appName;
-        return new Emit(owner, AliasOf(typeof(TSignal)), JsonSerializer.SerializeToElement(signal, signal.GetType(), EmitJson));
+        var encoded = DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(signal, signal.GetType());
+        return new Emit(owner, AliasOf(typeof(TSignal)), StripNullProperties(encoded));
+    }
+
+    private static JsonElement StripNullProperties(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object) { return element; }
+        var hasNull = false;
+        foreach (var prop in element.EnumerateObject())
+        {
+            if (prop.Value.ValueKind == JsonValueKind.Null) { hasNull = true; break; }
+        }
+        if (!hasNull) { return element; }
+
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>(128);
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            foreach (var prop in element.EnumerateObject())
+            {
+                if (prop.Value.ValueKind != JsonValueKind.Null)
+                {
+                    prop.WriteTo(writer);
+                }
+            }
+            writer.WriteEndObject();
+        }
+        using var doc = JsonDocument.Parse(buffer.WrittenMemory);
+        return doc.RootElement.Clone();
     }
 
     public static Intent Copy(string text) => new(IntentKind.Copy, text);

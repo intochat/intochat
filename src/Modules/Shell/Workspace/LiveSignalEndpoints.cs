@@ -109,15 +109,13 @@ internal static class LiveSignalEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
         => OsBrainRoutes.Group(endpoints).MapGet("/live", Live);
 
-    private static async Task Live(HttpContext http, ILoggerFactory logs, CancellationToken ct)
+    private static async Task<IResult> Live(HttpContext http, ILoggerFactory logs, CancellationToken ct)
     {
         var brain = BrainEdge.Open(http.RequestServices, BrainScope.CurrentId());
         var (selected, error) = Select(http.Request.Query["type"].Where(name => !string.IsNullOrEmpty(name)).Select(name => name!));
         if (error is not null)
         {
-            http.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await http.Response.WriteAsJsonAsync(new { error }, ct);
-            return;
+            return Results.BadRequest(new { error });
         }
         http.Response.ContentType = "text/event-stream";
         http.Response.Headers.CacheControl = "no-cache";
@@ -127,6 +125,7 @@ internal static class LiveSignalEndpoints
             await http.Response.WriteAsync("data: " + envelope + "\n\n", ct);
             await http.Response.Body.FlushAsync(ct);
         }
+        return Results.Empty;
     }
 
     internal static (LiveFeed[] Feeds, string? Error) Select(IEnumerable<string> types)

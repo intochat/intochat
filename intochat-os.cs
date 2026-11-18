@@ -9,6 +9,13 @@
 using System.Diagnostics;
 using IntoChat.OS.LocalSetup;
 
+switch (args)
+{
+    case ["package-release", .. var pkgArgs]: return await ReleasePackager.RunAsync(pkgArgs);
+    case ["package-dry-run", .. var dryArgs]: return await ReleasePackager.RunAsync(["--dry-run", .. dryArgs]);
+    case ["package-msix", .. var msixArgs]: return await MsixPackager.RunAsync(msixArgs);
+}
+
 var command = LauncherCommand.Parse(args);
 if (command.ImmediateExitCode is { } immediate) { Console.Error.WriteLine(command.Error); return immediate; }
 if (command.Kind == LauncherKind.Preflight) { return await Preflight.RunAsync(args, Console.Out, CancellationToken.None); }

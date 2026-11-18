@@ -85,7 +85,7 @@ public sealed record BoundCommand(
             Value: null,
             GuardReason: guardReason,
             Tooltip: tooltip);
-        var payload = JsonSerializer.SerializeToElement(command, RuntimeProtocol.OptionsFor(typeof(UiCommand)));
+        var payload = RuntimeProtocol.SerializeToElement(command, typeof(UiCommand));
         return new Emit(owner, UiCommand.SignalAlias, payload);
     }
 
@@ -107,15 +107,15 @@ public sealed record BoundCommand(
 
         if (!string.IsNullOrWhiteSpace(guardReason))
         {
-            map["guardReason"] = JsonSerializer.SerializeToElement(guardReason);
+            map["guardReason"] = RuntimeProtocol.SerializeToElement(guardReason, typeof(string));
         }
 
         if (!string.IsNullOrWhiteSpace(tooltip))
         {
-            map["tooltip"] = JsonSerializer.SerializeToElement(tooltip);
+            map["tooltip"] = RuntimeProtocol.SerializeToElement(tooltip, typeof(string));
         }
 
-        return emit with { Args = JsonSerializer.SerializeToElement(map) };
+        return emit with { Args = RuntimeProtocol.SerializeToElement(map, typeof(Dictionary<string, JsonElement>)) };
     }
 
     internal static Emit? AttachFieldMetadata(
@@ -151,30 +151,30 @@ public sealed record BoundCommand(
 
         if (hasExplicitLabel)
         {
-            map["uiLabel"] = JsonSerializer.SerializeToElement(explicitLabel ?? string.Empty);
+            map["uiLabel"] = RuntimeProtocol.SerializeToElement(explicitLabel ?? string.Empty, typeof(string));
         }
 
         if (controlledValue is not null)
         {
-            map["uiValue"] = JsonSerializer.SerializeToElement(controlledValue);
+            map["uiValue"] = RuntimeProtocol.SerializeToElement(controlledValue, typeof(string));
         }
 
         if (!string.IsNullOrWhiteSpace(helper))
         {
-            map["uiHelper"] = JsonSerializer.SerializeToElement(helper);
+            map["uiHelper"] = RuntimeProtocol.SerializeToElement(helper, typeof(string));
         }
 
         if (!string.IsNullOrWhiteSpace(error))
         {
-            map["uiError"] = JsonSerializer.SerializeToElement(error);
+            map["uiError"] = RuntimeProtocol.SerializeToElement(error, typeof(string));
         }
 
         if (liveChange)
         {
-            map["uiLive"] = JsonSerializer.SerializeToElement(true);
+            map["uiLive"] = RuntimeProtocol.SerializeToElement(true, typeof(bool));
         }
 
-        return baseEmit with { Args = JsonSerializer.SerializeToElement(map) };
+        return baseEmit with { Args = RuntimeProtocol.SerializeToElement(map, typeof(Dictionary<string, JsonElement>)) };
     }
 }
 
@@ -431,7 +431,7 @@ public static class CommandBinding
     private static JsonElement SerializeArgument(object? value, Type declaredType)
     {
         var type = value?.GetType() ?? declaredType;
-        return JsonSerializer.SerializeToElement(value, type, RuntimeProtocol.OptionsFor(type));
+        return RuntimeProtocol.SerializeToElement(value, type);
     }
 
     internal static string FormatCanonicalArg(object? value, JsonElement serialized)

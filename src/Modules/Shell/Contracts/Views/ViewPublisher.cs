@@ -13,7 +13,7 @@ public sealed class ViewPublisher(IView view, long generation)
     public async Task Publish(View next)
     {
         ArgumentNullException.ThrowIfNull(next);
-        var serialized = JsonSerializer.Serialize(next, RuntimeProtocol.OptionsFor(typeof(View)));
+        var serialized = System.Text.Encoding.UTF8.GetString(RuntimeProtocol.SerializeToUtf8Bytes(next, typeof(View)));
         await gate.WaitAsync();
         try
         {

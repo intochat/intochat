@@ -29,10 +29,17 @@ internal static class NeuronHosting
 
     /// <summary>A typed proxy, from outside any neuron (or from the neuron bound into <paramref name="services"/>), to the neuron <paramref name="id"/> hosted in the silo of <paramref name="services"/>.</summary>
     internal static T Get<T>(IServiceProvider services, NeuronId id) where T : class
-        => NeuronProxy.Create<T>(id, new OrleansInvocationSink(services.GetRequiredService<IGrainFactory>(), services.GetService<NeuronTypeRegistry>(),
+        => NeuronProxy.Create<T>(id, Sink(services));
+
+    /// <summary>A proxy for a contract known only at runtime.</summary>
+    internal static object Get(IServiceProvider services, Type contract, NeuronId id)
+        => NeuronProxy.Create(contract, id, Sink(services));
+
+    private static OrleansInvocationSink Sink(IServiceProvider services)
+        => new(services.GetRequiredService<IGrainFactory>(), services.GetService<NeuronTypeRegistry>(),
             services.GetService<HostedCaller>()?.Id,
             Access.OrleansCallerAmbient.Instance, asKernel: false,
-            services.GetService<NeuronStreamAuthorizer>() is { } gate ? (target, call) => gate.Authorize(services, target, call) : null));
+            services.GetService<NeuronStreamAuthorizer>() is { } gate ? (target, call) => gate.Authorize(services, target, call) : null);
 
     /// <summary>A typed proxy executing under kernel authority in the target's brain.</summary>
     internal static T AsKernel<T>(IServiceProvider services, NeuronId id) where T : class

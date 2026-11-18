@@ -77,7 +77,6 @@ public sealed class ArmAzure : IAzureArm
             NetworkSecurityGroupSpec securityGroup => await EnsureNetworkSecurityGroup(rg, securityGroup, location, ct),
             VirtualNetworkSpec network => await EnsureVirtualNetwork(rg, network, location, ct),
             SubnetSpec subnet => await EnsureSubnet(rg, subnet, ct),
-            SessionPoolSpec pool => await EnsureSessionPool(rg, pool, location, ct),
             RegistrySpec registry => await EnsureRegistry(rg, registry, location, ct),
             PostgresSpec postgres => await EnsurePostgres(rg, postgres, location, ct),
             PostgresDatabaseSpec database => await EnsurePostgresDatabase(rg, database, ct),
@@ -560,55 +559,6 @@ public sealed class ArmAzure : IAzureArm
         }
         var made = await network.GetSubnets().CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
         return Ref(made.Value.Id, spec, spec.Name);
-    }
-
-    private static async Task<ResourceRef> EnsureSessionPool(ResourceGroupResource rg, SessionPoolSpec spec, AzureLocation location, CancellationToken ct)
-    {
-        var environment = (await rg.GetContainerAppManagedEnvironmentAsync(spec.Environment, ct)).Value;
-        var identity = (await rg.GetUserAssignedIdentityAsync(spec.Identity, ct)).Value;
-        var data = new SessionPoolData(location)
-        {
-            EnvironmentId = environment.Id,
-            ContainerType = ContainerType.CustomContainer,
-            PoolManagementType = PoolManagementType.Dynamic,
-            Identity = new ManagedServiceIdentity(ManagedServiceIdentityType.UserAssigned),
-            ScaleConfiguration = new SessionPoolScaleConfiguration { MaxConcurrentSessions = spec.MaxSessions, ReadySessionInstances = spec.ReadySessions },
-            // A session lives while its caller needs it; the daily recycle is the pool's cap.
-            DynamicPoolLifecycleConfiguration = new SessionPoolLifecycleConfiguration
-            {
-                LifecycleType = SessionPoolLifecycleType.OnContainerExit,
-                MaxAlivePeriodInSeconds = spec.MaxAliveSeconds,
-            },
-            SessionNetworkStatus = spec.Egress ? SessionNetworkStatus.EgressEnabled : SessionNetworkStatus.EgressDisabled,
-        };
-        data.Identity.UserAssignedIdentities[identity.Id] = new UserAssignedIdentity();
-        data.ManagedIdentitySettings.Add(new SessionPoolManagedIdentitySetting(identity.Id.ToString())
-        {
-            Lifecycle = ContainerAppIdentitySettingsLifeCycle.None,
-        });
-        var template = new CustomContainerTemplate
-        {
-            IngressTargetPort = spec.TargetPort,
-            RegistryCredentials = new SessionRegistryCredentials { Server = spec.RegistryServer, Identity = identity.Id.ToString() },
-        };
-        template.Containers.Add(new SessionContainer
-        {
-            Name = "session",
-            Image = spec.Image,
-            Resources = new SessionContainerResources { Cpu = spec.Cpu, Memory = spec.Memory },
-        });
-        data.CustomContainerTemplate = template;
-        Apply(spec, data.Tags);
-        var pools = rg.GetSessionPools();
-        var existing = await pools.GetIfExistsAsync(spec.Name, ct);
-        using var desiredJson = JsonDocument.Parse(ModelReaderWriter.Write(data).ToString());
-        using var existingJson = existing.HasValue ? JsonDocument.Parse(ModelReaderWriter.Write(existing.Value!.Data).ToString()) : null;
-        if (existingJson is not null && MatchesDesired(desiredJson.RootElement, existingJson.RootElement))
-        {
-            return Ref(existing.Value!.Id, spec, spec.Name) with { Endpoint = existing.Value!.Data.PoolManagementEndpoint?.AbsoluteUri ?? "" };
-        }
-        var made = await pools.CreateOrUpdateAsync(WaitUntil.Completed, spec.Name, data, ct);
-        return Ref(made.Value.Id, spec, spec.Name) with { Endpoint = made.Value.Data.PoolManagementEndpoint?.AbsoluteUri ?? "" };
     }
 
     private async Task<ResourceRef> EnsureGrant(ResourceGroupResource rg, RoleGrantSpec spec, CancellationToken ct)

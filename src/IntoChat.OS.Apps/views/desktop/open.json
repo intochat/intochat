@@ -195,8 +195,8 @@
                     "owner": "app.desktop",
                     "signal": "desktop.open",
                     "args": {
-                      "App": "ino",
-                      "View": null
+                      "app": "ino",
+                      "view": null
                     }
                   },
                   "intent": null,
@@ -214,8 +214,8 @@
                     "owner": "app.desktop",
                     "signal": "desktop.open",
                     "args": {
-                      "App": "files",
-                      "View": null
+                      "app": "files",
+                      "view": null
                     }
                   },
                   "intent": null,
@@ -247,7 +247,7 @@
                     "owner": "app.desktop",
                     "signal": "desktop.newtab",
                     "args": {
-                      "WindowId": null
+                      "windowId": null
                     }
                   },
                   "intent": null,
@@ -285,8 +285,8 @@
                     "owner": "app.desktop",
                     "signal": "desktop.open",
                     "args": {
-                      "App": "friends",
-                      "View": null
+                      "app": "friends",
+                      "view": null
                     }
                   },
                   "intent": null,

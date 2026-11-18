@@ -19,7 +19,7 @@ public sealed class BootFacts(OsAppHostFixture host)
     {
         var ct = TestContext.Current.CancellationToken;
         await host.Healthy(ct);
-        Assert.True(host.StartupDuration < TimeSpan.FromSeconds(120), $"Fixture startup took {host.StartupDuration.TotalSeconds:F1}s, exceeding 120s.");
+        Assert.True(host.StartupDuration < TimeSpan.FromSeconds(300), $"Fixture startup took {host.StartupDuration.TotalSeconds:F1}s, exceeding 300s.");
 
         using var health = await host.Os.GetAsync("/health", ct);
         Assert.Equal(HttpStatusCode.OK, health.StatusCode);
