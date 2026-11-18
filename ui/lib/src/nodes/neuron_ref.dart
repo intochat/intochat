@@ -7,6 +7,7 @@ import '../theme/ui_colors.dart';
 import '../theme/ui_theme.dart';
 import '../theme/ui_tokens.dart';
 import '../theme/wire_node_values.dart';
+import '../composition/slot_route.dart';
 import 'node_context.dart';
 
 /// Maximum nested `Slot` (`NeuronRef`) composition depth before halting recursion.
@@ -65,9 +66,12 @@ Widget renderNeuronRef(NeuronRefNode node, NodeContext ctx) {
       refKind: node.refKind,
       neuronUri: rawUri,
     );
-    if (ctx.slotAncestors.contains(rawUri) ||
-        ctx.slotAncestors.contains(resolved) ||
-        resolved == ctx.view) {
+    // A `slot` names only its key: its host guards cycles by key path.
+    final keyed = isChildSlot(node.refKind, rawUri);
+    if (!keyed &&
+        (ctx.slotAncestors.contains(rawUri) ||
+            ctx.slotAncestors.contains(resolved) ||
+            resolved == ctx.view)) {
       return SlotGuardNotice(
         neuronUri: node.neuronUri,
         message: 'This component cannot be displayed.',

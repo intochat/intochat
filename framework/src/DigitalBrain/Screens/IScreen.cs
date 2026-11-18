@@ -71,6 +71,16 @@ public interface IScreen
     /// </summary>
     /// <exception cref="ActivationRefusedException">The current view names no slot with that key (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
     Task Dispatch(DigitalBrain.UI.Command command);
+
+    /// <summary>
+    /// Reads the view of the child at a key path ("a" or "a/b") of this screen, routed hop by hop as <see cref="Dispatch"/> routes a
+    /// command: each parent resolves only a key its current view shows. A client reads a child only through its top-level screen.
+    /// </summary>
+    /// <param name="path">The key path, relative to this screen.</param>
+    /// <exception cref="ActivationRefusedException">A hop names no slot of its view (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
+    /// <exception cref="ArgumentException">The path is empty or has an empty, "." or ".." hop.</exception>
+    [ReadOnlyCall]
+    Task<PublishedView?> ReadSlot(string path);
 }
 
 /// <summary>

@@ -181,6 +181,10 @@ internal sealed class UnitNeuron<TState> : Neuron<StoredUnit<TState>>, ISynapseR
             : Task.FromException(new ActivationRefusedException(ActivationRefusedException.UnknownChild));
     }
 
+    // A unit has no slots: no key path reaches a child.
+    public Task<PublishedView?> ReadSlot(string path)
+        => Task.FromException<PublishedView?>(new ActivationRefusedException(ActivationRefusedException.UnknownChild));
+
     public Task Request(string signal, JsonElement? args = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(signal);

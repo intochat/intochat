@@ -29,7 +29,7 @@ Future<void> _pump(WidgetTester tester, Node node, NodeContext ctx) =>
     );
 
 const _parent = 'local/apps/settings/view';
-const _child = 'local/control.checkBox/local/apps.settings/main/terms';
+const _child = 'local/apps/settings/slots/terms';
 
 // A parent view whose slot carries [props], and the check box child's own view.
 Widget _host(Map<String, dynamic> props, List<Map<String, dynamic>> sent) =>
@@ -56,7 +56,7 @@ Widget _host(Map<String, dynamic> props, List<Map<String, dynamic>> sent) =>
                     {
                       'kind': 'neuronRef',
                       'refKind': 'slot',
-                      'neuronUri': _child,
+                      'neuronUri': 'terms',
                       'props': props,
                     },
                   ],

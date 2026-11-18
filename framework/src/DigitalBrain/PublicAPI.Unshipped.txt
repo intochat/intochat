@@ -4480,3 +4480,5 @@ DigitalBrain.UI.Commands.ImportMessages.Deconstruct(out System.Collections.Gener
 DigitalBrain.UI.Commands.AppendMessage.AppendMessage(DigitalBrain.UI.ThreadMessage! Message) -> void
 DigitalBrain.UI.Commands.UpdateMessage.UpdateMessage(string! Id, DigitalBrain.UI.ThreadMessagePatch! Patch) -> void
 DigitalBrain.UI.Commands.ImportMessages.ImportMessages(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ThreadMessage?>? Messages, bool Replace = false) -> void
+DigitalBrain.IScreen.ReadSlot(string! path) -> System.Threading.Tasks.Task<DigitalBrain.Units.PublishedView?>!
+DigitalBrain.Screen<TState>.ReadSlot(string! path) -> System.Threading.Tasks.Task<DigitalBrain.Units.PublishedView?>!

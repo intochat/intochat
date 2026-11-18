@@ -1,5 +1,6 @@
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
+import 'slot_route.dart';
 import 'view_host.dart';
 
 import 'package:flutter/material.dart';
@@ -67,10 +68,8 @@ class _ApplicationSurfaceState extends State<ApplicationSurface> {
         key: ValueKey('${widget.workspace}/${widget.application}'),
         kind: surface['kind'] as String,
         name: surface['name'] as String,
-        load: (kind, name) => widget.client.appRequest(
-          widget.workspace,
-          'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
-        ),
+        load: (kind, name) =>
+            widget.client.appRequest(widget.workspace, appNodePath(kind, name)),
         onAction: (event) => widget.client.uiEvent(widget.workspace, event),
         onActivate: widget.onActivate,
         knowsApp: widget.knowsApp,

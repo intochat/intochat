@@ -50,9 +50,12 @@ void main() {
     await ctx.act('.', 'toggle.set', const {});
   });
 
-  testWidgets('slot redraws only on its own StateChanged', (tester) async {
+  testWidgets('a slot is read by its app key path and redraws on its own', (
+    tester,
+  ) async {
     const parent = 'local/apps/settings/view';
-    const child = 'local/app.toggle/local/app.settings/default/dark-mode';
+    const child = 'local/apps/settings/slots/dark-mode';
+    final kinds = <String, String>{};
     final streams = {
       parent: StreamController<void>.broadcast(),
       child: StreamController<void>.broadcast(),
@@ -75,6 +78,7 @@ void main() {
             onAction: (_) async => null,
             load: (kind, name) async {
               loads[name] = (loads[name] ?? 0) + 1;
+              kinds[name] = kind;
               return switch (name) {
                 parent => {
                   'generation': 1,
@@ -87,7 +91,7 @@ void main() {
                         {
                           'kind': 'neuronRef',
                           'refKind': 'slot',
-                          'neuronUri': child,
+                          'neuronUri': 'dark-mode',
                         },
                       ],
                     },
@@ -115,8 +119,11 @@ void main() {
     final parentLoads = loads[parent];
     final childLoads = loads[child]!;
 
+    expect(kinds[child], 'slot');
+
+    // A slot child has no watchable name: it reloads on its refresh timer.
     on = true;
-    streams[child]!.add(null);
+    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
 
     expect(find.text('Dark: on'), findsOneWidget);
@@ -126,8 +133,8 @@ void main() {
 }
 
 const _root = 'local/apps/settings/view';
-const _slot = 'local/app.toggle/local/app.settings/default/dark-mode';
-const _nested = 'local/app.accent/$_slot/accent';
+const _slot = 'local/apps/settings/slots/dark-mode';
+const _nested = 'local/apps/settings/slots/dark-mode/accent';
 
 Map<String, dynamic> _view(String title, List<Map<String, dynamic>> children) =>
     {
@@ -150,11 +157,15 @@ Widget _host(Future<Object?> Function(Map<String, dynamic>) onAction) =>
           onAction: onAction,
           load: (kind, name) async => switch (name) {
             _root => _view('Settings', [
-              {'kind': 'neuronRef', 'refKind': 'slot', 'neuronUri': _slot},
+              {
+                'kind': 'neuronRef',
+                'refKind': 'slot',
+                'neuronUri': 'dark-mode',
+              },
             ]),
             _slot => _view('Dark', [
               {'kind': 'text', 'value': 'Dark'},
-              {'kind': 'neuronRef', 'refKind': 'slot', 'neuronUri': _nested},
+              {'kind': 'neuronRef', 'refKind': 'slot', 'neuronUri': 'accent'},
             ]),
             _nested => _view('Accent', [
               {'kind': 'text', 'value': 'Accent'},

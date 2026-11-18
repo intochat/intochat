@@ -85,6 +85,11 @@ Widget keyedControl(String? key, Widget child, {String? automationName}) {
       ? wrapped
       : KeyedSubtree(
           key: ValueKey(key),
-          child: Semantics(identifier: 'key:$key', container: true, child: wrapped),
+          child: Semantics(
+            identifier: 'key:$key',
+            container: true,
+            explicitChildNodes: true,
+            child: wrapped,
+          ),
         );
 }

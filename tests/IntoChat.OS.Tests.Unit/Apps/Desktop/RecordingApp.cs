@@ -39,6 +39,8 @@ internal sealed class RecordingApp : Neuron, IScreen, IApp
         return Task.CompletedTask;
     }
 
+    public Task<PublishedView?> ReadSlot(string path) => Task.FromException<PublishedView?>(new ActivationRefusedException(ActivationRefusedException.UnknownChild));
+
     public Task Dispatch(DigitalBrain.UI.Command command) => Request(command.Signal, command.Args);
 
     public Task<AppSnapshot> Read() => throw new NotSupportedException();

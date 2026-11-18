@@ -7,7 +7,9 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import '../components/kit/kit_toast.dart';
 import '../theme/wire_node_values.dart';
 
-/// Reads one node of the brain: `GET /apps/node?kind=…&name=…`.
+/// Reads one node of the brain: `GET /apps/node?kind=…&name=…`, or for a
+/// `slot` (named `{brain}/apps/{app}/slots/{path}`) its app's key path
+/// `GET /apps/{app}/slots/{path}` (see `appNodePath` in slot_route.dart).
 typedef NeuronLoader = Future<Map<String, dynamic>> Function(
   String kind,
   String name,

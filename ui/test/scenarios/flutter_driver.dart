@@ -49,8 +49,8 @@ class UiScenario {
 }
 
 /// A page as the kernel showed it: its top-level view and the root view of
-/// every slot child it shows, keyed by the child's `neuronUri`
-/// (`{"view": {...}, "slots": {uri: {"root": ...}}}`).
+/// every slot child it shows, keyed by the slot's key path
+/// (`{"view": {...}, "slots": {"nav": {"root": ...}, "a/b": ...}}`).
 class PageViews {
   PageViews(this.view, this.slots);
 
@@ -116,7 +116,16 @@ class ReplayHost {
     if (name == viewName(scenario.appId)) {
       return {'generation': revision, 'view': page.view};
     }
-    final slot = page.slots[name];
+    // A slot child is read by its app's key path (`{root}/slots/{path}`), as
+    // `GET /apps/{app}/slots/{path}` serves it; the recording keys slots by path.
+    final prefix =
+        '${viewName(scenario.appId).replaceFirst(RegExp(r'/view$'), '')}/slots/';
+    if (kind != 'slot' || !name.startsWith(prefix)) {
+      throw StateError(
+        '${scenario.name} reads "$kind" "$name" outside the slot route.',
+      );
+    }
+    final slot = page.slots[name.substring(prefix.length)];
     if (slot is Map) {
       return {'generation': revision, 'view': Map<String, dynamic>.from(slot)};
     }

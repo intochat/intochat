@@ -685,7 +685,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 load: (kind, name) =>
                                     widget.programmingClient!.appRequest(
                                       _brain!,
-                                      'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
+                                      appNodePath(kind, name),
                                     ),
                                 watch: (kind, name) => widget.programmingClient!
                                     .watchNode(_brain!, kind, name)
@@ -757,7 +757,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 load: (kind, name) =>
                                     widget.programmingClient!.appRequest(
                                       _brain!,
-                                      'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
+                                      appNodePath(kind, name),
                                     ),
                                 // Reads once per change signal instead of every 2 s.
                                 watch: (kind, name) => widget.programmingClient!

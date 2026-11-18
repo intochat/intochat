@@ -147,12 +147,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
                 var payload = ViewNodes.Payload(command.Args, fieldValue: null, by: null);
                 return command.Props is { } props && PropsFromParent(command.Signal) ? HandleWithProps(command.Signal, payload, props) : Handle(command.Signal, payload);
             }
-            var path = command.Target.StartsWith("./", StringComparison.Ordinal) ? command.Target[2..] : command.Target;
-            var slash = path.IndexOf('/', StringComparison.Ordinal);
-            var key = slash < 0 ? path : path[..slash];
-            var rest = slash < 0 ? "." : path[(slash + 1)..];
-            ScreenExtensions.CheckChildKey(key);
-            if (!_children.TryGetValue(key, out var slot)) { throw new ActivationRefusedException(ActivationRefusedException.UnknownChild); }
+            var slot = Hop(command.Target, out var rest);
             // The parent decides whether a slot is enabled: its props in the current view gate every command routed to the child.
             if (slot.Props is { IsEnabled: false }) { throw new ActivationRefusedException(ControlProps.Disabled); }
             // Props that gate commands (a selection's items, its mode) judge a command addressed to their own slot before the child is reached.
@@ -160,7 +155,6 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
             {
                 throw new ActivationRefusedException(refusal);
             }
-            if (rest != "." && rest.Split('/').Any(hop => hop is "" or "." or "..")) { throw new ArgumentException($"Target path '{command.Target}' has an empty, '.' or '..' hop.", nameof(command)); }
             // Each hop is the next parent's Dispatch, which applies its own gate; awaited, so the child's failure reaches the caller.
             // The last hop carries this screen's props for the slot (and only those: a sender's own Props never pass through).
             return Get<IScreen>(slot.Id).Dispatch(command with
@@ -173,6 +167,36 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         {
             return Task.FromException(error);
         }
+    }
+
+    /// <inheritdoc />
+    public Task<PublishedView?> ReadSlot(string path)
+    {
+        try
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(path);
+            var slot = Hop(path, out var rest);
+            var child = Get<IScreen>(slot.Id);
+            return rest == "." ? child.Read() : child.ReadSlot(rest);
+        }
+        catch (Exception error) when (error is ArgumentException or ActivationRefusedException)
+        {
+            return Task.FromException<PublishedView?>(error);
+        }
+    }
+
+    // One hop of a key path, the routing Send and ReadSlot share: the first key must name a slot of the current view; the rest
+    // ("." when none) is for that child to resolve, and none of its hops may be empty, "." or "..".
+    private SlotEntry Hop(string target, out string rest)
+    {
+        var path = target.StartsWith("./", StringComparison.Ordinal) ? target[2..] : target;
+        var slash = path.IndexOf('/', StringComparison.Ordinal);
+        var key = slash < 0 ? path : path[..slash];
+        rest = slash < 0 ? "." : path[(slash + 1)..];
+        ScreenExtensions.CheckChildKey(key);
+        if (!_children.TryGetValue(key, out var slot)) { throw new ActivationRefusedException(ActivationRefusedException.UnknownChild); }
+        if (rest != "." && rest.Split('/').Any(hop => hop is "" or "." or "..")) { throw new ArgumentException($"Target path '{target}' has an empty, '.' or '..' hop.", nameof(target)); }
+        return slot;
     }
 
     /// <summary>

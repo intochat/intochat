@@ -50,6 +50,8 @@ internal static class AppUiEndpoints
             => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault(), HttpCaller.Current(http)));
         apps.MapPost("/event", (HttpContext http, UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
             => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct, HttpCaller.Current(http), logger: logger));
+        apps.MapGet("/{name}/slots/{**path}", (HttpContext http, string name, string path, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
+            => ReadSlot(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault()));
         OsBrainRoutes.Group(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
             => Act(input, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger));
 
@@ -94,6 +96,45 @@ internal static class AppUiEndpoints
             return Results.UnprocessableEntity(new { error = error.Message, reason = "HandlerFailed" });
         }
         return Results.Ok(new { delivered = true });
+    }
+
+    // GET /apps/{name}/slots/{path}: the view of a slot child, reached as /act reaches it: through the top-level screen {scope}/apps/{name}
+    // and its slot table, one key per hop ("a/b"), never by the child's neuron id (which the response does not carry either: its own
+    // slots are named by key). Responses: 200 the view; 400 a malformed path; 404 {reason: UnknownChild} a key the view does not show;
+    // 409 {reason: NotLoaded} the app's host is not loaded.
+    internal static async Task<IResult> ReadSlot(string name, string path, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
+        IHostedAppTypes? hosted = null)
+    {
+        if (caller?.For?.Principal is not { Length: > 0 }) { throw new UnauthorizedAccessException("Only a signed-in person reads a screen."); }
+        // The brain route admitted the caller to this brain; a caller acting in another brain never reads its screens.
+        if (!BrainId.IsValid(scope) || caller.Brain != new BrainId(scope)) { throw new UnauthorizedAccessException("The screen belongs to another brain."); }
+        var neuron = $"{scope}/apps/{name}";
+        if (string.IsNullOrWhiteSpace(name) || name.Contains('/', StringComparison.Ordinal) || !OwnsUi(scope, neuron + "/view"))
+        {
+            throw new UnauthorizedAccessException($"{neuron} is not a screen of this brain.");
+        }
+        var alias = ScreenAlias(scope, neuron) ?? throw new UnauthorizedAccessException($"{neuron} is not a screen of this brain.");
+        if (string.IsNullOrWhiteSpace(path) || path.Split('/').Any(hop => hop.Length == 0 || hop is "." or ".." || hop.Contains(':', StringComparison.Ordinal)))
+        {
+            return Results.BadRequest(new { error = "A slot path is one or more keys separated by '/'." });
+        }
+        if (AppOf(scope, neuron) is { } appKey && !(hosted?.IsHostLoaded(appKey) ?? true))
+        {
+            return Results.Conflict(new { error = $"{neuron} is not loaded.", reason = "NotLoaded" });
+        }
+        try
+        {
+            var view = await brain.Get<IScreen>(new NeuronId(new BrainId(scope), alias, "default")).ReadSlot(path).WaitAsync(ct);
+            return Results.Json(SlotKeys.Hide(view), ViewJson);
+        }
+        catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.UnknownChild)
+        {
+            return Results.NotFound(new { error = $"{neuron} shows no slot '{path}'.", reason = refused.Reason });
+        }
+        catch (ArgumentException error)
+        {
+            return Results.BadRequest(new { error = error.Message });
+        }
     }
 
     // Dart mirror: NodeContext.act in ui/lib/src/nodes/node_context.dart.
@@ -270,7 +311,7 @@ internal static class AppUiEndpoints
                         log.LogSwallowed(error, "Screen view for unit could not be read.");
                     }
                 }
-                return Results.Json(unitView, ViewJson);
+                return Results.Json(SlotKeys.Hide(unitView), ViewJson);
             }
             if (ScreenAlias(scope, name) is { } screenAlias)
             {
@@ -284,7 +325,7 @@ internal static class AppUiEndpoints
                         var published = await brain.Get<IScreen>(screenId).Read().WaitAsync(ct);
                         if (published is not null)
                         {
-                            return Results.Json(published, ViewJson);
+                            return Results.Json(SlotKeys.Hide(published), ViewJson);
                         }
                     }
                     catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
@@ -294,7 +335,7 @@ internal static class AppUiEndpoints
                 }
                 else if (await brain.Get<IView>(name).Read().WaitAsync(ct) is { } directAppView)
                 {
-                    return Results.Json(directAppView, ViewJson);
+                    return Results.Json(SlotKeys.Hide(directAppView), ViewJson);
                 }
                 var candidateUnit = screenAlias["app.".Length..];
                 try
@@ -302,7 +343,7 @@ internal static class AppUiEndpoints
                     var unitFallback = await brain.Get<IViewReader>(UnitState(scope, candidateUnit)).Read(candidateUnit).WaitAsync(ct);
                     if (unitFallback is not null)
                     {
-                        return Results.Json(unitFallback, ViewJson);
+                        return Results.Json(SlotKeys.Hide(unitFallback), ViewJson);
                     }
                 }
                 catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)
@@ -310,7 +351,7 @@ internal static class AppUiEndpoints
                     log.LogSwallowed(error, "Unit view fallback could not be read.");
                 }
             }
-            return Results.Json(await brain.Get<IView>(name).Read().WaitAsync(ct), ViewJson);
+            return Results.Json(SlotKeys.Hide(await brain.Get<IView>(name).Read().WaitAsync(ct)), ViewJson);
         }
         return kind switch
         {

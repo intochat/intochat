@@ -51,35 +51,36 @@ internal sealed class KernelDriver(InstalledApp<UiKitApp> app) : IScenarioDriver
     }
 
     // The page as the Flutter driver replays it: the top-level view and the root view of every slot child it shows (nested slots
-    // too, to the same depth a read draws), keyed by the child's neuron uri.
+    // too, to the same depth a read draws), keyed by the slot's key path, as GET /apps/{name}/slots/{path} serves them: slot refs name
+    // their key, never the child's neuron id.
     public async Task<JsonElement> Snapshot()
     {
         using var person = app.OS.Edge.Enter(app.OS.Edge.Person("local", "local", Brain));
         var view = await app.Screen.Read() ?? throw new InvalidOperationException("The UI Kit has no view.");
         var slots = new SortedDictionary<string, JsonElement>(StringComparer.Ordinal);
-        await Slots(view.View, slots, 0);
-        return JsonSerializer.SerializeToElement(new { view = view.View, slots });
+        await Slots(view.View, "", slots, 0);
+        return JsonSerializer.SerializeToElement(new { view = IntoChat.OS.Modules.Flutter.SlotKeys.Hide(view.View), slots });
     }
 
-    private async Task Slots(JsonElement json, SortedDictionary<string, JsonElement> slots, int depth)
+    private async Task Slots(JsonElement json, string path, SortedDictionary<string, JsonElement> slots, int depth)
     {
         switch (json.ValueKind)
         {
             case JsonValueKind.Object:
                 if (SlotOf(json) is { } slot)
                 {
-                    var uri = json.GetProperty("neuronUri").GetString()!;
-                    if (depth < MaxSlotDepth && !slots.ContainsKey(uri) && await ChildView(slot.Child) is { } child)
+                    var slotPath = path.Length == 0 ? slot.Key : path + "/" + slot.Key;
+                    if (depth < MaxSlotDepth && !slots.ContainsKey(slotPath) && await ChildView(slot.Child) is { } child)
                     {
-                        slots[uri] = JsonSerializer.SerializeToElement(new { root = child });
-                        await Slots(child, slots, depth + 1);
+                        slots[slotPath] = JsonSerializer.SerializeToElement(new { root = IntoChat.OS.Modules.Flutter.SlotKeys.Hide(child) });
+                        await Slots(child, slotPath, slots, depth + 1);
                     }
                     return;
                 }
-                foreach (var property in json.EnumerateObject()) { await Slots(property.Value, slots, depth); }
+                foreach (var property in json.EnumerateObject()) { await Slots(property.Value, path, slots, depth); }
                 break;
             case JsonValueKind.Array:
-                foreach (var item in json.EnumerateArray()) { await Slots(item, slots, depth); }
+                foreach (var item in json.EnumerateArray()) { await Slots(item, path, slots, depth); }
                 break;
         }
     }

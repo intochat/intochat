@@ -200,7 +200,7 @@ internal sealed partial class ScreenDirectoryNeuron(
                 if (pub is not null)
                 {
                     generation = pub.Generation;
-                    viewJson = await InlineSlotsAsync(pub.View);
+                    viewJson = SlotKeys.Hide(await InlineSlotsAsync(pub.View));
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -219,7 +219,7 @@ internal sealed partial class ScreenDirectoryNeuron(
                 if (pub is not null)
                 {
                     generation = pub.Generation;
-                    viewJson = pub.View;
+                    viewJson = SlotKeys.Hide(pub.View);
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -238,7 +238,7 @@ internal sealed partial class ScreenDirectoryNeuron(
                 if (unitView is not null)
                 {
                     generation = unitView.Generation;
-                    viewJson = unitView.View;
+                    viewJson = SlotKeys.Hide(unitView.View);
                     resolvedKind = "unit";
                 }
             }
@@ -306,7 +306,7 @@ internal sealed partial class ScreenDirectoryNeuron(
                         if (pub is not null)
                         {
                             generation = pub.Generation;
-                            viewJson = pub.View;
+                            viewJson = SlotKeys.Hide(pub.View);
                         }
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
