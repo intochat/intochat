@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using DigitalBrain.UI;
+using static IntoChat.OS.Architecture.Tests.Unit.NodeSchema;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -65,25 +66,8 @@ public sealed partial class DartNodeModelsFacts
         Assert.True(offenders.Count == 0, "View fixtures hold node kinds the generated models do not know:\n" + string.Join('\n', offenders.Distinct()));
     }
 
-    internal static (Type Type, string Kind)[] DerivedKinds() => [.. typeof(Node).GetCustomAttributes<JsonDerivedTypeAttribute>()
-        .Select(attribute => (attribute.DerivedType, (string)attribute.TypeDiscriminator!))];
-
-    private static string Normalize(string source)
+    internal static string Normalize(string source)
         => TrailingComma().Replace(Whitespace().Replace(source, ""), "$1");
-
-    internal static string DartName(Type type) => type == typeof(View) ? "AppView"
-        : typeof(Node).IsAssignableFrom(type) && !type.Name.EndsWith("Node", StringComparison.Ordinal) ? type.Name + "Node"
-        : type.Name;
-
-    private static readonly NullabilityInfoContext Nullability = new();
-
-    private static PropertyInfo[] Properties(Type type) => [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-        .Where(property => property.GetMethod is not null && property.Name != "EqualityContract"
-            && property.GetCustomAttribute<JsonIgnoreAttribute>() is not { Condition: JsonIgnoreCondition.Always })
-        .OrderBy(property => property.MetadataToken)];
-
-    private static string JsonName(PropertyInfo property)
-        => property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? JsonNamingPolicy.CamelCase.ConvertName(property.Name);
 
     private static string FieldName(PropertyInfo property)
     {
@@ -148,28 +132,6 @@ public sealed partial class DartNodeModelsFacts
             dart.Append("  );\n}\n\n");
         }
         return dart.ToString();
-    }
-
-    private static Type? Element(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IReadOnlyList<>)
-        ? type.GetGenericArguments()[0] : null;
-
-    private static bool IsNullable(PropertyInfo property) => Nullability.Create(property).ReadState == NullabilityState.Nullable;
-
-    private static string DartType(PropertyInfo property) => DartType(property.PropertyType) + (IsNullable(property) ? "?" : "");
-
-    private static string DartType(Type type)
-    {
-        type = Nullable.GetUnderlyingType(type) ?? type;
-        if (Element(type) is { } element) { return $"List<{DartType(element)}>"; }
-        if (type == typeof(string)) { return "String"; }
-        if (type == typeof(double)) { return "double"; }
-        if (type == typeof(int)) { return "int"; }
-        if (type == typeof(bool)) { return "bool"; }
-        if (type == typeof(JsonElement)) { return "Object"; }
-        if (type == typeof(Node)) { return "Node"; }
-        if (type.IsEnum) { return type.Name; }
-        if (type.Namespace == typeof(Node).Namespace) { return DartName(type); }
-        throw new NotSupportedException($"No Dart mirror for {type}.");
     }
 
     // A value the server leaves out falls back to the record's own parameter default (a button is enabled), else the type's.

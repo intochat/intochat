@@ -220,12 +220,12 @@ public sealed partial class UnitsAllTheWayFacts
         var nodes = Path.Combine(Repository.Root, "ui", "lib", "s" + "rc", "nodes");
         var dispatch = File.ReadAllText(Path.Combine(nodes, "node_renderer.dart"));
         var missing = new List<string>();
-        var kinds = DartNodeModelsFacts.DerivedKinds();
+        var kinds = NodeSchema.DerivedKinds();
         Assert.NotEmpty(kinds);
         Assert.NotEmpty(Directory.EnumerateFiles(nodes, "*.dart"));
         foreach (var (type, kind) in kinds)
         {
-            var dart = DartNodeModelsFacts.DartName(type);
+            var dart = NodeSchema.DartName(type);
             var render = "render" + dart[..^"Node".Length];
             // One file per kind named after it (splitPane is split_pane.dart), holding the renderer the dispatch calls.
             var file = Path.Combine(nodes, Regex.Replace(kind, "(?<=[a-z])([A-Z])", "_$1").ToLowerInvariant() + ".dart");

@@ -1,0 +1,1264 @@
+[
+  {
+    "kind": "appShell",
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "sidebar",
+        "type": "Node?",
+        "default": null
+      },
+      {
+        "name": "body",
+        "type": "Node",
+        "default": null
+      },
+      {
+        "name": "toolbar",
+        "type": "Node?",
+        "default": null
+      },
+      {
+        "name": "inspector",
+        "type": "Node?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "approvalCard",
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "id",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "summary",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "rows",
+        "type": "List<ApprovalRowNode>",
+        "default": null
+      },
+      {
+        "name": "valueLabel",
+        "type": "String",
+        "default": "Value"
+      },
+      {
+        "name": "systemName",
+        "type": "String",
+        "default": "DigitalBrain"
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "default": "pending"
+      },
+      {
+        "name": "resolve",
+        "type": "Resolve?",
+        "default": null
+      },
+      {
+        "name": "sourceNeuronUri",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "icon",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "capabilityLabel",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "badge",
+    "props": [
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "tone",
+        "type": "String",
+        "default": "neutral"
+      },
+      {
+        "name": "icon",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "brainScene",
+    "props": [
+      {
+        "name": "nodes",
+        "type": "List<BrainGraphNode>",
+        "default": null
+      },
+      {
+        "name": "synapses",
+        "type": "List<BrainGraphSynapse>",
+        "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "pauseRotation",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "zoomTargetId",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "targetZoom",
+        "type": "double",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "button",
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "emit",
+        "type": "Emit?",
+        "default": null
+      },
+      {
+        "name": "intent",
+        "type": "IntentNode?",
+        "default": null
+      },
+      {
+        "name": "enabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "tone",
+        "type": "String",
+        "default": "neutral"
+      },
+      {
+        "name": "style",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "icon",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "small",
+        "type": "bool",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "card",
+    "props": [
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "body",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "children",
+        "type": "List<Node>",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "chart",
+    "props": [
+      {
+        "name": "chartKind",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "points",
+        "type": "List<ChartPointNode>",
+        "default": null
+      },
+      {
+        "name": "comparePoints",
+        "type": "List<double>?",
+        "default": null
+      },
+      {
+        "name": "seriesName",
+        "type": "String",
+        "default": ""
+      },
+      {
+        "name": "compareName",
+        "type": "String",
+        "default": ""
+      },
+      {
+        "name": "sourceNeuronUri",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "from",
+        "type": "String",
+        "default": "DigitalBrain"
+      },
+      {
+        "name": "prefix",
+        "type": "String",
+        "default": ""
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "choiceCard",
+    "props": [
+      {
+        "name": "id",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "question",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "options",
+        "type": "List<ChoiceOptionNode>",
+        "default": null
+      },
+      {
+        "name": "pickedIndex",
+        "type": "int?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "collection",
+    "props": [
+      {
+        "name": "entries",
+        "type": "List<Entry>",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "column",
+    "props": [
+      {
+        "name": "children",
+        "type": "List<Node>",
+        "default": null
+      },
+      {
+        "name": "gap",
+        "type": "double",
+        "default": null
+      },
+      {
+        "name": "padding",
+        "type": "double",
+        "default": null
+      },
+      {
+        "name": "extents",
+        "type": "List<double>?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "conversation",
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "messages",
+        "type": "List<MessageNode>",
+        "default": null
+      },
+      {
+        "name": "composer",
+        "type": "ComposerNode",
+        "default": null
+      },
+      {
+        "name": "waiting",
+        "type": "Node?",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "default": "ready"
+      },
+      {
+        "name": "error",
+        "type": "ErrorLineNode?",
+        "default": null
+      },
+      {
+        "name": "stop",
+        "type": "ButtonNode?",
+        "default": null
+      },
+      {
+        "name": "empty",
+        "type": "EmptyStateNode?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "dataTable",
+    "props": [
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "columns",
+        "type": "List<String>",
+        "default": null
+      },
+      {
+        "name": "rows",
+        "type": "List<List<String>>",
+        "default": null
+      },
+      {
+        "name": "sourceNeuronUri",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "from",
+        "type": "String",
+        "default": "DigitalBrain"
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "diffCard",
+    "props": [
+      {
+        "name": "id",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "repo",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "targetBranch",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "headSha",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "filesChanged",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "additions",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "deletions",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "files",
+        "type": "List<DiffFileNode>",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "divider",
+    "props": [
+      {
+        "name": "label",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "draftCard",
+    "props": [
+      {
+        "name": "id",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "channel",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "to",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "body",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "from",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "subject",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "default": "pending"
+      },
+      {
+        "name": "send",
+        "type": "ButtonNode?",
+        "default": null
+      },
+      {
+        "name": "discard",
+        "type": "ButtonNode?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "emptyState",
+    "props": [
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "body",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "suggestions",
+        "type": "List<ButtonNode>?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "errorLine",
+    "props": [
+      {
+        "name": "what",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "detail",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "action",
+        "type": "ButtonNode?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "field",
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "fieldKind",
+        "type": "FieldKind",
+        "default": null
+      },
+      {
+        "name": "placeholder",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "onSubmit",
+        "type": "Emit?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "grid",
+    "props": [
+      {
+        "name": "columns",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "children",
+        "type": "List<Node>",
+        "default": null
+      },
+      {
+        "name": "gap",
+        "type": "double",
+        "default": 12
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "heading",
+    "props": [
+      {
+        "name": "value",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "level",
+        "type": "int",
+        "default": 2
+      },
+      {
+        "name": "subtitle",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "infoBar",
+    "props": [
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "message",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "tone",
+        "type": "String",
+        "default": "neutral"
+      },
+      {
+        "name": "action",
+        "type": "ButtonNode?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "intent",
+    "props": [
+      {
+        "name": "intentKind",
+        "type": "IntentKind",
+        "default": null
+      },
+      {
+        "name": "arg",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "jobCard",
+    "props": [
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "steps",
+        "type": "List<JobStepNode>",
+        "default": null
+      },
+      {
+        "name": "progress",
+        "type": "double",
+        "default": 0
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "default": "running"
+      },
+      {
+        "name": "resultText",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "cancel",
+        "type": "ButtonNode?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "metricTile",
+    "props": [
+      {
+        "name": "id",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "appId",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "value",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "delta",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "deltaTone",
+        "type": "String",
+        "default": "neutral"
+      },
+      {
+        "name": "statusLabel",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "statusTone",
+        "type": "String",
+        "default": "neutral"
+      },
+      {
+        "name": "sparkline",
+        "type": "List<double>?",
+        "default": null
+      },
+      {
+        "name": "threshold",
+        "type": "double?",
+        "default": null
+      },
+      {
+        "name": "actions",
+        "type": "List<ButtonNode>?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "navItem",
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "icon",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "action",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "selected",
+        "type": "bool",
+        "default": false
+      },
+      {
+        "name": "badge",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "emit",
+        "type": "Emit?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "neuronRef",
+    "props": [
+      {
+        "name": "refKind",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "neuronUri",
+        "type": "String",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "progress",
+    "props": [
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "value",
+        "type": "double",
+        "default": null
+      },
+      {
+        "name": "detail",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "recordCard",
+    "props": [
+      {
+        "name": "objectLabel",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "fields",
+        "type": "List<RecordFieldNode>",
+        "default": null
+      },
+      {
+        "name": "subtitle",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "linkLabel",
+        "type": "String",
+        "default": "Open Neuron"
+      },
+      {
+        "name": "open",
+        "type": "ButtonNode?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "row",
+    "props": [
+      {
+        "name": "children",
+        "type": "List<Node>",
+        "default": null
+      },
+      {
+        "name": "gap",
+        "type": "double",
+        "default": null
+      },
+      {
+        "name": "padding",
+        "type": "double",
+        "default": null
+      },
+      {
+        "name": "extents",
+        "type": "List<double>?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "secretCard",
+    "props": [
+      {
+        "name": "name",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "why",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "savedIn",
+        "type": "String",
+        "default": "Variables and secrets"
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "default": "pending"
+      },
+      {
+        "name": "enter",
+        "type": "ButtonNode?",
+        "default": null
+      },
+      {
+        "name": "skip",
+        "type": "ButtonNode?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "select",
+    "props": [
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "selected",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "options",
+        "type": "List<SelectOption>",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "spacer",
+    "props": [
+      {
+        "name": "size",
+        "type": "double",
+        "default": 12
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "splitPane",
+    "props": [
+      {
+        "name": "leading",
+        "type": "Node",
+        "default": null
+      },
+      {
+        "name": "trailing",
+        "type": "Node",
+        "default": null
+      },
+      {
+        "name": "leadingExtent",
+        "type": "double",
+        "default": 280
+      },
+      {
+        "name": "gap",
+        "type": "double",
+        "default": 16
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "statCard",
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "value",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "delta",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "tone",
+        "type": "BadgeTone",
+        "default": 0
+      },
+      {
+        "name": "icon",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "surface",
+    "props": [
+      {
+        "name": "children",
+        "type": "List<Node>",
+        "default": null
+      },
+      {
+        "name": "surfaceKind",
+        "type": "String",
+        "default": "acrylic"
+      },
+      {
+        "name": "title",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "subtitle",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "padding",
+        "type": "double",
+        "default": 18
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "switch",
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "isOn",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "emit",
+        "type": "Emit?",
+        "default": null
+      },
+      {
+        "name": "locked",
+        "type": "bool",
+        "default": false
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "tabs",
+    "props": [
+      {
+        "name": "items",
+        "type": "List<TabItem>",
+        "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "tagPill",
+    "props": [
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "tone",
+        "type": "String",
+        "default": "neutral"
+      },
+      {
+        "name": "icon",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "text",
+    "props": [
+      {
+        "name": "value",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "tone",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "tabular",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "mono",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "size",
+        "type": "double?",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "toast",
+    "props": [
+      {
+        "name": "message",
+        "type": "String",
+        "default": null
+      }
+    ],
+    "events": [],
+    "examples": []
+  },
+  {
+    "kind": "webBrowser",
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "url",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "height",
+        "type": "double",
+        "default": 520
+      },
+      {
+        "name": "executionMode",
+        "type": "String",
+        "default": "wasm-ui"
+      }
+    ],
+    "events": [],
+    "examples": []
+  }
+]

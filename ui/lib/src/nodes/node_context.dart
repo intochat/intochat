@@ -182,6 +182,7 @@ class NodeContext {
   Future<ActivationOutcome> activateReporting(
     String key, {
     String? value,
+    Map<String, Object?>? event,
     BuildContext? context,
   }) async {
     if (!interactive) return ActivationOutcome.refused;
@@ -193,6 +194,7 @@ class NodeContext {
         'generation': generation,
         'key': key,
         'value': ?value,
+        'event': ?event,
       });
     } on UiRequestException catch (error) {
       if (isStaleConflictError(error.statusCode, error.status ?? '')) {
@@ -215,6 +217,18 @@ class NodeContext {
       }
     }
     return ActivationOutcome.accepted;
+  }
+
+  /// Emits a control event: activates [key] with the typed payload under
+  /// `event` (DigitalBrain.UI EventPayload). A control without [emit] sends nothing.
+  Future<void> emitEvent(
+    String key,
+    Emit? emit,
+    Map<String, Object?> event, {
+    BuildContext? context,
+  }) async {
+    if (emit == null) return;
+    await activateReporting(key, event: event, context: context);
   }
 
   /// Resolves a confirmation plan: `{kind:"confirmation", name, planId, approve}`
