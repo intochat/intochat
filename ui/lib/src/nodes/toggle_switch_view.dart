@@ -11,14 +11,16 @@ import 'node_context.dart';
 /// value and redraws. Disabled props send nothing.
 Widget renderToggleSwitchView(ToggleSwitchViewNode node, NodeContext ctx) {
   final props = ToggleSwitchProps.fromJson(ctx.slotProps);
-  final content = node.isOn ? props.onContent : props.offContent;
+  // A controlled switch draws the parent's value; otherwise the neuron's.
+  final isOn = props.isOn ?? node.isOn;
+  final content = isOn ? props.onContent : props.offContent;
   return Row(
     children: [
       Expanded(child: Text(props.label)),
       if (content != null && content.isNotEmpty)
         Padding(padding: const EdgeInsets.only(right: 8), child: Text(content)),
       UiKitSwitch(
-        value: node.isOn,
+        value: isOn,
         semanticLabel: controlNameOf(
           props.automationName,
           props.label,

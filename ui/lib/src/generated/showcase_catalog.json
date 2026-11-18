@@ -405,6 +405,11 @@
         "name": "label",
         "type": "String",
         "default": null
+      },
+      {
+        "name": "isOn",
+        "type": "bool?",
+        "default": null
       }
     ],
     "state": [
@@ -577,6 +582,11 @@
       {
         "name": "options",
         "type": "List<ComboBoxOption>",
+        "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
         "default": null
       }
     ],
@@ -1104,8 +1114,7 @@
         "name": "Submit",
         "signal": "control.submit",
         "args": {
-          "values": "Map<String, String>",
-          "secrets": "List<String>?"
+          "values": "Map<String, String>"
         }
       }
     ],
@@ -1162,20 +1171,20 @@
       },
       {
         "kind": "formView",
-        "key": "api-key",
+        "key": "budget",
         "values": [],
         "props": {
           "fields": [
             {
-              "key": "token",
-              "label": "API key",
-              "kind": "Secret",
-              "placeholder": "sk-..."
+              "key": "cap",
+              "label": "Monthly cap",
+              "kind": "Number",
+              "value": "50"
             }
           ],
-          "submitLabel": "Seal key",
+          "submitLabel": "Set cap",
           "isEnabled": false,
-          "automationName": "API key"
+          "automationName": "Budget"
         }
       }
     ]
@@ -1473,6 +1482,11 @@
         "name": "selectionMode",
         "type": "ListSelectionMode",
         "default": "Single"
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
       }
     ],
     "state": [
@@ -2094,6 +2108,11 @@
         "name": "items",
         "type": "List<TabStripItem>",
         "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
       }
     ],
     "state": [
@@ -2310,6 +2329,11 @@
       {
         "name": "offContent",
         "type": "String?",
+        "default": null
+      },
+      {
+        "name": "isOn",
+        "type": "bool?",
         "default": null
       }
     ],

@@ -1,11 +1,11 @@
 namespace DigitalBrain.UI.Controls;
 
-/// <summary>The state of a form neuron: the values last submitted, by field key. Secret values are never kept.</summary>
+/// <summary>The state of a form neuron: the values last submitted, by field key (none while its parent controls the values).</summary>
 public sealed record FormState
 {
-    /// <summary>The last submitted value of each non-secret field, by key.</summary>
+    /// <summary>The last submitted value of each field, by key.</summary>
     [Showcase("""{"kind":"formView","key":"about-you","values":[{"key":"name","value":"Ada"}],"props":{"fields":[{"key":"name","label":"Display name","kind":"Text","maxLength":64},{"key":"bio","label":"Bio","kind":"Multiline","placeholder":"A line about you"},{"key":"age","label":"Age","kind":"Number"},{"key":"id","label":"Account id","kind":"Text","value":"ada-1","isReadOnly":true}],"submitLabel":"Save","isEnabled":true,"automationName":"About you"}}""")]
-    [Showcase("""{"kind":"formView","key":"api-key","values":[],"props":{"fields":[{"key":"token","label":"API key","kind":"Secret","placeholder":"sk-..."}],"submitLabel":"Seal key","isEnabled":false,"automationName":"API key"}}""")]
+    [Showcase("""{"kind":"formView","key":"budget","values":[],"props":{"fields":[{"key":"cap","label":"Monthly cap","kind":"Number","value":"50"}],"submitLabel":"Set cap","isEnabled":false,"automationName":"Budget"}}""")]
     public IReadOnlyDictionary<string, string> Values { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// <inheritdoc />
@@ -18,7 +18,7 @@ public sealed record FormState
 
 /// <summary>What a form neuron draws: its key and last submitted values. The client draws the fields, submit label and enabled from the slot's props.</summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
-/// <param name="Values">The last submitted non-secret values, ordered by key.</param>
+/// <param name="Values">The last submitted values, ordered by key.</param>
 [ViewNode("formView")]
 public sealed record FormView(string Key, IReadOnlyList<FormValue> Values) : Node
 {

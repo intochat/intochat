@@ -32,15 +32,4 @@ public sealed class FormNeuronFacts
 
         Assert.Equal(Values(("name", "Ada"), ("bio", "Pilot")), Single(form).Values);
     }
-
-    [Fact]
-    public async Task A_secret_is_passed_on_but_never_kept_or_drawn()
-    {
-        await using var form = new ControlHarness(typeof(FormNeuron), key: "keys");
-
-        await form.Send(new Submit(Values(("label", "Work"), ("token", "sk-secret")), ["token"]));
-
-        Assert.Equal("sk-secret", Single(form).Values["token"]);
-        Assert.Equal(new FormView("keys", [new FormValue("label", "Work")]), await form.Drawn<FormView>());
-    }
 }

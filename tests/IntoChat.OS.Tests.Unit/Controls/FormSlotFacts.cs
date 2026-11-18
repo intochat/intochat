@@ -17,7 +17,7 @@ public sealed record FormParentState
 /*
 # Form parent
 
-A test parent that slots a profile form: a capped name, a number, a read-only id and a secret.
+A test parent that slots a form (a capped name, a number, a read-only id) and a second form holding a secret field.
 */
 [Neuron("test.form-parent")]
 public sealed class FormParent : Screen<FormParentState>
@@ -30,8 +30,8 @@ public sealed class FormParent : Screen<FormParentState>
                 new FormInput("name", "Name", MaxLength: 5),
                 new FormInput("age", "Age", FormFieldKind.Number),
                 new FormInput("id", "Id", Value: "ada-1", IsReadOnly: true),
-                new FormInput("token", "Token", FormFieldKind.Secret),
             ], "Save", IsEnabled: !state.Locked)),
+            Slot<FormNeuron, FormProps>("keys", new FormProps([new FormInput("label", "Label"), new FormInput("token", "Token", FormFieldKind.Secret)], "Seal")),
         ]));
     }
 }
@@ -52,21 +52,21 @@ public sealed class FormSlotFacts : IAsyncDisposable
         _os.Register<FormNeuron>();
     }
 
-    private Task Submit(Dictionary<string, string> values, params string[] secrets)
-        => _os.Get<IScreen>(ParentId).Dispatch(new Command("profile", "control.submit",
-            JsonSerializer.SerializeToElement(new Submit(values, secrets.Length == 0 ? null : secrets), JsonSerializerOptions.Web)));
+    private Task Submit(Dictionary<string, string> values, string form = "profile")
+        => _os.Get<IScreen>(ParentId).Dispatch(new Command(form, "control.submit",
+            JsonSerializer.SerializeToElement(new Submit(values), JsonSerializerOptions.Web)));
 
-    private async Task<string> Refusal(Dictionary<string, string> values, params string[] secrets)
-        => (await Assert.ThrowsAsync<ActivationRefusedException>(() => Submit(values, secrets))).Reason;
+    private async Task<string> Refusal(Dictionary<string, string> values, string form = "profile")
+        => (await Assert.ThrowsAsync<ActivationRefusedException>(() => Submit(values, form))).Reason;
 
     [Fact]
     public async Task A_valid_submit_reaches_the_form()
     {
-        await Submit(new() { ["name"] = "Ada", ["age"] = "36", ["token"] = "sk" }, "token");
+        await Submit(new() { ["name"] = "Ada", ["age"] = "36" });
 
         var submitted = Assert.IsType<Submitted>(Assert.Single(_os.Journal(Brain).Signals(FormId).Select(entry => entry.Signal),
             signal => signal is not StateChanged && signal is not ViewChanged));
-        Assert.Equal("sk", submitted.Values["token"]);
+        Assert.Equal("Ada", submitted.Values["name"]);
     }
 
     [Fact]
@@ -89,8 +89,15 @@ public sealed class FormSlotFacts : IAsyncDisposable
         => Assert.Equal(FormRefusals.NotANumber, await Refusal(new() { ["age"] = "old" }));
 
     [Fact]
-    public async Task A_secret_must_be_declared()
-        => Assert.Equal(FormRefusals.UndeclaredSecret, await Refusal(new() { ["token"] = "sk" }));
+    public async Task A_form_with_a_secret_field_is_refused_and_no_secret_reaches_the_journal()
+    {
+        Assert.Equal(FormRefusals.SecretUnsupported, await Refusal(new() { ["label"] = "Work", ["token"] = "sk-secret" }, "keys"));
+        Assert.Equal(FormRefusals.SecretUnsupported, await Refusal(new() { ["label"] = "Work" }, "keys"));
+
+        var journal = _os.Journal(Brain);
+        Assert.DoesNotContain(new[] { ParentId, FormId, new NeuronId(Brain, "control.form", ScreenExtensions.ChildAddress(ParentId, "keys")) }
+            .SelectMany(journal.Signals), entry => JsonSerializer.Serialize(entry.Signal, entry.Signal.GetType()).Contains("sk-secret", StringComparison.Ordinal));
+    }
 
     public async ValueTask DisposeAsync()
     {

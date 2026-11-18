@@ -1249,8 +1249,6 @@ DigitalBrain.UI.Command
 DigitalBrain.UI.Command.<Clone>$() -> DigitalBrain.UI.Command!
 DigitalBrain.UI.Command.Args.get -> System.Text.Json.JsonElement?
 DigitalBrain.UI.Command.Args.init -> void
-DigitalBrain.UI.Command.Command(string! Target, string! Signal, System.Text.Json.JsonElement? Args = null) -> void
-DigitalBrain.UI.Command.Deconstruct(out string! Target, out string! Signal, out System.Text.Json.JsonElement? Args) -> void
 DigitalBrain.UI.Command.Equals(DigitalBrain.UI.Command? other) -> bool
 DigitalBrain.UI.Command.Signal.get -> string!
 DigitalBrain.UI.Command.Signal.init -> void
@@ -1403,8 +1401,6 @@ DigitalBrain.UI.NeuronRef.NeuronRef(string! Kind, string! NeuronUri, System.Text
 DigitalBrain.UI.NeuronRef.Props.get -> System.Text.Json.JsonElement?
 DigitalBrain.UI.NeuronRef.Props.init -> void
 DigitalBrain.UI.CheckBoxProps
-DigitalBrain.UI.CheckBoxProps.CheckBoxProps(string! Label, bool IsEnabled = true, string? AutomationName = null) -> void
-DigitalBrain.UI.CheckBoxProps.Deconstruct(out string! Label, out bool IsEnabled, out string? AutomationName) -> void
 DigitalBrain.UI.CheckBoxProps.Equals(DigitalBrain.UI.CheckBoxProps? other) -> bool
 DigitalBrain.UI.CheckBoxProps.Label.get -> string!
 DigitalBrain.UI.CheckBoxProps.Label.init -> void
@@ -1425,7 +1421,6 @@ DigitalBrain.UI.ExpanderProps.ExpanderProps(string! Header, System.Collections.G
 DigitalBrain.UI.ExpanderProps.Header.get -> string!
 DigitalBrain.UI.ExpanderProps.Header.init -> void
 DigitalBrain.UI.ToggleSwitchProps
-DigitalBrain.UI.ToggleSwitchProps.Deconstruct(out string! Label, out string? OnContent, out string? OffContent, out bool IsEnabled, out string? AutomationName) -> void
 DigitalBrain.UI.ToggleSwitchProps.Equals(DigitalBrain.UI.ToggleSwitchProps? other) -> bool
 DigitalBrain.UI.ToggleSwitchProps.Label.get -> string!
 DigitalBrain.UI.ToggleSwitchProps.Label.init -> void
@@ -1433,7 +1428,6 @@ DigitalBrain.UI.ToggleSwitchProps.OffContent.get -> string?
 DigitalBrain.UI.ToggleSwitchProps.OffContent.init -> void
 DigitalBrain.UI.ToggleSwitchProps.OnContent.get -> string?
 DigitalBrain.UI.ToggleSwitchProps.OnContent.init -> void
-DigitalBrain.UI.ToggleSwitchProps.ToggleSwitchProps(string! Label, string? OnContent = null, string? OffContent = null, bool IsEnabled = true, string? AutomationName = null) -> void
 abstract DigitalBrain.UI.ControlProps.<Clone>$() -> DigitalBrain.UI.ControlProps!
 const DigitalBrain.UI.ControlProps.Disabled = "control.disabled" -> string!
 override DigitalBrain.UI.CheckBoxProps.<Clone>$() -> DigitalBrain.UI.CheckBoxProps!
@@ -1493,11 +1487,9 @@ DigitalBrain.UI.TabStripItem.Label.get -> string!
 DigitalBrain.UI.TabStripItem.Label.init -> void
 DigitalBrain.UI.TabStripItem.TabStripItem(string! Id, string! Label, string? Icon = null) -> void
 DigitalBrain.UI.TabStripProps
-DigitalBrain.UI.TabStripProps.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.TabStripItem!>! Items, out bool IsEnabled, out string? AutomationName) -> void
 DigitalBrain.UI.TabStripProps.Equals(DigitalBrain.UI.TabStripProps? other) -> bool
 DigitalBrain.UI.TabStripProps.Items.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.TabStripItem!>!
 DigitalBrain.UI.TabStripProps.Items.init -> void
-DigitalBrain.UI.TabStripProps.TabStripProps(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.TabStripItem!>! Items, bool IsEnabled = true, string? AutomationName = null) -> void
 const DigitalBrain.UI.SelectionRefusals.SelectionOff = "control.selectionOff" -> string!
 const DigitalBrain.UI.SelectionRefusals.UnknownItem = "control.unknownItem" -> string!
 override DigitalBrain.UI.Controls.TabStripState.Equals(object? obj) -> bool
@@ -1534,8 +1526,6 @@ DigitalBrain.UI.ComboBoxOption.Id.init -> void
 DigitalBrain.UI.ComboBoxOption.Label.get -> string!
 DigitalBrain.UI.ComboBoxOption.Label.init -> void
 DigitalBrain.UI.ComboBoxProps
-DigitalBrain.UI.ComboBoxProps.ComboBoxProps(string! Header, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ComboBoxOption!>! Options, bool IsEnabled = true, string? AutomationName = null) -> void
-DigitalBrain.UI.ComboBoxProps.Deconstruct(out string! Header, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ComboBoxOption!>! Options, out bool IsEnabled, out string? AutomationName) -> void
 DigitalBrain.UI.ComboBoxProps.Equals(DigitalBrain.UI.ComboBoxProps? other) -> bool
 DigitalBrain.UI.ComboBoxProps.Header.get -> string!
 DigitalBrain.UI.ComboBoxProps.Header.init -> void
@@ -1605,11 +1595,9 @@ DigitalBrain.UI.ListBoxItem.Subtitle.init -> void
 DigitalBrain.UI.ListBoxItem.Title.get -> string!
 DigitalBrain.UI.ListBoxItem.Title.init -> void
 DigitalBrain.UI.ListBoxProps
-DigitalBrain.UI.ListBoxProps.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ListBoxItem!>! Items, out DigitalBrain.UI.ListSelectionMode SelectionMode, out bool IsEnabled, out string? AutomationName) -> void
 DigitalBrain.UI.ListBoxProps.Equals(DigitalBrain.UI.ListBoxProps? other) -> bool
 DigitalBrain.UI.ListBoxProps.Items.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ListBoxItem!>!
 DigitalBrain.UI.ListBoxProps.Items.init -> void
-DigitalBrain.UI.ListBoxProps.ListBoxProps(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ListBoxItem!>! Items, DigitalBrain.UI.ListSelectionMode SelectionMode = DigitalBrain.UI.ListSelectionMode.Single, bool IsEnabled = true, string? AutomationName = null) -> void
 DigitalBrain.UI.ListBoxProps.SelectionMode.get -> DigitalBrain.UI.ListSelectionMode
 DigitalBrain.UI.ListBoxProps.SelectionMode.init -> void
 DigitalBrain.UI.ListSelectionMode
@@ -1707,7 +1695,6 @@ const DigitalBrain.UI.FormRefusals.NotANumber = "control.notANumber" -> string!
 const DigitalBrain.UI.FormRefusals.ReadOnlyField = "control.readOnlyField" -> string!
 const DigitalBrain.UI.FormRefusals.SubmitSignal = "control.submit" -> string!
 const DigitalBrain.UI.FormRefusals.TooLong = "control.tooLong" -> string!
-const DigitalBrain.UI.FormRefusals.UndeclaredSecret = "control.undeclaredSecret" -> string!
 const DigitalBrain.UI.FormRefusals.UnknownField = "control.unknownField" -> string!
 override DigitalBrain.UI.Controls.FormState.Equals(object? obj) -> bool
 override DigitalBrain.UI.Controls.FormState.GetHashCode() -> int
@@ -1738,3 +1725,28 @@ static DigitalBrain.UI.FormProps.operator !=(DigitalBrain.UI.FormProps? left, Di
 static DigitalBrain.UI.FormProps.operator ==(DigitalBrain.UI.FormProps? left, DigitalBrain.UI.FormProps? right) -> bool
 static DigitalBrain.UI.FormValue.operator !=(DigitalBrain.UI.FormValue? left, DigitalBrain.UI.FormValue? right) -> bool
 static DigitalBrain.UI.FormValue.operator ==(DigitalBrain.UI.FormValue? left, DigitalBrain.UI.FormValue? right) -> bool
+DigitalBrain.UI.CheckBoxProps.CheckBoxProps(string! Label, bool IsEnabled = true, string? AutomationName = null, bool? IsOn = null) -> void
+DigitalBrain.UI.CheckBoxProps.Deconstruct(out string! Label, out bool IsEnabled, out string? AutomationName, out bool? IsOn) -> void
+DigitalBrain.UI.CheckBoxProps.IsOn.get -> bool?
+DigitalBrain.UI.CheckBoxProps.IsOn.init -> void
+DigitalBrain.UI.ComboBoxProps.ComboBoxProps(string! Header, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ComboBoxOption!>! Options, bool IsEnabled = true, string? AutomationName = null, string? SelectedId = null) -> void
+DigitalBrain.UI.ComboBoxProps.Deconstruct(out string! Header, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ComboBoxOption!>! Options, out bool IsEnabled, out string? AutomationName, out string? SelectedId) -> void
+DigitalBrain.UI.ComboBoxProps.SelectedId.get -> string?
+DigitalBrain.UI.ComboBoxProps.SelectedId.init -> void
+DigitalBrain.UI.Command.Command(string! Target, string! Signal, System.Text.Json.JsonElement? Args = null, System.Text.Json.JsonElement? Props = null) -> void
+DigitalBrain.UI.Command.Deconstruct(out string! Target, out string! Signal, out System.Text.Json.JsonElement? Args, out System.Text.Json.JsonElement? Props) -> void
+DigitalBrain.UI.Command.Props.get -> System.Text.Json.JsonElement?
+DigitalBrain.UI.Command.Props.init -> void
+DigitalBrain.UI.ListBoxProps.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ListBoxItem!>! Items, out DigitalBrain.UI.ListSelectionMode SelectionMode, out bool IsEnabled, out string? AutomationName, out string? SelectedId) -> void
+DigitalBrain.UI.ListBoxProps.ListBoxProps(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ListBoxItem!>! Items, DigitalBrain.UI.ListSelectionMode SelectionMode = DigitalBrain.UI.ListSelectionMode.Single, bool IsEnabled = true, string? AutomationName = null, string? SelectedId = null) -> void
+DigitalBrain.UI.ListBoxProps.SelectedId.get -> string?
+DigitalBrain.UI.ListBoxProps.SelectedId.init -> void
+DigitalBrain.UI.TabStripProps.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.TabStripItem!>! Items, out bool IsEnabled, out string? AutomationName, out string? SelectedId) -> void
+DigitalBrain.UI.TabStripProps.SelectedId.get -> string?
+DigitalBrain.UI.TabStripProps.SelectedId.init -> void
+DigitalBrain.UI.TabStripProps.TabStripProps(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.TabStripItem!>! Items, bool IsEnabled = true, string? AutomationName = null, string? SelectedId = null) -> void
+DigitalBrain.UI.ToggleSwitchProps.Deconstruct(out string! Label, out string? OnContent, out string? OffContent, out bool IsEnabled, out string? AutomationName, out bool? IsOn) -> void
+DigitalBrain.UI.ToggleSwitchProps.IsOn.get -> bool?
+DigitalBrain.UI.ToggleSwitchProps.IsOn.init -> void
+DigitalBrain.UI.ToggleSwitchProps.ToggleSwitchProps(string! Label, string? OnContent = null, string? OffContent = null, bool IsEnabled = true, string? AutomationName = null, bool? IsOn = null) -> void
+const DigitalBrain.UI.FormRefusals.SecretUnsupported = "control.secretUnsupported" -> string!

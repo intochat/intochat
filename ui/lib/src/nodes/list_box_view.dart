@@ -11,6 +11,8 @@ import 'node_context.dart';
 /// selection mode of none, send nothing.
 Widget renderListBoxView(ListBoxViewNode node, NodeContext ctx) {
   final props = ListBoxProps.fromJson(ctx.slotProps);
+  // A controlled control draws the parent's selection; otherwise the neuron's.
+  final selectedId = props.selectedId ?? node.selectedId;
   final selectable =
       props.isEnabled &&
       ctx.interactive &&
@@ -29,10 +31,10 @@ Widget renderListBoxView(ListBoxViewNode node, NodeContext ctx) {
             enabled: props.isEnabled,
             selected:
                 props.selectionMode == ListSelectionMode.single &&
-                item.id == node.selectedId,
+                item.id == selectedId,
             title: Text(item.title),
             subtitle: item.subtitle == null ? null : Text(item.subtitle!),
-            onTap: selectable && item.id != node.selectedId
+            onTap: selectable && item.id != selectedId
                 ? () => actListBoxSelect(ctx, '.', id: item.id)
                 : null,
           ),

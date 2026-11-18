@@ -26,7 +26,9 @@ public abstract record ControlProps(bool IsEnabled = true, string? AutomationNam
 /// <param name="Label">The text beside the box.</param>
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
 /// <param name="AutomationName">The accessible name; null falls back to the label.</param>
-public sealed record CheckBoxProps(string Label, bool IsEnabled = true, string? AutomationName = null) : ControlProps(IsEnabled, AutomationName);
+/// <param name="IsOn">Set when the parent owns the value (a controlled control): drawn instead of the child's state, and a command
+/// only signals Toggled with the requested value; the child stores nothing. Null leaves the value to the child.</param>
+public sealed record CheckBoxProps(string Label, bool IsEnabled = true, string? AutomationName = null, bool? IsOn = null) : ControlProps(IsEnabled, AutomationName);
 
 /// <summary>The props of a toggle switch: what its parent decides.</summary>
 /// <param name="Label">The header beside the switch.</param>
@@ -34,7 +36,9 @@ public sealed record CheckBoxProps(string Label, bool IsEnabled = true, string? 
 /// <param name="OffContent">The text shown while off; null shows none.</param>
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
 /// <param name="AutomationName">The accessible name; null falls back to the label.</param>
-public sealed record ToggleSwitchProps(string Label, string? OnContent = null, string? OffContent = null, bool IsEnabled = true, string? AutomationName = null)
+/// <param name="IsOn">Set when the parent owns the value (a controlled control): drawn instead of the child's state, and a command
+/// only signals Toggled with the requested value; the child stores nothing. Null leaves the value to the child.</param>
+public sealed record ToggleSwitchProps(string Label, string? OnContent = null, string? OffContent = null, bool IsEnabled = true, string? AutomationName = null, bool? IsOn = null)
     : ControlProps(IsEnabled, AutomationName);
 
 /// <summary>The props of an expander: what its parent decides.</summary>
@@ -85,7 +89,9 @@ public sealed record TabStripItem(string Id, string Label, string? Icon = null);
 /// <param name="Items">The tabs, in order.</param>
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
 /// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
-public sealed record TabStripProps(IReadOnlyList<TabStripItem> Items, bool IsEnabled = true, string? AutomationName = null)
+/// <param name="SelectedId">Set when the parent owns the selection (a controlled control): drawn instead of the child's state, and a
+/// Select only signals SelectionChanged; the child stores nothing. Null leaves the selection to the child.</param>
+public sealed record TabStripProps(IReadOnlyList<TabStripItem> Items, bool IsEnabled = true, string? AutomationName = null, string? SelectedId = null)
     : ControlProps(IsEnabled, AutomationName), ICommandGate
 {
     /// <inheritdoc />
@@ -93,7 +99,7 @@ public sealed record TabStripProps(IReadOnlyList<TabStripItem> Items, bool IsEna
         => SelectionRefusals.OfSelect(signal, args, id => Items.Any(item => item.Id == id) ? null : SelectionRefusals.UnknownItem);
 
     /// <inheritdoc />
-    public bool Equals(TabStripProps? other) => other is not null && base.Equals(other) && Items.SequenceEqual(other.Items);
+    public bool Equals(TabStripProps? other) => other is not null && base.Equals(other) && SelectedId == other.SelectedId && Items.SequenceEqual(other.Items);
 
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Items.Count);
@@ -109,7 +115,9 @@ public sealed record ComboBoxOption(string Id, string Label);
 /// <param name="Options">The options, in order.</param>
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
 /// <param name="AutomationName">The accessible name; null falls back to the header.</param>
-public sealed record ComboBoxProps(string Header, IReadOnlyList<ComboBoxOption> Options, bool IsEnabled = true, string? AutomationName = null)
+/// <param name="SelectedId">Set when the parent owns the selection (a controlled control): drawn instead of the child's state, and a
+/// Select only signals SelectionChanged; the child stores nothing. Null leaves the selection to the child.</param>
+public sealed record ComboBoxProps(string Header, IReadOnlyList<ComboBoxOption> Options, bool IsEnabled = true, string? AutomationName = null, string? SelectedId = null)
     : ControlProps(IsEnabled, AutomationName), ICommandGate
 {
     /// <inheritdoc />
@@ -117,7 +125,7 @@ public sealed record ComboBoxProps(string Header, IReadOnlyList<ComboBoxOption> 
         => SelectionRefusals.OfSelect(signal, args, id => Options.Any(option => option.Id == id) ? null : SelectionRefusals.UnknownItem);
 
     /// <inheritdoc />
-    public bool Equals(ComboBoxProps? other) => other is not null && base.Equals(other) && Header == other.Header && Options.SequenceEqual(other.Options);
+    public bool Equals(ComboBoxProps? other) => other is not null && base.Equals(other) && Header == other.Header && SelectedId == other.SelectedId && Options.SequenceEqual(other.Options);
 
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Header, Options.Count);
@@ -147,7 +155,9 @@ public enum ListSelectionMode
 /// <param name="SelectionMode">Single lets one item be selected; None refuses every selection (control.selectionOff).</param>
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
 /// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
-public sealed record ListBoxProps(IReadOnlyList<ListBoxItem> Items, ListSelectionMode SelectionMode = ListSelectionMode.Single, bool IsEnabled = true, string? AutomationName = null)
+/// <param name="SelectedId">Set when the parent owns the selection (a controlled control): drawn instead of the child's state, and a
+/// Select only signals SelectionChanged; the child stores nothing. Null leaves the selection to the child.</param>
+public sealed record ListBoxProps(IReadOnlyList<ListBoxItem> Items, ListSelectionMode SelectionMode = ListSelectionMode.Single, bool IsEnabled = true, string? AutomationName = null, string? SelectedId = null)
     : ControlProps(IsEnabled, AutomationName), ICommandGate
 {
     /// <inheritdoc />
@@ -156,7 +166,7 @@ public sealed record ListBoxProps(IReadOnlyList<ListBoxItem> Items, ListSelectio
         : Items.Any(item => item.Id == id) ? null : SelectionRefusals.UnknownItem);
 
     /// <inheritdoc />
-    public bool Equals(ListBoxProps? other) => other is not null && base.Equals(other) && SelectionMode == other.SelectionMode && Items.SequenceEqual(other.Items);
+    public bool Equals(ListBoxProps? other) => other is not null && base.Equals(other) && SelectionMode == other.SelectionMode && SelectedId == other.SelectedId && Items.SequenceEqual(other.Items);
 
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), SelectionMode, Items.Count);
@@ -172,7 +182,8 @@ public enum FormFieldKind
     /// <summary>Several lines of text.</summary>
     Multiline,
 
-    /// <summary>A secret: drawn obscured, never stored by the form nor drawn back.</summary>
+    /// <summary>A secret. Not supported yet: a form whose props hold one refuses every submit (control.secretUnsupported) and the
+    /// client does not draw it, because a submit is a journaled command and signal. A vault-backed path is owed.</summary>
     Secret,
 
     /// <summary>A number (invariant culture); an empty value is allowed.</summary>
@@ -182,8 +193,9 @@ public enum FormFieldKind
 /// <summary>A field of a form.</summary>
 /// <param name="Key">The key its value is submitted under.</param>
 /// <param name="Label">The text above the field.</param>
-/// <param name="Kind">What it holds; a secret is drawn obscured and is never stored by the form.</param>
-/// <param name="Value">The parent's current value, drawn until the person types; null draws the form's last submitted value. Never set for a secret.</param>
+/// <param name="Kind">What it holds; <see cref="FormFieldKind.Secret"/> is not supported yet.</param>
+/// <param name="Value">Set when the parent owns the value (a controlled field): drawn until the person types, and a form with any such
+/// field stores nothing on submit, it only signals Submitted. Null draws the form's last submitted value.</param>
 /// <param name="Placeholder">The hint shown while empty.</param>
 /// <param name="MaxLength">The longest value the parent accepts; a longer submit is refused (control.tooLong).</param>
 /// <param name="IsReadOnly">True draws the value without editing; a submit naming it is refused (control.readOnlyField).</param>
@@ -219,8 +231,8 @@ public static class FormRefusals
     /// <summary>A number field's value is not a number.</summary>
     public const string NotANumber = "control.notANumber";
 
-    /// <summary>The submit's secrets list does not name exactly the secret fields it carries.</summary>
-    public const string UndeclaredSecret = "control.undeclaredSecret";
+    /// <summary>The form's props hold a secret field, which forms do not support yet.</summary>
+    public const string SecretUnsupported = "control.secretUnsupported";
 
     /// <summary>The submit carries no values object.</summary>
     public const string NoValues = "control.noValues";
@@ -242,10 +254,7 @@ public sealed record FormProps(IReadOnlyList<FormInput> Fields, string SubmitLab
         {
             return FormRefusals.NoValues;
         }
-        var secrets = json.TryGetProperty("secrets", out var named) && named.ValueKind == JsonValueKind.Array
-            ? named.EnumerateArray().Select(item => item.ValueKind == JsonValueKind.String ? item.GetString() ?? "" : "").ToHashSet(StringComparer.Ordinal)
-            : new HashSet<string>(StringComparer.Ordinal);
-        var carried = new HashSet<string>(StringComparer.Ordinal);
+        if (Fields.Any(field => field.Kind == FormFieldKind.Secret)) { return FormRefusals.SecretUnsupported; }
         foreach (var entry in values.EnumerateObject())
         {
             if (Fields.FirstOrDefault(field => field.Key == entry.Name) is not { } field) { return FormRefusals.UnknownField; }
@@ -257,9 +266,8 @@ public sealed record FormProps(IReadOnlyList<FormInput> Fields, string SubmitLab
             {
                 return FormRefusals.NotANumber;
             }
-            if (field.Kind == FormFieldKind.Secret) { carried.Add(field.Key); }
         }
-        return secrets.SetEquals(carried) ? null : FormRefusals.UndeclaredSecret;
+        return null;
     }
 
     /// <inheritdoc />

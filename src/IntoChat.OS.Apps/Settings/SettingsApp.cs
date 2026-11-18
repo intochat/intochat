@@ -287,7 +287,6 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         foreach (var combo in SettingsControls.Combos) { await FollowSlot<ComboBoxNeuron, SelectionChanged>(combo.Key); }
         await FollowSlot<FormNeuron, Submitted>(SettingsControls.Search);
         await FollowSlot<FormNeuron, Submitted>(SettingsControls.Regional);
-        await SyncControlsAsync(null, State);
     }
 
     private SettingsSlots Slots => new(
@@ -300,7 +299,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
     {
         ArgumentNullException.ThrowIfNull(toggled);
         return SettingsControls.ToggleOf(SignalSlot) is { } toggle
-            ? toggle.Get(State) == toggled.IsOn ? Task.CompletedTask : UpdateAsync(toggle.Set(State, toggled.IsOn), sender: toggle.Key)
+            ? toggle.Get(State) == toggled.IsOn ? Task.CompletedTask : UpdateAsync(toggle.Set(State, toggled.IsOn))
             : Task.CompletedTask;
     }
 
@@ -317,7 +316,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
             SettingsControls.DefaultModel when changed.Id != State.DefaultModel => new SettingsSavePreferences(DefaultModel: changed.Id),
             _ => null,
         };
-        return save is null ? Task.CompletedTask : SavePreferencesAsync(save, sender: key);
+        return save is null ? Task.CompletedTask : SavePreferences(save);
     }
 
     [On]
@@ -328,48 +327,11 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         return SignalSlot switch
         {
             SettingsControls.Search => UpdateAsync(State.Filter(Value("query") ?? "")),
-            SettingsControls.Regional => SavePreferencesAsync(new SettingsSavePreferences(
-                DisplayName: Value("displayName"), Language: Value("language"), TimeZone: Value("timeZone"), DateFormat: Value("dateFormat")), sender: SettingsControls.Regional),
+            SettingsControls.Regional => SavePreferences(new SettingsSavePreferences(
+                DisplayName: Value("displayName"), Language: Value("language"), TimeZone: Value("timeZone"), DateFormat: Value("dateFormat"))),
             _ => Task.CompletedTask,
         };
     }
-
-    // Pushes the app's value to each control it shows when the value changed some other way than through that control (`sender`, which
-    // already holds it; pushing back could undo a later change still on its way), or the control's section is newly shown. A direct call to the child: the parent's props gate is for the person, not the app. The control publishes
-    // nothing when its value is already equal.
-    private async Task SyncControlsAsync(SettingsAppState? before, SettingsAppState after, string? sender = null)
-    {
-        var section = SettingsDecisions.NormalizeSection(after.Section);
-        var shown = before is null || SettingsDecisions.NormalizeSection(before.Section) != section || before.SubPage != after.SubPage;
-        foreach (var toggle in SettingsControls.Toggles.Where(toggle => toggle.Section == section && toggle.Key != sender))
-        {
-            if (shown || toggle.Get(before!) != toggle.Get(after))
-            {
-                await Child(toggle.Key, new SetChecked(toggle.Get(after)));
-            }
-        }
-        foreach (var combo in SettingsControls.Combos.Where(combo => combo.Section == section && combo.Key != sender))
-        {
-            if ((shown || combo.Get(before!) != combo.Get(after)) && !string.IsNullOrEmpty(combo.Get(after)))
-            {
-                await Child(combo.Key, new DigitalBrain.UI.Commands.Select(combo.Get(after)));
-            }
-        }
-    }
-
-    // Best effort: a control that cannot be reached (no caller in a standalone test, a stopped silo) keeps its value; the save stands.
-    private async Task Child<TCommand>(string key, TCommand command) where TCommand : Signal
-    {
-        try { await PushTo(key, command); }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            Log.LogDebug(error, "Settings could not push its value to control {Key}.", key);
-        }
-    }
-
-    private Task PushTo<TCommand>(string key, TCommand command) where TCommand : Signal
-        => Get<IScreen>(new NeuronId(Id.Brain, typeof(TCommand) == typeof(SetChecked) ? "control.toggleSwitch" : "control.comboBox", ScreenExtensions.ChildAddress(Id, key)))
-            .Dispatch(Sends(command));
 
     public ISecretVault? SecretVault { get; set; }
     public BrainPreferenceStore? PreferenceStore { get; set; }
@@ -584,9 +546,8 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         IReadOnlyList<ProfileFriend>? teamFriends = null,
         string? section = null,
         string? archiveJson = null,
-        SettingsAppState? baseline = null,
-        string? sender = null)
-        => UpdateAsync(SettingsDecisions.DecideApplyUserSettings(baseline ?? State, user, status, deployedUnits, teamFriends, section, archiveJson), sender);
+        SettingsAppState? baseline = null)
+        => UpdateAsync(SettingsDecisions.DecideApplyUserSettings(baseline ?? State, user, status, deployedUnits, teamFriends, section, archiveJson));
 
     private async Task<IReadOnlyList<string>> TryReadDeployedUnitsAsync()
     {
@@ -684,9 +645,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
     }
 
     [On]
-    public Task SavePreferences(SettingsSavePreferences request) => SavePreferencesAsync(request);
-
-    private async Task SavePreferencesAsync(SettingsSavePreferences request, string? sender = null)
+    public async Task SavePreferences(SettingsSavePreferences request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (new[]
@@ -701,7 +660,7 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
 
         var store = ResolvePreferenceStore();
         var updated = await store.SaveAsync(request, State);
-        await ApplyUserSettingsAsync(updated, $"Saved: {updated.DisplayName} ({updated.Theme}, {updated.DefaultModel}, {updated.StylePreset}, {updated.BarLayout})", sender: sender);
+        await ApplyUserSettingsAsync(updated, $"Saved: {updated.DisplayName} ({updated.Theme}, {updated.DefaultModel}, {updated.StylePreset}, {updated.BarLayout})");
     }
 
     [On]
@@ -814,12 +773,8 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
     protected override Node Render(SettingsAppState state)
         => SettingsViewRenderer.RenderRoot(state, Slots, LastRejection);
 
-    private async Task UpdateAsync(SettingsAppState next, string? sender = null)
-    {
-        var before = State;
-        await Show(next);
-        await SyncControlsAsync(before, State, sender);
-    }
+    // The controls are controlled: their values are props of this view, so a save re-renders them; nothing is pushed to them.
+    private Task UpdateAsync(SettingsAppState next) => Show(next);
 
     private T? TryGetOptional<T>(string key) where T : class
     {

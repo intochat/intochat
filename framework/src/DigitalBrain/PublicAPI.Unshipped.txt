@@ -4141,11 +4141,9 @@ DigitalBrain.UI.Commands.SetChecked.IsOn.get -> bool
 DigitalBrain.UI.Commands.SetChecked.IsOn.init -> void
 DigitalBrain.UI.Commands.SetChecked.SetChecked(bool IsOn) -> void
 DigitalBrain.UI.Commands.Submit
-DigitalBrain.UI.Commands.Submit.Deconstruct(out System.Collections.Generic.IReadOnlyDictionary<string!, string!>! Values, out System.Collections.Generic.IReadOnlyList<string!>? Secrets) -> void
+DigitalBrain.UI.Commands.Submit.Deconstruct(out System.Collections.Generic.IReadOnlyDictionary<string!, string!>! Values) -> void
 DigitalBrain.UI.Commands.Submit.Equals(DigitalBrain.UI.Commands.Submit? other) -> bool
-DigitalBrain.UI.Commands.Submit.Submit(System.Collections.Generic.IReadOnlyDictionary<string!, string!>! Values, System.Collections.Generic.IReadOnlyList<string!>? Secrets = null) -> void
-DigitalBrain.UI.Commands.Submit.Secrets.get -> System.Collections.Generic.IReadOnlyList<string!>?
-DigitalBrain.UI.Commands.Submit.Secrets.init -> void
+DigitalBrain.UI.Commands.Submit.Submit(System.Collections.Generic.IReadOnlyDictionary<string!, string!>! Values) -> void
 DigitalBrain.UI.Commands.Submit.Values.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
 DigitalBrain.UI.Commands.Submit.Values.init -> void
 DigitalBrain.UI.Commands.Submitted
@@ -4251,3 +4249,4 @@ DigitalBrain.Screen<TState>.Slot<TChild, TProps>(string! key, TProps! props) -> 
 DigitalBrain.Screen<TState>.FollowSlot<TChild, TSignal>(string! key) -> System.Threading.Tasks.Task!
 DigitalBrain.Screen<TState>.RenderDetached(TState! state) -> DigitalBrain.UI.View!
 DigitalBrain.Screen<TState>.SignalSlot.get -> string?
+DigitalBrain.Screen<TState>.CommandProps.get -> System.Text.Json.JsonElement?

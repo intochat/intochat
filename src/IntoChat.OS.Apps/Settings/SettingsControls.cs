@@ -9,9 +9,9 @@ internal sealed record SettingsSlots(
     Func<string, FormProps, Node> Form);
 
 /// <summary>
-/// The control neurons Settings draws, by slot key. Each preference control is a child neuron of the app; the app follows its signal
-/// (Toggled, SelectionChanged, Submitted) and stores the preference, and pushes the preference back to the control when the app's value
-/// changed some other way (a save, an import, a section shown again).
+/// The control neurons Settings draws, by slot key. Each is controlled: the app owns the preference and passes it as the control's
+/// props value, the control only signals the person's change (Toggled, SelectionChanged, Submitted), and the app follows that signal,
+/// stores the preference and re-renders the props.
 /// </summary>
 internal static class SettingsControls
 {
@@ -37,13 +37,13 @@ internal static class SettingsControls
     public const string Search = "search";
     public const string Regional = "regional";
 
-    internal sealed record Combo(string Key, string Section, Func<SettingsAppState, string> Get);
+    internal sealed record Combo(string Key, Func<SettingsAppState, string> Get);
 
     public static IReadOnlyList<Combo> Combos { get; } =
     [
-        new(ThemeMode, "general", s => s.ThemeMode),
-        new(BarLayout, "desktop", s => s.BarLayout),
-        new(DefaultModel, "models", s => s.DefaultModel),
+        new(ThemeMode, s => s.ThemeMode),
+        new(BarLayout, s => s.BarLayout),
+        new(DefaultModel, s => s.DefaultModel),
     ];
 
     public static SettingSwitch? ToggleOf(string? key) => Toggles.FirstOrDefault(toggle => toggle.Key == key);
@@ -55,13 +55,14 @@ internal static class SettingsControls
     public static Node ToggleSwitch(SettingsSlots slots, SettingsAppState state, SettingSwitch toggle)
     {
         var managed = IsManaged(state, toggle.Key);
-        return slots.ToggleSwitch(toggle.Key, new ToggleSwitchProps(managed ? $"{toggle.Label} (managed)" : toggle.Label, IsEnabled: !managed, AutomationName: toggle.Label));
+        return slots.ToggleSwitch(toggle.Key, new ToggleSwitchProps(managed ? $"{toggle.Label} (managed)" : toggle.Label, IsEnabled: !managed, AutomationName: toggle.Label, IsOn: toggle.Get(state)));
     }
 
     public static Node ComboBox(SettingsSlots slots, SettingsAppState state, string key, string header, IReadOnlyList<ComboBoxOption> options)
     {
         var managed = IsManaged(state, key);
-        return slots.ComboBox(key, new ComboBoxProps(managed ? $"{header} (managed)" : header, options, IsEnabled: !managed, AutomationName: header));
+        var selected = Combos.Single(combo => combo.Key == key).Get(state);
+        return slots.ComboBox(key, new ComboBoxProps(managed ? $"{header} (managed)" : header, options, IsEnabled: !managed, AutomationName: header, SelectedId: selected));
     }
 
     public static Node SearchForm(SettingsSlots slots, SettingsAppState state)

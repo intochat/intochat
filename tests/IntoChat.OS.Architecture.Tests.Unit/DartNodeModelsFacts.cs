@@ -111,6 +111,7 @@ public sealed partial class DartNodeModelsFacts
         dart.Append("int _int(Object? value, [int fallback = 0]) =>\n    value is num ? value.toInt() : fallback;\n\n");
         dart.Append("int? _intOrNull(Object? value) => value is num ? value.toInt() : null;\n\n");
         dart.Append("bool _bool(Object? value, [bool fallback = false]) =>\n    value is bool ? value : fallback;\n\n");
+        dart.Append("bool? _boolOrNull(Object? value) => value is bool ? value : null;\n\n");
         dart.Append("T _enum<T extends Enum>(List<T> values, Object? value) =>\n    _enumOrNull(values, value) ?? values.first;\n\n");
         dart.Append("T? _enumOrNull<T extends Enum>(List<T> values, Object? value) {\n  if (value is num) {\n    final index = value.toInt();\n    return index >= 0 && index < values.length ? values[index] : null;\n  }\n  final name = '$value'.toLowerCase();\n  for (final candidate in values) {\n    if (candidate.name.toLowerCase() == name) {\n      return candidate;\n    }\n  }\n  return null;\n}\n\n");
 
@@ -168,7 +169,7 @@ public sealed partial class DartNodeModelsFacts
         if (type == typeof(string)) { return nullable ? $"_stringOrNull({value})" : $"_string({value}{or})"; }
         if (type == typeof(double)) { return nullable ? $"_doubleOrNull({value})" : $"_double({value}{or})"; }
         if (type == typeof(int)) { return nullable ? $"_intOrNull({value})" : $"_int({value}{or})"; }
-        if (type == typeof(bool)) { return $"_bool({value}{or})"; }
+        if (type == typeof(bool)) { return nullable ? $"_boolOrNull({value})" : $"_bool({value}{or})"; }
         if (type == typeof(JsonElement)) { return value; }
         if (type.IsEnum) { return nullable ? $"_enumOrNull({type.Name}.values, {value})" : $"_enum({type.Name}.values, {value})"; }
         var parse = type == typeof(Node) ? "Node.fromJson" : $"{DartName(type)}.fromJson";

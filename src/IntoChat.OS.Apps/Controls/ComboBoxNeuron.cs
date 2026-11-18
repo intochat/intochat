@@ -21,9 +21,7 @@ public sealed class ComboBoxNeuron : ControlNeuron<ComboBoxState, ComboBoxProps>
     public Task Select(DigitalBrain.UI.Commands.Select command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        return command.Id == State.SelectedId
-            ? Task.CompletedTask
-            : Show(State with { SelectedId = command.Id }, new SelectionChanged(command.Id));
+        return SelectId(Props?.SelectedId, State.SelectedId, command.Id, id => State with { SelectedId = id });
     }
 
     protected override View Render(ComboBoxState state)

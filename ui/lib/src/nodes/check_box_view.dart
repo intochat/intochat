@@ -11,9 +11,11 @@ import 'node_context.dart';
 Widget renderCheckBoxView(CheckBoxViewNode node, NodeContext ctx) {
   final props = CheckBoxProps.fromJson(ctx.slotProps);
   final enabled = props.isEnabled && ctx.interactive;
+  // A controlled box draws the parent's value; otherwise the neuron's.
+  final isOn = props.isOn ?? node.isOn;
   return Semantics(
     label: controlNameOf(props.automationName, props.label, node.key),
-    checked: node.isOn,
+    checked: isOn,
     enabled: enabled,
     child: ExcludeSemantics(
       child: InkWell(
@@ -22,7 +24,7 @@ Widget renderCheckBoxView(CheckBoxViewNode node, NodeContext ctx) {
           mainAxisSize: MainAxisSize.min,
           children: [
             Checkbox(
-              value: node.isOn,
+              value: isOn,
               onChanged: enabled ? (_) => actCheckBoxToggle(ctx, '.') : null,
             ),
             Flexible(child: Text(props.label)),

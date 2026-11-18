@@ -12,8 +12,10 @@ import 'node_context.dart';
 /// highlights none. Disabled props send nothing.
 Widget renderTabStripView(TabStripViewNode node, NodeContext ctx) {
   final props = TabStripProps.fromJson(ctx.slotProps);
+  // A controlled control draws the parent's selection; otherwise the neuron's.
+  final selectedId = props.selectedId ?? node.selectedId;
   final enabled = props.isEnabled && ctx.interactive;
-  final index = props.items.indexWhere((item) => item.id == node.selectedId);
+  final index = props.items.indexWhere((item) => item.id == selectedId);
   return Semantics(
     label: controlNameOf(props.automationName, '', node.key),
     enabled: enabled,

@@ -11,9 +11,11 @@ import 'node_context.dart';
 /// the props and the neuron owns the selection. Disabled props send nothing.
 Widget renderComboBoxView(ComboBoxViewNode node, NodeContext ctx) {
   final props = ComboBoxProps.fromJson(ctx.slotProps);
+  // A controlled control draws the parent's selection; otherwise the neuron's.
+  final selectedId = props.selectedId ?? node.selectedId;
   final enabled = props.isEnabled && ctx.interactive;
-  final selected = props.options.any((option) => option.id == node.selectedId)
-      ? node.selectedId
+  final selected = props.options.any((option) => option.id == selectedId)
+      ? selectedId
       : null;
   return Semantics(
     label: controlNameOf(props.automationName, props.header, node.key),

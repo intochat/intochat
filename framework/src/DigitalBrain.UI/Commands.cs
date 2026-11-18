@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace DigitalBrain.UI;
 
@@ -6,13 +7,16 @@ namespace DigitalBrain.UI;
 /// <param name="Target">A neuron address relative to the view's neuron; <c>"."</c> is the neuron itself, <c>"dark-mode"</c> a child.</param>
 /// <param name="Signal">The alias of the signal to deliver.</param>
 /// <param name="Args">The signal payload as JSON (web casing), if any.</param>
-public sealed record Command(string Target, string Signal, JsonElement? Args = null)
+/// <param name="Props">Set only by a parent screen routing the command to its slot child: the props its current view gives that slot,
+/// so a controlled control (props carry its value) can signal without storing. Anything else sending a command leaves it null.</param>
+public sealed record Command(string Target, string Signal, JsonElement? Args = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] JsonElement? Props = null)
 {
     /// <inheritdoc />
-    public bool Equals(Command? other) => other is not null && Target == other.Target && Signal == other.Signal && Args?.GetRawText() == other.Args?.GetRawText();
+    public bool Equals(Command? other) => other is not null && Target == other.Target && Signal == other.Signal
+        && Args?.GetRawText() == other.Args?.GetRawText() && Props?.GetRawText() == other.Props?.GetRawText();
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(Target, Signal, Args?.GetRawText());
+    public override int GetHashCode() => HashCode.Combine(Target, Signal, Args?.GetRawText(), Props?.GetRawText());
 }
 
 /// <summary>Gives a control property one example value (JSON) for the showcase; repeat for several.</summary>

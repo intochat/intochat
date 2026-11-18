@@ -23,9 +23,6 @@ public abstract class Neuron
     // True once a runtime attached this neuron; a detached instance (a preview) has no id.
     internal bool IsAttached => _context is not null;
 
-    // The publisher of the signal the running delivered reaction handles; null outside one (a command, a call).
-    internal NeuronId? Delivering { get; set; }
-
     private protected INeuronSeat Seat => _seat ?? throw new InvalidOperationException("This context carries no seat: attach through a runtime, TestOS or FakeNeuronContext.");
 
     internal void Attach(INeuronContext context)

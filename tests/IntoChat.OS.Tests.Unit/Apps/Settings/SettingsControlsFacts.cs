@@ -50,16 +50,39 @@ public sealed class SettingsControlsFacts
     }
 
     [Fact]
-    public async Task The_switch_shows_the_preference_before_anyone_touches_it()
+    public async Task The_switch_draws_the_preference_from_its_props()
     {
         await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
-        await Settings(os, "notifications");
+        var settings = await Settings(os, "notifications");
 
         using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
-        var view = await os.Get<IScreen>(Control("control.toggleSwitch", "notify-approvals")).Read();
+        var view = await settings.Screen.Read();
+        var slot = Slots(view!.View).Single(node => node.GetProperty("neuronUri").GetString()!.EndsWith("/notify-approvals", StringComparison.Ordinal));
 
-        Assert.True(view!.View.GetProperty("root").GetProperty("isOn").GetBoolean());
+        Assert.True(slot.GetProperty("props").GetProperty("isOn").GetBoolean());
     }
+
+    [Fact]
+    public async Task A_toggle_updates_the_preference_without_anything_pushed_to_the_switch()
+    {
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var settings = await Settings(os, "notifications");
+
+        await Send(settings, "notify-jobs", new Toggle());
+
+        Assert.False(settings.App.State.NotifyBackgroundJobs);
+        var signals = os.Journal(Brain).Signals(Control("control.toggleSwitch", "notify-jobs")).Select(entry => entry.Signal)
+            .Where(signal => signal is not StateChanged and not ViewChanged).ToArray();
+        Assert.Equal([new Toggled(false)], signals);
+    }
+
+    private static IEnumerable<JsonElement> Slots(JsonElement json) => json.ValueKind switch
+    {
+        JsonValueKind.Object => (json.TryGetProperty("refKind", out var kind) && kind.GetString() == "slot" ? [json] : Enumerable.Empty<JsonElement>())
+            .Concat(json.EnumerateObject().SelectMany(property => Slots(property.Value))),
+        JsonValueKind.Array => json.EnumerateArray().SelectMany(Slots),
+        _ => [],
+    };
 
     [Fact]
     public async Task Choosing_a_bar_layout_through_its_ComboBox_slot_saves_it()

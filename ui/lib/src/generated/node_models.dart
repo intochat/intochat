@@ -27,6 +27,8 @@ int? _intOrNull(Object? value) => value is num ? value.toInt() : null;
 bool _bool(Object? value, [bool fallback = false]) =>
     value is bool ? value : fallback;
 
+bool? _boolOrNull(Object? value) => value is bool ? value : null;
+
 T _enum<T extends Enum>(List<T> values, Object? value) =>
     _enumOrNull(values, value) ?? values.first;
 
@@ -537,16 +539,19 @@ final class CheckBoxProps {
     required this.isEnabled,
     required this.automationName,
     required this.label,
+    required this.isOn,
   });
 
   final bool isEnabled;
   final String? automationName;
   final String label;
+  final bool? isOn;
 
   factory CheckBoxProps.fromJson(Map<String, dynamic> json) => CheckBoxProps(
     isEnabled: _bool(json['isEnabled'], true),
     automationName: _stringOrNull(json['automationName']),
     label: _string(json['label']),
+    isOn: _boolOrNull(json['isOn']),
   );
 }
 
@@ -673,12 +678,14 @@ final class ComboBoxProps {
     required this.automationName,
     required this.header,
     required this.options,
+    required this.selectedId,
   });
 
   final bool isEnabled;
   final String? automationName;
   final String header;
   final List<ComboBoxOption> options;
+  final String? selectedId;
 
   factory ComboBoxProps.fromJson(Map<String, dynamic> json) => ComboBoxProps(
     isEnabled: _bool(json['isEnabled'], true),
@@ -688,6 +695,7 @@ final class ComboBoxProps {
       for (final item in _list(json['options']))
         ComboBoxOption.fromJson(_map(item)),
     ],
+    selectedId: _stringOrNull(json['selectedId']),
   );
 }
 
@@ -712,16 +720,19 @@ final class Command {
     required this.target,
     required this.signal,
     required this.args,
+    required this.props,
   });
 
   final String target;
   final String signal;
   final Object? args;
+  final Object? props;
 
   factory Command.fromJson(Map<String, dynamic> json) => Command(
     target: _string(json['target']),
     signal: _string(json['signal']),
     args: json['args'],
+    props: json['props'],
   );
 }
 
@@ -1406,12 +1417,14 @@ final class ListBoxProps {
     required this.automationName,
     required this.items,
     required this.selectionMode,
+    required this.selectedId,
   });
 
   final bool isEnabled;
   final String? automationName;
   final List<ListBoxItem> items;
   final ListSelectionMode selectionMode;
+  final String? selectedId;
 
   factory ListBoxProps.fromJson(Map<String, dynamic> json) => ListBoxProps(
     isEnabled: _bool(json['isEnabled'], true),
@@ -1420,6 +1433,7 @@ final class ListBoxProps {
       for (final item in _list(json['items'])) ListBoxItem.fromJson(_map(item)),
     ],
     selectionMode: _enum(ListSelectionMode.values, json['selectionMode']),
+    selectedId: _stringOrNull(json['selectedId']),
   );
 }
 
@@ -1970,11 +1984,13 @@ final class TabStripProps {
     required this.isEnabled,
     required this.automationName,
     required this.items,
+    required this.selectedId,
   });
 
   final bool isEnabled;
   final String? automationName;
   final List<TabStripItem> items;
+  final String? selectedId;
 
   factory TabStripProps.fromJson(Map<String, dynamic> json) => TabStripProps(
     isEnabled: _bool(json['isEnabled'], true),
@@ -1983,6 +1999,7 @@ final class TabStripProps {
       for (final item in _list(json['items']))
         TabStripItem.fromJson(_map(item)),
     ],
+    selectedId: _stringOrNull(json['selectedId']),
   );
 }
 
@@ -2086,6 +2103,7 @@ final class ToggleSwitchProps {
     required this.label,
     required this.onContent,
     required this.offContent,
+    required this.isOn,
   });
 
   final bool isEnabled;
@@ -2093,6 +2111,7 @@ final class ToggleSwitchProps {
   final String label;
   final String? onContent;
   final String? offContent;
+  final bool? isOn;
 
   factory ToggleSwitchProps.fromJson(Map<String, dynamic> json) =>
       ToggleSwitchProps(
@@ -2101,6 +2120,7 @@ final class ToggleSwitchProps {
         label: _string(json['label']),
         onContent: _stringOrNull(json['onContent']),
         offContent: _stringOrNull(json['offContent']),
+        isOn: _boolOrNull(json['isOn']),
       );
 }
 

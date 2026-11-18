@@ -2,10 +2,10 @@
 # Form
 
 A control neuron: a set of text fields submitted at once. Typed text stays in the client until Submit, which carries every editable
-field's value, typed or not. The form keeps the last submitted non-secret values and signals Submitted with all of them, secrets
-included; it never stores or draws a secret. Its fields, submit label, enabled and accessible name are props its parent writes on the
-slot; the parent refuses a submit naming an unknown or read-only field, a value over MaxLength, a non-number in a number field, or a
-secrets list that does not name exactly the secret fields carried.
+field's value, typed or not. The form keeps the last submitted values and signals Submitted with all of them; when the parent's
+props carry field values (a controlled form) it stores nothing and only signals. Its fields, submit label, enabled and accessible name are props its parent writes on the
+slot; the parent refuses a submit naming an unknown or read-only field, a value over MaxLength, a non-number in a number field, and every
+submit to a form with a secret field (control.secretUnsupported: a submit is journaled; a vault path is owed).
 */
 using DigitalBrain;
 using DigitalBrain.Neurons;
@@ -23,12 +23,16 @@ public sealed class FormNeuron : ControlNeuron<FormState, FormProps>
     public Task Submit(Submit command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var secrets = new HashSet<string>(command.Secrets ?? [], StringComparer.Ordinal);
-        // A field the submit leaves out keeps its last submitted value, so Submitted always carries the form's current values.
+        // A field the submit leaves out keeps its current value (the parent's when it controls it, else the last submitted), so
+        // Submitted always carries the form's current values.
+        var props = Props;
         var all = new Dictionary<string, string>(State.Values, StringComparer.Ordinal);
+        foreach (var field in props?.Fields ?? []) { if (field.Value is { } value) { all[field.Key] = value; } }
         foreach (var (key, value) in command.Values) { all[key] = value; }
-        var kept = all.Where(entry => !secrets.Contains(entry.Key)).ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal);
-        return Show(State with { Values = kept }, new Submitted(all));
+        // Controlled (the parent owns a value): signal only; the parent stores and re-renders the props.
+        return props?.Fields.Any(field => field.Value is not null) == true
+            ? Publish(new Submitted(all))
+            : Show(State with { Values = all }, new Submitted(all));
     }
 
     protected override View Render(FormState state)

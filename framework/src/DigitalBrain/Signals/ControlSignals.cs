@@ -22,9 +22,8 @@ public sealed record Expand(bool IsExpanded) : Signal;
 
 /// <summary>Submits a form's values.</summary>
 /// <param name="Values">The submitted values by field name: every editable field, typed or not.</param>
-/// <param name="Secrets">The keys of <paramref name="Values"/> that are secrets: the form passes them on in <see cref="Submitted"/> but never stores them. The parent's props check the list.</param>
 [Signal("control.submit")]
-public sealed record Submit(IReadOnlyDictionary<string, string> Values, IReadOnlyList<string>? Secrets = null) : Signal;
+public sealed record Submit(IReadOnlyDictionary<string, string> Values) : Signal;
 
 /// <summary>Closes or dismisses a control.</summary>
 [Signal("control.close")]

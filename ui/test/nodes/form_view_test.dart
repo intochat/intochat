@@ -65,10 +65,6 @@ void main() {
       find.byKey(const ValueKey('form_field_bio')),
       'Pilot',
     );
-    await tester.enterText(
-      find.byKey(const ValueKey('form_field_token')),
-      'sk-1',
-    );
     await tester.pump();
     expect(sent, isEmpty);
 
@@ -79,23 +75,27 @@ void main() {
     expect(sent.single['signal'], 'control.submit');
     expect(sent.single['target'], 'profile');
     expect(_args(sent.single), {
-      'values': {'name': 'Ada', 'bio': 'Pilot', 'token': 'sk-1'},
-      'secrets': ['token'],
+      'values': {'name': 'Ada', 'bio': 'Pilot'},
     });
   });
 
-  testWidgets('a secret is cleared after submit and never drawn back', (
-    tester,
-  ) async {
+  testWidgets('a secret field is not offered', (tester) async {
     await _pump(tester, _props);
-    await tester.enterText(
-      find.byKey(const ValueKey('form_field_token')),
-      'sk-1',
-    );
-    await tester.tap(find.byKey(const ValueKey('form_submit')));
-    await tester.pumpAndSettle();
 
-    expect(find.text('sk-1'), findsNothing);
+    expect(find.text('API key'), findsNothing);
+    expect(find.byKey(const ValueKey('form_field_token')), findsNothing);
+  });
+
+  testWidgets('a controlled field draws the parent value', (tester) async {
+    await _pump(tester, {
+      ..._props,
+      'fields': [
+        {'key': 'name', 'label': 'Display name', 'value': 'Grace'},
+      ],
+    });
+
+    expect(find.text('Grace'), findsOneWidget);
+    expect(find.text('Ada'), findsNothing);
   });
 
   testWidgets('disabled props send nothing', (tester) async {

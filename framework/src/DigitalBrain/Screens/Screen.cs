@@ -64,7 +64,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     {
         get
         {
-            if (Delivering is not { } from || from.Brain != Id.Brain) { return null; }
+            if (DeliveryScope.PublisherFor(this) is not { } from || from.Brain != Id.Brain) { return null; }
             var prefix = Id + "/";
             return from.Key.StartsWith(prefix, StringComparison.Ordinal) && from.Key.IndexOf('/', prefix.Length) < 0 && from.Key.Length > prefix.Length
                 ? from.Key[prefix.Length..] : null;
@@ -73,7 +73,8 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
 
     /// <summary>
     /// The view of <paramref name="state"/> drawn outside a save (a preview): slots render as in a save but nothing is stored and the
-    /// slots the current view routes to are unchanged. A screen no runtime attached addresses its slots under a "preview" brain.
+    /// slots the current view routes to are unchanged. A screen no runtime attached addresses its slots under the brain id "preview", which names no real brain: such slot ids
+    /// are for drawing only and are never routed (a detached screen has no runtime to route through).
     /// </summary>
     protected View RenderDetached(TState state)
     {
@@ -140,7 +141,11 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
             ArgumentNullException.ThrowIfNull(command);
             ArgumentException.ThrowIfNullOrWhiteSpace(command.Target);
             ArgumentException.ThrowIfNullOrWhiteSpace(command.Signal);
-            if (command.Target == ".") { return Handle(command.Signal, ViewNodes.Payload(command.Args, fieldValue: null, by: null)); }
+            if (command.Target == ".")
+            {
+                var payload = ViewNodes.Payload(command.Args, fieldValue: null, by: null);
+                return command.Props is { } props ? HandleWithProps(command.Signal, payload, props) : Handle(command.Signal, payload);
+            }
             var path = command.Target.StartsWith("./", StringComparison.Ordinal) ? command.Target[2..] : command.Target;
             var slash = path.IndexOf('/', StringComparison.Ordinal);
             var key = slash < 0 ? path : path[..slash];
@@ -156,12 +161,29 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
             }
             if (rest != "." && rest.Split('/').Any(hop => hop is "" or "." or "..")) { throw new ArgumentException($"Target path '{command.Target}' has an empty, '.' or '..' hop.", nameof(command)); }
             // Each hop is the next parent's Dispatch, which applies its own gate; awaited, so the child's failure reaches the caller.
-            return Get<IScreen>(slot.Id).Dispatch(command with { Target = rest });
+            // The last hop carries this screen's props for the slot (and only those: a sender's own Props never pass through).
+            return Get<IScreen>(slot.Id).Dispatch(command with
+            {
+                Target = rest,
+                Props = rest == "." && slot.Props is { } slotProps ? PooledJson.Encode(slotProps, slotProps.GetType()) : null,
+            });
         }
         catch (Exception error) when (error is ArgumentException or ActivationRefusedException)
         {
             return Task.FromException(error);
         }
+    }
+
+    /// <summary>
+    /// The props the parent gave this screen's slot, as JSON, while a reaction runs for a command the parent routed to it; null for a
+    /// command sent any other way, a delivered signal, or a call. Scoped to that command's async flow, not stored.
+    /// </summary>
+    protected JsonElement? CommandProps => CommandScope.PropsFor(this);
+
+    private async Task HandleWithProps(string alias, JsonElement payload, JsonElement props)
+    {
+        using var scope = CommandScope.Enter(this, props);
+        await Handle(alias, payload).ConfigureAwait(true);
     }
 
     /// <summary>Stores the first view. An override calls the base first.</summary>
@@ -356,3 +378,25 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
 
 /// <summary>Internal snapshot combining user domain state and published view for persistence.</summary>
 internal sealed record StoredState<TState>(TState? State, PublishedView? View) where TState : class;
+
+// The props a parent routed with the command a screen is handling, scoped to that command's async flow and to that screen.
+internal static class CommandScope
+{
+    private static readonly AsyncLocal<Frame?> Current = new();
+
+    private sealed record Frame(object Screen, JsonElement Props);
+
+    public static IDisposable Enter(object screen, JsonElement props)
+    {
+        var outer = Current.Value;
+        Current.Value = new Frame(screen, props);
+        return new Exit(outer);
+    }
+
+    public static JsonElement? PropsFor(object screen) => Current.Value is { } frame && ReferenceEquals(frame.Screen, screen) ? frame.Props : null;
+
+    private sealed class Exit(Frame? outer) : IDisposable
+    {
+        public void Dispose() => Current.Value = outer;
+    }
+}
