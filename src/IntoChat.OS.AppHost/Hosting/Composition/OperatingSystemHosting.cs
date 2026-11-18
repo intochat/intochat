@@ -38,7 +38,7 @@ public static class OperatingSystemHosting
         var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Select(name =>
             AspireModuleHosting.AddLiveBuild(builder, workdir, name, "os", "IntoChat.OS.Kernel.dll") is { } live
                 ? Primary(AllowLiveBuildOnNetwork(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS")))
-                : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddDotnetProject(name, projectPath)))).ToArray();
+                : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddDotnetProject(name, projectPath).WithoutBuild()))).ToArray();
         if (profile.FrontEnabled)
         {
             var front = AspireModuleHosting.AddFront(builder, "OperatingSystem", profile.UiPort, silos.Select(silo => silo.GetEndpoint("https")));
