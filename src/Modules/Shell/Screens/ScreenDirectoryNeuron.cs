@@ -200,7 +200,7 @@ internal sealed partial class ScreenDirectoryNeuron(
                 if (pub is not null)
                 {
                     generation = pub.Generation;
-                    viewJson = pub.View;
+                    viewJson = await InlineSlotsAsync(pub.View);
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -400,6 +400,14 @@ internal sealed partial class ScreenDirectoryNeuron(
                 if (pub is not null)
                 {
                     var callerPersonId = Context.Caller?.For?.Principal is { Length: > 0 } person ? person : "user";
+                    // A key path "slot/key" (as Read lists a slot child's controls) activates the key on that slot's own view.
+                    if (await SlotTargetAsync(pub.View, key) is { } slot)
+                    {
+                        var child = ResolveNeuron<IScreen>(slot.Child);
+                        var childView = await child.Read() ?? throw new ActivationRefusedException(ActivationRefusedException.UnknownChild);
+                        await child.Activate(childView.Alias, childView.Generation, slot.Key, value, callerPersonId);
+                        return new ScreenActionResult(true, "Action accepted.", await Read(appId, instanceId));
+                    }
                     await ScreenAppEmitBridge.ActivateAsync(
                         screen,
                         pub,
@@ -566,6 +574,121 @@ internal sealed partial class ScreenDirectoryNeuron(
         await PersistState(CurrentState with { ResolvedApprovals = nextResolved }, new ApprovalResolved(brainId, approvalId, approved));
 
         return new ScreenActionResult(true, $"Approval '{approvalId}' resolved as {(approved ? "approved" : "denied")}.");
+    }
+
+    private const int MaxSlotDepth = 4;
+
+    // A screen's slots drawn in place for MCP and HTTP readers: each slot is replaced by its child's view root, whose node keys carry
+    // the slot key path ("conversation/composer"); Act routes such a key to the child. A child that cannot be read keeps its slot.
+    private async Task<JsonElement> InlineSlotsAsync(JsonElement view)
+    {
+        if (!view.GetRawText().Contains("\"slot\"", StringComparison.Ordinal)) { return view; }
+        var root = System.Text.Json.Nodes.JsonNode.Parse(view.GetRawText());
+        if (root is null) { return view; }
+        await InlineAsync(root, "", 0);
+        return JsonSerializer.SerializeToElement(root);
+    }
+
+    private async Task InlineAsync(System.Text.Json.Nodes.JsonNode node, string prefix, int depth)
+    {
+        if (node is System.Text.Json.Nodes.JsonArray array)
+        {
+            foreach (var item in array.ToArray()) { if (item is not null) { await InlineAsync(item, prefix, depth); } }
+            return;
+        }
+        if (node is not System.Text.Json.Nodes.JsonObject obj) { return; }
+        if (SlotOf(obj) is { } slot)
+        {
+            try
+            {
+                if (await ResolveNeuron<IScreen>(slot.Child).Read() is { } child && child.View.TryGetProperty("root", out var childRoot))
+                {
+                    // Keys first, then the child's own slots, so a nested slot's keys carry its whole path once.
+                    var path = prefix + slot.Key + "/";
+                    var inlined = System.Text.Json.Nodes.JsonNode.Parse(childRoot.GetRawText())!.AsObject();
+                    PrefixKeys(inlined, path);
+                    if (depth + 1 < MaxSlotDepth) { await InlineAsync(inlined, path, depth + 1); }
+                    obj.Clear();
+                    foreach (var (name, value) in inlined.ToArray()) { inlined.Remove(name); obj[name] = value; }
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log.LogSwallowed(ex, "Slot read failed.");
+            }
+            return;
+        }
+        foreach (var (name, value) in obj.ToArray())
+        {
+            if (value is not null && name is not ("command" or "emit" or "args" or "intent" or "resolve" or "onSubmit" or "props")) { await InlineAsync(value, prefix, depth); }
+        }
+    }
+
+    // The node keys of an inlined child view, prefixed with its slot path; action payloads and props are data, not nodes.
+    private static void PrefixKeys(System.Text.Json.Nodes.JsonNode node, string path)
+    {
+        if (node is System.Text.Json.Nodes.JsonArray array)
+        {
+            foreach (var item in array) { if (item is not null) { PrefixKeys(item, path); } }
+            return;
+        }
+        if (node is not System.Text.Json.Nodes.JsonObject obj) { return; }
+        if (obj["key"] is System.Text.Json.Nodes.JsonValue keyValue && keyValue.TryGetValue<string>(out var key)) { obj["key"] = path + key; }
+        foreach (var (name, value) in obj.ToArray())
+        {
+            if (value is not null && name is not ("command" or "emit" or "args" or "intent" or "resolve" or "onSubmit" or "props")) { PrefixKeys(value, path); }
+        }
+    }
+
+    private static (string Key, NeuronId Child)? SlotOf(System.Text.Json.Nodes.JsonObject obj)
+        => obj["kind"]?.GetValueKind() == JsonValueKind.String && (string?)obj["kind"] == "neuronRef"
+            && obj["refKind"]?.GetValueKind() == JsonValueKind.String && (string?)obj["refKind"] == "slot"
+            && obj["neuronUri"]?.GetValueKind() == JsonValueKind.String && NeuronId.TryParse((string?)obj["neuronUri"], out var child)
+            && child.Key.LastIndexOf('/') is var slash and > 0
+                ? (child.Key[(slash + 1)..], child)
+                : null;
+
+    // The slot child and its node key a key path names: "slot/key" while the leading segment names a slot of the view (descending
+    // through nested slots); null when the key names no slot.
+    private async Task<(NeuronId Child, string Key)?> SlotTargetAsync(JsonElement view, string key)
+    {
+        (NeuronId Child, string Key)? target = null;
+        var current = view;
+        var rest = key;
+        for (var depth = 0; depth < MaxSlotDepth && rest.IndexOf('/', StringComparison.Ordinal) is var slash and > 0; depth++)
+        {
+            var segment = rest[..slash];
+            if (FindSlot(current, segment) is not { } child) { break; }
+            target = (child, rest[(slash + 1)..]);
+            rest = rest[(slash + 1)..];
+            if (await ResolveNeuron<IScreen>(child).Read() is not { } next) { break; }
+            current = next.View;
+        }
+        return target;
+    }
+
+    private static NeuronId? FindSlot(JsonElement view, string slotKey)
+    {
+        var pending = new Stack<JsonElement>([view]);
+        while (pending.Count > 0)
+        {
+            var element = pending.Pop();
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                if (element.TryGetProperty("refKind", out var refKind) && refKind.ValueKind == JsonValueKind.String && refKind.GetString() == "slot"
+                    && element.TryGetProperty("neuronUri", out var uri) && uri.ValueKind == JsonValueKind.String
+                    && NeuronId.TryParse(uri.GetString(), out var child) && child.Key.EndsWith("/" + slotKey, StringComparison.Ordinal))
+                {
+                    return child;
+                }
+                foreach (var property in element.EnumerateObject()) { pending.Push(property.Value); }
+            }
+            else if (element.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray()) { pending.Push(item); }
+            }
+        }
+        return null;
     }
 
     private static ScreenControlItem[] ExtractControls(JsonElement? root)
