@@ -57,9 +57,6 @@ RUN flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub \
     done
 
 FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS build
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends clang zlib1g-dev \
-    && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 ARG GITHUB_ACTOR=intochat
 
@@ -72,8 +69,8 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
       --configfile nuget.config \
       -c Release \
       -r linux-x64 \
-      --self-contained \
-      -p:IntoChatOSAot=true \
+      --self-contained false \
+      -p:PublishAot=false \
       -p:CodeGraphRefresh=false \
       -p:DebugType=none \
       -o /out/silo \
@@ -111,4 +108,4 @@ ENV ASPNETCORE_ENVIRONMENT=Production \
 EXPOSE 8080
 
 USER $APP_UID
-ENTRYPOINT ["/app/silo/IntoChat.OS.Kernel"]
+ENTRYPOINT ["dotnet", "/app/silo/IntoChat.OS.Kernel.dll"]

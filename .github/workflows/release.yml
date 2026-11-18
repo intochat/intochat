@@ -81,11 +81,11 @@ jobs:
       - name: Log in to Azure Container Registry (Test)
         run: az acr login --name acrintochattest
 
-      - name: Publish IntoChat.OS.Kernel binary (Native AOT)
+      - name: Publish IntoChat.OS.Kernel binary
         run: |
           dotnet publish src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj \
             -c Release -r linux-x64 --self-contained \
-            -o artifacts/kernel-bin -p:IntoChatOSAot=true -p:CodeGraphRefresh=false -p:DebugType=none
+            -o artifacts/kernel-bin -p:CodeGraphRefresh=false -p:DebugType=none
           tar -I 'gzip -1' -cf artifacts/kernel-bin.tar.gz -C artifacts/kernel-bin .
 
       - name: Pack DigitalBrain and IntoChat.OS packages
