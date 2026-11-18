@@ -4,6 +4,7 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'app_shell.dart';
 import 'approval_card.dart';
 import 'badge.dart';
+import 'node_common.dart' show keyedControl;
 import 'brain_scene.dart';
 import 'button.dart';
 import 'card.dart';
@@ -64,6 +65,24 @@ abstract final class NodeRenderer {
 
   static Widget render(Node node, NodeContext ctx) {
     if (ctx.depth > maxDepth) return const _Unsupported();
+    return keyedControl(_keyOf(node), _draw(node, ctx));
+  }
+
+  /// The wire `key` of the nodes whose generated model declares one.
+  static String? _keyOf(Node node) => switch (node) {
+    AppShellNode(:final key) ||
+    ApprovalCardNode(:final key) ||
+    ButtonNode(:final key) ||
+    ConversationNode(:final key) ||
+    FieldNode(:final key) ||
+    NavItemNode(:final key) ||
+    StatCardNode(:final key) ||
+    SwitchNode(:final key) ||
+    WebBrowserNode(:final key) => key,
+    _ => null,
+  };
+
+  static Widget _draw(Node node, NodeContext ctx) {
     return switch (node) {
       ColumnNode() => renderColumn(node, ctx),
       RowNode() => renderRow(node, ctx),

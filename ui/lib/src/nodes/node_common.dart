@@ -71,3 +71,15 @@ VoidCallback? pressOf(ButtonNode? button, NodeContext ctx) =>
 List<Widget> renderAll(List<Node> nodes, NodeContext ctx) => [
   for (final node in nodes) NodeRenderer.render(node, ctx.deeper()),
 ];
+
+/// Tags a rendered control with its wire `key` (so tests and automation find it by
+/// `Key(node.key)`) and, when it declares one, its `automationName` as the semantics label.
+Widget keyedControl(String? key, Widget child, {String? automationName}) {
+  var wrapped = child;
+  if (automationName != null && automationName.isNotEmpty) {
+    wrapped = Semantics(label: automationName, container: true, child: wrapped);
+  }
+  return key == null || key.isEmpty
+      ? wrapped
+      : KeyedSubtree(key: ValueKey(key), child: wrapped);
+}
