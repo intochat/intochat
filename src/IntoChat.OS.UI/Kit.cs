@@ -1063,6 +1063,9 @@ public static class Kit
     public static TextBuilder MutedText(string value)
         => new(value, "muted");
 
+    /// <summary>Markdown text (<see cref="DigitalBrain.UI.Markdown"/>): headings, lists, emphasis, links and code drawn by the client.</summary>
+    public static Markdown Markdown(string value) => new(value ?? string.Empty);
+
     /// <summary>Display heading (<see cref="DigitalBrain.UI.Heading"/>).</summary>
     public static Heading Heading(string value, int level = 2, string? subtitle = null)
         => new(value, level, subtitle);

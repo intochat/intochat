@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'app_shell.dart';
@@ -8,6 +8,7 @@ import 'node_common.dart' show keyedControl;
 import 'brain_scene.dart';
 import 'button.dart';
 import 'icon_button.dart';
+import 'markdown.dart';
 import 'card.dart';
 import 'chart.dart';
 import 'choice_card.dart';
@@ -99,6 +100,7 @@ abstract final class NodeRenderer {
       CollectionNode() => renderCollection(node, ctx),
       HeadingNode() => renderHeading(node, ctx),
       TextNode() => renderText(node, ctx),
+      MarkdownNode() => renderMarkdown(node, ctx),
       BadgeNode() => renderBadge(node, ctx),
       TagPillNode() => renderTagPill(node, ctx),
       FieldNode() => renderField(node, ctx),

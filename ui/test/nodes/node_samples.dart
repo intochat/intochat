@@ -114,6 +114,7 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'action': _button,
   },
   'toast': {'kind': 'toast', 'message': 'Saved'},
+  'markdown': {'kind': 'markdown', 'value': '**Notes**: one, *two*'},
   'card': {
     'kind': 'card',
     'title': 'Card',

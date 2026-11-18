@@ -109,6 +109,19 @@ public sealed class ViewModelJsonFacts
     }
 
     [Fact]
+    public void Markdown_and_a_card_with_header_and_footer_round_trip()
+    {
+        var options = RuntimeProtocol.OptionsFor(typeof(View));
+        var view = new View("v", new Card("Deploy", "Ready.", [new Markdown("**bold**")], Header: new Badge("Staging"), Footer: new Button("ship", "Ship", new Command(".", "shipped"))));
+
+        var wire = JsonSerializer.SerializeToElement(view, options);
+
+        Assert.Equal("markdown", wire.GetProperty("root").GetProperty("children")[0].GetProperty("kind").GetString());
+        Assert.Equal("badge", wire.GetProperty("root").GetProperty("header").GetProperty("kind").GetString());
+        Assert.Equal(view, JsonSerializer.Deserialize<View>(wire.GetRawText(), options));
+    }
+
+    [Fact]
     public void A_stored_button_emit_reads_as_a_command_to_its_own_view()
     {
         const string stored = """{"title":"v","root":{"kind":"button","key":"go","label":"Go","emit":{"owner":"app.files","signal":"files.open","args":{"id":1}}}}""";

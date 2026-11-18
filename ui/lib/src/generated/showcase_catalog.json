@@ -979,6 +979,25 @@
     "examples": []
   },
   {
+    "kind": "markdown",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "value",
+        "type": "String",
+        "default": null
+      }
+    ],
+    "commands": [],
+    "signals": [],
+    "examples": [
+      {
+        "kind": "markdown",
+        "value": "## Release notes\n\n- **Faster** sync\n- A new `Card` footer\n\nSee [the docs](https://intochat.io)."
+      }
+    ]
+  },
+  {
     "kind": "metricTile",
     "isNeuron": false,
     "props": [

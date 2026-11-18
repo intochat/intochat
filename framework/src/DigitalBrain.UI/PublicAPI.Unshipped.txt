@@ -1294,6 +1294,12 @@ DigitalBrain.UI.InfoBar.Deconstruct(out string! Title, out string! Message, out 
 DigitalBrain.UI.InfoBar.InfoBar(string! Title, string! Message, string! Tone = "neutral", DigitalBrain.UI.Button? Action = null, DigitalBrain.UI.Command? Close = null, string! Key = "", string! AutomationName = "") -> void
 DigitalBrain.UI.InfoBar.Key.get -> string!
 DigitalBrain.UI.InfoBar.Key.init -> void
+DigitalBrain.UI.Markdown
+DigitalBrain.UI.Markdown.Deconstruct(out string! Value) -> void
+DigitalBrain.UI.Markdown.Equals(DigitalBrain.UI.Markdown? other) -> bool
+DigitalBrain.UI.Markdown.Markdown(string! Value) -> void
+DigitalBrain.UI.Markdown.Value.get -> string!
+DigitalBrain.UI.Markdown.Value.init -> void
 DigitalBrain.UI.Progress.Deconstruct(out string! Label, out double Value, out string? Detail, out bool IsIndeterminate, out bool ShowError, out bool Ring) -> void
 DigitalBrain.UI.Progress.IsIndeterminate.get -> bool
 DigitalBrain.UI.Progress.IsIndeterminate.init -> void
@@ -1306,6 +1312,13 @@ override DigitalBrain.UI.IconButton.<Clone>$() -> DigitalBrain.UI.IconButton!
 override DigitalBrain.UI.IconButton.Equals(object? obj) -> bool
 override DigitalBrain.UI.IconButton.GetHashCode() -> int
 override DigitalBrain.UI.IconButton.ToString() -> string!
+override DigitalBrain.UI.Markdown.<Clone>$() -> DigitalBrain.UI.Markdown!
+override DigitalBrain.UI.Markdown.Equals(object? obj) -> bool
+override DigitalBrain.UI.Markdown.GetHashCode() -> int
+override DigitalBrain.UI.Markdown.ToString() -> string!
 override sealed DigitalBrain.UI.IconButton.Equals(DigitalBrain.UI.Node? other) -> bool
+override sealed DigitalBrain.UI.Markdown.Equals(DigitalBrain.UI.Node? other) -> bool
 static DigitalBrain.UI.IconButton.operator !=(DigitalBrain.UI.IconButton? left, DigitalBrain.UI.IconButton? right) -> bool
 static DigitalBrain.UI.IconButton.operator ==(DigitalBrain.UI.IconButton? left, DigitalBrain.UI.IconButton? right) -> bool
+static DigitalBrain.UI.Markdown.operator !=(DigitalBrain.UI.Markdown? left, DigitalBrain.UI.Markdown? right) -> bool
+static DigitalBrain.UI.Markdown.operator ==(DigitalBrain.UI.Markdown? left, DigitalBrain.UI.Markdown? right) -> bool

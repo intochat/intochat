@@ -54,6 +54,7 @@ public sealed record View(string Title, Node Root);
 [JsonDerivedType(typeof(Collection), "collection")]
 [JsonDerivedType(typeof(Heading), "heading")]
 [JsonDerivedType(typeof(Text), "text")]
+[JsonDerivedType(typeof(Markdown), "markdown")]
 [JsonDerivedType(typeof(Badge), "badge")]
 [JsonDerivedType(typeof(TagPill), "tagPill")]
 [JsonDerivedType(typeof(Field), "field")]
@@ -347,6 +348,13 @@ public sealed record InfoBar(
     /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
     public string AutomationName { get; init; } = string.IsNullOrEmpty(AutomationName) ? Key : AutomationName;
 }
+
+/// <summary>Markdown text (headings, lists, emphasis, links, code): plain data drawn by the client.</summary>
+/// <param name="Value">The markdown source.</param>
+[ViewNode("markdown")]
+public sealed record Markdown(
+    [Showcase(@"""## Release notes\n\n- **Faster** sync\n- A new `Card` footer\n\nSee [the docs](https://intochat.io).""")]
+    string Value) : Node;
 
 /// <summary>A transient message.</summary>
 [ViewNode("toast")]

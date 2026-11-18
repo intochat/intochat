@@ -69,6 +69,7 @@ sealed class Node {
     'collection' => CollectionNode.fromJson(json),
     'heading' => HeadingNode.fromJson(json),
     'text' => TextNode.fromJson(json),
+    'markdown' => MarkdownNode.fromJson(json),
     'badge' => BadgeNode.fromJson(json),
     'tagPill' => TagPillNode.fromJson(json),
     'field' => FieldNode.fromJson(json),
@@ -1168,6 +1169,18 @@ final class JobStepNode {
     status: _string(json['status'], 'waiting'),
     detail: _stringOrNull(json['detail']),
   );
+}
+
+final class MarkdownNode extends Node {
+  const MarkdownNode({required this.value});
+
+  @override
+  String get kind => 'markdown';
+
+  final String value;
+
+  factory MarkdownNode.fromJson(Map<String, dynamic> json) =>
+      MarkdownNode(value: _string(json['value']));
 }
 
 final class MessageNode {
