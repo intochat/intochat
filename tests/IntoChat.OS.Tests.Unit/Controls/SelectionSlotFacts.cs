@@ -22,6 +22,7 @@ public sealed class SelectionParent : Screen<SelectionParentState>
 {
     protected override View Render(SelectionParentState state) => new("Parent", new Column([
         Slot<TabStripNeuron, TabStripProps>("tabs", new TabStripProps([new TabStripItem("general", "General"), new TabStripItem("privacy", "Privacy")])),
+        Slot<ComboBoxNeuron, ComboBoxProps>("theme", new ComboBoxProps("Theme", [new ComboBoxOption("light", "Light"), new ComboBoxOption("dark", "Dark")])),
     ]));
 }
 
@@ -39,6 +40,7 @@ public sealed class SelectionSlotFacts : IAsyncDisposable
     {
         _os.Register<SelectionParent>();
         _os.Register<TabStripNeuron>();
+        _os.Register<ComboBoxNeuron>();
     }
 
     private IScreen Parent => _os.Get<IScreen>(ParentId);
@@ -74,6 +76,23 @@ public sealed class SelectionSlotFacts : IAsyncDisposable
         await Select("tabs", "privacy");
 
         Assert.Equal([new SelectionChanged("privacy")], Signals(Child("control.tabStrip", "tabs")));
+    }
+
+    [Fact]
+    public async Task Select_unknown_is_refused_on_a_combo_box()
+    {
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => Select("theme", "sepia"));
+
+        Assert.Equal(SelectionRefusals.UnknownItem, refused.Reason);
+        Assert.False(_os.IsActive(Child("control.comboBox", "theme")));
+    }
+
+    [Fact]
+    public async Task A_known_option_reaches_the_combo_box()
+    {
+        await Select("theme", "dark");
+
+        Assert.Equal([new SelectionChanged("dark")], Signals(Child("control.comboBox", "theme")));
     }
 
     public async ValueTask DisposeAsync()

@@ -105,6 +105,7 @@ sealed class Node {
     'toggleSwitchView' => ToggleSwitchViewNode.fromJson(json),
     'expanderView' => ExpanderViewNode.fromJson(json),
     'tabStripView' => TabStripViewNode.fromJson(json),
+    'comboBoxView' => ComboBoxViewNode.fromJson(json),
     final kind => UnknownNode(kind is String ? kind : '', json),
   };
 }
@@ -648,6 +649,56 @@ final class ColumnNode extends Node {
         ? null
         : [for (final item in _list(json['extents'])) _double(item)],
   );
+}
+
+final class ComboBoxOption {
+  const ComboBoxOption({required this.id, required this.label});
+
+  final String id;
+  final String label;
+
+  factory ComboBoxOption.fromJson(Map<String, dynamic> json) =>
+      ComboBoxOption(id: _string(json['id']), label: _string(json['label']));
+}
+
+final class ComboBoxProps {
+  const ComboBoxProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.header,
+    required this.options,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String header;
+  final List<ComboBoxOption> options;
+
+  factory ComboBoxProps.fromJson(Map<String, dynamic> json) => ComboBoxProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    header: _string(json['header']),
+    options: [
+      for (final item in _list(json['options']))
+        ComboBoxOption.fromJson(_map(item)),
+    ],
+  );
+}
+
+final class ComboBoxViewNode extends Node {
+  const ComboBoxViewNode({required this.key, required this.selectedId});
+
+  @override
+  String get kind => 'comboBoxView';
+
+  final String key;
+  final String? selectedId;
+
+  factory ComboBoxViewNode.fromJson(Map<String, dynamic> json) =>
+      ComboBoxViewNode(
+        key: _string(json['key']),
+        selectedId: _stringOrNull(json['selectedId']),
+      );
 }
 
 final class Command {

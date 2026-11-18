@@ -85,3 +85,26 @@ public sealed record TabStripProps(IReadOnlyList<TabStripItem> Items, bool IsEna
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Items.Count);
 }
+
+/// <summary>An option of a combo box.</summary>
+/// <param name="Id">The id a selection names.</param>
+/// <param name="Label">The option's text.</param>
+public sealed record ComboBoxOption(string Id, string Label);
+
+/// <summary>The props of a combo box: what its parent decides.</summary>
+/// <param name="Header">The text above the box.</param>
+/// <param name="Options">The options, in order.</param>
+/// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the header.</param>
+public sealed record ComboBoxProps(string Header, IReadOnlyList<ComboBoxOption> Options, bool IsEnabled = true, string? AutomationName = null)
+    : ControlProps(IsEnabled, AutomationName), ISelectionProps
+{
+    /// <inheritdoc />
+    public string? RefusalOf(string? id) => Options.Any(option => option.Id == id) ? null : SelectionRefusals.UnknownItem;
+
+    /// <inheritdoc />
+    public bool Equals(ComboBoxProps? other) => other is not null && base.Equals(other) && Header == other.Header && Options.SequenceEqual(other.Options);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Header, Options.Count);
+}

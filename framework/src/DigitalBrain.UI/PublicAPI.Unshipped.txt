@@ -1527,3 +1527,59 @@ static DigitalBrain.UI.TabStripItem.operator !=(DigitalBrain.UI.TabStripItem? le
 static DigitalBrain.UI.TabStripItem.operator ==(DigitalBrain.UI.TabStripItem? left, DigitalBrain.UI.TabStripItem? right) -> bool
 static DigitalBrain.UI.TabStripProps.operator !=(DigitalBrain.UI.TabStripProps? left, DigitalBrain.UI.TabStripProps? right) -> bool
 static DigitalBrain.UI.TabStripProps.operator ==(DigitalBrain.UI.TabStripProps? left, DigitalBrain.UI.TabStripProps? right) -> bool
+DigitalBrain.UI.ComboBoxOption
+DigitalBrain.UI.ComboBoxOption.<Clone>$() -> DigitalBrain.UI.ComboBoxOption!
+DigitalBrain.UI.ComboBoxOption.ComboBoxOption(string! Id, string! Label) -> void
+DigitalBrain.UI.ComboBoxOption.Deconstruct(out string! Id, out string! Label) -> void
+DigitalBrain.UI.ComboBoxOption.Equals(DigitalBrain.UI.ComboBoxOption? other) -> bool
+DigitalBrain.UI.ComboBoxOption.Id.get -> string!
+DigitalBrain.UI.ComboBoxOption.Id.init -> void
+DigitalBrain.UI.ComboBoxOption.Label.get -> string!
+DigitalBrain.UI.ComboBoxOption.Label.init -> void
+DigitalBrain.UI.ComboBoxProps
+DigitalBrain.UI.ComboBoxProps.ComboBoxProps(string! Header, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ComboBoxOption!>! Options, bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.ComboBoxProps.Deconstruct(out string! Header, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ComboBoxOption!>! Options, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.ComboBoxProps.Equals(DigitalBrain.UI.ComboBoxProps? other) -> bool
+DigitalBrain.UI.ComboBoxProps.Header.get -> string!
+DigitalBrain.UI.ComboBoxProps.Header.init -> void
+DigitalBrain.UI.ComboBoxProps.Options.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ComboBoxOption!>!
+DigitalBrain.UI.ComboBoxProps.Options.init -> void
+DigitalBrain.UI.ComboBoxProps.RefusalOf(string? id) -> string?
+DigitalBrain.UI.Controls.ComboBoxState
+DigitalBrain.UI.Controls.ComboBoxState.<Clone>$() -> DigitalBrain.UI.Controls.ComboBoxState!
+DigitalBrain.UI.Controls.ComboBoxState.ComboBoxState() -> void
+DigitalBrain.UI.Controls.ComboBoxState.Equals(DigitalBrain.UI.Controls.ComboBoxState? other) -> bool
+DigitalBrain.UI.Controls.ComboBoxState.SelectedId.get -> string?
+DigitalBrain.UI.Controls.ComboBoxState.SelectedId.init -> void
+DigitalBrain.UI.Controls.ComboBoxView
+DigitalBrain.UI.Controls.ComboBoxView.ComboBoxView(string! Key, string? SelectedId) -> void
+DigitalBrain.UI.Controls.ComboBoxView.Deconstruct(out string! Key, out string? SelectedId) -> void
+DigitalBrain.UI.Controls.ComboBoxView.Equals(DigitalBrain.UI.Controls.ComboBoxView? other) -> bool
+DigitalBrain.UI.Controls.ComboBoxView.Key.get -> string!
+DigitalBrain.UI.Controls.ComboBoxView.Key.init -> void
+DigitalBrain.UI.Controls.ComboBoxView.SelectedId.get -> string?
+DigitalBrain.UI.Controls.ComboBoxView.SelectedId.init -> void
+override DigitalBrain.UI.ComboBoxOption.Equals(object? obj) -> bool
+override DigitalBrain.UI.ComboBoxOption.GetHashCode() -> int
+override DigitalBrain.UI.ComboBoxOption.ToString() -> string!
+override DigitalBrain.UI.ComboBoxProps.<Clone>$() -> DigitalBrain.UI.ComboBoxProps!
+override DigitalBrain.UI.ComboBoxProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.ComboBoxProps.GetHashCode() -> int
+override DigitalBrain.UI.ComboBoxProps.ToString() -> string!
+override DigitalBrain.UI.Controls.ComboBoxState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.ComboBoxState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.ComboBoxState.ToString() -> string!
+override DigitalBrain.UI.Controls.ComboBoxView.<Clone>$() -> DigitalBrain.UI.Controls.ComboBoxView!
+override DigitalBrain.UI.Controls.ComboBoxView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.ComboBoxView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.ComboBoxView.ToString() -> string!
+override sealed DigitalBrain.UI.ComboBoxProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+override sealed DigitalBrain.UI.Controls.ComboBoxView.Equals(DigitalBrain.UI.Node? other) -> bool
+static DigitalBrain.UI.ComboBoxOption.operator !=(DigitalBrain.UI.ComboBoxOption? left, DigitalBrain.UI.ComboBoxOption? right) -> bool
+static DigitalBrain.UI.ComboBoxOption.operator ==(DigitalBrain.UI.ComboBoxOption? left, DigitalBrain.UI.ComboBoxOption? right) -> bool
+static DigitalBrain.UI.ComboBoxProps.operator !=(DigitalBrain.UI.ComboBoxProps? left, DigitalBrain.UI.ComboBoxProps? right) -> bool
+static DigitalBrain.UI.ComboBoxProps.operator ==(DigitalBrain.UI.ComboBoxProps? left, DigitalBrain.UI.ComboBoxProps? right) -> bool
+static DigitalBrain.UI.Controls.ComboBoxState.operator !=(DigitalBrain.UI.Controls.ComboBoxState? left, DigitalBrain.UI.Controls.ComboBoxState? right) -> bool
+static DigitalBrain.UI.Controls.ComboBoxState.operator ==(DigitalBrain.UI.Controls.ComboBoxState? left, DigitalBrain.UI.Controls.ComboBoxState? right) -> bool
+static DigitalBrain.UI.Controls.ComboBoxView.operator !=(DigitalBrain.UI.Controls.ComboBoxView? left, DigitalBrain.UI.Controls.ComboBoxView? right) -> bool
+static DigitalBrain.UI.Controls.ComboBoxView.operator ==(DigitalBrain.UI.Controls.ComboBoxView? left, DigitalBrain.UI.Controls.ComboBoxView? right) -> bool

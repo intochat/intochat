@@ -90,6 +90,7 @@ public sealed record View(string Title, Node Root);
 [JsonDerivedType(typeof(Controls.ToggleSwitchView), "toggleSwitchView")]
 [JsonDerivedType(typeof(Controls.ExpanderView), "expanderView")]
 [JsonDerivedType(typeof(Controls.TabStripView), "tabStripView")]
+[JsonDerivedType(typeof(Controls.ComboBoxView), "comboBoxView")]
 public abstract record Node;
 
 /// <summary>Children laid out top to bottom.</summary>
