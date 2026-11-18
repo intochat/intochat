@@ -1,0 +1,1419 @@
+[
+  {
+    "name": "message",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "message"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Message",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "failed-reply",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "failed-reply"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Failed reply",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Summarise my week",
+        "target": "failed-reply"
+      },
+      {
+        "step": "expect",
+        "contains": "The model did not answer.",
+        "target": "failed-reply"
+      },
+      {
+        "step": "expect",
+        "contains": "Try again",
+        "target": "failed-reply"
+      },
+      {
+        "step": "act",
+        "signal": "control.retry",
+        "args": {
+          "id": "f2"
+        },
+        "target": "failed-reply"
+      },
+      {
+        "step": "expect",
+        "contains": "control.retry",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "card-in-chat",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "card-in-chat"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Card in chat",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "activity-row",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "activity-row"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Activity row",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "composer",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "composer"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Composer with model picker",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "empty",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "empty"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Empty",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "waiting",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "waiting"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Waiting",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "live-chart",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "live-chart"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Live chart",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Live points",
+        "target": "live-chart"
+      },
+      {
+        "step": "expect",
+        "contains": "Wed",
+        "target": "live-chart"
+      },
+      {
+        "step": "act",
+        "signal": "uikit.append",
+        "args": null,
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "#1",
+        "target": "live-chart"
+      }
+    ]
+  },
+  {
+    "name": "table-query",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "table-query"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Table query",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "appShell",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "appShell"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "appShell",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "approvalCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "approvalCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "approvalCard",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "badge",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "badge"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "badge",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "brainScene",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "brainScene"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "brainScene",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "button",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "button"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "button",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "card",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "card"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "card",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "chart",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "chart"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "chart",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "chatThread",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "chatThread"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "chatThread",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "chatThreadView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "chatThreadView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "chatThreadView",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "checkBox",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "checkBox"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "checkBox",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "checkBoxView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "checkBoxView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "checkBoxView",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "choiceCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "choiceCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "choiceCard",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "collection",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "collection"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "collection",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "column",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "column"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "column",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "comboBox",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "comboBox"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "comboBox",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "comboBoxView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "comboBoxView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "comboBoxView",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "conversation",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "conversation"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "conversation",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "dataTable",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "dataTable"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "dataTable",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "diffCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "diffCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "diffCard",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "divider",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "divider"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "divider",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "draftCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "draftCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "draftCard",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "emptyState",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "emptyState"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "emptyState",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "errorLine",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "errorLine"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "errorLine",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "expander",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "expander"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "expander",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "expanderView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "expanderView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "expanderView",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "field",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "field"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "field",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "form",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "form"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "form",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "formView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "formView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "formView",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "grid",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "grid"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "grid",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "heading",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "heading"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "heading",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "iconButton",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "iconButton"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "iconButton",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "infoBar",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "infoBar"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "infoBar",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "intent",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "intent"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "intent",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "jobCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "jobCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "jobCard",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "listBox",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "listBox"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "listBox",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "listBoxView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "listBoxView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "listBoxView",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "liveChart",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "liveChart"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "liveChart",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "liveChartView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "liveChartView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "liveChartView",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "markdown",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "markdown"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "markdown",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "metricTile",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "metricTile"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "metricTile",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "navItem",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "navItem"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "navItem",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "neuronRef",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "neuronRef"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "neuronRef",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "progress",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "progress"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "progress",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "queryTable",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "queryTable"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "queryTable",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "queryTableView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "queryTableView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "queryTableView",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "recordCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "recordCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "recordCard",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "row",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "row"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "row",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "secretCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "secretCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "secretCard",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "select",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "select"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "select",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "spacer",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "spacer"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "spacer",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "splitPane",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "splitPane"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "splitPane",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "statCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "statCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "statCard",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "surface",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "surface"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "surface",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "switch",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "switch"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "switch",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "tabStrip",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "tabStrip"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "tabStrip",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "tabStripView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "tabStripView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "tabStripView",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "tabs",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "tabs"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "tabs",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "tagPill",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "tagPill"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "tagPill",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "text",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "text"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "text",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "toast",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "toast"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "toast",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "toggleSwitch",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "toggleSwitch"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "toggleSwitch",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "toggleSwitchView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "toggleSwitchView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "toggleSwitchView",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "webBrowser",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "webBrowser"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "webBrowser",
+        "target": "."
+      }
+    ]
+  }
+]

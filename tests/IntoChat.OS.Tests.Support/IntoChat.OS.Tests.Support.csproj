@@ -7,6 +7,8 @@
   <ItemGroup>
     <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
+    <ProjectReference Include="../../framework/src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
+    <ProjectReference Include="../../src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/IntoChat.OS/IntoChat.OS.csproj" />
