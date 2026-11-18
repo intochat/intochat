@@ -109,13 +109,29 @@ public static class UiKitPages
                     ["kind"] = JsonSerializer.SerializeToElement(kind),
                     [JsonNamingPolicy.CamelCase.ConvertName(name)] = value,
                 });
-            if (Captured(kind, JsonNode.Parse(json.GetRawText())).Deserialize<Node>(JsonSerializerOptions.Web) is { } node) { nodes.Add(node); }
+            if (Captured(kind, WithDefaults(type, JsonNode.Parse(json.GetRawText()))).Deserialize<Node>(JsonSerializerOptions.Web) is { } node) { nodes.Add(node); }
         }
         return nodes;
     }
 
     // Every command in an example (an object with a string target and signal) becomes a ShowcaseCommand to the UI Kit itself carrying the
     // original signal and args: the example's made-up signals are logged instead of refused. The [Showcase] examples stay as written.
+    // The serializer reads a missing constructor parameter as default(T), not its declared default: an example that leaves out
+    // Enabled or Visible would come out disabled and hidden. Fill in every declared default the example does not write.
+    private static JsonNode? WithDefaults(Type type, JsonNode? json)
+    {
+        if (json is not JsonObject node) { return json; }
+        foreach (var parameter in type.GetConstructors().SelectMany(ctor => ctor.GetParameters()))
+        {
+            var name = JsonNamingPolicy.CamelCase.ConvertName(parameter.Name!);
+            if (parameter.HasDefaultValue && parameter.DefaultValue is bool or string or int or double && !node.ContainsKey(name))
+            {
+                node[name] = JsonValue.Create(parameter.DefaultValue);
+            }
+        }
+        return node;
+    }
+
     private static JsonNode? Captured(string kind, JsonNode? json)
     {
         switch (json)

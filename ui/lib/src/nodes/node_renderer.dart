@@ -75,9 +75,17 @@ abstract final class NodeRenderer {
   /// Draws a whole view: its root node.
   static Widget view(AppView view, NodeContext ctx) => render(view.root, ctx);
 
+  /// Test hook: returns a widget to draw in place of a node, or null to draw
+  /// it as usual (the scenario driver's bite test blanks one node kind).
+  @visibleForTesting
+  static Widget? Function(Node node)? debugReplace;
+
   static Widget render(Node node, NodeContext ctx) {
     if (ctx.depth > maxDepth) return const _Unsupported();
-    return keyedControl(keyOf(node), _draw(node, ctx));
+    return keyedControl(
+      keyOf(node),
+      debugReplace?.call(node) ?? _draw(node, ctx),
+    );
   }
 
   /// The wire `key` of the nodes whose generated model declares one (every such

@@ -52,13 +52,18 @@ public static class ShowcaseScenarios
         string[] nav = [.. UiKitPages.All.SelectMany(item => new[] { item.Id, item.Title, item.Group })];
         var texts = examples.SelectMany(node => Strings(JsonSerializer.SerializeToElement(node, JsonSerializerOptions.Web), null)).ToArray();
         return texts.Where(text => text.Name is { } name && Shown.Contains(name, StringComparer.OrdinalIgnoreCase)).Concat(texts)
-            .Select(text => text.Value)
+            .Select(text => Drawn(text.Value))
             .FirstOrDefault(text => text.Length >= 3 && !nav.Any(entry => entry.Contains(text, StringComparison.Ordinal)))
             ?? throw new InvalidOperationException($"The {page.Id} example shows no text of its own.");
     }
 
+    // What a client draws of a text: its first line without markdown marks (a markdown example draws "## Notes" as "Notes").
+    private static string Drawn(string text) => text.Split('\n')[0].TrimStart('#', '-', '*', '>', ' ').Trim();
+
+    // A node marked not visible draws none of its texts.
     private static IEnumerable<(string? Name, string Value)> Strings(JsonElement json, string? name) => json.ValueKind switch
     {
+        JsonValueKind.Object when json.TryGetProperty("visible", out var visible) && visible.ValueKind == JsonValueKind.False => [],
         JsonValueKind.Object => json.EnumerateObject()
             .Where(property => property.Name is not ("kind" or "key" or "id" or "icon" or "tone" or "command" or "emit" or "args" or "intent" or "resolve" or "onSubmit" or "automationName"))
             .SelectMany(property => Strings(property.Value, property.Name)),

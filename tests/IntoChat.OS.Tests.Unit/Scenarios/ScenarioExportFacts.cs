@@ -31,7 +31,7 @@ public sealed class ScenarioExportFacts
     public static TheoryData<string> Names => [.. ShowcaseScenarios.All.Select(scenario => scenario.Name)];
 
     // The Flutter driver replays what the kernel showed: ui/test/scenarios/views/<scenario>.json holds the page (view and slot
-    // children) before step 0 (afterIndex -1) and after every act. With INTOCHAT_REGENERATE_SCENARIOS=1 the fact rewrites it.
+    // children) before step 0 (afterIndex -1) and after every act that changed it, unindented. With INTOCHAT_REGENERATE_SCENARIOS=1 the fact rewrites it.
     [Theory]
     [MemberData(nameof(Names))]
     public async Task The_recorded_views_are_what_the_kernel_shows(string name)
@@ -40,14 +40,18 @@ public sealed class ScenarioExportFacts
         var scenario = ShowcaseScenarios.All.Single(item => item.Name == name);
         await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
         var driver = await KernelDriver.Start(os);
-        var steps = new List<object> { new { afterIndex = -1, view = await driver.Snapshot() } };
+        var last = await driver.Snapshot();
+        var steps = new List<object> { new { afterIndex = -1, view = last } };
         for (var index = 0; index < scenario.Steps.Count; index++)
         {
             if (scenario.Steps[index] is not Act act) { continue; }
             await driver.Act(act, ct);
-            steps.Add(new { afterIndex = index, view = await driver.Snapshot() });
+            var view = await driver.Snapshot();
+            if (JsonElement.DeepEquals(view, last)) { continue; }
+            steps.Add(new { afterIndex = index, view });
+            last = view;
         }
-        var generated = JsonSerializer.Serialize(new { steps }, new JsonSerializerOptions { WriteIndented = true }).ReplaceLineEndings("\n") + "\n";
+        var generated = JsonSerializer.Serialize(new { steps }) + "\n";
         var target = Path.Combine(Root(), "ui", "test", "scenarios", "views", name + ".json");
         if (Environment.GetEnvironmentVariable("INTOCHAT_REGENERATE_SCENARIOS") == "1")
         {

@@ -29,7 +29,7 @@ Widget renderListBoxView(ListBoxViewNode node, NodeContext ctx) {
           if (item.group != null &&
               (index == 0 || props.items[index - 1].group != item.group))
             Padding(
-              key: ValueKey('${node.key}/group:${item.group}'),
+              key: ValueKey('${node.key}/group:$index:${item.group}'),
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Builder(
                 builder: (context) => Text(

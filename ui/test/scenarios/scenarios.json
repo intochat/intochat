@@ -1179,7 +1179,7 @@
       },
       {
         "step": "expect",
-        "contains": "## Release notes\n\n- **Faster** sync\n- A new \u0060Card\u0060 footer\n\nSee [the docs](https://intochat.io).",
+        "contains": "Release notes",
         "target": "."
       }
     ]
