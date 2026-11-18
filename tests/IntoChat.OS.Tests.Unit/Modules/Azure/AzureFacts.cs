@@ -46,7 +46,8 @@ public sealed class AzureFacts
     [Fact]
     public void Names_follow_the_prefix_env_kind_order_within_azure_limits()
     {
-        Assert.Equal("intochat-test-rg", ResourceNames.ResourceGroup("intochat", "test"));
+        Assert.Equal("intochat-test", ResourceNames.ResourceGroup("intochat", "test"));
+        Assert.Equal("acrintochattest", ResourceNames.Registry("intochat", "test"));
         Assert.Equal("intochattestst", ResourceNames.StorageAccount("intochat", "test"));
         Assert.True(ResourceNames.KeyVault("intochat-long-prefix", "production").Length <= 24);
     }
@@ -79,21 +80,19 @@ public sealed class AzureFacts
     [Fact]
     public async Task Pulumi_neuron_synthesizes_and_reads_stack_summary()
     {
-        var pulumi = new PulumiNeuron();
-        DigitalBrain.Neurons.NeuronAttachment.Attach(pulumi, new DigitalBrain.Testing.FakeNeuronContext(
-            new DigitalBrain.NeuronId(new DigitalBrain.BrainId("facts"), "pulumi", "azure/pulumi")));
+        var pulumi = AzureNeurons.CreatePulumi();
 
         Assert.Null(await pulumi.Read("test2"));
 
-        var summary = await pulumi.Synthesize("test2", includeCloud: true, includeSandbox: true);
+        var summary = await pulumi.Synthesize("test", includeCloud: true, includeSandbox: true);
 
-        Assert.Equal("test2", summary.Env);
-        Assert.Equal("rg-intochat-test2", summary.ResourceGroup);
-        Assert.Equal("intochat-test2-os", summary.OsAppName);
-        Assert.Equal("intochat-test2-cloud", summary.CloudAppName);
-        Assert.Equal("intochat-test2-sandbox", summary.SandboxAppName);
+        Assert.Equal("test", summary.Env);
+        Assert.Equal("intochat-test", summary.ResourceGroup);
+        Assert.Equal("intochat-test-os", summary.OsAppName);
+        Assert.Equal("intochat-test-cloud", summary.CloudAppName);
+        Assert.Equal("intochat-test-sandbox", summary.SandboxAppName);
 
-        var readBack = await pulumi.Read("test2");
+        var readBack = await pulumi.Read("test");
         Assert.NotNull(readBack);
         Assert.Equal(summary.ResourceCount, readBack.ResourceCount);
     }

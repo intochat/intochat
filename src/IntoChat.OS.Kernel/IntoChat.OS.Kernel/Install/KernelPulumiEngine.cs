@@ -43,9 +43,13 @@ internal sealed class KernelPulumiEngine(IReadOnlyList<OsModule> modules) : IPul
         var workDir = Path.Combine(Path.GetTempPath(), "intochat-pulumi", env);
         await PulumiStackSynthesizer.WriteWorkspaceAsync(plan, workDir, cancellationToken);
 
-        var stateDir = Path.Combine(workDir, ".pulumi-state");
-        Directory.CreateDirectory(stateDir);
-        _ = await RunPulumiProcessAsync(["login", $"file://{stateDir.Replace('\\', '/')}"], workDir, cancellationToken);
+        var (whoamiExit, _) = await RunPulumiProcessAsync(["whoami"], workDir, cancellationToken);
+        if (whoamiExit != 0)
+        {
+            var stateDir = Path.Combine(workDir, ".pulumi-state");
+            Directory.CreateDirectory(stateDir);
+            _ = await RunPulumiProcessAsync(["login", $"file://{stateDir.Replace('\\', '/')}"], workDir, cancellationToken);
+        }
         _ = await RunPulumiProcessAsync(["stack", "select", "--create", env], workDir, cancellationToken);
 
         string[] args = verb switch

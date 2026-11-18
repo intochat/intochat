@@ -62,7 +62,7 @@ internal sealed class DefaultPulumiEngine : IPulumiEngine
 {
     public Task<PulumiStackSummary> SynthesizeAsync(string env, bool includeCloud, bool includeSandbox, CancellationToken cancellationToken = default)
     {
-        var rg = $"rg-intochat-{env}";
+        var rg = ResourceNames.ResourceGroup("intochat", env);
         var vault = ResourceNames.KeyVault("intochat", env);
         var osApp = ResourceNames.App("intochat", env, "os");
         var cloudApp = includeCloud ? ResourceNames.App("intochat", env, "cloud") : null;

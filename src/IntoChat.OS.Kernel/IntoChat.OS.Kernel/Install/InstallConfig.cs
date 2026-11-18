@@ -75,11 +75,9 @@ public sealed record InstallConfig
             ? location.Trim()
             : Environment.GetEnvironmentVariable("AZURE_LOCATION") ?? "polandcentral";
 
-        var registryName = string.Equals(resolvedPrefix, "intochat", StringComparison.OrdinalIgnoreCase) && string.Equals(resolvedEnv, "test", StringComparison.OrdinalIgnoreCase)
-            ? "acrintochattest"
-            : ResourceNames.Registry(resolvedPrefix, resolvedEnv);
+        var registryName = ResourceNames.Registry(resolvedPrefix, resolvedEnv);
         var registryServer = $"{registryName}.azurecr.io";
-        var resourceGroup = $"rg-{resolvedPrefix}-{resolvedEnv}";
+        var resourceGroup = ResourceNames.ResourceGroup(resolvedPrefix, resolvedEnv);
 
         var resolvedPublicUrl = !string.IsNullOrWhiteSpace(publicBaseUrl)
             ? publicBaseUrl.Trim()

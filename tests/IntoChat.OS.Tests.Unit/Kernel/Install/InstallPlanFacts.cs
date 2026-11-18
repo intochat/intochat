@@ -107,23 +107,25 @@ public sealed class InstallPlanFacts
     public void UniversalConfigWithCloudAndSandboxSynthesizesNewResourceGroupAndScaleToZeroSandboxApp()
     {
         var config = InstallConfig.Universal(
-            env: "test2",
+            env: "test",
             subscription: "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
             includeCloudApp: true,
             includeSandboxApp: true);
 
-        Assert.Equal("rg-intochat-test2", config.GroupName);
-        Assert.Equal("intochat-test2-os", config.OsName);
-        Assert.Equal("intochat-test2-cloud", config.CloudName);
-        Assert.Equal("intochat-test2-sandbox", config.SandboxName);
+        Assert.Equal("intochat-test", config.GroupName);
+        Assert.Equal("acrintochattest", config.RegistryName);
+        Assert.Equal("intochat-test-os", config.OsName);
+        Assert.Equal("intochat-test-cloud", config.CloudName);
+        Assert.Equal("intochat-test-sandbox", config.SandboxName);
 
         var plan = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules);
 
-        Assert.Contains("containerAppName: \"intochat-test2-os\"", plan.PulumiYaml, StringComparison.Ordinal);
-        Assert.Contains("containerAppName: \"intochat-test2-cloud\"", plan.PulumiYaml, StringComparison.Ordinal);
-        Assert.Contains("containerAppName: \"intochat-test2-sandbox\"", plan.PulumiYaml, StringComparison.Ordinal);
-        Assert.Contains("value: \"http://intochat-test2-sandbox\"", plan.PulumiYaml, StringComparison.Ordinal);
-        Assert.Contains("keyVaultUrl: \"https://intochat-test2-kv.vault.azure.net/secrets/sandbox-enroll-key\"", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("resourceGroupName: \"intochat-test\"", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("containerAppName: \"intochat-test-os\"", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("containerAppName: \"intochat-test-cloud\"", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("containerAppName: \"intochat-test-sandbox\"", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("value: \"http://intochat-test-sandbox\"", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("keyVaultUrl: \"https://intochat-test-kv.vault.azure.net/secrets/sandbox-enroll-key\"", plan.PulumiYaml, StringComparison.Ordinal);
         Assert.DoesNotContain("sessionPools", plan.PulumiYaml, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -131,13 +133,13 @@ public sealed class InstallPlanFacts
     public async Task PulumiNeuronSynthesizesAndPersistsStackSummary()
     {
         var engine = new KernelPulumiEngine(OperatingSystemModules.Modules);
-        var summary = await engine.SynthesizeAsync("test2", includeCloud: true, includeSandbox: true, TestContext.Current.CancellationToken);
+        var summary = await engine.SynthesizeAsync("test", includeCloud: true, includeSandbox: true, TestContext.Current.CancellationToken);
 
-        Assert.Equal("test2", summary.Env);
-        Assert.Equal("rg-intochat-test2", summary.ResourceGroup);
-        Assert.Equal("intochat-test2-os", summary.OsAppName);
-        Assert.Equal("intochat-test2-cloud", summary.CloudAppName);
-        Assert.Equal("intochat-test2-sandbox", summary.SandboxAppName);
-        Assert.Contains("containerAppName: \"intochat-test2-sandbox\"", summary.PulumiYaml, StringComparison.Ordinal);
+        Assert.Equal("test", summary.Env);
+        Assert.Equal("intochat-test", summary.ResourceGroup);
+        Assert.Equal("intochat-test-os", summary.OsAppName);
+        Assert.Equal("intochat-test-cloud", summary.CloudAppName);
+        Assert.Equal("intochat-test-sandbox", summary.SandboxAppName);
+        Assert.Contains("containerAppName: \"intochat-test-sandbox\"", summary.PulumiYaml, StringComparison.Ordinal);
     }
 }

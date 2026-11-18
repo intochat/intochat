@@ -88,7 +88,21 @@ public static class AzureInstaller
         {
             try
             {
-                var secretsDict = !dryRun ? await SecretValues(secretsFrom, ct) : new Dictionary<string, string>(StringComparer.Ordinal);
+                if (!dryRun && string.IsNullOrWhiteSpace(config.InstallerPrincipalId))
+                {
+                    try
+                    {
+                        var principalId = await arm.CurrentPrincipalObjectId(ct);
+                        config = config with { InstallerPrincipalId = principalId };
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        System.Diagnostics.Trace.TraceWarning(ex.Message);
+                    }
+                }
+                var secretsDict = (!dryRun || secretsFrom is not null || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(DeploySecretsJsonVariable)))
+                    ? await SecretValues(secretsFrom, ct)
+                    : new Dictionary<string, string>(StringComparer.Ordinal);
                 var stackPlan = PulumiStackSynthesizer.Synthesize(config, modules, secretsDict);
                 if (!string.IsNullOrWhiteSpace(pulumiOut))
                 {

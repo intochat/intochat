@@ -6,7 +6,7 @@ public static class ResourceNames
 {
     public static string For(string prefix, string env, string kind) => $"{prefix}-{env}-{kind}";
 
-    public static string ResourceGroup(string prefix, string env) => For(prefix, env, "rg");
+    public static string ResourceGroup(string prefix, string env) => $"{prefix}-{env}";
 
     public static string Identity(string prefix, string env) => For(prefix, env, "id");
 
@@ -18,7 +18,7 @@ public static class ResourceNames
 
     // Registry names are alphanumeric, 5 to 50 characters.
     public static string Registry(string prefix, string env) =>
-        Limit(new string([.. $"{prefix}{env}acr".ToLowerInvariant().Where(char.IsAsciiLetterOrDigit)]), 50);
+        Limit(new string([.. $"acr{prefix}{env}".ToLowerInvariant().Where(char.IsAsciiLetterOrDigit)]), 50);
 
     public static string Environment(string prefix, string env) => For(prefix, env, "env");
 

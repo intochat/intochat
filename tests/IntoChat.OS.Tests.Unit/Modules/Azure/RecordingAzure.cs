@@ -61,4 +61,14 @@ internal static class AzureNeurons
             new DigitalBrain.NeuronId(new DigitalBrain.BrainId("facts"), "azure", "connection/azure/" + subscription)));
         return neuron;
     }
+
+    public static PulumiNeuron CreatePulumi()
+    {
+        var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection()
+            .BuildServiceProvider();
+        var neuron = global::Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance<PulumiNeuron>(services);
+        DigitalBrain.Neurons.NeuronAttachment.Attach(neuron, new DigitalBrain.Testing.FakeNeuronContext(
+            new DigitalBrain.NeuronId(new DigitalBrain.BrainId("facts"), "pulumi", "azure/pulumi")));
+        return neuron;
+    }
 }

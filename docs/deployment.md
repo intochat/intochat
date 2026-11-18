@@ -12,7 +12,7 @@ For any environment `<env>` (default `test`) and prefix `<prefix>` (default `int
 
 | Resource | Derived Name (`--env test`) | Purpose |
 | :--- | :--- | :--- |
-| **Resource Group** | `rg-intochat-test` | Holds all foundation and container resources for the environment. |
+| **Resource Group** | `intochat-test` | Holds all foundation and container resources for the environment. |
 | **Managed Identity** | `intochat-test-id` | User-assigned identity granted Key Vault, Storage Blob/Table, and ACR pull roles. |
 | **Storage Account** | `intochattestst` | Orleans clustering tables, reminders, `grainstate-v1` blob container, `brainlease-v1`, and `brainlog` Azure Files share. |
 | **Key Vault** | `intochat-test-kv` | Holds `master-key`, `db-connection`, and every module/integration secret (`{module}-{secret}`). |
@@ -62,7 +62,7 @@ aspire do pulumi
 aspire do pulumi-destroy
 ```
 
-To deploy to a brand-new environment/resource group (for example `rg-intochat-test2` in `polandcentral`):
+To deploy to a brand-new environment/resource group (for example `intochat-test2` in `polandcentral`):
 
 ```powershell
 dotnet run --project src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj -- pulumi --env test2
