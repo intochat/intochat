@@ -303,20 +303,22 @@ public static class PulumiStackSynthesizer
         sb.AppendLine();
         sb.AppendLine("resources:");
 
-        foreach (var spec in foundationSpecs)
-        {
-            AppendResourceYaml(sb, c, spec);
-        }
-
-        foreach (var secretSpec in moduleSecretSpecs.Where(s => !s.External && !string.IsNullOrEmpty(s.Value)))
-        {
-            AppendResourceYaml(sb, c, secretSpec);
-        }
-
         var allSecretSpecs = foundationSpecs.OfType<SecretSpec>()
             .Concat(moduleSecretSpecs)
             .Where(s => !s.External && !string.IsNullOrEmpty(s.Value))
             .ToArray();
+        var secretValuesByName = allSecretSpecs.ToDictionary(s => s.Name, s => s.Value, StringComparer.Ordinal);
+
+        foreach (var spec in foundationSpecs)
+        {
+            AppendResourceYaml(sb, c, spec, secretValuesByName);
+        }
+
+        foreach (var secretSpec in moduleSecretSpecs.Where(s => !s.External && !string.IsNullOrEmpty(s.Value)))
+        {
+            AppendResourceYaml(sb, c, secretSpec, secretValuesByName);
+        }
+
         var roleGrantSpecs = foundationSpecs.OfType<RoleGrantSpec>().ToArray();
 
         AppendContainerAppYaml(sb, c, osApp, allSecretSpecs, roleGrantSpecs);
@@ -357,7 +359,7 @@ public static class PulumiStackSynthesizer
         return sb.ToString().Replace("\r\n", "\n", StringComparison.Ordinal);
     }
 
-    private static void AppendResourceYaml(StringBuilder sb, InstallConfig c, ResourceSpec spec)
+    private static void AppendResourceYaml(StringBuilder sb, InstallConfig c, ResourceSpec spec, IReadOnlyDictionary<string, string> secretValuesByName)
     {
         var logical = LogicalResourceName(spec);
         var rgLogical = LogicalResourceName(new ResourceGroupSpec { Name = c.GroupName });
@@ -463,7 +465,7 @@ public static class PulumiStackSynthesizer
                 break;
 
             case PostgresSpec pg:
-                var pgPassLogical = LogicalResourceName(new SecretSpec { Name = pg.AdminPasswordSecret });
+                var pgPassValue = secretValuesByName.GetValueOrDefault(pg.AdminPasswordSecret, "");
                 sb.AppendLine($"  {logical}:");
                 sb.AppendLine("    type: azure-native:dbforpostgresql:Server");
                 sb.AppendLine("    properties:");
@@ -471,7 +473,7 @@ public static class PulumiStackSynthesizer
                 sb.AppendLine($"      resourceGroupName: \"${{{rgLogical}.name}}\"");
                 sb.AppendLine($"      location: \"{c.Location}\"");
                 sb.AppendLine($"      administratorLogin: \"{pg.AdminLogin}\"");
-                sb.AppendLine($"      administratorLoginPassword: \"${{{pgPassLogical}.properties.value}}\"");
+                sb.AppendLine($"      administratorLoginPassword: {YamlQuote(pgPassValue)}");
                 sb.AppendLine($"      version: \"{pg.Version}\"");
                 sb.AppendLine("      sku:");
                 sb.AppendLine($"        name: \"{pg.Sku}\"");
@@ -541,7 +543,8 @@ public static class PulumiStackSynthesizer
 
             case RoleGrantSpec grant:
                 var idLogical = LogicalResourceName(new IdentitySpec { Name = grant.Principal });
-                var principalExpr = Guid.TryParse(grant.Principal, out _) ? $"\"{grant.Principal}\"" : $"\"${{{idLogical}.principalId}}\"";
+                var isGuidPrincipal = Guid.TryParse(grant.Principal, out _);
+                var principalExpr = isGuidPrincipal ? $"\"{grant.Principal}\"" : $"\"${{{idLogical}.principalId}}\"";
                 var grantGuid = DeterministicGuid($"{grant.Scope}|{grant.Principal}|{grant.RoleDefinitionId}");
                 var scopeDepLogical = grant.Scope switch
                 {
@@ -558,7 +561,10 @@ public static class PulumiStackSynthesizer
                 sb.AppendLine($"      roleAssignmentName: \"{grantGuid}\"");
                 sb.AppendLine($"      scope: \"{grant.Scope}\"");
                 sb.AppendLine($"      principalId: {principalExpr}");
-                sb.AppendLine("      principalType: ServicePrincipal");
+                if (!isGuidPrincipal)
+                {
+                    sb.AppendLine("      principalType: ServicePrincipal");
+                }
                 sb.AppendLine($"      roleDefinitionId: \"/subscriptions/{c.Subscription}/providers/Microsoft.Authorization/roleDefinitions/{grant.RoleDefinitionId}\"");
                 break;
 
