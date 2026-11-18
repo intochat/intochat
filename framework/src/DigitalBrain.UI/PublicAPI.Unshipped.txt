@@ -1236,3 +1236,80 @@ static DigitalBrain.UI.WebBrowser.operator ==(DigitalBrain.UI.WebBrowser? left, 
 virtual DigitalBrain.UI.Node.EqualityContract.get -> System.Type!
 virtual DigitalBrain.UI.Node.Equals(DigitalBrain.UI.Node? other) -> bool
 virtual DigitalBrain.UI.Node.PrintMembers(System.Text.StringBuilder! builder) -> bool
+DigitalBrain.UI.EventArgsAttribute
+DigitalBrain.UI.EventArgsAttribute.ArgsType.get -> System.Type!
+DigitalBrain.UI.EventArgsAttribute.EventArgsAttribute(System.Type! argsType) -> void
+DigitalBrain.UI.ClickArgs
+DigitalBrain.UI.ClickArgs.ClickArgs() -> void
+DigitalBrain.UI.SubmitArgs
+DigitalBrain.UI.SubmitArgs.SubmitArgs(string! Text) -> void
+DigitalBrain.UI.SubmitArgs.Text.get -> string!
+DigitalBrain.UI.SubmitArgs.Text.init -> void
+DigitalBrain.UI.ToggledArgs
+DigitalBrain.UI.ToggledArgs.ToggledArgs(bool IsOn) -> void
+DigitalBrain.UI.ToggledArgs.IsOn.get -> bool
+DigitalBrain.UI.ToggledArgs.IsOn.init -> void
+DigitalBrain.UI.SelectionChangedArgs
+DigitalBrain.UI.SelectionChangedArgs.SelectionChangedArgs(string! Id) -> void
+DigitalBrain.UI.SelectionChangedArgs.Id.get -> string!
+DigitalBrain.UI.SelectionChangedArgs.Id.init -> void
+DigitalBrain.UI.ClosedArgs
+DigitalBrain.UI.ClosedArgs.ClosedArgs() -> void
+DigitalBrain.UI.ExpandedArgs
+DigitalBrain.UI.ExpandedArgs.ExpandedArgs(bool IsExpanded) -> void
+DigitalBrain.UI.ExpandedArgs.IsExpanded.get -> bool
+DigitalBrain.UI.ExpandedArgs.IsExpanded.init -> void
+DigitalBrain.UI.ShowcaseAttribute
+DigitalBrain.UI.ShowcaseAttribute.ExampleJson.get -> string!
+DigitalBrain.UI.ShowcaseAttribute.ShowcaseAttribute(string! exampleJson) -> void
+DigitalBrain.UI.EphemeralAttribute
+DigitalBrain.UI.EphemeralAttribute.EphemeralAttribute() -> void
+const DigitalBrain.UI.EventPayload.Key = "event" -> string!
+DigitalBrain.UI.EventPayload
+DigitalBrain.UI.ClickArgs.<Clone>$() -> DigitalBrain.UI.ClickArgs!
+DigitalBrain.UI.ClickArgs.Equals(DigitalBrain.UI.ClickArgs? other) -> bool
+DigitalBrain.UI.ClosedArgs.<Clone>$() -> DigitalBrain.UI.ClosedArgs!
+DigitalBrain.UI.ClosedArgs.Equals(DigitalBrain.UI.ClosedArgs? other) -> bool
+DigitalBrain.UI.ExpandedArgs.<Clone>$() -> DigitalBrain.UI.ExpandedArgs!
+DigitalBrain.UI.ExpandedArgs.Deconstruct(out bool IsExpanded) -> void
+DigitalBrain.UI.ExpandedArgs.Equals(DigitalBrain.UI.ExpandedArgs? other) -> bool
+DigitalBrain.UI.SelectionChangedArgs.<Clone>$() -> DigitalBrain.UI.SelectionChangedArgs!
+DigitalBrain.UI.SelectionChangedArgs.Deconstruct(out string! Id) -> void
+DigitalBrain.UI.SelectionChangedArgs.Equals(DigitalBrain.UI.SelectionChangedArgs? other) -> bool
+DigitalBrain.UI.SubmitArgs.<Clone>$() -> DigitalBrain.UI.SubmitArgs!
+DigitalBrain.UI.SubmitArgs.Deconstruct(out string! Text) -> void
+DigitalBrain.UI.SubmitArgs.Equals(DigitalBrain.UI.SubmitArgs? other) -> bool
+DigitalBrain.UI.ToggledArgs.<Clone>$() -> DigitalBrain.UI.ToggledArgs!
+DigitalBrain.UI.ToggledArgs.Deconstruct(out bool IsOn) -> void
+DigitalBrain.UI.ToggledArgs.Equals(DigitalBrain.UI.ToggledArgs? other) -> bool
+override DigitalBrain.UI.ClickArgs.Equals(object? obj) -> bool
+override DigitalBrain.UI.ClickArgs.GetHashCode() -> int
+override DigitalBrain.UI.ClickArgs.ToString() -> string!
+override DigitalBrain.UI.ClosedArgs.Equals(object? obj) -> bool
+override DigitalBrain.UI.ClosedArgs.GetHashCode() -> int
+override DigitalBrain.UI.ClosedArgs.ToString() -> string!
+override DigitalBrain.UI.ExpandedArgs.Equals(object? obj) -> bool
+override DigitalBrain.UI.ExpandedArgs.GetHashCode() -> int
+override DigitalBrain.UI.ExpandedArgs.ToString() -> string!
+override DigitalBrain.UI.SelectionChangedArgs.Equals(object? obj) -> bool
+override DigitalBrain.UI.SelectionChangedArgs.GetHashCode() -> int
+override DigitalBrain.UI.SelectionChangedArgs.ToString() -> string!
+override DigitalBrain.UI.SubmitArgs.Equals(object? obj) -> bool
+override DigitalBrain.UI.SubmitArgs.GetHashCode() -> int
+override DigitalBrain.UI.SubmitArgs.ToString() -> string!
+override DigitalBrain.UI.ToggledArgs.Equals(object? obj) -> bool
+override DigitalBrain.UI.ToggledArgs.GetHashCode() -> int
+override DigitalBrain.UI.ToggledArgs.ToString() -> string!
+static DigitalBrain.UI.ClickArgs.operator !=(DigitalBrain.UI.ClickArgs? left, DigitalBrain.UI.ClickArgs? right) -> bool
+static DigitalBrain.UI.ClickArgs.operator ==(DigitalBrain.UI.ClickArgs? left, DigitalBrain.UI.ClickArgs? right) -> bool
+static DigitalBrain.UI.ClosedArgs.operator !=(DigitalBrain.UI.ClosedArgs? left, DigitalBrain.UI.ClosedArgs? right) -> bool
+static DigitalBrain.UI.ClosedArgs.operator ==(DigitalBrain.UI.ClosedArgs? left, DigitalBrain.UI.ClosedArgs? right) -> bool
+static DigitalBrain.UI.EventPayload.Read<T>(System.Text.Json.JsonElement? args, string? signal = null) -> T
+static DigitalBrain.UI.ExpandedArgs.operator !=(DigitalBrain.UI.ExpandedArgs? left, DigitalBrain.UI.ExpandedArgs? right) -> bool
+static DigitalBrain.UI.ExpandedArgs.operator ==(DigitalBrain.UI.ExpandedArgs? left, DigitalBrain.UI.ExpandedArgs? right) -> bool
+static DigitalBrain.UI.SelectionChangedArgs.operator !=(DigitalBrain.UI.SelectionChangedArgs? left, DigitalBrain.UI.SelectionChangedArgs? right) -> bool
+static DigitalBrain.UI.SelectionChangedArgs.operator ==(DigitalBrain.UI.SelectionChangedArgs? left, DigitalBrain.UI.SelectionChangedArgs? right) -> bool
+static DigitalBrain.UI.SubmitArgs.operator !=(DigitalBrain.UI.SubmitArgs? left, DigitalBrain.UI.SubmitArgs? right) -> bool
+static DigitalBrain.UI.SubmitArgs.operator ==(DigitalBrain.UI.SubmitArgs? left, DigitalBrain.UI.SubmitArgs? right) -> bool
+static DigitalBrain.UI.ToggledArgs.operator !=(DigitalBrain.UI.ToggledArgs? left, DigitalBrain.UI.ToggledArgs? right) -> bool
+static DigitalBrain.UI.ToggledArgs.operator ==(DigitalBrain.UI.ToggledArgs? left, DigitalBrain.UI.ToggledArgs? right) -> bool
