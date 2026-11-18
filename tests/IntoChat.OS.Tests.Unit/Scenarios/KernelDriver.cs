@@ -50,6 +50,40 @@ internal sealed class KernelDriver(InstalledApp<UiKitApp> app) : IScenarioDriver
         return string.Join("\n", texts);
     }
 
+    // The page as the Flutter driver replays it: the top-level view and the root view of every slot child it shows (nested slots
+    // too, to the same depth a read draws), keyed by the child's neuron uri.
+    public async Task<JsonElement> Snapshot()
+    {
+        using var person = app.OS.Edge.Enter(app.OS.Edge.Person("local", "local", Brain));
+        var view = await app.Screen.Read() ?? throw new InvalidOperationException("The UI Kit has no view.");
+        var slots = new SortedDictionary<string, JsonElement>(StringComparer.Ordinal);
+        await Slots(view.View, slots, 0);
+        return JsonSerializer.SerializeToElement(new { view = view.View, slots });
+    }
+
+    private async Task Slots(JsonElement json, SortedDictionary<string, JsonElement> slots, int depth)
+    {
+        switch (json.ValueKind)
+        {
+            case JsonValueKind.Object:
+                if (SlotOf(json) is { } slot)
+                {
+                    var uri = json.GetProperty("neuronUri").GetString()!;
+                    if (depth < MaxSlotDepth && !slots.ContainsKey(uri) && await ChildView(slot.Child) is { } child)
+                    {
+                        slots[uri] = JsonSerializer.SerializeToElement(new { root = child });
+                        await Slots(child, slots, depth + 1);
+                    }
+                    return;
+                }
+                foreach (var property in json.EnumerateObject()) { await Slots(property.Value, slots, depth); }
+                break;
+            case JsonValueKind.Array:
+                foreach (var item in json.EnumerateArray()) { await Slots(item, slots, depth); }
+                break;
+        }
+    }
+
     public Task<string?> Evidence(int stepIndex, CancellationToken ct) => Task.FromResult<string?>(_lastRead.Length == 0 ? null : _lastRead);
 
     // Resolves a key path the way the server routes it: slot keys first. While the leading segment names a slot of the current view,

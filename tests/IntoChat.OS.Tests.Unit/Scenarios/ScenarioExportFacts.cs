@@ -1,4 +1,8 @@
+using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Testing;
 using DigitalBrain.Testing.Scenarios;
+using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Apps.UiKit;
 using IntoChat.OS.Tests.Support;
 
@@ -22,6 +26,38 @@ public sealed class ScenarioExportFacts
         Assert.True(File.Exists(target), $"{target} is missing; run this fact with INTOCHAT_REGENERATE_SCENARIOS=1.");
         Assert.True(File.ReadAllText(target).ReplaceLineEndings("\n") == generated,
             "scenarios.json differs from ShowcaseScenarios.All; run this fact with INTOCHAT_REGENERATE_SCENARIOS=1.");
+    }
+
+    public static TheoryData<string> Names => [.. ShowcaseScenarios.All.Select(scenario => scenario.Name)];
+
+    // The Flutter driver replays what the kernel showed: ui/test/scenarios/views/<scenario>.json holds the page (view and slot
+    // children) before step 0 (afterIndex -1) and after every act. With INTOCHAT_REGENERATE_SCENARIOS=1 the fact rewrites it.
+    [Theory]
+    [MemberData(nameof(Names))]
+    public async Task The_recorded_views_are_what_the_kernel_shows(string name)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var scenario = ShowcaseScenarios.All.Single(item => item.Name == name);
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var driver = await KernelDriver.Start(os);
+        var steps = new List<object> { new { afterIndex = -1, view = await driver.Snapshot() } };
+        for (var index = 0; index < scenario.Steps.Count; index++)
+        {
+            if (scenario.Steps[index] is not Act act) { continue; }
+            await driver.Act(act, ct);
+            steps.Add(new { afterIndex = index, view = await driver.Snapshot() });
+        }
+        var generated = JsonSerializer.Serialize(new { steps }, new JsonSerializerOptions { WriteIndented = true }).ReplaceLineEndings("\n") + "\n";
+        var target = Path.Combine(Root(), "ui", "test", "scenarios", "views", name + ".json");
+        if (Environment.GetEnvironmentVariable("INTOCHAT_REGENERATE_SCENARIOS") == "1")
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            await File.WriteAllTextAsync(target, generated, ct);
+            return;
+        }
+        Assert.True(File.Exists(target), $"{target} is missing; run this fact with INTOCHAT_REGENERATE_SCENARIOS=1.");
+        Assert.True((await File.ReadAllTextAsync(target, ct)).ReplaceLineEndings("\n") == generated,
+            $"{target} differs from what the kernel shows; run this fact with INTOCHAT_REGENERATE_SCENARIOS=1.");
     }
 
     [Fact]

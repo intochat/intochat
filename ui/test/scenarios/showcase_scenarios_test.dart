@@ -4,16 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'flutter_driver.dart';
 
-// Runs the showcase scenarios exported from C# on the Flutter driver against
-// the recorded UI Kit pages under views/uikit, and writes each run to
-// build/scenario-runs/<name>.json. A scenario whose page is not recorded is
-// skipped with that reason; the driver's own semantics are proven on an
-// inline page below.
+// Runs the showcase scenarios exported from C# on the Flutter driver, replaying
+// the pages the kernel showed (views/<scenario>.json, recorded by
+// ScenarioExportFacts), and writes each run to build/scenario-runs/<name>.json.
+// Every scenario must have a recording: a missing one fails, never skips.
 void main() {
   final scenarios = UiScenario.readAll(
     File('test/scenarios/scenarios.json').readAsStringSync(),
   );
-  final pages = Directory('test/scenarios/views/uikit');
+  const views = 'test/scenarios/views';
   final runs = Directory('build/scenario-runs');
 
   test('scenarios.json holds the showcase scenarios', () {
@@ -28,49 +27,70 @@ void main() {
     }
   });
 
+  test('every scenario has a recording and every recording a scenario', () {
+    final recorded = {
+      for (final file in Directory(views).listSync().whereType<File>())
+        file.uri.pathSegments.last.replaceAll('.json', ''),
+    };
+    expect(recorded, {for (final scenario in scenarios) scenario.name});
+  });
+
   for (final scenario in scenarios) {
-    final page = File('${pages.path}/${scenario.name}.json');
     test('showcase scenario ${scenario.name} passes on Flutter', () async {
-      final driver = FlutterDriver(
-        RecordedPagesHost.load(pages),
-        appId: 'uikit',
+      final file = File('$views/${scenario.name}.json');
+      expect(
+        file.existsSync(),
+        isTrue,
+        reason:
+            '${file.path} is missing; run ScenarioExportFacts with '
+            'INTOCHAT_REGENERATE_SCENARIOS=1.',
       );
-      final run = await runScenario(scenario, driver);
+      final host = ReplayHost.load(scenario, file);
+      final run = await runScenario(
+        scenario,
+        FlutterDriver(host, appId: 'uikit'),
+      );
       run.writeTo(runs);
       expect(run.verdict!.passed, isTrue, reason: run.verdict!.reason);
-    }, skip: page.existsSync() ? false : 'No recorded page ${page.path}.');
+      expect(
+        host.sent,
+        hasLength(scenario.steps.where((step) => step.kind == 'act').length),
+      );
+    });
   }
 
   group('driver', () {
-    final host = RecordedPagesHost({
-      'demo': PageViews.fromJson({
-        'view': {
+    final blank = PageViews.fromJson({
+      'view': {
+        'root': {'kind': 'column', 'children': <Object>[]},
+      },
+    });
+    final demo = PageViews.fromJson({
+      'view': {
+        'root': {
+          'kind': 'column',
+          'children': [
+            {'kind': 'text', 'key': 'title', 'text': 'Demo page'},
+            {
+              'kind': 'neuronRef',
+              'refKind': 'slot',
+              'neuronUri': 'local/control.checkBox/uikit/remember',
+              'props': {'label': 'Remember me'},
+            },
+          ],
+        },
+      },
+      'slots': {
+        'local/control.checkBox/uikit/remember': {
           'root': {
-            'kind': 'column',
+            'kind': 'row',
             'children': [
-              {'kind': 'text', 'key': 'title', 'text': 'Demo page'},
-              {
-                'kind': 'neuronRef',
-                'refKind': 'slot',
-                'neuronUri': 'local/control.checkBox/uikit/remember',
-                'props': {'label': 'Remember me'},
-              },
+              {'kind': 'text', 'key': 'state', 'text': 'Off'},
             ],
           },
         },
-        'slots': {
-          'local/control.checkBox/uikit/remember': {
-            'root': {
-              'kind': 'row',
-              'children': [
-                {'kind': 'text', 'key': 'state', 'text': 'Off'},
-              ],
-            },
-          },
-        },
-      }),
+      },
     });
-    final driver = FlutterDriver(host, appId: 'uikit');
 
     UiScenario scenario(List<Map<String, dynamic>> steps) => UiScenario(
       'demo',
@@ -78,24 +98,33 @@ void main() {
       [for (final step in steps) ScenarioStep(step)],
     );
 
-    test('acts through the act wire event and reads through slots', () async {
-      final run = await runScenario(
-        scenario([
-          {
-            'step': 'act',
-            'target': 'nav',
-            'signal': 'control.select',
-            'args': {'id': 'demo'},
-          },
-          {'step': 'expect', 'target': '.', 'contains': 'Demo page'},
-          {'step': 'expect', 'target': 'remember', 'contains': 'Remember me'},
-          {'step': 'expect', 'target': 'remember/state', 'contains': 'Off'},
-          {'step': 'expectShown', 'target': 'title'},
-        ]),
-        driver,
-      );
+    final select = {
+      'step': 'act',
+      'target': 'nav',
+      'signal': 'control.select',
+      'args': {'id': 'demo'},
+    };
 
-      expect(run.verdict!.passed, isTrue, reason: run.verdict!.reason);
+    Future<(ScenarioRun, ReplayHost)> run(
+      List<Map<String, dynamic>> steps,
+    ) async {
+      final s = scenario(steps);
+      final act = steps.indexWhere((step) => step['step'] == 'act');
+      final host = ReplayHost(s, {-1: blank, act: demo});
+      return (await runScenario(s, FlutterDriver(host, appId: 'uikit')), host);
+    }
+
+    test('replays the page recorded after each act', () async {
+      final (result, host) = await run([
+        {'step': 'expectShown', 'target': '.'},
+        select,
+        {'step': 'expect', 'target': '.', 'contains': 'Demo page'},
+        {'step': 'expect', 'target': 'remember', 'contains': 'Remember me'},
+        {'step': 'expect', 'target': 'remember/state', 'contains': 'Off'},
+        {'step': 'expectShown', 'target': 'title'},
+      ]);
+
+      expect(result.verdict!.passed, isTrue, reason: result.verdict!.reason);
       expect(host.sent.single, {
         'kind': 'act',
         'neuron': 'local/apps/uikit',
@@ -103,53 +132,66 @@ void main() {
         'signal': 'control.select',
         'args': {'id': 'demo'},
       });
-      expect(run.steps.map((step) => step['outcome']), [
+      expect(result.steps.map((step) => step['outcome']), [
+        'held',
         'acted',
         'held',
         'held',
         'held',
         'held',
       ]);
-      expect(run.steps[1]['shown'], contains('Demo page'));
+      expect(result.steps[2]['shown'], contains('Demo page'));
+    });
+
+    test('a target shown only after the act is not shown before it', () async {
+      final (result, _) = await run([
+        {'step': 'expectShown', 'target': 'title'},
+        select,
+      ]);
+
+      expect(result.verdict!.failedStep, 0);
+    });
+
+    test('fails an act whose wire event differs from the recording', () async {
+      final s = scenario([select]);
+      final host = ReplayHost(s, {-1: blank, 0: demo});
+      final driver = FlutterDriver(host, appId: 'uikit');
+
+      final result = await runScenario(
+        UiScenario('demo', 'uikit', [
+          ScenarioStep({
+            ...select,
+            'args': {'id': 'other'},
+          }),
+        ]),
+        driver,
+      );
+
+      expect(result.verdict!.failedStep, 0);
+      expect(result.verdict!.reason, contains('act was refused'));
     });
 
     test('fails at the first step that does not hold', () async {
-      final run = await runScenario(
-        scenario([
-          {
-            'step': 'act',
-            'target': 'nav',
-            'signal': 'control.select',
-            'args': {'id': 'demo'},
-          },
-          {'step': 'expectShown', 'target': 'missing'},
-          {'step': 'expect', 'target': '.', 'contains': 'Demo page'},
-        ]),
-        driver,
-      );
+      final (result, _) = await run([
+        select,
+        {'step': 'expectShown', 'target': 'missing'},
+        {'step': 'expect', 'target': '.', 'contains': 'Demo page'},
+      ]);
 
-      expect(run.verdict!.passed, isFalse);
-      expect(run.verdict!.failedStep, 1);
-      expect(run.steps, hasLength(2));
-      expect(run.steps[1]['outcome'], startsWith('failed: missing:'));
+      expect(result.verdict!.passed, isFalse);
+      expect(result.verdict!.failedStep, 1);
+      expect(result.steps, hasLength(2));
+      expect(result.steps[1]['outcome'], startsWith('failed: missing:'));
     });
 
     test('fails an expect whose text is not shown', () async {
-      final run = await runScenario(
-        scenario([
-          {
-            'step': 'act',
-            'target': 'nav',
-            'signal': 'control.select',
-            'args': {'id': 'demo'},
-          },
-          {'step': 'expect', 'target': 'remember', 'contains': 'On'},
-        ]),
-        driver,
-      );
+      final (result, _) = await run([
+        select,
+        {'step': 'expect', 'target': 'remember', 'contains': 'On'},
+      ]);
 
-      expect(run.verdict!.failedStep, 1);
-      expect(run.verdict!.reason, contains('expected "On"'));
+      expect(result.verdict!.failedStep, 1);
+      expect(result.verdict!.reason, contains('expected "On"'));
     });
   });
 }

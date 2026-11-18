@@ -44,9 +44,9 @@ class UiScenario {
   ];
 }
 
-/// A recorded page of an app: its top-level view and the root view of every
-/// slot child it shows, keyed by the child's `neuronUri`. On disk at
-/// `views/<appId>/<page>.json` as `{"view": {...}, "slots": {uri: {...}}}`.
+/// A page as the kernel showed it: its top-level view and the root view of
+/// every slot child it shows, keyed by the child's `neuronUri`
+/// (`{"view": {...}, "slots": {uri: {"root": ...}}}`).
 class PageViews {
   PageViews(this.view, this.slots);
 
@@ -71,30 +71,36 @@ abstract class ScenarioHost {
   Future<Object?> send(Map<String, dynamic> event);
 }
 
-/// Serves recorded [PageViews]: a `control.select` on the nav shows the
-/// selected page; every act is kept, in order, as its wire event.
-class RecordedPagesHost implements ScenarioHost {
-  RecordedPagesHost(this.pages, {this.nav = 'nav'});
-
-  /// Reads `views/<appId>/*.json` from [directory]; empty when it is missing.
-  factory RecordedPagesHost.load(Directory directory, {String nav = 'nav'}) {
-    final pages = <String, PageViews>{};
-    if (directory.existsSync()) {
-      for (final file in directory.listSync().whereType<File>()) {
-        if (!file.path.endsWith('.json')) continue;
-        final name = file.uri.pathSegments.last.replaceAll('.json', '');
-        pages[name] = PageViews.fromJson(
-          Map<String, dynamic>.from(jsonDecode(file.readAsStringSync()) as Map),
-        );
-      }
+/// Replays what the kernel showed for one scenario, recorded by the C#
+/// `ScenarioExportFacts` at `views/<scenario>.json` as
+/// `{steps: [{afterIndex, view}]}`: the page before step 0 (`afterIndex` -1)
+/// and after every act. Each act must send the wire event of the scenario's
+/// next act (target, signal, args); the page then becomes the one recorded
+/// after that act.
+class ReplayHost implements ScenarioHost {
+  ReplayHost(this.scenario, this.recorded) : _page = recorded[-1] {
+    if (_page == null) {
+      throw StateError('${scenario.name} has no recording before step 0.');
     }
-    return RecordedPagesHost(pages, nav: nav);
   }
 
-  final Map<String, PageViews> pages;
-  final String nav;
+  factory ReplayHost.load(UiScenario scenario, File file) {
+    final json = Map<String, dynamic>.from(
+      jsonDecode(file.readAsStringSync()) as Map,
+    );
+    return ReplayHost(scenario, {
+      for (final step in json['steps'] as List)
+        (step as Map)['afterIndex'] as int: PageViews.fromJson(
+          Map<String, dynamic>.from(step['view'] as Map),
+        ),
+    });
+  }
+
+  final UiScenario scenario;
+  final Map<int, PageViews> recorded;
   final List<Map<String, dynamic>> sent = [];
   PageViews? _page;
+  int _next = 0;
 
   @override
   Object? get view => _page?.view;
@@ -105,14 +111,35 @@ class RecordedPagesHost implements ScenarioHost {
   @override
   Future<Object?> send(Map<String, dynamic> event) async {
     sent.add(event);
-    if (event['target'] == nav && event['signal'] == 'control.select') {
-      final id = (event['args'] as Map?)?['id'];
-      final page = pages[id];
-      if (page == null) {
-        throw StateError('No recorded page "$id".');
-      }
-      _page = page;
+    while (_next < scenario.steps.length &&
+        scenario.steps[_next].kind != 'act') {
+      _next++;
     }
+    if (_next >= scenario.steps.length) {
+      throw StateError('${scenario.name} has no act left for $event.');
+    }
+    final index = _next++;
+    final step = scenario.steps[index];
+    final expected = {
+      'kind': 'act',
+      'target': step.target,
+      'signal': step.signal,
+      'args': step.args,
+    };
+    final actual = {
+      'kind': event['kind'],
+      'target': event['target'],
+      'signal': event['signal'],
+      'args': event['args'],
+    };
+    if (jsonEncode(actual) != jsonEncode(expected)) {
+      throw StateError('Step $index sent $actual, expected $expected.');
+    }
+    _page =
+        recorded[index] ??
+        (throw StateError(
+          '${scenario.name} has no recording after step $index.',
+        ));
     return null;
   }
 }
