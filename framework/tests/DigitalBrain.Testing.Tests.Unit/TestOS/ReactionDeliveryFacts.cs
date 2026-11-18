@@ -103,6 +103,7 @@ public sealed class ReactionDeliveryFacts
     [Fact]
     public async Task Every_signal_the_source_saves_reaches_the_reaction_once_in_sequence_order()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         await os.Get<INumberSink>(Sink).Subscribe(Source);
 
@@ -118,6 +119,7 @@ public sealed class ReactionDeliveryFacts
     [Fact]
     public async Task Signals_of_other_types_and_sources_without_a_synapse_are_not_delivered()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         await os.Get<INumberSink>(Sink).Subscribe(Source);
 
@@ -133,6 +135,7 @@ public sealed class ReactionDeliveryFacts
     [Fact]
     public async Task Duplicate_references_reach_the_reaction_once()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start(options => options.DuplicateDelivery = true);
         await os.Get<INumberSink>(Sink).Subscribe(Source);
 
@@ -146,6 +149,7 @@ public sealed class ReactionDeliveryFacts
     [Fact]
     public async Task A_reactivated_subscriber_catches_up_once_in_order()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         await os.Get<INumberSink>(Sink).Subscribe(Source);
         await os.Deactivate(Sink);
@@ -166,6 +170,7 @@ public sealed class ReactionDeliveryFacts
     [Fact]
     public async Task A_stale_cursor_behind_a_forced_checkpoint_receives_Gap_then_the_signals_after_the_floor()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start(options =>
         {
             options.HistoryWindowSignals = 2;
@@ -191,6 +196,7 @@ public sealed class ReactionDeliveryFacts
     [Fact]
     public async Task A_live_cursor_pins_the_floor()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start(options =>
         {
             options.HistoryWindowSignals = 2;
@@ -215,6 +221,7 @@ public sealed class ReactionDeliveryFacts
     [Fact]
     public async Task History_Read_returns_journal_pages_with_Floor_and_Last()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start(options =>
         {
             options.HistoryWindowSignals = 2;
@@ -244,6 +251,7 @@ public sealed class ReactionDeliveryFacts
     [Fact]
     public async Task A_source_that_refuses_the_subscriber_makes_Ensure_throw_and_creates_no_synapse()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var closed = new NeuronId(Brain, "rx.closed", "c");
 
@@ -258,6 +266,7 @@ public sealed class ReactionDeliveryFacts
     [Fact]
     public async Task Ensure_throws_on_a_StatelessNeuron()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var stateless = new NeuronId(Brain, "rx.stateless", "x");
 

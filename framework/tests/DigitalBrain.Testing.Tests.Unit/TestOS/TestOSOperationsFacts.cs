@@ -66,6 +66,7 @@ public sealed class TestOSOperationsFacts : IAsyncLifetime
     [Fact]
     public async Task A_write_publishes_started_progress_and_done_in_order_and_changes_the_connection()
     {
+        using var platform = TestStamp.Kernel();
         Assert.Equal("succeeded", await Writer.Run(new("create-folder", null, _a.Root.Value, "New", null, ConflictPolicy.Fail, false)));
 
         var signals = await Signals();
@@ -91,6 +92,7 @@ public sealed class TestOSOperationsFacts : IAsyncLifetime
     [Fact]
     public async Task A_move_between_two_bound_connections_copies_verifies_and_trashes_the_source()
     {
+        using var platform = TestStamp.Kernel();
         var file = _a.AddFile(_a.Root, "doc.txt", "hello"u8.ToArray());
 
         // 07-02: a move between connections is destructive, so the default policy asks a person first.

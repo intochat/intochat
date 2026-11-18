@@ -21,6 +21,7 @@ public sealed class TimeNeuronFacts
     [Fact]
     public async Task RegistrationIsListedAndRepeatingItChangesNothing()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var time = os.Get<ITime>(TimeId);
         await time.Register("app", "07:00", Ct);
@@ -33,6 +34,7 @@ public sealed class TimeNeuronFacts
     [Fact]
     public async Task ATickIsJournaledWhenTheReminderFires()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         await os.Get<ITime>(TimeId).Register("app", "07:00", Ct);
 
@@ -50,6 +52,7 @@ public sealed class TimeNeuronFacts
     [Fact]
     public async Task UnregisterStopsTheReminderSoALaterAdvancePublishesNothing()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var time = os.Get<ITime>(TimeId);
         await time.Register("app", "07:00", Ct);
@@ -65,6 +68,7 @@ public sealed class TimeNeuronFacts
     [Fact]
     public async Task TwoOwnersSharingAScheduleGetOneTickPerFiringAndTheLastUnregisterStopsIt()
     {
+        using var platform = TestStamp.Kernel();
         await using var os = Start();
         var time = os.Get<ITime>(TimeId);
         await time.Register("a", "every 30m", Ct);
