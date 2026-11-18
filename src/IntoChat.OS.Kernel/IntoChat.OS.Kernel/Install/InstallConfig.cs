@@ -46,6 +46,118 @@ public sealed record InstallConfig
         return config.Validated();
     }
 
+    /// <summary>
+    /// Universal environment configuration builder: derives all resource names, registry, storage,
+    /// Postgres, and container images from <paramref name="env"/> and <paramref name="prefix"/> without
+    /// requiring a static <c>deploy/&lt;env&gt;.json</c> file on disk.
+    /// </summary>
+    public static InstallConfig Universal(
+        string env,
+        string? subscription = null,
+        string? location = null,
+        string? prefix = null,
+        bool includeCloudApp = false,
+        string? publicBaseUrl = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(env);
+        var resolvedPrefix = string.IsNullOrWhiteSpace(prefix) ? "intochat" : prefix.Trim();
+        var resolvedEnv = env.Trim().ToLowerInvariant();
+        var resolvedSubscription = !string.IsNullOrWhiteSpace(subscription)
+            ? subscription.Trim()
+            : Environment.GetEnvironmentVariable("AZURE_SUBSCRIPTION_ID")
+                ?? TryResolveAzCliSubscription()
+                ?? "2a985480-6bb9-44ff-959d-edd5efe2cdb2";
+        var resolvedLocation = !string.IsNullOrWhiteSpace(location)
+            ? location.Trim()
+            : Environment.GetEnvironmentVariable("AZURE_LOCATION") ?? "polandcentral";
+
+        var registryName = string.Equals(resolvedPrefix, "intochat", StringComparison.OrdinalIgnoreCase) && string.Equals(resolvedEnv, "test", StringComparison.OrdinalIgnoreCase)
+            ? "acrintochattest"
+            : ResourceNames.Registry(resolvedPrefix, resolvedEnv);
+        var registryServer = $"{registryName}.azurecr.io";
+        var resourceGroup = $"rg-{resolvedPrefix}-{resolvedEnv}";
+
+        var resolvedPublicUrl = !string.IsNullOrWhiteSpace(publicBaseUrl)
+            ? publicBaseUrl.Trim()
+            : string.Equals(resolvedEnv, "prod", StringComparison.OrdinalIgnoreCase)
+                ? "https://os.intochat.io"
+                : $"https://os.{resolvedEnv}.intochat.io";
+
+        var isProd = string.Equals(resolvedEnv, "prod", StringComparison.OrdinalIgnoreCase);
+
+        return new InstallConfig
+        {
+            Subscription = resolvedSubscription,
+            Location = resolvedLocation,
+            Prefix = resolvedPrefix,
+            Env = resolvedEnv,
+            ResourceGroup = resourceGroup,
+            RegistryServer = registryServer,
+            OsImage = $"{registryServer}/os:latest",
+            CloudImage = includeCloudApp ? $"{registryServer}/cloud:latest" : "",
+            Registry = new RegistryConfig
+            {
+                Enabled = true,
+                Sku = "Basic",
+            },
+            Postgres = new PostgresConfig
+            {
+                Enabled = true,
+                Sku = isProd ? "Standard_D2ads_v5" : "Standard_B1ms",
+                Tier = isProd ? "GeneralPurpose" : "Burstable",
+                StorageGb = 32,
+                AdminLogin = resolvedPrefix,
+                Databases = [resolvedPrefix],
+            },
+            Modules = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["auth"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Posture"] = "Secured",
+                    ["PublicBaseUrl"] = resolvedPublicUrl,
+                },
+            },
+        }.Validated();
+    }
+
+    private static string? TryResolveAzCliSubscription()
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "az",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            if (OperatingSystem.IsWindows())
+            {
+                psi.ArgumentList.Add("/c");
+                psi.ArgumentList.Add("az account show --query id -o tsv");
+            }
+            else
+            {
+                psi.ArgumentList.Add("account");
+                psi.ArgumentList.Add("show");
+                psi.ArgumentList.Add("--query");
+                psi.ArgumentList.Add("id");
+                psi.ArgumentList.Add("-o");
+                psi.ArgumentList.Add("tsv");
+            }
+            using var process = System.Diagnostics.Process.Start(psi);
+            if (process is null) { return null; }
+            var output = process.StandardOutput.ReadToEnd().Trim();
+            process.WaitForExit(3000);
+            return process.ExitCode == 0 && Guid.TryParse(output, out _) ? output : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public string GroupName => ResourceGroup.Length > 0 ? ResourceGroup : ResourceNames.ResourceGroup(Prefix, Env);
 
     public string IdentityName => Named("identity", ResourceNames.Identity(Prefix, Env));

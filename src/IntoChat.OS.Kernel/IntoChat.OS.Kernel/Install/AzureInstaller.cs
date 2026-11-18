@@ -35,15 +35,30 @@ public static class AzureInstaller
         bool dryRun, printEnv, emitPulumi;
         string? secretsFrom, manifestPath, promoteFrom, pulumiOut;
         ReleaseManifest? manifest = null;
+        var moduleArray = modules.ToArray();
         try
         {
             var options = Options.Parse(args);
             (dryRun, secretsFrom, printEnv, manifestPath, promoteFrom, emitPulumi, pulumiOut) =
                 (options.DryRun, options.SecretsFrom, options.PrintEnv, options.Manifest, options.PromoteFrom, options.EmitPulumi, options.PulumiOut);
-            config = InstallConfig.Parse(await File.ReadAllTextAsync(options.Config, ct));
-            if (!string.Equals(config.Env, options.Env, StringComparison.Ordinal))
+            if (!string.IsNullOrWhiteSpace(options.Config))
             {
-                throw new InvalidOperationException($"--env '{options.Env}' does not match the config's env '{config.Env}'.");
+                config = InstallConfig.Parse(await File.ReadAllTextAsync(options.Config, ct));
+                if (!string.Equals(config.Env, options.Env, StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException($"--env '{options.Env}' does not match the config's env '{config.Env}'.");
+                }
+            }
+            else
+            {
+                var hasCloudModules = moduleArray.Any(static m => string.Equals(m.Id.Value, "lobby", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(m.Id.Value, "organisations", StringComparison.OrdinalIgnoreCase));
+                config = InstallConfig.Universal(
+                    options.Env,
+                    subscription: options.Subscription,
+                    location: options.Location,
+                    prefix: options.Prefix,
+                    includeCloudApp: hasCloudModules);
             }
 
             if (!string.IsNullOrEmpty(manifestPath))
@@ -67,7 +82,7 @@ public static class AzureInstaller
             return 2;
         }
 
-        var manifests = ManifestEnvironment.ManifestsOf(modules);
+        var manifests = ManifestEnvironment.ManifestsOf(moduleArray);
         if (emitPulumi)
         {
             try
@@ -381,11 +396,11 @@ public static class AzureInstaller
         });
     }
 
-    private sealed record Options(string Env, string Config, bool DryRun, string? SecretsFrom, bool PrintEnv, string? Manifest, string? PromoteFrom, bool EmitPulumi, string? PulumiOut)
+    private sealed record Options(string Env, string? Config, string? Subscription, string? Location, string? Prefix, bool DryRun, string? SecretsFrom, bool PrintEnv, string? Manifest, string? PromoteFrom, bool EmitPulumi, string? PulumiOut)
     {
         public static Options Parse(string[] args)
         {
-            string? env = null, config = null, secrets = null, manifest = null, promoteFrom = null, pulumiOut = null;
+            string? env = null, config = null, subscription = null, location = null, prefix = null, secrets = null, manifest = null, promoteFrom = null, pulumiOut = null;
             var dryRun = false;
             var printEnv = false;
             var emitPulumi = args is ["pulumi", ..];
@@ -393,8 +408,11 @@ public static class AzureInstaller
             {
                 switch (args[i])
                 {
-                    case "--env": env = Value(args, ref i); break;
+                    case "--env" or "--stack" or "-s": env = Value(args, ref i); break;
                     case "--config": config = Value(args, ref i); break;
+                    case "--subscription": subscription = Value(args, ref i); break;
+                    case "--location": location = Value(args, ref i); break;
+                    case "--prefix": prefix = Value(args, ref i); break;
                     case "--secrets-from": secrets = Value(args, ref i); break;
                     case "--manifest": manifest = Value(args, ref i); break;
                     case "--promote-from": promoteFrom = Value(args, ref i); break;
@@ -406,8 +424,11 @@ public static class AzureInstaller
                 }
             }
             return new Options(
-                env ?? throw new ArgumentException("install needs --env."),
-                config ?? throw new ArgumentException("install needs --config."),
+                env ?? (emitPulumi ? "test" : throw new ArgumentException("install needs --env.")),
+                config,
+                subscription,
+                location,
+                prefix,
                 dryRun,
                 secrets,
                 printEnv,

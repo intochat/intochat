@@ -164,7 +164,11 @@ public static class PulumiDeploymentExtensions
         }
 
         var repoRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", ".."));
-        configPath ??= Path.Combine(repoRoot, "deploy", $"{env}.json");
+        if (string.IsNullOrWhiteSpace(configPath))
+        {
+            var candidate = Path.Combine(repoRoot, "deploy", $"{env}.json");
+            configPath = File.Exists(candidate) ? candidate : null;
+        }
         var pulumiWorkDir = Path.Combine(repoRoot, "artifacts", "pulumi", env);
 
         await SynthesizePulumiWorkspaceAsync(repoRoot, env, configPath, pulumiWorkDir, cancellationToken);
@@ -189,7 +193,12 @@ public static class PulumiDeploymentExtensions
     {
         var env = builder.Configuration["Pulumi:Stack"] ?? "test";
         var repoRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", ".."));
-        var configPath = builder.Configuration["Pulumi:Config"] ?? Path.Combine(repoRoot, "deploy", $"{env}.json");
+        var configPath = builder.Configuration["Pulumi:Config"];
+        if (string.IsNullOrWhiteSpace(configPath))
+        {
+            var candidate = Path.Combine(repoRoot, "deploy", $"{env}.json");
+            configPath = File.Exists(candidate) ? candidate : null;
+        }
         var pulumiWorkDir = Path.Combine(repoRoot, "artifacts", "pulumi", env);
 
         await SynthesizePulumiWorkspaceAsync(repoRoot, env, configPath, pulumiWorkDir, cancellationToken);
@@ -206,17 +215,31 @@ public static class PulumiDeploymentExtensions
         }
     }
 
-    private static async Task SynthesizePulumiWorkspaceAsync(string repoRoot, string env, string configPath, string pulumiWorkDir, CancellationToken cancellationToken)
+    private static async Task SynthesizePulumiWorkspaceAsync(string repoRoot, string env, string? configPath, string pulumiWorkDir, CancellationToken cancellationToken)
     {
         var kernelProject = Path.Combine(repoRoot, "src", "IntoChat.OS.Kernel", "IntoChat.OS.Kernel", "IntoChat.OS.Kernel.csproj");
-        var exitCode = await RunProcessAsync(
-            "dotnet",
-            ["run", "--project", kernelProject, "-c", "Release", "--", "pulumi", "--env", env, "--config", configPath, "--pulumi-out", pulumiWorkDir, "--dry-run"],
-            repoRoot,
-            cancellationToken);
+        var hostProject = Directory.Exists(Path.Combine(repoRoot, "src"))
+            ? Directory.EnumerateFiles(Path.Combine(repoRoot, "src"), "*.Host.csproj", SearchOption.AllDirectories).FirstOrDefault()
+            : null;
+        var targetProject = File.Exists(kernelProject)
+            ? kernelProject
+            : hostProject ?? throw new InvalidOperationException($"No Kernel or Host project found under '{repoRoot}/src'.");
+
+        var args = new List<string>
+        {
+            "run", "--project", targetProject, "-c", "Release", "--",
+            "pulumi", "--env", env, "--pulumi-out", pulumiWorkDir, "--dry-run",
+        };
+        if (!string.IsNullOrWhiteSpace(configPath))
+        {
+            args.Add("--config");
+            args.Add(configPath);
+        }
+
+        var exitCode = await RunProcessAsync("dotnet", [.. args], repoRoot, cancellationToken);
         if (exitCode != 0)
         {
-            throw new InvalidOperationException($"Failed to synthesize Pulumi workspace for '{env}' from '{configPath}'.");
+            throw new InvalidOperationException($"Failed to synthesize Pulumi workspace for '{env}'.");
         }
     }
 
@@ -240,7 +263,10 @@ public static class PulumiDeploymentExtensions
             WorkingDirectory = workingDirectory,
             UseShellExecute = false,
         };
-        psi.Environment["PULUMI_CONFIG_PASSPHRASE"] ??= "";
+        if (!psi.Environment.ContainsKey("PULUMI_CONFIG_PASSPHRASE"))
+        {
+            psi.Environment["PULUMI_CONFIG_PASSPHRASE"] = "";
+        }
         foreach (var arg in args)
         {
             psi.ArgumentList.Add(arg);

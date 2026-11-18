@@ -59,19 +59,32 @@ public sealed record DeploymentProfile
         var orleans = new OrleansOptions();
         // Azurite carries grain state and the cookie key ring on cloud; a local run keeps both on the machine.
         if (cloud) { orleans.WithAzurite(); }
+        var hasLocalFlutterUi = HasLocalFlutterPackage(builder.AppHostDirectory);
         return new()
         {
             Topology = topology,
             Home = IntoChatOSHome.Resolve(configuration),
             UiPort = configuration.GetValue(UiPortKey, 5080),
             McpPort = configuration.GetValue(McpPortKey, 5081),
-            ShellEnabled = configuration.GetValue(IntoChatOSNames.ShellEnabledKey, true),
+            ShellEnabled = configuration.GetValue(IntoChatOSNames.ShellEnabledKey, hasLocalFlutterUi),
             FrontEnabled = configuration.GetValue(IntoChatOSNames.FrontEnabledKey, true),
             ModuleOverrides = overrides,
             Orleans = orleans,
             Ai = cloud ? CloudAi() : LocalAi(configuration[IntoChatOSHostingOptions.LocalModelKey]),
             Configuration = configuration,
         };
+    }
+
+    private static bool HasLocalFlutterPackage(string appHostDirectory)
+    {
+        for (var current = new DirectoryInfo(Path.GetFullPath(appHostDirectory)); current is not null; current = current.Parent)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "ui", "pubspec.yaml")))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     // The Enabled settings the AppHost's own configuration states that differ from the topology default: the kernel and MCP
