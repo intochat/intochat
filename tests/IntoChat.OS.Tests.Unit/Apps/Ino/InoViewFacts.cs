@@ -21,13 +21,13 @@ public sealed class InoViewFacts
     [Fact]
     public void AnEmptyConversationHasAnEmptyState()
     {
-        var c = InoView.Conversation(new InoAppState());
+        var c = InoDrawing.Conversation(new InoAppState());
         Assert.Equal(("What do you need?", 0, true), (c.Empty!.Title, c.Messages.Count, c.Composer.Enabled));
     }
 
     [Fact]
     public void TheComposerIsOffWhileIAmWaitingForAReply()
-        => Assert.False(InoView.Conversation(new InoAppState() with { ActiveRunId = "r1" }).Composer.Enabled);
+        => Assert.False(InoDrawing.Conversation(new InoAppState() with { ActiveRunId = "r1" }).Composer.Enabled);
 
     [Fact]
     public void MyPendingMessageIsDrawnLastAndMarkedSending()
@@ -41,15 +41,15 @@ public sealed class InoViewFacts
             "p1",
             At);
 
-        var c = InoView.Conversation(s);
+        var c = InoDrawing.Conversation(s);
         Assert.Equal(("user", "hello", "sending"), (c.Messages[^1].Role, c.Messages[^1].Text, c.Messages[^1].Status));
-        Assert.Contains("hello", Texts(InoView.Screen(s)));
+        Assert.Contains("hello", Texts(InoDrawing.Screen(s)));
     }
 
     [Fact]
     public void AnErrorIsDrawnWithItsAction()
     {
-        var c = InoView.Conversation(new InoAppState() with { Error = new InoError("no-provider"), Status = InoModel.Failed });
+        var c = InoDrawing.Conversation(new InoAppState() with { Error = new InoError("no-provider"), Status = InoModel.Failed });
         Assert.Equal(("Ino has no model to answer with.", "Set up a model"), (c.Error!.What, c.Error.Action!.Label));
     }
 
@@ -69,30 +69,31 @@ public sealed class InoViewFacts
             ],
         };
 
-        var screen = InoView.Screen(s);
+        var screen = InoDrawing.Screen(s);
         var texts = Texts(screen);
         Assert.Contains("Ino has no model to answer with.", texts);
         Assert.Contains("Use local model (qwen2.5-coder:14b)", texts);
 
-        var conversation = InoView.Conversation(s);
-        var choiceCard = Assert.Single(conversation.Messages[^1].Cards!.OfType<ChoiceCardNode>());
+        // Model setup is Ino's own (its actions reach Ino): it is drawn under the conversation thread.
+        var nodes = new PresentedView("main", screen).Nodes;
+        var choiceCard = Assert.Single(nodes.OfType<ChoiceCardNode>());
         Assert.Contains(choiceCard.Options, o => o.Title == "Local Ollama · qwen2.5-coder:14b");
-        var keyCard = Assert.Single(conversation.Messages[^1].Cards!.OfType<Card>());
+        var keyCard = Assert.Single(nodes.OfType<Card>());
         Assert.Contains(keyCard.Children, c => c is Field { Key: InoView.ProviderCredentialKey });
     }
 
     [Fact]
     public void StopIsOfferedOnlyWhileARunIsActive()
     {
-        Assert.Null(InoView.Conversation(new InoAppState()).Stop);
-        Assert.NotNull(InoView.Conversation(new InoAppState() with { ActiveRunId = "r1" }).Stop);
+        Assert.Null(InoDrawing.Conversation(new InoAppState()).Stop);
+        Assert.NotNull(InoDrawing.Conversation(new InoAppState() with { ActiveRunId = "r1" }).Stop);
     }
 
     [Fact]
     public void OldTurnsAreNotDrawn()
     {
         var s = new InoAppState() with { Turns = [new InoTurn("old question", "old reply", "agent", 0)] };
-        Assert.DoesNotContain("old reply", Texts(InoView.Screen(s)));
+        Assert.DoesNotContain("old reply", Texts(InoDrawing.Screen(s)));
     }
 
     [Fact]
@@ -103,7 +104,7 @@ public sealed class InoViewFacts
             .ToArray();
         var s = new InoAppState() with { Messages = many };
         Assert.True(InoView.Shown(s).Count <= InoView.MaxRenderedMessages);
-        Assert.True(JsonSerializer.SerializeToUtf8Bytes(InoView.Screen(s), JsonSerializerOptions.Web).Length < 2 * 1024 * 1024);
+        Assert.True(JsonSerializer.SerializeToUtf8Bytes(InoDrawing.Screen(s), JsonSerializerOptions.Web).Length < 2 * 1024 * 1024);
         Assert.Equal("m511", InoView.Shown(s)[^1].Id);
     }
 
@@ -124,7 +125,7 @@ public sealed class InoViewFacts
     {
         foreach (var s in States.All)
         {
-            var texts = Texts(InoView.Screen(s));
+            var texts = Texts(InoDrawing.Screen(s));
             Assert.DoesNotContain(texts, t => t.Contains(forbidden, StringComparison.Ordinal));
         }
     }
@@ -271,15 +272,14 @@ public sealed class InoViewFacts
             ],
         };
 
-        var screen = InoView.Screen(state);
-        var conversation = Assert.IsType<Conversation>(screen.Root);
+        var screen = InoDrawing.Screen(state);
         var resolving = new PresentedView("main", screen).Nodes
             .OfType<ApprovalCardNode>()
             .Where(card => card.Resolve?.PlanId == "plan-42")
             .ToArray();
 
         Assert.Empty(resolving);
-        var waiting = Assert.IsType<ApprovalCardNode>(conversation.Waiting);
+        var waiting = Assert.Single(new PresentedView("main", screen).Nodes.OfType<ApprovalCardNode>(), card => card.Id == "plan-42" && card.Key.StartsWith("approval-", StringComparison.Ordinal));
         Assert.Equal("plan-42", waiting.Id);
         Assert.Null(waiting.Resolve);
     }
@@ -315,7 +315,7 @@ public sealed class InoViewFacts
             ],
         };
 
-        var conversation = InoView.Conversation(state);
+        var conversation = InoDrawing.Conversation(state);
         Assert.Equal("Sonnet 4.6", conversation.Composer.ActiveModelLabel);
         Assert.Equal("provider:anthropic", conversation.Composer.ActiveProviderIcon);
 
@@ -413,7 +413,7 @@ public sealed class InoViewFacts
         };
 
         var projected = InoModel.Projected(new InoAppState(), chat, "local/ino/conversations/main");
-        var conversation = InoView.Conversation(projected);
+        var conversation = InoDrawing.Conversation(projected);
         var assistant = conversation.Messages[1];
 
         Assert.Equal("Qwen 2.5 Coder 14B", assistant.Model);
@@ -435,10 +435,10 @@ public sealed class InoViewFacts
     {
         var state = new InoAppState();
 
-        var conversation = InoView.Conversation(state);
+        var conversation = InoDrawing.Conversation(state);
         Assert.False(conversation.Composer.Dictation);
 
-        var screen = InoView.Screen(state);
+        var screen = InoDrawing.Screen(state);
         var rootConversation = Assert.IsType<Conversation>(screen.Root);
         Assert.False(rootConversation.Composer.Dictation);
     }
@@ -448,10 +448,10 @@ public sealed class InoViewFacts
     {
         var state = new InoAppState();
 
-        var conversation = InoView.Conversation(state, dictation: true);
+        var conversation = InoDrawing.Conversation(state, dictation: true);
         Assert.True(conversation.Composer.Dictation);
 
-        var screen = InoView.Screen(state, dictation: true);
+        var screen = InoDrawing.Screen(state, dictation: true);
         var rootConversation = Assert.IsType<Conversation>(screen.Root);
         Assert.True(rootConversation.Composer.Dictation);
     }

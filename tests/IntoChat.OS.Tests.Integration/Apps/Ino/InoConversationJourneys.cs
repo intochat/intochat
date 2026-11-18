@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
+using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Modules.AI.Memory;
@@ -58,6 +59,15 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    // Ino's messages live in its conversation thread slot; MCP and HTTP readers see its controls under the slot key.
+    private const string ComposerControl = InoView.ConversationKey + "/" + ChatThreadNeuron.ComposerKey;
+    private const string StopControl = InoView.ConversationKey + "/" + ChatThreadNeuron.StopKey;
+    private const string MessageRetryControlPrefix = InoView.ConversationKey + "/retry:";
+
+    // No message is still being sent or written.
+    private static bool IsSettled(string rawJson)
+        => !rawJson.Contains("\"status\":\"sending\"", StringComparison.Ordinal) && !rawJson.Contains("\"status\":\"running\"", StringComparison.Ordinal);
+
     [Fact]
     public async Task PresenceProofIsEnforcedAtBothHttpAndMcpEdges()
     {
@@ -94,18 +104,17 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
         await held.Entered.WaitAsync(TimeSpan.FromSeconds(20), Ct);
 
         var whileWorking = await WaitForScreenAsync(
-            s => s.RawJson.Contains("\"working\"", StringComparison.OrdinalIgnoreCase)
-                || s.Controls.Contains(InoView.StopKey, StringComparer.Ordinal),
-            "Ino did not enter working state with stop control while turn was held in ScriptedOllama");
-        Assert.Contains(InoView.StopKey, whileWorking.Controls);
+            s => s.RawJson.Contains("First check: summarize kernel health.", StringComparison.Ordinal)
+                && !s.RawJson.Contains("Kernel health is nominal across all silos.", StringComparison.Ordinal),
+            "Ino did not show the prompt while the turn was held in ScriptedOllama");
+        Assert.Contains(StopControl, whileWorking.Controls);
 
         held.Release("Kernel health is nominal across all silos.");
 
         var afterTurn1 = await WaitForScreenAsync(
             s => s.RawJson.Contains("Kernel health is nominal across all silos.", StringComparison.Ordinal)
-                && s.RawJson.Contains("\"ready\"", StringComparison.OrdinalIgnoreCase),
-            "Ino did not transition back to ready with first reply");
-        Assert.DoesNotContain(InoView.StopKey, afterTurn1.Controls);
+                && IsSettled(s.RawJson),
+            "Ino did not settle with the first reply");
 
         host.Ollama.EnqueueReply("Follow-up confirmed: silo metrics remain healthy.", model);
         await using var mcp = await CreateMcpClientAsync();
@@ -114,7 +123,7 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
             new Dictionary<string, object?>
             {
                 ["appId"] = "ino",
-                ["key"] = InoView.ComposerKey,
+                ["key"] = ComposerControl,
                 ["value"] = "Any warnings since that first check?",
             },
             cancellationToken: Ct);
@@ -192,14 +201,12 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
         await SubmitInoPromptAsync("Diagnose cluster heartbeat latency.");
 
         var errored = await WaitForScreenAsync(
-            s => s.Controls.Contains(InoView.RetryKey, StringComparer.Ordinal)
-                || (s.Controls.Contains(InoView.ErrorActionKey, StringComparer.Ordinal)
-                    && s.RawJson.Contains("\"signal\":\"ino.retry\"", StringComparison.Ordinal)),
-            "Ino did not surface retry button after Ollama 503 failure");
+            s => s.Controls.Any(key => key.StartsWith(MessageRetryControlPrefix, StringComparison.Ordinal))
+                && s.RawJson.Contains("The model provider did not answer.", StringComparison.Ordinal),
+            "Ino did not surface the failed reply's reason and retry after Ollama 503 failure");
 
-        var retryKey = errored.Controls.Contains(InoView.RetryKey, StringComparer.Ordinal)
-            ? InoView.RetryKey
-            : InoView.ErrorActionKey;
+        // The failed reply carries its own retry, which resends that turn.
+        var retryKey = errored.Controls.Last(key => key.StartsWith(MessageRetryControlPrefix, StringComparison.Ordinal));
 
         host.Ollama.EnqueueReply("Recovered diagnostics: cluster heartbeat is 4ms.", model);
 
@@ -213,9 +220,9 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
 
         var recovered = await WaitForScreenAsync(
             s => s.RawJson.Contains("Recovered diagnostics: cluster heartbeat is 4ms.", StringComparison.Ordinal)
-                && s.RawJson.Contains("\"ready\"", StringComparison.OrdinalIgnoreCase),
+                && IsSettled(s.RawJson),
             "Ino did not recover from Ollama failure after Retry action");
-        Assert.DoesNotContain(InoView.ErrorActionKey, recovered.Controls);
+        Assert.Contains("Recovered diagnostics: cluster heartbeat is 4ms.", recovered.RawJson, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -337,7 +344,7 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
         }
 
         if (await TryReadInoScreenAsync() is { } existing
-            && existing.Controls.Contains(InoView.ComposerKey, StringComparer.Ordinal))
+            && existing.Controls.Contains(ComposerControl, StringComparer.Ordinal))
         {
             return;
         }
@@ -351,7 +358,7 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
             $"Open Ino returned {(int)openResponse.StatusCode}: {await openResponse.Content.ReadAsStringAsync(Ct)}");
 
         _ = await WaitForScreenAsync(
-            s => s.Controls.Contains(InoView.ComposerKey, StringComparer.Ordinal),
+            s => s.Controls.Contains(ComposerControl, StringComparer.Ordinal),
             "Ino composer never became available");
     }
 
@@ -373,7 +380,7 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
 
         _ = await WaitForScreenAsync(
             s => s.Generation > previous.Generation
-                && s.Controls.Contains(InoView.ComposerKey, StringComparer.Ordinal)
+                && s.Controls.Contains(ComposerControl, StringComparer.Ordinal)
                 && IsCleanEmptyScreen(s.RawJson),
             "Ino did not settle after new-conversation");
     }
@@ -405,32 +412,13 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
     {
         using var doc = JsonDocument.Parse(rawJson);
         var root = doc.RootElement;
-        if (!root.TryGetProperty("view", out var view)
-            || !view.TryGetProperty("root", out var conversation)
-            || !conversation.TryGetProperty("messages", out var messages)
-            || messages.ValueKind != JsonValueKind.Array
-            || messages.GetArrayLength() != 0)
-        {
-            return false;
-        }
-
-        if (!conversation.TryGetProperty("status", out var status)
-            || !string.Equals(status.GetString(), "ready", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (conversation.TryGetProperty("error", out var error) && error.ValueKind != JsonValueKind.Null)
-        {
-            return false;
-        }
-
-        if (conversation.TryGetProperty("stop", out var stop) && stop.ValueKind != JsonValueKind.Null)
-        {
-            return false;
-        }
-
-        return true;
+        // The conversation thread is drawn in place of its slot: clean is a thread with no message and nothing waiting under it.
+        return root.TryGetProperty("view", out var view)
+            && view.TryGetProperty("root", out var conversation)
+            && conversation.TryGetProperty("kind", out var kind) && kind.GetString() == "chatThreadView"
+            && conversation.TryGetProperty("messages", out var messages)
+            && messages.ValueKind == JsonValueKind.Array
+            && messages.GetArrayLength() == 0;
     }
 
     private async Task SubmitInoPromptAsync(string prompt)
@@ -438,7 +426,7 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
         var current = await ReadInoScreenAsync();
         using var actResponse = await host.Http.PostAsJsonAsync(
             $"/brains/{host.Scope}/screens/ino/act",
-            new { key = InoView.ComposerKey, value = prompt, generation = current.Generation },
+            new { key = ComposerControl, value = prompt, generation = current.Generation },
             Ct);
         Assert.True(
             actResponse.IsSuccessStatusCode,

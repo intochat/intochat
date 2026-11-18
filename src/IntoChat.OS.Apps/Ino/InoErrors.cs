@@ -31,6 +31,10 @@ public static class InoErrors
         };
     }
 
+    /// <summary>What a failed reply's failure code means to the user; null for no code (the thread then says the model did not answer).</summary>
+    public static string? Describe(string? failure)
+        => string.IsNullOrWhiteSpace(failure) ? null : Of(new InoError(failure.Trim())).What;
+
     private static InoErrorLine OpenLine(string what, string action, string section)
         => new(what, null, action, ErrorActionKey, $"os://window/settings?section={section}", Retry: false);
 

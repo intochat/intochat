@@ -23,7 +23,9 @@ using DigitalBrain.Runtime.Orleans.Testing;
 using DigitalBrain.Screens;
 using DigitalBrain.Signals;
 using DigitalBrain.Testing;
+using DigitalBrain.Invocation;
 using DigitalBrain.UI;
+using DigitalBrain.UI.Controls;
 using DigitalBrain.Units;
 using IntoChat.OS.Apps;
 using IntoChat.OS.Apps.Ino;
@@ -47,6 +49,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Flutter;
 using IntoChat.OS.Modules.Flutter.Views;
 using IntoChat.OS.Modules.Microsoft.Aspire;
+using IntoChat.OS.Tests;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -172,7 +175,71 @@ public sealed class InoSiloFixture : IAsyncLifetime
 
     public IGrainFactory Grains => Services.GetRequiredService<IGrainFactory>();
 
-    public static async Task<PublishedView> WaitForScreenAsync(
+    // Ino's messages live in its conversation thread (a control.chatThread slot): the screen a person sees is Ino's view with the
+    // thread drawn in place of the slot, composed with the slot's props the way the client composes them.
+    public NeuronId ThreadOf(string brain)
+    {
+        var ino = new NeuronId(new BrainId(brain), "app.ino", "default");
+        return new NeuronId(ino.Brain, "control.chatThread", ScreenExtensions.ChildAddress(ino, InoView.ConversationKey));
+    }
+
+    public IScreen ThreadScreen(string brain) => SiloNeurons.Get<IScreen>(Services, ThreadOf(brain));
+
+    // Activates a node of the conversation thread (the composer, a message's retry, the stop, the error line's retry) on its current view.
+    public async Task ActOnThreadAsync(string brain, string key, string? value = null)
+    {
+        var thread = ThreadScreen(brain);
+        for (var attempt = 0; ; attempt++)
+        {
+            var current = await thread.Read() ?? throw new InvalidOperationException("The conversation thread has no view.");
+            try
+            {
+                await thread.Activate(current.Alias, current.Generation, key, value, brain);
+                return;
+            }
+            catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.Stale && attempt < 5)
+            {
+                await Task.Delay(25);
+            }
+        }
+    }
+
+    public async Task<PublishedView?> ReadComposedAsync(IScreen screen)
+    {
+        var published = await screen.Read();
+        if (published is null || ChatThreadComposition.FirstSlot(published.View) is not { } slot) { return published; }
+        if (!NeuronId.TryParse(slot.NeuronUri, out var threadId) || await SiloNeurons.Get<IScreen>(Services, threadId).Read() is not { } thread) { return published; }
+        var threadView = System.Text.Json.JsonSerializer.Deserialize<View>(thread.View, RuntimeProtocol.OptionsFor(typeof(View)))!;
+        var composed = ChatThreadComposition.Compose(Assert.IsType<ChatThreadView>(threadView.Root), ChatThreadComposition.PropsOf(slot.Props));
+        var view = System.Text.Json.Nodes.JsonNode.Parse(published.View.GetRawText())!;
+        ReplaceSlot(view, System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize<Node>(composed, RuntimeProtocol.OptionsFor(typeof(Node))))!);
+        return published with { View = System.Text.Json.JsonSerializer.SerializeToElement(view) };
+    }
+
+    private static bool ReplaceSlot(System.Text.Json.Nodes.JsonNode node, System.Text.Json.Nodes.JsonNode replacement)
+    {
+        switch (node)
+        {
+            case System.Text.Json.Nodes.JsonObject obj:
+                foreach (var (name, value) in obj.ToArray())
+                {
+                    if (value is System.Text.Json.Nodes.JsonObject child && (string?)child["refKind"] == "slot") { obj[name] = replacement; return true; }
+                    if (value is not null && ReplaceSlot(value, replacement)) { return true; }
+                }
+                return false;
+            case System.Text.Json.Nodes.JsonArray array:
+                for (var i = 0; i < array.Count; i++)
+                {
+                    if (array[i] is System.Text.Json.Nodes.JsonObject child && (string?)child["refKind"] == "slot") { array[i] = replacement; return true; }
+                    if (array[i] is { } item && ReplaceSlot(item, replacement)) { return true; }
+                }
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    public async Task<PublishedView> WaitForScreenAsync(
         IScreen screen,
         Func<PublishedView, bool> predicate,
         CancellationToken ct = default)
@@ -181,7 +248,7 @@ public sealed class InoSiloFixture : IAsyncLifetime
         PublishedView? last = null;
         while (sw.Elapsed < TimeSpan.FromSeconds(10))
         {
-            last = await screen.Read();
+            last = await ReadComposedAsync(screen);
             if (last is not null && predicate(last))
             {
                 return last;
@@ -196,7 +263,7 @@ public sealed class InoSiloFixture : IAsyncLifetime
     public static bool TryGetConversation(PublishedView published, out Conversation conversation)
     {
         var view = System.Text.Json.JsonSerializer.Deserialize<View>(published.View, System.Text.Json.JsonSerializerOptions.Web);
-        if (view?.Root is Conversation conv)
+        if (view is not null && new PresentedView("main", view).Nodes.OfType<Conversation>().FirstOrDefault() is { } conv)
         {
             conversation = conv;
             return true;
@@ -208,9 +275,8 @@ public sealed class InoSiloFixture : IAsyncLifetime
 
     public static Conversation RequireConversation(PublishedView published)
     {
-        var view = System.Text.Json.JsonSerializer.Deserialize<View>(published.View, System.Text.Json.JsonSerializerOptions.Web);
-        Assert.NotNull(view);
-        return Assert.IsType<Conversation>(view.Root);
+        Assert.True(TryGetConversation(published, out var conversation), "The screen shows no conversation.");
+        return conversation;
     }
 
     public async ValueTask InitializeAsync()

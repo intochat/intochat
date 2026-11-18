@@ -8,6 +8,7 @@ using DigitalBrain.Screens;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
+using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Ino;
 using IntoChat.OS.Connections.Platform.Entries;
 using IntoChat.OS.Contracts.Configuration;
@@ -29,13 +30,13 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
         var held = fixture.Model.Hold("Hi Vlad.");
 
         var screen = fixture.InoScreen(brain);
-        var opened = await OpenInoAsync(screen);
+        await OpenInoAsync(screen);
 
-        await screen.Activate("app.ino", opened.Generation, InoView.ComposerKey, "hello", brain);
+        await fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "hello");
         await held.Entered.WaitAsync(TimeSpan.FromSeconds(8), Ct);
 
         // Immediately while working: user's "hello" is visible inside Conversation and composer is disabled!
-        var whileWorking = await InoSiloFixture.WaitForScreenAsync(
+        var whileWorking = await fixture.WaitForScreenAsync(
             screen,
             v => PresentedView.From(v).Texts.Contains("hello") && !InoSiloFixture.RequireConversation(v).Composer.Enabled,
             Ct);
@@ -47,7 +48,7 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
         // Release the LLM response -> "Hi Vlad." appears and composer re-enables!
         held.Release();
 
-        var completed = await InoSiloFixture.WaitForScreenAsync(
+        var completed = await fixture.WaitForScreenAsync(
             screen,
             v =>
             {
@@ -70,24 +71,26 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
         fixture.Model.Fail(new HttpRequestException("503 Service Unavailable", null, HttpStatusCode.ServiceUnavailable));
 
         var screen = fixture.InoScreen(brain);
-        var opened = await OpenInoAsync(screen);
+        await OpenInoAsync(screen);
 
-        await screen.Activate("app.ino", opened.Generation, InoView.ComposerKey, "hello", brain);
+        await fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "hello");
 
-        var failedView = await InoSiloFixture.WaitForScreenAsync(
+        // The failed reply says why and offers a retry (or, when no reply was started, the error line under the thread does).
+        var failedView = await fixture.WaitForScreenAsync(
             screen,
-            v => InoSiloFixture.RequireConversation(v).Error is not null,
+            v => InoSiloFixture.RequireConversation(v) is var c && (c.Error is not null || c.Messages.Any(m => m.Error is not null)),
             Ct);
 
         var failedConv = InoSiloFixture.RequireConversation(failedView);
-        Assert.Equal("The model provider did not answer.", failedConv.Error!.What);
-        Assert.Equal("Try again", failedConv.Error.Action!.Label);
+        var failedReply = failedConv.Messages.LastOrDefault(m => m.Error is not null);
+        Assert.Equal("The model provider did not answer.", failedReply?.Error?.What ?? failedConv.Error!.What);
+        Assert.Equal("Try again", failedReply?.Retry?.Label ?? failedConv.Error!.Action!.Label);
 
-        // Now fix the provider and click "Try again" on the error line!
+        // Now fix the provider and click "Try again".
         fixture.Model.Reply("Hi, back online.");
-        await screen.Activate("app.ino", failedView.Generation, InoView.ErrorActionKey, null, brain);
+        await fixture.ActOnThreadAsync(brain, failedReply?.Retry?.Key ?? ChatThreadNeuron.ErrorRetryKey);
 
-        var recovered = await InoSiloFixture.WaitForScreenAsync(
+        var recovered = await fixture.WaitForScreenAsync(
             screen,
             v => PresentedView.From(v).Texts.Contains("Hi, back online.") && InoSiloFixture.RequireConversation(v).Error is null,
             Ct);
@@ -105,17 +108,17 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
         fixture.Model.Reply("Still here.");
 
         var screen = fixture.InoScreen(brain);
-        var opened = await OpenInoAsync(screen);
-        await screen.Activate("app.ino", opened.Generation, InoView.ComposerKey, "remember this turn", brain);
+        await OpenInoAsync(screen);
+        await fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "remember this turn");
 
-        await InoSiloFixture.WaitForScreenAsync(
+        await fixture.WaitForScreenAsync(
             screen,
             v => PresentedView.From(v).Texts.Contains("Still here."),
             Ct);
 
         // Re-open the app on a fresh screen proxy and verify transcript persists via ChatNeuron/AgentState!
         await screen.Request("ino.open", JsonSerializer.SerializeToElement(new InoOpen()));
-        var reopened = await InoSiloFixture.WaitForScreenAsync(
+        var reopened = await fixture.WaitForScreenAsync(
             screen,
             v =>
             {
@@ -137,16 +140,16 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
         var held = fixture.Model.Hold("Single answer.");
 
         var screen = fixture.InoScreen(brain);
-        var opened = await OpenInoAsync(screen);
+        await OpenInoAsync(screen);
 
-        await screen.Activate("app.ino", opened.Generation, InoView.ComposerKey, "first question", brain);
+        await fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "first question");
         await held.Entered.WaitAsync(TimeSpan.FromSeconds(8), Ct);
 
         // Attempt a second send via direct request while the first run is active
         await screen.Request("ino.send", JsonSerializer.SerializeToElement(new InoSend(Message: "second question")));
 
         held.Release();
-        var finished = await InoSiloFixture.WaitForScreenAsync(
+        var finished = await fixture.WaitForScreenAsync(
             screen,
             v => PresentedView.From(v).Texts.Contains("Single answer."),
             Ct);
@@ -164,10 +167,10 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
         fixture.Model.Reply("Should never be called.");
 
         var screen = fixture.InoScreen(brain);
-        var opened = await OpenInoAsync(screen);
+        await OpenInoAsync(screen);
 
-        await screen.Activate("app.ino", opened.Generation, InoView.ComposerKey, "   ", brain);
-        var after = await screen.Read();
+        await fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "   ");
+        var after = await fixture.ReadComposedAsync(screen);
 
         Assert.Empty(fixture.Model.Requests);
         Assert.NotNull(after);
@@ -189,11 +192,11 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
         try
         {
             var screen = fixture.InoScreen(brain);
-            var opened = await OpenInoAsync(screen);
+            await OpenInoAsync(screen);
 
-            await screen.Activate("app.ino", opened.Generation, InoView.ComposerKey, "Write a unit test", brain);
+            await fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "Write a unit test");
 
-            var noProviderView = await InoSiloFixture.WaitForScreenAsync(
+            var noProviderView = await fixture.WaitForScreenAsync(
                 screen,
                 v => InoSiloFixture.RequireConversation(v).Error?.What == "Ino has no model to answer with.",
                 Ct);
@@ -217,7 +220,7 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
                 }
             }
 
-            var afterKeyView = await InoSiloFixture.WaitForScreenAsync(
+            var afterKeyView = await fixture.WaitForScreenAsync(
                 screen,
                 v => PresentedView.From(v).Texts.Contains("Answered after saving key."),
                 Ct);
@@ -301,10 +304,10 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
         }
     }
 
-    private static async Task<PublishedView> OpenInoAsync(IScreen screen)
+    private async Task<PublishedView> OpenInoAsync(IScreen screen)
     {
         await screen.Request("ino.open", JsonSerializer.SerializeToElement(new InoOpen()));
-        return await InoSiloFixture.WaitForScreenAsync(
+        return await fixture.WaitForScreenAsync(
             screen,
             v => InoSiloFixture.TryGetConversation(v, out _),
             Ct);

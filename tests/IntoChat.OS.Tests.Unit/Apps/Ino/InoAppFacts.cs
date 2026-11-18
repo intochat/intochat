@@ -264,13 +264,13 @@ public sealed class InoAppFacts
             await ino.Request("open", new InoOpen());
 
             Assert.True(ino.App.CanDictate);
-            Assert.True(Assert.IsType<Conversation>(ino.App.Render().Root).Composer.Dictation);
+            Assert.True(InoDrawing.PropsOf(ino.App.Render()).Dictation);
             Assert.Null(typeof(InoAppState).GetProperty("CanDictate"));
 
             FakeSpeechRecognizer.AvailableResult = false;
             await ino.Request("open", new InoOpen());
             Assert.False(ino.App.CanDictate);
-            Assert.False(Assert.IsType<Conversation>(ino.App.Render().Root).Composer.Dictation);
+            Assert.False(InoDrawing.PropsOf(ino.App.Render()).Dictation);
         }
         finally
         {
@@ -381,13 +381,14 @@ public sealed class InoAppFacts
 
         Assert.Equal(InoModel.Ready, ino.App.State.Status);
         Assert.Null(ino.App.State.ActiveRunId);
-        Assert.Contains("Hi from the background", Texts(ino.App.Render()));
+        Assert.Contains("Hi from the background", Texts(InoDrawing.Screen(ino.App)));
         Assert.Equal(("ino", 1_000L), FakeCompute.Records.Single());
     }
 
     [Fact]
     public async Task AgentBlockedPauses()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = BackgroundOs();
         var ino = await os.Install<InoApp>();
         await ino.Request("send", new InoSend("hello"));
@@ -396,16 +397,17 @@ public sealed class InoAppFacts
 
         Assert.True(ino.App.State.Blocked);
         Assert.Equal(InoModel.Paused, ino.App.State.Status);
-        Assert.Contains("Ino is paused.", Texts(ino.App.Render()));
+        Assert.Contains("Ino is paused.", Texts(InoDrawing.Screen(ino.App)));
     }
 
     [Fact]
     public async Task StopCancelsActiveRun()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = BackgroundOs();
         var ino = await os.Install<InoApp>();
         await ino.Request("send", new InoSend("hello"));
-        Assert.Contains("Stop", Texts(ino.App.Render()));
+        Assert.Contains("Stop", Texts(InoDrawing.Screen(ino.App)));
 
         await ino.Request("stop", new InoStop());
 
@@ -478,7 +480,7 @@ public sealed class InoAppFacts
 
         var state = InoModel.Projected(new InoAppState(), chat, "local/ino/conversations/main");
         Assert.Equal(card, Assert.Single(state.ActiveCards));
-        var view = InoView.Screen(state);
+        var view = InoDrawing.Screen(state);
         Assert.Contains("Settings · models / local-server", Texts(view));
     }
 
@@ -530,7 +532,7 @@ public sealed class InoAppFacts
         await using var os = AgentOs();
         var ino = await os.Install<InoApp>();
 
-        var initialTexts = Texts(ino.App.Render());
+        var initialTexts = Texts(InoDrawing.Screen(ino.App));
         Assert.All(initialTexts, text =>
         {
             Assert.DoesNotContain("neuron://", text, StringComparison.OrdinalIgnoreCase);
@@ -538,7 +540,7 @@ public sealed class InoAppFacts
         });
 
         await ino.Request("send", new InoSend("/scenario morning-brief"));
-        var scenarioTexts = Texts(ino.App.Render());
+        var scenarioTexts = Texts(InoDrawing.Screen(ino.App));
         Assert.All(scenarioTexts, text =>
         {
             Assert.DoesNotContain("neuron://", text, StringComparison.OrdinalIgnoreCase);
@@ -546,7 +548,7 @@ public sealed class InoAppFacts
         });
 
         await ino.Request("make", new InoMake("Build calculator", ["calculator"]));
-        var makeTexts = Texts(ino.App.Render());
+        var makeTexts = Texts(InoDrawing.Screen(ino.App));
         Assert.All(makeTexts, text =>
         {
             Assert.DoesNotContain("neuron://", text, StringComparison.OrdinalIgnoreCase);
@@ -570,7 +572,7 @@ public sealed class InoAppFacts
 
         Assert.True(ino.App.State.Blocked);
         Assert.Equal(InoModel.Paused, ino.App.State.Status);
-        var c = InoView.Conversation(ino.App.State);
+        var c = InoDrawing.Conversation(ino.App.State);
         Assert.NotNull(c.Error);
         Assert.Equal("Ino is paused.", c.Error!.What);
         Assert.Contains("maintenance window", c.Error.Detail ?? string.Empty, StringComparison.Ordinal);
