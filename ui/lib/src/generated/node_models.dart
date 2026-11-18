@@ -102,6 +102,7 @@ sealed class Node {
     'metricTile' => MetricTileNode.fromJson(json),
     'diffCard' => DiffCardNode.fromJson(json),
     'checkBoxView' => CheckBoxViewNode.fromJson(json),
+    'toggleSwitchView' => ToggleSwitchViewNode.fromJson(json),
     final kind => UnknownNode(kind is String ? kind : '', json),
   };
 }
@@ -1780,6 +1781,37 @@ final class ToastNode extends Node {
 
   factory ToastNode.fromJson(Map<String, dynamic> json) =>
       ToastNode(message: _string(json['message']));
+}
+
+final class ToggleSwitchViewNode extends Node {
+  const ToggleSwitchViewNode({
+    required this.key,
+    required this.label,
+    required this.isOn,
+    required this.automationName,
+    required this.onContent,
+    required this.offContent,
+  });
+
+  @override
+  String get kind => 'toggleSwitchView';
+
+  final String key;
+  final String label;
+  final bool isOn;
+  final String automationName;
+  final String? onContent;
+  final String? offContent;
+
+  factory ToggleSwitchViewNode.fromJson(Map<String, dynamic> json) =>
+      ToggleSwitchViewNode(
+        key: _string(json['key']),
+        label: _string(json['label']),
+        isOn: _bool(json['isOn']),
+        automationName: _string(json['automationName']),
+        onContent: _stringOrNull(json['onContent']),
+        offContent: _stringOrNull(json['offContent']),
+      );
 }
 
 final class WebBrowserNode extends Node {

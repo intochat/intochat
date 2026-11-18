@@ -1366,3 +1366,45 @@ static DigitalBrain.UI.Controls.CheckBoxState.operator !=(DigitalBrain.UI.Contro
 static DigitalBrain.UI.Controls.CheckBoxState.operator ==(DigitalBrain.UI.Controls.CheckBoxState? left, DigitalBrain.UI.Controls.CheckBoxState? right) -> bool
 static DigitalBrain.UI.Controls.CheckBoxView.operator !=(DigitalBrain.UI.Controls.CheckBoxView? left, DigitalBrain.UI.Controls.CheckBoxView? right) -> bool
 static DigitalBrain.UI.Controls.CheckBoxView.operator ==(DigitalBrain.UI.Controls.CheckBoxView? left, DigitalBrain.UI.Controls.CheckBoxView? right) -> bool
+DigitalBrain.UI.Controls.ToggleSwitchState
+DigitalBrain.UI.Controls.ToggleSwitchState.<Clone>$() -> DigitalBrain.UI.Controls.ToggleSwitchState!
+DigitalBrain.UI.Controls.ToggleSwitchState.AutomationName.get -> string?
+DigitalBrain.UI.Controls.ToggleSwitchState.AutomationName.init -> void
+DigitalBrain.UI.Controls.ToggleSwitchState.Equals(DigitalBrain.UI.Controls.ToggleSwitchState? other) -> bool
+DigitalBrain.UI.Controls.ToggleSwitchState.IsOn.get -> bool
+DigitalBrain.UI.Controls.ToggleSwitchState.IsOn.init -> void
+DigitalBrain.UI.Controls.ToggleSwitchState.Label.get -> string!
+DigitalBrain.UI.Controls.ToggleSwitchState.Label.init -> void
+DigitalBrain.UI.Controls.ToggleSwitchState.OffContent.get -> string?
+DigitalBrain.UI.Controls.ToggleSwitchState.OffContent.init -> void
+DigitalBrain.UI.Controls.ToggleSwitchState.OnContent.get -> string?
+DigitalBrain.UI.Controls.ToggleSwitchState.OnContent.init -> void
+DigitalBrain.UI.Controls.ToggleSwitchState.ToggleSwitchState() -> void
+DigitalBrain.UI.Controls.ToggleSwitchView
+DigitalBrain.UI.Controls.ToggleSwitchView.AutomationName.get -> string!
+DigitalBrain.UI.Controls.ToggleSwitchView.AutomationName.init -> void
+DigitalBrain.UI.Controls.ToggleSwitchView.Deconstruct(out string! Key, out string! Label, out bool IsOn, out string! AutomationName, out string? OnContent, out string? OffContent) -> void
+DigitalBrain.UI.Controls.ToggleSwitchView.Equals(DigitalBrain.UI.Controls.ToggleSwitchView? other) -> bool
+DigitalBrain.UI.Controls.ToggleSwitchView.IsOn.get -> bool
+DigitalBrain.UI.Controls.ToggleSwitchView.IsOn.init -> void
+DigitalBrain.UI.Controls.ToggleSwitchView.Key.get -> string!
+DigitalBrain.UI.Controls.ToggleSwitchView.Key.init -> void
+DigitalBrain.UI.Controls.ToggleSwitchView.Label.get -> string!
+DigitalBrain.UI.Controls.ToggleSwitchView.Label.init -> void
+DigitalBrain.UI.Controls.ToggleSwitchView.OffContent.get -> string?
+DigitalBrain.UI.Controls.ToggleSwitchView.OffContent.init -> void
+DigitalBrain.UI.Controls.ToggleSwitchView.OnContent.get -> string?
+DigitalBrain.UI.Controls.ToggleSwitchView.OnContent.init -> void
+DigitalBrain.UI.Controls.ToggleSwitchView.ToggleSwitchView(string! Key, string! Label, bool IsOn, string! AutomationName, string? OnContent = null, string? OffContent = null) -> void
+override DigitalBrain.UI.Controls.ToggleSwitchState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.ToggleSwitchState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.ToggleSwitchState.ToString() -> string!
+override DigitalBrain.UI.Controls.ToggleSwitchView.<Clone>$() -> DigitalBrain.UI.Controls.ToggleSwitchView!
+override DigitalBrain.UI.Controls.ToggleSwitchView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.ToggleSwitchView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.ToggleSwitchView.ToString() -> string!
+override sealed DigitalBrain.UI.Controls.ToggleSwitchView.Equals(DigitalBrain.UI.Node? other) -> bool
+static DigitalBrain.UI.Controls.ToggleSwitchState.operator !=(DigitalBrain.UI.Controls.ToggleSwitchState? left, DigitalBrain.UI.Controls.ToggleSwitchState? right) -> bool
+static DigitalBrain.UI.Controls.ToggleSwitchState.operator ==(DigitalBrain.UI.Controls.ToggleSwitchState? left, DigitalBrain.UI.Controls.ToggleSwitchState? right) -> bool
+static DigitalBrain.UI.Controls.ToggleSwitchView.operator !=(DigitalBrain.UI.Controls.ToggleSwitchView? left, DigitalBrain.UI.Controls.ToggleSwitchView? right) -> bool
+static DigitalBrain.UI.Controls.ToggleSwitchView.operator ==(DigitalBrain.UI.Controls.ToggleSwitchView? left, DigitalBrain.UI.Controls.ToggleSwitchView? right) -> bool

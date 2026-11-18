@@ -1668,6 +1668,117 @@
     "examples": []
   },
   {
+    "kind": "toggleSwitch",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "isOn",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "onContent",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "offContent",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "SetChecked",
+        "signal": "control.setChecked",
+        "args": {
+          "isOn": "bool"
+        }
+      },
+      {
+        "name": "Toggle",
+        "signal": "control.toggle",
+        "args": {}
+      }
+    ],
+    "signals": [
+      {
+        "name": "Toggled",
+        "signal": "control.toggled",
+        "args": {
+          "isOn": "bool"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "toggleSwitchView",
+        "key": "dark-mode",
+        "label": "Dark mode",
+        "isOn": true,
+        "onContent": "On",
+        "offContent": "Off",
+        "automationName": "Dark mode"
+      },
+      {
+        "kind": "toggleSwitchView",
+        "key": "wifi",
+        "label": "Wi-Fi",
+        "isOn": false,
+        "automationName": "Wi-Fi"
+      }
+    ]
+  },
+  {
+    "kind": "toggleSwitchView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "isOn",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "onContent",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "offContent",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
     "kind": "webBrowser",
     "isNeuron": false,
     "props": [

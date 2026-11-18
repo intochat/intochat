@@ -323,6 +323,15 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'automationName': 'Accept the terms',
     'isThreeState': false,
   },
+  'toggleSwitchView': {
+    'kind': 'toggleSwitchView',
+    'key': 'dark-mode',
+    'label': 'Dark mode',
+    'isOn': true,
+    'automationName': 'Dark mode',
+    'onContent': 'On',
+    'offContent': 'Off',
+  },
   'diffCard': {
     'kind': 'diffCard',
     'id': 'diff-1',

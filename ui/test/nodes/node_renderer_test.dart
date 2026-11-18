@@ -72,7 +72,7 @@ List<String> _generatedKinds() {
 void main() {
   test('there is a sample for every generated kind', () {
     final kinds = _generatedKinds();
-    expect(kinds, hasLength(44));
+    expect(kinds, hasLength(45));
     expect(nodeSamples.keys.toSet(), kinds.toSet());
     for (final MapEntry(:key, :value) in nodeSamples.entries) {
       expect(Node.fromJson(value).kind, key);

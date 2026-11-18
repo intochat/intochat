@@ -45,6 +45,7 @@ import 'switch.dart';
 import 'tabs.dart';
 import 'tag_pill.dart';
 import 'text.dart';
+import 'toggle_switch_view.dart';
 import 'toast.dart';
 import 'web_browser.dart';
 
@@ -85,6 +86,7 @@ abstract final class NodeRenderer {
     NavItemNode(:final key) ||
     StatCardNode(:final key) ||
     SwitchNode(:final key) ||
+    ToggleSwitchViewNode(:final key) ||
     WebBrowserNode(:final key) => key,
     _ => null,
   };
@@ -135,6 +137,7 @@ abstract final class NodeRenderer {
       MetricTileNode() => renderMetricTile(node, ctx),
       DiffCardNode() => renderDiffCard(node, ctx),
       CheckBoxViewNode() => renderCheckBoxView(node, ctx),
+      ToggleSwitchViewNode() => renderToggleSwitchView(node, ctx),
       UnknownNode() => const _Unsupported(),
     };
   }
