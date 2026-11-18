@@ -738,6 +738,79 @@
     "examples": []
   },
   {
+    "kind": "iconButton",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "icon",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "tooltip",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "command",
+        "type": "Command?",
+        "default": null
+      },
+      {
+        "name": "intent",
+        "type": "IntentNode?",
+        "default": null
+      },
+      {
+        "name": "enabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "visible",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": ""
+      }
+    ],
+    "commands": [],
+    "signals": [],
+    "examples": [
+      {
+        "kind": "iconButton",
+        "key": "refresh",
+        "icon": "refresh-cw",
+        "tooltip": "Refresh",
+        "command": {
+          "target": ".",
+          "signal": "Refreshed"
+        },
+        "automationName": "Refresh"
+      },
+      {
+        "kind": "iconButton",
+        "key": "copy-id",
+        "icon": "copy",
+        "tooltip": "Copy id",
+        "intent": {
+          "intentKind": "Copy",
+          "arg": "neuron://owner/notes"
+        },
+        "automationName": "Copy id",
+        "enabled": false
+      }
+    ]
+  },
+  {
     "kind": "infoBar",
     "isNeuron": false,
     "props": [

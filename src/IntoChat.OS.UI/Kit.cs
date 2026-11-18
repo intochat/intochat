@@ -285,6 +285,69 @@ public sealed class TextBuilder : KitNode
     };
 }
 
+/// <summary>Fluent icon-only button builder: the same bindings as <see cref="ButtonBuilder"/>, built as an <see cref="DigitalBrain.UI.IconButton"/>.</summary>
+public sealed class IconButtonBuilder
+{
+    private readonly string _icon;
+    private readonly string _tooltip;
+    private readonly ButtonBuilder _button;
+
+    internal IconButtonBuilder(string icon, string tooltip)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(icon);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tooltip);
+        _icon = icon;
+        _tooltip = tooltip;
+        _button = new ButtonBuilder(tooltip, style: "ghost", tone: ButtonTone.Neutral, icon: icon, small: true);
+    }
+
+    /// <summary>Overrides the deterministic node key.</summary>
+    public IconButtonBuilder Key(string key) { _button.Key(key); return this; }
+
+    /// <summary>Sets the accessible name; the key is used when none is set.</summary>
+    public IconButtonBuilder AutomationName(string automationName) { _button.AutomationName(automationName); return this; }
+
+    /// <summary>Explicitly disables (or enables) the button.</summary>
+    public IconButtonBuilder Disabled(bool disabled = true) { _button.Disabled(disabled); return this; }
+
+    /// <summary>Disables the button while <paramref name="rule"/> is broken (see <see cref="ButtonBuilder.Guard(Rule)"/>).</summary>
+    public IconButtonBuilder Guard(Rule rule) { _button.Guard(rule); return this; }
+
+    /// <summary>Binds a pure <c>TState -&gt; TState</c> aggregate command expression.</summary>
+    public IconButtonBuilder OnClick<TState>(Expression<Func<TState, TState>> command) where TState : class { _button.OnClick(command); return this; }
+
+    /// <summary>Binds a rule-checked <c>TState -&gt; Decision&lt;TState&gt;</c> aggregate command expression.</summary>
+    public IconButtonBuilder OnClick<TState>(Expression<Func<TState, Decision<TState>>> command) where TState : class { _button.OnClick(command); return this; }
+
+    /// <summary>Binds an async screen orchestration method (<c>screen =&gt; screen.SyncAsync()</c>).</summary>
+    public IconButtonBuilder OnClickAsync<TScreen>(Expression<Func<TScreen, Task>> command) where TScreen : class { _button.OnClickAsync(command); return this; }
+
+    /// <summary>Binds a classic <c>[On]</c> signal as a command to the view's own neuron (".").</summary>
+    public IconButtonBuilder Emits(Emit emit) { _button.Emits(emit); return this; }
+
+    /// <summary>Binds the <see cref="Command"/> a click sends.</summary>
+    public IconButtonBuilder Sends(Command command) { _button.Sends(command); return this; }
+
+    /// <summary>Binds a client-local <see cref="DigitalBrain.UI.Intent"/>.</summary>
+    public IconButtonBuilder WithIntent(IntentKind kind, string? arg = null) { _button.WithIntent(kind, arg); return this; }
+
+    /// <summary>Materializes this builder as an <see cref="DigitalBrain.UI.IconButton"/>.</summary>
+    public IconButton ToIconButton()
+    {
+        var button = _button.ToButton();
+        return new IconButton(button.Key, _icon, _tooltip, button.Command, button.Intent, button.Enabled, button.AutomationName);
+    }
+
+    /// <summary>Materializes this builder as a <see cref="Node"/>.</summary>
+    public Node ToNode() => ToIconButton();
+
+    public static implicit operator Node(IconButtonBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder.ToIconButton();
+    }
+}
+
 /// <summary>
 /// Fluent interactive button builder supporting typed expression-tree command binding (<c>.OnClick(x =&gt; x.Withdraw(30m))</c>),
 /// domain rule guards (<c>.Guard(rule)</c>), client-local intents, and visual styles.
@@ -1085,9 +1148,12 @@ public static class Kit
     public static ButtonBuilder DangerButton(string label, string? icon = null)
         => new(label, style: "danger", tone: ButtonTone.Neutral, icon: icon);
 
-    /// <summary>Compact icon-first button.</summary>
-    public static ButtonBuilder IconButton(string icon, string label = "")
-        => new(label, style: "ghost", tone: ButtonTone.Neutral, icon: icon, small: true);
+    /// <summary>An icon-only button; <paramref name="tooltip"/> says what it does (name it: <c>IconButton(icon, tooltip: "...")</c>).</summary>
+    public static IconButtonBuilder IconButton(string icon, string tooltip) => new(icon, tooltip);
+
+    /// <summary>Replaced: an icon button names its tooltip.</summary>
+    [Obsolete("An icon button says what it does: IconButton(icon, tooltip: \"...\").", error: true)]
+    public static IconButtonBuilder IconButton(string icon) => throw new NotSupportedException("IconButton(icon, tooltip:)");
 
     /// <summary>Single-line editable text field (<see cref="FieldKind.Text"/>).</summary>
     public static FieldBuilder TextField(string label, string? placeholder = null)

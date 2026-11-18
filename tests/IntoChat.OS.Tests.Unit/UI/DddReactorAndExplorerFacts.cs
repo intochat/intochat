@@ -177,7 +177,7 @@ public sealed class WorkspaceFilterScreen : AggregateScreen<WorkspaceFilterState
             HeaderBar(
                 "Workspace",
                 $"Rate {s.SyncedRate:0.00} · {(s.SidebarOpen ? "Expanded" : "Compact")}",
-                IconButton(Icons.PanelLeft, "Toggle Sidebar").OnClick<WorkspaceFilterState>(x => x.ToggleSidebar()),
+                IconButton(Icons.PanelLeft, tooltip: "Toggle Sidebar").OnClick<WorkspaceFilterState>(x => x.ToggleSidebar()),
                 GhostButton("Sync Rate", Icons.RefreshCw).OnClick(() => SyncExchangeRateAsync())),
             Tabs(
                 s.SelectedTab,

@@ -65,6 +65,7 @@ public sealed record View(string Title, Node Root);
 [JsonDerivedType(typeof(Toast), "toast")]
 [JsonDerivedType(typeof(Card), "card")]
 [JsonDerivedType(typeof(Button), "button")]
+[JsonDerivedType(typeof(IconButton), "iconButton")]
 [JsonDerivedType(typeof(DataTable), "dataTable")]
 [JsonDerivedType(typeof(Chart), "chart")]
 [JsonDerivedType(typeof(ApprovalCardNode), "approvalCard")]
@@ -390,6 +391,37 @@ public sealed record Button(
 
     /// <summary>True for the compact 30px desktop button height.</summary>
     public bool Small { get; init; }
+}
+
+/// <summary>An icon-only button (the os <c>iconButton</c> control): plain data with a <see cref="UI.Command"/>, its tooltip the visible name.</summary>
+/// <param name="Key">The node's key within its view, by which an activation names it.</param>
+/// <param name="Icon">The Lucide icon slug drawn.</param>
+/// <param name="Tooltip">Text shown on hover and focus; an icon button always says what it does.</param>
+/// <param name="Command">The command a click sends, to a neuron address relative to the view's neuron ("." is the view's own); exactly one of <paramref name="Command"/> and <paramref name="Intent"/> is given.</param>
+/// <param name="Intent">The client-local intent a click performs.</param>
+/// <param name="Enabled">False shows the button disabled.</param>
+/// <param name="AutomationName">The accessible name; empty falls back to <paramref name="Key"/>.</param>
+/// <param name="Visible">False hides the button.</param>
+[ViewNode("iconButton")]
+public sealed record IconButton(
+    [Showcase("""{"kind":"iconButton","key":"refresh","icon":"refresh-cw","tooltip":"Refresh","command":{"target":".","signal":"Refreshed"},"automationName":"Refresh"}""")]
+    [Showcase("""{"kind":"iconButton","key":"copy-id","icon":"copy","tooltip":"Copy id","intent":{"intentKind":"Copy","arg":"neuron://owner/notes"},"automationName":"Copy id","enabled":false}""")]
+    string Key,
+    string Icon,
+    string Tooltip,
+    Command? Command = null,
+    Intent? Intent = null,
+    bool Enabled = true,
+    string AutomationName = "",
+    [property: DefaultValue(true)] bool Visible = true) : Node
+{
+    // Not serialised (private); an icon button that commands and intends, or does neither, cannot be built.
+    private readonly bool _oneAction = (Command is null) != (Intent is null)
+        ? true
+        : throw new ArgumentException("An icon button carries exactly one of Command and Intent.", nameof(Intent));
+
+    /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
+    public string AutomationName { get; init; } = string.IsNullOrEmpty(AutomationName) ? Key : AutomationName;
 }
 
 /// <summary>A signal a node emits when activated: journaled with alias <paramref name="Signal"/> to the state alias <paramref name="Owner"/>.</summary>

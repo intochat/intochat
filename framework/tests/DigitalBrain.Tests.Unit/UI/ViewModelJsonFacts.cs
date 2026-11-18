@@ -9,9 +9,9 @@ namespace DigitalBrain.Tests.Unit.UI;
 
 public sealed class ViewModelJsonFacts
 {
-    private static readonly string[] ActionMembers = ["Emit", "Intent", "Resolve", "OnSubmit"];
+    private static readonly string[] ActionMembers = ["Command", "Emit", "Intent", "Resolve", "OnSubmit"];
 
-    private static readonly Type[] ActionCarriers = [typeof(Button), typeof(TabItem), typeof(Switch), typeof(SelectOption), typeof(Field), typeof(ApprovalCardNode), typeof(NavItemNode), typeof(ComposerNode)];
+    private static readonly Type[] ActionCarriers = [typeof(Button), typeof(IconButton), typeof(TabItem), typeof(Switch), typeof(SelectOption), typeof(Field), typeof(ApprovalCardNode), typeof(NavItemNode), typeof(ComposerNode)];
 
     private static bool CarriesAction(Type type) => type.GetProperties().Any(p => ActionMembers.Contains(p.Name)
         || p.PropertyType == typeof(Emit) || Nullable.GetUnderlyingType(p.PropertyType) == typeof(Emit)
@@ -30,7 +30,7 @@ public sealed class ViewModelJsonFacts
     [Fact]
     public void OnlyInteractiveTypesDeclareAnAction()
     {
-        var model = typeof(Node).Assembly.GetTypes().Where(t => t.Namespace == typeof(Node).Namespace && t.IsPublic && t != typeof(Emit) && t != typeof(Resolve) && t != typeof(Intent));
+        var model = typeof(Node).Assembly.GetTypes().Where(t => t.Namespace == typeof(Node).Namespace && t.IsPublic && t != typeof(Emit) && t != typeof(Command) && t != typeof(Resolve) && t != typeof(Intent));
 
         Assert.Equal(ActionCarriers.Select(t => t.Name).Order(StringComparer.Ordinal), model.Where(CarriesAction).Select(t => t.Name).Order(StringComparer.Ordinal));
     }
@@ -78,6 +78,20 @@ public sealed class ViewModelJsonFacts
         var again = Assert.IsType<Button>(Assert.IsType<Column>(JsonSerializer.Deserialize<View>(element.GetRawText(), options)!.Root).Children[0]);
         Assert.Equal("files.open", again.Command!.Signal);
         Assert.Null(again.Intent);
+    }
+
+    [Fact]
+    public void An_icon_button_carries_one_action_and_names_itself_by_key()
+    {
+        Assert.Throws<ArgumentException>(() => new IconButton("r", "refresh-cw", "Refresh"));
+        var icon = new IconButton("r", "refresh-cw", "Refresh", new Command(".", "refreshed"));
+
+        var wire = JsonSerializer.SerializeToElement<Node>(icon, RuntimeProtocol.OptionsFor(typeof(View)));
+
+        Assert.Equal("iconButton", wire.GetProperty("kind").GetString());
+        Assert.Equal("r", wire.GetProperty("automationName").GetString());
+        Assert.Equal("Refresh", wire.GetProperty("tooltip").GetString());
+        Assert.Equal(icon, JsonSerializer.Deserialize<Node>(wire.GetRawText(), RuntimeProtocol.OptionsFor(typeof(View))));
     }
 
     [Fact]

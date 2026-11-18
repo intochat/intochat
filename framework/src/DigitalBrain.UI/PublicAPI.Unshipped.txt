@@ -1266,3 +1266,30 @@ static DigitalBrain.UI.Command.operator ==(DigitalBrain.UI.Command? left, Digita
 DigitalBrain.UI.EmitsAttribute
 DigitalBrain.UI.EmitsAttribute.EmitsAttribute(System.Type! signal) -> void
 DigitalBrain.UI.EmitsAttribute.Signal.get -> System.Type!
+DigitalBrain.UI.IconButton
+DigitalBrain.UI.IconButton.AutomationName.get -> string!
+DigitalBrain.UI.IconButton.AutomationName.init -> void
+DigitalBrain.UI.IconButton.Command.get -> DigitalBrain.UI.Command?
+DigitalBrain.UI.IconButton.Command.init -> void
+DigitalBrain.UI.IconButton.Deconstruct(out string! Key, out string! Icon, out string! Tooltip, out DigitalBrain.UI.Command? Command, out DigitalBrain.UI.Intent? Intent, out bool Enabled, out string! AutomationName, out bool Visible) -> void
+DigitalBrain.UI.IconButton.Enabled.get -> bool
+DigitalBrain.UI.IconButton.Enabled.init -> void
+DigitalBrain.UI.IconButton.Equals(DigitalBrain.UI.IconButton? other) -> bool
+DigitalBrain.UI.IconButton.Icon.get -> string!
+DigitalBrain.UI.IconButton.Icon.init -> void
+DigitalBrain.UI.IconButton.IconButton(string! Key, string! Icon, string! Tooltip, DigitalBrain.UI.Command? Command = null, DigitalBrain.UI.Intent? Intent = null, bool Enabled = true, string! AutomationName = "", bool Visible = true) -> void
+DigitalBrain.UI.IconButton.Intent.get -> DigitalBrain.UI.Intent?
+DigitalBrain.UI.IconButton.Intent.init -> void
+DigitalBrain.UI.IconButton.Key.get -> string!
+DigitalBrain.UI.IconButton.Key.init -> void
+DigitalBrain.UI.IconButton.Tooltip.get -> string!
+DigitalBrain.UI.IconButton.Tooltip.init -> void
+DigitalBrain.UI.IconButton.Visible.get -> bool
+DigitalBrain.UI.IconButton.Visible.init -> void
+override DigitalBrain.UI.IconButton.<Clone>$() -> DigitalBrain.UI.IconButton!
+override DigitalBrain.UI.IconButton.Equals(object? obj) -> bool
+override DigitalBrain.UI.IconButton.GetHashCode() -> int
+override DigitalBrain.UI.IconButton.ToString() -> string!
+override sealed DigitalBrain.UI.IconButton.Equals(DigitalBrain.UI.Node? other) -> bool
+static DigitalBrain.UI.IconButton.operator !=(DigitalBrain.UI.IconButton? left, DigitalBrain.UI.IconButton? right) -> bool
+static DigitalBrain.UI.IconButton.operator ==(DigitalBrain.UI.IconButton? left, DigitalBrain.UI.IconButton? right) -> bool

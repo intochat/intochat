@@ -58,16 +58,22 @@ Widget renderButton(ButtonNode node, NodeContext ctx) => !node.visible
             tooltip: _resolveButtonHint(node, ctx),
             style: parseButtonStyle(node.style, node.tone),
             onPressed: node.enabled && ctx.interactive
-                ? () => _press(node, ctx, context)
+                ? () => pressCommand(node.key, node.command, ctx, context)
                 : null,
           ),
         ),
       );
 
-Future<void> _press(ButtonNode node, NodeContext ctx, BuildContext context) {
-  final command = node.command;
+/// Sends a button's [command]: on a top-level view a command to `.` activates
+/// the [key]; anything else goes through [NodeContext.act].
+Future<void> pressCommand(
+  String key,
+  Command? command,
+  NodeContext ctx,
+  BuildContext context,
+) {
   if (command == null || ctx.isTopLevelSelf(command.target)) {
-    return ctx.activate(node.key, context: context);
+    return ctx.activate(key, context: context);
   }
   final args = command.args;
   return ctx.act(

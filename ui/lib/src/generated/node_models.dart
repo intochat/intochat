@@ -80,6 +80,7 @@ sealed class Node {
     'toast' => ToastNode.fromJson(json),
     'card' => CardNode.fromJson(json),
     'button' => ButtonNode.fromJson(json),
+    'iconButton' => IconButtonNode.fromJson(json),
     'dataTable' => DataTableNode.fromJson(json),
     'chart' => ChartNode.fromJson(json),
     'approvalCard' => ApprovalCardNode.fromJson(json),
@@ -1018,6 +1019,46 @@ final class HeadingNode extends Node {
     value: _string(json['value']),
     level: _int(json['level'], 2),
     subtitle: _stringOrNull(json['subtitle']),
+  );
+}
+
+final class IconButtonNode extends Node {
+  const IconButtonNode({
+    required this.key,
+    required this.icon,
+    required this.tooltip,
+    required this.command,
+    required this.intent,
+    required this.enabled,
+    required this.visible,
+    required this.automationName,
+  });
+
+  @override
+  String get kind => 'iconButton';
+
+  final String key;
+  final String icon;
+  final String tooltip;
+  final Command? command;
+  final IntentNode? intent;
+  final bool enabled;
+  final bool visible;
+  final String automationName;
+
+  factory IconButtonNode.fromJson(Map<String, dynamic> json) => IconButtonNode(
+    key: _string(json['key']),
+    icon: _string(json['icon']),
+    tooltip: _string(json['tooltip']),
+    command: json['command'] is Map
+        ? Command.fromJson(_map(json['command']))
+        : null,
+    intent: json['intent'] is Map
+        ? IntentNode.fromJson(_map(json['intent']))
+        : null,
+    enabled: _bool(json['enabled'], true),
+    visible: _bool(json['visible'], true),
+    automationName: _string(json['automationName']),
   );
 }
 

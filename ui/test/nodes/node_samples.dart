@@ -123,6 +123,14 @@ const nodeSamples = <String, Map<String, dynamic>>{
     ],
   },
   'button': {'kind': 'button', ..._button, 'tone': 'accent'},
+  'iconButton': {
+    'kind': 'iconButton',
+    'key': 'refresh',
+    'icon': 'refresh-cw',
+    'tooltip': 'Refresh',
+    'command': {'target': '.', 'signal': 'refreshed'},
+    'automationName': 'Refresh',
+  },
   'dataTable': {
     'kind': 'dataTable',
     'title': 'Deals',

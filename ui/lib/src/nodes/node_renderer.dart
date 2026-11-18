@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'app_shell.dart';
@@ -7,6 +7,7 @@ import 'badge.dart';
 import 'node_common.dart' show keyedControl;
 import 'brain_scene.dart';
 import 'button.dart';
+import 'icon_button.dart';
 import 'card.dart';
 import 'chart.dart';
 import 'choice_card.dart';
@@ -76,6 +77,7 @@ abstract final class NodeRenderer {
     ButtonNode(:final key) ||
     ConversationNode(:final key) ||
     FieldNode(:final key) ||
+    IconButtonNode(:final key) ||
     NavItemNode(:final key) ||
     StatCardNode(:final key) ||
     SwitchNode(:final key) ||
@@ -107,6 +109,7 @@ abstract final class NodeRenderer {
       ToastNode() => renderToast(node, ctx),
       CardNode() => renderCard(node, ctx),
       ButtonNode() => renderButton(node, ctx),
+      IconButtonNode() => renderIconButton(node, ctx),
       DataTableNode() => renderDataTable(node, ctx),
       ChartNode() => renderChart(node, ctx),
       ApprovalCardNode() => renderApprovalCard(node, ctx),

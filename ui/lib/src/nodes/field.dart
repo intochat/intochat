@@ -14,7 +14,8 @@ Map<String, dynamic> _fieldMeta(FieldNode node) {
   return args is Map ? Map<String, dynamic>.from(args) : const {};
 }
 
-Widget renderField(FieldNode node, NodeContext ctx) => FieldNodeView(node: node, ctx: ctx);
+Widget renderField(FieldNode node, NodeContext ctx) =>
+    FieldNodeView(node: node, ctx: ctx);
 
 /// A view field bound to its field neuron (and/or `AggregateScreen` `UiCommand`):
 /// - Supports explicit `uiLabel` (including `""` to omit label), `uiValue`
