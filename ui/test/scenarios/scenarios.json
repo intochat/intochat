@@ -15,6 +15,11 @@
         "step": "expect",
         "contains": "Message",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "message"
       }
     ]
   },
@@ -81,6 +86,11 @@
         "step": "expect",
         "contains": "Card in chat",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "card-in-chat"
       }
     ]
   },
@@ -100,6 +110,11 @@
         "step": "expect",
         "contains": "Activity row",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "activity-row"
       }
     ]
   },
@@ -119,6 +134,11 @@
         "step": "expect",
         "contains": "Composer with model picker",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "composer"
       }
     ]
   },
@@ -138,6 +158,11 @@
         "step": "expect",
         "contains": "Empty",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "empty"
       }
     ]
   },
@@ -157,6 +182,11 @@
         "step": "expect",
         "contains": "Waiting",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "waiting"
       }
     ]
   },
@@ -216,6 +246,11 @@
         "step": "expect",
         "contains": "Table query",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "table-query"
       }
     ]
   },
@@ -368,6 +403,11 @@
         "step": "expect",
         "contains": "chatThread",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "chatThread"
       }
     ]
   },
@@ -406,6 +446,11 @@
         "step": "expect",
         "contains": "checkBox",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "checkBox"
       }
     ]
   },
@@ -501,6 +546,11 @@
         "step": "expect",
         "contains": "comboBox",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "comboBox"
       }
     ]
   },
@@ -672,6 +722,11 @@
         "step": "expect",
         "contains": "expander",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "expander"
       }
     ]
   },
@@ -729,6 +784,11 @@
         "step": "expect",
         "contains": "form",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "form"
       }
     ]
   },
@@ -881,6 +941,11 @@
         "step": "expect",
         "contains": "listBox",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "listBox"
       }
     ]
   },
@@ -919,6 +984,11 @@
         "step": "expect",
         "contains": "liveChart",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "liveChart"
       }
     ]
   },
@@ -1052,6 +1122,11 @@
         "step": "expect",
         "contains": "queryTable",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "queryTable"
       }
     ]
   },
@@ -1261,6 +1336,11 @@
         "step": "expect",
         "contains": "tabStrip",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "tabStrip"
       }
     ]
   },
@@ -1375,6 +1455,11 @@
         "step": "expect",
         "contains": "toggleSwitch",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "",
+        "target": "toggleSwitch"
       }
     ]
   },

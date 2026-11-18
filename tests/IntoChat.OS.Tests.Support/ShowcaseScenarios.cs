@@ -31,11 +31,12 @@ public static class ShowcaseScenarios
             new Act(".", "uikit.append", null),
             new Expect(page.Id, UiKitPages.Point(1).Label),
         ]),
+        // The nav lists every title, so a title alone does not prove the page opened: a page that slots its own control is also
+        // read by that slot's key, which only the open page draws (an empty Contains holds whenever the target is shown).
+        _ when page.Group != UiKitPages.DataNode => new(page.Id, UiKitApp.AppName, [Open(page.Id), new Expect(".", page.Title), new Expect(page.Id, "")]),
         _ => new(page.Id, UiKitApp.AppName, [Open(page.Id), new Expect(".", page.Title)]),
     };
 
-    // NOT YET RUN against the kernel: the page texts, the "control.retry" log line and the "#1" chart point are expected values that
-    // Task 12 (the kernel driver) verifies; adjust here and regenerate scenarios.json if they differ.
     // Opening a page is what a user does: select it in the nav.
     private static Act Open(string page) => new(UiKitPages.Nav, "control.select", Args(new { id = page }));
 
