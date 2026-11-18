@@ -65,11 +65,12 @@ abstract final class NodeRenderer {
 
   static Widget render(Node node, NodeContext ctx) {
     if (ctx.depth > maxDepth) return const _Unsupported();
-    return keyedControl(_keyOf(node), _draw(node, ctx));
+    return keyedControl(keyOf(node), _draw(node, ctx));
   }
 
-  /// The wire `key` of the nodes whose generated model declares one.
-  static String? _keyOf(Node node) => switch (node) {
+  /// The wire `key` of the nodes whose generated model declares one (every such
+  /// model is covered; `showcase_catalog_test.dart` fails when a new one is not).
+  static String? keyOf(Node node) => switch (node) {
     AppShellNode(:final key) ||
     ApprovalCardNode(:final key) ||
     ButtonNode(:final key) ||
