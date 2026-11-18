@@ -16,6 +16,7 @@ public static class ShowcaseScenarios
         [
             Open(page.Id),
             new Expect(".", page.Title),
+            new ExpectShown(page.Id),
             new Expect(page.Id, "Summarise my week"),
             new Expect(page.Id, "The model did not answer."),
             new Expect(page.Id, "Try again"),
@@ -26,19 +27,45 @@ public static class ShowcaseScenarios
         [
             Open(page.Id),
             new Expect(".", page.Title),
+            new ExpectShown(page.Id),
             new Expect(page.Id, "Live points"),
             new Expect(page.Id, UiKitPages.ChartSeed[^1].Label),
             new Act(".", "uikit.append", null),
             new Expect(page.Id, UiKitPages.Point(1).Label),
         ]),
-        // The nav lists every title, so a title alone does not prove the page opened: a page that slots its own control is also
-        // read by that slot's key, which only the open page draws (an empty Contains holds whenever the target is shown).
-        _ when page.Group != UiKitPages.DataNode => new(page.Id, UiKitApp.AppName, [Open(page.Id), new Expect(".", page.Title), new Expect(page.Id, "")]),
-        _ => new(page.Id, UiKitApp.AppName, [Open(page.Id), new Expect(".", page.Title)]),
+        // The nav lists every title, so a title alone does not prove the page opened: a control or scenario page is also expected to
+        // show its own slot (only the open page draws it), a data node page a text of its own example that the nav does not show.
+        _ when page.Group == UiKitPages.DataNode => new(page.Id, UiKitApp.AppName, [Open(page.Id), new Expect(".", page.Title), new Expect(".", ExampleText(page))]),
+        _ => new(page.Id, UiKitApp.AppName, [Open(page.Id), new Expect(".", page.Title), new ExpectShown(page.Id)]),
     };
 
     // Opening a page is what a user does: select it in the nav.
     private static Act Open(string page) => new(UiKitPages.Nav, "control.select", Args(new { id = page }));
+
+    private static string[] Shown => ["value", "text", "title", "label", "body", "content", "subtitle", "placeholder", "caption", "description", "message", "name"];
+
+    // The first text a data node page's own example shows that no nav entry contains, read from the example the page renders.
+    private static string ExampleText(UiKitPage page)
+    {
+        var examples = UiKitPages.Examples(page.Id, UiKitPages.NodeKinds[page.Id]);
+        if (examples.Count == 0) { return $"The {page.Id} node has no [Showcase] example yet."; }
+        string[] nav = [.. UiKitPages.All.SelectMany(item => new[] { item.Id, item.Title, item.Group })];
+        var texts = examples.SelectMany(node => Strings(JsonSerializer.SerializeToElement(node, JsonSerializerOptions.Web), null)).ToArray();
+        return texts.Where(text => text.Name is { } name && Shown.Contains(name, StringComparer.OrdinalIgnoreCase)).Concat(texts)
+            .Select(text => text.Value)
+            .FirstOrDefault(text => text.Length >= 3 && !nav.Any(entry => entry.Contains(text, StringComparison.Ordinal)))
+            ?? throw new InvalidOperationException($"The {page.Id} example shows no text of its own.");
+    }
+
+    private static IEnumerable<(string? Name, string Value)> Strings(JsonElement json, string? name) => json.ValueKind switch
+    {
+        JsonValueKind.Object => json.EnumerateObject()
+            .Where(property => property.Name is not ("kind" or "key" or "id" or "icon" or "tone" or "command" or "emit" or "args" or "intent" or "resolve" or "onSubmit" or "automationName"))
+            .SelectMany(property => Strings(property.Value, property.Name)),
+        JsonValueKind.Array => json.EnumerateArray().SelectMany(item => Strings(item, name)),
+        JsonValueKind.String when json.GetString() is { Length: > 0 } value => [(name, value)],
+        _ => [],
+    };
 
     private static JsonElement Args(object value) => JsonSerializer.SerializeToElement(value, JsonSerializerOptions.Web);
 }

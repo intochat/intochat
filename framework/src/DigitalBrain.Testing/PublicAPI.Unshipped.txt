@@ -416,3 +416,14 @@ override DigitalBrain.Testing.Scenarios.StepTaken.ToString() -> string!
 override sealed DigitalBrain.Testing.Scenarios.StepTaken.Equals(DigitalBrain.Signal? other) -> bool
 static DigitalBrain.Testing.Scenarios.StepTaken.operator !=(DigitalBrain.Testing.Scenarios.StepTaken? left, DigitalBrain.Testing.Scenarios.StepTaken? right) -> bool
 static DigitalBrain.Testing.Scenarios.StepTaken.operator ==(DigitalBrain.Testing.Scenarios.StepTaken? left, DigitalBrain.Testing.Scenarios.StepTaken? right) -> bool
+DigitalBrain.Testing.Scenarios.ExpectShown
+DigitalBrain.Testing.Scenarios.ExpectShown.Deconstruct(out string! Target) -> void
+DigitalBrain.Testing.Scenarios.ExpectShown.Equals(DigitalBrain.Testing.Scenarios.ExpectShown? other) -> bool
+DigitalBrain.Testing.Scenarios.ExpectShown.ExpectShown(string! Target) -> void
+override DigitalBrain.Testing.Scenarios.ExpectShown.<Clone>$() -> DigitalBrain.Testing.Scenarios.ExpectShown!
+override DigitalBrain.Testing.Scenarios.ExpectShown.Equals(object? obj) -> bool
+override DigitalBrain.Testing.Scenarios.ExpectShown.GetHashCode() -> int
+override DigitalBrain.Testing.Scenarios.ExpectShown.ToString() -> string!
+override sealed DigitalBrain.Testing.Scenarios.ExpectShown.Equals(DigitalBrain.Testing.Scenarios.ScenarioStep? other) -> bool
+static DigitalBrain.Testing.Scenarios.ExpectShown.operator !=(DigitalBrain.Testing.Scenarios.ExpectShown? left, DigitalBrain.Testing.Scenarios.ExpectShown? right) -> bool
+static DigitalBrain.Testing.Scenarios.ExpectShown.operator ==(DigitalBrain.Testing.Scenarios.ExpectShown? left, DigitalBrain.Testing.Scenarios.ExpectShown? right) -> bool

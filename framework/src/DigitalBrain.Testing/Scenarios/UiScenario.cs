@@ -15,6 +15,7 @@ public sealed record UiScenario(string Name, string AppId, IReadOnlyList<Scenari
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "step")]
 [JsonDerivedType(typeof(Act), "act")]
 [JsonDerivedType(typeof(Expect), "expect")]
+[JsonDerivedType(typeof(ExpectShown), "expectShown")]
 public abstract record ScenarioStep(string Target);
 
 /// <summary>Sends a command to the screen, routed by key path: what a user's click or keystroke sends.</summary>
@@ -26,7 +27,17 @@ public sealed record Act(string Target, string Signal, JsonElement? Args = null)
 /// <summary>Reads what the target shows and expects it to contain a text.</summary>
 /// <param name="Target">The key path within the app's top-level screen ("." is the whole screen).</param>
 /// <param name="Contains">The text the target must show.</param>
-public sealed record Expect(string Target, string Contains) : ScenarioStep(Target);
+public sealed record Expect(string Target, string Contains) : ScenarioStep(Target)
+{
+    /// <summary>The text the target must show; never empty (use <see cref="ExpectShown"/> to expect only that the target is shown).</summary>
+    public string Contains { get; init; } = string.IsNullOrEmpty(Contains)
+        ? throw new ArgumentException("An Expect needs a non-empty text; use ExpectShown to expect only that the target is shown.", nameof(Contains))
+        : Contains;
+}
+
+/// <summary>Expects the target to be shown: the step fails when the driver finds no node or slot at that key path.</summary>
+/// <param name="Target">The key path within the app's top-level screen.</param>
+public sealed record ExpectShown(string Target) : ScenarioStep(Target);
 
 /// <summary>How a run ended.</summary>
 /// <param name="Passed">True when every step held.</param>
@@ -46,7 +57,7 @@ public interface IScenarioDriver
     /// <param name="ct">Cancellation.</param>
     Task Act(Act step, CancellationToken ct);
 
-    /// <summary>The text the target currently shows.</summary>
+    /// <summary>The text the target currently shows; throws when the app shows no node or slot at that key path.</summary>
     /// <param name="target">The key path within the app's top-level screen.</param>
     /// <param name="ct">Cancellation.</param>
     Task<string> Read(string target, CancellationToken ct);

@@ -42,7 +42,7 @@ internal sealed class KernelDriver(InstalledApp<UiKitApp> app) : IScenarioDriver
     {
         using var person = app.OS.Edge.Enter(app.OS.Edge.Person("local", "local", Brain));
         var view = await app.Screen.Read() ?? throw new InvalidOperationException("The UI Kit has no view.");
-        var subtree = target == "." ? view.View : await Find(view.View, target, 0)
+        var subtree = target == "." ? view.View : await Find(view.View, target)
             ?? throw new InvalidOperationException($"The UI Kit shows no node or slot '{target}'.");
         var texts = new List<string>();
         await Collect(subtree, texts, 0);
@@ -52,33 +52,53 @@ internal sealed class KernelDriver(InstalledApp<UiKitApp> app) : IScenarioDriver
 
     public Task<string?> Evidence(int stepIndex, CancellationToken ct) => Task.FromResult<string?>(_lastRead.Length == 0 ? null : _lastRead);
 
-    // The node keyed `target`, or the slot whose key it is; a "slot/rest" path descends into that slot child's view.
-    private async Task<JsonElement?> Find(JsonElement json, string target, int depth)
+    // Resolves a key path the way the server routes it: slot keys first. While the leading segment names a slot of the current view,
+    // descend into that slot child's view; the last segment is a slot of the current view, else the node with that key in it.
+    private async Task<JsonElement?> Find(JsonElement view, string target)
+    {
+        var current = view;
+        var rest = target;
+        for (var depth = 0; depth < MaxSlotDepth && rest.IndexOf('/', StringComparison.Ordinal) is var slash and > 0; depth++)
+        {
+            if (Slot(current, rest[..slash]) is not { } slot || await ChildView(slot.Child) is not { } child) { break; }
+            current = child;
+            rest = rest[(slash + 1)..];
+        }
+        return Slot(current, rest)?.Node ?? Keyed(current, rest);
+    }
+
+    // A slot of this view (not of its slot children, which are only references here) with that key.
+    private static (JsonElement Node, NeuronId Child)? Slot(JsonElement json, string key)
     {
         if (json.ValueKind == JsonValueKind.Object)
         {
-            if (SlotOf(json) is { } slot && depth < MaxSlotDepth)
-            {
-                if (slot.Key == target) { return json; }
-                if (target.StartsWith(slot.Key + "/", StringComparison.Ordinal) && await ChildView(slot.Child) is { } child)
-                {
-                    return await Find(child, target[(slot.Key.Length + 1)..], depth + 1);
-                }
-                return null;
-            }
-            if (json.TryGetProperty("key", out var key) && key.ValueKind == JsonValueKind.String && key.GetString() == target) { return json; }
+            if (SlotOf(json) is { } slot) { return slot.Key == key ? (json, slot.Child) : null; }
             foreach (var property in json.EnumerateObject())
             {
-                if (IsData(property.Name)) { continue; }
-                if (await Find(property.Value, target, depth) is { } found) { return found; }
+                if (!IsData(property.Name) && Slot(property.Value, key) is { } found) { return found; }
             }
         }
         else if (json.ValueKind == JsonValueKind.Array)
         {
-            foreach (var item in json.EnumerateArray())
+            foreach (var item in json.EnumerateArray()) { if (Slot(item, key) is { } found) { return found; } }
+        }
+        return null;
+    }
+
+    private static JsonElement? Keyed(JsonElement json, string key)
+    {
+        if (json.ValueKind == JsonValueKind.Object)
+        {
+            if (SlotOf(json) is not null) { return null; }
+            if (json.TryGetProperty("key", out var value) && value.ValueKind == JsonValueKind.String && value.GetString() == key) { return json; }
+            foreach (var property in json.EnumerateObject())
             {
-                if (await Find(item, target, depth) is { } found) { return found; }
+                if (!IsData(property.Name) && Keyed(property.Value, key) is { } found) { return found; }
             }
+        }
+        else if (json.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in json.EnumerateArray()) { if (Keyed(item, key) is { } found) { return found; } }
         }
         return null;
     }
@@ -145,5 +165,40 @@ public sealed class KernelScenarioFacts
         }
 
         Assert.True(verdict.Passed, $"{name} failed at step {verdict.FailedStep} ({(verdict.FailedStep is { } i ? JsonSerializer.Serialize(scenario.Steps[i]) : "-")}): {verdict.Reason}");
+    }
+
+    // Every scenario must bite: without its nav select (the UI Kit opens on the first page) it fails.
+    public static TheoryData<string> NotFirst => [.. ShowcaseScenarios.All.Select(scenario => scenario.Name).Where(name => name != UiKitPages.First)];
+
+    [Theory]
+    [MemberData(nameof(NotFirst))]
+    public async Task A_scenario_fails_when_its_page_is_not_opened(string name)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var scenario = ShowcaseScenarios.All.Single(item => item.Name == name);
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly).Register<RunNeuron>();
+        var driver = await KernelDriver.Start(os);
+
+        RunVerdict verdict;
+        using (os.Edge.Enter(os.Edge.Person("local", "local", new BrainId("local"))))
+        {
+            verdict = await ScenarioRunner.Run(scenario with { Steps = [.. scenario.Steps.Skip(1)] }, driver, os.Get<IRun>(new NeuronId(new BrainId("local"), "test.run", name)), ct);
+        }
+
+        Assert.IsType<Act>(scenario.Steps[0]);
+        Assert.False(verdict.Passed, $"{name} passed without opening its page.");
+    }
+
+    [Fact]
+    public async Task Selecting_a_page_changes_what_its_key_reads()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var driver = await KernelDriver.Start(os);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => driver.Read("checkBox", ct));
+        await driver.Act(new Act(UiKitPages.Nav, "control.select", JsonSerializer.SerializeToElement(new { id = "checkBox" })), ct);
+
+        Assert.Contains("Remember me", await driver.Read("checkBox", ct), StringComparison.Ordinal);
     }
 }

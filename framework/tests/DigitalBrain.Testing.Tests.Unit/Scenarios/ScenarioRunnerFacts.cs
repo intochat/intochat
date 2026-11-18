@@ -106,13 +106,34 @@ public sealed class ScenarioRunnerFacts
     public void Scenarios_round_trip_through_json()
     {
         var args = System.Text.Json.JsonSerializer.SerializeToElement(new { id = "x" });
-        UiScenario[] scenarios = [Sample with { Steps = [new Act("nav", "control.select", args), new Expect(".", "x")] }];
+        UiScenario[] scenarios = [Sample with { Steps = [new Act("nav", "control.select", args), new Expect(".", "x"), new ExpectShown("nav")] }];
 
         var read = ScenarioJson.Read(ScenarioJson.Write(scenarios));
 
         Assert.Equal(ScenarioJson.Write(scenarios), ScenarioJson.Write(read));
         Assert.IsType<Act>(read[0].Steps[0]);
+        Assert.IsType<ExpectShown>(read[0].Steps[2]);
     }
+
+    [Fact]
+    public async Task ExpectShown_holds_when_the_target_is_shown_and_fails_when_it_is_not()
+    {
+        using var platform = TestStamp.Kernel();
+        await using var os = OS.Local().Register<RunNeuron>();
+        var scenario = Sample with { Steps = [new ExpectShown("nav")] };
+
+        var shown = await ScenarioRunner.Run(scenario, new FakeDriver { Shown = "" }, os.Get<IRun>(RunId), Ct);
+        var missing = await ScenarioRunner.Run(scenario, new FakeDriver { Missing = true }, os.Get<IRun>(NeuronId.Parse("scenario-runs/test.run/r2")), Ct);
+
+        Assert.True(shown.Passed);
+        Assert.False(missing.Passed);
+        Assert.Equal(0, missing.FailedStep);
+        Assert.Contains("expected it to be shown", missing.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Expect_rejects_an_empty_text()
+        => Assert.Throws<ArgumentException>(() => new Expect("nav", ""));
 
     private sealed class FakeDriver : IScenarioDriver
     {
@@ -121,6 +142,8 @@ public sealed class ScenarioRunnerFacts
         public bool Throws { get; init; }
 
         public bool NoEvidence { get; init; }
+
+        public bool Missing { get; init; }
 
         public List<string> Acts { get; } = [];
 
@@ -133,7 +156,7 @@ public sealed class ScenarioRunnerFacts
             return Task.CompletedTask;
         }
 
-        public Task<string> Read(string target, CancellationToken ct) => Task.FromResult(Shown);
+        public Task<string> Read(string target, CancellationToken ct) => Missing ? throw new InvalidOperationException($"no {target}") : Task.FromResult(Shown);
 
         public Task<string?> Evidence(int stepIndex, CancellationToken ct) => Task.FromResult(NoEvidence ? null : $"evidence-{stepIndex}");
     }

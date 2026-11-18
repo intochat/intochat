@@ -17,8 +17,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "message"
       }
     ]
@@ -39,6 +38,10 @@
         "step": "expect",
         "contains": "Failed reply",
         "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "failed-reply"
       },
       {
         "step": "expect",
@@ -88,8 +91,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "card-in-chat"
       }
     ]
@@ -112,8 +114,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "activity-row"
       }
     ]
@@ -136,8 +137,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "composer"
       }
     ]
@@ -160,8 +160,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "empty"
       }
     ]
@@ -184,8 +183,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "waiting"
       }
     ]
@@ -206,6 +204,10 @@
         "step": "expect",
         "contains": "Live chart",
         "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "live-chart"
       },
       {
         "step": "expect",
@@ -248,8 +250,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "table-query"
       }
     ]
@@ -270,6 +271,11 @@
         "step": "expect",
         "contains": "appShell",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The appShell node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -288,6 +294,11 @@
       {
         "step": "expect",
         "contains": "approvalCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The approvalCard node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -308,6 +319,11 @@
         "step": "expect",
         "contains": "badge",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The badge node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -326,6 +342,11 @@
       {
         "step": "expect",
         "contains": "brainScene",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The brainScene node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -346,6 +367,11 @@
         "step": "expect",
         "contains": "button",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Save",
+        "target": "."
       }
     ]
   },
@@ -365,6 +391,11 @@
         "step": "expect",
         "contains": "card",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Weekly report",
+        "target": "."
       }
     ]
   },
@@ -383,6 +414,11 @@
       {
         "step": "expect",
         "contains": "chart",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The chart node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -405,8 +441,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "chatThread"
       }
     ]
@@ -426,6 +461,11 @@
       {
         "step": "expect",
         "contains": "chatThreadView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The chatThreadView node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -448,8 +488,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "checkBox"
       }
     ]
@@ -470,6 +509,11 @@
         "step": "expect",
         "contains": "checkBoxView",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The checkBoxView node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -488,6 +532,11 @@
       {
         "step": "expect",
         "contains": "choiceCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The choiceCard node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -508,6 +557,11 @@
         "step": "expect",
         "contains": "collection",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The collection node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -526,6 +580,11 @@
       {
         "step": "expect",
         "contains": "column",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The column node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -548,8 +607,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "comboBox"
       }
     ]
@@ -570,6 +628,11 @@
         "step": "expect",
         "contains": "comboBoxView",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The comboBoxView node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -588,6 +651,11 @@
       {
         "step": "expect",
         "contains": "conversation",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The conversation node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -608,6 +676,11 @@
         "step": "expect",
         "contains": "dataTable",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The dataTable node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -626,6 +699,11 @@
       {
         "step": "expect",
         "contains": "diffCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The diffCard node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -646,6 +724,11 @@
         "step": "expect",
         "contains": "divider",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The divider node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -664,6 +747,11 @@
       {
         "step": "expect",
         "contains": "draftCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The draftCard node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -684,6 +772,11 @@
         "step": "expect",
         "contains": "emptyState",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The emptyState node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -702,6 +795,11 @@
       {
         "step": "expect",
         "contains": "errorLine",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The errorLine node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -724,8 +822,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "expander"
       }
     ]
@@ -746,6 +843,11 @@
         "step": "expect",
         "contains": "expanderView",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The expanderView node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -764,6 +866,11 @@
       {
         "step": "expect",
         "contains": "field",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The field node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -786,8 +893,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "form"
       }
     ]
@@ -808,6 +914,11 @@
         "step": "expect",
         "contains": "formView",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The formView node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -826,6 +937,11 @@
       {
         "step": "expect",
         "contains": "grid",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The grid node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -846,6 +962,11 @@
         "step": "expect",
         "contains": "heading",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The heading node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -864,6 +985,11 @@
       {
         "step": "expect",
         "contains": "iconButton",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Refresh",
         "target": "."
       }
     ]
@@ -884,6 +1010,11 @@
         "step": "expect",
         "contains": "infoBar",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Sync paused",
+        "target": "."
       }
     ]
   },
@@ -903,6 +1034,11 @@
         "step": "expect",
         "contains": "intent",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The intent node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -921,6 +1057,11 @@
       {
         "step": "expect",
         "contains": "jobCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The jobCard node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -943,8 +1084,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "listBox"
       }
     ]
@@ -964,6 +1104,11 @@
       {
         "step": "expect",
         "contains": "listBoxView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The listBoxView node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -986,8 +1131,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "liveChart"
       }
     ]
@@ -1008,6 +1152,11 @@
         "step": "expect",
         "contains": "liveChartView",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The liveChartView node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -1026,6 +1175,11 @@
       {
         "step": "expect",
         "contains": "markdown",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "## Release notes\n\n- **Faster** sync\n- A new \u0060Card\u0060 footer\n\nSee [the docs](https://intochat.io).",
         "target": "."
       }
     ]
@@ -1046,6 +1200,11 @@
         "step": "expect",
         "contains": "metricTile",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The metricTile node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -1064,6 +1223,11 @@
       {
         "step": "expect",
         "contains": "navItem",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The navItem node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -1084,6 +1248,11 @@
         "step": "expect",
         "contains": "neuronRef",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The neuronRef node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -1102,6 +1271,11 @@
       {
         "step": "expect",
         "contains": "progress",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Uploading",
         "target": "."
       }
     ]
@@ -1124,8 +1298,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "queryTable"
       }
     ]
@@ -1146,6 +1319,11 @@
         "step": "expect",
         "contains": "queryTableView",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The queryTableView node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -1164,6 +1342,11 @@
       {
         "step": "expect",
         "contains": "recordCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The recordCard node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -1184,6 +1367,11 @@
         "step": "expect",
         "contains": "row",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The row node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -1202,6 +1390,11 @@
       {
         "step": "expect",
         "contains": "secretCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The secretCard node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -1222,6 +1415,11 @@
         "step": "expect",
         "contains": "select",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The select node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -1240,6 +1438,11 @@
       {
         "step": "expect",
         "contains": "spacer",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The spacer node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -1260,6 +1463,11 @@
         "step": "expect",
         "contains": "splitPane",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The splitPane node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -1278,6 +1486,11 @@
       {
         "step": "expect",
         "contains": "statCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The statCard node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -1298,6 +1511,11 @@
         "step": "expect",
         "contains": "surface",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The surface node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -1316,6 +1534,11 @@
       {
         "step": "expect",
         "contains": "switch",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The switch node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -1338,8 +1561,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "tabStrip"
       }
     ]
@@ -1360,6 +1582,11 @@
         "step": "expect",
         "contains": "tabStripView",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The tabStripView node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -1378,6 +1605,11 @@
       {
         "step": "expect",
         "contains": "tabs",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The tabs node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -1398,6 +1630,11 @@
         "step": "expect",
         "contains": "tagPill",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The tagPill node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -1417,6 +1654,11 @@
         "step": "expect",
         "contains": "text",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The text node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -1435,6 +1677,11 @@
       {
         "step": "expect",
         "contains": "toast",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The toast node has no [Showcase] example yet.",
         "target": "."
       }
     ]
@@ -1457,8 +1704,7 @@
         "target": "."
       },
       {
-        "step": "expect",
-        "contains": "",
+        "step": "expectShown",
         "target": "toggleSwitch"
       }
     ]
@@ -1479,6 +1725,11 @@
         "step": "expect",
         "contains": "toggleSwitchView",
         "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The toggleSwitchView node has no [Showcase] example yet.",
+        "target": "."
       }
     ]
   },
@@ -1497,6 +1748,11 @@
       {
         "step": "expect",
         "contains": "webBrowser",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The webBrowser node has no [Showcase] example yet.",
         "target": "."
       }
     ]

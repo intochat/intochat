@@ -54,6 +54,16 @@ public static class ScenarioRunner
                 return (shown.Contains(expect.Contains, StringComparison.Ordinal)
                     ? null
                     : $"{expect.Target}: expected \"{expect.Contains}\" but it shows \"{Clip(shown)}\"", Clip(shown));
+            case ExpectShown shownStep:
+                try
+                {
+                    return (null, Clip(await driver.Read(shownStep.Target, ct).ConfigureAwait(false)));
+                }
+                catch (Exception error) when (!ct.IsCancellationRequested)
+                {
+                    System.Diagnostics.Trace.TraceWarning($"The {driver.Name} driver shows no {shownStep.Target}: {error}");
+                    return ($"{shownStep.Target}: expected it to be shown but the {driver.Name} driver found none: {error.Message}", null);
+                }
             default:
                 return ($"{step.Target}: unknown step {step.GetType().Name}", null);
         }
