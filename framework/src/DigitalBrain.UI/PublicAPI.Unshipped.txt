@@ -1645,3 +1645,96 @@ DigitalBrain.UI.ICommandGate.RefusalOf(string! signal, System.Text.Json.JsonElem
 DigitalBrain.UI.ListBoxProps.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
 DigitalBrain.UI.TabStripProps.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
 const DigitalBrain.UI.SelectionRefusals.SelectSignal = "control.select" -> string!
+DigitalBrain.UI.Controls.FormState
+DigitalBrain.UI.Controls.FormState.<Clone>$() -> DigitalBrain.UI.Controls.FormState!
+DigitalBrain.UI.Controls.FormState.Equals(DigitalBrain.UI.Controls.FormState? other) -> bool
+DigitalBrain.UI.Controls.FormState.FormState() -> void
+DigitalBrain.UI.Controls.FormState.Values.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+DigitalBrain.UI.Controls.FormState.Values.init -> void
+DigitalBrain.UI.Controls.FormView
+DigitalBrain.UI.Controls.FormView.Deconstruct(out string! Key, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.FormValue!>! Values) -> void
+DigitalBrain.UI.Controls.FormView.Equals(DigitalBrain.UI.Controls.FormView? other) -> bool
+DigitalBrain.UI.Controls.FormView.FormView(string! Key, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.FormValue!>! Values) -> void
+DigitalBrain.UI.Controls.FormView.Key.get -> string!
+DigitalBrain.UI.Controls.FormView.Key.init -> void
+DigitalBrain.UI.Controls.FormView.Values.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.FormValue!>!
+DigitalBrain.UI.Controls.FormView.Values.init -> void
+DigitalBrain.UI.FormInput
+DigitalBrain.UI.FormInput.<Clone>$() -> DigitalBrain.UI.FormInput!
+DigitalBrain.UI.FormInput.Deconstruct(out string! Key, out string! Label, out DigitalBrain.UI.FormFieldKind Kind, out string? Value, out string? Placeholder, out int? MaxLength, out bool IsReadOnly) -> void
+DigitalBrain.UI.FormInput.Equals(DigitalBrain.UI.FormInput? other) -> bool
+DigitalBrain.UI.FormInput.FormInput(string! Key, string! Label, DigitalBrain.UI.FormFieldKind Kind = DigitalBrain.UI.FormFieldKind.Text, string? Value = null, string? Placeholder = null, int? MaxLength = null, bool IsReadOnly = false) -> void
+DigitalBrain.UI.FormInput.IsReadOnly.get -> bool
+DigitalBrain.UI.FormInput.IsReadOnly.init -> void
+DigitalBrain.UI.FormInput.Key.get -> string!
+DigitalBrain.UI.FormInput.Key.init -> void
+DigitalBrain.UI.FormInput.Kind.get -> DigitalBrain.UI.FormFieldKind
+DigitalBrain.UI.FormInput.Kind.init -> void
+DigitalBrain.UI.FormInput.Label.get -> string!
+DigitalBrain.UI.FormInput.Label.init -> void
+DigitalBrain.UI.FormInput.MaxLength.get -> int?
+DigitalBrain.UI.FormInput.MaxLength.init -> void
+DigitalBrain.UI.FormInput.Placeholder.get -> string?
+DigitalBrain.UI.FormInput.Placeholder.init -> void
+DigitalBrain.UI.FormInput.Value.get -> string?
+DigitalBrain.UI.FormInput.Value.init -> void
+DigitalBrain.UI.FormFieldKind
+DigitalBrain.UI.FormFieldKind.Multiline = 1 -> DigitalBrain.UI.FormFieldKind
+DigitalBrain.UI.FormFieldKind.Number = 3 -> DigitalBrain.UI.FormFieldKind
+DigitalBrain.UI.FormFieldKind.Secret = 2 -> DigitalBrain.UI.FormFieldKind
+DigitalBrain.UI.FormFieldKind.Text = 0 -> DigitalBrain.UI.FormFieldKind
+DigitalBrain.UI.FormProps
+DigitalBrain.UI.FormProps.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.FormInput!>! Fields, out string! SubmitLabel, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.FormProps.Equals(DigitalBrain.UI.FormProps? other) -> bool
+DigitalBrain.UI.FormProps.Fields.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.FormInput!>!
+DigitalBrain.UI.FormProps.Fields.init -> void
+DigitalBrain.UI.FormProps.FormProps(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.FormInput!>! Fields, string! SubmitLabel = "Submit", bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.FormProps.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
+DigitalBrain.UI.FormProps.SubmitLabel.get -> string!
+DigitalBrain.UI.FormProps.SubmitLabel.init -> void
+DigitalBrain.UI.FormRefusals
+DigitalBrain.UI.FormValue
+DigitalBrain.UI.FormValue.<Clone>$() -> DigitalBrain.UI.FormValue!
+DigitalBrain.UI.FormValue.Deconstruct(out string! Key, out string! Value) -> void
+DigitalBrain.UI.FormValue.Equals(DigitalBrain.UI.FormValue? other) -> bool
+DigitalBrain.UI.FormValue.FormValue(string! Key, string! Value) -> void
+DigitalBrain.UI.FormValue.Key.get -> string!
+DigitalBrain.UI.FormValue.Key.init -> void
+DigitalBrain.UI.FormValue.Value.get -> string!
+DigitalBrain.UI.FormValue.Value.init -> void
+const DigitalBrain.UI.FormRefusals.NoValues = "control.noValues" -> string!
+const DigitalBrain.UI.FormRefusals.NotANumber = "control.notANumber" -> string!
+const DigitalBrain.UI.FormRefusals.ReadOnlyField = "control.readOnlyField" -> string!
+const DigitalBrain.UI.FormRefusals.SubmitSignal = "control.submit" -> string!
+const DigitalBrain.UI.FormRefusals.TooLong = "control.tooLong" -> string!
+const DigitalBrain.UI.FormRefusals.UndeclaredSecret = "control.undeclaredSecret" -> string!
+const DigitalBrain.UI.FormRefusals.UnknownField = "control.unknownField" -> string!
+override DigitalBrain.UI.Controls.FormState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.FormState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.FormState.ToString() -> string!
+override DigitalBrain.UI.Controls.FormView.<Clone>$() -> DigitalBrain.UI.Controls.FormView!
+override DigitalBrain.UI.Controls.FormView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.FormView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.FormView.ToString() -> string!
+override DigitalBrain.UI.FormInput.Equals(object? obj) -> bool
+override DigitalBrain.UI.FormInput.GetHashCode() -> int
+override DigitalBrain.UI.FormInput.ToString() -> string!
+override DigitalBrain.UI.FormProps.<Clone>$() -> DigitalBrain.UI.FormProps!
+override DigitalBrain.UI.FormProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.FormProps.GetHashCode() -> int
+override DigitalBrain.UI.FormProps.ToString() -> string!
+override DigitalBrain.UI.FormValue.Equals(object? obj) -> bool
+override DigitalBrain.UI.FormValue.GetHashCode() -> int
+override DigitalBrain.UI.FormValue.ToString() -> string!
+override sealed DigitalBrain.UI.Controls.FormView.Equals(DigitalBrain.UI.Node? other) -> bool
+override sealed DigitalBrain.UI.FormProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+static DigitalBrain.UI.Controls.FormState.operator !=(DigitalBrain.UI.Controls.FormState? left, DigitalBrain.UI.Controls.FormState? right) -> bool
+static DigitalBrain.UI.Controls.FormState.operator ==(DigitalBrain.UI.Controls.FormState? left, DigitalBrain.UI.Controls.FormState? right) -> bool
+static DigitalBrain.UI.Controls.FormView.operator !=(DigitalBrain.UI.Controls.FormView? left, DigitalBrain.UI.Controls.FormView? right) -> bool
+static DigitalBrain.UI.Controls.FormView.operator ==(DigitalBrain.UI.Controls.FormView? left, DigitalBrain.UI.Controls.FormView? right) -> bool
+static DigitalBrain.UI.FormInput.operator !=(DigitalBrain.UI.FormInput? left, DigitalBrain.UI.FormInput? right) -> bool
+static DigitalBrain.UI.FormInput.operator ==(DigitalBrain.UI.FormInput? left, DigitalBrain.UI.FormInput? right) -> bool
+static DigitalBrain.UI.FormProps.operator !=(DigitalBrain.UI.FormProps? left, DigitalBrain.UI.FormProps? right) -> bool
+static DigitalBrain.UI.FormProps.operator ==(DigitalBrain.UI.FormProps? left, DigitalBrain.UI.FormProps? right) -> bool
+static DigitalBrain.UI.FormValue.operator !=(DigitalBrain.UI.FormValue? left, DigitalBrain.UI.FormValue? right) -> bool
+static DigitalBrain.UI.FormValue.operator ==(DigitalBrain.UI.FormValue? left, DigitalBrain.UI.FormValue? right) -> bool

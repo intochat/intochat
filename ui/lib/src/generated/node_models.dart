@@ -48,6 +48,8 @@ enum BadgeTone { neutral, accent, done, working, error }
 
 enum FieldKind { text, search, number, password, secret, suggest, multiline }
 
+enum FormFieldKind { text, multiline, secret, number }
+
 enum IntentKind { copy, openWindow, openSettings }
 
 enum ListSelectionMode { single, none }
@@ -108,6 +110,7 @@ sealed class Node {
     'expanderView' => ExpanderViewNode.fromJson(json),
     'tabStripView' => TabStripViewNode.fromJson(json),
     'comboBoxView' => ComboBoxViewNode.fromJson(json),
+    'formView' => FormViewNode.fromJson(json),
     'listBoxView' => ListBoxViewNode.fromJson(json),
     final kind => UnknownNode(kind is String ? kind : '', json),
   };
@@ -1110,6 +1113,86 @@ final class FieldNode extends Node {
     onSubmit: json['onSubmit'] is Map
         ? Emit.fromJson(_map(json['onSubmit']))
         : null,
+  );
+}
+
+final class FormInput {
+  const FormInput({
+    required this.key,
+    required this.label,
+    required this.kind,
+    required this.value,
+    required this.placeholder,
+    required this.maxLength,
+    required this.isReadOnly,
+  });
+
+  final String key;
+  final String label;
+  final FormFieldKind kind;
+  final String? value;
+  final String? placeholder;
+  final int? maxLength;
+  final bool isReadOnly;
+
+  factory FormInput.fromJson(Map<String, dynamic> json) => FormInput(
+    key: _string(json['key']),
+    label: _string(json['label']),
+    kind: _enum(FormFieldKind.values, json['kind']),
+    value: _stringOrNull(json['value']),
+    placeholder: _stringOrNull(json['placeholder']),
+    maxLength: _intOrNull(json['maxLength']),
+    isReadOnly: _bool(json['isReadOnly']),
+  );
+}
+
+final class FormProps {
+  const FormProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.fields,
+    required this.submitLabel,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final List<FormInput> fields;
+  final String submitLabel;
+
+  factory FormProps.fromJson(Map<String, dynamic> json) => FormProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    fields: [
+      for (final item in _list(json['fields'])) FormInput.fromJson(_map(item)),
+    ],
+    submitLabel: _string(json['submitLabel'], 'Submit'),
+  );
+}
+
+final class FormValue {
+  const FormValue({required this.key, required this.value});
+
+  final String key;
+  final String value;
+
+  factory FormValue.fromJson(Map<String, dynamic> json) =>
+      FormValue(key: _string(json['key']), value: _string(json['value']));
+}
+
+final class FormViewNode extends Node {
+  const FormViewNode({required this.key, required this.values});
+
+  @override
+  String get kind => 'formView';
+
+  final String key;
+  final List<FormValue> values;
+
+  factory FormViewNode.fromJson(Map<String, dynamic> json) => FormViewNode(
+    key: _string(json['key']),
+    values: [
+      for (final item in _list(json['values'])) FormValue.fromJson(_map(item)),
+    ],
   );
 }
 

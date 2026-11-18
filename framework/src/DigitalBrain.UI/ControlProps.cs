@@ -161,3 +161,110 @@ public sealed record ListBoxProps(IReadOnlyList<ListBoxItem> Items, ListSelectio
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), SelectionMode, Items.Count);
 }
+
+/// <summary>What a form field holds and how the client draws it.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<FormFieldKind>))]
+public enum FormFieldKind
+{
+    /// <summary>One line of text.</summary>
+    Text,
+
+    /// <summary>Several lines of text.</summary>
+    Multiline,
+
+    /// <summary>A secret: drawn obscured, never stored by the form nor drawn back.</summary>
+    Secret,
+
+    /// <summary>A number (invariant culture); an empty value is allowed.</summary>
+    Number,
+}
+
+/// <summary>A field of a form.</summary>
+/// <param name="Key">The key its value is submitted under.</param>
+/// <param name="Label">The text above the field.</param>
+/// <param name="Kind">What it holds; a secret is drawn obscured and is never stored by the form.</param>
+/// <param name="Value">The parent's current value, drawn until the person types; null draws the form's last submitted value. Never set for a secret.</param>
+/// <param name="Placeholder">The hint shown while empty.</param>
+/// <param name="MaxLength">The longest value the parent accepts; a longer submit is refused (control.tooLong).</param>
+/// <param name="IsReadOnly">True draws the value without editing; a submit naming it is refused (control.readOnlyField).</param>
+public sealed record FormInput(
+    string Key,
+    string Label,
+    FormFieldKind Kind = FormFieldKind.Text,
+    string? Value = null,
+    string? Placeholder = null,
+    int? MaxLength = null,
+    bool IsReadOnly = false);
+
+/// <summary>A submitted value a form keeps, as it draws it.</summary>
+/// <param name="Key">The field's key.</param>
+/// <param name="Value">The last submitted value.</param>
+public sealed record FormValue(string Key, string Value);
+
+/// <summary>The refusal reasons of a submit routed to a form slot.</summary>
+public static class FormRefusals
+{
+    /// <summary>The alias of the submit command (<c>DigitalBrain.UI.Commands.Submit</c>, which this assembly cannot reference).</summary>
+    public const string SubmitSignal = "control.submit";
+
+    /// <summary>A submitted key names no field of the slot's props.</summary>
+    public const string UnknownField = "control.unknownField";
+
+    /// <summary>A submitted key names a read-only field.</summary>
+    public const string ReadOnlyField = "control.readOnlyField";
+
+    /// <summary>A submitted value is longer than its field's MaxLength.</summary>
+    public const string TooLong = "control.tooLong";
+
+    /// <summary>A number field's value is not a number.</summary>
+    public const string NotANumber = "control.notANumber";
+
+    /// <summary>The submit's secrets list does not name exactly the secret fields it carries.</summary>
+    public const string UndeclaredSecret = "control.undeclaredSecret";
+
+    /// <summary>The submit carries no values object.</summary>
+    public const string NoValues = "control.noValues";
+}
+
+/// <summary>The props of a form: what its parent decides. The client keeps typed text until Submit, which carries every editable value at once.</summary>
+/// <param name="Fields">The fields, in order.</param>
+/// <param name="SubmitLabel">The submit button's text.</param>
+/// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
+public sealed record FormProps(IReadOnlyList<FormInput> Fields, string SubmitLabel = "Submit", bool IsEnabled = true, string? AutomationName = null)
+    : ControlProps(IsEnabled, AutomationName), ICommandGate
+{
+    /// <inheritdoc />
+    public string? RefusalOf(string signal, JsonElement? args)
+    {
+        if (signal != FormRefusals.SubmitSignal) { return null; }
+        if (args is not { ValueKind: JsonValueKind.Object } json || !json.TryGetProperty("values", out var values) || values.ValueKind != JsonValueKind.Object)
+        {
+            return FormRefusals.NoValues;
+        }
+        var secrets = json.TryGetProperty("secrets", out var named) && named.ValueKind == JsonValueKind.Array
+            ? named.EnumerateArray().Select(item => item.ValueKind == JsonValueKind.String ? item.GetString() ?? "" : "").ToHashSet(StringComparer.Ordinal)
+            : new HashSet<string>(StringComparer.Ordinal);
+        var carried = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var entry in values.EnumerateObject())
+        {
+            if (Fields.FirstOrDefault(field => field.Key == entry.Name) is not { } field) { return FormRefusals.UnknownField; }
+            if (field.IsReadOnly) { return FormRefusals.ReadOnlyField; }
+            var value = entry.Value.ValueKind == JsonValueKind.String ? entry.Value.GetString() ?? "" : entry.Value.GetRawText();
+            if (field.MaxLength is { } max && value.Length > max) { return FormRefusals.TooLong; }
+            if (field.Kind == FormFieldKind.Number && value.Length > 0
+                && !double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
+            {
+                return FormRefusals.NotANumber;
+            }
+            if (field.Kind == FormFieldKind.Secret) { carried.Add(field.Key); }
+        }
+        return secrets.SetEquals(carried) ? null : FormRefusals.UndeclaredSecret;
+    }
+
+    /// <inheritdoc />
+    public bool Equals(FormProps? other) => other is not null && base.Equals(other) && SubmitLabel == other.SubmitLabel && Fields.SequenceEqual(other.Fields);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), SubmitLabel, Fields.Count);
+}

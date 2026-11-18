@@ -1068,6 +1068,139 @@
     "examples": []
   },
   {
+    "kind": "form",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "fields",
+        "type": "List<FormInput>",
+        "default": null
+      },
+      {
+        "name": "submitLabel",
+        "type": "String",
+        "default": "Submit"
+      }
+    ],
+    "state": [
+      {
+        "name": "values",
+        "type": "Map<String, String>",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "Submit",
+        "signal": "control.submit",
+        "args": {
+          "values": "Map<String, String>",
+          "secrets": "List<String>?"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "Submitted",
+        "signal": "control.submitted",
+        "args": {
+          "values": "Map<String, String>"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "formView",
+        "key": "about-you",
+        "values": [
+          {
+            "key": "name",
+            "value": "Ada"
+          }
+        ],
+        "props": {
+          "fields": [
+            {
+              "key": "name",
+              "label": "Display name",
+              "kind": "Text",
+              "maxLength": 64
+            },
+            {
+              "key": "bio",
+              "label": "Bio",
+              "kind": "Multiline",
+              "placeholder": "A line about you"
+            },
+            {
+              "key": "age",
+              "label": "Age",
+              "kind": "Number"
+            },
+            {
+              "key": "id",
+              "label": "Account id",
+              "kind": "Text",
+              "value": "ada-1",
+              "isReadOnly": true
+            }
+          ],
+          "submitLabel": "Save",
+          "isEnabled": true,
+          "automationName": "About you"
+        }
+      },
+      {
+        "kind": "formView",
+        "key": "api-key",
+        "values": [],
+        "props": {
+          "fields": [
+            {
+              "key": "token",
+              "label": "API key",
+              "kind": "Secret",
+              "placeholder": "sk-..."
+            }
+          ],
+          "submitLabel": "Seal key",
+          "isEnabled": false,
+          "automationName": "API key"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "formView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "values",
+        "type": "List<FormValue>",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
     "kind": "grid",
     "isNeuron": false,
     "props": [

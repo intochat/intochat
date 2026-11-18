@@ -330,6 +330,13 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'key': 'sections',
     'selectedId': 'general',
   },
+  'formView': {
+    'kind': 'formView',
+    'key': 'profile',
+    'values': [
+      {'key': 'name', 'value': 'Ada'},
+    ],
+  },
   'comboBoxView': {
     'kind': 'comboBoxView',
     'key': 'theme',

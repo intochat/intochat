@@ -29,6 +29,15 @@ Future<ActivationOutcome> actExpanderExpand(
   required bool isExpanded,
 }) => ctx.act(address, 'control.expand', {'isExpanded': isExpanded});
 
+/// Sends `Submit` to the `form` neuron at [address].
+Future<ActivationOutcome> actFormSubmit(
+  NodeContext ctx,
+  String address, {
+  required Map<String, String> values,
+  required List<String>? secrets,
+}) =>
+    ctx.act(address, 'control.submit', {'values': values, 'secrets': secrets});
+
 /// Sends `Select` to the `listBox` neuron at [address].
 Future<ActivationOutcome> actListBoxSelect(
   NodeContext ctx,
