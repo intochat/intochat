@@ -20,5 +20,6 @@ internal static class ControlSamples
         [typeof(ExpanderNeuron)] = new(new ExpanderProps("Advanced", [new Text("Inside")]), new ExpanderState(), [new Expand(true), new Expand(false)]),
         [typeof(TabStripNeuron)] = new(new TabStripProps([new TabStripItem("a", "A"), new TabStripItem("b", "B")]), new TabStripState(), [new SelectCommand("a"), new SelectCommand("b")]),
         [typeof(ComboBoxNeuron)] = new(new ComboBoxProps("Theme", [new ComboBoxOption("light", "Light"), new ComboBoxOption("dark", "Dark")]), new ComboBoxState(), [new SelectCommand("light"), new SelectCommand("dark")]),
+        [typeof(ListBoxNeuron)] = new(new ListBoxProps([new ListBoxItem("a", "A"), new ListBoxItem("b", "B", "Second")]), new ListBoxState(), [new SelectCommand("a"), new SelectCommand("b")]),
     };
 }

@@ -1583,3 +1583,64 @@ static DigitalBrain.UI.Controls.ComboBoxState.operator !=(DigitalBrain.UI.Contro
 static DigitalBrain.UI.Controls.ComboBoxState.operator ==(DigitalBrain.UI.Controls.ComboBoxState? left, DigitalBrain.UI.Controls.ComboBoxState? right) -> bool
 static DigitalBrain.UI.Controls.ComboBoxView.operator !=(DigitalBrain.UI.Controls.ComboBoxView? left, DigitalBrain.UI.Controls.ComboBoxView? right) -> bool
 static DigitalBrain.UI.Controls.ComboBoxView.operator ==(DigitalBrain.UI.Controls.ComboBoxView? left, DigitalBrain.UI.Controls.ComboBoxView? right) -> bool
+DigitalBrain.UI.Controls.ListBoxState
+DigitalBrain.UI.Controls.ListBoxState.<Clone>$() -> DigitalBrain.UI.Controls.ListBoxState!
+DigitalBrain.UI.Controls.ListBoxState.Equals(DigitalBrain.UI.Controls.ListBoxState? other) -> bool
+DigitalBrain.UI.Controls.ListBoxState.ListBoxState() -> void
+DigitalBrain.UI.Controls.ListBoxState.SelectedId.get -> string?
+DigitalBrain.UI.Controls.ListBoxState.SelectedId.init -> void
+DigitalBrain.UI.Controls.ListBoxView
+DigitalBrain.UI.Controls.ListBoxView.Deconstruct(out string! Key, out string? SelectedId) -> void
+DigitalBrain.UI.Controls.ListBoxView.Equals(DigitalBrain.UI.Controls.ListBoxView? other) -> bool
+DigitalBrain.UI.Controls.ListBoxView.Key.get -> string!
+DigitalBrain.UI.Controls.ListBoxView.Key.init -> void
+DigitalBrain.UI.Controls.ListBoxView.ListBoxView(string! Key, string? SelectedId) -> void
+DigitalBrain.UI.Controls.ListBoxView.SelectedId.get -> string?
+DigitalBrain.UI.Controls.ListBoxView.SelectedId.init -> void
+DigitalBrain.UI.ListBoxItem
+DigitalBrain.UI.ListBoxItem.<Clone>$() -> DigitalBrain.UI.ListBoxItem!
+DigitalBrain.UI.ListBoxItem.Deconstruct(out string! Id, out string! Title, out string? Subtitle) -> void
+DigitalBrain.UI.ListBoxItem.Equals(DigitalBrain.UI.ListBoxItem? other) -> bool
+DigitalBrain.UI.ListBoxItem.Id.get -> string!
+DigitalBrain.UI.ListBoxItem.Id.init -> void
+DigitalBrain.UI.ListBoxItem.ListBoxItem(string! Id, string! Title, string? Subtitle = null) -> void
+DigitalBrain.UI.ListBoxItem.Subtitle.get -> string?
+DigitalBrain.UI.ListBoxItem.Subtitle.init -> void
+DigitalBrain.UI.ListBoxItem.Title.get -> string!
+DigitalBrain.UI.ListBoxItem.Title.init -> void
+DigitalBrain.UI.ListBoxProps
+DigitalBrain.UI.ListBoxProps.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ListBoxItem!>! Items, out DigitalBrain.UI.ListSelectionMode SelectionMode, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.ListBoxProps.Equals(DigitalBrain.UI.ListBoxProps? other) -> bool
+DigitalBrain.UI.ListBoxProps.Items.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ListBoxItem!>!
+DigitalBrain.UI.ListBoxProps.Items.init -> void
+DigitalBrain.UI.ListBoxProps.ListBoxProps(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ListBoxItem!>! Items, DigitalBrain.UI.ListSelectionMode SelectionMode = DigitalBrain.UI.ListSelectionMode.Single, bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.ListBoxProps.RefusalOf(string? id) -> string?
+DigitalBrain.UI.ListBoxProps.SelectionMode.get -> DigitalBrain.UI.ListSelectionMode
+DigitalBrain.UI.ListBoxProps.SelectionMode.init -> void
+DigitalBrain.UI.ListSelectionMode
+DigitalBrain.UI.ListSelectionMode.None = 1 -> DigitalBrain.UI.ListSelectionMode
+DigitalBrain.UI.ListSelectionMode.Single = 0 -> DigitalBrain.UI.ListSelectionMode
+override DigitalBrain.UI.Controls.ListBoxState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.ListBoxState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.ListBoxState.ToString() -> string!
+override DigitalBrain.UI.Controls.ListBoxView.<Clone>$() -> DigitalBrain.UI.Controls.ListBoxView!
+override DigitalBrain.UI.Controls.ListBoxView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.ListBoxView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.ListBoxView.ToString() -> string!
+override DigitalBrain.UI.ListBoxItem.Equals(object? obj) -> bool
+override DigitalBrain.UI.ListBoxItem.GetHashCode() -> int
+override DigitalBrain.UI.ListBoxItem.ToString() -> string!
+override DigitalBrain.UI.ListBoxProps.<Clone>$() -> DigitalBrain.UI.ListBoxProps!
+override DigitalBrain.UI.ListBoxProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.ListBoxProps.GetHashCode() -> int
+override DigitalBrain.UI.ListBoxProps.ToString() -> string!
+override sealed DigitalBrain.UI.Controls.ListBoxView.Equals(DigitalBrain.UI.Node? other) -> bool
+override sealed DigitalBrain.UI.ListBoxProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+static DigitalBrain.UI.Controls.ListBoxState.operator !=(DigitalBrain.UI.Controls.ListBoxState? left, DigitalBrain.UI.Controls.ListBoxState? right) -> bool
+static DigitalBrain.UI.Controls.ListBoxState.operator ==(DigitalBrain.UI.Controls.ListBoxState? left, DigitalBrain.UI.Controls.ListBoxState? right) -> bool
+static DigitalBrain.UI.Controls.ListBoxView.operator !=(DigitalBrain.UI.Controls.ListBoxView? left, DigitalBrain.UI.Controls.ListBoxView? right) -> bool
+static DigitalBrain.UI.Controls.ListBoxView.operator ==(DigitalBrain.UI.Controls.ListBoxView? left, DigitalBrain.UI.Controls.ListBoxView? right) -> bool
+static DigitalBrain.UI.ListBoxItem.operator !=(DigitalBrain.UI.ListBoxItem? left, DigitalBrain.UI.ListBoxItem? right) -> bool
+static DigitalBrain.UI.ListBoxItem.operator ==(DigitalBrain.UI.ListBoxItem? left, DigitalBrain.UI.ListBoxItem? right) -> bool
+static DigitalBrain.UI.ListBoxProps.operator !=(DigitalBrain.UI.ListBoxProps? left, DigitalBrain.UI.ListBoxProps? right) -> bool
+static DigitalBrain.UI.ListBoxProps.operator ==(DigitalBrain.UI.ListBoxProps? left, DigitalBrain.UI.ListBoxProps? right) -> bool

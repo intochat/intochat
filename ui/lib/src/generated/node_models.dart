@@ -50,6 +50,8 @@ enum FieldKind { text, search, number, password, secret, suggest, multiline }
 
 enum IntentKind { copy, openWindow, openSettings }
 
+enum ListSelectionMode { single, none }
+
 /// A node of a view, discriminated by `kind`.
 sealed class Node {
   const Node();
@@ -106,6 +108,7 @@ sealed class Node {
     'expanderView' => ExpanderViewNode.fromJson(json),
     'tabStripView' => TabStripViewNode.fromJson(json),
     'comboBoxView' => ComboBoxViewNode.fromJson(json),
+    'listBoxView' => ListBoxViewNode.fromJson(json),
     final kind => UnknownNode(kind is String ? kind : '', json),
   };
 }
@@ -1294,6 +1297,63 @@ final class JobStepNode {
     status: _string(json['status'], 'waiting'),
     detail: _stringOrNull(json['detail']),
   );
+}
+
+final class ListBoxItem {
+  const ListBoxItem({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String id;
+  final String title;
+  final String? subtitle;
+
+  factory ListBoxItem.fromJson(Map<String, dynamic> json) => ListBoxItem(
+    id: _string(json['id']),
+    title: _string(json['title']),
+    subtitle: _stringOrNull(json['subtitle']),
+  );
+}
+
+final class ListBoxProps {
+  const ListBoxProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.items,
+    required this.selectionMode,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final List<ListBoxItem> items;
+  final ListSelectionMode selectionMode;
+
+  factory ListBoxProps.fromJson(Map<String, dynamic> json) => ListBoxProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    items: [
+      for (final item in _list(json['items'])) ListBoxItem.fromJson(_map(item)),
+    ],
+    selectionMode: _enum(ListSelectionMode.values, json['selectionMode']),
+  );
+}
+
+final class ListBoxViewNode extends Node {
+  const ListBoxViewNode({required this.key, required this.selectedId});
+
+  @override
+  String get kind => 'listBoxView';
+
+  final String key;
+  final String? selectedId;
+
+  factory ListBoxViewNode.fromJson(Map<String, dynamic> json) =>
+      ListBoxViewNode(
+        key: _string(json['key']),
+        selectedId: _stringOrNull(json['selectedId']),
+      );
 }
 
 final class MarkdownNode extends Node {

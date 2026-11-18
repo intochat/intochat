@@ -330,7 +330,16 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'key': 'sections',
     'selectedId': 'general',
   },
-  'comboBoxView': {'kind': 'comboBoxView', 'key': 'theme', 'selectedId': 'dark'},
+  'comboBoxView': {
+    'kind': 'comboBoxView',
+    'key': 'theme',
+    'selectedId': 'dark',
+  },
+  'listBoxView': {
+    'kind': 'listBoxView',
+    'key': 'devices',
+    'selectedId': 'laptop',
+  },
   'diffCard': {
     'kind': 'diffCard',
     'id': 'diff-1',

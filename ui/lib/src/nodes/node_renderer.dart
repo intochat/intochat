@@ -44,6 +44,7 @@ import 'stat_card.dart';
 import 'surface.dart';
 import 'switch.dart';
 import 'combo_box_view.dart';
+import 'list_box_view.dart';
 import 'tab_strip_view.dart';
 import 'tabs.dart';
 import 'tag_pill.dart';
@@ -85,6 +86,7 @@ abstract final class NodeRenderer {
     ExpanderViewNode(:final key) ||
     TabStripViewNode(:final key) ||
     ComboBoxViewNode(:final key) ||
+    ListBoxViewNode(:final key) ||
     ConversationNode(:final key) ||
     FieldNode(:final key) ||
     IconButtonNode(:final key) ||
@@ -147,6 +149,7 @@ abstract final class NodeRenderer {
       ExpanderViewNode() => renderExpanderView(node, ctx),
       TabStripViewNode() => renderTabStripView(node, ctx),
       ComboBoxViewNode() => renderComboBoxView(node, ctx),
+      ListBoxViewNode() => renderListBoxView(node, ctx),
       UnknownNode() => const _Unsupported(),
     };
   }

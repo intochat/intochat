@@ -29,6 +29,13 @@ Future<ActivationOutcome> actExpanderExpand(
   required bool isExpanded,
 }) => ctx.act(address, 'control.expand', {'isExpanded': isExpanded});
 
+/// Sends `Select` to the `listBox` neuron at [address].
+Future<ActivationOutcome> actListBoxSelect(
+  NodeContext ctx,
+  String address, {
+  required String id,
+}) => ctx.act(address, 'control.select', {'id': id});
+
 /// Sends `Select` to the `tabStrip` neuron at [address].
 Future<ActivationOutcome> actTabStripSelect(
   NodeContext ctx,

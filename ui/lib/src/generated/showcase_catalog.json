@@ -1318,6 +1318,126 @@
     "examples": []
   },
   {
+    "kind": "listBox",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "items",
+        "type": "List<ListBoxItem>",
+        "default": null
+      },
+      {
+        "name": "selectionMode",
+        "type": "ListSelectionMode",
+        "default": "Single"
+      }
+    ],
+    "state": [
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "Select",
+        "signal": "control.select",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "SelectionChanged",
+        "signal": "control.selectionChanged",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "listBoxView",
+        "key": "devices",
+        "selectedId": "laptop",
+        "props": {
+          "items": [
+            {
+              "id": "laptop",
+              "title": "Laptop",
+              "subtitle": "Last seen today"
+            },
+            {
+              "id": "phone",
+              "title": "Phone",
+              "subtitle": "Last seen yesterday"
+            },
+            {
+              "id": "tablet",
+              "title": "Tablet"
+            }
+          ],
+          "selectionMode": "Single",
+          "isEnabled": true,
+          "automationName": "Devices"
+        }
+      },
+      {
+        "kind": "listBoxView",
+        "key": "history",
+        "props": {
+          "items": [
+            {
+              "id": "1",
+              "title": "Signed in",
+              "subtitle": "09:12"
+            },
+            {
+              "id": "2",
+              "title": "Key rotated",
+              "subtitle": "08:40"
+            }
+          ],
+          "selectionMode": "None",
+          "isEnabled": true,
+          "automationName": "History"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "listBoxView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
     "kind": "markdown",
     "isNeuron": false,
     "props": [

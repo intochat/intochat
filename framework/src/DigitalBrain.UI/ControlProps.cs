@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DigitalBrain.UI;
 
 /// <summary>A control neuron whose props are <typeparamref name="TProps"/>: it ties <c>Slot&lt;TChild, TProps&gt;(key, props)</c> to the child's own props record.</summary>
@@ -107,4 +109,43 @@ public sealed record ComboBoxProps(string Header, IReadOnlyList<ComboBoxOption> 
 
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Header, Options.Count);
+}
+
+/// <summary>An item of a list box.</summary>
+/// <param name="Id">The id a selection names.</param>
+/// <param name="Title">The item's main line.</param>
+/// <param name="Subtitle">An optional muted second line.</param>
+public sealed record ListBoxItem(string Id, string Title, string? Subtitle = null);
+
+/// <summary>Whether a list box lets a person select an item.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ListSelectionMode>))]
+public enum ListSelectionMode
+{
+    /// <summary>One item can be selected.</summary>
+#pragma warning disable CA1720 // WinUI's name for the mode; the wire value is "Single".
+    Single,
+#pragma warning restore CA1720
+
+    /// <summary>Nothing can be selected: the list only shows its items.</summary>
+    None,
+}
+
+/// <summary>The props of a list box: what its parent decides.</summary>
+/// <param name="Items">The items, in order.</param>
+/// <param name="SelectionMode">Single lets one item be selected; None refuses every selection (control.selectionOff).</param>
+/// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
+public sealed record ListBoxProps(IReadOnlyList<ListBoxItem> Items, ListSelectionMode SelectionMode = ListSelectionMode.Single, bool IsEnabled = true, string? AutomationName = null)
+    : ControlProps(IsEnabled, AutomationName), ISelectionProps
+{
+    /// <inheritdoc />
+    public string? RefusalOf(string? id) => SelectionMode == ListSelectionMode.None
+        ? SelectionRefusals.SelectionOff
+        : Items.Any(item => item.Id == id) ? null : SelectionRefusals.UnknownItem;
+
+    /// <inheritdoc />
+    public bool Equals(ListBoxProps? other) => other is not null && base.Equals(other) && SelectionMode == other.SelectionMode && Items.SequenceEqual(other.Items);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), SelectionMode, Items.Count);
 }

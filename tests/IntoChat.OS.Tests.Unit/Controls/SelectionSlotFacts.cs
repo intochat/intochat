@@ -23,6 +23,8 @@ public sealed class SelectionParent : Screen<SelectionParentState>
     protected override View Render(SelectionParentState state) => new("Parent", new Column([
         Slot<TabStripNeuron, TabStripProps>("tabs", new TabStripProps([new TabStripItem("general", "General"), new TabStripItem("privacy", "Privacy")])),
         Slot<ComboBoxNeuron, ComboBoxProps>("theme", new ComboBoxProps("Theme", [new ComboBoxOption("light", "Light"), new ComboBoxOption("dark", "Dark")])),
+        Slot<ListBoxNeuron, ListBoxProps>("devices", new ListBoxProps([new ListBoxItem("laptop", "Laptop"), new ListBoxItem("phone", "Phone", "Yesterday")])),
+        Slot<ListBoxNeuron, ListBoxProps>("history", new ListBoxProps([new ListBoxItem("1", "Signed in")], ListSelectionMode.None)),
     ]));
 }
 
@@ -41,6 +43,7 @@ public sealed class SelectionSlotFacts : IAsyncDisposable
         _os.Register<SelectionParent>();
         _os.Register<TabStripNeuron>();
         _os.Register<ComboBoxNeuron>();
+        _os.Register<ListBoxNeuron>();
     }
 
     private IScreen Parent => _os.Get<IScreen>(ParentId);
@@ -93,6 +96,32 @@ public sealed class SelectionSlotFacts : IAsyncDisposable
         await Select("theme", "dark");
 
         Assert.Equal([new SelectionChanged("dark")], Signals(Child("control.comboBox", "theme")));
+    }
+
+    [Fact]
+    public async Task Select_unknown_is_refused_on_a_list_box()
+    {
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => Select("devices", "watch"));
+
+        Assert.Equal(SelectionRefusals.UnknownItem, refused.Reason);
+        Assert.False(_os.IsActive(Child("control.listBox", "devices")));
+    }
+
+    [Fact]
+    public async Task A_known_item_reaches_the_list_box()
+    {
+        await Select("devices", "phone");
+
+        Assert.Equal([new SelectionChanged("phone")], Signals(Child("control.listBox", "devices")));
+    }
+
+    [Fact]
+    public async Task A_list_box_in_none_mode_refuses_every_select()
+    {
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => Select("history", "1"));
+
+        Assert.Equal(SelectionRefusals.SelectionOff, refused.Reason);
+        Assert.False(_os.IsActive(Child("control.listBox", "history")));
     }
 
     public async ValueTask DisposeAsync()
