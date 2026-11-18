@@ -57,9 +57,9 @@ A module adds neurons, contracts and settings to the kernel. Each lives in a fol
 ## How a request flows
 
 1. **Shell.** You act in a window. `NeuronChannel` (`ui/lib/src/core/neuron_channel.dart`) sends a call over gRPC, or gRPC-Web in a browser. The call names a brain, a contract, a key, a method and JSON arguments.
-2. **Kernel edge.** `NeuronsGrpcService` receives it. `BrainCall` checks that the caller may enter that brain and stamps the caller on the call.
+2. **Kernel edge.** `NeuronsGrpcService` receives it. `BrainCall` checks that the caller may enter that brain, then `EdgeAuthority` builds the `Caller` (an `Actor` plus brain, conversation, via and inside) and enters it for the call. Only `EdgeAuthority` factories build a `Caller`; the kernel is entered only through `EdgeAuthority.EnterKernel` (in the OS, `PlatformCall.AsKernel`). Reminders, timers and activations, and the work they defer, run as `Actor.Scheduler` of the brain.
 3. **Neuron surface.** `OsNeuronSurface` (backed by `NeuronSurface` in DigitalBrain) finds the contract, picks the method by name and argument count, reads the JSON arguments and calls the neuron.
-4. **Neuron.** The neuron runs in the Orleans silo. It may change its state and publish signals. `SiloAccessCallFilter` is the enforcement point for who may call what: it refuses a caller with no principal and a call into another brain, then asks each `ICallFilterStage` in order.
+4. **Neuron.** The neuron runs in the Orleans silo. It may change its state and publish signals. `SiloAccessCallFilter` is the enforcement point for who may call what: it reads the caller from `ICallerAmbient`, refuses a call with no caller on every host, refuses a call into another brain, then asks each `ICallFilterStage` in order.
 5. **Back.** The result returns as JSON in the reply. The shell also holds a `Watch` stream on the neurons it shows. A change signal tells the view to read again, and Flutter draws the new `View`.
 
 The same `OsNeuronSurface` serves two other callers. The MCP tools in `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Mcp/Tools` use it, and so does Ino; see [Ino and memory](ino-and-memory.md).

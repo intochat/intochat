@@ -39,3 +39,7 @@ An action with no matching rule is allowed.
 The neuron publishes `PolicyProposed`, `PolicyAdopted`, `PolicyRefused` and `PolicyRetired`.
 
 Source: `src/DigitalBrain/Policies/`.
+
+## The caller
+
+Every call carries one `Caller`: an `Actor` plus brain, conversation, via and inside. Code reads it from `Context.Caller` or `ICallerAmbient`. Only `EdgeAuthority` factories build one, and the kernel is entered only through `EdgeAuthority.EnterKernel`. A call with no caller is refused on every host. Reminders, timers and activations, and their deferred work, run as `Actor.Scheduler` of the brain.
