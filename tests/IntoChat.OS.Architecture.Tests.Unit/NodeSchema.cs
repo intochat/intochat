@@ -60,8 +60,8 @@ internal static class NodeSchema
     private static IEnumerable<T> Attributes<T>(Type type, PropertyInfo property) where T : Attribute
         => property.GetCustomAttributes<T>().Concat(Parameter(type, property)?.GetCustomAttributes<T>() ?? []);
 
-    internal static IEnumerable<(PropertyInfo Property, Type Args)> Events(Type type)
-        => Properties(type).SelectMany(property => Attributes<EventArgsAttribute>(type, property).Take(1).Select(attribute => (property, attribute.ArgsType)));
+    internal static IEnumerable<(PropertyInfo Property, Type Args)> Events(Type _)
+        => []; // event args are gone; Task 4 rewrites the generator around commands
 
     // Positional record properties of an args record (EqualityContract excluded).
     internal static PropertyInfo[] ArgsFields(Type args) => Properties(args);
@@ -80,7 +80,7 @@ internal static class NodeSchema
             .SelectMany(entry => Events(entry.Type).Select(@event => (entry.Type, @event.Property, @event.Args))).ToArray();
         if (helpers.Length == 0)
         {
-            dart.Append("// No control declares an [EventArgs] event yet.\n");
+            dart.Append("// No control declares an event yet.\n");
             return dart.ToString();
         }
         dart.Append("import '../nodes/node_context.dart';\nimport 'node_models.dart';\n\n");

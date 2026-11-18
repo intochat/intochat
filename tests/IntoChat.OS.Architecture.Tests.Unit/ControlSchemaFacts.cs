@@ -35,8 +35,7 @@ public sealed class ControlSchemaFacts
     [Fact]
     public void Every_emit_parameter_is_named_On_and_declares_EventArgs()
         => Check(EmitParametersOffenders, Nodes.SelectMany(type => ConstructorParameters(type)
-            .Where(parameter => IsEmit(parameter.ParameterType)
-                && (!parameter.Name!.StartsWith("On", StringComparison.Ordinal) || !HasEventArgs(type, parameter)))
+            .Where(parameter => IsEmit(parameter.ParameterType)) // event args are gone, so every Emit is an offender until Task 4 rewrites this around commands
             .Select(parameter => $"{type.Name}.{parameter.Name}")));
 
     [Fact]
@@ -83,11 +82,6 @@ public sealed class ControlSchemaFacts
 
     private static ParameterInfo[] ConstructorParameters(Type type)
         => [.. type.GetConstructors().OrderByDescending(constructor => constructor.GetParameters().Length).First().GetParameters()];
-
-    // A positional record parameter's attributes sit on the parameter; [property: ...] puts them on the property.
-    private static bool HasEventArgs(Type type, ParameterInfo parameter)
-        => parameter.GetCustomAttribute<EventArgsAttribute>() is not null
-            || type.GetProperty(parameter.Name!)?.GetCustomAttribute<EventArgsAttribute>() is not null;
 
     private static bool Builds(MethodInfo method, string kind, Type node)
     {

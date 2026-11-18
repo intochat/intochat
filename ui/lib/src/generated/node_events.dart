@@ -2,4 +2,4 @@
 //
 // Generated from DigitalBrain.UI by DartEventsFacts (IntoChat.OS.Architecture.Tests.Unit).
 
-// No control declares an [EventArgs] event yet.
+// No control declares an event yet.

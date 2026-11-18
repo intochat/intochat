@@ -4103,3 +4103,137 @@ static DigitalBrain.Kernel.Wire.operator !=(DigitalBrain.Kernel.Wire? left, Digi
 static DigitalBrain.Kernel.Wire.operator ==(DigitalBrain.Kernel.Wire? left, DigitalBrain.Kernel.Wire? right) -> bool
 DigitalBrain.Kernel.SynapseRequest.Deconstruct(out DigitalBrain.NeuronId Subscriber, out System.Collections.Generic.IReadOnlyList<System.Type!>! Signals) -> void
 DigitalBrain.Kernel.SynapseRequest.SynapseRequest(DigitalBrain.NeuronId Subscriber, System.Collections.Generic.IReadOnlyList<System.Type!>! Signals) -> void
+DigitalBrain.UI.Commands.Close
+DigitalBrain.UI.Commands.Close.Close() -> void
+DigitalBrain.UI.Commands.Close.Equals(DigitalBrain.UI.Commands.Close? other) -> bool
+DigitalBrain.UI.Commands.Closed
+DigitalBrain.UI.Commands.Closed.Closed() -> void
+DigitalBrain.UI.Commands.Closed.Equals(DigitalBrain.UI.Commands.Closed? other) -> bool
+DigitalBrain.UI.Commands.Expand
+DigitalBrain.UI.Commands.Expand.Deconstruct(out bool IsExpanded) -> void
+DigitalBrain.UI.Commands.Expand.Equals(DigitalBrain.UI.Commands.Expand? other) -> bool
+DigitalBrain.UI.Commands.Expand.Expand(bool IsExpanded) -> void
+DigitalBrain.UI.Commands.Expand.IsExpanded.get -> bool
+DigitalBrain.UI.Commands.Expand.IsExpanded.init -> void
+DigitalBrain.UI.Commands.Expanded
+DigitalBrain.UI.Commands.Expanded.Deconstruct(out bool IsExpanded) -> void
+DigitalBrain.UI.Commands.Expanded.Equals(DigitalBrain.UI.Commands.Expanded? other) -> bool
+DigitalBrain.UI.Commands.Expanded.Expanded(bool IsExpanded) -> void
+DigitalBrain.UI.Commands.Expanded.IsExpanded.get -> bool
+DigitalBrain.UI.Commands.Expanded.IsExpanded.init -> void
+DigitalBrain.UI.Commands.Select
+DigitalBrain.UI.Commands.Select.Deconstruct(out string! Id) -> void
+DigitalBrain.UI.Commands.Select.Equals(DigitalBrain.UI.Commands.Select? other) -> bool
+DigitalBrain.UI.Commands.Select.Id.get -> string!
+DigitalBrain.UI.Commands.Select.Id.init -> void
+DigitalBrain.UI.Commands.Select.Select(string! Id) -> void
+DigitalBrain.UI.Commands.SelectionChanged
+DigitalBrain.UI.Commands.SelectionChanged.Deconstruct(out string! Id) -> void
+DigitalBrain.UI.Commands.SelectionChanged.Equals(DigitalBrain.UI.Commands.SelectionChanged? other) -> bool
+DigitalBrain.UI.Commands.SelectionChanged.Id.get -> string!
+DigitalBrain.UI.Commands.SelectionChanged.Id.init -> void
+DigitalBrain.UI.Commands.SelectionChanged.SelectionChanged(string! Id) -> void
+DigitalBrain.UI.Commands.SetChecked
+DigitalBrain.UI.Commands.SetChecked.Deconstruct(out bool IsOn) -> void
+DigitalBrain.UI.Commands.SetChecked.Equals(DigitalBrain.UI.Commands.SetChecked? other) -> bool
+DigitalBrain.UI.Commands.SetChecked.IsOn.get -> bool
+DigitalBrain.UI.Commands.SetChecked.IsOn.init -> void
+DigitalBrain.UI.Commands.SetChecked.SetChecked(bool IsOn) -> void
+DigitalBrain.UI.Commands.Submit
+DigitalBrain.UI.Commands.Submit.Deconstruct(out System.Collections.Generic.IReadOnlyDictionary<string!, string!>! Values) -> void
+DigitalBrain.UI.Commands.Submit.Equals(DigitalBrain.UI.Commands.Submit? other) -> bool
+DigitalBrain.UI.Commands.Submit.Submit(System.Collections.Generic.IReadOnlyDictionary<string!, string!>! Values) -> void
+DigitalBrain.UI.Commands.Submit.Values.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+DigitalBrain.UI.Commands.Submit.Values.init -> void
+DigitalBrain.UI.Commands.Submitted
+DigitalBrain.UI.Commands.Submitted.Deconstruct(out System.Collections.Generic.IReadOnlyDictionary<string!, string!>! Values) -> void
+DigitalBrain.UI.Commands.Submitted.Equals(DigitalBrain.UI.Commands.Submitted? other) -> bool
+DigitalBrain.UI.Commands.Submitted.Submitted(System.Collections.Generic.IReadOnlyDictionary<string!, string!>! Values) -> void
+DigitalBrain.UI.Commands.Submitted.Values.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+DigitalBrain.UI.Commands.Submitted.Values.init -> void
+DigitalBrain.UI.Commands.Toggle
+DigitalBrain.UI.Commands.Toggle.Equals(DigitalBrain.UI.Commands.Toggle? other) -> bool
+DigitalBrain.UI.Commands.Toggle.Toggle() -> void
+DigitalBrain.UI.Commands.Toggled
+DigitalBrain.UI.Commands.Toggled.Deconstruct(out bool IsOn) -> void
+DigitalBrain.UI.Commands.Toggled.Equals(DigitalBrain.UI.Commands.Toggled? other) -> bool
+DigitalBrain.UI.Commands.Toggled.IsOn.get -> bool
+DigitalBrain.UI.Commands.Toggled.IsOn.init -> void
+DigitalBrain.UI.Commands.Toggled.Toggled(bool IsOn) -> void
+override DigitalBrain.UI.Commands.Close.<Clone>$() -> DigitalBrain.UI.Commands.Close!
+override DigitalBrain.UI.Commands.Close.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Close.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Close.ToString() -> string!
+override DigitalBrain.UI.Commands.Closed.<Clone>$() -> DigitalBrain.UI.Commands.Closed!
+override DigitalBrain.UI.Commands.Closed.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Closed.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Closed.ToString() -> string!
+override DigitalBrain.UI.Commands.Expand.<Clone>$() -> DigitalBrain.UI.Commands.Expand!
+override DigitalBrain.UI.Commands.Expand.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Expand.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Expand.ToString() -> string!
+override DigitalBrain.UI.Commands.Expanded.<Clone>$() -> DigitalBrain.UI.Commands.Expanded!
+override DigitalBrain.UI.Commands.Expanded.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Expanded.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Expanded.ToString() -> string!
+override DigitalBrain.UI.Commands.Select.<Clone>$() -> DigitalBrain.UI.Commands.Select!
+override DigitalBrain.UI.Commands.Select.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Select.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Select.ToString() -> string!
+override DigitalBrain.UI.Commands.SelectionChanged.<Clone>$() -> DigitalBrain.UI.Commands.SelectionChanged!
+override DigitalBrain.UI.Commands.SelectionChanged.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.SelectionChanged.GetHashCode() -> int
+override DigitalBrain.UI.Commands.SelectionChanged.ToString() -> string!
+override DigitalBrain.UI.Commands.SetChecked.<Clone>$() -> DigitalBrain.UI.Commands.SetChecked!
+override DigitalBrain.UI.Commands.SetChecked.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.SetChecked.GetHashCode() -> int
+override DigitalBrain.UI.Commands.SetChecked.ToString() -> string!
+override DigitalBrain.UI.Commands.Submit.<Clone>$() -> DigitalBrain.UI.Commands.Submit!
+override DigitalBrain.UI.Commands.Submit.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Submit.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Submit.ToString() -> string!
+override DigitalBrain.UI.Commands.Submitted.<Clone>$() -> DigitalBrain.UI.Commands.Submitted!
+override DigitalBrain.UI.Commands.Submitted.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Submitted.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Submitted.ToString() -> string!
+override DigitalBrain.UI.Commands.Toggle.<Clone>$() -> DigitalBrain.UI.Commands.Toggle!
+override DigitalBrain.UI.Commands.Toggle.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Toggle.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Toggle.ToString() -> string!
+override DigitalBrain.UI.Commands.Toggled.<Clone>$() -> DigitalBrain.UI.Commands.Toggled!
+override DigitalBrain.UI.Commands.Toggled.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Toggled.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Toggled.ToString() -> string!
+override sealed DigitalBrain.UI.Commands.Close.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.Closed.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.Expand.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.Expanded.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.Select.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.SelectionChanged.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.SetChecked.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.Submit.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.Submitted.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.Toggle.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.Toggled.Equals(DigitalBrain.Signal? other) -> bool
+static DigitalBrain.UI.Commands.Close.operator !=(DigitalBrain.UI.Commands.Close? left, DigitalBrain.UI.Commands.Close? right) -> bool
+static DigitalBrain.UI.Commands.Close.operator ==(DigitalBrain.UI.Commands.Close? left, DigitalBrain.UI.Commands.Close? right) -> bool
+static DigitalBrain.UI.Commands.Closed.operator !=(DigitalBrain.UI.Commands.Closed? left, DigitalBrain.UI.Commands.Closed? right) -> bool
+static DigitalBrain.UI.Commands.Closed.operator ==(DigitalBrain.UI.Commands.Closed? left, DigitalBrain.UI.Commands.Closed? right) -> bool
+static DigitalBrain.UI.Commands.Expand.operator !=(DigitalBrain.UI.Commands.Expand? left, DigitalBrain.UI.Commands.Expand? right) -> bool
+static DigitalBrain.UI.Commands.Expand.operator ==(DigitalBrain.UI.Commands.Expand? left, DigitalBrain.UI.Commands.Expand? right) -> bool
+static DigitalBrain.UI.Commands.Expanded.operator !=(DigitalBrain.UI.Commands.Expanded? left, DigitalBrain.UI.Commands.Expanded? right) -> bool
+static DigitalBrain.UI.Commands.Expanded.operator ==(DigitalBrain.UI.Commands.Expanded? left, DigitalBrain.UI.Commands.Expanded? right) -> bool
+static DigitalBrain.UI.Commands.Select.operator !=(DigitalBrain.UI.Commands.Select? left, DigitalBrain.UI.Commands.Select? right) -> bool
+static DigitalBrain.UI.Commands.Select.operator ==(DigitalBrain.UI.Commands.Select? left, DigitalBrain.UI.Commands.Select? right) -> bool
+static DigitalBrain.UI.Commands.SelectionChanged.operator !=(DigitalBrain.UI.Commands.SelectionChanged? left, DigitalBrain.UI.Commands.SelectionChanged? right) -> bool
+static DigitalBrain.UI.Commands.SelectionChanged.operator ==(DigitalBrain.UI.Commands.SelectionChanged? left, DigitalBrain.UI.Commands.SelectionChanged? right) -> bool
+static DigitalBrain.UI.Commands.SetChecked.operator !=(DigitalBrain.UI.Commands.SetChecked? left, DigitalBrain.UI.Commands.SetChecked? right) -> bool
+static DigitalBrain.UI.Commands.SetChecked.operator ==(DigitalBrain.UI.Commands.SetChecked? left, DigitalBrain.UI.Commands.SetChecked? right) -> bool
+static DigitalBrain.UI.Commands.Submit.operator !=(DigitalBrain.UI.Commands.Submit? left, DigitalBrain.UI.Commands.Submit? right) -> bool
+static DigitalBrain.UI.Commands.Submit.operator ==(DigitalBrain.UI.Commands.Submit? left, DigitalBrain.UI.Commands.Submit? right) -> bool
+static DigitalBrain.UI.Commands.Submitted.operator !=(DigitalBrain.UI.Commands.Submitted? left, DigitalBrain.UI.Commands.Submitted? right) -> bool
+static DigitalBrain.UI.Commands.Submitted.operator ==(DigitalBrain.UI.Commands.Submitted? left, DigitalBrain.UI.Commands.Submitted? right) -> bool
+static DigitalBrain.UI.Commands.Toggle.operator !=(DigitalBrain.UI.Commands.Toggle? left, DigitalBrain.UI.Commands.Toggle? right) -> bool
+static DigitalBrain.UI.Commands.Toggle.operator ==(DigitalBrain.UI.Commands.Toggle? left, DigitalBrain.UI.Commands.Toggle? right) -> bool
+static DigitalBrain.UI.Commands.Toggled.operator !=(DigitalBrain.UI.Commands.Toggled? left, DigitalBrain.UI.Commands.Toggled? right) -> bool
+static DigitalBrain.UI.Commands.Toggled.operator ==(DigitalBrain.UI.Commands.Toggled? left, DigitalBrain.UI.Commands.Toggled? right) -> bool

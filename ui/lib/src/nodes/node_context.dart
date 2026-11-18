@@ -220,7 +220,7 @@ class NodeContext {
   }
 
   /// Emits a control event: activates [key] with the typed payload under
-  /// `event` (DigitalBrain.UI EventPayload). A control without [emit] sends nothing.
+  /// `event`. A control without [emit] sends nothing.
   Future<void> emitEvent(
     String key,
     Emit? emit,

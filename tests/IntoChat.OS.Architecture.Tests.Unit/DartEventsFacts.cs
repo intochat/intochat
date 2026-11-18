@@ -1,8 +1,6 @@
-using DigitalBrain.UI;
-
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
-// One typed Dart helper per control event ([EventArgs]): emit<Control><Event>(ctx, node, <args>) posts the payload under `event`.
+// One typed Dart helper per control event: emit<Control><Event>(ctx, node, <args>) posts the payload under `event`.
 public sealed class DartEventsFacts
 {
     private static readonly string Target = Path.Combine(Repository.Root, "ui", "lib", "s" + "rc", "generated", "node_events.dart");
@@ -22,6 +20,5 @@ public sealed class DartEventsFacts
                 Assert.Contains($"node.{NodeSchema.JsonName(property)}, {{", generated, StringComparison.Ordinal);
             }
         }
-        Assert.Equal("event", EventPayload.Key);
     }
 }
