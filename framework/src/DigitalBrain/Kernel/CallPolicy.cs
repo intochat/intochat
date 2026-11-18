@@ -138,23 +138,86 @@ internal static class CallPolicy
         throw new InvalidOperationException($"{neuronClass.FullName} names [InterleavesWhen(\"{when.Predicate}\")] but has no static bool {when.Predicate}(RuntimeInvocation).");
     }
 
+    internal static MethodInfo? FindImplementationMethod(Type targetClass, MethodInfo interfaceMethod)
+    {
+        var ifaceParams = interfaceMethod.GetParameters();
+        var ifaceFullName = interfaceMethod.DeclaringType?.FullName;
+        var explicitSuffix = "." + interfaceMethod.Name;
+
+        for (var level = targetClass; level is not null && level != typeof(object); level = level.BaseType)
+        {
+            foreach (var candidate in level.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+            {
+                if ((ifaceFullName is not null && candidate.Name == ifaceFullName + explicitSuffix)
+                    || candidate.Name.EndsWith(explicitSuffix, StringComparison.Ordinal))
+                {
+                    if (ParametersEqual(candidate.GetParameters(), ifaceParams))
+                    {
+                        return candidate;
+                    }
+                }
+            }
+        }
+
+        for (var level = targetClass; level is not null && level != typeof(object); level = level.BaseType)
+        {
+            foreach (var candidate in level.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+            {
+                if (candidate.Name == interfaceMethod.Name && ParametersEqual(candidate.GetParameters(), ifaceParams))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    internal static bool IsDisposeMethod(MethodInfo method)
+    {
+        if (method.GetParameters().Length != 0)
+        {
+            return false;
+        }
+        return (method.Name == nameof(IDisposable.Dispose) && method.ReturnType == typeof(void))
+            || (method.Name == nameof(IAsyncDisposable.DisposeAsync) && method.ReturnType == typeof(ValueTask));
+    }
+
+    private static bool ParametersEqual(ParameterInfo[] left, ParameterInfo[] right)
+    {
+        if (left.Length != right.Length)
+        {
+            return false;
+        }
+        for (var i = 0; i < left.Length; i++)
+        {
+            if (left[i].ParameterType != right[i].ParameterType)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static bool Declared((Type Class, MethodInfo Method) key)
     {
         if (Marked(key.Method)) { return true; }
         if (key.Method.DeclaringType is { IsInterface: true } contract && contract.IsAssignableFrom(key.Class))
         {
-            var map = key.Class.GetInterfaceMap(contract);
-            var index = Array.IndexOf(map.InterfaceMethods, key.Method);
-            return index >= 0 && Marked(map.TargetMethods[index]);
+            return FindImplementationMethod(key.Class, key.Method) is { } impl && Marked(impl);
         }
 
+        var classParams = key.Method.GetParameters();
         foreach (var iface in key.Class.GetInterfaces())
         {
-            var map = key.Class.GetInterfaceMap(iface);
-            var index = Array.IndexOf(map.TargetMethods, key.Method);
-            if (index >= 0 && Marked(map.InterfaceMethods[index]))
+            foreach (var ifaceMethod in iface.GetMethods())
             {
-                return true;
+                if ((key.Method.Name == ifaceMethod.Name || key.Method.Name.EndsWith("." + ifaceMethod.Name, StringComparison.Ordinal))
+                    && ParametersEqual(ifaceMethod.GetParameters(), classParams)
+                    && Marked(ifaceMethod))
+                {
+                    return true;
+                }
             }
         }
 

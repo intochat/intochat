@@ -4,8 +4,11 @@
     <Description>Isolated container worker executing compiled user apps via IntoChatClient.</Description>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
+    <ProjectReference Include="..\..\framework\src\DigitalBrain.Runtime.Synapses\DigitalBrain.Runtime.Synapses.csproj" />
     <ProjectReference Include="..\IntoChat.OS\IntoChat.OS.csproj" />
     <ProjectReference Include="..\IntoChat.OS.UI\IntoChat.OS.UI.csproj" />
+    <ProjectReference Include="..\Modules\Roslyn\IntoChat.OS.Modules.Roslyn.csproj" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
     <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
   </ItemGroup>

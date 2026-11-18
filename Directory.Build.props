@@ -8,11 +8,13 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>preview-all</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <IsPackable>false</IsPackable>
     <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
     <!-- NU5104: .NET 11 is still RC, so stable IntoChat.OS packages depend on prerelease Microsoft packages; remove at .NET 11 GA -->
     <NoWarn>$(NoWarn);NU5104</NoWarn>
     <NoWarn>$(NoWarn);NU1903</NoWarn>
+    <NoWarn>$(NoWarn);SYSLIB1104;SYSLIB1100;SYSLIB1101</NoWarn>
     <!-- Web SDK defaults this true; on Linux that forces RID=linux-x64 for every project.
          Container publishes opt back in via PublishProfiles/Container.pubxml + release.yml. -->
     <EnableSdkContainerSupport>false</EnableSdkContainerSupport>
@@ -69,6 +71,10 @@
     </AssemblyAttribute>
   </ItemGroup>
 
+  <ItemGroup Condition="!$(MSBuildProjectName.StartsWith('DigitalBrain.Analyzers')) And !$(MSBuildProjectName.Contains('.Tests')) And '$(MSBuildProjectName)' != 'IntoChat.OS.Desktop' And '$(MSBuildProjectName)' != 'DigitalBrain.UI' And '$(MSBuildProjectName)' != 'DigitalBrain'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)framework/src/DigitalBrain.Analyzers/DigitalBrain.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+  </ItemGroup>
+
   <!-- Every test project in the repo, replacing the boilerplate that used to be copied into each
        .csproj. This is repository convention only: package consumers choose their own test runner
        and project shape. Module tests host on DigitalBrain.Testing (TestOS, SiloHost). -->
@@ -122,7 +128,7 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
     <PackageTags>neurons;signals;synapses;brain;actors</PackageTags>
-    <NoWarn>$(NoWarn);CA1716;CA1711;CS0618;IDE0011;IDE0019;IDE0023;IDE0039;IDE0040;IDE0045;IDE0047;IDE0052;IDE0060;IDE0062;IDE0063;IDE0065;IDE0200;IDE0410</NoWarn>
+    <NoWarn>$(NoWarn);CA1716;CA1711;CS0618;IDE0011;IDE0019;IDE0023;IDE0039;IDE0040;IDE0045;IDE0047;IDE0052;IDE0060;IDE0062;IDE0063;IDE0065;IDE0200;IDE0410;DB0020;DB0021;DB0022;DB0023;DB0024;DB0025;DB0026;DB0027;DB0028;DB0029</NoWarn>
   </PropertyGroup>
   <PropertyGroup Condition="$(MSBuildProjectDirectory.Replace('\', '/').Contains('/framework/')) And $(MSBuildProjectName.Contains('.Tests.'))">
     <NoWarn>$(NoWarn);CS1591;CA1707;CA1515</NoWarn>

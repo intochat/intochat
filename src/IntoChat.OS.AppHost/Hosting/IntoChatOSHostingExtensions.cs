@@ -63,6 +63,11 @@ public static class IntoChatOSHostingExtensions
                 CreationTimeStamp = DateTime.UtcNow,
                 State = KnownResourceStates.Running,
                 Properties = [new(CustomResourceKnownProperties.Source, "IntoChat.OS modules")],
+            })
+            .WithCommand("reset-state", "Reset Local State", async _ =>
+            {
+                var code = await LocalReset.RunFromAppHostAsync(builder, ["--yes"]);
+                return code == 0 ? CommandResults.Success() : CommandResults.Failure("Local reset failed.");
             });
         // Cluster membership may change between runs; persistence identity must not.
         var clusterId = options.ClusterId ?? builder.Configuration[IntoChatOSHostingOptions.ClusterIdKey]

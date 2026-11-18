@@ -32,7 +32,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     protected Emit Emits<TSignal>(TSignal signal) where TSignal : Signal
     {
         ArgumentNullException.ThrowIfNull(signal);
-        return new Emit(Alias, SignalAliases.Of(typeof(TSignal)), JsonSerializer.SerializeToElement(signal, RuntimeProtocol.OptionsFor(typeof(TSignal))));
+        return new Emit(Alias, SignalAliases.Of(typeof(TSignal)), PooledJson.Encode(signal, typeof(TSignal)));
     }
 
     /// <summary>A neuron of this brain by its contract's neuron type and a brain-relative <paramref name="key"/>.</summary>
@@ -104,7 +104,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     {
         var type = ScreenSignals.Find(GetType(), alias)
             ?? throw new ArgumentException($"Screen '{Alias}' has no [On] reaction for '{alias}'.", nameof(alias));
-        var signal = (Signal?)payload.Deserialize(type, RuntimeProtocol.OptionsFor(type))
+        var signal = (Signal?)RuntimeProtocol.Deserialize(payload, type)
             ?? throw new ArgumentException($"The payload of '{alias}' is null.", nameof(payload));
         _cause = alias;
         try { _ = await ReactionTable.React(this, signal, CancellationToken.None).ConfigureAwait(true); }
@@ -119,14 +119,15 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         _view = null;
         if (await Seat.Load<System.Text.Json.Nodes.JsonObject>().ConfigureAwait(true) is { } json)
         {
+            var rawBytes = System.Text.Encoding.UTF8.GetBytes(json.ToJsonString());
             if (IsLegacyStoredStateEnvelope(json))
             {
-                var legacy = json.Deserialize<StoredState<TState>>(RuntimeProtocol.OptionsFor(typeof(StoredState<TState>)));
+                var legacy = (StoredState<TState>?)RuntimeProtocol.Deserialize(rawBytes, typeof(StoredState<TState>));
                 _view = legacy?.View;
                 if (legacy?.State is not null && legacy.View is not null) { _cause = LoadedMarker; }
                 return legacy?.State;
             }
-            var loaded = json.Deserialize<TState>(RuntimeProtocol.OptionsFor(typeof(TState)));
+            var loaded = (TState?)RuntimeProtocol.Deserialize(rawBytes, typeof(TState));
             if (loaded is not null) { _cause = LoadedMarker; }
             return loaded;
         }
@@ -160,7 +161,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
 
     private JsonElement RenderValidated(TState state)
     {
-        var wire = JsonSerializer.SerializeToElement(Render(state), RuntimeProtocol.OptionsFor(typeof(View)));
+        var wire = PooledJson.Encode(Render(state), typeof(View));
         if (System.Text.Encoding.UTF8.GetByteCount(wire.GetRawText()) > UnitLimits.MaxStateBytes)
         {
             throw new InvalidOperationException($"The view of '{Alias}' exceeds the {UnitLimits.MaxStateBytes}-byte cap.");

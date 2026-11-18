@@ -12,9 +12,6 @@ namespace DigitalBrain.Runtime.Orleans.Hosting;
 /// </summary>
 public static class SiloNeurons
 {
-    private static readonly MethodInfo TypedGet = typeof(SiloNeurons).GetMethods(BindingFlags.Public | BindingFlags.Static)
-        .Single(method => method.IsGenericMethodDefinition && method.GetParameters() is [_, { ParameterType: var key }] && key == typeof(NeuronId));
-
     /// <summary>A typed proxy to the neuron <paramref name="id"/> hosted in the silo of <paramref name="services"/>.</summary>
     /// <exception cref="InvalidOperationException">The services are not a silo's that hosts plain neurons.</exception>
     public static T Get<T>(IServiceProvider services, NeuronId id) where T : class
@@ -31,8 +28,9 @@ public static class SiloNeurons
     /// <summary><see cref="Get{T}(IServiceProvider, NeuronId)"/> for a contract known only at runtime.</summary>
     public static object Get(IServiceProvider services, Type contract, NeuronId id)
     {
+        ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(contract);
-        return TypedGet.MakeGenericMethod(contract).Invoke(null, [services, id])!;
+        return NeuronHosting.Get(services, contract, id);
     }
 
     /// <summary><see cref="Get{T}(IServiceProvider, string)"/> for a contract known only at runtime.</summary>

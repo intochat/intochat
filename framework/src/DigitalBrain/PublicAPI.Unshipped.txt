@@ -955,6 +955,11 @@ DigitalBrain.Invocation.NeuronBinder.Misses.get -> long
 DigitalBrain.Invocation.NeuronBinder.NeuronBinder(int maximumArgumentBytes = 1048576) -> void
 DigitalBrain.Invocation.NeuronBinder.StreamAsync(object! target, DigitalBrain.Invocation.BoundCall! call, System.Text.Json.JsonElement[]! arguments, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<System.Text.Json.JsonElement>!
 DigitalBrain.Invocation.NeuronProxy
+DigitalBrain.Invocation.NeuronProxy.CallNone(System.Reflection.MethodInfo! method, object?[]! args) -> System.Threading.Tasks.Task!
+DigitalBrain.Invocation.NeuronProxy.CallOneWay(System.Reflection.MethodInfo! method, object?[]! args) -> System.Threading.Tasks.Task!
+DigitalBrain.Invocation.NeuronProxy.CallStream<TItem>(System.Reflection.MethodInfo! method, object?[]! args) -> System.Collections.Generic.IAsyncEnumerable<TItem>!
+DigitalBrain.Invocation.NeuronProxy.CallTask<TResult>(System.Reflection.MethodInfo! method, object?[]! args) -> System.Threading.Tasks.Task<TResult>!
+DigitalBrain.Invocation.NeuronProxy.CallValueTask<TResult>(System.Reflection.MethodInfo! method, object?[]! args) -> System.Threading.Tasks.ValueTask<TResult>
 DigitalBrain.Invocation.NeuronProxy.NeuronProxy() -> void
 DigitalBrain.Invocation.NeuronProxy.Target.get -> DigitalBrain.NeuronId
 DigitalBrain.Invocation.RuntimeInvocation
@@ -3427,12 +3432,19 @@ static DigitalBrain.Identity.CompoundGrainKey.operator ==(DigitalBrain.Identity.
 static DigitalBrain.Identity.CompoundGrainKey.Parse(string! text) -> DigitalBrain.Identity.CompoundGrainKey
 static DigitalBrain.Identity.CompoundGrainKey.TryParse(string? text, out DigitalBrain.Identity.CompoundGrainKey key) -> bool
 static DigitalBrain.Invocation.NeuronProxy.ContractName(System.Type! contract) -> string!
+static DigitalBrain.Invocation.NeuronProxy.Create(System.Type! contract, DigitalBrain.NeuronId id, DigitalBrain.Invocation.IInvocationSink! sink) -> object!
 static DigitalBrain.Invocation.NeuronProxy.Create<T>(DigitalBrain.NeuronId id, DigitalBrain.Invocation.IInvocationSink! sink) -> T!
+static DigitalBrain.Invocation.NeuronProxy.Initialize<T>(DigitalBrain.Invocation.NeuronProxy! proxy, DigitalBrain.NeuronId id, DigitalBrain.Invocation.IInvocationSink! sink) -> T!
+static DigitalBrain.Invocation.NeuronProxy.Register<T>(System.Func<DigitalBrain.NeuronId, DigitalBrain.Invocation.IInvocationSink!, T!>! factory) -> void
 static DigitalBrain.Invocation.RuntimeInvocation.operator !=(DigitalBrain.Invocation.RuntimeInvocation? left, DigitalBrain.Invocation.RuntimeInvocation? right) -> bool
 static DigitalBrain.Invocation.RuntimeInvocation.operator ==(DigitalBrain.Invocation.RuntimeInvocation? left, DigitalBrain.Invocation.RuntimeInvocation? right) -> bool
+static DigitalBrain.Invocation.RuntimeProtocol.Deserialize(System.ReadOnlySpan<byte> utf8Json, System.Type! type) -> object?
+static DigitalBrain.Invocation.RuntimeProtocol.Deserialize(System.Text.Json.JsonElement element, System.Type! type) -> object?
 static DigitalBrain.Invocation.RuntimeProtocol.Forget(System.Runtime.Loader.AssemblyLoadContext! context) -> void
 static DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(System.Type! type) -> System.Text.Json.JsonSerializerOptions!
 static DigitalBrain.Invocation.RuntimeProtocol.Register(System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver! resolver) -> void
+static DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(object? value, System.Type! type) -> System.Text.Json.JsonElement
+static DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(object? value, System.Type! type) -> byte[]!
 static DigitalBrain.Invocation.TaskBoxing.ResultAsync(System.Threading.Tasks.Task! task, System.Type? resultType) -> System.Threading.Tasks.Task<object?>!
 static DigitalBrain.Invocation.TaskBoxing.ReturnResultAsync(System.Threading.Tasks.Task! task, System.Type! returnType) -> System.Threading.Tasks.Task<object?>!
 static DigitalBrain.Kernel.BrainInstance.operator !=(DigitalBrain.Kernel.BrainInstance? left, DigitalBrain.Kernel.BrainInstance? right) -> bool

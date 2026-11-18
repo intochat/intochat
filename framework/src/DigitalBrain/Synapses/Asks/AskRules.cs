@@ -11,7 +11,13 @@ internal static class AskRules
     internal const string AnsweredAlias = "unit.answered";
 
     /// <summary>The JSON null element: the Result of every answer that has no result. Never default(JsonElement), which cannot be journaled.</summary>
-    internal static readonly JsonElement NoResult = JsonSerializer.SerializeToElement<object?>(null);
+    internal static readonly JsonElement NoResult = ParseNullElement();
+
+    private static JsonElement ParseNullElement()
+    {
+        using var doc = JsonDocument.Parse("null");
+        return doc.RootElement.Clone();
+    }
 
     /// <summary>The asks neuron of the unit whose state neuron is <paramref name="state"/>: {brain}/unit.asks/{alias}.</summary>
     internal static NeuronId AsksOf(NeuronId state) => new(state.Brain, AsksNeuronType, state.Type);

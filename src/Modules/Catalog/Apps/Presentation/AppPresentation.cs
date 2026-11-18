@@ -10,7 +10,7 @@ internal sealed class AppPresentation(AppState state)
     public AppState? Publish(IntoChat.OS.Modules.Apps.Presentation spec)
     {
         var current = state.Presentation;
-        if (current is { Root: { } root, Error: null } && JsonSerializer.Serialize(root) == JsonSerializer.Serialize(spec))
+        if (current is { Root: { } root, Error: null } && System.Text.Encoding.UTF8.GetString(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(root, typeof(IntoChat.OS.Modules.Apps.Presentation))) == System.Text.Encoding.UTF8.GetString(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(spec, typeof(IntoChat.OS.Modules.Apps.Presentation))))
         {
             return null;
         }

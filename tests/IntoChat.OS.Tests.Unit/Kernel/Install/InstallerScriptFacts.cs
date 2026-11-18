@@ -628,78 +628,74 @@ public sealed class InstallerScriptFacts
     }
 
     [Fact]
-    public void PackageReleaseScriptsDryRunUseIntoChatIoAndPopulateManifestsWithoutZeros()
+    public async Task PackageReleaseScriptsDryRunUseIntoChatIoAndPopulateManifestsWithoutZeros()
     {
-        var version = File.ReadAllText(Path.Combine(FindRepoRoot(), "VERSION")).Trim();
+        var repoRoot = FindRepoRoot();
+        var version = (await File.ReadAllTextAsync(Path.Combine(repoRoot, "VERSION"), TestContext.Current.CancellationToken)).Trim();
         var temp = Directory.CreateTempSubdirectory("intochat-pkg-test-");
         try
         {
-            if (OperatingSystem.IsWindows())
+            var dryOut = new StringWriter();
+            var dryErr = new StringWriter();
+            var dryExit = await IntoChat.OS.LocalSetup.ReleasePackager.RunAsync(new IntoChat.OS.LocalSetup.ReleasePackageOptions
             {
-                var dryRun = RunProcess(
-                    ResolvePwsh(),
-                    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", EngPath("release", "package-release.ps1"), "-DryRun"],
-                    new Dictionary<string, string?>());
-                Assert.True(dryRun.ExitCode == 0, $"DryRun failed: {dryRun.StderrOrStdout()}");
-                Assert.Contains("intochat.io", dryRun.StdOut, StringComparison.Ordinal);
-                Assert.DoesNotContain("intochat.ai", dryRun.StdOut, StringComparison.OrdinalIgnoreCase);
+                RepoRoot = repoRoot,
+                Rid = "win-x64",
+                DryRun = true,
+            }, dryOut, dryErr, TestContext.Current.CancellationToken);
+            Assert.True(dryExit == 0, $"DryRun failed: {dryOut}\n{dryErr}");
+            Assert.Contains("intochat.io", dryOut.ToString(), StringComparison.Ordinal);
+            Assert.DoesNotContain("intochat.ai", dryOut.ToString(), StringComparison.OrdinalIgnoreCase);
 
-                var outWin = Path.Combine(temp.FullName, "rel-win");
-                Directory.CreateDirectory(outWin);
-                var zipX64 = CreateDummyZipArchive(outWin, $"intochat-{version}-win-x64.zip", "IntoChat.OS.Desktop.exe", "x64");
-                var zipArm = CreateDummyZipArchive(outWin, $"intochat-{version}-win-arm64.zip", "IntoChat.OS.Desktop.exe", "arm64");
-                var shaX64 = ComputeSha256Hex(zipX64);
-                var shaArm = ComputeSha256Hex(zipArm);
+            var outWin = Path.Combine(temp.FullName, "rel-win");
+            Directory.CreateDirectory(outWin);
+            var zipX64 = CreateDummyZipArchive(outWin, $"intochat-{version}-win-x64.zip", "IntoChat.OS.Desktop.exe", "x64");
+            var zipArm = CreateDummyZipArchive(outWin, $"intochat-{version}-win-arm64.zip", "IntoChat.OS.Desktop.exe", "arm64");
+            var shaX64 = ComputeSha256Hex(zipX64);
+            var shaArm = ComputeSha256Hex(zipArm);
 
-                var renderWin = RunProcess(
-                    ResolvePwsh(),
-                    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", EngPath("release", "package-release.ps1"), "-OutputDir", outWin, "-UpdateManifests"],
-                    new Dictionary<string, string?>());
-                Assert.True(renderWin.ExitCode == 0, $"UpdateManifests failed: {renderWin.StderrOrStdout()}");
-
-                var wingetOut = File.ReadAllText(Path.Combine(outWin, "winget", "IntoChat.OS.yaml"));
-                Assert.Contains($"PackageVersion: {version}", wingetOut, StringComparison.Ordinal);
-                Assert.Contains($"https://releases.intochat.io/stable/{version}/intochat-{version}-win-x64.zip", wingetOut, StringComparison.Ordinal);
-                Assert.Contains($"InstallerSha256: {shaX64}", wingetOut, StringComparison.Ordinal);
-                Assert.Contains($"InstallerSha256: {shaArm}", wingetOut, StringComparison.Ordinal);
-                Assert.DoesNotContain("PENDING_RELEASE_", wingetOut, StringComparison.Ordinal);
-                Assert.DoesNotContain(ZeroSha256, wingetOut, StringComparison.Ordinal);
-            }
-
-            if (TryResolvePosixShell(out var viaWsl))
+            var renderWinOut = new StringWriter();
+            var renderWinErr = new StringWriter();
+            var renderWinExit = await IntoChat.OS.LocalSetup.ReleasePackager.RunAsync(new IntoChat.OS.LocalSetup.ReleasePackageOptions
             {
-                var pkgShPosix = ToPosixPath(EngPath("release", "package-release.sh"), viaWsl);
-                string[] dryArgs = viaWsl
-                    ? ["-e", "sh", pkgShPosix, "--dry-run"]
-                    : [pkgShPosix, "--dry-run"];
-                var exe = viaWsl ? "wsl.exe" : "sh";
-                var drySh = RunProcess(exe, dryArgs, new Dictionary<string, string?>());
-                Assert.True(drySh.ExitCode == 0, $"package-release.sh --dry-run failed: {drySh.StderrOrStdout()}");
-                Assert.Contains("intochat.io", drySh.StdOut, StringComparison.Ordinal);
-                Assert.DoesNotContain("intochat.ai", drySh.StdOut, StringComparison.OrdinalIgnoreCase);
+                RepoRoot = repoRoot,
+                OutputDir = outWin,
+                UpdateManifests = true,
+            }, renderWinOut, renderWinErr, TestContext.Current.CancellationToken);
+            Assert.True(renderWinExit == 0, $"UpdateManifests failed: {renderWinOut}\n{renderWinErr}");
 
-                var outOsx = Path.Combine(temp.FullName, "rel-osx");
-                Directory.CreateDirectory(outOsx);
-                var tarArm = CreateDummyTarGzArchive(outOsx, $"intochat-{version}-osx-arm64.tar.gz", "IntoChat.OS.Desktop", "arm64");
-                var tarX64 = CreateDummyTarGzArchive(outOsx, $"intochat-{version}-osx-x64.tar.gz", "IntoChat.OS.Desktop", "x64");
-                var shaOsxArm = ComputeSha256Hex(tarArm);
-                var shaOsxX64 = ComputeSha256Hex(tarX64);
+            var wingetOut = await File.ReadAllTextAsync(Path.Combine(outWin, "winget", "IntoChat.OS.yaml"), TestContext.Current.CancellationToken);
+            Assert.Contains($"PackageVersion: {version}", wingetOut, StringComparison.Ordinal);
+            Assert.Contains($"https://releases.intochat.io/stable/{version}/intochat-{version}-win-x64.zip", wingetOut, StringComparison.Ordinal);
+            Assert.Contains($"InstallerSha256: {shaX64}", wingetOut, StringComparison.Ordinal);
+            Assert.Contains($"InstallerSha256: {shaArm}", wingetOut, StringComparison.Ordinal);
+            Assert.DoesNotContain("PENDING_RELEASE_", wingetOut, StringComparison.Ordinal);
+            Assert.DoesNotContain(ZeroSha256, wingetOut, StringComparison.Ordinal);
 
-                var outOsxPosix = ToPosixPath(outOsx, viaWsl);
-                string[] renderArgs = viaWsl
-                    ? ["-e", "sh", pkgShPosix, "--output", outOsxPosix, "--update-manifests"]
-                    : [pkgShPosix, "--output", outOsxPosix, "--update-manifests"];
-                var renderSh = RunProcess(exe, renderArgs, new Dictionary<string, string?>());
-                Assert.True(renderSh.ExitCode == 0, $"package-release.sh --update-manifests failed: {renderSh.StderrOrStdout()}");
+            var outOsx = Path.Combine(temp.FullName, "rel-osx");
+            Directory.CreateDirectory(outOsx);
+            var tarArm = CreateDummyTarGzArchive(outOsx, $"intochat-{version}-osx-arm64.tar.gz", "IntoChat.OS.Desktop", "arm64");
+            var tarX64 = CreateDummyTarGzArchive(outOsx, $"intochat-{version}-osx-x64.tar.gz", "IntoChat.OS.Desktop", "x64");
+            var shaOsxArm = ComputeSha256Hex(tarArm);
+            var shaOsxX64 = ComputeSha256Hex(tarX64);
 
-                var brewOut = File.ReadAllText(Path.Combine(outOsx, "homebrew", "intochat.rb"));
-                Assert.Contains($"version \"{version}\"", brewOut, StringComparison.Ordinal);
-                Assert.Contains($"\"{shaOsxArm}\"", brewOut, StringComparison.Ordinal);
-                Assert.Contains($"\"{shaOsxX64}\"", brewOut, StringComparison.Ordinal);
-                Assert.Contains("https://releases.intochat.io/stable/", brewOut, StringComparison.Ordinal);
-                Assert.DoesNotContain("PENDING_RELEASE_", brewOut, StringComparison.Ordinal);
-                Assert.DoesNotContain(ZeroSha256, brewOut, StringComparison.Ordinal);
-            }
+            var renderOsxOut = new StringWriter();
+            var renderOsxErr = new StringWriter();
+            var renderOsxExit = await IntoChat.OS.LocalSetup.ReleasePackager.RunAsync(new IntoChat.OS.LocalSetup.ReleasePackageOptions
+            {
+                RepoRoot = repoRoot,
+                OutputDir = outOsx,
+                UpdateManifests = true,
+            }, renderOsxOut, renderOsxErr, TestContext.Current.CancellationToken);
+            Assert.True(renderOsxExit == 0, $"UpdateManifests (osx) failed: {renderOsxOut}\n{renderOsxErr}");
+
+            var brewOut = await File.ReadAllTextAsync(Path.Combine(outOsx, "homebrew", "intochat.rb"), TestContext.Current.CancellationToken);
+            Assert.Contains($"version \"{version}\"", brewOut, StringComparison.Ordinal);
+            Assert.Contains($"\"{shaOsxArm}\"", brewOut, StringComparison.Ordinal);
+            Assert.Contains($"\"{shaOsxX64}\"", brewOut, StringComparison.Ordinal);
+            Assert.Contains("https://releases.intochat.io/stable/", brewOut, StringComparison.Ordinal);
+            Assert.DoesNotContain("PENDING_RELEASE_", brewOut, StringComparison.Ordinal);
+            Assert.DoesNotContain(ZeroSha256, brewOut, StringComparison.Ordinal);
         }
         finally
         {

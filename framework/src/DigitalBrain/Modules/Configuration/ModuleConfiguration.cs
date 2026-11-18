@@ -77,10 +77,11 @@ public static class ModuleConfiguration
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(section);
         var declared = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-        Collect(JsonSerializer.SerializeToElement(options), section, declared);
+        Collect(DigitalBrain.Invocation.PooledJson.Encode(options, options.GetType()), section, declared);
         if (!omitDefaults) { return declared; }
         var defaults = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-        Collect(JsonSerializer.SerializeToElement(Activator.CreateInstance(options.GetType())!), section, defaults);
+        var defaultObj = Activator.CreateInstance(options.GetType())!;
+        Collect(DigitalBrain.Invocation.PooledJson.Encode(defaultObj, defaultObj.GetType()), section, defaults);
         var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in declared)
         {

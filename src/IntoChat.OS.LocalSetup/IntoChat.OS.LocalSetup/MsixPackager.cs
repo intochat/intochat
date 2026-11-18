@@ -125,7 +125,7 @@ public static class MsixPackager
                 Directory.Delete(osTarget, true);
             }
             var kernelProj = Path.Combine(repoRoot, "src", "IntoChat.OS.Kernel", "IntoChat.OS.Kernel", "IntoChat.OS.Kernel.csproj");
-            RunChecked("dotnet", ["publish", kernelProj, "-c", "Release", "-r", "win-x64", "--self-contained", "true", "-o", osTarget, "--nologo"]);
+            RunChecked("dotnet", ["publish", kernelProj, "-c", "Release", "-r", "win-x64", "/p:IntoChatOSAot=true", "--self-contained", "true", "-o", osTarget, "--nologo"]);
         }
 
         if (!skipShell)

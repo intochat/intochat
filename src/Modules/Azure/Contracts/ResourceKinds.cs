@@ -16,7 +16,6 @@ public static class ResourceKinds
     public const string NetworkSecurityGroup = "network-security-group";
     public const string VirtualNetwork = "virtual-network";
     public const string Subnet = "subnet";
-    public const string SessionPool = "session-pool";
     public const string Registry = "registry";
     public const string Postgres = "postgres";
     public const string PostgresDatabase = "postgres-database";

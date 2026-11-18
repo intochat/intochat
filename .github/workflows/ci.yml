@@ -266,8 +266,8 @@ jobs:
         working-directory: ui
         run: flutter test --no-pub --exclude-tags golden --concurrency=4
 
-  # The release workflow packages the Windows bundle with this script. The dry run checks, on the runner image the
-  # release uses, that the script still parses and that every project it publishes is where it looks.
+  # The release workflow packages the Windows bundle with AppHost package-release. The dry run checks, on the runner image the
+  # release uses, that every project it publishes is where it looks.
   package-dry-run:
     name: package-dry-run
     runs-on: windows-2025
@@ -275,9 +275,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
       - name: Dry-run the Windows release packaging
         shell: pwsh
-        run: ./eng/release/package-release.ps1 -Rid win-x64 -DryRun
+        run: dotnet run intochat-os.cs -- package-dry-run --rid win-x64
 
   ci:
     name: ci

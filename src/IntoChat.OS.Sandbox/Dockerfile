@@ -11,6 +11,7 @@ WORKDIR /src
 COPY nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props Intochat.OS.slnx global.json VERSION .editorconfig ./
 COPY src/IntoChat.OS/ ./src/IntoChat.OS/
 COPY src/IntoChat.OS.UI/ ./src/IntoChat.OS.UI/
+COPY src/Modules/Roslyn/ ./src/Modules/Roslyn/
 COPY src/IntoChat.OS.Sandbox/ ./src/IntoChat.OS.Sandbox/
 COPY framework/src/ ./framework/src/
 

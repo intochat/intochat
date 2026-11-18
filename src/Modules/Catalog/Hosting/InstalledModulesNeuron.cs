@@ -18,8 +18,6 @@ namespace IntoChat.OS.Modules.Apps;
 [DigitalBrain.Neurons.Neuron("apps.installed-modules")]
 internal sealed class InstalledModulesNeuron(IIdentityClient? identity = null) : DigitalBrain.Neurons.Neuron, IInstalledModules
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
     public async Task<InstalledModule[]> List()
     {
         await RequireAdmitted();
@@ -71,7 +69,7 @@ internal sealed class InstalledModulesNeuron(IIdentityClient? identity = null) :
         return [.. rows.OrderBy(row => row.Id, StringComparer.Ordinal).ThenBy(row => row.Name, StringComparer.Ordinal)];
     }
 
-    internal static string Json() => JsonSerializer.Serialize(ListModules(), JsonOptions);
+    internal static string Json() => System.Text.Encoding.UTF8.GetString(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(ListModules(), typeof(InstalledModule[])));
 
     private async Task RequireAdmitted()
     {

@@ -230,25 +230,6 @@ public sealed record SubnetSpec : ResourceSpec
     public override string Kind => ResourceKinds.Subnet;
 }
 
-// A dynamic custom-container session pool: one Hyper-V session per caller running Image, pulled with
-// Identity (which needs AcrPull on the registry). Sessions never see the identity.
-public sealed record SessionPoolSpec : ResourceSpec
-{
-    public string Environment { get; init; } = "";
-    public string Image { get; init; } = "";
-    public double Cpu { get; init; } = 1;
-    public string Memory { get; init; } = "2Gi";
-    public int TargetPort { get; init; } = 8080;
-    public string Identity { get; init; } = "";
-    public string RegistryServer { get; init; } = "";
-    public int MaxSessions { get; init; } = 100;
-    public int ReadySessions { get; init; } = 2;
-    public int MaxAliveSeconds { get; init; } = 86400;
-    public bool Egress { get; init; } = true;
-
-    public override string Kind => ResourceKinds.SessionPool;
-}
-
 // Basic is enough for a test environment. Admin user stays off: pulls use identities (AcrPull) or a token.
 public sealed record RegistrySpec : ResourceSpec
 {

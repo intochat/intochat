@@ -38,7 +38,7 @@ internal static class IdentityEndpoints
         External.ExternalSignIn.Map(routes);
         routes.MapGet("/identity/session", Session);
         routes.MapPost("/identity/session/brain", SelectBrainAsync);
-        routes.MapPost("/identity/logout", (Delegate)LogoutAsync);
+        routes.MapPost("/identity/logout", LogoutAsync);
         routes.MapPost("/identity/brains", CreateBrainAsync);
         routes.MapGet("/identity/brains", BrainsAsync);
         var grants = OsBrainRoutes.Group(routes, "/grants");
@@ -186,10 +186,10 @@ internal static class IdentityEndpoints
         return Results.Ok(new { ok = true });
     }
 
-    private static async Task<IResult> LogoutAsync(HttpContext http)
+    private static async Task<IResult> LogoutAsync(HttpContext http, [FromServices] ISessionIssuer issuer)
     {
         http.Response.Cookies.Delete(PresenceProofValidator.CookieName, new CookieOptions { Path = "/", SameSite = SameSiteMode.Strict });
-        await http.RequestServices.GetRequiredService<ISessionIssuer>().EndAsync(http);
+        await issuer.EndAsync(http);
         return Results.NoContent();
     }
 

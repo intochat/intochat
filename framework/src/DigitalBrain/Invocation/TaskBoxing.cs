@@ -13,7 +13,7 @@ public static class TaskBoxing
     public static async Task<object?> ResultAsync(Task task, Type? resultType)
     {
         if (resultType is null) { await task.ConfigureAwait(true); return null; }
-        if (resultType.IsCollectible)
+        if (resultType.IsCollectible || !System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
         {
             await task.ConfigureAwait(true);
             return task.GetType().GetProperty("Result")!.GetValue(task);

@@ -83,7 +83,8 @@ internal sealed class InoFilesNeuron(ICapabilityBroker? broker = null, IServiceP
         var conversation = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Current?.ConversationId ?? string.Empty;
         // An agent never creates a file unasked: RequiresPerson makes even a new, non-destructive file ask the owner.
         var plan = WritePlan.WriteFile(root.Id, name, System.Text.Encoding.UTF8.GetBytes(content ?? string.Empty), ConflictPolicy.Fail)
-            with { RequiresPerson = true };
+            with
+        { RequiresPerson = true };
 
         await Context.Synapses.EnsureBrainWide(typeof(OperationDone), typeof(TurnCompleted));
         var operation = await operations.Start(plan, CancellationToken.None);

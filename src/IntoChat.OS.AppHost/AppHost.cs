@@ -9,7 +9,13 @@ switch (args)
 {
     case ["reset", .. var flags]: return await LocalReset.RunFromAppHostAsync(builder, flags);
     case ["package-msix", .. var options]: return await MsixPackager.RunAsync(options);
+    case ["package-release", .. var options]: return await ReleasePackager.RunAsync(options);
+    case ["package-dry-run", .. var options]: return await ReleasePackager.RunAsync(["--dry-run", .. options]);
+    case [var pulumiCmd and ("pulumi" or "pulumi-preview" or "pulumi-refresh" or "pulumi-destroy"), .. var options]:
+        return await PulumiDeploymentExtensions.RunPulumiCliAsync(builder, pulumiCmd, options);
 }
+
+builder.AddIntoChatOSPipelines();
 
 // The deployment: IntoChatOS:Topology picks models and storage, module enablement picks hosting (DeploymentProfile).
 var profile = DeploymentProfile.From(builder);

@@ -24,8 +24,18 @@ internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions>
     [McpServerTool(Name = NeuronSurfaceTools.ContextName), Description(NeuronSurfaceTools.ContextDescription)]
     public async Task<JsonObject> Context(CancellationToken cancellationToken)
     {
-        var context = JsonSerializer.SerializeToNode(Stamp(NeuronSurfaceTools.ContextName), JsonSerializerOptions.Web)!.AsObject();
-        context["brains"] = JsonSerializer.SerializeToNode(await kernel.Brains(cancellationToken), JsonSerializerOptions.Web);
+        var caller = Stamp(NeuronSurfaceTools.ContextName);
+        var context = new JsonObject
+        {
+            ["principalId"] = caller.PrincipalId,
+            ["accountId"] = caller.AccountId,
+            ["brainId"] = caller.BrainId,
+            ["appId"] = caller.AppId,
+            ["conversationId"] = caller.ConversationId,
+            ["kind"] = caller.Kind.ToString(),
+            ["stampedBy"] = caller.StampedBy.ToString(),
+            ["brains"] = JsonSerializer.SerializeToNode(await kernel.Brains(cancellationToken), KernelMcpJsonContext.Default.IReadOnlyListString),
+        };
         return context;
     }
 

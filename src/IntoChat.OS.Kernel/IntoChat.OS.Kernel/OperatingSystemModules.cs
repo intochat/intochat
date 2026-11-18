@@ -14,6 +14,32 @@ public static class OperatingSystemModules
 
     private static readonly string[] KernelBuiltInAssemblies = ["IntoChat.OS.Framework", "IntoChat.OS.Kernel"];
 
+    private static readonly Assembly[] BuiltInModuleAssemblies =
+    [
+        typeof(IntoChat.OS.Authority.IdentityModule).Assembly,
+        typeof(OperatingSystemModules).Assembly,
+        typeof(IntoChat.OS.Modules.AI.AIModule).Assembly,
+        typeof(IntoChat.OS.Modules.ArtCraft.ArtCraftModule).Assembly,
+        typeof(IntoChat.OS.Modules.Microsoft.Azure.AzureModule).Assembly,
+        typeof(IntoChat.OS.Modules.Apps.AppsModule).Assembly,
+        typeof(IntoChat.OS.Modules.Circles.CirclesModule).Assembly,
+        typeof(IntoChat.OS.Modules.ClickHouse.ClickHouseModule).Assembly,
+        typeof(IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule).Assembly,
+        typeof(IntoChat.OS.Modules.Google.Auth.GoogleAuthModule).Assembly,
+        typeof(IntoChat.OS.Modules.Mcp.McpModule).Assembly,
+        typeof(IntoChat.OS.Modules.Notifications.NotificationsModule).Assembly,
+        typeof(IntoChat.OS.Modules.Microsoft.Playwright.PlaywrightModule).Assembly,
+        typeof(IntoChat.OS.Modules.Postgres.PostgresModule).Assembly,
+#if !INTOCHAT_OS_AOT
+        typeof(IntoChat.OS.Modules.Microsoft.Roslyn.RoslynModule).Assembly,
+#endif
+        typeof(IntoChat.OS.Modules.Salesforce.SalesforceModule).Assembly,
+        typeof(IntoChat.OS.Modules.Flutter.FlutterModule).Assembly,
+        typeof(IntoChat.OS.Modules.LocalDisk.LocalDiskModule).Assembly,
+        typeof(IntoChat.OS.Modules.Time.TimeModule).Assembly,
+        typeof(IntoChat.OS.Modules.Microsoft.Windows.WindowsModule).Assembly,
+    ];
+
     public static IReadOnlyList<OsModule> Modules { get; } = Discover(typeof(OperatingSystemModules).Assembly);
 
     // The composition a test process can host by itself: every module that needs no container and loads under local.
@@ -95,6 +121,10 @@ public static class OperatingSystemModules
         {
             Track(rootAssembly);
         }
+        foreach (var builtIn in BuiltInModuleAssemblies)
+        {
+            Track(builtIn);
+        }
 
         if (DependencyContext.Load(self) is { } selfContext)
         {
@@ -105,9 +135,20 @@ public static class OperatingSystemModules
             foreach (var library in rootContext.RuntimeLibraries) { Consider(new AssemblyName(library.Name)); }
         }
 
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (!assembly.IsDynamic)
+            {
+                Track(assembly);
+            }
+        }
+
         while (queue.TryDequeue(out var assembly))
         {
-            foreach (var reference in assembly.GetReferencedAssemblies()) { Consider(reference); }
+            AssemblyName[] references;
+            try { references = assembly.GetReferencedAssemblies(); }
+            catch (PlatformNotSupportedException) { continue; }
+            foreach (var reference in references) { Consider(reference); }
         }
         return found;
     }

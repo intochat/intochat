@@ -107,7 +107,7 @@ public sealed class NeuronBinder
         await foreach (var item in items.ConfigureAwait(true))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            yield return JsonSerializer.SerializeToElement(item, call.ResultType!, RuntimeProtocol.OptionsFor(item?.GetType() ?? call.ResultType!));
+            yield return PooledJson.Encode(item, item?.GetType() ?? call.ResultType!);
         }
     }
 
@@ -124,7 +124,7 @@ public sealed class NeuronBinder
         {
             var type = call.Parameters[index];
             if (type == typeof(CancellationToken)) { values[index] = cancellationToken; continue; }
-            try { values[index] = arguments[argument++].Deserialize(type, RuntimeProtocol.OptionsFor(type)); }
+            try { values[index] = RuntimeProtocol.Deserialize(arguments[argument++], type); }
             catch (Exception error) when (error is JsonException or NotSupportedException or InvalidOperationException)
             {
                 throw new BindingException($"{call.Contract.Name}.{call.Method.Name}: argument {argument - 1} is not a {type.Name}.", error);
@@ -148,7 +148,7 @@ public sealed class NeuronBinder
         foreach (var type in candidate.Parameters)
         {
             if (type == typeof(CancellationToken)) { continue; }
-            try { _ = arguments[argument++].Deserialize(type, RuntimeProtocol.OptionsFor(type)); }
+            try { _ = RuntimeProtocol.Deserialize(arguments[argument++], type); }
             catch (Exception error) when (error is JsonException or NotSupportedException or InvalidOperationException) { return false; }
         }
         return true;

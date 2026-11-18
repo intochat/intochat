@@ -44,9 +44,6 @@ public sealed class IntoChatClient : ISandboxBrain
     internal const string DefaultSlotKey = "slot.default";
     internal static readonly JsonSerializerOptions JsonOptions = JsonSerializerOptions.Web;
 
-    private static readonly MethodInfo NeuronProxyCreateGeneric = typeof(NeuronProxy)
-        .GetMethod(nameof(NeuronProxy.Create), BindingFlags.Public | BindingFlags.Static)!;
-
     private readonly Uri _kernelBaseUri;
     private readonly string _appToken;
     private readonly HttpClient _httpClient;
@@ -111,7 +108,7 @@ public sealed class IntoChatClient : ISandboxBrain
         var neuronType = ResolveNeuronType(contractType);
         var slotKey = string.IsNullOrWhiteSpace(slot) ? DefaultSlotKey : slot.Trim();
         var targetId = new NeuronId(_neuronBrainId, neuronType, slotKey);
-        return NeuronProxyCreateGeneric.MakeGenericMethod(contractType).Invoke(null, [targetId, _sink])!;
+        return NeuronProxy.Create(contractType, targetId, _sink);
     }
 
     public async Task PublishAsync<TSignal>(TSignal signal, CancellationToken cancellationToken = default)

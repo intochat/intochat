@@ -82,6 +82,17 @@ if (enrollKeyBytes is not null)
     });
 }
 
+apps.MapPost("/compile", (CompileAppRequest request, AppSandboxHost host) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Key) || request.SourceFiles is null || request.SourceFiles.Count == 0)
+    {
+        return Results.BadRequest(new { error = "Key and SourceFiles are required." });
+    }
+
+    var response = host.Compile(request);
+    return Results.Ok(response);
+});
+
 apps.MapPost("/deploy", async (DeployAppRequest request, AppSandboxHost host, CancellationToken cancellationToken) =>
 {
     if (string.IsNullOrWhiteSpace(request.BrainId)

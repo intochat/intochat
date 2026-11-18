@@ -43,7 +43,7 @@ public static class AccountSession
 
         app.Use(async (context, next) =>
         {
-            if (IsAnonymous(context.Request, openRegistration) ||context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is not null)
+            if (IsAnonymous(context.Request, openRegistration) || context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is not null)
             {
                 await next(context).ConfigureAwait(false);
                 return;

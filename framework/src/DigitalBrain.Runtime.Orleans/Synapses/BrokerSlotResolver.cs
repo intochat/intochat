@@ -33,7 +33,9 @@ internal sealed class BrokerSlotResolver(IServiceProvider services) : ISlotResol
         var (connection, problem) = await Find(services, state, slot, key, ct).ConfigureAwait(true);
         if (problem is not null) { throw new SlotUnboundException(state.Type, slot.Name); }
         var bind = BindClosed.GetOrAdd(slot.Contract, contract => BindOpen.MakeGenericMethod(contract));
-        return await ((Task<object>)bind.Invoke(this, [state, connection!, ct])!).ConfigureAwait(true);
+        var task = (Task)bind.Invoke(this, [state, connection!, ct])!;
+        return await DigitalBrain.Invocation.TaskBoxing.ResultAsync(task, slot.Contract).ConfigureAwait(true)
+            ?? throw new SlotUnboundException(state.Type, slot.Name);
     }
 
     /// <summary>The connection <paramref name="key"/> of the brain when it is connected and provides the slot's capability, or why not.</summary>
@@ -48,7 +50,7 @@ internal sealed class BrokerSlotResolver(IServiceProvider services) : ISlotResol
             : (null, $"slot '{slot.Name}': connection '{key}' does not provide {slot.Capability}");
     }
 
-    private async Task<object> Bind<TCapability>(NeuronId state, BrainConnection connection, CancellationToken ct) where TCapability : class
+    private async Task<TCapability> Bind<TCapability>(NeuronId state, BrainConnection connection, CancellationToken ct) where TCapability : class
     {
         var implementation = await services.GetRequiredService<ICapabilityConnections>().Bind<TCapability>(state.Brain, connection.Key, state.Type, ct).ConfigureAwait(true);
         foreach (var interceptor in services.GetServices<ICapabilityBindingInterceptor>()) { implementation = interceptor.Wrap(state.Brain, connection, state.Type, implementation); }

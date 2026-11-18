@@ -238,7 +238,8 @@ public sealed class NeuronOperations(IServiceProvider services, BrainId brain, s
             hash = "sha256:" + Convert.ToHexStringLower(SHA256.HashData(payload.Span));
         }
 
-        var json = JsonSerializer.Serialize(plan.Persisted(), plan.GetType(), RuntimeProtocol.Json);
+        var persisted = plan.Persisted();
+        var json = System.Text.Encoding.UTF8.GetString(RuntimeProtocol.SerializeToUtf8Bytes(persisted, persisted.GetType()));
         var driverLifetime = (services.GetService(typeof(IOperationDriverLifetime)) as IOperationDriverLifetime)?.Capture();
         var driver = CaptureDriver(services);
         var traceId = CaptureTraceId(services);

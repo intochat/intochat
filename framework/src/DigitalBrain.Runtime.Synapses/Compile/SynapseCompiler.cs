@@ -1,6 +1,7 @@
 using DigitalBrain.Units;
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Analyzers.Screens;
@@ -15,6 +16,7 @@ namespace DigitalBrain.Runtime.Synapses;
 /// <summary>Compiles synapse source with every shipped DigitalBrain analyzer plus DB0041-DB0045; caches successful builds by hash.</summary>
 public sealed class SynapseCompiler
 {
+#if !INTOCHAT_OS_AOT
     private const int Capacity = 256;
     private const string GlobalUsingsPath = "GlobalUsings.cs";
 
@@ -31,12 +33,20 @@ public sealed class SynapseCompiler
 
     private static readonly CSharpParseOptions ParseOptions = new(LanguageVersion.Preview);
 
-    private static readonly ImmutableArray<DiagnosticAnalyzer> Analyzers = ImmutableArray.Create<DiagnosticAnalyzer>([.. AnalyzerSet.All, .. AnalyzerSet.Synapses]);
+    private static ImmutableArray<DiagnosticAnalyzer> GetDefaultAnalyzers()
+        => RuntimeFeature.IsDynamicCodeSupported
+            ? ImmutableArray.Create<DiagnosticAnalyzer>([.. AnalyzerSet.All, .. AnalyzerSet.Synapses])
+            : ImmutableArray<DiagnosticAnalyzer>.Empty;
+#endif
 
     private readonly ReferenceSet references;
+#if !INTOCHAT_OS_AOT
     private readonly ImmutableArray<DiagnosticAnalyzer> analyzers;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SynapseBuild> cache = new(StringComparer.Ordinal);
+#endif
+#pragma warning disable CS0649
     private int emits;
+#pragma warning restore CS0649
 
     /// <summary>Creates a compiler over the given references.</summary>
     /// <param name="references">The references the source compiles against.</param>
@@ -50,7 +60,14 @@ public sealed class SynapseCompiler
     {
         ArgumentNullException.ThrowIfNull(references);
         this.references = references;
-        analyzers = [.. Analyzers.Where(analyzer => !withoutBannedApis || analyzer is not BannedApiAnalyzer), .. extraAnalyzers];
+#if !INTOCHAT_OS_AOT
+        analyzers = RuntimeFeature.IsDynamicCodeSupported
+            ? [.. GetDefaultAnalyzers().Where(analyzer => !withoutBannedApis || analyzer is not BannedApiAnalyzer), .. extraAnalyzers]
+            : ImmutableArray<DiagnosticAnalyzer>.Empty;
+#else
+        _ = extraAnalyzers;
+        _ = withoutBannedApis;
+#endif
     }
 
     /// <summary>How many builds this compiler has emitted (cache hits do not count).</summary>
@@ -65,6 +82,26 @@ public sealed class SynapseCompiler
         var files = source.Files.OrderBy(file => file.Key, StringComparer.Ordinal).ToList();
         var hash = Hash(source.SourceKey, files);
         var assemblyName = $"synapse.{source.SourceKey}.{hash[..8]}";
+
+#if INTOCHAT_OS_AOT
+        return new SynapseBuild(
+            false,
+            [new SynapseDiagnostic("", "DB0049", 0, "Runtime C# compilation is not supported in Native AOT Kernel; compile in the DevKit/Sandbox client")],
+            [],
+            [],
+            hash,
+            assemblyName);
+#else
+        if (!RuntimeFeature.IsDynamicCodeSupported)
+        {
+            return new SynapseBuild(
+                false,
+                [new SynapseDiagnostic("", "DB0049", 0, "Runtime C# compilation is not supported in Native AOT Kernel; compile in the DevKit/Sandbox client")],
+                [],
+                [],
+                hash,
+                assemblyName);
+        }
 
         if (cache.TryGetValue(hash, out var hit))
         {
@@ -128,6 +165,7 @@ public sealed class SynapseCompiler
         }
 
         return cache.GetOrAdd(hash, build);
+#endif
     }
 
     /// <summary>The largest non-code file (in characters) a synapse source may carry beside its .cs files.</summary>
@@ -136,7 +174,9 @@ public sealed class SynapseCompiler
     /// <summary>The largest compiled PE assembly (in bytes, <c>1 MiB</c>) a synapse build may emit.</summary>
     public const int MaxAssemblyBytes = 1024 * 1024;
 
+#if !INTOCHAT_OS_AOT
     private static bool IsCode(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
+#endif
 
     /// <summary>
     /// Checks a build against the host boundary without loading it: every type and member it references must be on the allow-list.
@@ -164,6 +204,7 @@ public sealed class SynapseCompiler
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())));
     }
 
+#if !INTOCHAT_OS_AOT
     // AD0001 is a crashed analyzer: the source was not vetted, so it is refused like an error.
     private static bool IsError(Diagnostic diagnostic) => diagnostic.Severity == DiagnosticSeverity.Error || diagnostic.Id == "AD0001";
 
@@ -181,4 +222,5 @@ public sealed class SynapseCompiler
             return new SynapseDiagnostic(span.Path, diagnostic.Id, span.StartLinePosition.Line + 1, message);
         }),
     ];
+#endif
 }

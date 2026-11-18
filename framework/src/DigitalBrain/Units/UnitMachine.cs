@@ -52,7 +52,7 @@ internal sealed class UnitMachine<TState>(string alias, string neuron) where TSt
         }
 
         var type = result.GetType();
-        var wire = JsonSerializer.SerializeToElement(result, type, RuntimeProtocol.OptionsFor(type));
+        var wire = PooledJson.Encode(result, type);
         if (ViewNodes.DeclaresBy(wire))
         {
             return (step, ViewOutcome.DeclaresBy);

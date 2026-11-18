@@ -92,7 +92,16 @@ public sealed class KernelInvocationSink(
 
     // Only assemblies that can declare a contract (they reference DigitalBrain) are scanned for aliases.
     private static bool References(Assembly assembly)
-        => assembly.GetReferencedAssemblies().Any(reference => reference.Name == typeof(DigitalBrain.Contracts.NeuronAliasAttribute).Assembly.GetName().Name);
+    {
+        try
+        {
+            return assembly.GetReferencedAssemblies().Any(reference => reference.Name == typeof(DigitalBrain.Contracts.NeuronAliasAttribute).Assembly.GetName().Name);
+        }
+        catch (PlatformNotSupportedException)
+        {
+            return true;
+        }
+    }
 
     private static IEnumerable<Type> Loadable(Assembly assembly)
     {

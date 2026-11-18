@@ -18,6 +18,7 @@ public static class NeuronProxyHosting
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<INeuronProxies, OrleansNeuronProxies>();
+        OrleansRuntimeAot.Register(services);
         return services;
     }
 }
