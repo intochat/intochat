@@ -50,22 +50,31 @@ internal static class AppUiEndpoints
             => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault(), HttpCaller.Current(http)));
         apps.MapPost("/event", (HttpContext http, UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
             => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct, HttpCaller.Current(http), logger: logger));
-        OsBrainRoutes.Group(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, CancellationToken ct)
-            => Act(input, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http)));
+        OsBrainRoutes.Group(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
+            => Act(input, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger));
 
     }
 
     // POST /act: one command to a neuron address. The request names a top-level screen ({scope}/apps/{name}) and a target relative
-    // to it; the parent owns its children, so a child is reached only through the parent's Dispatch, which refuses a key its current
-    // view does not show. A raw child id is not a screen name and is refused here.
-    internal static async Task<IResult> Act(ActRequest input, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller)
+    // to it ("." , "key" or a key path "a/b"); the parent owns its children, so a child is reached only through the parent's
+    // Dispatch, each hop refusing a key its current view does not show. A raw child id is not a screen name and is refused here.
+    // Responses: 200 delivered; 400 a missing or malformed field; 409 {reason} a refusal (UnknownChild, NotLoaded);
+    // 422 {error} the handler failed (Dispatch awaits it, so a child's failure reaches the client).
+    internal static async Task<IResult> Act(ActRequest input, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
+        IHostedAppTypes? hosted = null, ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(input);
         if (caller?.For?.Principal is not { Length: > 0 }) { throw new UnauthorizedAccessException("Only a signed-in person acts on a screen."); }
-        ArgumentException.ThrowIfNullOrWhiteSpace(input.Neuron);
-        ArgumentException.ThrowIfNullOrWhiteSpace(input.Target);
-        ArgumentException.ThrowIfNullOrWhiteSpace(input.Signal);
+        if (string.IsNullOrWhiteSpace(input.Neuron) || string.IsNullOrWhiteSpace(input.Target) || string.IsNullOrWhiteSpace(input.Signal))
+        {
+            return Results.BadRequest(new { error = "An act names its neuron, target and signal." });
+        }
         var alias = ScreenAlias(scope, input.Neuron) ?? throw new UnauthorizedAccessException($"{input.Neuron} is not a screen of this brain.");
+        var appKey = AppOf(scope, input.Neuron.EndsWith("/view", StringComparison.Ordinal) ? input.Neuron[..^5] : input.Neuron);
+        if (appKey is not null && !(hosted?.IsHostLoaded(appKey) ?? true))
+        {
+            return Results.Conflict(new { error = $"{input.Neuron} is not loaded.", reason = "NotLoaded" });
+        }
         var screen = brain.Get<IScreen>(new NeuronId(new BrainId(scope), alias, "default"));
         try
         {
@@ -75,11 +84,20 @@ internal static class AppUiEndpoints
         {
             return Results.Conflict(new { error = $"{input.Target} of {input.Neuron} refused the command.", reason = refused.Reason });
         }
+        catch (ArgumentException error)
+        {
+            return Results.BadRequest(new { error = error.Message });
+        }
+        catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
+        {
+            (logger ?? ConsoleLog).LogWarning(error, "Act {Signal} on {Target} of {Neuron} failed.", input.Signal, input.Target, input.Neuron);
+            return Results.UnprocessableEntity(new { error = error.Message, reason = "HandlerFailed" });
+        }
         return Results.Ok(new { delivered = true });
     }
 
     // Dart mirror: NodeContext.act in ui/lib/src/nodes/node_context.dart.
-    internal sealed record ActRequest(string Neuron, string Target, string Signal, JsonElement? Args = null);
+    internal sealed record ActRequest(string? Neuron, string? Target, string? Signal, JsonElement? Args = null);
 
     // GET /apps/node: one app UI node of the caller's brain, by kind.
     internal static async Task<IResult> ReadNode(string kind, string name, INeuronProxies brain, string scope, CancellationToken ct, ILogger? logger = null, IHostedAppTypes? hosted = null, DigitalBrain.Access.Caller? caller = null)

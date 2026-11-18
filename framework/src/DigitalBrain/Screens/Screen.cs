@@ -56,7 +56,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         return new NeuronRef("slot", child.ToString());
     }
 
-    /// <summary>Sends <paramref name="command"/> to its target: "." is this screen, any other target a child key (optionally "./key") of the current view.</summary>
+    /// <summary>Sends <paramref name="command"/> to its target: "." is this screen, any other target a child key (optionally "./key") of the current view, or a key path "a/b" resolved hop by hop by each child's own gate.</summary>
     /// <exception cref="ArgumentException">The target key is empty, "..", or contains '/' after the optional "./" (returned as a faulted task).</exception>
     /// <exception cref="ActivationRefusedException">The current view names no slot with that key (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
     protected Task Send(Command command)
@@ -67,10 +67,15 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
             ArgumentException.ThrowIfNullOrWhiteSpace(command.Target);
             ArgumentException.ThrowIfNullOrWhiteSpace(command.Signal);
             if (command.Target == ".") { return Handle(command.Signal, ViewNodes.Payload(command.Args, fieldValue: null, by: null)); }
-            var key = command.Target.StartsWith("./", StringComparison.Ordinal) ? command.Target[2..] : command.Target;
+            var path = command.Target.StartsWith("./", StringComparison.Ordinal) ? command.Target[2..] : command.Target;
+            var slash = path.IndexOf('/', StringComparison.Ordinal);
+            var key = slash < 0 ? path : path[..slash];
+            var rest = slash < 0 ? "." : path[(slash + 1)..];
             ScreenExtensions.CheckChildKey(key);
             if (!_children.TryGetValue(key, out var child)) { throw new ActivationRefusedException(ActivationRefusedException.UnknownChild); }
-            return Get<IScreen>(child).Request(command.Signal, command.Args);
+            if (rest != "." && rest.Split('/').Any(hop => hop is "" or "." or "..")) { throw new ArgumentException($"Target path '{command.Target}' has an empty, '.' or '..' hop.", nameof(command)); }
+            // Each hop is the next parent's Dispatch, which applies its own gate; awaited, so the child's failure reaches the caller.
+            return Get<IScreen>(child).Dispatch(command with { Target = rest });
         }
         catch (Exception error) when (error is ArgumentException or ActivationRefusedException)
         {

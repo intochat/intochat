@@ -16,6 +16,15 @@ public sealed record SlotParentState
 [Signal("slot.ping")]
 public sealed record Ping : Signal;
 
+[Signal("slot.boom")]
+public sealed record Boom : Signal;
+
+[Neuron("app.slot-grandparent")]
+public sealed class SlotGrandparentScreen : Screen<SampleCounterState>
+{
+    protected override View Render(SampleCounterState state) => new("Grandparent", new Column([Slot<SlotParentScreen>("mid")]));
+}
+
 [Neuron("app.slot-child")]
 public sealed class SlotChildScreen : Screen<SampleCounterState>
 {
@@ -23,6 +32,9 @@ public sealed class SlotChildScreen : Screen<SampleCounterState>
 
     [On]
     public Task When(Ping signal) => Show(State with { Count = State.Count + 1 });
+
+    [On]
+    public Task When(Boom signal) => throw new InvalidOperationException($"{Alias} could not toggle");
 
     public SampleCounterState Current => State;
 }
@@ -115,6 +127,48 @@ public sealed class ScreenSlotFacts
     }
 
     [Fact]
+    public async Task Dispatch_with_a_key_path_reaches_the_grandchild_hop_by_hop()
+    {
+        var grandId = new NeuronId(new BrainId("alice"), "app.slot-grandparent", "main");
+        var midId = new NeuronId(new BrainId("alice"), "app.slot-parent", ScreenExtensions.ChildAddress(grandId, "mid"));
+        var leafId = new NeuronId(new BrainId("alice"), "app.slot-child", ScreenExtensions.ChildAddress(midId, "editor"));
+        var grand = new SlotGrandparentScreen();
+        var grandContext = new RecordingContext(grandId);
+        NeuronAttachment.Attach(grand, grandContext);
+        await NeuronAttachment.Activate(grand, CancellationToken.None);
+        var mid = new SlotParentScreen();
+        var midContext = new RecordingContext(midId);
+        NeuronAttachment.Attach(mid, midContext);
+        await NeuronAttachment.Activate(mid, CancellationToken.None);
+        grandContext.Neurons[midId] = mid;
+        var leaf = new SlotChildScreen();
+        NeuronAttachment.Attach(leaf, new RecordingContext(leafId));
+        await NeuronAttachment.Activate(leaf, CancellationToken.None);
+        midContext.Neurons[leafId] = leaf;
+
+        await grand.Dispatch(new Command("mid/editor", "slot.ping"));
+        Assert.Equal(1, leaf.Current.Count);
+
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => grand.Dispatch(new Command("ghost/editor", "slot.ping")));
+        Assert.Equal(ActivationRefusedException.UnknownChild, refused.Reason);
+        refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => grand.Dispatch(new Command("mid/ghost", "slot.ping")));
+        Assert.Equal(ActivationRefusedException.UnknownChild, refused.Reason);
+        Assert.Equal([midId, midId], grandContext.Gets);
+        Assert.Equal([leafId], midContext.Gets);
+    }
+
+    [Fact]
+    public async Task Dispatch_awaits_the_child_so_its_failure_reaches_the_caller()
+    {
+        var (parent, context) = await Attached();
+        _ = await Child(context);
+
+        var failed = await Assert.ThrowsAsync<InvalidOperationException>(() => parent.Dispatch(new Command("editor", "slot.boom")));
+
+        Assert.Contains("could not toggle", failed.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Send_to_unknown_child_is_refused_and_creates_nothing()
     {
         var (parent, context) = await Attached();
@@ -158,8 +212,8 @@ public sealed class ScreenSlotFacts
     }
 
     [Theory]
-    [InlineData("a/b")]
-    [InlineData("./a/b")]
+    [InlineData("editor//b")]
+    [InlineData("./editor/../b")]
     [InlineData("..")]
     [InlineData("./.")]
     [InlineData("./")]

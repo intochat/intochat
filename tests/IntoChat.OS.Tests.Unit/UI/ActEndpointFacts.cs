@@ -4,6 +4,7 @@ using DigitalBrain.Access;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
+using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.Flutter;
 using Microsoft.AspNetCore.Http;
 using Xunit;
@@ -31,6 +32,7 @@ public sealed class ActEndpointFacts
         public Task Request(string signal, JsonElement? args = null) => Task.CompletedTask;
         public Task Dispatch(Command command)
         {
+            if (command.Target == "dark-mode" && command.Signal == "toggle.boom") { return Task.FromException(new InvalidOperationException("dark-mode could not toggle")); }
             if (command.Target != "." && !Shown.Contains(command.Target)) { return Task.FromException(new ActivationRefusedException(ActivationRefusedException.UnknownChild)); }
             Dispatched.Add(command);
             return Task.CompletedTask;
@@ -98,5 +100,49 @@ public sealed class ActEndpointFacts
         var brain = new Brain(new ParentScreen());
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Act(new("owner/apps/settings", ".", "toggle.set"), brain, Scope, Ct, caller: null));
+    }
+
+    private sealed class Unloaded : IHostedAppTypes
+    {
+        public bool IsHostLoaded(string appKey) => false;
+    }
+
+    [Fact]
+    public async Task Act_whose_handler_fails_is_422_with_the_error()
+    {
+        using var _ = AsPerson();
+        var brain = new Brain(new ParentScreen());
+
+        var result = await AppUiEndpoints.Act(new("owner/apps/settings", "dark-mode", "toggle.boom"), brain, Scope, Ct, Alice);
+
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Contains("could not toggle", JsonSerializer.Serialize(Assert.IsAssignableFrom<IValueHttpResult>(result).Value), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(null, "toggle.set")]
+    [InlineData("dark-mode", "")]
+    [InlineData(" ", null)]
+    public async Task Act_without_target_or_signal_is_400(string? target, string? signal)
+    {
+        using var _ = AsPerson();
+        var brain = new Brain(new ParentScreen());
+
+        var result = await AppUiEndpoints.Act(new("owner/apps/settings", target, signal), brain, Scope, Ct, Alice);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Empty(brain.Gets);
+    }
+
+    [Fact]
+    public async Task Act_on_an_app_whose_host_is_not_loaded_is_409_and_reaches_nothing()
+    {
+        using var _ = AsPerson();
+        var brain = new Brain(new ParentScreen());
+
+        var result = await AppUiEndpoints.Act(new("owner/apps/settings", ".", "toggle.set"), brain, Scope, Ct, Alice, new Unloaded());
+
+        Assert.Equal(StatusCodes.Status409Conflict, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Empty(brain.Gets);
     }
 }

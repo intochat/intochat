@@ -73,6 +73,8 @@ class NodeContext {
     this.depth = 0,
     this.slotDepth = 0,
     this.slotAncestors = const {},
+    this.actNeuron,
+    this.slotPath = '',
     this.buttonHints = const {},
     this.nodeKeys = const {},
     this.transcribe,
@@ -115,6 +117,15 @@ class NodeContext {
   /// Ancestor `neuronUri` / resolved view names along the active `Slot` chain for cycle detection.
   final Set<String> slotAncestors;
 
+  /// The top-level neuron an [act] names; null for a view that is its own
+  /// top level (derived from [view]). A slot's context carries its root's.
+  final String? actNeuron;
+
+  /// The key path from [actNeuron] to this view (`""` at the top level,
+  /// `a/b` in a slot nested in slot `a`). The parent owns its children, so
+  /// every act goes to the root and the path routes it hop by hop.
+  final String slotPath;
+
   /// Optional per-button tooltip / `.Guard(rule)` disabled reasons extracted from view metadata.
   final Map<String, String> buttonHints;
 
@@ -143,6 +154,8 @@ class NodeContext {
     depth: depth + 1,
     slotDepth: slotDepth,
     slotAncestors: slotAncestors,
+    actNeuron: actNeuron,
+    slotPath: slotPath,
     buttonHints: buttonHints,
     nodeKeys: nodeKeys,
     transcribe: transcribe,
@@ -217,33 +230,49 @@ class NodeContext {
     return ActivationOutcome.accepted;
   }
 
-  /// The top-level neuron this view belongs to: the view name without `/view`.
+  /// The top-level neuron this view belongs to: [actNeuron], or the view
+  /// name without `/view`.
   String get neuron =>
-      view.endsWith('/view') ? view.substring(0, view.length - 5) : view;
+      actNeuron ??
+      (view.endsWith('/view') ? view.substring(0, view.length - 5) : view);
 
-  /// Acts on a neuron [address] relative to this view's neuron (`.` is the
-  /// neuron itself, `key` or `./key` a slot it shows):
+  /// The act target for [address] relative to this view (`.` itself, `key`
+  /// or `./key` a slot it shows), as a key path from [neuron].
+  String actTarget(String address) {
+    if (slotPath.isEmpty) return address;
+    if (const {'.', './'}.contains(address)) return slotPath;
+    final key = address.startsWith('./') ? address.substring(2) : address;
+    return '$slotPath/$key';
+  }
+
+  /// Acts on a neuron [address] relative to this view:
   /// `{kind:"act", neuron, target, signal, args}`, posted to
-  /// `POST /brains/{brain}/act`. The parent routes the command, so a refused
-  /// child (`409`, `UnknownChild`) reads the view again.
-  Future<void> act(
+  /// `POST /brains/{brain}/act`. A refusal (`409` with its reason) or a
+  /// handler failure (`422`) is shown by the host, which reads the view
+  /// again; the outcome reports it to the caller.
+  Future<ActivationOutcome> act(
     String address,
     String signal,
     Map<String, Object?> args, {
     BuildContext? context,
   }) async {
-    if (!interactive) return;
+    if (!interactive) return ActivationOutcome.refused;
     try {
       await _send({
         'kind': 'act',
         'neuron': neuron,
-        'target': address,
+        'target': actTarget(address),
         'signal': signal,
         'args': args,
       });
-    } catch (_) {
-      // The host has shown the refusal and reads the view again.
+    } on UiRequestException catch (error) {
+      return isStaleConflictError(error.statusCode, error.status ?? '')
+          ? ActivationOutcome.stale
+          : ActivationOutcome.refused;
+    } on StateError {
+      return ActivationOutcome.refused;
     }
+    return ActivationOutcome.accepted;
   }
 
   /// Resolves a confirmation plan: `{kind:"confirmation", name, planId, approve}`

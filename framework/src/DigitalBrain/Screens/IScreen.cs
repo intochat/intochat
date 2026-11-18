@@ -65,8 +65,9 @@ public interface IScreen
     Task Request(string signal, JsonElement? args = null);
 
     /// <summary>
-    /// Routes <paramref name="command"/> through this screen: "." is the screen itself, any other target a child key its current
-    /// view shows. The parent owns its children, so a client acts on a child only through this call.
+    /// Routes <paramref name="command"/> through this screen and awaits its handling: "." is the screen itself, any other target a
+    /// child key its current view shows, or a key path "a/b" that each child's own Dispatch resolves one hop further. The parent
+    /// owns its children, so a client acts on a child only through this call; a handler's failure reaches the caller.
     /// </summary>
     /// <exception cref="ActivationRefusedException">The current view names no slot with that key (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
     Task Dispatch(DigitalBrain.UI.Command command);

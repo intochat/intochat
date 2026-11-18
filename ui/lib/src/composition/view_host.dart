@@ -31,6 +31,8 @@ class ViewHost extends StatefulWidget {
     this.ancestors = const {},
     this.slotDepth = 0,
     this.slotAncestors = const {},
+    this.actNeuron,
+    this.slotPath = '',
     this.inlineSlot = false,
     this.revision = 0,
     this.enabled = true,
@@ -56,6 +58,10 @@ class ViewHost extends StatefulWidget {
   /// Visited `neuronUri` / resolved view names along the active `Slot` chain.
   final Set<String> slotAncestors;
 
+  /// For a `slot` child: the root neuron its acts name and its key path from it (see [NodeContext.actNeuron]).
+  final String? actNeuron;
+  final String slotPath;
+
   final NeuronLoader load;
   final ValueChanged<Map<String, dynamic>>? onActivate;
   final NeuronAction? onAction;
@@ -68,6 +74,11 @@ class ViewHost extends StatefulWidget {
   final bool enabled;
   final NeuronEventQueue? events;
   final Duration refreshEvery;
+
+  /// Test hook: receives each view context this host builds, so a widget test
+  /// can act through the real host (its dispatch, refusal display and reload).
+  @visibleForTesting
+  static void Function(String name, NodeContext ctx)? debugOnContext;
 
   /// The node's change events. With a watch the host never polls: it reads once on mount and
   /// once per event. Without one it falls back to [refreshEvery].
@@ -288,8 +299,22 @@ class _ViewHostState extends State<ViewHost> {
       );
     }
 
+    // A `slot` is this view's child: its acts go to this view's root with the slot's key appended.
+    final isChild = kind == 'slot';
+    final slotKey = resolvedName.substring(resolvedName.lastIndexOf('/') + 1);
+    final root =
+        widget.actNeuron ??
+        (widget.name.endsWith('/view')
+            ? widget.name.substring(0, widget.name.length - 5)
+            : widget.name);
     return ViewHost(
       key: ValueKey('slot:$resolvedName'),
+      actNeuron: isChild ? root : null,
+      slotPath: !isChild
+          ? ''
+          : widget.slotPath.isEmpty
+          ? slotKey
+          : '${widget.slotPath}/$slotKey',
       kind: 'view',
       name: resolvedName,
       load: widget.load,
@@ -381,10 +406,13 @@ class _ViewHostState extends State<ViewHost> {
           enabled: enabled,
           slotDepth: widget.slotDepth,
           slotAncestors: activeSlotAncestors,
+          actNeuron: widget.actNeuron,
+          slotPath: widget.slotPath,
           buttonHints: buttonHints,
           nodeKeys: nodeKeys,
           transcribe: widget.transcribe,
         );
+        ViewHost.debugOnContext?.call(widget.name, ctx);
         final appView = AppView.fromJson(normalizedView);
         final fills = NodeRenderer.fills(appView.root);
         final renderedView = FocusTraversalGroup(
