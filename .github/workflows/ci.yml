@@ -78,7 +78,7 @@ jobs:
           dotnet pack Intochat.OS.slnx -c Release --no-build -o artifacts/packages -p:CodeGraphRefresh=false -p:DebugType=none -p:IncludeSymbols=false
 
       - name: Upload DigitalBrain packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: packages
           path: artifacts/packages
@@ -86,7 +86,7 @@ jobs:
           retention-days: 1
 
       - name: Upload compiled artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: compiled-artifacts
           path: artifacts/bin
@@ -112,7 +112,7 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: compiled-artifacts
           path: artifacts/bin
@@ -165,12 +165,12 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: compiled-artifacts
           path: artifacts/bin
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: packages
           path: artifacts/packages
@@ -208,7 +208,7 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: compiled-artifacts
           path: artifacts/bin
