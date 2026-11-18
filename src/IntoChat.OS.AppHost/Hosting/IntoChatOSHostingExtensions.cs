@@ -103,7 +103,7 @@ public static class IntoChatOSHostingExtensions
         });
         // Development clustering advertises localhost gateways. Local executables must bind
         // that address too, rather than Orleans selecting a VPN/container adapter address.
-        if (brain.Clustering is null && builder.Resource is ProjectResource or ExecutableResource or Aspire.Hosting.Dotnet.DotnetProjectResource)
+        if (brain.Clustering is null && builder.Resource is ProjectResource or ExecutableResource or global::Aspire.Hosting.Dotnet.DotnetProjectResource)
         {
             builder.WithEnvironment("Orleans__Endpoints__AdvertisedIPAddress", "127.0.0.1");
             // Orleans system-target addresses carry the real port; a TCP proxy port cannot
