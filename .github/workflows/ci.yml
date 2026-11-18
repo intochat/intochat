@@ -75,8 +75,8 @@ jobs:
 
       - name: Pack DigitalBrain packages
         run: |
-          dotnet pack framework/DigitalBrain.slnx -c Release --no-build -o artifacts/packages -p:CodeGraphRefresh=false
-          dotnet pack framework/templates/DigitalBrain.Templates/DigitalBrain.Templates.csproj -c Release -o artifacts/packages -p:CodeGraphRefresh=false
+          dotnet pack framework/DigitalBrain.slnx -c Release --no-build -o artifacts/packages -p:CodeGraphRefresh=false -p:IncludeSymbols=false
+          dotnet pack framework/templates/DigitalBrain.Templates/DigitalBrain.Templates.csproj -c Release -o artifacts/packages -p:CodeGraphRefresh=false -p:IncludeSymbols=false
 
       - name: Upload DigitalBrain packages
         uses: actions/upload-artifact@v4
