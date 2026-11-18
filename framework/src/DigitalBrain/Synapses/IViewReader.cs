@@ -64,6 +64,9 @@ public sealed class ActivationRefusedException : InvalidOperationException
     /// <summary>The keyed node emits nothing.</summary>
     public const string NoEmit = "NoEmit";
 
+    /// <summary>A command names a child key that no slot of the current view names.</summary>
+    public const string UnknownChild = "UnknownChild";
+
     /// <summary>No reason was given (the standard exception constructors).</summary>
     public const string Unspecified = "Unspecified";
 

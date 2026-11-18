@@ -187,7 +187,7 @@ public sealed class WorkspaceFilterScreen : AggregateScreen<WorkspaceFilterState
                 .Key("search-box")
                 .OnChange<WorkspaceFilterState>(x => x.SetQuery(Arg.Text)),
             MutedText($"Query: {s.Query}"),
-            Slot("neuron://local/app.test.hello/default")
+            Kit.Slot("neuron://local/app.test.hello/default")
         ];
 }
 

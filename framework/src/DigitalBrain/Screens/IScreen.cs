@@ -81,4 +81,11 @@ public static class ScreenExtensions
         ArgumentNullException.ThrowIfNull(signal);
         return screen.Request(SignalAliases.Of(typeof(TSignal)), PooledJson.Encode(signal, typeof(TSignal)));
     }
+
+    /// <summary>The address of the child <paramref name="key"/> of <paramref name="parent"/>: the parent's id, '/', the key. It is the child's neuron key.</summary>
+    public static string ChildAddress(NeuronId parent, string key)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        return $"{parent}/{key}";
+    }
 }

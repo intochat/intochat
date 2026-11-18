@@ -4237,3 +4237,7 @@ static DigitalBrain.UI.Commands.Toggle.operator !=(DigitalBrain.UI.Commands.Togg
 static DigitalBrain.UI.Commands.Toggle.operator ==(DigitalBrain.UI.Commands.Toggle? left, DigitalBrain.UI.Commands.Toggle? right) -> bool
 static DigitalBrain.UI.Commands.Toggled.operator !=(DigitalBrain.UI.Commands.Toggled? left, DigitalBrain.UI.Commands.Toggled? right) -> bool
 static DigitalBrain.UI.Commands.Toggled.operator ==(DigitalBrain.UI.Commands.Toggled? left, DigitalBrain.UI.Commands.Toggled? right) -> bool
+const DigitalBrain.Units.ActivationRefusedException.UnknownChild = "UnknownChild" -> string!
+DigitalBrain.Screen<TState>.Send(DigitalBrain.UI.Command! command) -> System.Threading.Tasks.Task!
+DigitalBrain.Screen<TState>.Slot<TChild>(string! key) -> DigitalBrain.UI.NeuronRef!
+static DigitalBrain.ScreenExtensions.ChildAddress(DigitalBrain.NeuronId parent, string! key) -> string!

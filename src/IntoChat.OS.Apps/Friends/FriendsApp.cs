@@ -614,7 +614,7 @@ public sealed class FriendsApp : AggregateScreen<FriendsAppState>
                     Subtitle: post.Content,
                     LinkLabel: "Fork App-Post",
                     Open: Button("Fork App-Post").Key($"fork-{post.Id}").OnClick(() => ForkPostTemplateAsync(post.Id))),
-                .. embedded.Select(child => (Node)Slot(child.TargetNeuronUri)),
+                .. embedded.Select(child => (Node)Kit.Slot(child.TargetNeuronUri)),
                 HStack(Space.Sm)[
                     Button("Fork & Install", "download").Key($"fork-and-install:{post.Id}").Small().OnClick(() => ForkAndInstallPostAsync(post.Id)),
                     Button("Fork App Template", "git-branch").Key($"fork-app-template:{post.Id}").Small().OnClick(() => ForkPostTemplateAsync(post.Id)),

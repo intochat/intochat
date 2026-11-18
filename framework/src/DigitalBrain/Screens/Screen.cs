@@ -13,6 +13,8 @@ namespace DigitalBrain;
 public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : class, new()
 {
     private PublishedView? _view;
+    private Dictionary<string, NeuronId> _children = new(StringComparer.Ordinal);
+    private Dictionary<string, NeuronId>? _rendering;
     private string _cause = "reaction";
 
     /// <summary>The alias the view is stored under and the owner its emits name: the neuron type.</summary>
@@ -42,14 +44,44 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     protected Task Follow<TSource, TSignal>(string key) where TSource : class where TSignal : Signal
         => Context.Wires.Ensure<TSignal>(IdOf(typeof(TSource), key));
 
+    /// <summary>The view node of this screen's child <paramref name="key"/>, a <typeparamref name="TChild"/> neuron. Rendering it creates nothing; the client's first read of the slot (or a <see cref="Send"/>) does.</summary>
+    /// <exception cref="InvalidOperationException">Called outside <see cref="Render"/>, or the key is used twice in one view.</exception>
+    protected NeuronRef Slot<TChild>(string key) where TChild : class
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        var rendering = _rendering ?? throw new InvalidOperationException($"Slot '{key}' of '{Alias}' is rendered outside Render.");
+        var child = new NeuronId(Id.Brain, TypeOf(typeof(TChild)), ScreenExtensions.ChildAddress(Id, key));
+        if (!rendering.TryAdd(key, child)) { throw new InvalidOperationException($"The view of '{Alias}' names slot '{key}' twice."); }
+        return new NeuronRef("slot", child.ToString());
+    }
+
+    /// <summary>Sends <paramref name="command"/> to its target: "." is this screen, any other target a child key (optionally "./key") of the current view.</summary>
+    /// <exception cref="ActivationRefusedException">The current view names no slot with that key (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
+    protected Task Send(Command command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentException.ThrowIfNullOrWhiteSpace(command.Target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(command.Signal);
+        if (command.Target == ".") { return Handle(command.Signal, ViewNodes.Payload(command.Args, fieldValue: null, by: null)); }
+        var key = command.Target.StartsWith("./", StringComparison.Ordinal) ? command.Target[2..] : command.Target;
+        if (!_children.TryGetValue(key, out var child)) { throw new ActivationRefusedException(ActivationRefusedException.UnknownChild); }
+        return Get<IScreen>(child).Request(command.Signal, command.Args);
+    }
+
     /// <summary>Stores the first view. An override calls the base first.</summary>
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        if (_view is not null) { return; }
+        if (_view is not null)
+        {
+            // A stored legacy view: the slots it names are the current state's.
+            _ = RenderValidated(State, out _children);
+            return;
+        }
         if (ReferenceEquals(_cause, LoadedMarker))
         {
             _cause = "reaction";
-            _view = new PublishedView(Alias, 1, RenderValidated(State));
+            _view = new PublishedView(Alias, 1, RenderValidated(State, out var children));
+            _children = children;
             return;
         }
         _cause = "activate";
@@ -144,24 +176,30 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
 
     internal override Task StoreState(TState next, IReadOnlyList<Signal> signals)
     {
-        var wire = RenderValidated(next);
+        var wire = RenderValidated(next, out var children);
         var shown = _view is { } current && current.View.GetRawText() == wire.GetRawText()
             ? current
             : new PublishedView(Alias, (_view?.Generation ?? 0) + 1, wire);
         IReadOnlyList<Signal> entry = ReferenceEquals(shown, _view) ? signals : [.. signals, new ViewChanged(Alias, shown.Generation)];
-        return SaveAndCacheView(next, entry, shown);
+        return SaveAndCacheView(next, entry, shown, children);
     }
 
-    private async Task SaveAndCacheView(TState next, IReadOnlyList<Signal> entry, object shown)
+    private async Task SaveAndCacheView(TState next, IReadOnlyList<Signal> entry, object shown, Dictionary<string, NeuronId> children)
     {
         await Seat.Save(next, entry).ConfigureAwait(true);
         _view = (PublishedView)shown;
+        _children = children;
         _cause = "reaction";
     }
 
-    private JsonElement RenderValidated(TState state)
+    private JsonElement RenderValidated(TState state, out Dictionary<string, NeuronId> children)
     {
-        var wire = PooledJson.Encode(Render(state), typeof(View));
+        children = new Dictionary<string, NeuronId>(StringComparer.Ordinal);
+        _rendering = children;
+        View view;
+        try { view = Render(state); }
+        finally { _rendering = null; }
+        var wire = PooledJson.Encode(view, typeof(View));
         if (System.Text.Encoding.UTF8.GetByteCount(wire.GetRawText()) > UnitLimits.MaxStateBytes)
         {
             throw new InvalidOperationException($"The view of '{Alias}' exceeds the {UnitLimits.MaxStateBytes}-byte cap.");
@@ -197,11 +235,14 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
             .Any(p => string.Equals(p.Name, "State", StringComparison.OrdinalIgnoreCase)));
     }
 
-    private NeuronId IdOf(Type contract, string key)
-        => new(Id.Brain, PlainNeuronContracts.TypeOf(contract)
+    private NeuronId IdOf(Type contract, string key) => new(Id.Brain, TypeOf(contract), key);
+
+    private static string TypeOf(Type contract)
+        => PlainNeuronContracts.TypeOf(contract)
             ?? contract.GetCustomAttribute<DefaultNeuronTypeAttribute>(inherit: false)?.Type
             ?? contract.GetCustomAttribute<NeuronAliasAttribute>(inherit: false)?.Alias
-            ?? throw new InvalidOperationException($"{contract.Name} names no neuron type."), key);
+            ?? contract.GetCustomAttribute<NeuronAttribute>(inherit: false)?.Type
+            ?? throw new InvalidOperationException($"{contract.Name} names no neuron type.");
 }
 
 /// <summary>Internal snapshot combining user domain state and published view for persistence.</summary>
