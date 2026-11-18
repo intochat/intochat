@@ -229,7 +229,7 @@ jobs:
         run: dotnet restore Intochat.OS.slnx -v quiet
 
       - name: Prepare Kernel build state
-        run: dotnet build src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj -c Release --no-restore -p:CodeGraphRefresh=false -p:DebugType=none --nologo -v minimal
+        run: dotnet build src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj -c Release --no-restore -p:CodeGraphRefresh=false --nologo -v minimal
 
       - name: Test E2E
         run: dotnet test --project tests/IntoChat.OS.Tests.E2E/IntoChat.OS.Tests.E2E.csproj -c Release --no-build -p:CodeGraphRefresh=false
