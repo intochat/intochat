@@ -1,6 +1,7 @@
 [
   {
     "kind": "appShell",
+    "isNeuron": false,
     "props": [
       {
         "name": "key",
@@ -28,11 +29,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "approvalCard",
+    "isNeuron": false,
     "props": [
       {
         "name": "key",
@@ -95,11 +98,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "badge",
+    "isNeuron": false,
     "props": [
       {
         "name": "label",
@@ -117,11 +122,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "brainScene",
+    "isNeuron": false,
     "props": [
       {
         "name": "nodes",
@@ -154,11 +161,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "button",
+    "isNeuron": false,
     "props": [
       {
         "name": "key",
@@ -206,11 +215,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "card",
+    "isNeuron": false,
     "props": [
       {
         "name": "title",
@@ -228,11 +239,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "chart",
+    "isNeuron": false,
     "props": [
       {
         "name": "chartKind",
@@ -280,11 +293,13 @@
         "default": ""
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "choiceCard",
+    "isNeuron": false,
     "props": [
       {
         "name": "id",
@@ -307,11 +322,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "collection",
+    "isNeuron": false,
     "props": [
       {
         "name": "entries",
@@ -319,11 +336,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "column",
+    "isNeuron": false,
     "props": [
       {
         "name": "children",
@@ -346,11 +365,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "conversation",
+    "isNeuron": false,
     "props": [
       {
         "name": "key",
@@ -393,11 +414,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "dataTable",
+    "isNeuron": false,
     "props": [
       {
         "name": "title",
@@ -425,11 +448,13 @@
         "default": "DigitalBrain"
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "diffCard",
+    "isNeuron": false,
     "props": [
       {
         "name": "id",
@@ -472,11 +497,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "divider",
+    "isNeuron": false,
     "props": [
       {
         "name": "label",
@@ -484,11 +511,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "draftCard",
+    "isNeuron": false,
     "props": [
       {
         "name": "id",
@@ -536,11 +565,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "emptyState",
+    "isNeuron": false,
     "props": [
       {
         "name": "title",
@@ -558,11 +589,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "errorLine",
+    "isNeuron": false,
     "props": [
       {
         "name": "what",
@@ -580,11 +613,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "field",
+    "isNeuron": false,
     "props": [
       {
         "name": "key",
@@ -612,11 +647,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "grid",
+    "isNeuron": false,
     "props": [
       {
         "name": "columns",
@@ -634,11 +671,13 @@
         "default": 12
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "heading",
+    "isNeuron": false,
     "props": [
       {
         "name": "value",
@@ -656,11 +695,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "infoBar",
+    "isNeuron": false,
     "props": [
       {
         "name": "title",
@@ -683,11 +724,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "intent",
+    "isNeuron": false,
     "props": [
       {
         "name": "intentKind",
@@ -700,11 +743,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "jobCard",
+    "isNeuron": false,
     "props": [
       {
         "name": "title",
@@ -737,11 +782,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "metricTile",
+    "isNeuron": false,
     "props": [
       {
         "name": "id",
@@ -799,11 +846,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "navItem",
+    "isNeuron": false,
     "props": [
       {
         "name": "key",
@@ -841,11 +890,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "neuronRef",
+    "isNeuron": false,
     "props": [
       {
         "name": "refKind",
@@ -858,11 +909,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "progress",
+    "isNeuron": false,
     "props": [
       {
         "name": "label",
@@ -880,11 +933,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "recordCard",
+    "isNeuron": false,
     "props": [
       {
         "name": "objectLabel",
@@ -917,11 +972,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "row",
+    "isNeuron": false,
     "props": [
       {
         "name": "children",
@@ -944,11 +1001,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "secretCard",
+    "isNeuron": false,
     "props": [
       {
         "name": "name",
@@ -981,11 +1040,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "select",
+    "isNeuron": false,
     "props": [
       {
         "name": "label",
@@ -1003,11 +1064,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "spacer",
+    "isNeuron": false,
     "props": [
       {
         "name": "size",
@@ -1015,11 +1078,13 @@
         "default": 12
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "splitPane",
+    "isNeuron": false,
     "props": [
       {
         "name": "leading",
@@ -1042,11 +1107,13 @@
         "default": 16
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "statCard",
+    "isNeuron": false,
     "props": [
       {
         "name": "key",
@@ -1079,11 +1146,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "surface",
+    "isNeuron": false,
     "props": [
       {
         "name": "children",
@@ -1111,11 +1180,13 @@
         "default": 18
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "switch",
+    "isNeuron": false,
     "props": [
       {
         "name": "key",
@@ -1143,11 +1214,13 @@
         "default": false
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "tabs",
+    "isNeuron": false,
     "props": [
       {
         "name": "items",
@@ -1160,11 +1233,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "tagPill",
+    "isNeuron": false,
     "props": [
       {
         "name": "label",
@@ -1182,11 +1257,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "text",
+    "isNeuron": false,
     "props": [
       {
         "name": "value",
@@ -1214,11 +1291,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "toast",
+    "isNeuron": false,
     "props": [
       {
         "name": "message",
@@ -1226,11 +1305,13 @@
         "default": null
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   },
   {
     "kind": "webBrowser",
+    "isNeuron": false,
     "props": [
       {
         "name": "key",
@@ -1258,7 +1339,8 @@
         "default": "wasm-ui"
       }
     ],
-    "events": [],
+    "commands": [],
+    "signals": [],
     "examples": []
   }
 ]

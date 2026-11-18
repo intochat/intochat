@@ -4,8 +4,9 @@ using IntoChat.OS.UI;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
-// The control schema rules every view node follows: an event is an `On*` parameter that names its payload record, an interactive
-// control is addressable (Key + AutomationName), every node has a Kit factory, and text controls speak Submit, not Changed.
+// The control schema rules (model D): controls with state are control neurons (state, commands, Render); a view node carries no
+// Emit outside the shrinking legacy list, an interactive node is addressable (Key + AutomationName), every node has a Kit factory,
+// and text controls speak Submit, not Changed.
 // Today's offenders are listed per rule; each fact fails on a new offender and on a listed one that is now fixed, so the lists
 // only shrink. Whoever fixes a node removes its entry.
 public sealed class ControlSchemaFacts
@@ -23,7 +24,6 @@ public sealed class ControlSchemaFacts
         "Column", // built by Kit.VStack (a StackBuilder), a name the kind match cannot see
     };
 
-    private static readonly HashSet<string> EmitParametersOffenders = new(StringComparer.Ordinal) { "Button.Emit", "Field.OnSubmit", "NavItemNode.Emit", "Switch.Emit" };
     private static readonly HashSet<string> InteractiveControlOffenders = new(StringComparer.Ordinal) { "Button.AutomationName", "Field.AutomationName", "NavItemNode.AutomationName", "Switch.AutomationName" };
     private static readonly HashSet<string> KitFactoryOffenders = new(StringComparer.Ordinal)
     {
@@ -31,23 +31,33 @@ public sealed class ControlSchemaFacts
         "JobCardNode", "MetricTileNode", "RecordCardNode", "SecretCardNode", "Switch",
     };
     // Node kinds that still activate through a legacy Emit rather than a Command to a neuron address (POST /brains/{brainId}/act).
-    // Shrink-only: a kind that moves to commands leaves this list (Task 4 enforces the end state).
+    // Shrink-only: a kind that moves to commands (or becomes a control neuron) leaves this list.
     private static readonly HashSet<string> LegacyEmitKinds = new(StringComparer.Ordinal) { "Button", "Field", "NavItemNode", "Switch" };
     private static readonly HashSet<string> TextControlOffenders = new(StringComparer.Ordinal) { };
 
     [Fact]
-    public void Every_emit_parameter_is_named_On_and_declares_EventArgs()
-        => Check(EmitParametersOffenders, Nodes.SelectMany(type => ConstructorParameters(type)
-            .Where(parameter => IsEmit(parameter.ParameterType)) // event args are gone, so every Emit is an offender until Task 4 rewrites this around commands
-            .Select(parameter => $"{type.Name}.{parameter.Name}")));
-
-    [Fact]
-    public void Legacy_emit_kinds_only_shrink()
+    public void No_view_node_carries_an_Emit_except_LegacyEmitKinds()
         => Check(LegacyEmitKinds, Nodes.Where(type => ConstructorParameters(type).Any(parameter => IsEmit(parameter.ParameterType))).Select(type => type.Name));
 
+    // Holds vacuously until the first control neuron lands under src/IntoChat.OS.Apps/Controls; DartCommandsFacts' samples prove the check.
     [Fact]
-    public void Every_interactive_control_has_Key_and_AutomationName()
-        => Check(InteractiveControlOffenders, Nodes.Where(type => ConstructorParameters(type).Any(parameter => IsEmit(parameter.ParameterType)))
+    public void Every_control_neuron_has_state_commands_and_Render()
+    {
+        var problems = NodeSchema.ControlNeurons().SelectMany(ControlNeuronProblems).ToArray();
+        Assert.True(problems.Length == 0, string.Join("; ", problems));
+    }
+
+    [Fact]
+    public void The_control_neuron_rule_bites_on_a_neuron_without_commands_or_state()
+    {
+        Assert.Empty(ControlNeuronProblems(typeof(DartCommandsFacts.SampleCheckBox)));
+        Assert.Contains(ControlNeuronProblems(typeof(DartCommandsFacts.SampleWithoutCommands)), problem => problem.Contains("no command", StringComparison.Ordinal));
+        Assert.Contains(ControlNeuronProblems(typeof(DartCommandsFacts.StatelessSample)), problem => problem.Contains("no state", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Every_interactive_node_has_Key_and_AutomationName()
+        => Check(InteractiveControlOffenders, Nodes.Where(type => ConstructorParameters(type).Any(parameter => IsEmit(parameter.ParameterType) || IsCommand(parameter.ParameterType)))
             .SelectMany(type => new[] { ("Key", typeof(string)), ("AutomationName", typeof(string)) }
                 .Where(required => !ConstructorParameters(type).Any(parameter => parameter.Name == required.Item1 && parameter.ParameterType == required.Item2))
                 .Select(required => $"{type.Name}.{required.Item1}")));
@@ -86,6 +96,20 @@ public sealed class ControlSchemaFacts
     }
 
     private static bool IsEmit(Type type) => (Nullable.GetUnderlyingType(type) ?? type) == typeof(Emit);
+
+    private static bool IsCommand(Type type) => type == typeof(Command);
+
+    // A control neuron keeps state (a state type with properties), takes at least one UI.Commands command through [On], and renders it.
+    internal static IEnumerable<string> ControlNeuronProblems(Type neuron)
+    {
+        var state = NodeSchema.StateOf(neuron);
+        if (state is null || NodeSchema.Properties(state).Length == 0) { yield return $"{neuron.Name} keeps no state"; }
+        if (NodeSchema.Commands(neuron).Length == 0) { yield return $"{neuron.Name} declares no command ([On] for a {NodeSchema.CommandsNamespace} record)"; }
+        if (state is not null && neuron.GetMethod("Render", BindingFlags.NonPublic | BindingFlags.Instance, [state])?.DeclaringType != neuron)
+        {
+            yield return $"{neuron.Name} does not override Render";
+        }
+    }
 
     private static ParameterInfo[] ConstructorParameters(Type type)
         => [.. type.GetConstructors().OrderByDescending(constructor => constructor.GetParameters().Length).First().GetParameters()];

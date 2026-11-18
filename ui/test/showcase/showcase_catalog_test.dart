@@ -221,6 +221,24 @@ void main() {
       }
     });
 
+    test('every catalog entry has the view neuron shape', () {
+      for (final entry in catalog) {
+        expect(entry.keys.toSet(), {
+          'kind',
+          'isNeuron',
+          'props',
+          'commands',
+          'signals',
+          'examples',
+        }, reason: '${entry['kind']}');
+        expect(entry['isNeuron'], isA<bool>());
+        if (entry['isNeuron'] == false) {
+          expect(_fields, contains(entry['kind']));
+          expect(entry['commands'], isEmpty);
+        }
+      }
+    });
+
     test('the catalog is sorted by kind', () {
       final kinds = [for (final e in catalog) e['kind'] as String];
       expect(kinds, [...kinds]..sort());

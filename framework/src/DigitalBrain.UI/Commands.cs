@@ -20,3 +20,12 @@ public sealed class ShowcaseAttribute(string exampleJson) : Attribute
 /// <summary>Marks a control property as client-local state that is not part of the persisted view.</summary>
 [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]
 public sealed class EphemeralAttribute : Attribute;
+
+/// <summary>Names a domain signal a control neuron publishes when it saves, for the generator and the showcase catalog; repeat for several.</summary>
+/// <param name="signal">The signal record type.</param>
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
+public sealed class EmitsAttribute(Type signal) : Attribute
+{
+    /// <summary>The signal record type.</summary>
+    public Type Signal { get; } = signal;
+}

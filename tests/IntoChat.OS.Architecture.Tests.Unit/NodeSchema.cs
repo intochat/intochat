@@ -3,12 +3,14 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DigitalBrain;
+using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
-// The reflection over the C# node model that the Dart generators share: node kinds, wire names, Dart types, event properties
-// ([EventArgs]) and showcase examples ([Showcase]). It writes node_events.dart and showcase_catalog.json.
+// The reflection over the C# UI model that the Dart generators share: node kinds, wire names, Dart types, control neurons with
+// their commands ([On] reactions) and signals ([Emits]), and showcase examples ([Showcase]). It writes node_commands.dart and showcase_catalog.json.
 internal static class NodeSchema
 {
     internal static (Type Type, string Kind)[] DerivedKinds() => [.. typeof(Node).GetCustomAttributes<JsonDerivedTypeAttribute>()
@@ -60,86 +62,142 @@ internal static class NodeSchema
     private static IEnumerable<T> Attributes<T>(Type type, PropertyInfo property) where T : Attribute
         => property.GetCustomAttributes<T>().Concat(Parameter(type, property)?.GetCustomAttributes<T>() ?? []);
 
-    internal static IEnumerable<(PropertyInfo Property, Type Args)> Events(Type _)
-        => []; // event args are gone; Task 4 rewrites the generator around commands
+    // A control neuron: a concrete Screen<TState> under IntoChat.OS.Apps.Controls (one folder per control in src/IntoChat.OS.Apps/Controls).
+    internal const string ControlsNamespace = "IntoChat.OS.Apps.Controls";
 
-    // Positional record properties of an args record (EqualityContract excluded).
+    internal static Type[] ControlNeurons() => [.. typeof(IntoChat.OS.Apps.ShippedShellAppsModule).Assembly.GetTypes()
+        .Where(type => type is { IsClass: true, IsAbstract: false } && StateOf(type) is not null
+            && (type.Namespace == ControlsNamespace || type.Namespace?.StartsWith(ControlsNamespace + ".", StringComparison.Ordinal) == true))
+        .OrderBy(type => type.Name, StringComparer.Ordinal)];
+
+    // TState of the Screen<TState> a type derives from, or null.
+    internal static Type? StateOf(Type type)
+    {
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(Screen<>)) { return current.GetGenericArguments()[0]; }
+        }
+        return null;
+    }
+
+    // The catalog kind of a control neuron: its class name without "Neuron", camel-cased (CheckBox -> checkBox).
+    internal static string NeuronKind(Type type) => JsonNamingPolicy.CamelCase.ConvertName(ControlName(type));
+
+    internal static readonly string CommandsNamespace = typeof(DigitalBrain.UI.Commands.Toggle).Namespace!;
+
+    // A control's commands: the [On] reactions it declares whose one parameter is a DigitalBrain.UI.Commands record.
+    internal static Type[] Commands(Type type) => [.. type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+        .Where(method => method.GetCustomAttribute<OnAttribute>() is not null)
+        .Select(method => method.GetParameters())
+        .Where(parameters => parameters.Length == 1 && parameters[0].ParameterType.Namespace == CommandsNamespace)
+        .Select(parameters => parameters[0].ParameterType)
+        .Distinct().OrderBy(command => command.Name, StringComparer.Ordinal)];
+
+    // A control's signals: its [Emits] attributes (what it passes to Show(next, facts) is not visible to reflection).
+    internal static Type[] Signals(Type type) => [.. type.GetCustomAttributes<EmitsAttribute>().Select(emits => emits.Signal)
+        .Distinct().OrderBy(signal => signal.Name, StringComparer.Ordinal)];
+
+    internal static string Alias(Type signal) => signal.GetCustomAttribute<SignalAttribute>(false)?.Alias ?? signal.Name;
+
+    // Positional record properties of a command or signal record (EqualityContract excluded).
     internal static PropertyInfo[] ArgsFields(Type args) => Properties(args);
 
     private static string ControlName(Type type)
-        => type.Name.EndsWith("Node", StringComparison.Ordinal) ? type.Name[..^"Node".Length] : type.Name;
+        => type.Name.EndsWith("Neuron", StringComparison.Ordinal) ? type.Name[..^"Neuron".Length]
+        : type.Name.EndsWith("Node", StringComparison.Ordinal) ? type.Name[..^"Node".Length] : type.Name;
 
-    private static string EventName(PropertyInfo property)
-        => property.Name.StartsWith("On", StringComparison.Ordinal) ? property.Name["On".Length..] : property.Name;
+    private static string ArgDartType(PropertyInfo field)
+        => field.PropertyType == typeof(IReadOnlyDictionary<string, string>) ? "Map<String, String>" : DartType(field);
 
-    internal static string GenerateEvents()
+    internal static string SenderName(Type neuron, Type command) => $"act{ControlName(neuron)}{command.Name}";
+
+    internal static string GenerateCommands() => GenerateCommands(ControlNeurons());
+
+    // One typed sender per control neuron command: act<Kind><Command>(ctx, address, <args>) posts it to the neuron at `address`.
+    internal static string GenerateCommands(IEnumerable<Type> neurons)
     {
         var dart = new StringBuilder();
-        dart.Append("// This is a generated file - do not edit.\n//\n// Generated from DigitalBrain.UI by DartEventsFacts (IntoChat.OS.Architecture.Tests.Unit).\n\n");
-        var helpers = DerivedKinds().OrderBy(entry => entry.Kind, StringComparer.Ordinal)
-            .SelectMany(entry => Events(entry.Type).Select(@event => (entry.Type, @event.Property, @event.Args))).ToArray();
-        if (helpers.Length == 0)
+        dart.Append("// This is a generated file - do not edit.\n//\n// Generated from the control neurons by DartCommandsFacts (IntoChat.OS.Architecture.Tests.Unit).\n\n");
+        var senders = neurons.OrderBy(NeuronKind, StringComparer.Ordinal)
+            .SelectMany(neuron => Commands(neuron).Select(command => (neuron, command))).ToArray();
+        if (senders.Length == 0)
         {
-            dart.Append("// No control declares an event yet.\n");
+            dart.Append("// No control neuron declares a command yet.\n");
             return dart.ToString();
         }
-        dart.Append("import '../nodes/node_context.dart';\nimport 'node_models.dart';\n\n");
-        foreach (var (type, property, args) in helpers)
+        dart.Append("import '../nodes/node_context.dart';\n\n");
+        foreach (var (neuron, command) in senders)
         {
-            var fields = ArgsFields(args);
-            var named = fields.Length == 0 ? "" : ", {" + string.Join(", ", fields.Select(field => $"required {DartType(field)} {JsonName(field)}")) + "}";
-            dart.Append($"/// Emits `{JsonName(property)}` of a `{ControlName(type)}` with a `{args.Name}` payload.\n");
-            dart.Append($"Future<void> emit{ControlName(type)}{EventName(property)}(NodeContext ctx, {DartName(type)} node{named}) =>\n");
-            dart.Append($"    ctx.emitEvent(node.key, node.{JsonName(property)}, {{{string.Join(", ", fields.Select(field => $"'{JsonName(field)}': {JsonName(field)}"))}}});\n\n");
+            var fields = ArgsFields(command);
+            var named = fields.Length == 0 ? "" : ", {" + string.Join(", ", fields.Select(field => $"required {ArgDartType(field)} {JsonName(field)}")) + "}";
+            dart.Append($"/// Sends `{command.Name}` to the `{NeuronKind(neuron)}` neuron at [address].\n");
+            dart.Append($"Future<ActivationOutcome> {SenderName(neuron, command)}(NodeContext ctx, String address{named}) =>\n");
+            dart.Append($"    ctx.act(address, '{Alias(command)}', {{{string.Join(", ", fields.Select(field => $"'{JsonName(field)}': {JsonName(field)}"))}}});\n\n");
         }
         return dart.ToString();
     }
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
-    internal static string GenerateCatalog()
+    internal static string GenerateCatalog() => GenerateCatalog(ControlNeurons());
+
+    // Every [ViewNode] kind and every control neuron kind as {kind, isNeuron, props, commands, signals, examples}, sorted by kind.
+    internal static string GenerateCatalog(IEnumerable<Type> neurons)
     {
+        var entries = ViewNodeAttribute.DiscoverAll().Select(entry => (Kind: entry.Key, Type: entry.Value, IsNeuron: false))
+            .Concat(neurons.Select(neuron => (Kind: NeuronKind(neuron), Type: neuron, IsNeuron: true)))
+            .OrderBy(entry => entry.Kind, StringComparer.Ordinal).ToArray();
+        var duplicates = entries.GroupBy(entry => entry.Kind, StringComparer.Ordinal).Where(group => group.Count() > 1).Select(group => group.Key).ToArray();
+        if (duplicates.Length > 0) { throw new InvalidOperationException("Two catalog entries share a kind: " + string.Join(", ", duplicates)); }
         using var stream = new MemoryStream();
         using (var json = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
         {
             json.WriteStartArray();
-            foreach (var (kind, type) in ViewNodeAttribute.DiscoverAll().OrderBy(entry => entry.Key, StringComparer.Ordinal))
+            foreach (var (kind, type, isNeuron) in entries)
             {
                 json.WriteStartObject();
                 json.WriteString("kind", kind);
+                json.WriteBoolean("isNeuron", isNeuron);
                 json.WriteStartArray("props");
-                var events = Events(type).Select(@event => @event.Property).ToHashSet();
-                foreach (var property in Properties(type).Where(property => !events.Contains(property)))
+                var shape = isNeuron ? StateOf(type)! : type;
+                foreach (var property in Properties(shape))
                 {
                     json.WriteStartObject();
                     json.WriteString("name", JsonName(property));
-                    json.WriteString("type", DartType(property));
+                    json.WriteString("type", ArgDartType(property));
                     json.WritePropertyName("default");
-                    var parameter = Parameter(type, property);
+                    var parameter = Parameter(shape, property);
                     if (parameter is { HasDefaultValue: true }) { JsonSerializer.Serialize(json, parameter.DefaultValue, Web); }
                     else { json.WriteNullValue(); }
                     json.WriteEndObject();
                 }
                 json.WriteEndArray();
-                json.WriteStartArray("events");
-                foreach (var (property, args) in Events(type))
-                {
-                    json.WriteStartObject();
-                    json.WriteString("name", JsonName(property));
-                    json.WriteStartObject("args");
-                    foreach (var field in ArgsFields(args)) { json.WriteString(JsonName(field), DartType(field)); }
-                    json.WriteEndObject();
-                    json.WriteEndObject();
-                }
-                json.WriteEndArray();
+                WriteRecords(json, "commands", isNeuron ? Commands(type) : []);
+                WriteRecords(json, "signals", isNeuron ? Signals(type) : []);
                 json.WriteStartArray("examples");
-                foreach (var example in Examples(kind, type)) { example.WriteTo(json); }
+                if (!isNeuron) { foreach (var example in Examples(kind, type)) { example.WriteTo(json); } }
                 json.WriteEndArray();
                 json.WriteEndObject();
             }
             json.WriteEndArray();
         }
         return Encoding.UTF8.GetString(stream.ToArray()).ReplaceLineEndings("\n") + "\n";
+    }
+
+    private static void WriteRecords(Utf8JsonWriter json, string name, Type[] records)
+    {
+        json.WriteStartArray(name);
+        foreach (var record in records)
+        {
+            json.WriteStartObject();
+            json.WriteString("name", record.Name);
+            json.WriteString("signal", Alias(record));
+            json.WriteStartObject("args");
+            foreach (var field in ArgsFields(record)) { json.WriteString(JsonName(field), ArgDartType(field)); }
+            json.WriteEndObject();
+            json.WriteEndObject();
+        }
+        json.WriteEndArray();
     }
 
     // A [Showcase] example is either a whole node (an object with `kind`) or one value of its property, shown as `{kind, prop: value}`.

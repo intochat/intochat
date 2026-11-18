@@ -1257,3 +1257,6 @@ override DigitalBrain.UI.Command.GetHashCode() -> int
 override DigitalBrain.UI.Command.ToString() -> string!
 static DigitalBrain.UI.Command.operator !=(DigitalBrain.UI.Command? left, DigitalBrain.UI.Command? right) -> bool
 static DigitalBrain.UI.Command.operator ==(DigitalBrain.UI.Command? left, DigitalBrain.UI.Command? right) -> bool
+DigitalBrain.UI.EmitsAttribute
+DigitalBrain.UI.EmitsAttribute.EmitsAttribute(System.Type! signal) -> void
+DigitalBrain.UI.EmitsAttribute.Signal.get -> System.Type!
