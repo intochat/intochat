@@ -7,7 +7,7 @@ namespace IntoChat.OS.Modules.AI.Workflows;
 // A synapse of the Workflow kind: an Agent Framework workflow run hosted by one neuron, keyed by its run id. The neuron's state
 // keeps the workflow's checkpoints, so a run that waits for a person survives a restart; a request port's question becomes a
 // person-only confirmation and the answer goes back into the workflow.
-public enum WorkflowRunStatus { Running, Waiting, Completed, Failed }
+public enum WorkflowRunStatus { Running, Waiting, Completed, Failed, Cancelled }
 
 public sealed record WorkflowRunView(
     string RunId,
@@ -25,7 +25,7 @@ public sealed record WorkflowRunStarted(string RunId, string Workflow, string In
 public sealed record WorkflowRunWaiting(string RunId, string PlanId, string Question) : DigitalBrain.Signal;
 
 [Signal("workflow.run-done")]
-public sealed record WorkflowRunDone(string RunId, bool Succeeded, string? Output, string? Error) : DigitalBrain.Signal;
+public sealed record WorkflowRunDone(string RunId, bool Succeeded, string? Output, string? Error, bool Cancelled = false) : DigitalBrain.Signal;
 
 [NeuronAlias("workflow.run"), DefaultNeuronType("workflow.run")]
 [Description("One run of a named workflow: start it with text input, read where it is, what it waits for and its output.")]
@@ -37,4 +37,7 @@ public interface IWorkflowRun
     [Description("Where this run is: status, the steps done, the approval it waits for, and its output or error.")]
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<WorkflowRunView?> Read();
+
+    [Description("Stop this run: a waiting run withdraws its question and ends Cancelled with the reason. A run that already ended stays as it is.")]
+    Task<WorkflowRunView?> Cancel(string reason);
 }

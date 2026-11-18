@@ -50,6 +50,19 @@ internal sealed class WorkflowRunNeuron(IEnumerable<WorkflowDefinition> definiti
 
     public Task<WorkflowRunView?> Read() => Task.FromResult(State.Exists ? State.View() : null);
 
+    public async Task<WorkflowRunView?> Cancel(string reason)
+    {
+        if (!State.Exists) { return null; }
+        if (State.Status is WorkflowRunStatus.Completed or WorkflowRunStatus.Failed or WorkflowRunStatus.Cancelled) { return State.View(); }
+        if (State.PlanId is { } planId)
+        {
+            using (AsWorkflows()) { await Confirmations().Withdraw(planId); }
+        }
+        var why = string.IsNullOrWhiteSpace(reason) ? "Cancelled." : reason;
+        await Save(State with { Status = WorkflowRunStatus.Cancelled, Error = why, PlanId = null }, new WorkflowRunDone(Id.Key, false, null, why, Cancelled: true));
+        return State.View();
+    }
+
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         // A restart while waiting: the answer may already be in; otherwise keep listening for it.
