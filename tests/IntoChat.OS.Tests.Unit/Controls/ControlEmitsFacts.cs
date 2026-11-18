@@ -21,12 +21,27 @@ public sealed class ControlEmitsFacts
     public async Task Emits_lists_exactly_what_its_commands_publish(string neuronName)
     {
         var neuron = typeof(CheckBoxNeuron).Assembly.GetType(neuronName)!;
-        await using var control = new ControlHarness(neuron);
-        foreach (var command in Commands(neuron).SelectMany(Samples))
+        Assert.True(ControlSamples.All.TryGetValue(neuron, out var sample), $"{neuron.Name} has no row in ControlSamples.");
+        var missing = Commands(neuron).Where(command => !sample.Commands.Any(sent => sent.GetType() == command)).Select(command => command.Name).ToArray();
+        Assert.True(missing.Length == 0, $"The {neuron.Name} sample sends no {string.Join(", ", missing)}.");
+
+        await using var control = new ControlHarness(neuron, state: sample.State);
+        var accepted = new HashSet<Type>();
+        var refused = new Dictionary<Type, string>();
+        foreach (var command in sample.Commands)
         {
-            try { await control.SendRaw(command); }
-            catch (ActivationRefusedException) { /* a refused sample publishes nothing; another sample covers the command */ }
+            try
+            {
+                await control.SendRaw(command);
+                accepted.Add(command.GetType());
+            }
+            catch (ActivationRefusedException refusal)
+            {
+                refused[command.GetType()] = refusal.Reason;
+            }
         }
+        var neverAccepted = refused.Where(entry => !accepted.Contains(entry.Key)).Select(entry => $"{entry.Key.Name} ({entry.Value})").ToArray();
+        Assert.True(neverAccepted.Length == 0, $"Every {neuron.Name} sample of {string.Join(", ", neverAccepted)} was refused.");
 
         var published = control.Published().Select(signal => signal.GetType()).Distinct().ToHashSet();
         var declared = neuron.GetCustomAttributes<EmitsAttribute>().Select(emits => emits.Signal).ToHashSet();
@@ -51,21 +66,4 @@ public sealed class ControlEmitsFacts
         .Select(method => method.GetParameters())
         .Where(parameters => parameters.Length == 1 && parameters[0].ParameterType.Namespace == CommandsNamespace)
         .Select(parameters => parameters[0].ParameterType).Distinct().OrderBy(type => type.Name, StringComparer.Ordinal);
-
-    // Each command with every value of its bool arguments, a sample string and an empty map; run twice so each value is a change.
-    private static IEnumerable<Signal> Samples(Type command)
-    {
-        var constructor = command.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
-        var parameters = constructor.GetParameters();
-        bool[] flips = parameters.Any(p => p.ParameterType == typeof(bool)) ? [true, false, true] : [true, true];
-        foreach (var flip in flips)
-        {
-            yield return (Signal)constructor.Invoke([.. parameters.Select(p => Sample(p.ParameterType, flip))]);
-        }
-    }
-
-    private static object? Sample(Type type, bool flip) => type == typeof(bool) ? flip
-        : type == typeof(string) ? "sample"
-        : type == typeof(IReadOnlyDictionary<string, string>) ? new Dictionary<string, string>(StringComparer.Ordinal)
-        : throw new NotSupportedException($"No sample for a command argument of type {type}.");
 }

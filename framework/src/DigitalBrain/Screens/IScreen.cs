@@ -107,3 +107,12 @@ public static class ScreenExtensions
         }
     }
 }
+
+/// <summary>The starting states a screen's view gives its slot children (<c>Slot(key, initial)</c>); a child with no stored state reads its seed here.</summary>
+[NeuronAlias("slot-seeds")]
+public interface ISlotSeeds
+{
+    /// <summary>The seed the current view gives child <paramref name="key"/>, or null.</summary>
+    [ReadOnlyCall]
+    Task<System.Text.Json.JsonElement?> SeedOf(string key);
+}

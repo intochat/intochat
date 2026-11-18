@@ -321,13 +321,13 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'isOn': true,
     'isEnabled': true,
     'automationName': 'Accept the terms',
-    'isThreeState': false,
   },
   'toggleSwitchView': {
     'kind': 'toggleSwitchView',
     'key': 'dark-mode',
     'label': 'Dark mode',
     'isOn': true,
+    'isEnabled': true,
     'automationName': 'Dark mode',
     'onContent': 'On',
     'offContent': 'Off',
@@ -337,6 +337,7 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'key': 'advanced',
     'header': 'Advanced options',
     'isExpanded': true,
+    'isEnabled': true,
     'automationName': 'Advanced options',
     'children': [
       {'kind': 'text', 'value': 'Shown while expanded.'},

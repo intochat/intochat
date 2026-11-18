@@ -531,7 +531,6 @@ final class CheckBoxViewNode extends Node {
     required this.isOn,
     required this.isEnabled,
     required this.automationName,
-    required this.isThreeState,
   });
 
   @override
@@ -542,7 +541,6 @@ final class CheckBoxViewNode extends Node {
   final bool isOn;
   final bool isEnabled;
   final String automationName;
-  final bool isThreeState;
 
   factory CheckBoxViewNode.fromJson(Map<String, dynamic> json) =>
       CheckBoxViewNode(
@@ -551,7 +549,6 @@ final class CheckBoxViewNode extends Node {
         isOn: _bool(json['isOn']),
         isEnabled: _bool(json['isEnabled']),
         automationName: _string(json['automationName']),
-        isThreeState: _bool(json['isThreeState']),
       );
 }
 
@@ -995,6 +992,7 @@ final class ExpanderViewNode extends Node {
     required this.key,
     required this.header,
     required this.isExpanded,
+    required this.isEnabled,
     required this.automationName,
     required this.children,
   });
@@ -1005,6 +1003,7 @@ final class ExpanderViewNode extends Node {
   final String key;
   final String header;
   final bool isExpanded;
+  final bool isEnabled;
   final String automationName;
   final List<Node> children;
 
@@ -1013,6 +1012,7 @@ final class ExpanderViewNode extends Node {
         key: _string(json['key']),
         header: _string(json['header']),
         isExpanded: _bool(json['isExpanded']),
+        isEnabled: _bool(json['isEnabled']),
         automationName: _string(json['automationName']),
         children: [
           for (final item in _list(json['children'])) Node.fromJson(_map(item)),
@@ -1819,6 +1819,7 @@ final class ToggleSwitchViewNode extends Node {
     required this.key,
     required this.label,
     required this.isOn,
+    required this.isEnabled,
     required this.automationName,
     required this.onContent,
     required this.offContent,
@@ -1830,6 +1831,7 @@ final class ToggleSwitchViewNode extends Node {
   final String key;
   final String label;
   final bool isOn;
+  final bool isEnabled;
   final String automationName;
   final String? onContent;
   final String? offContent;
@@ -1839,6 +1841,7 @@ final class ToggleSwitchViewNode extends Node {
         key: _string(json['key']),
         label: _string(json['label']),
         isOn: _bool(json['isOn']),
+        isEnabled: _bool(json['isEnabled']),
         automationName: _string(json['automationName']),
         onContent: _stringOrNull(json['onContent']),
         offContent: _stringOrNull(json['offContent']),

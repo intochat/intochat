@@ -63,7 +63,6 @@ void main() {
         isOn: false,
         isEnabled: true,
         automationName: 'Accept the terms',
-        isThreeState: false,
       ),
       _ctx(sent, slotPath: 'terms'),
     );
@@ -86,7 +85,6 @@ void main() {
         isOn: true,
         isEnabled: false,
         automationName: 'Managed',
-        isThreeState: false,
       ),
       _ctx(sent),
     );

@@ -9,7 +9,7 @@ import 'node_context.dart';
 /// itself (`.`), and its children while expanded. The neuron owns whether it
 /// is expanded and redraws.
 Widget renderExpanderView(ExpanderViewNode node, NodeContext ctx) {
-  final enabled = ctx.interactive;
+  final enabled = node.isEnabled && ctx.interactive;
   return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     mainAxisSize: MainAxisSize.min,
@@ -17,15 +17,13 @@ Widget renderExpanderView(ExpanderViewNode node, NodeContext ctx) {
       Semantics(
         label: node.automationName.isEmpty ? node.key : node.automationName,
         button: true,
+        enabled: enabled,
         expanded: node.isExpanded,
         child: ExcludeSemantics(
           child: InkWell(
             onTap: enabled
-                ? () => actExpanderExpand(
-                    ctx,
-                    '.',
-                    isExpanded: !node.isExpanded,
-                  )
+                ? () =>
+                      actExpanderExpand(ctx, '.', isExpanded: !node.isExpanded)
                 : null,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),

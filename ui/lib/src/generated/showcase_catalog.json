@@ -395,11 +395,6 @@
         "default": null
       },
       {
-        "name": "isThreeState",
-        "type": "bool",
-        "default": null
-      },
-      {
         "name": "isEnabled",
         "type": "bool",
         "default": null
@@ -480,11 +475,6 @@
         "name": "automationName",
         "type": "String",
         "default": null
-      },
-      {
-        "name": "isThreeState",
-        "type": "bool",
-        "default": false
       }
     ],
     "commands": [],
@@ -831,6 +821,11 @@
         "default": null
       },
       {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": null
+      },
+      {
         "name": "automationName",
         "type": "String?",
         "default": null
@@ -860,6 +855,7 @@
         "key": "advanced",
         "header": "Advanced options",
         "isExpanded": true,
+        "isEnabled": true,
         "automationName": "Advanced options",
         "children": [
           {
@@ -873,6 +869,7 @@
         "key": "details",
         "header": "Details",
         "isExpanded": false,
+        "isEnabled": true,
         "automationName": "Details",
         "children": [
           {
@@ -899,6 +896,11 @@
       },
       {
         "name": "isExpanded",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "isEnabled",
         "type": "bool",
         "default": null
       },
@@ -1798,6 +1800,11 @@
         "default": null
       },
       {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": null
+      },
+      {
         "name": "automationName",
         "type": "String?",
         "default": null
@@ -1832,6 +1839,7 @@
         "key": "dark-mode",
         "label": "Dark mode",
         "isOn": true,
+        "isEnabled": true,
         "onContent": "On",
         "offContent": "Off",
         "automationName": "Dark mode"
@@ -1841,6 +1849,7 @@
         "key": "wifi",
         "label": "Wi-Fi",
         "isOn": false,
+        "isEnabled": false,
         "automationName": "Wi-Fi"
       }
     ]
@@ -1861,6 +1870,11 @@
       },
       {
         "name": "isOn",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "isEnabled",
         "type": "bool",
         "default": null
       },

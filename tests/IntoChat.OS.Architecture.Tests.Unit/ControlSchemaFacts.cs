@@ -96,7 +96,7 @@ public sealed class ControlSchemaFacts
     }
 
     // A node in DigitalBrain.UI.Controls is what a control neuron draws: apps slot the neuron, they never build its node.
-    private static bool IsDrawnByANeuron(Type node) => node.Namespace == typeof(DigitalBrain.UI.Controls.ControlRefusals).Namespace;
+    private static bool IsDrawnByANeuron(Type node) => node.Namespace == typeof(DigitalBrain.UI.Controls.CheckBoxView).Namespace;
 
     private static bool IsEmit(Type type) => (Nullable.GetUnderlyingType(type) ?? type) == typeof(Emit);
 

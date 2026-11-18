@@ -13,16 +13,13 @@ Widget renderToggleSwitchView(ToggleSwitchViewNode node, NodeContext ctx) {
     children: [
       Expanded(child: Text(node.label)),
       if (content != null && content.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: Text(content),
-        ),
+        Padding(padding: const EdgeInsets.only(right: 8), child: Text(content)),
       UiKitSwitch(
         value: node.isOn,
         semanticLabel: node.automationName.isEmpty
             ? node.key
             : node.automationName,
-        onChanged: ctx.interactive
+        onChanged: node.isEnabled && ctx.interactive
             ? (on) => actToggleSwitchSetChecked(ctx, '.', isOn: on)
             : null,
       ),

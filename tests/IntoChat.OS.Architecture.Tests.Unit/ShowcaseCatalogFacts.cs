@@ -45,7 +45,7 @@ public sealed class ShowcaseCatalogFacts
             foreach (var example in examples)
             {
                 var node = example.Deserialize<Node>(options);
-                Assert.True(node?.GetType().Namespace == typeof(DigitalBrain.UI.Controls.ControlRefusals).Namespace,
+                Assert.True(node?.GetType().Namespace == typeof(DigitalBrain.UI.Controls.CheckBoxView).Namespace,
                     $"A showcase example of {neuron.Name} is not a control view node: {example}");
             }
         }

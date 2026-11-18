@@ -27,6 +27,7 @@ void main() {
               key: 'dark-mode',
               label: 'Dark mode',
               isOn: false,
+              isEnabled: true,
               automationName: 'Dark mode',
               onContent: 'On',
               offContent: 'Off',
@@ -50,5 +51,40 @@ void main() {
         'args': {'isOn': true},
       },
     ]);
+  });
+
+  testWidgets('a disabled toggle switch sends nothing', (tester) async {
+    final sent = <Map<String, dynamic>>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: UiTheme.intochat(Brightness.light),
+        home: Scaffold(
+          body: NodeRenderer.render(
+            const ToggleSwitchViewNode(
+              key: 'wifi',
+              label: 'Wi-Fi',
+              isOn: false,
+              isEnabled: false,
+              automationName: 'Wi-Fi',
+              onContent: null,
+              offContent: null,
+            ),
+            NodeContext(
+              view: 'local/apps/settings/view',
+              generation: 1,
+              send: (event) async {
+                sent.add(event);
+                return null;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(UiKitSwitch));
+    await tester.pumpAndSettle();
+
+    expect(sent, isEmpty);
   });
 }

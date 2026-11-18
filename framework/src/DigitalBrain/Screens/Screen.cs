@@ -10,11 +10,13 @@ using DigitalBrain.Units;
 namespace DigitalBrain;
 
 /// <summary>A screen: a neuron whose state has one stored view. The view's alias is the neuron type.</summary>
-public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : class, new()
+public abstract class Screen<TState> : Neuron<TState>, IScreen, ISlotSeeds where TState : class, new()
 {
     private PublishedView? _view;
     private Dictionary<string, NeuronId> _children = new(StringComparer.Ordinal);
     private Dictionary<string, NeuronId>? _rendering;
+    private Dictionary<string, JsonElement> _seeds = new(StringComparer.Ordinal);
+    private Dictionary<string, JsonElement>? _seeding;
     private string _cause = "reaction";
 
     /// <summary>The alias the view is stored under and the owner its emits name: the neuron type.</summary>
@@ -63,6 +65,37 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         return new NeuronRef("slot", child.ToString());
     }
 
+    /// <summary>
+    /// The view node of child <paramref name="key"/>, a <typeparamref name="TChild"/> neuron that starts from <paramref name="initial"/>:
+    /// the seed is used only when the child has no stored state yet; after that the child owns its state, and the parent changes it
+    /// through the child's commands. Rendering it still creates nothing.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Called outside <see cref="Render"/>, or the key is used twice in one view.</exception>
+    /// <exception cref="ArgumentException">The key is empty, ".", ".." or contains '/'.</exception>
+    protected NeuronRef Slot<TChild, TChildState>(string key, TChildState initial) where TChild : Screen<TChildState> where TChildState : class, new()
+    {
+        ArgumentNullException.ThrowIfNull(initial);
+        var slot = Slot<TChild>(key);
+        _seeding![key] = PooledJson.Encode(initial, typeof(TChildState));
+        return slot;
+    }
+
+    /// <inheritdoc />
+    public Task<JsonElement?> SeedOf(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return Task.FromResult<JsonElement?>(_seeds.TryGetValue(key, out var seed) ? seed : null);
+    }
+
+    // A slot child (its key is its parent's id, '/', its child key) with no stored state asks its parent for the seed it rendered.
+    private async Task<TState?> SeedFromParent()
+    {
+        var slash = Id.Key.LastIndexOf('/');
+        if (slash <= 0 || !NeuronId.TryParse(Id.Key[..slash], out var parent) || parent.Brain != Id.Brain) { return null; }
+        var seed = await Get<ISlotSeeds>(parent).SeedOf(Id.Key[(slash + 1)..]).ConfigureAwait(true);
+        return seed is { } json ? (TState?)RuntimeProtocol.Deserialize(json, typeof(TState)) : null;
+    }
+
     /// <summary>Sends <paramref name="command"/> to its target: "." is this screen, any other target a child key (optionally "./key") of the current view, or a key path "a/b" resolved hop by hop by each child's own gate.</summary>
     /// <exception cref="ArgumentException">The target key is empty, "..", or contains '/' after the optional "./" (returned as a faulted task).</exception>
     /// <exception cref="ActivationRefusedException">The current view names no slot with that key (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
@@ -96,18 +129,19 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         if (_view is not null)
         {
             // A stored legacy view: the slots it names are the current state's.
-            _ = RenderValidated(State, out _children);
+            _ = RenderValidated(State, out _children, out _seeds);
             return;
         }
         if (ReferenceEquals(_cause, LoadedMarker))
         {
             _cause = "reaction";
-            _view = new PublishedView(Alias, 1, RenderValidated(State, out var children));
+            _view = new PublishedView(Alias, 1, RenderValidated(State, out var children, out var seeds));
             _children = children;
+            _seeds = seeds;
             return;
         }
         _cause = "activate";
-        try { await Show(State).ConfigureAwait(true); }
+        try { await Show(await SeedFromParent().ConfigureAwait(true) ?? State).ConfigureAwait(true); }
         finally { _cause = "reaction"; }
     }
 
@@ -208,29 +242,32 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
 
     internal override Task StoreState(TState next, IReadOnlyList<Signal> signals)
     {
-        var wire = RenderValidated(next, out var children);
+        var wire = RenderValidated(next, out var children, out var seeds);
         var shown = _view is { } current && current.View.GetRawText() == wire.GetRawText()
             ? current
             : new PublishedView(Alias, (_view?.Generation ?? 0) + 1, wire);
         IReadOnlyList<Signal> entry = ReferenceEquals(shown, _view) ? signals : [.. signals, new ViewChanged(Alias, shown.Generation)];
-        return SaveAndCacheView(next, entry, shown, children);
+        return SaveAndCacheView(next, entry, shown, children, seeds);
     }
 
-    private async Task SaveAndCacheView(TState next, IReadOnlyList<Signal> entry, object shown, Dictionary<string, NeuronId> children)
+    private async Task SaveAndCacheView(TState next, IReadOnlyList<Signal> entry, object shown, Dictionary<string, NeuronId> children, Dictionary<string, JsonElement> seeds)
     {
         await Seat.Save(next, entry).ConfigureAwait(true);
         _view = (PublishedView)shown;
         _children = children;
+        _seeds = seeds;
         _cause = "reaction";
     }
 
-    private JsonElement RenderValidated(TState state, out Dictionary<string, NeuronId> children)
+    private JsonElement RenderValidated(TState state, out Dictionary<string, NeuronId> children, out Dictionary<string, JsonElement> seeds)
     {
         children = new Dictionary<string, NeuronId>(StringComparer.Ordinal);
+        seeds = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
         _rendering = children;
+        _seeding = seeds;
         View view;
         try { view = Render(state); }
-        finally { _rendering = null; }
+        finally { _rendering = null; _seeding = null; }
         var wire = PooledJson.Encode(view, typeof(View));
         if (System.Text.Encoding.UTF8.GetByteCount(wire.GetRawText()) > UnitLimits.MaxStateBytes)
         {

@@ -7,6 +7,7 @@ void main() {
   Future<List<Map<String, dynamic>>> pump(
     WidgetTester tester, {
     required bool isExpanded,
+    bool isEnabled = true,
   }) async {
     final sent = <Map<String, dynamic>>[];
     await tester.pumpWidget(
@@ -18,6 +19,7 @@ void main() {
               key: 'advanced',
               header: 'Advanced',
               isExpanded: isExpanded,
+              isEnabled: isEnabled,
               automationName: 'Advanced options',
               children: [
                 Node.fromJson(const {'kind': 'text', 'value': 'Inside'}),
@@ -62,5 +64,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(sent.single['args'], {'isExpanded': false});
+  });
+
+  testWidgets('a disabled expander sends nothing', (tester) async {
+    final sent = await pump(tester, isExpanded: false, isEnabled: false);
+
+    await tester.tap(find.text('Advanced'));
+    await tester.pumpAndSettle();
+
+    expect(sent, isEmpty);
   });
 }

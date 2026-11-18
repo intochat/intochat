@@ -39,8 +39,8 @@ public sealed class CheckBoxNeuronFacts
         var toggle = await Assert.ThrowsAsync<ActivationRefusedException>(() => box.Send(new Toggle()));
         var set = await Assert.ThrowsAsync<ActivationRefusedException>(() => box.Send(new SetChecked(true)));
 
-        Assert.Equal(ControlRefusals.Disabled, toggle.Reason);
-        Assert.Equal(ControlRefusals.Disabled, set.Reason);
+        Assert.Equal("control.disabled", toggle.Reason);
+        Assert.Equal(new ControlDisabled().Code, set.Reason);
         Assert.Empty(box.Published());
         Assert.False((await box.Drawn<CheckBoxView>()).IsOn);
     }
@@ -48,11 +48,11 @@ public sealed class CheckBoxNeuronFacts
     [Fact]
     public async Task It_draws_its_state_and_its_key_as_the_automation_name()
     {
-        await using var box = new ControlHarness(typeof(CheckBoxNeuron), key: "terms", state: new CheckBoxState { Label = "I accept", IsThreeState = true });
+        await using var box = new ControlHarness(typeof(CheckBoxNeuron), key: "terms", state: new CheckBoxState { Label = "I accept" });
 
         var drawn = await box.Drawn<CheckBoxView>();
 
-        Assert.Equal(new CheckBoxView("terms", "I accept", false, true, "terms", IsThreeState: true), drawn);
+        Assert.Equal(new CheckBoxView("terms", "I accept", false, true, "terms"), drawn);
     }
 
     [Fact]

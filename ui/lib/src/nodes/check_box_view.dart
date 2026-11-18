@@ -20,7 +20,6 @@ Widget renderCheckBoxView(CheckBoxViewNode node, NodeContext ctx) {
           children: [
             Checkbox(
               value: node.isOn,
-              tristate: node.isThreeState,
               onChanged: enabled ? (_) => actCheckBoxToggle(ctx, '.') : null,
             ),
             Flexible(child: Text(node.label)),
