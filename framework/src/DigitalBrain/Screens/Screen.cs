@@ -37,6 +37,13 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         return new Emit(Alias, SignalAliases.Of(typeof(TSignal)), PooledJson.Encode(signal, typeof(TSignal)));
     }
 
+    /// <summary>The command that brings <paramref name="signal"/> back to this screen's <c>[On]</c> reaction: a <see cref="Button"/> sends it to ".".</summary>
+    protected static Command Sends<TSignal>(TSignal signal) where TSignal : Signal
+    {
+        ArgumentNullException.ThrowIfNull(signal);
+        return new Command(".", SignalAliases.Of(typeof(TSignal)), PooledJson.Encode(signal, typeof(TSignal)));
+    }
+
     /// <summary>A neuron of this brain by its contract's neuron type and a brain-relative <paramref name="key"/>.</summary>
     protected T Get<T>(string key) where T : class => Get<T>(IdOf(typeof(T), key));
 
@@ -129,6 +136,13 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         }
 
         var node = ViewNodes.Find(view.View, nodeKey) ?? throw new ActivationRefusedException(ActivationRefusedException.UnknownNode);
+        // A node's command: "." is this screen (the activator stays on the payload), any other target goes the way of Dispatch.
+        if (ViewNodes.CommandOf(node) is { } command)
+        {
+            return command.Target == "."
+                ? Handle(command.Signal, ViewNodes.Payload(command.Args, fieldValue, by))
+                : Send(command);
+        }
         if (ViewNodes.EmitOf(node) is not { } emit)
         {
             throw new ActivationRefusedException(ActivationRefusedException.NoEmit);

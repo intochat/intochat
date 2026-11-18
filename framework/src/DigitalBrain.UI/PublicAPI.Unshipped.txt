@@ -156,10 +156,16 @@ DigitalBrain.UI.BrainSceneNode.TargetZoom.init -> void
 DigitalBrain.UI.BrainSceneNode.ZoomTargetId.get -> string?
 DigitalBrain.UI.BrainSceneNode.ZoomTargetId.init -> void
 DigitalBrain.UI.Button
-DigitalBrain.UI.Button.Button(string! Key, string! Label, DigitalBrain.UI.Emit? Emit = null, DigitalBrain.UI.Intent? Intent = null, bool Enabled = true, string! Tone = "neutral") -> void
-DigitalBrain.UI.Button.Deconstruct(out string! Key, out string! Label, out DigitalBrain.UI.Emit? Emit, out DigitalBrain.UI.Intent? Intent, out bool Enabled, out string! Tone) -> void
-DigitalBrain.UI.Button.Emit.get -> DigitalBrain.UI.Emit?
-DigitalBrain.UI.Button.Emit.init -> void
+DigitalBrain.UI.Button.Button(string! Key, string! Label, DigitalBrain.UI.Command? Command = null, DigitalBrain.UI.Intent? Intent = null, bool Enabled = true, string! Tone = "neutral", string! AutomationName = "", string? Tooltip = null, bool Visible = true) -> void
+DigitalBrain.UI.Button.Deconstruct(out string! Key, out string! Label, out DigitalBrain.UI.Command? Command, out DigitalBrain.UI.Intent? Intent, out bool Enabled, out string! Tone, out string! AutomationName, out string? Tooltip, out bool Visible) -> void
+DigitalBrain.UI.Button.AutomationName.get -> string!
+DigitalBrain.UI.Button.AutomationName.init -> void
+DigitalBrain.UI.Button.Command.get -> DigitalBrain.UI.Command?
+DigitalBrain.UI.Button.Command.init -> void
+DigitalBrain.UI.Button.Tooltip.get -> string?
+DigitalBrain.UI.Button.Tooltip.init -> void
+DigitalBrain.UI.Button.Visible.get -> bool
+DigitalBrain.UI.Button.Visible.init -> void
 DigitalBrain.UI.Button.Enabled.get -> bool
 DigitalBrain.UI.Button.Enabled.init -> void
 DigitalBrain.UI.Button.Equals(DigitalBrain.UI.Button? other) -> bool

@@ -42,7 +42,7 @@ public static class WebhookRelayUnit
             new Heading("Webhook relay", Subtitle: string.IsNullOrEmpty(state.TopicFilter) ? "All topics" : $"Topic: {state.TopicFilter}"),
             new Badge($"{state.Events.Length} captured", Tone: state.Events.Length > 0 ? "accent" : "neutral"),
             new Column([.. visible.Select(ev => (Node)new Card(ev.Topic, ev.Summary, []))]) { Gap = 8 },
-            new Button("clear", "Clear events", new Emit("relay.webhook", "relay.clear")),
+            new Button("clear", "Clear events", new Command(".", "relay.clear")),
         ]) { Gap = 12 });
     }
 

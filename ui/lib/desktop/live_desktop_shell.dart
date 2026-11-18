@@ -748,7 +748,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     'key': node.key,
     'text': node.label,
     'enabled': node.enabled,
-    'argument': switch (node.emit?.args) {
+    'argument': switch (node.command?.args) {
       final String text => text,
       _ => null,
     },

@@ -59,6 +59,6 @@ public static class WebWatchUnit
     [
         new Heading("Web watch", Subtitle: watch.Latest.Length == 0 ? "No items polled yet." : watch.Latest),
         new Badge($"{watch.Unseen} unseen", Tone: watch.Unseen > 10 ? "error" : "accent"),
-        new Button("mark-seen", "Mark seen", new Emit("watch.web", "watch.seen")),
+        new Button("mark-seen", "Mark seen", new Command(".", "watch.seen")),
     ]) { Gap = 12 });
 }

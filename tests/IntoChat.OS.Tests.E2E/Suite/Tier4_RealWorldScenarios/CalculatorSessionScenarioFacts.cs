@@ -122,17 +122,17 @@ public sealed class InteractiveCalculatorScreen : Screen<CalculatorScenarioState
             new Text($"PendingOp: {state.PendingOperator ?? "none"}"),
             new Text($"LastCaller: {state.LastCaller ?? "none"}"),
             new Text($"TurnCount: {state.TurnCount}"),
-            new Button("btn-clear", "C", Emits(new CalculatorClearSignal())),
-            new Button("btn-equals", "=", Emits(new CalculatorKeySignal("="))),
-            new Button("btn-add", "+", Emits(new CalculatorKeySignal("+"))),
-            new Button("btn-sub", "-", Emits(new CalculatorKeySignal("-"))),
-            new Button("btn-mul", "*", Emits(new CalculatorKeySignal("*"))),
-            new Button("btn-div", "/", Emits(new CalculatorKeySignal("/")))
+            new Button("btn-clear", "C", Sends(new CalculatorClearSignal())),
+            new Button("btn-equals", "=", Sends(new CalculatorKeySignal("="))),
+            new Button("btn-add", "+", Sends(new CalculatorKeySignal("+"))),
+            new Button("btn-sub", "-", Sends(new CalculatorKeySignal("-"))),
+            new Button("btn-mul", "*", Sends(new CalculatorKeySignal("*"))),
+            new Button("btn-div", "/", Sends(new CalculatorKeySignal("/")))
         };
 
         for (int i = 0; i <= 9; i++)
         {
-            elements.Add(new Button($"btn-{i}", $"{i}", Emits(new CalculatorKeySignal($"{i}"))));
+            elements.Add(new Button($"btn-{i}", $"{i}", Sends(new CalculatorKeySignal($"{i}"))));
         }
 
         return new View("InteractiveCalculator", new Column([.. elements]));

@@ -100,17 +100,16 @@ public sealed class DataStudioAppFacts
     }
 
     [Fact]
-    public void DataStudioAppDataOwnerConsistencyInEmits()
+    public void DataStudioButtonsCommandTheirOwnView()
     {
         var view = IntoChat.OS.UI.ScreenPreview.With<DataStudioApp, View>(app => app.Render());
         Assert.NotNull(view);
 
         var buttons = ExtractButtons(view).ToArray();
         Assert.NotEmpty(buttons);
-        foreach (var button in buttons.Where(b => b.Emit != null))
+        foreach (var button in buttons.Where(b => b.Command != null))
         {
-            Assert.Equal("app.data", button.Emit!.Owner);
-            Assert.DoesNotContain("datastudio", button.Emit.Owner, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(".", button.Command!.Target);
         }
     }
 

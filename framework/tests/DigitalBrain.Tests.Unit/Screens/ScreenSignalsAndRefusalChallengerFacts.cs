@@ -35,9 +35,9 @@ public sealed class ChallengerScreen : Screen<ChallengerScreenState>
             Title: "Challenger Screen",
             Root: new Column([
                 new Heading($"Counter: {state.Counter}"),
-                new Button("btn-valid", "Valid Button", Emits(new ChallengerTick(1))),
+                new Button("btn-valid", "Valid Button", Sends(new ChallengerTick(1))),
                 new Button("btn-no-emit", "No Emit Button", Intent: new Intent(IntentKind.Copy, "clipboard")),
-                new Button("btn-alien-owner", "Alien Owner Button", new Emit("alien.screen", "challenger.tick")),
+                new Switch("btn-alien-owner", "Alien Owner Button", false, new Emit("alien.screen", "challenger.tick")),
                 new Field("fld-valid", "Valid Field", FieldKind.Text, state.Text, OnSubmit: Emits(new ChallengerSetText("default"))),
                 new Field("fld-no-submit", "Field Without OnSubmit", FieldKind.Text, state.Text, OnSubmit: null),
                 new Field("fld-alien-submit", "Field Alien Submit", FieldKind.Text, state.Text, OnSubmit: new Emit("alien.screen", "challenger.set-text"))

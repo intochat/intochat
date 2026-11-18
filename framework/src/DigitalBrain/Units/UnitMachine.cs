@@ -71,6 +71,13 @@ internal sealed class UnitMachine<TState>(string alias, string neuron) where TSt
         }
 
         var node = ViewNodes.Find(view.View, nodeKey) ?? throw new ActivationRefusedException(ActivationRefusedException.UnknownNode);
+        // A unit has no child neurons: a button's command reaches it only through its own address ".".
+        if (ViewNodes.CommandOf(node) is { } command)
+        {
+            return command.Target == "."
+                ? new EmittedSignal(command.Signal, ViewNodes.Payload(command.Args, fieldValue, by))
+                : throw new ActivationRefusedException(ActivationRefusedException.UnknownChild);
+        }
         var emit = ViewNodes.EmitOf(node) ?? throw new ActivationRefusedException(ActivationRefusedException.NoEmit);
         if (!string.Equals(emit.Owner, claimed, StringComparison.Ordinal))
         {

@@ -20,7 +20,7 @@ public static class TestScreenUnitSynapses
 {
     [Synapse("test.screen-unit")]
     public static View Render(TestScreenUnitState state) =>
-        new("Screen Unit", new Column([new Button("btn1", "Press Me", new Emit("test.screen-unit", "test.screen-unit.press"))]));
+        new("Screen Unit", new Column([new Button("btn1", "Press Me", new Command(".", "test.screen-unit.press"))]));
 
     [Synapse(typeof(TestScreenPress), "test.screen-unit")]
     public static TestScreenUnitState OnPress(TestScreenPress press, TestScreenUnitState state) =>

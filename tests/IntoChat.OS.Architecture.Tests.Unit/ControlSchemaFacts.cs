@@ -24,7 +24,7 @@ public sealed class ControlSchemaFacts
         "Column", // built by Kit.VStack (a StackBuilder), a name the kind match cannot see
     };
 
-    private static readonly HashSet<string> InteractiveControlOffenders = new(StringComparer.Ordinal) { "Button.AutomationName", "Field.AutomationName", "NavItemNode.AutomationName", "Switch.AutomationName" };
+    private static readonly HashSet<string> InteractiveControlOffenders = new(StringComparer.Ordinal) { "Field.AutomationName", "NavItemNode.AutomationName", "Switch.AutomationName" };
     private static readonly HashSet<string> KitFactoryOffenders = new(StringComparer.Ordinal)
     {
         "ApprovalCardNode", "ChoiceCardNode", "Conversation", "DiffCardNode", "DraftCardNode", "ErrorLineNode",
@@ -32,7 +32,7 @@ public sealed class ControlSchemaFacts
     };
     // Node kinds that still activate through a legacy Emit rather than a Command to a neuron address (POST /brains/{brainId}/act).
     // Shrink-only: a kind that moves to commands (or becomes a control neuron) leaves this list.
-    private static readonly HashSet<string> LegacyEmitKinds = new(StringComparer.Ordinal) { "Button", "Field", "NavItemNode", "Switch" };
+    private static readonly HashSet<string> LegacyEmitKinds = new(StringComparer.Ordinal) { "Field", "NavItemNode", "Switch" };
     private static readonly HashSet<string> TextControlOffenders = new(StringComparer.Ordinal) { };
 
     [Fact]

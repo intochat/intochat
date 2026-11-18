@@ -40,9 +40,9 @@ public sealed class TestCounterScreen : Screen<TestCounterState>
             new Column([
                 new Text($"Count: {state.Count}"),
                 new Text($"LastBy: {state.LastBy ?? "none"}"),
-                new Button("btn-press", "Press", Emits(new TestCounterPress("increment"))),
+                new Button("btn-press", "Press", Sends(new TestCounterPress("increment"))),
                 new Field("fld-no-emit", "Input", FieldKind.Text),
-                new Button("btn-alien", "Alien", new Emit("app.alien_owner", "test.alien", null)),
+                new Switch("btn-alien", "Alien", false, new Emit("app.alien_owner", "test.alien", null)),
                 new Text("static-text")
             ]));
     }

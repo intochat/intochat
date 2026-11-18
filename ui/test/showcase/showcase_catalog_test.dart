@@ -12,8 +12,11 @@ List<Map<String, dynamic>> _catalog() => (jsonDecode(
   File('lib/src/generated/showcase_catalog.json').readAsStringSync(),
 ) as List).cast<Map<String, dynamic>>();
 
+// A legacy emit ({owner, signal}) or a command ({target, signal}).
 bool _isEmit(Object? v) =>
-    v is Map && v['owner'] is String && v['signal'] is String;
+    v is Map &&
+    (v['owner'] is String || v['target'] is String) &&
+    v['signal'] is String;
 
 final _models = File('lib/src/generated/node_models.dart').readAsStringSync();
 
@@ -50,7 +53,6 @@ final _keyedKinds = {
 const knownWithoutAutomationName = <String>{
   'appShell',
   'approvalCard',
-  'button',
   'conversation',
   'field',
   'navItem',
@@ -182,7 +184,8 @@ void main() {
         'kind': 'button',
         'key': 'save',
         'label': 'Save',
-        'emit': {'owner': 'local/apps/x', 'signal': 'Saved', 'args': {}},
+        'automationName': 'Save',
+        'command': {'target': '.', 'signal': 'Saved', 'args': {}},
       });
     });
 

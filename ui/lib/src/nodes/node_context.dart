@@ -245,6 +245,11 @@ class NodeContext {
     return '$slotPath/$key';
   }
 
+  /// Whether [address] names this view's own neuron on a top-level view
+  /// (not a slot), where activating a node's key reaches it for any app kind.
+  bool isTopLevelSelf(String address) =>
+      slotPath.isEmpty && const {'.', './'}.contains(address);
+
   /// Acts on a neuron [address] relative to this view:
   /// `{kind:"act", neuron, target, signal, args}`, posted to
   /// `POST /brains/{brain}/act`. A refusal (`409` with its reason) or a

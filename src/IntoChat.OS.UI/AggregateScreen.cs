@@ -434,22 +434,11 @@ internal static class NodeOwnerNormalizer
             {
                 Items = [.. tabs.Items.Select(item => item with { Emit = NormalizeEmit(item.Emit, owner)! })],
             },
-            Button btn => NormalizeButton(btn, owner),
             Field field => field with { OnSubmit = NormalizeEmit(field.OnSubmit, owner) },
             Switch sw => sw with { Emit = NormalizeEmit(sw.Emit, owner) },
             Select sel => sel with
             {
                 Options = [.. sel.Options.Select(opt => opt with { Emit = NormalizeEmit(opt.Emit, owner) })],
-            },
-            InfoBar bar => bar with { Action = bar.Action is null ? null : NormalizeButton(bar.Action, owner) },
-            ErrorLineNode err => err with { Action = err.Action is null ? null : NormalizeButton(err.Action, owner) },
-            EmptyStateNode empty => empty with
-            {
-                Suggestions = empty.Suggestions is null ? null : [.. empty.Suggestions.Select(b => NormalizeButton(b, owner))],
-            },
-            MetricTileNode tile => tile with
-            {
-                Actions = tile.Actions is null ? null : [.. tile.Actions.Select(b => NormalizeButton(b, owner))],
             },
             AppShellNode shell => shell with
             {
@@ -459,38 +448,11 @@ internal static class NodeOwnerNormalizer
                 Inspector = shell.Inspector is null ? null : Normalize(shell.Inspector, owner),
             },
             NavItemNode nav => nav with { Emit = NormalizeEmit(nav.Emit, owner) },
-            BrainSceneNode scene => scene with
-            {
-                Nodes = [.. scene.Nodes.Select(n => n.Select is null ? n : n with { Select = NormalizeButton(n.Select, owner) })],
-            },
-            ChoiceCardNode choice => choice with
-            {
-                Options = [.. choice.Options.Select(o => o.Pick is null ? o : o with { Pick = NormalizeButton(o.Pick, owner) })],
-            },
-            DraftCardNode draft => draft with
-            {
-                Send = draft.Send is null ? null : NormalizeButton(draft.Send, owner),
-                Discard = draft.Discard is null ? null : NormalizeButton(draft.Discard, owner),
-            },
-            RecordCardNode rec => rec with { Open = rec.Open is null ? null : NormalizeButton(rec.Open, owner) },
-            SecretCardNode sec => sec with
-            {
-                Enter = sec.Enter is null ? null : NormalizeButton(sec.Enter, owner),
-                Skip = sec.Skip is null ? null : NormalizeButton(sec.Skip, owner),
-            },
-            JobCardNode job => job with { Cancel = job.Cancel is null ? null : NormalizeButton(job.Cancel, owner) },
             Conversation conv => conv with
             {
                 Composer = conv.Composer with { OnSubmit = NormalizeEmit(conv.Composer.OnSubmit, owner)! },
                 Waiting = conv.Waiting is null ? null : Normalize(conv.Waiting, owner),
-                Error = conv.Error is null ? null : (ErrorLineNode)Normalize(conv.Error, owner),
-                Stop = conv.Stop is null ? null : NormalizeButton(conv.Stop, owner),
-                Empty = conv.Empty is null ? null : (EmptyStateNode)Normalize(conv.Empty, owner),
-                Messages = [.. conv.Messages.Select(m => m with
-                {
-                    Cards = m.Cards is null ? null : NormalizeList(m.Cards, owner),
-                    Retry = m.Retry is null ? null : NormalizeButton(m.Retry, owner),
-                })],
+                Messages = [.. conv.Messages.Select(m => m.Cards is null ? m : m with { Cards = NormalizeList(m.Cards, owner) })],
             },
             _ => node,
         };
@@ -517,17 +479,6 @@ internal static class NodeOwnerNormalizer
         }
 
         return changed ? normalized : children;
-    }
-
-    private static Button NormalizeButton(Button button, string owner)
-    {
-        if (button.Emit is null)
-        {
-            return button;
-        }
-
-        var normalizedEmit = NormalizeEmit(button.Emit, owner);
-        return ReferenceEquals(normalizedEmit, button.Emit) ? button : button with { Emit = normalizedEmit };
     }
 
     private static Emit? NormalizeEmit(Emit? emit, string owner)

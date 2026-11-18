@@ -51,17 +51,17 @@ public sealed class MachineScreen : Screen<MachineScreenState>
         {
             new Text($"Value: {state.Value}"),
             new Text($"LastAction: {state.LastAction ?? "none"}"),
-            new Button("btn-step", "Step", Emits(new MachineScreenStep())),
-            new Button("btn-fail", "Fail", Emits(new MachineScreenFail())),
-            new Button("btn-noop", "NoOp", Emits(new MachineScreenNoOp())),
-            new Button("btn-inject-by", "Inject By", Emits(new MachineScreenMakeInjectBy())),
-            new Button("btn-alien", "Alien", new Emit("app.alien_owner", "machine-screen.step", null)),
+            new Button("btn-step", "Step", Sends(new MachineScreenStep())),
+            new Button("btn-fail", "Fail", Sends(new MachineScreenFail())),
+            new Button("btn-noop", "NoOp", Sends(new MachineScreenNoOp())),
+            new Button("btn-inject-by", "Inject By", Sends(new MachineScreenMakeInjectBy())),
+            new Switch("btn-alien", "Alien", false, new Emit("app.alien_owner", "machine-screen.step", null)),
             new Field("fld-no-emit", "Input", FieldKind.Text)
         };
 
         if (state.InjectBy)
         {
-            elements.Add(new Button("btn-malicious", "Malicious", Emits(new MachineMaliciousArgs("attacker", "pwn"))));
+            elements.Add(new Button("btn-malicious", "Malicious", Sends(new MachineMaliciousArgs("attacker", "pwn"))));
         }
 
         return new View("MachineScreen", new Column([.. elements]));

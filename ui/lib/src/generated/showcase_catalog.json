@@ -180,8 +180,8 @@
         "default": null
       },
       {
-        "name": "emit",
-        "type": "Emit?",
+        "name": "command",
+        "type": "Command?",
         "default": null
       },
       {
@@ -198,6 +198,21 @@
         "name": "tone",
         "type": "String",
         "default": "neutral"
+      },
+      {
+        "name": "tooltip",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "visible",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": ""
       },
       {
         "name": "style",
@@ -217,7 +232,30 @@
     ],
     "commands": [],
     "signals": [],
-    "examples": []
+    "examples": [
+      {
+        "kind": "button",
+        "key": "save",
+        "label": "Save",
+        "command": {
+          "target": ".",
+          "signal": "Saved"
+        },
+        "tone": "accent",
+        "automationName": "Save"
+      },
+      {
+        "kind": "button",
+        "key": "copy",
+        "label": "Copy link",
+        "intent": {
+          "intentKind": "Copy",
+          "arg": "https://intochat.io"
+        },
+        "automationName": "Copy link",
+        "tooltip": "Copies the link"
+      }
+    ]
   },
   {
     "kind": "card",

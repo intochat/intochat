@@ -22,13 +22,13 @@ public sealed class AppUiScreenEndpointsFacts
     private static IDisposable AsPerson(string principal = "alice")
         => IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person(principal, principal, new BrainId(Scope)));
 
-    private static PublishedView CreateTestView(string alias, long generation, string key, string emitOwner, string emitSignal)
+    private static PublishedView CreateTestView(string alias, long generation, string key, string emitSignal)
     {
         var view = new View(
             "TestApp",
             new Column([
-                new Button(key, "ClickMe", new Emit(emitOwner, emitSignal, null)),
-                new Button("btn-alien", "Alien", new Emit("app.alien", "test.alien", null))
+                new Button(key, "ClickMe", new Command(".", emitSignal, null)),
+                new Switch("btn-alien", "Alien", false, new Emit("app.alien", "test.alien", null))
             ]));
         var json = JsonSerializer.SerializeToElement(view, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
         return new PublishedView(alias, generation, json);
@@ -117,7 +117,7 @@ public sealed class AppUiScreenEndpointsFacts
     public async Task Viewport_Reading_For_Screen_Returns_Direct_ViewRef()
     {
         var brain = new ScreenBrain();
-        var published = CreateTestView("app.calculator", 1L, "btn-0", "app.calculator", "calc.press");
+        var published = CreateTestView("app.calculator", 1L, "btn-0", "calc.press");
         var fakeScreen = new FakeScreen(published);
         brain.RegisterScreen("app.calculator", fakeScreen);
 
@@ -133,7 +133,7 @@ public sealed class AppUiScreenEndpointsFacts
     public async Task View_Reading_For_Screen_Returns_PublishedView()
     {
         var brain = new ScreenBrain();
-        var published = CreateTestView("app.calculator", 1L, "btn-0", "app.calculator", "calc.press");
+        var published = CreateTestView("app.calculator", 1L, "btn-0", "calc.press");
         var fakeScreen = new FakeScreen(published);
         brain.RegisterScreen("app.calculator", fakeScreen);
 
@@ -158,7 +158,7 @@ public sealed class AppUiScreenEndpointsFacts
     public async Task Mismatched_View_Generation_Throws_StaleActionException()
     {
         var brain = new ScreenBrain();
-        var published = CreateTestView("app.calculator", 2L, "btn-0", "app.calculator", "calc.press");
+        var published = CreateTestView("app.calculator", 2L, "btn-0", "calc.press");
         var fakeScreen = new FakeScreen(published);
         brain.RegisterScreen("app.calculator", fakeScreen);
 
@@ -177,7 +177,7 @@ public sealed class AppUiScreenEndpointsFacts
     public async Task Button_Emitting_To_Foreign_Owner_Throws_UnauthorizedAccessException()
     {
         var brain = new ScreenBrain();
-        var published = CreateTestView("app.calculator", 1L, "btn-alien", "app.alien", "test.alien");
+        var published = CreateTestView("app.calculator", 1L, "btn-alien", "test.alien");
         var fakeScreen = new FakeScreen(published);
         brain.RegisterScreen("app.calculator", fakeScreen);
 
@@ -195,7 +195,7 @@ public sealed class AppUiScreenEndpointsFacts
     public async Task Node_Activation_By_Unsigned_Caller_Throws_UnauthorizedAccessException()
     {
         var brain = new ScreenBrain();
-        var published = CreateTestView("app.calculator", 1L, "btn-0", "app.calculator", "calc.press");
+        var published = CreateTestView("app.calculator", 1L, "btn-0", "calc.press");
         var fakeScreen = new FakeScreen(published);
         brain.RegisterScreen("app.calculator", fakeScreen);
 
@@ -211,7 +211,7 @@ public sealed class AppUiScreenEndpointsFacts
     public async Task Node_Activation_By_Signed_Caller_Succeeds_And_Records_PersonId()
     {
         var brain = new ScreenBrain();
-        var published = CreateTestView("app.calculator", 1L, "btn-0", "app.calculator", "calc.press");
+        var published = CreateTestView("app.calculator", 1L, "btn-0", "calc.press");
         var fakeScreen = new FakeScreen(published);
         brain.RegisterScreen("app.calculator", fakeScreen);
 

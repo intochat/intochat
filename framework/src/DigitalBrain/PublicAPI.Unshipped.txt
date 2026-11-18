@@ -4243,3 +4243,4 @@ DigitalBrain.Screen<TState>.Slot<TChild>(string! key) -> DigitalBrain.UI.NeuronR
 static DigitalBrain.ScreenExtensions.ChildAddress(DigitalBrain.NeuronId parent, string! key) -> string!
 DigitalBrain.IScreen.Dispatch(DigitalBrain.UI.Command! command) -> System.Threading.Tasks.Task!
 DigitalBrain.Screen<TState>.Dispatch(DigitalBrain.UI.Command! command) -> System.Threading.Tasks.Task!
+static DigitalBrain.Screen<TState>.Sends<TSignal>(TSignal! signal) -> DigitalBrain.UI.Command!

@@ -89,6 +89,19 @@ public sealed record BoundCommand(
         return new Emit(owner, UiCommand.SignalAlias, payload);
     }
 
+    /// <summary>Builds the <see cref="DigitalBrain.UI.Command"/> a button sends to its own view's neuron (".").</summary>
+    public Command ToCommand()
+    {
+        var emit = ToEmit(".");
+        return new Command(".", emit.Signal, emit.Args);
+    }
+
+    internal static Command AttachHintMetadata(Command command, string? guardReason, string? tooltip)
+    {
+        var emit = AttachHintMetadata(new Emit(".", command.Signal, command.Args), guardReason, tooltip);
+        return command with { Args = emit.Args };
+    }
+
     internal static Emit AttachHintMetadata(Emit emit, string? guardReason, string? tooltip)
     {
         if (string.IsNullOrWhiteSpace(guardReason) && string.IsNullOrWhiteSpace(tooltip))

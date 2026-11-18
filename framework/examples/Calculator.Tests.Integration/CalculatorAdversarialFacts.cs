@@ -27,7 +27,7 @@ public sealed class InteractiveAdversarialScreen : Screen<InteractiveState>
     protected override View Render(InteractiveState state)
         => new("Interactive", new Column([
             new Heading($"Count: {state.Count}"),
-            new Button("btn-inc", "Increment", Emits(new InteractiveIncrement(1)))
+            new Button("btn-inc", "Increment", Sends(new InteractiveIncrement(1)))
         ]));
 
     [On]

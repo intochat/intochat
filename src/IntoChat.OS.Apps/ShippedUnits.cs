@@ -83,7 +83,7 @@ public static class ShippedUnits
                                 new Button(
                                     Key: "toggle-hello",
                                     Label: state.Visible ? "Hide Hello" : "Say Hello",
-                                    Emit: new Emit(UnitAlias, ToggleSignal),
+                                    Command: new Command(".", ToggleSignal),
                                     Tone: ButtonTone.Accent),
                             ], Title: "Hello World", Subtitle: "Interactive Micro-App"));
                     }

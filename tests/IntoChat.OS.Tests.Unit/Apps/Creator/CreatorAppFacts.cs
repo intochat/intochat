@@ -69,7 +69,7 @@ public sealed class CreatorAppFacts
         Assert.Single(Nodes(creator.App.Render()).OfType<Progress>(), p => p.Label == "Replay");
         Assert.Equal("t1", creator.App.State.TraceId);
         var select = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == BrainGraph.SelectKey);
-        Assert.Equal(new Emit("app.creator", "select"), select.Emit);
+        Assert.Equal(new Command(".", "select"), select.Command);
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public sealed class CreatorAppFacts
         await creator.Request("select", new CreatorSelect(BrainGraph.NodeKey(Unit)));
         await Field(creator, CreatorView.ChangeField, "count by two");
 
-        var change = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "change-it").Emit!;
+        var change = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "change-it").Command!;
         var args = EmitArgs.Of(change);
         await creator.Request(change.Signal, new CreatorChange(args[0], args[1]));
 
@@ -108,7 +108,7 @@ public sealed class CreatorAppFacts
         var ghost = Assert.Single(scene.Nodes, n => n.Kind == BrainGraph.Draft);
         Assert.Equal(BrainGraph.DraftId("weather"), ghost.Id);
         Assert.Contains(scene.Nodes, n => n.Id == Unit && n.Kind == BrainGraph.Unit);
-        Assert.Equal(new Emit("creator", "select", JsonSerializer.SerializeToElement(BrainGraph.NodeKey(Unit))).Signal, scene.Nodes.Single(n => n.Id == Unit).Select!.Emit!.Signal);
+        Assert.Equal(new Command(".", "select", JsonSerializer.SerializeToElement(BrainGraph.NodeKey(Unit))).Signal, scene.Nodes.Single(n => n.Id == Unit).Select!.Command!.Signal);
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public sealed class CreatorAppFacts
         Assert.Equal(("ctr.bump", null), FakeReads.Asked);
         var table = Assert.Single(Nodes(creator.App.Render()).OfType<DataTable>());
         Assert.Equal(["7", "9"], table.Rows.Select(r => r[0]));
-        Assert.Contains(Nodes(creator.App.Render()).OfType<Button>(), b => b.Emit is { Signal: "trace" });
+        Assert.Contains(Nodes(creator.App.Render()).OfType<Button>(), b => b.Command is { Signal: "trace" });
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public sealed class CreatorAppFacts
         var creator = await os.Install<CreatorApp>();
         await Field(creator, CreatorView.DescribeField, "watch elonmusk on X");
 
-        var make = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "make").Emit!;
+        var make = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "make").Command!;
         await creator.Request(make.Signal, new CreatorMake(EmitArgs.Of(make)[0]));
 
         Assert.Equal(["watch elonmusk on X"], FakeStudio.Goals);
@@ -230,7 +230,7 @@ public sealed class CreatorAppFacts
         Assert.Equal(["replay:0:1:test.hop:t1", "replay:1:2:synapse.state-changed:t1", "replay:2:3:test.hop:t1", "replay:3:4:synapse.state-changed:t1"], steps.Select(s => s.SignalLabel));
         Assert.Equal([true, false, false, false], steps.Select(s => s.Active));
         var next = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "replay-next");
-        Assert.Equal(new Emit("app.creator", "replay", JsonSerializer.SerializeToElement("next")), next.Emit);
+        Assert.Equal(new Command(".", "replay", JsonSerializer.SerializeToElement("next")), next.Command);
 
         await creator.Request("replay", new CreatorReplay("stop"));
         Assert.Null(creator.App.State.ReplayCursor);
@@ -248,7 +248,7 @@ public sealed class CreatorAppFacts
 
         await creator.Request("select", new CreatorSelect(BrainGraph.NodeKey(Unit)));
         var shareBtn = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "share-unit");
-        Assert.Equal("share", shareBtn.Emit!.Signal);
+        Assert.Equal("share", shareBtn.Command!.Signal);
 
         await creator.Request("share", new CreatorShare("ctr"));
 
@@ -269,7 +269,7 @@ public sealed class CreatorAppFacts
         var creator = await os.Install<CreatorApp>();
 
         var seedBtn = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "seed:watch.web");
-        Assert.Equal("seed", seedBtn.Emit!.Signal);
+        Assert.Equal("seed", seedBtn.Command!.Signal);
 
         await creator.Request("seed", new CreatorSeed("watch.web"));
 

@@ -141,8 +141,8 @@ void main() {
                         'label': 'Close account',
                         'style': 'secondary',
                         'enabled': false,
-                        'emit': {
-                          'owner': 'bank',
+                        'command': {
+                          'target': '.',
                           'signal': 'Close',
                           'args': {
                             'guardReason': 'Balance must be €0 before closing.',

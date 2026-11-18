@@ -39,11 +39,11 @@ public static class ViewBoardUnit
     public static View Show(ViewBoard b) => new("Board", new Row(
     [
         new Badge(b.Polls.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-        new Button("refresh", "Refresh", new Emit("vw", "x.refresh", System.Text.Json.JsonSerializer.SerializeToElement(new { key = "hidden", kind = "button" }))),
-        new Button("foreign", "Foreign", new Emit("other.alias", "x.refresh")),
-        new Button("boom", "Boom", new Emit("vw", "x.boom")),
+        new Button("refresh", "Refresh", new Command(".", "x.refresh", System.Text.Json.JsonSerializer.SerializeToElement(new { key = "hidden", kind = "button" }))),
+        new Switch("foreign", "Foreign", false, new Emit("other.alias", "x.refresh")),
+        new Button("boom", "Boom", new Command(".", "x.boom")),
         new Button("plain", "Plain", Intent: new Intent(IntentKind.Copy, "x")),
-        new Button("forge", "Forge", new Emit("vw", "unit.answered")),
+        new Button("forge", "Forge", new Command(".", "unit.answered")),
     ]));
 }
 
@@ -60,7 +60,7 @@ public static class SpoofBoardUnit
     public static SpoofBoard Seen(SignalEnvelope s, SpoofBoard b) => b with { Polls = b.Polls + 1 };
 
     [Synapse("vwb")]
-    public static View Show(SpoofBoard b) => new("Spoof", new Button("send", "Send", new Emit("vwb", "x.send", System.Text.Json.JsonSerializer.SerializeToElement(new { by = "admin" }))));
+    public static View Show(SpoofBoard b) => new("Spoof", new Button("send", "Send", new Command(".", "x.send", System.Text.Json.JsonSerializer.SerializeToElement(new { by = "admin" }))));
 }
 
 public sealed class StateViewFacts

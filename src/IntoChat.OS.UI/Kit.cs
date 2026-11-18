@@ -301,7 +301,8 @@ public sealed class ButtonBuilder
     private bool _enabled = true;
     private string? _guardMessage;
     private string? _tooltip;
-    private Emit? _emit;
+    private Command? _command;
+    private string? _automationName;
     private Intent? _intent;
 
     internal ButtonBuilder(string label, string style, string tone, string? icon = null, bool small = false)
@@ -378,7 +379,7 @@ public sealed class ButtonBuilder
     {
         var bound = CommandBinding.FromState(command);
         _derivedKey = bound.CanonicalKey;
-        _emit = bound.ToEmit(CommandBinding.ActiveOwner);
+        _command = bound.ToCommand();
         _intent = null;
         return this;
     }
@@ -388,7 +389,7 @@ public sealed class ButtonBuilder
     {
         var bound = CommandBinding.FromDecision(command);
         _derivedKey = bound.CanonicalKey;
-        _emit = bound.ToEmit(CommandBinding.ActiveOwner);
+        _command = bound.ToCommand();
         _intent = null;
         return this;
     }
@@ -398,7 +399,7 @@ public sealed class ButtonBuilder
     {
         var bound = CommandBinding.FromScreen(command);
         _derivedKey = bound.CanonicalKey;
-        _emit = bound.ToEmit(CommandBinding.ActiveOwner);
+        _command = bound.ToCommand();
         _intent = null;
         return this;
     }
@@ -408,17 +409,33 @@ public sealed class ButtonBuilder
     {
         var bound = CommandBinding.FromScreen(command);
         _derivedKey = bound.CanonicalKey;
-        _emit = bound.ToEmit(CommandBinding.ActiveOwner);
+        _command = bound.ToCommand();
         _intent = null;
         return this;
     }
 
-    /// <summary>Binds an explicit <see cref="DigitalBrain.UI.Emit"/> (for compatibility with classic <c>[On]</c> signal screens).</summary>
+    /// <summary>Binds a classic <c>[On]</c> signal: a button sends it as a <see cref="Command"/> to its own view's neuron (".");
+    /// the emit's owner is not kept, since a button only commands the view it is in or that view's children.</summary>
     public ButtonBuilder Emits(Emit emit)
     {
         ArgumentNullException.ThrowIfNull(emit);
-        _emit = emit;
+        return Sends(new Command(".", emit.Signal, emit.Args));
+    }
+
+    /// <summary>Binds the <see cref="Command"/> a click sends to a neuron address relative to the view's neuron.</summary>
+    public ButtonBuilder Sends(Command command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        _command = command;
         _intent = null;
+        return this;
+    }
+
+    /// <summary>Sets the accessible name; the key is used when none is set.</summary>
+    public ButtonBuilder AutomationName(string automationName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(automationName);
+        _automationName = automationName;
         return this;
     }
 
@@ -426,7 +443,7 @@ public sealed class ButtonBuilder
     public ButtonBuilder WithIntent(IntentKind kind, string? arg = null)
     {
         _intent = new Intent(kind, arg);
-        _emit = null;
+        _command = null;
         return this;
     }
 
@@ -434,20 +451,20 @@ public sealed class ButtonBuilder
     public Button ToButton()
     {
         var key = _explicitKey ?? _derivedKey ?? SlugifyKey("btn", _label.Length > 0 ? _label : (_icon ?? "action"));
-        var emit = _emit;
+        var command = _command;
         var intent = _intent;
-        if (emit is null && intent is null)
+        if (command is null && intent is null)
         {
-            // DigitalBrain.UI.Button requires either Emit or Intent; provide a safe inert no-op UiCommand when unbound.
-            emit = new Emit(CommandBinding.ActiveOwner, UiCommand.SignalAlias);
+            // DigitalBrain.UI.Button requires either Command or Intent; provide a safe inert no-op UiCommand when unbound.
+            command = new Command(".", UiCommand.SignalAlias);
         }
 
-        if (emit is not null && (_guardMessage is not null || _tooltip is not null))
+        if (command is not null && _guardMessage is not null)
         {
-            emit = BoundCommand.AttachHintMetadata(emit, _guardMessage, _tooltip);
+            command = BoundCommand.AttachHintMetadata(command, _guardMessage, tooltip: null);
         }
 
-        return new Button(key, _label, emit, intent, _enabled, _tone)
+        return new Button(key, _label, command, intent, _enabled, _tone, _automationName ?? "", _tooltip)
         {
             Style = _style,
             Icon = _icon,

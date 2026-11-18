@@ -106,7 +106,7 @@ public sealed class AppUiUnitOwnershipFacts
     public async Task ReadNode_RuntimeUnit_ViaScreen_ReturnsPublishedView()
     {
         var brain = new MockBrain();
-        var view = new View("Counter", new Column([new Button("btn-bump", "Bump", new Emit("counter", "bump", null))]));
+        var view = new View("Counter", new Column([new Button("btn-bump", "Bump", new Command(".", "bump", null))]));
         var json = JsonSerializer.SerializeToElement(view, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
         var published = new PublishedView("counter", 1L, json);
 
@@ -127,7 +127,7 @@ public sealed class AppUiUnitOwnershipFacts
     public async Task DeliverView_RuntimeUnit_ActivatesScreen()
     {
         var brain = new MockBrain();
-        var view = new View("Counter", new Column([new Button("btn-bump", "Bump", new Emit("counter", "bump", null))]));
+        var view = new View("Counter", new Column([new Button("btn-bump", "Bump", new Command(".", "bump", null))]));
         var json = JsonSerializer.SerializeToElement(view, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
         var published = new PublishedView("counter", 1L, json);
 

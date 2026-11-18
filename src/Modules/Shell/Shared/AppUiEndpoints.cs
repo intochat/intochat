@@ -406,7 +406,7 @@ internal static class AppUiEndpoints
                 {
                     throw new UnauthorizedAccessException($"Only the OS confirmation inbox can answer a confirmation; {input.Name} cannot.");
                 }
-                var action = node is { } foundNode ? ViewValidation.ActionOf(foundNode) : ViewActivation.None;
+                var action = node is { } foundNode ? ViewValidation.ActionOf(foundNode, screenAlias) : ViewActivation.None;
 
                 switch (action.Kind)
                 {
@@ -417,7 +417,8 @@ internal static class AppUiEndpoints
                         throw new UnauthorizedAccessException($"Only the OS confirmation inbox can answer a confirmation; {input.Name} cannot.");
 
                     case ViewActivationKind.Emit:
-                        ViewArgs.RequireValueUnreserved(action.Emit!.Args, input.Value);
+                    case ViewActivationKind.Command:
+                        ViewArgs.RequireValueUnreserved(action.Kind == ViewActivationKind.Emit ? action.Emit!.Args : action.Command!.Args, input.Value);
                         if (caller?.For?.Principal is not { Length: > 0 } personId)
                         {
                             throw new UnauthorizedAccessException("Only a signed-in person activates a screen view.");
@@ -453,7 +454,9 @@ internal static class AppUiEndpoints
         {
             case ViewActivationKind.Emit:
                 var emit = activation.Emit!;
-                if (appKey is null || !BrainId.IsValid(scope) || IntoChat.OS.Primitives.AppRef.Of(new BrainId(scope), emit.Owner).Key != appKey)
+                // A button's command to "." names the view's own key ({scope}/apps/{name}); a legacy emit names the app.
+                if (appKey is null || !BrainId.IsValid(scope) || (IntoChat.OS.Primitives.AppRef.TryParse(new BrainId(scope), emit.Owner, out var owner)
+                    ? owner.Key : IntoChat.OS.Primitives.AppRef.Of(new BrainId(scope), emit.Owner).Key) != appKey)
                 { throw new UnauthorizedAccessException($"A view of {appKey ?? name} cannot emit to {emit.Owner}."); }
                 var args = input.Value is null ? emit.Args : ViewArgs.WithValue(emit.Args, input.Value);
                 await brain.Get<IApp>(appKey).Emit(emit.Signal, args?.GetRawText() ?? "").WaitAsync(ct);
@@ -505,12 +508,13 @@ internal static class AppUiEndpoints
         {
             throw new UnauthorizedAccessException($"A unit view cannot answer a confirmation; {alias} cannot.");
         }
-        var shownAction = unitNode is { } foundUnitNode ? ViewValidation.ActionOf(foundUnitNode) : ViewActivation.None;
+        var shownAction = unitNode is { } foundUnitNode ? ViewValidation.ActionOf(foundUnitNode, alias) : ViewActivation.None;
         switch (shownAction.Kind)
         {
             case ViewActivationKind.Intent: return IntentResult(shownAction.Intent!);
             case ViewActivationKind.Resolve: throw new UnauthorizedAccessException($"A unit view cannot answer a confirmation; {alias} cannot.");
             case ViewActivationKind.Emit: ViewArgs.RequireValueUnreserved(shownAction.Emit!.Args, value); break;
+            case ViewActivationKind.Command: ViewArgs.RequireValueUnreserved(shownAction.Command!.Args, value); break;
         }
         // The state neuron writes "by" into the emit, overwriting whatever the payload says: the caller's stable person id, never
         // a display name. A view that declares "by" never publishes (the framework's ViewDeclaresBy), so the edge need not refuse one.

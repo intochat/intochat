@@ -6,7 +6,14 @@ namespace DigitalBrain.UI;
 /// <param name="Target">A neuron address relative to the view's neuron; <c>"."</c> is the neuron itself, <c>"dark-mode"</c> a child.</param>
 /// <param name="Signal">The alias of the signal to deliver.</param>
 /// <param name="Args">The signal payload as JSON (web casing), if any.</param>
-public sealed record Command(string Target, string Signal, JsonElement? Args = null);
+public sealed record Command(string Target, string Signal, JsonElement? Args = null)
+{
+    /// <inheritdoc />
+    public bool Equals(Command? other) => other is not null && Target == other.Target && Signal == other.Signal && Args?.GetRawText() == other.Args?.GetRawText();
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(Target, Signal, Args?.GetRawText());
+}
 
 /// <summary>Gives a control property one example value (JSON) for the showcase; repeat for several.</summary>
 /// <param name="exampleJson">The example as JSON.</param>

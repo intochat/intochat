@@ -339,7 +339,7 @@ public sealed class DddReactorAndExplorerFacts
         Assert.False(btn70.GetProperty("enabled").GetBoolean());
         Assert.Contains(
             "Insufficient funds",
-            btn70.GetProperty("emit").GetProperty("args").GetProperty("guardReason").GetString(),
+            btn70.GetProperty("command").GetProperty("args").GetProperty("guardReason").GetString(),
             StringComparison.Ordinal);
 
         // 3. Bypass UI disabled flag via direct Screen.Activate / MCP on cmd:Withdraw:70 -> server enforces exact same Rule!
@@ -373,7 +373,7 @@ public sealed class DddReactorAndExplorerFacts
         Assert.False(FindNodeByKey(v5.View, "cmd:Withdraw:30").GetProperty("enabled").GetBoolean());
         Assert.Contains(
             "Insufficient funds",
-            FindNodeByKey(v5.View, "cmd:Withdraw:30").GetProperty("emit").GetProperty("args").GetProperty("guardReason").GetString(),
+            FindNodeByKey(v5.View, "cmd:Withdraw:30").GetProperty("command").GetProperty("args").GetProperty("guardReason").GetString(),
             StringComparison.Ordinal);
         Assert.Contains(os.Journal(brain).Signals(id), s => s.Signal is Withdrawn { Amount: 30m, Balance: 20m });
     }
@@ -562,8 +562,8 @@ public sealed class DddReactorAndExplorerFacts
         Assert.NotNull(deployed.InitialViewJson);
         using var initialDoc = JsonDocument.Parse(deployed.InitialViewJson!);
         var btn = FindNodeByKey(initialDoc.RootElement, "cmd:Increment:2");
-        Assert.Equal("reactor-counter", btn.GetProperty("emit").GetProperty("owner").GetString());
-        var cmdArgsJson = btn.GetProperty("emit").GetProperty("args").GetRawText();
+        Assert.Equal(".", btn.GetProperty("command").GetProperty("target").GetString());
+        var cmdArgsJson = btn.GetProperty("command").GetProperty("args").GetRawText();
 
         // Dispatch ui.command three times: 0 -> 2 -> 4 -> refused at 6? Wait: at Value=4, MaxFive (Value >= 5) is false, so 4+2=6; next call at Value=6 is refused!
         var r1 = await sandbox.DispatchAsync(new DispatchAppRequest("b1", "reactor-counter", "signal", UiCommand.SignalAlias, cmdArgsJson), Ct);
@@ -629,7 +629,7 @@ public sealed class DddReactorAndExplorerFacts
 
                 foreach (var prop in cur.EnumerateObject())
                 {
-                    if (prop.Name is not ("emit" or "args"))
+                    if (prop.Name is not ("command" or "emit" or "args"))
                     {
                         stack.Push(prop.Value);
                     }

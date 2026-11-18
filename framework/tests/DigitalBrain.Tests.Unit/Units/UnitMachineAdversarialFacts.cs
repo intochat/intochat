@@ -41,8 +41,8 @@ public static class AdvSynapses
     public static View Show(AdvCounter c) =>
         new("adv.counter", new Row(
             [
-                new Button("bump_btn", "Bump", new Emit("adv.counter", "adv.bump", JsonSerializer.SerializeToElement(new { Amount = 5 }))),
-                new Button("foreign_btn", "Foreign", new Emit("malicious.owner", "adv.bump", JsonSerializer.SerializeToElement(new { Amount = 1 }))),
+                new Button("bump_btn", "Bump", new Command(".", "adv.bump", JsonSerializer.SerializeToElement(new { Amount = 5 }))),
+                new Switch("foreign_btn", "Foreign", false, new Emit("malicious.owner", "adv.bump", JsonSerializer.SerializeToElement(new { Amount = 1 }))),
                 new Text($"Count is {c.Count}")
             ]));
 }
@@ -173,7 +173,7 @@ public sealed class UnitMachineAdversarialFacts
     {
         var step = _machine.Start(new StoredUnit<AdvCounter>(new AdvCounter(1), null));
         var maliciousView = new View(StateAlias, new Button("btn", "Bump",
-            new Emit(StateAlias, "adv.bump", JsonSerializer.SerializeToElement(new { by = "spoofed_user", amount = 1 }))));
+            new Command(".", "adv.bump", JsonSerializer.SerializeToElement(new { by = "spoofed_user", amount = 1 }))));
 
         var (viewedStep, outcome) = _machine.Viewed(step, maliciousView);
 

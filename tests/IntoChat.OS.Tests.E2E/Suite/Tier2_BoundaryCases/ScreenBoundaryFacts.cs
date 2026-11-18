@@ -52,10 +52,10 @@ public sealed class BoundaryTestScreen : Screen<BoundaryTestState>
         {
             new Text($"Count: {state.Count}"),
             new Text($"LastBy: {state.LastBy ?? "none"}"),
-            new Button("btn-inc", "Increment", Emits(new BoundaryInc("inc"))),
-            new Button("btn-alien", "Alien Button", new Emit("app.foreign_owner", "boundary-test.inc", null)),
-            new Button("btn-oversized", "Make Oversized", Emits(new BoundaryMakeOversized())),
-            new Button("btn-inject-by", "Make Inject By", Emits(new BoundaryMakeInjectBy())),
+            new Button("btn-inc", "Increment", Sends(new BoundaryInc("inc"))),
+            new Switch("btn-alien", "Alien Button", false, new Emit("app.foreign_owner", "boundary-test.inc", null)),
+            new Button("btn-oversized", "Make Oversized", Sends(new BoundaryMakeOversized())),
+            new Button("btn-inject-by", "Make Inject By", Sends(new BoundaryMakeInjectBy())),
             new Field("fld-no-emit", "Input", FieldKind.Text),
             new Text("txt-static")
         };
@@ -69,7 +69,7 @@ public sealed class BoundaryTestScreen : Screen<BoundaryTestState>
         if (state.InjectBy)
         {
             // Inject author-declared host-reserved 'by' in args via typed record
-            elements.Add(new Button("btn-malicious", "Malicious", Emits(new MaliciousByArgs("hacker", "exploit"))));
+            elements.Add(new Button("btn-malicious", "Malicious", Sends(new MaliciousByArgs("hacker", "exploit"))));
         }
 
         return new View("BoundaryTest", new Column([.. elements]));

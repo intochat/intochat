@@ -13,7 +13,7 @@ public sealed class ViewKeyResolutionFacts
     {
         var node = ViewNodes.Find(wire, key);
         Assert.NotNull(node);
-        return ViewNodes.EmitOf(node.Value)!.Value.Signal;
+        return ViewNodes.CommandOf(node.Value)?.Signal ?? ViewNodes.EmitOf(node.Value)!.Value.Signal;
     }
 
     [Fact]
@@ -35,13 +35,13 @@ public sealed class ViewKeyResolutionFacts
     [Fact]
     public void FindResolvesACardChildButton()
     {
-        var choice = Wire(new ChoiceCardNode("c", "Which?", [new ChoiceOptionNode("One", Pick: new Button("pick-1", "One", new Emit("app", "pick.one")))]));
-        var draft = Wire(new DraftCardNode("d", "mail", "a@b", "hi", "me", Send: new Button("send", "Send", new Emit("app", "draft.send")), Discard: new Button("discard", "Discard", Intent: new Intent(IntentKind.OpenSettings))));
+        var choice = Wire(new ChoiceCardNode("c", "Which?", [new ChoiceOptionNode("One", Pick: new Button("pick-1", "One", new Command(".", "pick.one")))]));
+        var draft = Wire(new DraftCardNode("d", "mail", "a@b", "hi", "me", Send: new Button("send", "Send", new Command(".", "draft.send")), Discard: new Button("discard", "Discard", Intent: new Intent(IntentKind.OpenSettings))));
 
         Assert.Equal("pick.one", SignalOf(choice, "pick-1"));
         Assert.Equal("draft.send", SignalOf(draft, "send"));
         Assert.NotNull(ViewNodes.Find(draft, "discard"));
-        Assert.Null(ViewNodes.EmitOf(ViewNodes.Find(draft, "discard")!.Value));
+        Assert.Null(ViewNodes.CommandOf(ViewNodes.Find(draft, "discard")!.Value));
     }
 
     [Fact]
@@ -55,12 +55,12 @@ public sealed class ViewKeyResolutionFacts
     [Fact]
     public void CardChildButtonsSerialiseWithTheWireShape()
     {
-        var wire = Wire(new DraftCardNode("d", "mail", "a@b", "hi", "me", Send: new Button("send", "Send", new Emit("app", "draft.send"))));
+        var wire = Wire(new DraftCardNode("d", "mail", "a@b", "hi", "me", Send: new Button("send", "Send", new Command(".", "draft.send"))));
 
         var send = wire.GetProperty("root").GetProperty("send");
 
         Assert.Equal("send", send.GetProperty("key").GetString());
-        Assert.Equal("draft.send", send.GetProperty("emit").GetProperty("signal").GetString());
+        Assert.Equal("draft.send", send.GetProperty("command").GetProperty("signal").GetString());
         // A slot declared Button (not Node) is written without the polymorphic discriminator; that is why Find keys on the action member.
         Assert.False(send.TryGetProperty("kind", out _));
     }

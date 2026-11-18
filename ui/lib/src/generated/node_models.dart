@@ -386,10 +386,13 @@ final class ButtonNode extends Node {
   const ButtonNode({
     required this.key,
     required this.label,
-    required this.emit,
+    required this.command,
     required this.intent,
     required this.enabled,
     required this.tone,
+    required this.tooltip,
+    required this.visible,
+    required this.automationName,
     required this.style,
     required this.icon,
     required this.small,
@@ -400,10 +403,13 @@ final class ButtonNode extends Node {
 
   final String key;
   final String label;
-  final Emit? emit;
+  final Command? command;
   final IntentNode? intent;
   final bool enabled;
   final String tone;
+  final String? tooltip;
+  final bool visible;
+  final String automationName;
   final String style;
   final String? icon;
   final bool small;
@@ -411,12 +417,17 @@ final class ButtonNode extends Node {
   factory ButtonNode.fromJson(Map<String, dynamic> json) => ButtonNode(
     key: _string(json['key']),
     label: _string(json['label']),
-    emit: json['emit'] is Map ? Emit.fromJson(_map(json['emit'])) : null,
+    command: json['command'] is Map
+        ? Command.fromJson(_map(json['command']))
+        : null,
     intent: json['intent'] is Map
         ? IntentNode.fromJson(_map(json['intent']))
         : null,
     enabled: _bool(json['enabled'], true),
     tone: _string(json['tone'], 'neutral'),
+    tooltip: _stringOrNull(json['tooltip']),
+    visible: _bool(json['visible'], true),
+    automationName: _string(json['automationName']),
     style: _string(json['style']),
     icon: _stringOrNull(json['icon']),
     small: _bool(json['small']),
@@ -593,6 +604,24 @@ final class ColumnNode extends Node {
     extents: json['extents'] == null
         ? null
         : [for (final item in _list(json['extents'])) _double(item)],
+  );
+}
+
+final class Command {
+  const Command({
+    required this.target,
+    required this.signal,
+    required this.args,
+  });
+
+  final String target;
+  final String signal;
+  final Object? args;
+
+  factory Command.fromJson(Map<String, dynamic> json) => Command(
+    target: _string(json['target']),
+    signal: _string(json['signal']),
+    args: json['args'],
   );
 }
 
