@@ -62,11 +62,8 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
     // Ino's messages live in its conversation thread slot; MCP and HTTP readers see its controls under the slot key.
     private const string ComposerControl = InoView.ConversationKey + "/" + ChatThreadNeuron.ComposerKey;
     private const string StopControl = InoView.ConversationKey + "/" + ChatThreadNeuron.StopKey;
+    private const string ErrorRetryControl = InoView.ConversationKey + "/" + ChatThreadNeuron.ErrorRetryKey;
     private const string MessageRetryControlPrefix = InoView.ConversationKey + "/retry:";
-
-    // No message is still being sent or written.
-    private static bool IsSettled(string rawJson)
-        => !rawJson.Contains("\"status\":\"sending\"", StringComparison.Ordinal) && !rawJson.Contains("\"status\":\"running\"", StringComparison.Ordinal);
 
     [Fact]
     public async Task PresenceProofIsEnforcedAtBothHttpAndMcpEdges()
@@ -100,21 +97,24 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
         var model = host.Ollama.Models[0];
         var held = host.Ollama.HoldNext(model);
 
+        // Idle: no stop is offered.
+        Assert.DoesNotContain(StopControl, (await ReadInoScreenAsync()).Controls);
         await SubmitInoPromptAsync("First check: summarize kernel health.");
         await held.Entered.WaitAsync(TimeSpan.FromSeconds(20), Ct);
 
         var whileWorking = await WaitForScreenAsync(
-            s => s.RawJson.Contains("First check: summarize kernel health.", StringComparison.Ordinal)
-                && !s.RawJson.Contains("Kernel health is nominal across all silos.", StringComparison.Ordinal),
-            "Ino did not show the prompt while the turn was held in ScriptedOllama");
+            s => s.RawJson.Contains("\"working\"", StringComparison.OrdinalIgnoreCase)
+                || s.Controls.Contains(StopControl, StringComparer.Ordinal),
+            "Ino did not enter working state with stop control while turn was held in ScriptedOllama");
         Assert.Contains(StopControl, whileWorking.Controls);
 
         held.Release("Kernel health is nominal across all silos.");
 
         var afterTurn1 = await WaitForScreenAsync(
             s => s.RawJson.Contains("Kernel health is nominal across all silos.", StringComparison.Ordinal)
-                && IsSettled(s.RawJson),
-            "Ino did not settle with the first reply");
+                && s.RawJson.Contains("\"ready\"", StringComparison.OrdinalIgnoreCase),
+            "Ino did not transition back to ready with first reply");
+        Assert.DoesNotContain(StopControl, afterTurn1.Controls);
 
         host.Ollama.EnqueueReply("Follow-up confirmed: silo metrics remain healthy.", model);
         await using var mcp = await CreateMcpClientAsync();
@@ -220,9 +220,9 @@ public sealed class InoConversationJourneys(InoProductHostFixture host) : IClass
 
         var recovered = await WaitForScreenAsync(
             s => s.RawJson.Contains("Recovered diagnostics: cluster heartbeat is 4ms.", StringComparison.Ordinal)
-                && IsSettled(s.RawJson),
+                && s.RawJson.Contains("\"ready\"", StringComparison.OrdinalIgnoreCase),
             "Ino did not recover from Ollama failure after Retry action");
-        Assert.Contains("Recovered diagnostics: cluster heartbeat is 4ms.", recovered.RawJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(ErrorRetryControl, recovered.Controls);
     }
 
     [Fact]

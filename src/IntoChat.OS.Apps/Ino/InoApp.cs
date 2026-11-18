@@ -38,6 +38,11 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     private InoMessage[]? _messages;
     private IReadOnlyList<ThreadMessage>? _synced;
     private bool _threadKnown;
+    private ChatThreadProps? _syncedProps;
+    private string? _threadFailure;
+
+    /// <summary>What the person reads when Ino could not write its conversation thread.</summary>
+    public const string ThreadFailure = "The conversation could not be updated. Ino will try again with the next change.";
 
     public InoApp() : this(null, null) { }
 
@@ -58,7 +63,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
 
     protected override View Render(InoAppState state)
         => InoView.Screen(state.Messages is null && _messages is { } held ? state with { Messages = held } : state, _canDictate,
-            props => Slot<ChatThreadNeuron, ChatThreadProps>(InoView.ConversationKey, props));
+            props => Slot<ChatThreadNeuron, ChatThreadProps>(InoView.ConversationKey, props), _threadFailure);
 
     // Model decisions read the messages last projected; until a projection after activation, the chat revision reads 0 so the next
     // projection runs even when the chat has not changed since the messages were last projected.
@@ -73,17 +78,24 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         await Show(next with { Messages = null });
         var thread = InoView.Thread(next);
         if (!_threadKnown && thread.Count == 0) { return; }
-        if (_synced is { } synced && synced.SequenceEqual(thread)) { return; }
-        // Ino's own save stands when the thread cannot be written; the next save writes the thread again.
+        // The thread draws its stop and the error's retry from the props routed with the import: a props change writes it again too.
+        var props = InoView.ThreadProps(next, _canDictate, _threadFailure);
+        if (_synced is { } synced && synced.SequenceEqual(thread) && Equals(props, _syncedProps)) { return; }
+        // Ino's own save stands when the thread cannot be written: the slot's props say so (to the person and to MCP readers), and the
+        // next save writes the thread again.
         try
         {
             await SendToThread(new ImportMessages(thread, Replace: _threadKnown));
             _synced = thread;
+            _syncedProps = props;
+            if (_threadFailure is not null) { _threadFailure = null; await Show(next with { Messages = null }); }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             _synced = null;
+            _syncedProps = null;
             LogOptional(error, "conversation-thread");
+            if (_threadFailure is null) { _threadFailure = ThreadFailure; await Show(next with { Messages = null }); }
         }
     }
 

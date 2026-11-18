@@ -614,6 +614,7 @@ final class ChatThreadViewNode extends Node {
     required this.composer,
     required this.stop,
     required this.retry,
+    required this.props,
   });
 
   @override
@@ -622,8 +623,9 @@ final class ChatThreadViewNode extends Node {
   final String key;
   final List<MessageNode> messages;
   final ComposerNode composer;
-  final ButtonNode stop;
-  final ButtonNode retry;
+  final ButtonNode? stop;
+  final ButtonNode? retry;
+  final ChatThreadProps? props;
 
   factory ChatThreadViewNode.fromJson(Map<String, dynamic> json) =>
       ChatThreadViewNode(
@@ -633,8 +635,15 @@ final class ChatThreadViewNode extends Node {
             MessageNode.fromJson(_map(item)),
         ],
         composer: ComposerNode.fromJson(_map(json['composer'])),
-        stop: ButtonNode.fromJson(_map(json['stop'])),
-        retry: ButtonNode.fromJson(_map(json['retry'])),
+        stop: json['stop'] is Map
+            ? ButtonNode.fromJson(_map(json['stop']))
+            : null,
+        retry: json['retry'] is Map
+            ? ButtonNode.fromJson(_map(json['retry']))
+            : null,
+        props: json['props'] is Map
+            ? ChatThreadProps.fromJson(_map(json['props']))
+            : null,
       );
 }
 

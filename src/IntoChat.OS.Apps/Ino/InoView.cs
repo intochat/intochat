@@ -64,7 +64,7 @@ public static partial class InoView
     }
 
     /// <summary>What Ino decides about its conversation thread: the composer, the model, the status and an error no message carries.</summary>
-    public static ChatThreadProps ThreadProps(InoAppState s, bool dictation = false)
+    public static ChatThreadProps ThreadProps(InoAppState s, bool dictation = false, string? threadFailure = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         var shown = Shown(s);
@@ -78,14 +78,14 @@ public static partial class InoView
             Status: ConversationStatusOf(s),
             Working: s.ActiveRunId is not null,
             EmptyText: shown.Count == 0 ? "What do you need?" : null,
-            Error: ThreadError(s, shown));
+            Error: threadFailure is { Length: > 0 } ? new ChatThreadError(threadFailure) : ThreadError(s, shown));
     }
 
     /// <summary>
     /// Ino's screen: the conversation thread (<paramref name="thread"/> draws its slot with the props) and what waits on the user under it
     /// (approvals, model setup, cards no message carries).
     /// </summary>
-    public static View Screen(InoAppState s, bool dictation, Func<ChatThreadProps, Node> thread)
+    public static View Screen(InoAppState s, bool dictation, Func<ChatThreadProps, Node> thread, string? threadFailure = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(thread);
@@ -94,15 +94,21 @@ public static partial class InoView
         Node[] loose = [.. s.ActiveCards.Where(c => !projectedCardIds.Contains(c.Id)).SelectMany(RenderCardNodes)];
         Node[] setup = ShouldShowModelSetup(s) ? RenderModelSetupNodes(s) : [];
         Node[] approvals = s.Approvals is { Length: > 0 } pending ? [.. pending.Select(RenderApproval)] : [];
-        var conversation = thread(ThreadProps(s, dictation));
+        var conversation = thread(ThreadProps(s, dictation, threadFailure));
         if (HasUnprojectedVaultSecretPrompt(s))
         {
-            return new View("Ino", VStack(Space.Md, [.. s.ActiveCards.SelectMany(RenderCardNodes), conversation, .. approvals, .. setup]));
+            Node[] above = [.. s.ActiveCards.SelectMany(RenderCardNodes)];
+            Node[] below = [.. approvals, .. setup];
+            return new View("Ino", Filling(above, conversation, below));
         }
 
         Node[] under = [.. approvals, .. loose, .. setup];
-        return new View("Ino", under.Length == 0 ? conversation : VStack(Space.Md, [conversation, .. under]));
+        return new View("Ino", under.Length == 0 ? conversation : Filling([], conversation, under));
     }
+
+    // The thread fills the height a bounded parent gives (extent 1); what sits above and below it stretches to the width (extent -1).
+    private static Node Filling(Node[] above, Node thread, Node[] below)
+        => VStack(Space.Md, [.. above, thread, .. below]).Extents([.. above.Select(static _ => -1d), 1d, .. below.Select(static _ => -1d)]);
 
     private static ThreadMessage ToThreadMessage(InoMessage msg)
     {

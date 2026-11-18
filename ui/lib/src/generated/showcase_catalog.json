@@ -452,6 +452,16 @@
         "name": "messages",
         "type": "List<Map<String, Object?>>",
         "default": null
+      },
+      {
+        "name": "showsStop",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "showsRetry",
+        "type": "bool",
+        "default": null
       }
     ],
     "commands": [
@@ -608,12 +618,17 @@
       },
       {
         "name": "stop",
-        "type": "ButtonNode",
+        "type": "ButtonNode?",
         "default": null
       },
       {
         "name": "retry",
-        "type": "ButtonNode",
+        "type": "ButtonNode?",
+        "default": null
+      },
+      {
+        "name": "props",
+        "type": "Map<String, Object?>",
         "default": null
       }
     ],

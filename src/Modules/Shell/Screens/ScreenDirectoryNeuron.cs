@@ -608,6 +608,8 @@ internal sealed partial class ScreenDirectoryNeuron(
                     var inlined = System.Text.Json.Nodes.JsonNode.Parse(childRoot.GetRawText())!.AsObject();
                     PrefixKeys(inlined, path);
                     if (depth + 1 < MaxSlotDepth) { await InlineAsync(inlined, path, depth + 1); }
+                    // The parent's props for the slot (status, placeholder, an error) stay readable on the node drawn in its place.
+                    if (obj["props"] is { } slotProps) { inlined["props"] = slotProps.DeepClone(); }
                     obj.Clear();
                     foreach (var (name, value) in inlined.ToArray()) { inlined.Remove(name); obj[name] = value; }
                 }

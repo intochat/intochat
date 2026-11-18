@@ -67,12 +67,18 @@ public sealed class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThread
         return Show(State with { Messages = messages }, new MessageUpdated(command.Id));
     }
 
+    private static (bool Stop, bool Retry) Shows(ChatThreadProps? props) => (props is { Working: true }, props is { Error.Retry: true });
+
     [On]
     public Task ImportMessages(ImportMessages command)
     {
         ArgumentNullException.ThrowIfNull(command);
         var next = Merge(command.Replace ? [] : State.Messages, command.Messages ?? []);
-        return next.SequenceEqual(State.Messages) ? Task.CompletedTask : Show(State with { Messages = next });
+        // The stop and the error's retry show what the props routed with the parent's last write say (kept, so a redraw without
+        // props still shows them); a write without props (not from the parent) leaves them.
+        var (stop, retry) = Props is { } routed ? Shows(routed) : (State.ShowsStop, State.ShowsRetry);
+        var updated = State with { Messages = next, ShowsStop = stop, ShowsRetry = retry };
+        return updated.Equals(State) ? Task.CompletedTask : Show(updated);
     }
 
     [On]
@@ -121,7 +127,7 @@ public sealed class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThread
     }
 
     /// <summary>What a thread with <paramref name="messages"/> draws under <paramref name="key"/>: the last 100 messages (at most 1,000,000 characters of text), each failed one with its reason and a retry.</summary>
-    public static ChatThreadView Draw(string key, IReadOnlyList<ThreadMessage> messages)
+    public static ChatThreadView Draw(string key, IReadOnlyList<ThreadMessage> messages, bool showsStop = false, bool showsRetry = false)
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(messages);
@@ -129,14 +135,14 @@ public sealed class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThread
             key,
             [.. Shown(messages).Select(DrawMessage)],
             new ComposerNode(ComposerKey, new Emit("control.chatThread", "control.submitText")),
-            new Button(StopKey, "Stop", new Command(".", "control.stop"), AutomationName: "Stop"),
-            new Button(ErrorRetryKey, "Try again", RetryCommand(string.Empty), AutomationName: "Try again"));
+            showsStop ? new Button(StopKey, "Stop", new Command(".", "control.stop"), AutomationName: "Stop") : null,
+            showsRetry ? new Button(ErrorRetryKey, "Try again", RetryCommand(string.Empty), AutomationName: "Try again") : null);
     }
 
     protected override View Render(ChatThreadState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return new(Key, Draw(Key, state.Messages));
+        return new(Key, Draw(Key, state.Messages, state.ShowsStop, state.ShowsRetry));
     }
 
     private static MessageNode DrawMessage(ThreadMessage message)

@@ -1,11 +1,41 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
 using IntoChat.OS.Apps.Controls;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Controls;
+
+public sealed record ThreadParentState
+{
+    public bool Working { get; init; }
+}
+
+[Signal("test.work")]
+public sealed record Work(bool On) : Signal;
+
+/*
+# Thread parent
+
+A test parent that slots a chat thread and writes it (an empty import) whenever it starts or stops working, so the thread draws its
+stop from the props routed with that write.
+*/
+[Neuron("test.thread-parent")]
+public sealed class ThreadParent : Screen<ThreadParentState>
+{
+    protected override View Render(ThreadParentState state)
+        => new("Parent", Slot<ChatThreadNeuron, ChatThreadProps>("conversation", new ChatThreadProps(Working: state.Working, Status: state.Working ? "working" : "ready")));
+
+    [On]
+    public async Task Work(Work work)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        await Show(State with { Working = work.On });
+        await Send(new Command("conversation", "control.importMessages", JsonSerializer.SerializeToElement(new { messages = Array.Empty<object>() })));
+    }
+}
 
 public sealed class ChatThreadNeuronFacts
 {
@@ -138,6 +168,26 @@ public sealed class ChatThreadNeuronFacts
         var published = thread.Published();
         Assert.Equal("typed text", Assert.IsType<Submitted>(published[0]).Values["text"]);
         Assert.Equal(new RetryRequested("m2"), published[1]);
+    }
+
+    [Fact]
+    public async Task The_stop_is_drawn_only_while_the_parent_says_it_is_working()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", ControlHarness.Brain));
+        await using var os = DigitalBrain.Testing.TestOS.Local();
+        os.Register<ThreadParent>().Register<ChatThreadNeuron>();
+        var parent = new NeuronId(ControlHarness.Brain, "test.thread-parent", "p");
+        var thread = os.Get<IScreen>(new NeuronId(ControlHarness.Brain, "control.chatThread", ScreenExtensions.ChildAddress(parent, "conversation")));
+        async Task<ChatThreadView> Drawn() => Assert.IsType<ChatThreadView>((await thread.Read())!.View.GetProperty("root").Deserialize<Node>(JsonSerializerOptions.Web));
+
+        await os.Get<IScreen>(parent).Request(new Work(false)); await os.Idle();
+        Assert.Null((await Drawn()).Stop);
+
+        await os.Get<IScreen>(parent).Request(new Work(true)); await os.Idle();
+        Assert.Equal(ChatThreadNeuron.StopKey, (await Drawn()).Stop?.Key);
+
+        await os.Get<IScreen>(parent).Request(new Work(false)); await os.Idle();
+        Assert.Null((await Drawn()).Stop);
     }
 
     [Fact]

@@ -20,7 +20,7 @@ A test app whose screen slots a chat thread under "conversation", so the screen 
 public sealed class SlotDemoApp : Screen<SlotDemoState>
 {
     protected override View Render(SlotDemoState state)
-        => new("Slot demo", new Column([new Text("Demo"), Slot<ChatThreadNeuron, ChatThreadProps>("conversation", new ChatThreadProps("Ask anything."))]));
+        => new("Slot demo", new Column([new Text("Demo"), Slot<ChatThreadNeuron, ChatThreadProps>("conversation", new ChatThreadProps("Ask anything.", Status: "failed", Error: new ChatThreadError("Ino could not answer.", ActionLabel: "Try again", Retry: true)))]));
 }
 
 // MCP and HTTP readers see a screen's slots in place, their controls under the slot key path, and act on them through the slot.
@@ -43,7 +43,11 @@ public sealed class ScreenDirectorySlotFacts
 
         Assert.NotNull(read);
         Assert.Contains(read.Controls, control => control.Key == "conversation/composer");
-        Assert.IsType<DigitalBrain.UI.Controls.ChatThreadView>(Assert.IsType<Column>(read.View!.Root).Children[1]);
+        var drawn = Assert.IsType<DigitalBrain.UI.Controls.ChatThreadView>(Assert.IsType<Column>(read.View!.Root).Children[1]);
+        // The parent's props stay readable in place: the status and the error no message carries.
+        Assert.Equal(("failed", "Ino could not answer."), (drawn.Props?.Status, drawn.Props?.Error?.What));
+        // Idle: the thread was never told it is working, so no stop is offered.
+        Assert.DoesNotContain(read.Controls, control => control.Key == "conversation/stop");
 
         var acted = await directory.Act("slotdemo", "conversation/composer", "hello");
         await os.Idle();

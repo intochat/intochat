@@ -15,7 +15,7 @@ public static class ChatThreadComposition
         ArgumentNullException.ThrowIfNull(props);
         var error = props.Error is { } e
             ? new ErrorLineNode(e.What, e.Detail, e.ActionLabel is null ? null
-                : e.Retry ? view.Retry with { Label = e.ActionLabel }
+                : e.Retry ? view.Retry is { } retry ? retry with { Label = e.ActionLabel } : null
                 : e.Open is { } open ? new Button("error-open", e.ActionLabel, Intent: new Intent(IntentKind.OpenWindow, open))
                 : null)
             : null;

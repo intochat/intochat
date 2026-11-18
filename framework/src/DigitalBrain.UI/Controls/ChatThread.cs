@@ -10,8 +10,14 @@ public sealed record ChatThreadState
     [Showcase("""{"kind":"chatThreadView","key":"conversation","messages":[{"id":"m1","role":"user","text":"Summarise my week","status":"completed"},{"id":"m2","role":"assistant","text":"","status":"failed","retry":{"kind":"button","key":"retry:m2","label":"Try again","command":{"target":".","signal":"control.retry","args":{"id":"m2"}},"automationName":"Try again"},"error":{"kind":"errorLine","what":"The model did not answer."}}],"composer":{"key":"composer","onSubmit":{"owner":"control.chatThread","signal":"control.submitText"}},"props":{"placeholder":"Ask anything.","canSend":true,"dictation":false,"status":"failed","working":false,"isEnabled":true,"automationName":"Conversation"}}""")]
     public IReadOnlyList<ThreadMessage> Messages { get; init; } = [];
 
+    /// <summary>Whether the props the parent routed with its last write say it is working: the stop is drawn.</summary>
+    public bool ShowsStop { get; init; }
+
+    /// <summary>Whether the props the parent routed with its last write carry an error that retries: the error line's retry is drawn.</summary>
+    public bool ShowsRetry { get; init; }
+
     /// <inheritdoc />
-    public bool Equals(ChatThreadState? other) => other is not null && Messages.SequenceEqual(other.Messages);
+    public bool Equals(ChatThreadState? other) => other is not null && ShowsStop == other.ShowsStop && ShowsRetry == other.ShowsRetry && Messages.SequenceEqual(other.Messages);
 
     /// <inheritdoc />
     public override int GetHashCode() => Messages.Count;
@@ -24,14 +30,17 @@ public sealed record ChatThreadState
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
 /// <param name="Messages">The messages drawn, oldest first.</param>
 /// <param name="Composer">The composer: it submits the typed text to the thread.</param>
-/// <param name="Stop">The stop button, drawn while the props say the parent is working.</param>
-/// <param name="Retry">The error line's retry, drawn when the props' error retries.</param>
+/// <param name="Stop">The stop button: present only while the props the parent last routed say it is working.</param>
+/// <param name="Retry">The error line's retry: present only while the props the parent last routed carry an error that retries.</param>
+/// <param name="Props">The slot's props, set only where a reader outside the client draws the slot in place (a screen directory); the
+/// neuron never sets it and the client reads the slot's own props.</param>
 [ViewNode("chatThreadView")]
-public sealed record ChatThreadView(string Key, IReadOnlyList<MessageNode> Messages, ComposerNode Composer, Button Stop, Button Retry) : Node
+public sealed record ChatThreadView(string Key, IReadOnlyList<MessageNode> Messages, ComposerNode Composer, Button? Stop = null, Button? Retry = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ChatThreadProps? Props = null) : Node
 {
     /// <inheritdoc />
     public bool Equals(ChatThreadView? other) => other is not null && Key == other.Key && Messages.SequenceEqual(other.Messages)
-        && Equals(Composer, other.Composer) && Equals(Stop, other.Stop) && Equals(Retry, other.Retry);
+        && Equals(Composer, other.Composer) && Equals(Stop, other.Stop) && Equals(Retry, other.Retry) && Equals(Props, other.Props);
 
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(Key, Messages.Count);

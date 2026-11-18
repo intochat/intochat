@@ -116,6 +116,22 @@ public sealed class InoConversationThreadFacts
     }
 
     [Fact]
+    public async Task A_thread_that_cannot_be_written_is_said_in_the_slot_props()
+    {
+        // No chat thread neuron is registered: every write to the thread fails.
+        await using var os = SeededOs(new InoAppState());
+        using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
+        await os.Activate(InoId);
+        var ino = os.Get<IScreen>(InoId);
+
+        await ino.Request(new InoSend("hello"));
+        await os.Idle();
+
+        var view = (await ino.Read())!.View.Deserialize<View>(RuntimeProtocol.OptionsFor(typeof(View)))!;
+        Assert.Equal(InoApp.ThreadFailure, InoDrawing.PropsOf(view).Error?.What);
+    }
+
+    [Fact]
     public void Every_failed_reply_says_why_in_Ino_words()
     {
         var s = new InoAppState() with

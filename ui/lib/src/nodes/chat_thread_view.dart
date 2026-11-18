@@ -60,8 +60,11 @@ Widget renderChatThreadView(ChatThreadViewNode node, NodeContext ctx) {
 ButtonNode? _errorAction(ChatThreadViewNode node, ChatThreadError error) {
   final label = error.actionLabel;
   if (label == null) return null;
-  final retry = node.retry;
   if (error.retry) {
+    // The thread draws its retry node only once its parent's props say the
+    // error retries; until then the line offers no action.
+    final retry = node.retry;
+    if (retry == null) return null;
     return ButtonNode(
       key: retry.key,
       label: label,
@@ -77,18 +80,19 @@ ButtonNode? _errorAction(ChatThreadViewNode node, ChatThreadError error) {
       small: retry.small,
     );
   }
-  if (error.open == null) return null;
+  final open = error.open;
+  if (open == null) return null;
   return ButtonNode(
     key: 'error-open',
     label: label,
     command: null,
-    intent: IntentNode(intentKind: IntentKind.openWindow, arg: error.open),
+    intent: IntentNode(intentKind: IntentKind.openWindow, arg: open),
     enabled: true,
-    tone: retry.tone,
+    tone: 'neutral',
     tooltip: null,
     visible: true,
     automationName: label,
-    style: retry.style,
+    style: '',
     icon: null,
     small: true,
   );

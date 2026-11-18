@@ -1962,9 +1962,7 @@ DigitalBrain.UI.Controls.ChatThreadView.Composer.get -> DigitalBrain.UI.Composer
 DigitalBrain.UI.Controls.ChatThreadView.Messages.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>!
 DigitalBrain.UI.ChatThreadProps.ActiveModelLabel.init -> void
 DigitalBrain.UI.ChatThreadProps.ActiveProviderIcon.init -> void
-DigitalBrain.UI.Controls.ChatThreadView.Stop.get -> DigitalBrain.UI.Button!
 DigitalBrain.UI.ChatThreadProps.Status.init -> void
-DigitalBrain.UI.Controls.ChatThreadView.Retry.get -> DigitalBrain.UI.Button!
 DigitalBrain.UI.Controls.ChatThreadView.Composer.init -> void
 override DigitalBrain.UI.Controls.ChatThreadState.Equals(object? obj) -> bool
 DigitalBrain.UI.Controls.ChatThreadView.Retry.init -> void
@@ -1981,7 +1979,6 @@ override DigitalBrain.UI.Controls.ChatThreadView.Equals(object? obj) -> bool
 override sealed DigitalBrain.UI.Controls.ChatThreadView.Equals(DigitalBrain.UI.Node? other) -> bool
 DigitalBrain.UI.Controls.ChatThreadView.Stop.init -> void
 override DigitalBrain.UI.Controls.ChatThreadView.<Clone>$() -> DigitalBrain.UI.Controls.ChatThreadView!
-DigitalBrain.UI.Controls.ChatThreadView.Deconstruct(out string! Key, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>! Messages, out DigitalBrain.UI.ComposerNode! Composer, out DigitalBrain.UI.Button! Stop, out DigitalBrain.UI.Button! Retry) -> void
 DigitalBrain.UI.MessageNode.Deconstruct(out string! Id, out string! Role, out string! Text, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>? Cards, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>? Activities, out string! Status, out string? Model, out DigitalBrain.UI.Button? Retry, out string? ModelLabel, out string? ProviderIcon, out DigitalBrain.UI.ErrorLineNode? Error) -> void
 DigitalBrain.UI.MessageNode.Error.get -> DigitalBrain.UI.ErrorLineNode?
 DigitalBrain.UI.MessageNode.Error.init -> void
@@ -1994,7 +1991,6 @@ override DigitalBrain.UI.ChatThreadProps.Equals(object? obj) -> bool
 override sealed DigitalBrain.UI.ChatThreadProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
 DigitalBrain.UI.ChatThreadProps.Equals(DigitalBrain.UI.ChatThreadProps? other) -> bool
 override DigitalBrain.UI.ChatThreadProps.<Clone>$() -> DigitalBrain.UI.ChatThreadProps!
-DigitalBrain.UI.Controls.ChatThreadView.ChatThreadView(string! Key, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>! Messages, DigitalBrain.UI.ComposerNode! Composer, DigitalBrain.UI.Button! Stop, DigitalBrain.UI.Button! Retry) -> void
 DigitalBrain.UI.Controls.ChatThreadState.Messages.init -> void
 DigitalBrain.UI.Controls.ChatThreadState.Equals(DigitalBrain.UI.Controls.ChatThreadState? other) -> bool
 override DigitalBrain.UI.Controls.ChatThreadState.GetHashCode() -> int
@@ -2077,3 +2073,13 @@ override DigitalBrain.UI.ChatThreadError.Equals(object? obj) -> bool
 DigitalBrain.UI.ChatThreadError.Equals(DigitalBrain.UI.ChatThreadError? other) -> bool
 DigitalBrain.UI.ChatThreadError.<Clone>$() -> DigitalBrain.UI.ChatThreadError!
 DigitalBrain.UI.ChatThreadError.Deconstruct(out string! What, out string? Detail, out string? ActionLabel, out string? Open, out bool Retry) -> void
+DigitalBrain.UI.Controls.ChatThreadView.Retry.get -> DigitalBrain.UI.Button?
+DigitalBrain.UI.Controls.ChatThreadView.Props.get -> DigitalBrain.UI.ChatThreadProps?
+DigitalBrain.UI.Controls.ChatThreadView.Deconstruct(out string! Key, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>! Messages, out DigitalBrain.UI.ComposerNode! Composer, out DigitalBrain.UI.Button? Stop, out DigitalBrain.UI.Button? Retry, out DigitalBrain.UI.ChatThreadProps? Props) -> void
+DigitalBrain.UI.Controls.ChatThreadView.Stop.get -> DigitalBrain.UI.Button?
+DigitalBrain.UI.Controls.ChatThreadView.Props.init -> void
+DigitalBrain.UI.Controls.ChatThreadView.ChatThreadView(string! Key, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>! Messages, DigitalBrain.UI.ComposerNode! Composer, DigitalBrain.UI.Button? Stop = null, DigitalBrain.UI.Button? Retry = null, DigitalBrain.UI.ChatThreadProps? Props = null) -> void
+DigitalBrain.UI.Controls.ChatThreadState.ShowsStop.init -> void
+DigitalBrain.UI.Controls.ChatThreadState.ShowsRetry.init -> void
+DigitalBrain.UI.Controls.ChatThreadState.ShowsRetry.get -> bool
+DigitalBrain.UI.Controls.ChatThreadState.ShowsStop.get -> bool

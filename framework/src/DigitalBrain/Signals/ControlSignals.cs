@@ -104,7 +104,8 @@ public sealed record UpdateMessage(string Id, DigitalBrain.UI.ThreadMessagePatch
 
 /// <summary>Imports messages into a chat thread: a held id is replaced in place, a new one appended; null entries, blank ids and repeated ids are skipped.</summary>
 /// <param name="Messages">The messages, oldest first.</param>
-/// <param name="Replace">True drops every held message the import does not name (the import is the whole thread).</param>
+/// <param name="Replace">True drops every held message the import does not name (the import is the whole thread). Safe only while one
+/// writer owns the thread's messages (Ino for its conversation): a second writer's messages would be dropped by the next whole-thread import.</param>
 [Signal("control.importMessages")]
 public sealed record ImportMessages(IReadOnlyList<DigitalBrain.UI.ThreadMessage?>? Messages, bool Replace = false) : Signal;
 
