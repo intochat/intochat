@@ -11,16 +11,45 @@ final class UiProgress extends StatelessWidget {
     required this.determinate,
     required this.value,
     required this.label,
+    this.error = false,
+    this.ring = false,
   });
 
   final bool determinate;
   final double value;
   final String label;
 
+  /// Draws it in the error tone: the work stopped.
+  final bool error;
+
+  /// Draws a 20px ring beside the label instead of a bar.
+  final bool ring;
+
   @override
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
     final fraction = value.isNaN ? 0.0 : value.clamp(0.0, 1.0);
+    final color = error ? c.error : c.accent;
+    if (ring) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 8,
+        children: [
+          SizedBox.square(
+            dimension: 20,
+            child: CircularProgressIndicator(
+              value: determinate ? fraction : null,
+              strokeWidth: 3,
+              color: color,
+              backgroundColor: c.recessed,
+              semanticsLabel: label.isEmpty ? null : label,
+            ),
+          ),
+          if (label.isNotEmpty)
+            Flexible(child: Text(label, style: UiType.of(context).bodyMuted)),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -34,7 +63,7 @@ final class UiProgress extends StatelessWidget {
           child: LinearProgressIndicator(
             value: determinate ? fraction : null,
             minHeight: 8,
-            color: c.accent,
+            color: color,
             backgroundColor: c.recessed,
             semanticsLabel: label.isEmpty ? null : label,
           ),

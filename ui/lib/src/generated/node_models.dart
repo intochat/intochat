@@ -1317,6 +1317,9 @@ final class ProgressNode extends Node {
     required this.label,
     required this.value,
     required this.detail,
+    required this.isIndeterminate,
+    required this.showError,
+    required this.ring,
   });
 
   @override
@@ -1325,11 +1328,17 @@ final class ProgressNode extends Node {
   final String label;
   final double value;
   final String? detail;
+  final bool isIndeterminate;
+  final bool showError;
+  final bool ring;
 
   factory ProgressNode.fromJson(Map<String, dynamic> json) => ProgressNode(
     label: _string(json['label']),
     value: _double(json['value']),
     detail: _stringOrNull(json['detail']),
+    isIndeterminate: _bool(json['isIndeterminate']),
+    showError: _bool(json['showError']),
+    ring: _bool(json['ring']),
   );
 }
 

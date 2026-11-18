@@ -9,7 +9,8 @@ import 'node_context.dart';
 Widget renderProgress(ProgressNode node, NodeContext ctx) => Builder(
   builder: (context) {
     final c = UiColors.of(context);
-    final determinate = !node.value.isNaN && node.value >= 0;
+    final determinate =
+        !node.isIndeterminate && !node.value.isNaN && node.value >= 0;
     final normalized = determinate
         ? (node.value > 1 ? node.value / 100 : node.value).clamp(0.0, 1.0)
         : 0.0;
@@ -21,10 +22,18 @@ Widget renderProgress(ProgressNode node, NodeContext ctx) => Builder(
           determinate: determinate,
           value: normalized,
           label: node.label,
+          error: node.showError,
+          ring: node.ring,
         ),
         if (node.detail case final detail? when detail.isNotEmpty) ...[
           const SizedBox(height: 4),
-          Text(detail, style: UiType.tabularStyle(12.5, color: c.muted)),
+          Text(
+            detail,
+            style: UiType.tabularStyle(
+              12.5,
+              color: node.showError ? c.error : c.muted,
+            ),
+          ),
         ],
       ],
     );

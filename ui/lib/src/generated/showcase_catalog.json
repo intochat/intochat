@@ -1078,11 +1078,47 @@
         "name": "detail",
         "type": "String?",
         "default": null
+      },
+      {
+        "name": "isIndeterminate",
+        "type": "bool",
+        "default": false
+      },
+      {
+        "name": "showError",
+        "type": "bool",
+        "default": false
+      },
+      {
+        "name": "ring",
+        "type": "bool",
+        "default": false
       }
     ],
     "commands": [],
     "signals": [],
-    "examples": []
+    "examples": [
+      {
+        "kind": "progress",
+        "label": "Uploading",
+        "value": 0.42,
+        "detail": "42 of 100 files"
+      },
+      {
+        "kind": "progress",
+        "label": "Connecting",
+        "value": 0,
+        "isIndeterminate": true,
+        "ring": true
+      },
+      {
+        "kind": "progress",
+        "label": "Sync failed",
+        "value": 0.7,
+        "showError": true,
+        "detail": "Stopped at 70%"
+      }
+    ]
   },
   {
     "kind": "recordCard",

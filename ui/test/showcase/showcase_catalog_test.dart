@@ -110,7 +110,14 @@ Future<List<Map<String, dynamic>>> _pump(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  // An indeterminate example (a spinning ring) never settles; a few frames show it.
+  await tester
+      .pumpAndSettle(
+        const Duration(milliseconds: 100),
+        EnginePhase.sendSemanticsUpdate,
+        const Duration(seconds: 2),
+      )
+      .catchError((Object _) => 0, test: (error) => error is FlutterError);
   return sent;
 }
 

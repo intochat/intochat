@@ -300,9 +300,24 @@ public sealed record Select(string Label, string Selected, IReadOnlyList<SelectO
     public override int GetHashCode() => HashCode.Combine(Label, Selected, Options.Count);
 }
 
-/// <summary>A progress bar with label and percentage.</summary>
+/// <summary>A progress bar or ring with a label: plain data, no state of its own.</summary>
+/// <param name="Label">What is progressing.</param>
+/// <param name="Value">The fraction done, 0 to 1 (a percentage above 1 is read as 0 to 100); ignored while <paramref name="IsIndeterminate"/>.</param>
+/// <param name="Detail">A muted line below, such as "3/7".</param>
+/// <param name="IsIndeterminate">True shows activity without a known fraction.</param>
+/// <param name="ShowError">True draws it in the error tone: the work stopped.</param>
+/// <param name="Ring">True draws a ring instead of a bar.</param>
 [ViewNode("progress")]
-public sealed record Progress(string Label, double Value, string? Detail = null) : Node;
+public sealed record Progress(
+    [Showcase("""{"kind":"progress","label":"Uploading","value":0.42,"detail":"42 of 100 files"}""")]
+    [Showcase("""{"kind":"progress","label":"Connecting","value":0,"isIndeterminate":true,"ring":true}""")]
+    [Showcase("""{"kind":"progress","label":"Sync failed","value":0.7,"showError":true,"detail":"Stopped at 70%"}""")]
+    string Label,
+    double Value,
+    string? Detail = null,
+    bool IsIndeterminate = false,
+    bool ShowError = false,
+    bool Ring = false) : Node;
 
 /// <summary>An inline status/alert banner: plain data whose close control sends a <see cref="Command"/>.</summary>
 /// <param name="Title">The bold lead text.</param>

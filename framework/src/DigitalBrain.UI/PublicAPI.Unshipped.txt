@@ -610,13 +610,11 @@ DigitalBrain.UI.Node
 DigitalBrain.UI.Node.Node() -> void
 DigitalBrain.UI.Node.Node(DigitalBrain.UI.Node! original) -> void
 DigitalBrain.UI.Progress
-DigitalBrain.UI.Progress.Deconstruct(out string! Label, out double Value, out string? Detail) -> void
 DigitalBrain.UI.Progress.Detail.get -> string?
 DigitalBrain.UI.Progress.Detail.init -> void
 DigitalBrain.UI.Progress.Equals(DigitalBrain.UI.Progress? other) -> bool
 DigitalBrain.UI.Progress.Label.get -> string!
 DigitalBrain.UI.Progress.Label.init -> void
-DigitalBrain.UI.Progress.Progress(string! Label, double Value, string? Detail = null) -> void
 DigitalBrain.UI.Progress.Value.get -> double
 DigitalBrain.UI.Progress.Value.init -> void
 DigitalBrain.UI.RecordCardNode
@@ -1292,6 +1290,14 @@ DigitalBrain.UI.InfoBar.Deconstruct(out string! Title, out string! Message, out 
 DigitalBrain.UI.InfoBar.InfoBar(string! Title, string! Message, string! Tone = "neutral", DigitalBrain.UI.Button? Action = null, DigitalBrain.UI.Command? Close = null, string! Key = "", string! AutomationName = "") -> void
 DigitalBrain.UI.InfoBar.Key.get -> string!
 DigitalBrain.UI.InfoBar.Key.init -> void
+DigitalBrain.UI.Progress.Deconstruct(out string! Label, out double Value, out string? Detail, out bool IsIndeterminate, out bool ShowError, out bool Ring) -> void
+DigitalBrain.UI.Progress.IsIndeterminate.get -> bool
+DigitalBrain.UI.Progress.IsIndeterminate.init -> void
+DigitalBrain.UI.Progress.Progress(string! Label, double Value, string? Detail = null, bool IsIndeterminate = false, bool ShowError = false, bool Ring = false) -> void
+DigitalBrain.UI.Progress.Ring.get -> bool
+DigitalBrain.UI.Progress.Ring.init -> void
+DigitalBrain.UI.Progress.ShowError.get -> bool
+DigitalBrain.UI.Progress.ShowError.init -> void
 override DigitalBrain.UI.IconButton.<Clone>$() -> DigitalBrain.UI.IconButton!
 override DigitalBrain.UI.IconButton.Equals(object? obj) -> bool
 override DigitalBrain.UI.IconButton.GetHashCode() -> int
