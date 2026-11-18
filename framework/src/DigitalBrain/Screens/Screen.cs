@@ -64,7 +64,9 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     /// </summary>
     /// <exception cref="InvalidOperationException">Called outside <see cref="Render"/>, or the key is used twice in one view.</exception>
     /// <exception cref="ArgumentException">The key is empty, ".", ".." or contains '/'.</exception>
-    protected NeuronRef Slot<TChild>(string key, ControlProps props) where TChild : class
+    /// <exception cref="InvalidOperationException">The props hold a slot: control content is data nodes only, because a slot there would
+    /// be routed under the control's key instead of this screen's.</exception>
+    protected NeuronRef Slot<TChild, TProps>(string key, TProps props) where TChild : class, IControl<TProps> where TProps : ControlProps
     {
         ArgumentNullException.ThrowIfNull(props);
         return AddSlot<TChild>(key, props);
@@ -76,8 +78,24 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
         var rendering = _rendering ?? throw new InvalidOperationException($"Slot '{key}' of '{Alias}' is rendered outside Render.");
         var child = new NeuronId(Id.Brain, TypeOf(typeof(TChild)), ScreenExtensions.ChildAddress(Id, key));
         if (!rendering.TryAdd(key, new SlotEntry(child, props))) { throw new InvalidOperationException($"The view of '{Alias}' names slot '{key}' twice."); }
-        return new NeuronRef("slot", child.ToString(), props is null ? null : PooledJson.Encode(props, props.GetType()));
+        if (props is null) { return new NeuronRef("slot", child.ToString()); }
+        var wire = PooledJson.Encode(props, props.GetType());
+        if (HoldsSlot(wire))
+        {
+            throw new InvalidOperationException($"The props of slot '{key}' of '{Alias}' hold a slot; control content is data nodes only.");
+        }
+        return new NeuronRef("slot", child.ToString(), wire);
     }
+
+    // True when the JSON holds a neuronRef node of refKind "slot" at any depth.
+    private static bool HoldsSlot(JsonElement json) => json.ValueKind switch
+    {
+        JsonValueKind.Array => json.EnumerateArray().Any(HoldsSlot),
+        JsonValueKind.Object => (json.TryGetProperty("kind", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "neuronRef"
+                && json.TryGetProperty("refKind", out var refKind) && refKind.ValueKind == JsonValueKind.String && refKind.GetString() == "slot")
+            || json.EnumerateObject().Any(property => HoldsSlot(property.Value)),
+        _ => false,
+    };
 
     /// <summary>Sends <paramref name="command"/> to its target: "." is this screen, any other target a child key (optionally "./key") of the current view, or a key path "a/b" resolved hop by hop by each child's own gate.</summary>
     /// <exception cref="ArgumentException">The target key is empty, "..", or contains '/' after the optional "./" (returned as a faulted task).</exception>

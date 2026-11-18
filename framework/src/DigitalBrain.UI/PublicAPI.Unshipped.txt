@@ -1465,3 +1465,4 @@ static DigitalBrain.UI.ToggleSwitchProps.operator ==(DigitalBrain.UI.ToggleSwitc
 virtual DigitalBrain.UI.ControlProps.EqualityContract.get -> System.Type!
 virtual DigitalBrain.UI.ControlProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
 virtual DigitalBrain.UI.ControlProps.PrintMembers(System.Text.StringBuilder! builder) -> bool
+DigitalBrain.UI.IControl<TProps>

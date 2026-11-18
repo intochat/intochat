@@ -4245,4 +4245,4 @@ static DigitalBrain.ScreenExtensions.ChildAddress(DigitalBrain.NeuronId parent, 
 DigitalBrain.IScreen.Dispatch(DigitalBrain.UI.Command! command) -> System.Threading.Tasks.Task!
 DigitalBrain.Screen<TState>.Dispatch(DigitalBrain.UI.Command! command) -> System.Threading.Tasks.Task!
 static DigitalBrain.Screen<TState>.Sends<TSignal>(TSignal! signal) -> DigitalBrain.UI.Command!
-DigitalBrain.Screen<TState>.Slot<TChild>(string! key, DigitalBrain.UI.ControlProps! props) -> DigitalBrain.UI.NeuronRef!
+DigitalBrain.Screen<TState>.Slot<TChild, TProps>(string! key, TProps! props) -> DigitalBrain.UI.NeuronRef!

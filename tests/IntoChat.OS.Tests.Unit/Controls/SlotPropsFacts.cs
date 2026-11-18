@@ -15,6 +15,8 @@ public sealed record PropsParentState
     public string Label { get; init; } = "Terms";
 
     public bool TermsEnabled { get; init; } = true;
+
+    public bool NestSlot { get; init; }
 }
 
 /*
@@ -29,9 +31,19 @@ public sealed class PropsParent : Screen<PropsParentState>
     {
         ArgumentNullException.ThrowIfNull(state);
         return new("Parent", new Column([
-            Slot<CheckBoxNeuron>("terms", new CheckBoxProps(state.Label, state.TermsEnabled)),
+            Slot<CheckBoxNeuron, CheckBoxProps>("terms", new CheckBoxProps(state.Label, state.TermsEnabled)),
             Slot<CheckBoxNeuron>("plain"),
+            .. state.NestSlot
+                ? new Node[] { Slot<ExpanderNeuron, ExpanderProps>("more", new ExpanderProps("More", [new Text("Data is fine"), Slot<CheckBoxNeuron>("inner")])) }
+                : [],
         ]));
+    }
+
+    [On]
+    public Task NestSlot(NestSlot signal)
+    {
+        ArgumentNullException.ThrowIfNull(signal);
+        return Show(State with { NestSlot = true });
     }
 
     [On]
@@ -51,6 +63,9 @@ public sealed class PropsParent : Screen<PropsParentState>
 
 [Signal("test.relabel")]
 public sealed record Relabel(string Label) : Signal;
+
+[Signal("test.nestSlot")]
+public sealed record NestSlot : Signal;
 
 [Signal("test.enableTerms")]
 public sealed record EnableTerms(bool IsEnabled) : Signal;
@@ -157,6 +172,15 @@ public sealed class SlotPropsFacts : IAsyncDisposable
         await _os.Get<IScreen>(ChildId).Dispatch(new Command(".", "control.toggle"));
 
         Assert.Equal([new Toggled(true)], ChildSignals());
+    }
+
+    [Fact]
+    public async Task A_slot_inside_control_props_is_refused_at_render()
+    {
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => Tell(new NestSlot()));
+
+        Assert.Contains("slot 'more'", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("data nodes only", refused.Message, StringComparison.Ordinal);
     }
 
     public async ValueTask DisposeAsync()

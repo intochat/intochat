@@ -141,7 +141,8 @@ class NodeContext {
 
   /// The props the parent wrote on this view's slot (`neuronRef.props`): a
   /// control draws its label, header, content and enabled from them, and its
-  /// value from its own view. Empty outside a slot.
+  /// value from its own view. Empty outside a slot, and cleared by [deeper]:
+  /// only the slot view's root reads them.
   final Map<String, dynamic> slotProps;
 
   bool get interactive => enabled && send != null;
@@ -167,7 +168,8 @@ class NodeContext {
     buttonHints: buttonHints,
     nodeKeys: nodeKeys,
     transcribe: transcribe,
-    slotProps: slotProps,
+    // Props belong to the slot's root control only; nested nodes (an
+    // expander's content) never read them.
   );
 
   /// The brain scope the view lives under: `{scope}/apps/{app}/…` or `{scope}/{alias}`.

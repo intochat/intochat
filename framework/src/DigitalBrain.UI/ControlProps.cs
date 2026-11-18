@@ -1,5 +1,11 @@
 namespace DigitalBrain.UI;
 
+/// <summary>A control neuron whose props are <typeparamref name="TProps"/>: it ties <c>Slot&lt;TChild, TProps&gt;(key, props)</c> to the child's own props record.</summary>
+/// <typeparam name="TProps">The props record the parent writes on the control's slot.</typeparam>
+#pragma warning disable CA1040 // A marker: the constraint is the whole point.
+public interface IControl<TProps> where TProps : ControlProps;
+#pragma warning restore CA1040
+
 /// <summary>
 /// A control's props: the setup its parent decides, written on the slot node in the parent's view (<c>Slot&lt;TChild&gt;(key, props)</c>)
 /// and re-rendered with the parent. The child neuron stores only what the user changes. A command routed through the parent to a slot
