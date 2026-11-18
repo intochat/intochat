@@ -10,10 +10,12 @@ public sealed record RunStarted(string Scenario, string Driver) : Signal;
 
 /// <summary>A step was taken.</summary>
 /// <param name="Index">The step index.</param>
+/// <param name="Step">The step itself: its kind, target, and signal or expected text.</param>
 /// <param name="Outcome">What happened: acted, held, or failed with the reason.</param>
-/// <param name="EvidenceRef">The driver's evidence, or none.</param>
+/// <param name="Shown">What the target showed, for an Expect step the driver could read.</param>
+/// <param name="EvidenceRef">The driver's evidence at this step, or none.</param>
 [Signal("test.run.step")]
-public sealed record StepTaken(int Index, string Outcome, string? EvidenceRef = null) : Signal;
+public sealed record StepTaken(int Index, ScenarioStep Step, string Outcome, string? Shown = null, string? EvidenceRef = null) : Signal;
 
 /// <summary>A run ended.</summary>
 /// <param name="Verdict">How it ended.</param>
@@ -41,9 +43,11 @@ public interface IRun
 
     /// <summary>Records a step.</summary>
     /// <param name="index">The step index.</param>
+    /// <param name="step">The step.</param>
     /// <param name="outcome">What happened.</param>
+    /// <param name="shown">What the target showed, or none.</param>
     /// <param name="evidenceRef">The driver's evidence, or none.</param>
-    Task Step(int index, string outcome, string? evidenceRef);
+    Task Step(int index, ScenarioStep step, string outcome, string? shown, string? evidenceRef);
 
     /// <summary>Ends the run.</summary>
     /// <param name="verdict">How it ended.</param>
@@ -62,8 +66,8 @@ public sealed class RunNeuron : Neuron<ScenarioRunState>, IRun
         => Save(new ScenarioRunState(scenario, driver, 0, null), [new RunStarted(scenario, driver)]);
 
     /// <inheritdoc />
-    public Task Step(int index, string outcome, string? evidenceRef)
-        => Save(State with { Steps = State.Steps + 1 }, [new StepTaken(index, outcome, evidenceRef)]);
+    public Task Step(int index, ScenarioStep step, string outcome, string? shown, string? evidenceRef)
+        => Save(State with { Steps = State.Steps + 1 }, [new StepTaken(index, step, outcome, shown, evidenceRef)]);
 
     /// <inheritdoc />
     public Task Finish(RunVerdict verdict)

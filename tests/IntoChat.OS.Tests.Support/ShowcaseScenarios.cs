@@ -34,6 +34,8 @@ public static class ShowcaseScenarios
         _ => new(page.Id, UiKitApp.AppName, [Open(page.Id), new Expect(".", page.Title)]),
     };
 
+    // NOT YET RUN against the kernel: the page texts, the "control.retry" log line and the "#1" chart point are expected values that
+    // Task 12 (the kernel driver) verifies; adjust here and regenerate scenarios.json if they differ.
     // Opening a page is what a user does: select it in the nav.
     private static Act Open(string page) => new(UiKitPages.Nav, "control.select", Args(new { id = page }));
 

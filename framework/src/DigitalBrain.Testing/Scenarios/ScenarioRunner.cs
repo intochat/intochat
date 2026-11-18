@@ -20,22 +20,20 @@ public static class ScenarioRunner
         {
             var step = scenario.Steps[index];
             string? failure;
+            string? shown = null;
             try
             {
-                failure = await Take(step, driver, ct).ConfigureAwait(false);
+                (failure, shown) = await Take(step, driver, ct).ConfigureAwait(false);
             }
             catch (Exception error) when (!ct.IsCancellationRequested)
             {
                 System.Diagnostics.Trace.TraceWarning($"Scenario {scenario.Name} step {index}: the {driver.Name} driver threw {error}");
                 failure = $"{step.Target}: the {driver.Name} driver failed: {error.GetType().Name}: {error.Message}";
             }
-            if (failure is null)
-            {
-                await run.Step(index, step is Act ? "acted" : "held", null).ConfigureAwait(false);
-                continue;
-            }
             var evidence = await Evidence(driver, index, ct).ConfigureAwait(false);
-            await run.Step(index, "failed: " + failure, evidence).ConfigureAwait(false);
+            var outcome = failure is null ? (step is Act ? "acted" : "held") : "failed: " + failure;
+            await run.Step(index, step, outcome, shown, evidence).ConfigureAwait(false);
+            if (failure is null) { continue; }
             verdict = new RunVerdict(false, index, failure, evidence);
             break;
         }
@@ -43,25 +41,25 @@ public static class ScenarioRunner
         return verdict;
     }
 
-    // Null when the step held, else why it failed.
-    private static async Task<string?> Take(ScenarioStep step, IScenarioDriver driver, CancellationToken ct)
+    // Failure is null when the step held, else why it failed; Shown is what an Expect read.
+    private static async Task<(string? Failure, string? Shown)> Take(ScenarioStep step, IScenarioDriver driver, CancellationToken ct)
     {
         switch (step)
         {
             case Act act:
                 await driver.Act(act, ct).ConfigureAwait(false);
-                return null;
+                return (null, null);
             case Expect expect:
                 var shown = await driver.Read(expect.Target, ct).ConfigureAwait(false);
-                return shown.Contains(expect.Contains, StringComparison.Ordinal)
+                return (shown.Contains(expect.Contains, StringComparison.Ordinal)
                     ? null
-                    : $"{expect.Target}: expected \"{expect.Contains}\" but it shows \"{Clip(shown)}\"";
+                    : $"{expect.Target}: expected \"{expect.Contains}\" but it shows \"{Clip(shown)}\"", Clip(shown));
             default:
-                return $"{step.Target}: unknown step {step.GetType().Name}";
+                return ($"{step.Target}: unknown step {step.GetType().Name}", null);
         }
     }
 
-    // Evidence is best effort: a driver that cannot capture any leaves the verdict without evidence, never without a verdict.
+    // Evidence is asked for at every step and is best effort: a driver that cannot capture any leaves the verdict without evidence, never without a verdict.
     private static async Task<string?> Evidence(IScenarioDriver driver, int index, CancellationToken ct)
     {
         try { return await driver.Evidence(index, ct).ConfigureAwait(false); }

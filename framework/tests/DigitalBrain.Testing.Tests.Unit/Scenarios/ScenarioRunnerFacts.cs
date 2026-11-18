@@ -30,9 +30,22 @@ public sealed class ScenarioRunnerFacts
 
         Assert.Equal(new RunVerdict(true), verdict);
         Assert.Equal(["nav:control.select"], driver.Acts);
+        // The journal alone reconstructs the run: each step with its target, signal or expected text, what was shown and the evidence.
         var signals = os.Journal(RunId.Brain).Signals(RunId).Select(entry => entry.Signal).ToArray();
         Assert.Equal<Signal>(
-            [new RunStarted("sample", "fake"), new StepTaken(0, "acted"), new StepTaken(1, "held"), new RunFinished(verdict)], signals);
+        [
+            new RunStarted("sample", "fake"),
+            new StepTaken(0, scenario.Steps[0], "acted", null, "evidence-0"),
+            new StepTaken(1, scenario.Steps[1], "held", "Hello there", "evidence-1"),
+            new RunFinished(verdict),
+        ], signals);
+        var replayed = signals.OfType<StepTaken>().Select(step => step.Step switch
+        {
+            Act act => $"act {act.Target} {act.Signal}: {step.Outcome}",
+            Expect expect => $"expect {expect.Target} \"{expect.Contains}\" saw \"{step.Shown}\": {step.Outcome}",
+            _ => "?",
+        });
+        Assert.Equal(["act nav control.select: acted", "expect . \"Hello\" saw \"Hello there\": held"], replayed);
         Assert.Equal(new ScenarioRunState("sample", "fake", 2, verdict), await os.Get<IRun>(RunId).Read());
     }
 
@@ -54,6 +67,7 @@ public sealed class ScenarioRunnerFacts
         Assert.Equal(["nav:control.select"], driver.Acts);
         var last = os.Journal(RunId.Brain).Signals(RunId).Select(entry => entry.Signal).TakeLast(2).ToArray();
         Assert.Equal("evidence-2", Assert.IsType<StepTaken>(last[0]).EvidenceRef);
+        Assert.Equal("Hello there", Assert.IsType<StepTaken>(last[0]).Shown);
         Assert.Equal(verdict, Assert.IsType<RunFinished>(last[1]).Verdict);
     }
 
@@ -71,7 +85,21 @@ public sealed class ScenarioRunnerFacts
         Assert.Equal(0, verdict.FailedStep);
         Assert.Contains("the screen is gone", verdict.Reason, StringComparison.Ordinal);
         Assert.Equal("evidence-0", verdict.EvidenceRef);
+        Assert.Equal(new StepTaken(0, Sample.Steps[0], "failed: " + verdict.Reason, null, "evidence-0"), os.Journal(RunId.Brain).Signals(RunId)[1].Signal);
         Assert.IsType<RunFinished>(os.Journal(RunId.Brain).Signals(RunId)[^1].Signal);
+    }
+
+    [Fact]
+    public async Task A_driver_without_evidence_records_none()
+    {
+        using var platform = TestStamp.Kernel();
+        await using var os = OS.Local().Register<RunNeuron>();
+        var driver = new FakeDriver { Shown = "Hello", NoEvidence = true };
+
+        await ScenarioRunner.Run(Sample with { Steps = [Sample.Steps[0]] }, driver, os.Get<IRun>(RunId), Ct);
+        await os.Idle();
+
+        Assert.Null(Assert.IsType<StepTaken>(os.Journal(RunId.Brain).Signals(RunId)[1].Signal).EvidenceRef);
     }
 
     [Fact]
@@ -92,6 +120,8 @@ public sealed class ScenarioRunnerFacts
 
         public bool Throws { get; init; }
 
+        public bool NoEvidence { get; init; }
+
         public List<string> Acts { get; } = [];
 
         public string Name => "fake";
@@ -105,6 +135,6 @@ public sealed class ScenarioRunnerFacts
 
         public Task<string> Read(string target, CancellationToken ct) => Task.FromResult(Shown);
 
-        public Task<string?> Evidence(int stepIndex, CancellationToken ct) => Task.FromResult<string?>($"evidence-{stepIndex}");
+        public Task<string?> Evidence(int stepIndex, CancellationToken ct) => Task.FromResult(NoEvidence ? null : $"evidence-{stepIndex}");
     }
 }

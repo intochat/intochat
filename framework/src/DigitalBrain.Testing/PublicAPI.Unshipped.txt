@@ -268,7 +268,6 @@ DigitalBrain.Testing.Scenarios.IRun
 DigitalBrain.Testing.Scenarios.IRun.Finish(DigitalBrain.Testing.Scenarios.RunVerdict! verdict) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.Scenarios.IRun.Read() -> System.Threading.Tasks.Task<DigitalBrain.Testing.Scenarios.ScenarioRunState!>!
 DigitalBrain.Testing.Scenarios.IRun.Start(string! scenario, string! driver) -> System.Threading.Tasks.Task!
-DigitalBrain.Testing.Scenarios.IRun.Step(int index, string! outcome, string? evidenceRef) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.Scenarios.IScenarioDriver
 DigitalBrain.Testing.Scenarios.IScenarioDriver.Act(DigitalBrain.Testing.Scenarios.Act! step, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.Scenarios.IScenarioDriver.Evidence(int stepIndex, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<string?>!
@@ -285,7 +284,6 @@ DigitalBrain.Testing.Scenarios.RunNeuron.Finish(DigitalBrain.Testing.Scenarios.R
 DigitalBrain.Testing.Scenarios.RunNeuron.Read() -> System.Threading.Tasks.Task<DigitalBrain.Testing.Scenarios.ScenarioRunState!>!
 DigitalBrain.Testing.Scenarios.RunNeuron.RunNeuron() -> void
 DigitalBrain.Testing.Scenarios.RunNeuron.Start(string! scenario, string! driver) -> System.Threading.Tasks.Task!
-DigitalBrain.Testing.Scenarios.RunNeuron.Step(int index, string! outcome, string? evidenceRef) -> System.Threading.Tasks.Task!
 DigitalBrain.Testing.Scenarios.RunStarted
 DigitalBrain.Testing.Scenarios.RunStarted.Deconstruct(out string! Scenario, out string! Driver) -> void
 DigitalBrain.Testing.Scenarios.RunStarted.Driver.get -> string!
@@ -329,16 +327,6 @@ DigitalBrain.Testing.Scenarios.ScenarioStep.ScenarioStep(DigitalBrain.Testing.Sc
 DigitalBrain.Testing.Scenarios.ScenarioStep.ScenarioStep(string! Target) -> void
 DigitalBrain.Testing.Scenarios.ScenarioStep.Target.get -> string!
 DigitalBrain.Testing.Scenarios.ScenarioStep.Target.init -> void
-DigitalBrain.Testing.Scenarios.StepTaken
-DigitalBrain.Testing.Scenarios.StepTaken.Deconstruct(out int Index, out string! Outcome, out string? EvidenceRef) -> void
-DigitalBrain.Testing.Scenarios.StepTaken.Equals(DigitalBrain.Testing.Scenarios.StepTaken? other) -> bool
-DigitalBrain.Testing.Scenarios.StepTaken.EvidenceRef.get -> string?
-DigitalBrain.Testing.Scenarios.StepTaken.EvidenceRef.init -> void
-DigitalBrain.Testing.Scenarios.StepTaken.Index.get -> int
-DigitalBrain.Testing.Scenarios.StepTaken.Index.init -> void
-DigitalBrain.Testing.Scenarios.StepTaken.Outcome.get -> string!
-DigitalBrain.Testing.Scenarios.StepTaken.Outcome.init -> void
-DigitalBrain.Testing.Scenarios.StepTaken.StepTaken(int Index, string! Outcome, string? EvidenceRef = null) -> void
 DigitalBrain.Testing.Scenarios.UiScenario
 DigitalBrain.Testing.Scenarios.UiScenario.<Clone>$() -> DigitalBrain.Testing.Scenarios.UiScenario!
 DigitalBrain.Testing.Scenarios.UiScenario.AppId.get -> string!
@@ -376,10 +364,6 @@ override DigitalBrain.Testing.Scenarios.ScenarioRunState.ToString() -> string!
 override DigitalBrain.Testing.Scenarios.ScenarioStep.Equals(object? obj) -> bool
 override DigitalBrain.Testing.Scenarios.ScenarioStep.GetHashCode() -> int
 override DigitalBrain.Testing.Scenarios.ScenarioStep.ToString() -> string!
-override DigitalBrain.Testing.Scenarios.StepTaken.<Clone>$() -> DigitalBrain.Testing.Scenarios.StepTaken!
-override DigitalBrain.Testing.Scenarios.StepTaken.Equals(object? obj) -> bool
-override DigitalBrain.Testing.Scenarios.StepTaken.GetHashCode() -> int
-override DigitalBrain.Testing.Scenarios.StepTaken.ToString() -> string!
 override DigitalBrain.Testing.Scenarios.UiScenario.Equals(object? obj) -> bool
 override DigitalBrain.Testing.Scenarios.UiScenario.GetHashCode() -> int
 override DigitalBrain.Testing.Scenarios.UiScenario.ToString() -> string!
@@ -387,7 +371,6 @@ override sealed DigitalBrain.Testing.Scenarios.Act.Equals(DigitalBrain.Testing.S
 override sealed DigitalBrain.Testing.Scenarios.Expect.Equals(DigitalBrain.Testing.Scenarios.ScenarioStep? other) -> bool
 override sealed DigitalBrain.Testing.Scenarios.RunFinished.Equals(DigitalBrain.Signal? other) -> bool
 override sealed DigitalBrain.Testing.Scenarios.RunStarted.Equals(DigitalBrain.Signal? other) -> bool
-override sealed DigitalBrain.Testing.Scenarios.StepTaken.Equals(DigitalBrain.Signal? other) -> bool
 static DigitalBrain.Testing.Scenarios.Act.operator !=(DigitalBrain.Testing.Scenarios.Act? left, DigitalBrain.Testing.Scenarios.Act? right) -> bool
 static DigitalBrain.Testing.Scenarios.Act.operator ==(DigitalBrain.Testing.Scenarios.Act? left, DigitalBrain.Testing.Scenarios.Act? right) -> bool
 static DigitalBrain.Testing.Scenarios.Expect.operator !=(DigitalBrain.Testing.Scenarios.Expect? left, DigitalBrain.Testing.Scenarios.Expect? right) -> bool
@@ -405,10 +388,31 @@ static DigitalBrain.Testing.Scenarios.ScenarioRunState.operator ==(DigitalBrain.
 static DigitalBrain.Testing.Scenarios.ScenarioRunner.Run(DigitalBrain.Testing.Scenarios.UiScenario! scenario, DigitalBrain.Testing.Scenarios.IScenarioDriver! driver, DigitalBrain.Testing.Scenarios.IRun! run, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Testing.Scenarios.RunVerdict!>!
 static DigitalBrain.Testing.Scenarios.ScenarioStep.operator !=(DigitalBrain.Testing.Scenarios.ScenarioStep? left, DigitalBrain.Testing.Scenarios.ScenarioStep? right) -> bool
 static DigitalBrain.Testing.Scenarios.ScenarioStep.operator ==(DigitalBrain.Testing.Scenarios.ScenarioStep? left, DigitalBrain.Testing.Scenarios.ScenarioStep? right) -> bool
-static DigitalBrain.Testing.Scenarios.StepTaken.operator !=(DigitalBrain.Testing.Scenarios.StepTaken? left, DigitalBrain.Testing.Scenarios.StepTaken? right) -> bool
-static DigitalBrain.Testing.Scenarios.StepTaken.operator ==(DigitalBrain.Testing.Scenarios.StepTaken? left, DigitalBrain.Testing.Scenarios.StepTaken? right) -> bool
 static DigitalBrain.Testing.Scenarios.UiScenario.operator !=(DigitalBrain.Testing.Scenarios.UiScenario? left, DigitalBrain.Testing.Scenarios.UiScenario? right) -> bool
 static DigitalBrain.Testing.Scenarios.UiScenario.operator ==(DigitalBrain.Testing.Scenarios.UiScenario? left, DigitalBrain.Testing.Scenarios.UiScenario? right) -> bool
 virtual DigitalBrain.Testing.Scenarios.ScenarioStep.EqualityContract.get -> System.Type!
 virtual DigitalBrain.Testing.Scenarios.ScenarioStep.Equals(DigitalBrain.Testing.Scenarios.ScenarioStep? other) -> bool
 virtual DigitalBrain.Testing.Scenarios.ScenarioStep.PrintMembers(System.Text.StringBuilder! builder) -> bool
+DigitalBrain.Testing.Scenarios.IRun.Step(int index, DigitalBrain.Testing.Scenarios.ScenarioStep! step, string! outcome, string? shown, string? evidenceRef) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Scenarios.RunNeuron.Step(int index, DigitalBrain.Testing.Scenarios.ScenarioStep! step, string! outcome, string? shown, string? evidenceRef) -> System.Threading.Tasks.Task!
+DigitalBrain.Testing.Scenarios.StepTaken
+DigitalBrain.Testing.Scenarios.StepTaken.Deconstruct(out int Index, out DigitalBrain.Testing.Scenarios.ScenarioStep! Step, out string! Outcome, out string? Shown, out string? EvidenceRef) -> void
+DigitalBrain.Testing.Scenarios.StepTaken.Equals(DigitalBrain.Testing.Scenarios.StepTaken? other) -> bool
+DigitalBrain.Testing.Scenarios.StepTaken.EvidenceRef.get -> string?
+DigitalBrain.Testing.Scenarios.StepTaken.EvidenceRef.init -> void
+DigitalBrain.Testing.Scenarios.StepTaken.Index.get -> int
+DigitalBrain.Testing.Scenarios.StepTaken.Index.init -> void
+DigitalBrain.Testing.Scenarios.StepTaken.Outcome.get -> string!
+DigitalBrain.Testing.Scenarios.StepTaken.Outcome.init -> void
+DigitalBrain.Testing.Scenarios.StepTaken.Shown.get -> string?
+DigitalBrain.Testing.Scenarios.StepTaken.Shown.init -> void
+DigitalBrain.Testing.Scenarios.StepTaken.Step.get -> DigitalBrain.Testing.Scenarios.ScenarioStep!
+DigitalBrain.Testing.Scenarios.StepTaken.Step.init -> void
+DigitalBrain.Testing.Scenarios.StepTaken.StepTaken(int Index, DigitalBrain.Testing.Scenarios.ScenarioStep! Step, string! Outcome, string? Shown = null, string? EvidenceRef = null) -> void
+override DigitalBrain.Testing.Scenarios.StepTaken.<Clone>$() -> DigitalBrain.Testing.Scenarios.StepTaken!
+override DigitalBrain.Testing.Scenarios.StepTaken.Equals(object? obj) -> bool
+override DigitalBrain.Testing.Scenarios.StepTaken.GetHashCode() -> int
+override DigitalBrain.Testing.Scenarios.StepTaken.ToString() -> string!
+override sealed DigitalBrain.Testing.Scenarios.StepTaken.Equals(DigitalBrain.Signal? other) -> bool
+static DigitalBrain.Testing.Scenarios.StepTaken.operator !=(DigitalBrain.Testing.Scenarios.StepTaken? left, DigitalBrain.Testing.Scenarios.StepTaken? right) -> bool
+static DigitalBrain.Testing.Scenarios.StepTaken.operator ==(DigitalBrain.Testing.Scenarios.StepTaken? left, DigitalBrain.Testing.Scenarios.StepTaken? right) -> bool
