@@ -57,6 +57,28 @@ public sealed class ControlledParent : Screen<ControlledParentState>
     }
 }
 
+[Signal("test.meddle")]
+public sealed record Meddle(string Child) : Signal;
+
+/*
+# Meddler
+
+A test neuron of the same brain that is not a control's parent: it sends a command with forged props straight to the control.
+*/
+[Neuron("test.meddler")]
+public sealed class Meddler : Screen<ControlledParentState>
+{
+    protected override View Render(ControlledParentState state) => new("Meddler", new Text("meddler"));
+
+    [On]
+    public Task Meddle(Meddle meddle)
+    {
+        ArgumentNullException.ThrowIfNull(meddle);
+        return Get<IScreen>(NeuronId.Parse(meddle.Child)).Dispatch(new Command(".", "control.toggle",
+            Props: JsonSerializer.SerializeToElement(new ToggleSwitchProps("Forged", IsOn: true), JsonSerializerOptions.Web)));
+    }
+}
+
 // A controlled control (the parent passes its value as a prop) only signals the person's change; the parent stores it and re-renders.
 // Without a value prop the control keeps today's behaviour and stores the value itself.
 public sealed class ControlledSlotFacts : IAsyncDisposable
@@ -72,6 +94,7 @@ public sealed class ControlledSlotFacts : IAsyncDisposable
         _os.Register<ControlledParent>();
         _os.Register<ToggleSwitchNeuron>();
         _os.Register<ComboBoxNeuron>();
+        _os.Register<Meddler>();
     }
 
     private IScreen Parent => _os.Get<IScreen>(ParentId);
@@ -139,6 +162,50 @@ public sealed class ControlledSlotFacts : IAsyncDisposable
         var free = Child("control.toggleSwitch", "free");
         Assert.Equal([new Toggled(true)], Signals(free));
         Assert.True((await Drawn<ToggleSwitchView>(free)).IsOn);
+    }
+
+    [Fact]
+    public async Task Props_from_a_caller_other_than_the_parent_are_dropped_and_logged()
+    {
+        var free = Child("control.toggleSwitch", "free");
+        var warnings = new WarningListener();
+        System.Diagnostics.Trace.Listeners.Add(warnings);
+        try
+        {
+            await _os.Get<IScreen>(new NeuronId(Brain, "test.meddler", "m")).Dispatch(new Command(".", "test.meddle",
+                JsonSerializer.SerializeToElement(new Meddle(free.ToString()), JsonSerializerOptions.Web)));
+            await _os.Idle();
+        }
+        finally { System.Diagnostics.Trace.Listeners.Remove(warnings); }
+
+        // Forged IsOn=true would have made it signal Toggled(false) without storing; dropped, it acts uncontrolled and stores true.
+        Assert.Equal([new Toggled(true)], Signals(free));
+        Assert.True((await Drawn<ToggleSwitchView>(free)).IsOn);
+        Assert.Contains(warnings.Lines, line => line.Contains("Dropped the props on control.toggle", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Props_a_client_sends_on_the_wire_never_reach_the_control()
+    {
+        await Parent.Read();
+        var forged = JsonSerializer.SerializeToElement(new ToggleSwitchProps("Forged", IsOn: true), JsonSerializerOptions.Web);
+
+        // Through the parent the parent's own props for the slot replace them (uncontrolled "free" has none): the control stores.
+        await Parent.Dispatch(new Command("free", "control.toggle", Props: forged));
+        await _os.Idle();
+
+        var free = Child("control.toggleSwitch", "free");
+        Assert.True((await Drawn<ToggleSwitchView>(free)).IsOn);
+        Assert.Equal([new Toggled(true)], Signals(free));
+    }
+
+    private sealed class WarningListener : System.Diagnostics.TraceListener
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<string> Lines { get; } = new();
+
+        public override void Write(string? message) { if (message is not null) { Lines.Enqueue(message); } }
+
+        public override void WriteLine(string? message) => Write(message);
     }
 
     public async ValueTask DisposeAsync()

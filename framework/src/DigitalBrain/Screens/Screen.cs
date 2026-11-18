@@ -6,6 +6,7 @@ using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain;
 
@@ -144,7 +145,7 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
             if (command.Target == ".")
             {
                 var payload = ViewNodes.Payload(command.Args, fieldValue: null, by: null);
-                return command.Props is { } props ? HandleWithProps(command.Signal, payload, props) : Handle(command.Signal, payload);
+                return command.Props is { } props && PropsFromParent(command.Signal) ? HandleWithProps(command.Signal, payload, props) : Handle(command.Signal, payload);
             }
             var path = command.Target.StartsWith("./", StringComparison.Ordinal) ? command.Target[2..] : command.Target;
             var slash = path.IndexOf('/', StringComparison.Ordinal);
@@ -176,9 +177,23 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
 
     /// <summary>
     /// The props the parent gave this screen's slot, as JSON, while a reaction runs for a command the parent routed to it; null for a
-    /// command sent any other way, a delivered signal, or a call. Scoped to that command's async flow, not stored.
+    /// command sent any other way (props from a caller other than the direct parent are dropped and logged), a delivered signal, or a call. Scoped to that command's async flow, not stored.
     /// </summary>
     protected JsonElement? CommandProps => CommandScope.PropsFor(this);
+
+    // Props are trusted only from this screen's direct parent (its address is this one's key up to the last '/'), which applied its gates
+    // before routing; props from any other caller are dropped, so the control acts uncontrolled, and the drop is logged.
+    private bool PropsFromParent(string signal)
+    {
+        var slash = Id.Key.LastIndexOf('/');
+        if (slash > 0 && NeuronId.TryParse(Id.Key[..slash], out var parent)
+            && Context.Caller is { Inside: true, Via: { } via } && via == parent)
+        {
+            return true;
+        }
+        ScreenLog.PropsDropped(GetLogger(), signal, Id.ToString(), Context.Caller?.Via?.ToString() ?? "outside");
+        return false;
+    }
 
     private async Task HandleWithProps(string alias, JsonElement payload, JsonElement props)
     {
@@ -399,4 +414,10 @@ internal static class CommandScope
     {
         public void Dispose() => Current.Value = outer;
     }
+}
+
+internal static partial class ScreenLog
+{
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Dropped the props on {Signal} to {Neuron}: they came from {Via}, not its parent")]
+    public static partial void PropsDropped(ILogger logger, string signal, string neuron, string via);
 }
