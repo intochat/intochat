@@ -105,7 +105,8 @@ public sealed class ScreenSlotFacts
     {
         var (parent, context) = await Attached();
 
-        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => parent.TestSend(new Command("ghost", "slot.ping")));
+        var pending = parent.TestSend(new Command("ghost", "slot.ping"));
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => pending);
 
         Assert.Equal(ActivationRefusedException.UnknownChild, refused.Reason);
         Assert.Empty(context.Gets);
@@ -125,5 +126,47 @@ public sealed class ScreenSlotFacts
 
         Assert.Contains("'a'", error.Message, StringComparison.Ordinal);
         Assert.Equal(1, (await parent.Read())!.Generation);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(".")]
+    [InlineData("..")]
+    [InlineData("a/b")]
+    [InlineData("/")]
+    public async Task Bad_slot_keys_are_rejected_at_render(string key)
+    {
+        var (parent, _) = await Attached();
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(() => parent.TestShow(parent.Current with { Keys = [key] }));
+
+        Assert.Contains($"'{key}'", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("a/b")]
+    [InlineData("./a/b")]
+    [InlineData("..")]
+    [InlineData("./.")]
+    [InlineData("./")]
+    public async Task Bad_send_targets_are_rejected_without_a_get(string target)
+    {
+        var (parent, context) = await Attached();
+
+        var pending = parent.TestSend(new Command(target, "slot.ping"));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => pending);
+        Assert.Empty(context.Gets);
+    }
+
+    [Fact]
+    public void Child_addresses_cannot_collide_across_parents()
+    {
+        var brain = new BrainId("alice");
+        var outer = new NeuronId(brain, "app.slot-parent", "main");
+        var inner = new NeuronId(brain, "app.slot-parent", "main/a");
+
+        Assert.Throws<ArgumentException>(() => ScreenExtensions.ChildAddress(outer, "a/b"));
+        Assert.Equal("alice/app.slot-parent/main/a/b", ScreenExtensions.ChildAddress(inner, "b"));
     }
 }

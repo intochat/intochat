@@ -46,9 +46,10 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
 
     /// <summary>The view node of this screen's child <paramref name="key"/>, a <typeparamref name="TChild"/> neuron. Rendering it creates nothing; the client's first read of the slot (or a <see cref="Send"/>) does.</summary>
     /// <exception cref="InvalidOperationException">Called outside <see cref="Render"/>, or the key is used twice in one view.</exception>
+    /// <exception cref="ArgumentException">The key is empty, ".", ".." or contains '/'.</exception>
     protected NeuronRef Slot<TChild>(string key) where TChild : class
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ScreenExtensions.CheckChildKey(key);
         var rendering = _rendering ?? throw new InvalidOperationException($"Slot '{key}' of '{Alias}' is rendered outside Render.");
         var child = new NeuronId(Id.Brain, TypeOf(typeof(TChild)), ScreenExtensions.ChildAddress(Id, key));
         if (!rendering.TryAdd(key, child)) { throw new InvalidOperationException($"The view of '{Alias}' names slot '{key}' twice."); }
@@ -56,16 +57,25 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     }
 
     /// <summary>Sends <paramref name="command"/> to its target: "." is this screen, any other target a child key (optionally "./key") of the current view.</summary>
+    /// <exception cref="ArgumentException">The target key is empty, "..", or contains '/' after the optional "./" (returned as a faulted task).</exception>
     /// <exception cref="ActivationRefusedException">The current view names no slot with that key (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
     protected Task Send(Command command)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentException.ThrowIfNullOrWhiteSpace(command.Target);
-        ArgumentException.ThrowIfNullOrWhiteSpace(command.Signal);
-        if (command.Target == ".") { return Handle(command.Signal, ViewNodes.Payload(command.Args, fieldValue: null, by: null)); }
-        var key = command.Target.StartsWith("./", StringComparison.Ordinal) ? command.Target[2..] : command.Target;
-        if (!_children.TryGetValue(key, out var child)) { throw new ActivationRefusedException(ActivationRefusedException.UnknownChild); }
-        return Get<IScreen>(child).Request(command.Signal, command.Args);
+        try
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentException.ThrowIfNullOrWhiteSpace(command.Target);
+            ArgumentException.ThrowIfNullOrWhiteSpace(command.Signal);
+            if (command.Target == ".") { return Handle(command.Signal, ViewNodes.Payload(command.Args, fieldValue: null, by: null)); }
+            var key = command.Target.StartsWith("./", StringComparison.Ordinal) ? command.Target[2..] : command.Target;
+            ScreenExtensions.CheckChildKey(key);
+            if (!_children.TryGetValue(key, out var child)) { throw new ActivationRefusedException(ActivationRefusedException.UnknownChild); }
+            return Get<IScreen>(child).Request(command.Signal, command.Args);
+        }
+        catch (Exception error) when (error is ArgumentException or ActivationRefusedException)
+        {
+            return Task.FromException(error);
+        }
     }
 
     /// <summary>Stores the first view. An override calls the base first.</summary>

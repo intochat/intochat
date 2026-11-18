@@ -83,9 +83,19 @@ public static class ScreenExtensions
     }
 
     /// <summary>The address of the child <paramref name="key"/> of <paramref name="parent"/>: the parent's id, '/', the key. It is the child's neuron key.</summary>
+    /// <exception cref="ArgumentException">The key is empty, ".", ".." or contains '/': it would collide with another parent's child.</exception>
     public static string ChildAddress(NeuronId parent, string key)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        CheckChildKey(key);
         return $"{parent}/{key}";
+    }
+
+    internal static void CheckChildKey(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        if (key.Length == 0 || key is "." or ".." || key.Contains('/', StringComparison.Ordinal) || string.IsNullOrWhiteSpace(key))
+        {
+            throw new ArgumentException($"Child key '{key}' is empty, '.', '..' or contains '/'.", nameof(key));
+        }
     }
 }
