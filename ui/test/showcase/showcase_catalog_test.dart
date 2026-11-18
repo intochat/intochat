@@ -43,6 +43,15 @@ Map<String, Set<String>> _modelFields() {
 }
 
 final _fields = _modelFields();
+
+/// Kinds a control neuron draws: their accessible name comes from the slot's
+/// props (see `NodeContext.slotProps`), not from a field of the node.
+final _controlViewKinds = {
+  for (final entry in _catalog())
+    if (entry['isNeuron'] == true)
+      for (final example in entry['examples'] as List)
+        (example as Map)['kind'] as String,
+};
 final _keyedKinds = {
   for (final e in _fields.entries)
     if (e.value.contains('key')) e.key,
@@ -90,9 +99,12 @@ Future<List<Map<String, dynamic>>> _pump(
   Map<String, dynamic> example,
 ) async {
   final sent = <Map<String, dynamic>>[];
+  final props = example['props'];
   final ctx = NodeContext(
     view: 'local/apps/showcase/view',
     generation: 1,
+    // A control neuron's example carries its slot's props beside its node.
+    slotProps: props is Map ? props.cast<String, dynamic>() : const {},
     send: (event) async {
       sent.add(event);
       return null;
@@ -154,7 +166,10 @@ Future<void> _check(WidgetTester tester, Map<String, dynamic> example) async {
     final kind = node['kind'] as String;
     expect(find.byKey(Key(key)), findsOneWidget, reason: 'key $key');
 
-    final name = node['automationName'];
+    final props = node['props'];
+    final name =
+        node['automationName'] ??
+        (props is Map ? props['automationName'] : null);
     if (name is String && name.isNotEmpty) {
       expect(find.bySemanticsLabel(name), findsWidgets);
     } else {
@@ -232,7 +247,8 @@ void main() {
         );
       }
       for (final kind in _keyedKinds) {
-        if (!(_fields[kind]!.contains('automationName'))) {
+        if (!(_fields[kind]!.contains('automationName')) &&
+            !_controlViewKinds.contains(kind)) {
           expect(knownWithoutAutomationName, contains(kind));
         }
       }
@@ -244,6 +260,7 @@ void main() {
           'kind',
           'isNeuron',
           'props',
+          'state',
           'commands',
           'signals',
           'examples',

@@ -80,6 +80,16 @@ internal static class NodeSchema
         return null;
     }
 
+    // TProps of the ControlNeuron<TState, TProps> a control derives from: the props record its parent writes on the slot.
+    internal static Type? PropsOf(Type type)
+    {
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(IntoChat.OS.Apps.Controls.ControlNeuron<,>)) { return current.GetGenericArguments()[1]; }
+        }
+        return null;
+    }
+
     // The catalog kind of a control neuron: its class name without "Neuron", camel-cased (CheckBox -> checkBox).
     internal static string NeuronKind(Type type) => JsonNamingPolicy.CamelCase.ConvertName(ControlName(type));
 
@@ -141,7 +151,9 @@ internal static class NodeSchema
 
     internal static string GenerateCatalog() => GenerateCatalog(ControlNeurons());
 
-    // Every [ViewNode] kind and every control neuron kind as {kind, isNeuron, props, commands, signals, examples}, sorted by kind.
+    // Every [ViewNode] kind and every control neuron kind as {kind, isNeuron, props, state, commands, signals, examples}, sorted by kind.
+    // A node's props are its fields; a control neuron's props are its props record (what the parent writes on the slot) and its state
+    // what the user changes (what the neuron stores).
     internal static string GenerateCatalog(IEnumerable<Type> neurons)
     {
         var entries = ViewNodeAttribute.DiscoverAll().Select(entry => (Kind: entry.Key, Type: entry.Value, IsNeuron: false))
@@ -158,20 +170,11 @@ internal static class NodeSchema
                 json.WriteStartObject();
                 json.WriteString("kind", kind);
                 json.WriteBoolean("isNeuron", isNeuron);
-                json.WriteStartArray("props");
-                var shape = isNeuron ? StateOf(type)! : type;
-                foreach (var property in Properties(shape))
-                {
-                    json.WriteStartObject();
-                    json.WriteString("name", JsonName(property));
-                    json.WriteString("type", ArgDartType(property));
-                    json.WritePropertyName("default");
-                    var parameter = Parameter(shape, property);
-                    if (parameter is { HasDefaultValue: true }) { JsonSerializer.Serialize(json, parameter.DefaultValue, Web); }
-                    else { json.WriteNullValue(); }
-                    json.WriteEndObject();
-                }
-                json.WriteEndArray();
+                // A neuron without a props record (a test sample) lists none; ControlSchemaFacts requires one of every control neuron.
+                if ((isNeuron ? PropsOf(type) : type) is { } props) { WriteShape(json, "props", props); }
+                else { json.WriteStartArray("props"); json.WriteEndArray(); }
+                if (isNeuron) { WriteShape(json, "state", StateOf(type)!); }
+                else { json.WriteStartArray("state"); json.WriteEndArray(); }
                 WriteRecords(json, "commands", isNeuron ? Commands(type) : []);
                 WriteRecords(json, "signals", isNeuron ? Signals(type) : []);
                 json.WriteStartArray("examples");
@@ -182,6 +185,23 @@ internal static class NodeSchema
             json.WriteEndArray();
         }
         return Encoding.UTF8.GetString(stream.ToArray()).ReplaceLineEndings("\n") + "\n";
+    }
+
+    private static void WriteShape(Utf8JsonWriter json, string name, Type shape)
+    {
+        json.WriteStartArray(name);
+        foreach (var property in Properties(shape))
+        {
+            json.WriteStartObject();
+            json.WriteString("name", JsonName(property));
+            json.WriteString("type", ArgDartType(property));
+            json.WritePropertyName("default");
+            var parameter = Parameter(shape, property);
+            if (parameter is { HasDefaultValue: true }) { JsonSerializer.Serialize(json, parameter.DefaultValue, Web); }
+            else { json.WriteNullValue(); }
+            json.WriteEndObject();
+        }
+        json.WriteEndArray();
     }
 
     private static void WriteRecords(Utf8JsonWriter json, string name, Type[] records)
@@ -215,7 +235,8 @@ internal static class NodeSchema
         }
     }
 
-    // A control neuron's examples are [Showcase] attributes on its state's properties, each a whole node of the kind its Render draws.
+    // A control neuron's examples are [Showcase] attributes on its state's properties, each a whole node of the kind its Render draws
+    // with the slot's props beside it ({kind, key, <state>, props: {...}}).
     internal static IEnumerable<JsonElement> NeuronExamples(Type neuron)
     {
         var state = StateOf(neuron)!;

@@ -81,7 +81,12 @@ Widget renderNeuronRef(NeuronRefNode node, NodeContext ctx) {
     }
   }
 
-  return ctx.reference?.call(node.refKind, node.neuronUri) ??
+  final props = node.props;
+  return ctx.reference?.call(
+        node.refKind,
+        node.neuronUri,
+        props is Map ? Map<String, dynamic>.from(props) : const {},
+      ) ??
       _NeuronUriChip(neuronUri: node.neuronUri);
 }
 

@@ -29,6 +29,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -98,6 +99,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -122,6 +124,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -161,6 +164,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -230,6 +234,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": [
@@ -287,6 +292,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": [
@@ -376,6 +382,7 @@
         "default": ""
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -385,23 +392,25 @@
     "isNeuron": true,
     "props": [
       {
-        "name": "label",
-        "type": "String",
-        "default": null
-      },
-      {
-        "name": "isOn",
-        "type": "bool",
-        "default": null
-      },
-      {
         "name": "isEnabled",
         "type": "bool",
-        "default": null
+        "default": true
       },
       {
         "name": "automationName",
         "type": "String?",
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "isOn",
+        "type": "bool",
         "default": null
       }
     ],
@@ -432,18 +441,22 @@
       {
         "kind": "checkBoxView",
         "key": "terms",
-        "label": "I accept the terms",
         "isOn": false,
-        "isEnabled": true,
-        "automationName": "Accept the terms"
+        "props": {
+          "label": "I accept the terms",
+          "isEnabled": true,
+          "automationName": "Accept the terms"
+        }
       },
       {
         "kind": "checkBoxView",
         "key": "locked",
-        "label": "Managed by your organisation",
         "isOn": true,
-        "isEnabled": false,
-        "automationName": "Managed setting"
+        "props": {
+          "label": "Managed by your organisation",
+          "isEnabled": false,
+          "automationName": "Managed setting"
+        }
       }
     ]
   },
@@ -457,26 +470,12 @@
         "default": null
       },
       {
-        "name": "label",
-        "type": "String",
-        "default": null
-      },
-      {
         "name": "isOn",
         "type": "bool",
         "default": null
-      },
-      {
-        "name": "isEnabled",
-        "type": "bool",
-        "default": null
-      },
-      {
-        "name": "automationName",
-        "type": "String",
-        "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -506,6 +505,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -520,6 +520,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -549,6 +550,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -598,6 +600,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -632,6 +635,7 @@
         "default": "DigitalBrain"
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -681,6 +685,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -695,6 +700,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -749,6 +755,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -773,6 +780,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -797,6 +805,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -806,28 +815,30 @@
     "isNeuron": true,
     "props": [
       {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
         "name": "header",
         "type": "String",
         "default": null
       },
       {
+        "name": "children",
+        "type": "List<Node>",
+        "default": null
+      }
+    ],
+    "state": [
+      {
         "name": "isExpanded",
         "type": "bool",
-        "default": null
-      },
-      {
-        "name": "children",
-        "type": "Node[]",
-        "default": null
-      },
-      {
-        "name": "isEnabled",
-        "type": "bool",
-        "default": null
-      },
-      {
-        "name": "automationName",
-        "type": "String?",
         "default": null
       }
     ],
@@ -853,30 +864,34 @@
       {
         "kind": "expanderView",
         "key": "advanced",
-        "header": "Advanced options",
         "isExpanded": true,
-        "isEnabled": true,
-        "automationName": "Advanced options",
-        "children": [
-          {
-            "kind": "text",
-            "value": "Shown while expanded."
-          }
-        ]
+        "props": {
+          "header": "Advanced options",
+          "isEnabled": true,
+          "automationName": "Advanced options",
+          "children": [
+            {
+              "kind": "text",
+              "value": "Shown while expanded."
+            }
+          ]
+        }
       },
       {
         "kind": "expanderView",
         "key": "details",
-        "header": "Details",
         "isExpanded": false,
-        "isEnabled": true,
-        "automationName": "Details",
-        "children": [
-          {
-            "kind": "text",
-            "value": "Hidden until expanded."
-          }
-        ]
+        "props": {
+          "header": "Details",
+          "isEnabled": true,
+          "automationName": "Details",
+          "children": [
+            {
+              "kind": "text",
+              "value": "Hidden until expanded."
+            }
+          ]
+        }
       }
     ]
   },
@@ -890,31 +905,12 @@
         "default": null
       },
       {
-        "name": "header",
-        "type": "String",
-        "default": null
-      },
-      {
         "name": "isExpanded",
         "type": "bool",
         "default": null
-      },
-      {
-        "name": "isEnabled",
-        "type": "bool",
-        "default": null
-      },
-      {
-        "name": "automationName",
-        "type": "String",
-        "default": null
-      },
-      {
-        "name": "children",
-        "type": "List<Node>",
-        "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -949,6 +945,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -973,6 +970,7 @@
         "default": 12
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -997,6 +995,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1046,6 +1045,7 @@
         "default": ""
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": [
@@ -1114,6 +1114,7 @@
         "default": ""
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": [
@@ -1154,6 +1155,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1193,6 +1195,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1207,6 +1210,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": [
@@ -1276,6 +1280,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1320,6 +1325,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1337,8 +1343,14 @@
         "name": "neuronUri",
         "type": "String",
         "default": null
+      },
+      {
+        "name": "props",
+        "type": "Object?",
+        "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1378,6 +1390,7 @@
         "default": false
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": [
@@ -1438,6 +1451,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1467,6 +1481,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1506,6 +1521,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1530,6 +1546,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1544,6 +1561,7 @@
         "default": 12
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1573,6 +1591,7 @@
         "default": 16
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1612,6 +1631,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1646,6 +1666,7 @@
         "default": 18
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1680,6 +1701,7 @@
         "default": false
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1699,6 +1721,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1723,6 +1746,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1757,6 +1781,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1771,6 +1796,7 @@
         "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1780,13 +1806,18 @@
     "isNeuron": true,
     "props": [
       {
-        "name": "label",
-        "type": "String",
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
         "default": null
       },
       {
-        "name": "isOn",
-        "type": "bool",
+        "name": "label",
+        "type": "String",
         "default": null
       },
       {
@@ -1798,15 +1829,12 @@
         "name": "offContent",
         "type": "String?",
         "default": null
-      },
+      }
+    ],
+    "state": [
       {
-        "name": "isEnabled",
+        "name": "isOn",
         "type": "bool",
-        "default": null
-      },
-      {
-        "name": "automationName",
-        "type": "String?",
         "default": null
       }
     ],
@@ -1837,20 +1865,24 @@
       {
         "kind": "toggleSwitchView",
         "key": "dark-mode",
-        "label": "Dark mode",
         "isOn": true,
-        "isEnabled": true,
-        "onContent": "On",
-        "offContent": "Off",
-        "automationName": "Dark mode"
+        "props": {
+          "label": "Dark mode",
+          "onContent": "On",
+          "offContent": "Off",
+          "isEnabled": true,
+          "automationName": "Dark mode"
+        }
       },
       {
         "kind": "toggleSwitchView",
         "key": "wifi",
-        "label": "Wi-Fi",
         "isOn": false,
-        "isEnabled": false,
-        "automationName": "Wi-Fi"
+        "props": {
+          "label": "Wi-Fi",
+          "isEnabled": false,
+          "automationName": "Wi-Fi"
+        }
       }
     ]
   },
@@ -1864,36 +1896,12 @@
         "default": null
       },
       {
-        "name": "label",
-        "type": "String",
-        "default": null
-      },
-      {
         "name": "isOn",
         "type": "bool",
         "default": null
-      },
-      {
-        "name": "isEnabled",
-        "type": "bool",
-        "default": null
-      },
-      {
-        "name": "automationName",
-        "type": "String",
-        "default": null
-      },
-      {
-        "name": "onContent",
-        "type": "String?",
-        "default": null
-      },
-      {
-        "name": "offContent",
-        "type": "String?",
-        "default": null
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []
@@ -1928,6 +1936,7 @@
         "default": "wasm-ui"
       }
     ],
+    "state": [],
     "commands": [],
     "signals": [],
     "examples": []

@@ -1,36 +1,16 @@
 namespace DigitalBrain.UI.Controls;
 
-/// <summary>The state of a toggle switch neuron (WinUI's ToggleSwitch; the legacy <see cref="Switch"/> data node is the old way).</summary>
-public sealed record ToggleSwitchState : IControlState
+/// <summary>The state of a toggle switch neuron (WinUI's ToggleSwitch; the legacy <see cref="Switch"/> data node is the old way): only what the user changes.</summary>
+public sealed record ToggleSwitchState
 {
-    /// <summary>The header beside the switch.</summary>
-    [Showcase("""{"kind":"toggleSwitchView","key":"dark-mode","label":"Dark mode","isOn":true,"isEnabled":true,"onContent":"On","offContent":"Off","automationName":"Dark mode"}""")]
-    [Showcase("""{"kind":"toggleSwitchView","key":"wifi","label":"Wi-Fi","isOn":false,"isEnabled":false,"automationName":"Wi-Fi"}""")]
-    public string Label { get; init; } = "";
-
     /// <summary>True when on.</summary>
+    [Showcase("""{"kind":"toggleSwitchView","key":"dark-mode","isOn":true,"props":{"label":"Dark mode","onContent":"On","offContent":"Off","isEnabled":true,"automationName":"Dark mode"}}""")]
+    [Showcase("""{"kind":"toggleSwitchView","key":"wifi","isOn":false,"props":{"label":"Wi-Fi","isEnabled":false,"automationName":"Wi-Fi"}}""")]
     public bool IsOn { get; init; }
-
-    /// <summary>The text shown while on; null shows none.</summary>
-    public string? OnContent { get; init; }
-
-    /// <summary>The text shown while off; null shows none.</summary>
-    public string? OffContent { get; init; }
-
-    /// <summary>False refuses every command with <c>control.disabled</c>.</summary>
-    public bool IsEnabled { get; init; } = true;
-
-    /// <summary>The accessible name; null falls back to the neuron's key.</summary>
-    public string? AutomationName { get; init; }
 }
 
-/// <summary>What a toggle switch neuron draws: plain data; the client sends its commands to the neuron (".").</summary>
+/// <summary>What a toggle switch neuron draws: its key and value. The client draws the label, contents and enabled from the slot's props.</summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
-/// <param name="Label">The header beside the switch.</param>
 /// <param name="IsOn">True when on.</param>
-/// <param name="IsEnabled">False draws it disabled.</param>
-/// <param name="AutomationName">The accessible name.</param>
-/// <param name="OnContent">The text shown while on.</param>
-/// <param name="OffContent">The text shown while off.</param>
 [ViewNode("toggleSwitchView")]
-public sealed record ToggleSwitchView(string Key, string Label, bool IsOn, bool IsEnabled, string AutomationName, string? OnContent = null, string? OffContent = null) : Node;
+public sealed record ToggleSwitchView(string Key, bool IsOn) : Node;

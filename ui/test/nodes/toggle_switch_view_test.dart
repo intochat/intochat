@@ -13,6 +13,11 @@ void main() {
       generation: 1,
       actNeuron: 'local/apps/settings',
       slotPath: 'dark-mode',
+      slotProps: const {
+        'label': 'Dark mode',
+        'onContent': 'On',
+        'offContent': 'Off',
+      },
       send: (event) async {
         sent.add(event);
         return {'delivered': true};
@@ -23,21 +28,14 @@ void main() {
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(
           body: NodeRenderer.render(
-            const ToggleSwitchViewNode(
-              key: 'dark-mode',
-              label: 'Dark mode',
-              isOn: false,
-              isEnabled: true,
-              automationName: 'Dark mode',
-              onContent: 'On',
-              offContent: 'Off',
-            ),
+            const ToggleSwitchViewNode(key: 'dark-mode', isOn: false),
             ctx,
           ),
         ),
       ),
     );
 
+    expect(find.text('Dark mode'), findsOneWidget);
     expect(find.text('Off'), findsOneWidget);
     await tester.tap(find.byType(UiKitSwitch));
     await tester.pumpAndSettle();
@@ -53,25 +51,20 @@ void main() {
     ]);
   });
 
-  testWidgets('a disabled toggle switch sends nothing', (tester) async {
+  testWidgets('a toggle switch with disabled props sends nothing', (
+    tester,
+  ) async {
     final sent = <Map<String, dynamic>>[];
     await tester.pumpWidget(
       MaterialApp(
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(
           body: NodeRenderer.render(
-            const ToggleSwitchViewNode(
-              key: 'wifi',
-              label: 'Wi-Fi',
-              isOn: false,
-              isEnabled: false,
-              automationName: 'Wi-Fi',
-              onContent: null,
-              offContent: null,
-            ),
+            const ToggleSwitchViewNode(key: 'wifi', isOn: false),
             NodeContext(
               view: 'local/apps/settings/view',
               generation: 1,
+              slotProps: const {'label': 'Wi-Fi', 'isEnabled': false},
               send: (event) async {
                 sent.add(event);
                 return null;

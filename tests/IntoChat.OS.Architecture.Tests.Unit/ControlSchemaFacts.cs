@@ -102,11 +102,15 @@ public sealed class ControlSchemaFacts
 
     private static bool IsCommand(Type type) => type == typeof(Command);
 
-    // A control neuron keeps state (a state type with properties), takes at least one UI.Commands command through [On], and renders it.
+    // A control neuron keeps state (a state type with properties), names its props record, takes at least one UI.Commands command through [On], and renders it.
     internal static IEnumerable<string> ControlNeuronProblems(Type neuron)
     {
         var state = NodeSchema.StateOf(neuron);
         if (state is null || NodeSchema.Properties(state).Length == 0) { yield return $"{neuron.Name} keeps no state"; }
+        if (NodeSchema.PropsOf(neuron) is null && neuron.Namespace?.StartsWith(NodeSchema.ControlsNamespace, StringComparison.Ordinal) == true)
+        {
+            yield return $"{neuron.Name} names no props record (derive from ControlNeuron<TState, TProps>)";
+        }
         if (NodeSchema.Commands(neuron).Length == 0) { yield return $"{neuron.Name} declares no command ([On] for a {NodeSchema.CommandsNamespace} record)"; }
         if (state is not null && neuron.GetMethod("Render", BindingFlags.NonPublic | BindingFlags.Instance, [state])?.DeclaringType != neuron)
         {

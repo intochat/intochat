@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -33,6 +33,7 @@ class ViewHost extends StatefulWidget {
     this.slotAncestors = const {},
     this.actNeuron,
     this.slotPath = '',
+    this.slotProps = const {},
     this.inlineSlot = false,
     this.revision = 0,
     this.enabled = true,
@@ -61,6 +62,9 @@ class ViewHost extends StatefulWidget {
   /// For a `slot` child: the root neuron its acts name and its key path from it (see [NodeContext.actNeuron]).
   final String? actNeuron;
   final String slotPath;
+
+  /// For a slot: the props its parent wrote on the slot node (see [NodeContext.slotProps]).
+  final Map<String, dynamic> slotProps;
 
   final NeuronLoader load;
   final ValueChanged<Map<String, dynamic>>? onActivate;
@@ -257,6 +261,7 @@ class _ViewHostState extends State<ViewHost> {
     String rawName,
     String identity,
     Set<String> activeSlotAncestors,
+    Map<String, dynamic> props,
   ) {
     final kind = rawKind.trim().toLowerCase();
     if (kind == 'confirmation') return null;
@@ -315,6 +320,7 @@ class _ViewHostState extends State<ViewHost> {
           : widget.slotPath.isEmpty
           ? slotKey
           : '${widget.slotPath}/$slotKey',
+      slotProps: props,
       kind: 'view',
       name: resolvedName,
       load: widget.load,
@@ -400,14 +406,15 @@ class _ViewHostState extends State<ViewHost> {
           watch: widget.watch,
           onActivate: widget.onActivate,
           knowsApp: widget.knowsApp,
-          reference: (kind, name) =>
-              _buildReference(kind, name, identity, activeSlotAncestors),
+          reference: (kind, name, props) =>
+              _buildReference(kind, name, identity, activeSlotAncestors, props),
           confirmation: widget.kind == 'confirmation' && !widget.embedded,
           enabled: enabled,
           slotDepth: widget.slotDepth,
           slotAncestors: activeSlotAncestors,
           actNeuron: widget.actNeuron,
           slotPath: widget.slotPath,
+          slotProps: widget.slotProps,
           buttonHints: buttonHints,
           nodeKeys: nodeKeys,
           transcribe: widget.transcribe,

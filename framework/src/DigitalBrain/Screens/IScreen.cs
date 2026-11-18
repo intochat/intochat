@@ -98,15 +98,6 @@ public static class ScreenExtensions
         return $"{parent}/{key}";
     }
 
-    /// <summary>The parent of a slot child: its key is the parent's id, '/', the child key (the inverse of <see cref="ChildAddress"/>), in the same brain.</summary>
-    internal static bool TryParentOf(NeuronId child, out NeuronId parent)
-    {
-        parent = default;
-        var slash = child.Key.LastIndexOf('/');
-        return slash > 0 && NeuronId.TryParse(child.Key[..slash], out parent) && parent.Brain == child.Brain
-            && ChildAddress(parent, child.Key[(slash + 1)..]) == child.Key;
-    }
-
     internal static void CheckChildKey(string key)
     {
         ArgumentNullException.ThrowIfNull(key);
@@ -115,13 +106,4 @@ public static class ScreenExtensions
             throw new ArgumentException($"Child key '{key}' is empty, '.', '..' or contains '/'.", nameof(key));
         }
     }
-}
-
-/// <summary>A slot child's seed: its parent gives it a starting state after the parent's save. Accepted only from the parent, and only while the child has no state of its own.</summary>
-[NeuronAlias("slot-child")]
-public interface ISlotChild
-{
-    /// <summary>Starts from <paramref name="initial"/> when this screen has no stored state yet; otherwise does nothing.</summary>
-    /// <exception cref="Units.ActivationRefusedException">The caller is not this child's parent (<see cref="Units.ActivationRefusedException.NotParent"/>).</exception>
-    Task SeedIfEmpty(System.Text.Json.JsonElement initial);
 }

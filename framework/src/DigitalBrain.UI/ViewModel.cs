@@ -779,8 +779,12 @@ public sealed record WebBrowser(
     string ExecutionMode = "wasm-ui") : Node;
 
 /// <summary>Reference to a live neuron control in the same brain.</summary>
+/// <param name="Kind">How the client hosts it ("slot" for a child of the view's screen).</param>
+/// <param name="NeuronUri">The neuron.</param>
+/// <param name="Props">A slot's props: the setup its parent decides (a <see cref="ControlProps"/> record as JSON); null for none.</param>
 [ViewNode("neuronRef")]
-public sealed record NeuronRef([property: JsonPropertyName("refKind")] string Kind, string NeuronUri) : Node;
+public sealed record NeuronRef([property: JsonPropertyName("refKind")] string Kind, string NeuronUri,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] System.Text.Json.JsonElement? Props = null) : Node;
 
 /// <summary>Semantic tone for status badges and stat cards.</summary>
 public enum BadgeTone

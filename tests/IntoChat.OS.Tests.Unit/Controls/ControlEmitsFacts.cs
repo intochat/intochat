@@ -7,7 +7,7 @@ using IntoChat.OS.Apps.Controls;
 namespace IntoChat.OS.Apps.Tests.Unit.Controls;
 
 // A control neuron's [Emits] is what the generator and the showcase catalog tell clients it publishes; reflection cannot see
-// what it passes to Show, so this runs every command of every control neuron and holds [Emits] to what was really published.
+// what it passes to Show, so this runs every command (sent to the neuron directly; the parent's props gate is SlotPropsFacts') of every control neuron and holds [Emits] to what was really published.
 public sealed class ControlEmitsFacts
 {
     private static readonly string CommandsNamespace = typeof(DigitalBrain.UI.Commands.Toggle).Namespace!;
@@ -22,6 +22,7 @@ public sealed class ControlEmitsFacts
     {
         var neuron = typeof(CheckBoxNeuron).Assembly.GetType(neuronName)!;
         Assert.True(ControlSamples.All.TryGetValue(neuron, out var sample), $"{neuron.Name} has no row in ControlSamples.");
+        Assert.True(sample.Props.GetType() == PropsOf(neuron), $"The {neuron.Name} sample's props are {sample.Props.GetType().Name}, not its props record.");
         var missing = Commands(neuron).Where(command => !sample.Commands.Any(sent => sent.GetType() == command)).Select(command => command.Name).ToArray();
         Assert.True(missing.Length == 0, $"The {neuron.Name} sample sends no {string.Join(", ", missing)}.");
 
@@ -59,6 +60,15 @@ public sealed class ControlEmitsFacts
             if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(Screen<>)) { return true; }
         }
         return false;
+    }
+
+    private static Type? PropsOf(Type neuron)
+    {
+        for (var current = neuron.BaseType; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(ControlNeuron<,>)) { return current.GetGenericArguments()[1]; }
+        }
+        return null;
     }
 
     private static IEnumerable<Type> Commands(Type neuron) => neuron.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)

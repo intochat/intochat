@@ -603,11 +603,9 @@ DigitalBrain.UI.NavItemNode.NavItemNode(string! Key, string! Label, string! Icon
 DigitalBrain.UI.NavItemNode.Selected.get -> bool
 DigitalBrain.UI.NavItemNode.Selected.init -> void
 DigitalBrain.UI.NeuronRef
-DigitalBrain.UI.NeuronRef.Deconstruct(out string! Kind, out string! NeuronUri) -> void
 DigitalBrain.UI.NeuronRef.Equals(DigitalBrain.UI.NeuronRef? other) -> bool
 DigitalBrain.UI.NeuronRef.Kind.get -> string!
 DigitalBrain.UI.NeuronRef.Kind.init -> void
-DigitalBrain.UI.NeuronRef.NeuronRef(string! Kind, string! NeuronUri) -> void
 DigitalBrain.UI.NeuronRef.NeuronUri.get -> string!
 DigitalBrain.UI.NeuronRef.NeuronUri.init -> void
 DigitalBrain.UI.Node
@@ -1324,96 +1322,40 @@ static DigitalBrain.UI.Markdown.operator !=(DigitalBrain.UI.Markdown? left, Digi
 static DigitalBrain.UI.Markdown.operator ==(DigitalBrain.UI.Markdown? left, DigitalBrain.UI.Markdown? right) -> bool
 DigitalBrain.UI.Controls.CheckBoxState
 DigitalBrain.UI.Controls.CheckBoxState.<Clone>$() -> DigitalBrain.UI.Controls.CheckBoxState!
-DigitalBrain.UI.Controls.CheckBoxState.AutomationName.get -> string?
-DigitalBrain.UI.Controls.CheckBoxState.AutomationName.init -> void
 DigitalBrain.UI.Controls.CheckBoxState.CheckBoxState() -> void
 DigitalBrain.UI.Controls.CheckBoxState.Equals(DigitalBrain.UI.Controls.CheckBoxState? other) -> bool
-DigitalBrain.UI.Controls.CheckBoxState.IsEnabled.get -> bool
-DigitalBrain.UI.Controls.CheckBoxState.IsEnabled.init -> void
 DigitalBrain.UI.Controls.CheckBoxState.IsOn.get -> bool
 DigitalBrain.UI.Controls.CheckBoxState.IsOn.init -> void
-DigitalBrain.UI.Controls.CheckBoxState.Label.get -> string!
-DigitalBrain.UI.Controls.CheckBoxState.Label.init -> void
 DigitalBrain.UI.Controls.CheckBoxView
-DigitalBrain.UI.Controls.CheckBoxView.AutomationName.get -> string!
-DigitalBrain.UI.Controls.CheckBoxView.AutomationName.init -> void
-DigitalBrain.UI.Controls.CheckBoxView.CheckBoxView(string! Key, string! Label, bool IsOn, bool IsEnabled, string! AutomationName) -> void
-DigitalBrain.UI.Controls.CheckBoxView.Deconstruct(out string! Key, out string! Label, out bool IsOn, out bool IsEnabled, out string! AutomationName) -> void
 DigitalBrain.UI.Controls.CheckBoxView.Equals(DigitalBrain.UI.Controls.CheckBoxView? other) -> bool
-DigitalBrain.UI.Controls.CheckBoxView.IsEnabled.get -> bool
-DigitalBrain.UI.Controls.CheckBoxView.IsEnabled.init -> void
 DigitalBrain.UI.Controls.CheckBoxView.IsOn.get -> bool
 DigitalBrain.UI.Controls.CheckBoxView.IsOn.init -> void
 DigitalBrain.UI.Controls.CheckBoxView.Key.get -> string!
 DigitalBrain.UI.Controls.CheckBoxView.Key.init -> void
-DigitalBrain.UI.Controls.CheckBoxView.Label.get -> string!
-DigitalBrain.UI.Controls.CheckBoxView.Label.init -> void
 DigitalBrain.UI.Controls.ExpanderState
 DigitalBrain.UI.Controls.ExpanderState.<Clone>$() -> DigitalBrain.UI.Controls.ExpanderState!
-DigitalBrain.UI.Controls.ExpanderState.AutomationName.get -> string?
-DigitalBrain.UI.Controls.ExpanderState.AutomationName.init -> void
-DigitalBrain.UI.Controls.ExpanderState.Children.get -> DigitalBrain.UI.Node![]!
-DigitalBrain.UI.Controls.ExpanderState.Children.init -> void
 DigitalBrain.UI.Controls.ExpanderState.Equals(DigitalBrain.UI.Controls.ExpanderState? other) -> bool
 DigitalBrain.UI.Controls.ExpanderState.ExpanderState() -> void
-DigitalBrain.UI.Controls.ExpanderState.Header.get -> string!
-DigitalBrain.UI.Controls.ExpanderState.Header.init -> void
-DigitalBrain.UI.Controls.ExpanderState.IsEnabled.get -> bool
-DigitalBrain.UI.Controls.ExpanderState.IsEnabled.init -> void
 DigitalBrain.UI.Controls.ExpanderState.IsExpanded.get -> bool
 DigitalBrain.UI.Controls.ExpanderState.IsExpanded.init -> void
 DigitalBrain.UI.Controls.ExpanderView
-DigitalBrain.UI.Controls.ExpanderView.AutomationName.get -> string!
-DigitalBrain.UI.Controls.ExpanderView.AutomationName.init -> void
-DigitalBrain.UI.Controls.ExpanderView.Children.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>!
-DigitalBrain.UI.Controls.ExpanderView.Children.init -> void
-DigitalBrain.UI.Controls.ExpanderView.Deconstruct(out string! Key, out string! Header, out bool IsExpanded, out bool IsEnabled, out string! AutomationName, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>! Children) -> void
 DigitalBrain.UI.Controls.ExpanderView.Equals(DigitalBrain.UI.Controls.ExpanderView? other) -> bool
-DigitalBrain.UI.Controls.ExpanderView.ExpanderView(string! Key, string! Header, bool IsExpanded, bool IsEnabled, string! AutomationName, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>! Children) -> void
-DigitalBrain.UI.Controls.ExpanderView.Header.get -> string!
-DigitalBrain.UI.Controls.ExpanderView.Header.init -> void
-DigitalBrain.UI.Controls.ExpanderView.IsEnabled.get -> bool
-DigitalBrain.UI.Controls.ExpanderView.IsEnabled.init -> void
 DigitalBrain.UI.Controls.ExpanderView.IsExpanded.get -> bool
 DigitalBrain.UI.Controls.ExpanderView.IsExpanded.init -> void
 DigitalBrain.UI.Controls.ExpanderView.Key.get -> string!
 DigitalBrain.UI.Controls.ExpanderView.Key.init -> void
-DigitalBrain.UI.Controls.IControlState
-DigitalBrain.UI.Controls.IControlState.IsEnabled.get -> bool
 DigitalBrain.UI.Controls.ToggleSwitchState
 DigitalBrain.UI.Controls.ToggleSwitchState.<Clone>$() -> DigitalBrain.UI.Controls.ToggleSwitchState!
-DigitalBrain.UI.Controls.ToggleSwitchState.AutomationName.get -> string?
-DigitalBrain.UI.Controls.ToggleSwitchState.AutomationName.init -> void
 DigitalBrain.UI.Controls.ToggleSwitchState.Equals(DigitalBrain.UI.Controls.ToggleSwitchState? other) -> bool
-DigitalBrain.UI.Controls.ToggleSwitchState.IsEnabled.get -> bool
-DigitalBrain.UI.Controls.ToggleSwitchState.IsEnabled.init -> void
 DigitalBrain.UI.Controls.ToggleSwitchState.IsOn.get -> bool
 DigitalBrain.UI.Controls.ToggleSwitchState.IsOn.init -> void
-DigitalBrain.UI.Controls.ToggleSwitchState.Label.get -> string!
-DigitalBrain.UI.Controls.ToggleSwitchState.Label.init -> void
-DigitalBrain.UI.Controls.ToggleSwitchState.OffContent.get -> string?
-DigitalBrain.UI.Controls.ToggleSwitchState.OffContent.init -> void
-DigitalBrain.UI.Controls.ToggleSwitchState.OnContent.get -> string?
-DigitalBrain.UI.Controls.ToggleSwitchState.OnContent.init -> void
 DigitalBrain.UI.Controls.ToggleSwitchState.ToggleSwitchState() -> void
 DigitalBrain.UI.Controls.ToggleSwitchView
-DigitalBrain.UI.Controls.ToggleSwitchView.AutomationName.get -> string!
-DigitalBrain.UI.Controls.ToggleSwitchView.AutomationName.init -> void
-DigitalBrain.UI.Controls.ToggleSwitchView.Deconstruct(out string! Key, out string! Label, out bool IsOn, out bool IsEnabled, out string! AutomationName, out string? OnContent, out string? OffContent) -> void
 DigitalBrain.UI.Controls.ToggleSwitchView.Equals(DigitalBrain.UI.Controls.ToggleSwitchView? other) -> bool
-DigitalBrain.UI.Controls.ToggleSwitchView.IsEnabled.get -> bool
-DigitalBrain.UI.Controls.ToggleSwitchView.IsEnabled.init -> void
 DigitalBrain.UI.Controls.ToggleSwitchView.IsOn.get -> bool
 DigitalBrain.UI.Controls.ToggleSwitchView.IsOn.init -> void
 DigitalBrain.UI.Controls.ToggleSwitchView.Key.get -> string!
 DigitalBrain.UI.Controls.ToggleSwitchView.Key.init -> void
-DigitalBrain.UI.Controls.ToggleSwitchView.Label.get -> string!
-DigitalBrain.UI.Controls.ToggleSwitchView.Label.init -> void
-DigitalBrain.UI.Controls.ToggleSwitchView.OffContent.get -> string?
-DigitalBrain.UI.Controls.ToggleSwitchView.OffContent.init -> void
-DigitalBrain.UI.Controls.ToggleSwitchView.OnContent.get -> string?
-DigitalBrain.UI.Controls.ToggleSwitchView.OnContent.init -> void
-DigitalBrain.UI.Controls.ToggleSwitchView.ToggleSwitchView(string! Key, string! Label, bool IsOn, bool IsEnabled, string! AutomationName, string? OnContent = null, string? OffContent = null) -> void
 override DigitalBrain.UI.Controls.CheckBoxState.Equals(object? obj) -> bool
 override DigitalBrain.UI.Controls.CheckBoxState.GetHashCode() -> int
 override DigitalBrain.UI.Controls.CheckBoxState.ToString() -> string!
@@ -1450,3 +1392,76 @@ static DigitalBrain.UI.Controls.ToggleSwitchState.operator !=(DigitalBrain.UI.Co
 static DigitalBrain.UI.Controls.ToggleSwitchState.operator ==(DigitalBrain.UI.Controls.ToggleSwitchState? left, DigitalBrain.UI.Controls.ToggleSwitchState? right) -> bool
 static DigitalBrain.UI.Controls.ToggleSwitchView.operator !=(DigitalBrain.UI.Controls.ToggleSwitchView? left, DigitalBrain.UI.Controls.ToggleSwitchView? right) -> bool
 static DigitalBrain.UI.Controls.ToggleSwitchView.operator ==(DigitalBrain.UI.Controls.ToggleSwitchView? left, DigitalBrain.UI.Controls.ToggleSwitchView? right) -> bool
+DigitalBrain.UI.Controls.CheckBoxView.CheckBoxView(string! Key, bool IsOn) -> void
+DigitalBrain.UI.Controls.CheckBoxView.Deconstruct(out string! Key, out bool IsOn) -> void
+DigitalBrain.UI.Controls.ExpanderView.Deconstruct(out string! Key, out bool IsExpanded) -> void
+DigitalBrain.UI.Controls.ExpanderView.ExpanderView(string! Key, bool IsExpanded) -> void
+DigitalBrain.UI.Controls.ToggleSwitchView.Deconstruct(out string! Key, out bool IsOn) -> void
+DigitalBrain.UI.Controls.ToggleSwitchView.ToggleSwitchView(string! Key, bool IsOn) -> void
+DigitalBrain.UI.NeuronRef.Deconstruct(out string! Kind, out string! NeuronUri, out System.Text.Json.JsonElement? Props) -> void
+DigitalBrain.UI.NeuronRef.NeuronRef(string! Kind, string! NeuronUri, System.Text.Json.JsonElement? Props = null) -> void
+DigitalBrain.UI.NeuronRef.Props.get -> System.Text.Json.JsonElement?
+DigitalBrain.UI.NeuronRef.Props.init -> void
+DigitalBrain.UI.CheckBoxProps
+DigitalBrain.UI.CheckBoxProps.CheckBoxProps(string! Label, bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.CheckBoxProps.Deconstruct(out string! Label, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.CheckBoxProps.Equals(DigitalBrain.UI.CheckBoxProps? other) -> bool
+DigitalBrain.UI.CheckBoxProps.Label.get -> string!
+DigitalBrain.UI.CheckBoxProps.Label.init -> void
+DigitalBrain.UI.ControlProps
+DigitalBrain.UI.ControlProps.AutomationName.get -> string?
+DigitalBrain.UI.ControlProps.AutomationName.init -> void
+DigitalBrain.UI.ControlProps.ControlProps(DigitalBrain.UI.ControlProps! original) -> void
+DigitalBrain.UI.ControlProps.ControlProps(bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.ControlProps.Deconstruct(out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.ControlProps.IsEnabled.get -> bool
+DigitalBrain.UI.ControlProps.IsEnabled.init -> void
+DigitalBrain.UI.ExpanderProps
+DigitalBrain.UI.ExpanderProps.Children.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>!
+DigitalBrain.UI.ExpanderProps.Children.init -> void
+DigitalBrain.UI.ExpanderProps.Deconstruct(out string! Header, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>! Children, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.ExpanderProps.Equals(DigitalBrain.UI.ExpanderProps? other) -> bool
+DigitalBrain.UI.ExpanderProps.ExpanderProps(string! Header, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>! Children, bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.ExpanderProps.Header.get -> string!
+DigitalBrain.UI.ExpanderProps.Header.init -> void
+DigitalBrain.UI.ToggleSwitchProps
+DigitalBrain.UI.ToggleSwitchProps.Deconstruct(out string! Label, out string? OnContent, out string? OffContent, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.ToggleSwitchProps.Equals(DigitalBrain.UI.ToggleSwitchProps? other) -> bool
+DigitalBrain.UI.ToggleSwitchProps.Label.get -> string!
+DigitalBrain.UI.ToggleSwitchProps.Label.init -> void
+DigitalBrain.UI.ToggleSwitchProps.OffContent.get -> string?
+DigitalBrain.UI.ToggleSwitchProps.OffContent.init -> void
+DigitalBrain.UI.ToggleSwitchProps.OnContent.get -> string?
+DigitalBrain.UI.ToggleSwitchProps.OnContent.init -> void
+DigitalBrain.UI.ToggleSwitchProps.ToggleSwitchProps(string! Label, string? OnContent = null, string? OffContent = null, bool IsEnabled = true, string? AutomationName = null) -> void
+abstract DigitalBrain.UI.ControlProps.<Clone>$() -> DigitalBrain.UI.ControlProps!
+const DigitalBrain.UI.ControlProps.Disabled = "control.disabled" -> string!
+override DigitalBrain.UI.CheckBoxProps.<Clone>$() -> DigitalBrain.UI.CheckBoxProps!
+override DigitalBrain.UI.CheckBoxProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.CheckBoxProps.GetHashCode() -> int
+override DigitalBrain.UI.CheckBoxProps.ToString() -> string!
+override DigitalBrain.UI.ControlProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.ControlProps.GetHashCode() -> int
+override DigitalBrain.UI.ControlProps.ToString() -> string!
+override DigitalBrain.UI.ExpanderProps.<Clone>$() -> DigitalBrain.UI.ExpanderProps!
+override DigitalBrain.UI.ExpanderProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.ExpanderProps.GetHashCode() -> int
+override DigitalBrain.UI.ExpanderProps.ToString() -> string!
+override DigitalBrain.UI.ToggleSwitchProps.<Clone>$() -> DigitalBrain.UI.ToggleSwitchProps!
+override DigitalBrain.UI.ToggleSwitchProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.ToggleSwitchProps.GetHashCode() -> int
+override DigitalBrain.UI.ToggleSwitchProps.ToString() -> string!
+override sealed DigitalBrain.UI.CheckBoxProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+override sealed DigitalBrain.UI.ExpanderProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+override sealed DigitalBrain.UI.ToggleSwitchProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+static DigitalBrain.UI.CheckBoxProps.operator !=(DigitalBrain.UI.CheckBoxProps? left, DigitalBrain.UI.CheckBoxProps? right) -> bool
+static DigitalBrain.UI.CheckBoxProps.operator ==(DigitalBrain.UI.CheckBoxProps? left, DigitalBrain.UI.CheckBoxProps? right) -> bool
+static DigitalBrain.UI.ControlProps.operator !=(DigitalBrain.UI.ControlProps? left, DigitalBrain.UI.ControlProps? right) -> bool
+static DigitalBrain.UI.ControlProps.operator ==(DigitalBrain.UI.ControlProps? left, DigitalBrain.UI.ControlProps? right) -> bool
+static DigitalBrain.UI.ExpanderProps.operator !=(DigitalBrain.UI.ExpanderProps? left, DigitalBrain.UI.ExpanderProps? right) -> bool
+static DigitalBrain.UI.ExpanderProps.operator ==(DigitalBrain.UI.ExpanderProps? left, DigitalBrain.UI.ExpanderProps? right) -> bool
+static DigitalBrain.UI.ToggleSwitchProps.operator !=(DigitalBrain.UI.ToggleSwitchProps? left, DigitalBrain.UI.ToggleSwitchProps? right) -> bool
+static DigitalBrain.UI.ToggleSwitchProps.operator ==(DigitalBrain.UI.ToggleSwitchProps? left, DigitalBrain.UI.ToggleSwitchProps? right) -> bool
+virtual DigitalBrain.UI.ControlProps.EqualityContract.get -> System.Type!
+virtual DigitalBrain.UI.ControlProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+virtual DigitalBrain.UI.ControlProps.PrintMembers(System.Text.StringBuilder! builder) -> bool

@@ -1,6 +1,5 @@
 using DigitalBrain.UI.Commands;
 using DigitalBrain.UI.Controls;
-using DigitalBrain.Units;
 using IntoChat.OS.Apps.Controls;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Controls;
@@ -32,34 +31,12 @@ public sealed class CheckBoxNeuronFacts
     }
 
     [Fact]
-    public async Task A_disabled_box_refuses_Toggle_and_SetChecked()
+    public async Task It_draws_its_key_and_value()
     {
-        await using var box = new ControlHarness(typeof(CheckBoxNeuron), state: new CheckBoxState { Label = "Locked", IsEnabled = false });
-
-        var toggle = await Assert.ThrowsAsync<ActivationRefusedException>(() => box.Send(new Toggle()));
-        var set = await Assert.ThrowsAsync<ActivationRefusedException>(() => box.Send(new SetChecked(true)));
-
-        Assert.Equal("control.disabled", toggle.Reason);
-        Assert.Equal(new ControlDisabled().Code, set.Reason);
-        Assert.Empty(box.Published());
-        Assert.False((await box.Drawn<CheckBoxView>()).IsOn);
-    }
-
-    [Fact]
-    public async Task It_draws_its_state_and_its_key_as_the_automation_name()
-    {
-        await using var box = new ControlHarness(typeof(CheckBoxNeuron), key: "terms", state: new CheckBoxState { Label = "I accept" });
+        await using var box = new ControlHarness(typeof(CheckBoxNeuron), key: "terms", state: new CheckBoxState { IsOn = true });
 
         var drawn = await box.Drawn<CheckBoxView>();
 
-        Assert.Equal(new CheckBoxView("terms", "I accept", false, true, "terms"), drawn);
-    }
-
-    [Fact]
-    public async Task An_automation_name_overrides_the_key()
-    {
-        await using var box = new ControlHarness(typeof(CheckBoxNeuron), state: new CheckBoxState { Label = "x", AutomationName = "Accept the terms" });
-
-        Assert.Equal("Accept the terms", (await box.Drawn<CheckBoxView>()).AutomationName);
+        Assert.Equal(new CheckBoxView("terms", true), drawn);
     }
 }

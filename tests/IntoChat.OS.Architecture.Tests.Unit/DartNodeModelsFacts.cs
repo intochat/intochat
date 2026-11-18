@@ -93,6 +93,10 @@ public sealed partial class DartNodeModelsFacts
         }
         Walk(typeof(View));
         foreach (var (type, _) in DerivedKinds()) { Walk(type); }
+        // A control's props ride on its slot (NeuronRef.Props as JSON); the client reads them with these models.
+        foreach (var props in typeof(DigitalBrain.UI.ControlProps).Assembly.GetTypes()
+            .Where(type => type is { IsAbstract: false } && type.IsSubclassOf(typeof(DigitalBrain.UI.ControlProps))))
+        { Walk(props); }
 
         var kinds = DerivedKinds().ToDictionary(entry => entry.Type, entry => entry.Kind);
         var dart = new StringBuilder();

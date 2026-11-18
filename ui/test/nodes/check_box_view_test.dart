@@ -4,23 +4,75 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 import 'package:intochat_os_flutter_shell/src/generated/node_commands.dart';
 
-NodeContext _ctx(List<Map<String, dynamic>> sent, {String slotPath = ''}) =>
-    NodeContext(
-      view: 'local/apps/settings/view',
-      generation: 1,
-      actNeuron: slotPath.isEmpty ? null : 'local/apps/settings',
-      slotPath: slotPath,
-      send: (event) async {
-        sent.add(event);
-        return {'delivered': true};
-      },
-    );
+NodeContext _ctx(
+  List<Map<String, dynamic>> sent, {
+  String slotPath = '',
+  Map<String, dynamic> props = const {},
+}) => NodeContext(
+  view: 'local/apps/settings/view',
+  generation: 1,
+  actNeuron: slotPath.isEmpty ? null : 'local/apps/settings',
+  slotPath: slotPath,
+  slotProps: props,
+  send: (event) async {
+    sent.add(event);
+    return {'delivered': true};
+  },
+);
 
 Future<void> _pump(WidgetTester tester, Node node, NodeContext ctx) =>
     tester.pumpWidget(
       MaterialApp(
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(body: NodeRenderer.render(node, ctx)),
+      ),
+    );
+
+const _parent = 'local/apps/settings/view';
+const _child = 'local/control.checkBox/local/apps.settings/main/terms';
+
+// A parent view whose slot carries [props], and the check box child's own view.
+Widget _host(Map<String, dynamic> props, List<Map<String, dynamic>> sent) =>
+    MaterialApp(
+      theme: UiTheme.intochat(Brightness.light),
+      home: Scaffold(
+        body: ViewHost(
+          knowsApp: (_) => false,
+          kind: 'view',
+          name: _parent,
+          watch: (_, _) => const Stream.empty(),
+          onAction: (event) async {
+            sent.add(event);
+            return {'delivered': true};
+          },
+          load: (kind, name) async => switch (name) {
+            _parent => {
+              'generation': 1,
+              'view': {
+                'title': 'Settings',
+                'root': {
+                  'kind': 'column',
+                  'children': [
+                    {
+                      'kind': 'neuronRef',
+                      'refKind': 'slot',
+                      'neuronUri': _child,
+                      'props': props,
+                    },
+                  ],
+                },
+              },
+            },
+            _child => {
+              'generation': 3,
+              'view': {
+                'title': 'terms',
+                'root': {'kind': 'checkBoxView', 'key': 'terms', 'isOn': true},
+              },
+            },
+            _ => throw StateError('Unknown $name'),
+          },
+        ),
       ),
     );
 
@@ -57,14 +109,12 @@ void main() {
     final sent = <Map<String, dynamic>>[];
     await _pump(
       tester,
-      const CheckBoxViewNode(
-        key: 'terms',
-        label: 'I accept',
-        isOn: false,
-        isEnabled: true,
-        automationName: 'Accept the terms',
+      const CheckBoxViewNode(key: 'terms', isOn: false),
+      _ctx(
+        sent,
+        slotPath: 'terms',
+        props: {'label': 'I accept', 'automationName': 'Accept the terms'},
       ),
-      _ctx(sent, slotPath: 'terms'),
     );
 
     expect(find.bySemanticsLabel('Accept the terms'), findsOneWidget);
@@ -75,23 +125,54 @@ void main() {
     expect(sent.single['target'], 'terms');
   });
 
-  testWidgets('a disabled check box sends nothing', (tester) async {
-    final sent = <Map<String, dynamic>>[];
+  testWidgets('the accessible name falls back to the label, then the key', (
+    tester,
+  ) async {
     await _pump(
       tester,
-      const CheckBoxViewNode(
-        key: 'locked',
-        label: 'Managed',
-        isOn: true,
-        isEnabled: false,
-        automationName: 'Managed',
-      ),
-      _ctx(sent),
+      const CheckBoxViewNode(key: 'terms', isOn: false),
+      _ctx([], props: {'label': 'I accept'}),
     );
+    expect(find.bySemanticsLabel('I accept'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('locked')));
+    await _pump(
+      tester,
+      const CheckBoxViewNode(key: 'terms', isOn: false),
+      _ctx([]),
+    );
+    expect(find.bySemanticsLabel('terms'), findsOneWidget);
+  });
+
+  testWidgets('a slot draws the label from its props and the value from the '
+      'child', (tester) async {
+    final sent = <Map<String, dynamic>>[];
+    await tester.pumpWidget(_host({'label': 'I accept the terms'}, sent));
     await tester.pumpAndSettle();
 
-    expect(sent, isEmpty);
+    expect(find.text('I accept the terms'), findsOneWidget);
+    expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isTrue);
+
+    await tester.tap(find.byKey(const Key('terms')));
+    await tester.pumpAndSettle();
+    expect(sent.single['target'], 'terms');
+    expect(sent.single['signal'], 'control.toggle');
   });
+
+  testWidgets(
+    'a slot whose props are disabled draws disabled and posts no act',
+    (tester) async {
+      final sent = <Map<String, dynamic>>[];
+      await tester.pumpWidget(
+        _host({'label': 'Managed', 'isEnabled': false}, sent),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Managed'), findsOneWidget);
+      expect(tester.widget<Checkbox>(find.byType(Checkbox)).onChanged, isNull);
+      await tester.tap(find.byKey(const Key('terms')));
+      await tester.pumpAndSettle();
+
+      expect(sent, isEmpty);
+    },
+  );
 }

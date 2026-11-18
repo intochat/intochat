@@ -15,19 +15,18 @@ void main() {
         theme: UiTheme.intochat(Brightness.light),
         home: Scaffold(
           body: NodeRenderer.render(
-            ExpanderViewNode(
-              key: 'advanced',
-              header: 'Advanced',
-              isExpanded: isExpanded,
-              isEnabled: isEnabled,
-              automationName: 'Advanced options',
-              children: [
-                Node.fromJson(const {'kind': 'text', 'value': 'Inside'}),
-              ],
-            ),
+            ExpanderViewNode(key: 'advanced', isExpanded: isExpanded),
             NodeContext(
               view: 'local/apps/settings/view',
               generation: 1,
+              slotProps: {
+                'header': 'Advanced',
+                'isEnabled': isEnabled,
+                'automationName': 'Advanced options',
+                'children': [
+                  {'kind': 'text', 'value': 'Inside'},
+                ],
+              },
               send: (event) async {
                 sent.add(event);
                 return {'delivered': true};
@@ -66,7 +65,7 @@ void main() {
     expect(sent.single['args'], {'isExpanded': false});
   });
 
-  testWidgets('a disabled expander sends nothing', (tester) async {
+  testWidgets('an expander with disabled props sends nothing', (tester) async {
     final sent = await pump(tester, isExpanded: false, isEnabled: false);
 
     await tester.tap(find.text('Advanced'));

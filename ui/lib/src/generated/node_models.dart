@@ -524,32 +524,35 @@ final class ChartPointNode {
   );
 }
 
-final class CheckBoxViewNode extends Node {
-  const CheckBoxViewNode({
-    required this.key,
-    required this.label,
-    required this.isOn,
+final class CheckBoxProps {
+  const CheckBoxProps({
     required this.isEnabled,
     required this.automationName,
+    required this.label,
   });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String label;
+
+  factory CheckBoxProps.fromJson(Map<String, dynamic> json) => CheckBoxProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    label: _string(json['label']),
+  );
+}
+
+final class CheckBoxViewNode extends Node {
+  const CheckBoxViewNode({required this.key, required this.isOn});
 
   @override
   String get kind => 'checkBoxView';
 
   final String key;
-  final String label;
   final bool isOn;
-  final bool isEnabled;
-  final String automationName;
 
   factory CheckBoxViewNode.fromJson(Map<String, dynamic> json) =>
-      CheckBoxViewNode(
-        key: _string(json['key']),
-        label: _string(json['label']),
-        isOn: _bool(json['isOn']),
-        isEnabled: _bool(json['isEnabled']),
-        automationName: _string(json['automationName']),
-      );
+      CheckBoxViewNode(key: _string(json['key']), isOn: _bool(json['isOn']));
 }
 
 final class ChoiceCardNode extends Node {
@@ -987,36 +990,42 @@ final class ErrorLineNode extends Node {
   );
 }
 
-final class ExpanderViewNode extends Node {
-  const ExpanderViewNode({
-    required this.key,
-    required this.header,
-    required this.isExpanded,
+final class ExpanderProps {
+  const ExpanderProps({
     required this.isEnabled,
     required this.automationName,
+    required this.header,
     required this.children,
   });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String header;
+  final List<Node> children;
+
+  factory ExpanderProps.fromJson(Map<String, dynamic> json) => ExpanderProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    header: _string(json['header']),
+    children: [
+      for (final item in _list(json['children'])) Node.fromJson(_map(item)),
+    ],
+  );
+}
+
+final class ExpanderViewNode extends Node {
+  const ExpanderViewNode({required this.key, required this.isExpanded});
 
   @override
   String get kind => 'expanderView';
 
   final String key;
-  final String header;
   final bool isExpanded;
-  final bool isEnabled;
-  final String automationName;
-  final List<Node> children;
 
   factory ExpanderViewNode.fromJson(Map<String, dynamic> json) =>
       ExpanderViewNode(
         key: _string(json['key']),
-        header: _string(json['header']),
         isExpanded: _bool(json['isExpanded']),
-        isEnabled: _bool(json['isEnabled']),
-        automationName: _string(json['automationName']),
-        children: [
-          for (final item in _list(json['children'])) Node.fromJson(_map(item)),
-        ],
       );
 }
 
@@ -1381,17 +1390,23 @@ final class NavItemNode extends Node {
 }
 
 final class NeuronRefNode extends Node {
-  const NeuronRefNode({required this.refKind, required this.neuronUri});
+  const NeuronRefNode({
+    required this.refKind,
+    required this.neuronUri,
+    required this.props,
+  });
 
   @override
   String get kind => 'neuronRef';
 
   final String refKind;
   final String neuronUri;
+  final Object? props;
 
   factory NeuronRefNode.fromJson(Map<String, dynamic> json) => NeuronRefNode(
     refKind: _string(json['refKind']),
     neuronUri: _string(json['neuronUri']),
+    props: json['props'],
   );
 }
 
@@ -1814,37 +1829,44 @@ final class ToastNode extends Node {
       ToastNode(message: _string(json['message']));
 }
 
-final class ToggleSwitchViewNode extends Node {
-  const ToggleSwitchViewNode({
-    required this.key,
-    required this.label,
-    required this.isOn,
+final class ToggleSwitchProps {
+  const ToggleSwitchProps({
     required this.isEnabled,
     required this.automationName,
+    required this.label,
     required this.onContent,
     required this.offContent,
   });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String label;
+  final String? onContent;
+  final String? offContent;
+
+  factory ToggleSwitchProps.fromJson(Map<String, dynamic> json) =>
+      ToggleSwitchProps(
+        isEnabled: _bool(json['isEnabled'], true),
+        automationName: _stringOrNull(json['automationName']),
+        label: _string(json['label']),
+        onContent: _stringOrNull(json['onContent']),
+        offContent: _stringOrNull(json['offContent']),
+      );
+}
+
+final class ToggleSwitchViewNode extends Node {
+  const ToggleSwitchViewNode({required this.key, required this.isOn});
 
   @override
   String get kind => 'toggleSwitchView';
 
   final String key;
-  final String label;
   final bool isOn;
-  final bool isEnabled;
-  final String automationName;
-  final String? onContent;
-  final String? offContent;
 
   factory ToggleSwitchViewNode.fromJson(Map<String, dynamic> json) =>
       ToggleSwitchViewNode(
         key: _string(json['key']),
-        label: _string(json['label']),
         isOn: _bool(json['isOn']),
-        isEnabled: _bool(json['isEnabled']),
-        automationName: _string(json['automationName']),
-        onContent: _stringOrNull(json['onContent']),
-        offContent: _stringOrNull(json['offContent']),
       );
 }
 

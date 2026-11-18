@@ -78,6 +78,7 @@ class NodeContext {
     this.buttonHints = const {},
     this.nodeKeys = const {},
     this.transcribe,
+    this.slotProps = const {},
   });
 
   /// The view neuron's name, which every activation names.
@@ -101,8 +102,10 @@ class NodeContext {
   /// The app keys the shell knows; an `OpenWindow` intent for any other is refused.
   final bool Function(String app)? knowsApp;
 
-  /// Hosts a referenced neuron surface (`neuronRef`) in place; null for a kind the host cannot show.
-  final Widget? Function(String kind, String name)? reference;
+  /// Hosts a referenced neuron surface (`neuronRef`) in place with the slot's
+  /// [props]; null for a kind the host cannot show.
+  final Widget? Function(String kind, String name, Map<String, dynamic> props)?
+  reference;
 
   final NeuronEventQueue? events;
 
@@ -136,6 +139,11 @@ class NodeContext {
   /// Transcribes recorded voice drafts into text without submitting them.
   final VoiceTranscriber? transcribe;
 
+  /// The props the parent wrote on this view's slot (`neuronRef.props`): a
+  /// control draws its label, header, content and enabled from them, and its
+  /// value from its own view. Empty outside a slot.
+  final Map<String, dynamic> slotProps;
+
   bool get interactive => enabled && send != null;
 
   NodeContext deeper() => NodeContext(
@@ -159,6 +167,7 @@ class NodeContext {
     buttonHints: buttonHints,
     nodeKeys: nodeKeys,
     transcribe: transcribe,
+    slotProps: slotProps,
   );
 
   /// The brain scope the view lives under: `{scope}/apps/{app}/…` or `{scope}/{alias}`.
@@ -379,3 +388,12 @@ abstract final class IntentGate {
     }
   }
 }
+
+/// A slotted control's accessible name: its props' `automationName`, else its
+/// label or header, else its slot key.
+String controlNameOf(String? automationName, String label, String key) =>
+    automationName != null && automationName.isNotEmpty
+    ? automationName
+    : label.isNotEmpty
+    ? label
+    : key;

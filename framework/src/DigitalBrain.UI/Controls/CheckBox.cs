@@ -1,28 +1,16 @@
 namespace DigitalBrain.UI.Controls;
 
-/// <summary>The state of a check box neuron.</summary>
-public sealed record CheckBoxState : IControlState
+/// <summary>The state of a check box neuron: only what the user changes.</summary>
+public sealed record CheckBoxState
 {
-    /// <summary>The text beside the box.</summary>
-    [Showcase("""{"kind":"checkBoxView","key":"terms","label":"I accept the terms","isOn":false,"isEnabled":true,"automationName":"Accept the terms"}""")]
-    [Showcase("""{"kind":"checkBoxView","key":"locked","label":"Managed by your organisation","isOn":true,"isEnabled":false,"automationName":"Managed setting"}""")]
-    public string Label { get; init; } = "";
-
     /// <summary>True when checked.</summary>
+    [Showcase("""{"kind":"checkBoxView","key":"terms","isOn":false,"props":{"label":"I accept the terms","isEnabled":true,"automationName":"Accept the terms"}}""")]
+    [Showcase("""{"kind":"checkBoxView","key":"locked","isOn":true,"props":{"label":"Managed by your organisation","isEnabled":false,"automationName":"Managed setting"}}""")]
     public bool IsOn { get; init; }
-
-    /// <summary>False refuses every command with <c>control.disabled</c>.</summary>
-    public bool IsEnabled { get; init; } = true;
-
-    /// <summary>The accessible name; null falls back to the neuron's key.</summary>
-    public string? AutomationName { get; init; }
 }
 
-/// <summary>What a check box neuron draws: plain data; the client sends its commands to the neuron (".").</summary>
+/// <summary>What a check box neuron draws: its key and value. The client draws the label and enabled from the slot's props.</summary>
 /// <param name="Key">The neuron's key, by which the client finds the control.</param>
-/// <param name="Label">The text beside the box.</param>
 /// <param name="IsOn">True when checked.</param>
-/// <param name="IsEnabled">False draws it disabled.</param>
-/// <param name="AutomationName">The accessible name.</param>
 [ViewNode("checkBoxView")]
-public sealed record CheckBoxView(string Key, string Label, bool IsOn, bool IsEnabled, string AutomationName) : Node;
+public sealed record CheckBoxView(string Key, bool IsOn) : Node;

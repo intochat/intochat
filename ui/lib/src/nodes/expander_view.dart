@@ -5,17 +5,19 @@ import '../generated/node_commands.dart';
 import 'node_common.dart';
 import 'node_context.dart';
 
-/// What an expander neuron draws: a header that sends `Expand` to the neuron
-/// itself (`.`), and its children while expanded. The neuron owns whether it
-/// is expanded and redraws.
+/// What an expander neuron draws: whether it is expanded from the neuron's
+/// view; its header, children, enabled and accessible name from the slot's
+/// props. The header sends `Expand` to the neuron itself (`.`); the neuron
+/// owns whether it is expanded and redraws. Disabled props send nothing.
 Widget renderExpanderView(ExpanderViewNode node, NodeContext ctx) {
-  final enabled = node.isEnabled && ctx.interactive;
+  final props = ExpanderProps.fromJson(ctx.slotProps);
+  final enabled = props.isEnabled && ctx.interactive;
   return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     mainAxisSize: MainAxisSize.min,
     children: [
       Semantics(
-        label: node.automationName.isEmpty ? node.key : node.automationName,
+        label: controlNameOf(props.automationName, props.header, node.key),
         button: true,
         enabled: enabled,
         expanded: node.isExpanded,
@@ -34,7 +36,7 @@ Widget renderExpanderView(ExpanderViewNode node, NodeContext ctx) {
                     size: 18,
                   ),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(node.header)),
+                  Expanded(child: Text(props.header)),
                 ],
               ),
             ),
@@ -47,7 +49,7 @@ Widget renderExpanderView(ExpanderViewNode node, NodeContext ctx) {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
-            children: renderAll(node.children, ctx),
+            children: renderAll(props.children, ctx),
           ),
         ),
     ],
