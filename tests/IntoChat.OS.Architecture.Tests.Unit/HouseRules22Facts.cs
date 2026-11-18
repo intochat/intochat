@@ -395,14 +395,15 @@ public sealed class HouseRules22Facts
         return false;
     }
 
-    // Rule #4: EnterKernel( only in CloudHost.cs and Kernel.cs.
+    // Rule #4: EnterKernel( only in Kernel.cs.
     [Fact]
     public void HouseRule04_EnterKernelClosedAllowlist()
     {
         var allowed = new HashSet<(string Project, string File)>
         {
-            ("IntoChat.Cloud", "CloudHost.cs"),
             ("IntoChat.OS.Kernel", "Kernel.cs"),
+            // The one place os platform code releases a credential to module code as the kernel.
+            ("IntoChat.OS.Framework", "PlatformCall.cs"),
         };
         var offenders = new List<string>();
         foreach (var src in ProductionSources.Value)
@@ -418,7 +419,7 @@ public sealed class HouseRules22Facts
             }
         }
 
-        Assert.True(offenders.Count == 0, "EnterKernel() outside closed CloudHost/Kernel composition allowlist:\n" + string.Join('\n', offenders));
+        Assert.True(offenders.Count == 0, "EnterKernel() outside closed Kernel composition allowlist:\n" + string.Join('\n', offenders));
     }
 
     [Fact]
@@ -483,7 +484,8 @@ public sealed class HouseRules22Facts
             {
                 offenders.Add($"{DisplayPath(src)}:{line}");
             }
-            if (!(src.ProjectName == "IntoChat.OS.Modules.Catalog" && src.FileName == "IUserSettings.cs"))
+            // The settings contract lives in the Catalog contracts folder, whichever project scanned it first.
+            if (!(src.FileName == "IUserSettings.cs" && src.FullPath.Split(Path.DirectorySeparatorChar).Contains("Contracts", StringComparer.Ordinal)))
             {
                 foreach (var line in FindSettingsKeyInterpolations(src.Root))
                 {
@@ -695,8 +697,6 @@ public sealed class HouseRules22Facts
         // Closed set of non-OS-filesystem single-segment identifier/blob/unit-token guards:
         var nonRelativePathTokenGuards = new HashSet<(string Project, string File)>
         {
-            ("IntoChat.Cloud", "BlobItemId.cs"),
-            ("IntoChat.Cloud", "BlobStorage.cs"),
             ("IntoChat.OS.Framework", "AppRef.cs"),
             ("IntoChat.OS.Framework", "SafeRelativePath.cs"),
             ("IntoChat.OS.Modules.Catalog", "SlotNamesABrainNeuron.cs"),
@@ -1130,6 +1130,8 @@ public sealed class HouseRules22Facts
             // Cross-assembly app/kernel/unit composition or Orleans-activated grains
             "IntoChat.OS.Modules.AI.Agents.AgentFailures",
             "IntoChat.OS.Modules.AI.Models.ModelCatalog",
+            // A host registers the workflows it offers; it carries an Agent Framework factory, so it is not a contract.
+            "IntoChat.OS.Modules.AI.Workflows.WorkflowDefinition",
             "IntoChat.OS.Modules.Microsoft.Azure.ArmAzure",
             "IntoChat.OS.Modules.Microsoft.Aspire.CandidateEnvironment",
             "IntoChat.OS.Modules.Microsoft.Aspire.LiveBuild",
@@ -1170,7 +1172,6 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Apps.Flows.AgentFlow`1",
             "IntoChat.OS.Modules.Apps.Flows.BuildInner",
             "IntoChat.OS.Modules.Apps.Flows.BuildFlow",
-            "IntoChat.OS.Modules.Apps.Flows.FeatureToPrFlow",
             "IntoChat.OS.Modules.Apps.Flows.PlanRelation",
             "IntoChat.OS.Modules.Apps.Flows.PlanSubtask",
             "IntoChat.OS.Modules.Apps.Flows.PlanInner",
@@ -1532,29 +1533,6 @@ public sealed class HouseRules22Facts
             // App-internal UI seams
             "IGalleryLibrary",
             "ISecretVault",
-            // Cloud internal / host seams outside OS
-            "IOrganisationIdentity",
-            "IOrganisationMail",
-            "IPersonalOrganisationGuard",
-            "IOrganisationHost",
-            "IAuthHostSeam",
-            "ICodeSource",
-            "IAccountAuth",
-            "ILobbyAuth",
-            "ILobbyTokenKey",
-            "IMailHost",
-            "ICloudSignIn",
-            "ILocalizer",
-            "IIpThrottle",
-            "IAuthCode",
-            "IAuthProfile",
-            "IAuthSystemAudit",
-            "IAccountProvisioning",
-            "IAuthEmailIndex",
-            "IAuthSessions",
-            "IAuthCredential",
-            "IAcsEmailTransport",
-            "IMachineCredential",
         };
 
         var unexpected = new List<string>();

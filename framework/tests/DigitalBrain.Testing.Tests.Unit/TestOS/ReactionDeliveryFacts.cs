@@ -44,7 +44,7 @@ public sealed class ClosedSource : Neuron<Tally>, INumberSource
 
 public abstract class SinkBase(Probe probe) : Neuron, INumberSink
 {
-    public Task Subscribe(NeuronId source) => Context.Synapses.Ensure<Number>(source);
+    public Task Subscribe(NeuronId source) => Context.Wires.Ensure<Number>(source);
 
     [On]
     public Task On(Number number)
@@ -110,7 +110,7 @@ public sealed class ReactionDeliveryFacts
 
         Assert.Equal(["n:1", "n:2", "n:3"], _probe.Log);
         Assert.Equal(3, os.Cursor(Sink, Source));
-        Assert.Equal([new Synapse(Source, typeof(Number), Sink)], os.SynapsesOf(Sink));
+        Assert.Equal([new Wire(Source, typeof(Number), Sink)], os.SynapsesOf(Sink));
         Assert.Empty(os.Failures);
     }
 

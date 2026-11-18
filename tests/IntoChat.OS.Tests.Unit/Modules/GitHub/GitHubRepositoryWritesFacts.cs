@@ -306,7 +306,7 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
         public IReminders Reminders { get; }
         public IOperations Operations => null!;
         public IOperationsQuery OperationsQuery => null!;
-        public ISynapses Synapses => null!;
+        public IWires Wires => null!;
         public ISignalHistory History => null!;
         public IConfirmations Confirmations => null!;
 

@@ -92,6 +92,12 @@ public sealed class IntoChatClient : ISandboxBrain
 
     [UnconditionalSuppressMessage("Trimming", "IL2091", Justification = "Sandbox worker executes dynamic user apps with full reflection.")]
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Sandbox worker requires dynamic DispatchProxy generation.")]
+    public TContract Get<TContract>(string key) where TContract : class
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        return (TContract)Slot(typeof(TContract), key);
+    }
+
     public TContract Slot<TContract>(string? slot = null) where TContract : class
         => (TContract)Slot(typeof(TContract), slot);
 

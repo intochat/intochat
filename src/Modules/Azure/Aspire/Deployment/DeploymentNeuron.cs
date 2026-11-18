@@ -70,7 +70,7 @@ internal sealed class DeploymentNeuron(
         var instances = await host.Instances(CancellationToken.None);
         // The roll ends on the silo running it: a process that is none of the instances could never hand over.
         if (host.Self is not { } self || !instances.Contains(self)) { throw new InvalidOperationException("this process is not a cluster instance"); }
-        await Context.Synapses.EnsureBrainWide(typeof(FlowStep), typeof(FlowDone));
+        await Context.Wires.EnsureBrainWide(typeof(FlowStep), typeof(FlowDone));
         var key = FlowKey(sha);
         await Save(new AspireDeploymentState { CurrentSha = previous, Stage = DeploymentStage.Rolling, TargetSha = sha, PreviousSha = previous, Remaining = instances, FlowId = FlowIdOf(key) },
             Changed(previous, DeploymentStage.Rolling));

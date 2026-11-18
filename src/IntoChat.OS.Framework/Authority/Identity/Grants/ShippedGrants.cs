@@ -33,9 +33,29 @@ public static class ShippedGrants
         ];
     }
 
+    // The command-line host (IntoChat.OS.Cli) joins the gateway as the app "cli" for a person; it reads what runs, sends app commands, starts workflows and cancels runs; answering approvals is not its to do.
+    public const string CliApp = "cli";
+
+    public static Grant[] ForCli(string brain) =>
+    [
+        Grant.Tuple($"brain:{brain}", $"app:{CliApp}", $"runs/{brain}/*", GrantRelations.Run),
+        Grant.Tuple($"brain:{brain}", $"app:{CliApp}", $"flows/{brain}/*", GrantRelations.Run),
+        Grant.Tuple($"brain:{brain}", $"app:{CliApp}", $"app.run/{brain}/*", GrantRelations.Run),
+        Grant.Tuple($"brain:{brain}", $"app:{CliApp}", $"workflow.run/{brain}/*", GrantRelations.Run),
+        Grant.Tuple($"brain:{brain}", $"app:{CliApp}", $"codeblock.run/{brain}/*", GrantRelations.Run),
+    ];
+
     public static Grant[] For(string brain, string app) => app switch
     {
         CapabilityCallers.AssistantApp => ForAssistant(brain),
         _ => [],
     };
+
+    // First-party callers whose grants ship with the OS rather than being stored: added when the brain stores none of its own.
+    public static Grant[] WithImplicit(Grant[] grants, CallerKind kind, string? appId, string brain)
+    {
+        if (kind == CallerKind.Agent && !grants.Any(g => g.AppId == CapabilityCallers.AssistantApp)) { return [.. grants, .. ForAssistant(brain)]; }
+        if (kind == CallerKind.App && appId == CliApp && !grants.Any(g => g.AppId == CliApp)) { return [.. grants, .. ForCli(brain)]; }
+        return grants;
+    }
 }

@@ -54,10 +54,10 @@ internal sealed class ClusterBrainObserver(IGrainFactory grains, IServiceProvide
         return members.Contains(caller.BrainId, StringComparer.Ordinal) ? members : [caller.BrainId, .. members];
     }
 
-    public Task<ObservedSynapse[]> Synapses(CancellationToken cancellationToken = default)
+    public Task<ObservedWire[]> Wires(CancellationToken cancellationToken = default)
         => services.GetService<BrainLogs>() is { } logs
             ? SynapseObservation.List(logs, Caller().BrainId, cancellationToken)
-            : Task.FromResult<ObservedSynapse[]>([]);
+            : Task.FromResult<ObservedWire[]>([]);
 
     public async Task<System.Text.Json.JsonElement?> State(NeuronId id, CancellationToken cancellationToken = default)
     {

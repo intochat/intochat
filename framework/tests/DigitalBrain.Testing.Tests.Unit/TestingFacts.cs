@@ -177,7 +177,7 @@ public sealed class TestingFacts
         var synapses = new RecordingSynapses(to);
         await synapses.Ensure<Pinged>(Id);
         await synapses.Ensure<Pinged>(Id);
-        Assert.Equal([new Synapse(Id, typeof(Pinged), to)], synapses.Current);
+        Assert.Equal([new Wire(Id, typeof(Pinged), to)], synapses.Current);
         await synapses.Remove(Id);
         Assert.Empty(synapses.Current);
 

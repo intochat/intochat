@@ -1,15 +1,8 @@
 using System.Text.Json.Serialization;
+using DigitalBrain.Rules;
 using DigitalBrain.State;
 
 namespace DigitalBrain.Confirmation;
-
-/// <summary>
-/// Transition result containing updated state, published signal, and immediate outcome (if resolved synchronously).
-/// </summary>
-public readonly record struct ConfirmationTransition(
-    ConfirmationState Next,
-    Signal Signal,
-    ConfirmationResult? Result);
 
 /// <summary>
 /// A confirmation entry tracked in state.
@@ -58,7 +51,7 @@ public sealed record ConfirmationState
     public ConfirmationResult? Known(string planId)
         => Entries.FirstOrDefault(entry => entry.Request.PlanId == planId)?.Result;
 
-    public ConfirmationTransition? Request(
+    public Outcome<ConfirmationState> Request(
         ConfirmationPlan plan,
         ConfirmationPrincipal requester,
         string raisedBy,
@@ -79,12 +72,12 @@ public sealed record ConfirmationState
             var sameShape = known.Request.Plan.RequiresPerson == plan.RequiresPerson
                 && string.Equals(known.Request.Plan.Kind, plan.Kind, StringComparison.Ordinal)
                 && string.Equals(known.Request.Plan.Subject, plan.Subject, StringComparison.Ordinal);
-            return sameCaller && sameShape ? null : throw new InvalidOperationException("This confirmation plan was already requested.");
+            return sameCaller && sameShape ? new ConfirmationRefusals.AlreadyAsked(plan.Id) : new ConfirmationRefusals.AlreadyRequested(plan.Id);
         }
 
         if (Entries.Count(entry => entry.Result is null && SameRaiser(entry, requester, raisedBy)) >= PendingLimit)
         {
-            throw new InvalidOperationException("This raiser already has 20 confirmations waiting.");
+            return new ConfirmationRefusals.TooManyWaiting();
         }
 
         var maxExpiry = plan.RequiresPerson ? MaxPersonExpiry : ConfirmationRules.DefaultExpiry;
@@ -101,10 +94,10 @@ public sealed record ConfirmationState
         };
 
         var signal = asks ? (Signal)request : ConfirmationAudit.Record(request, result!, null, now);
-        return new ConfirmationTransition(next, signal, result);
+        return new Transition<ConfirmationState>(next, [signal]);
     }
 
-    public ConfirmationTransition? Answer(
+    public Outcome<ConfirmationState> Answer(
         string planId,
         bool approve,
         Answerer answerer,
@@ -116,7 +109,7 @@ public sealed record ConfirmationState
             && open.Request.Plan.RequiresPerson
             && !answerer.IsPerson)
         {
-            throw new UnauthorizedAccessException("Only a person answers this question.");
+            return new ConfirmationRefusals.PersonOnly(planId);
         }
 
         var outcome = approve && answerer.IsPerson ? ConfirmationOutcome.Approved : ConfirmationOutcome.Denied;
@@ -130,13 +123,13 @@ public sealed record ConfirmationState
     private static bool SameRaiser(ConfirmationEntry entry, ConfirmationPrincipal requester, string raisedBy)
         => entry.RaisedBy is { } by ? string.Equals(by, raisedBy, StringComparison.Ordinal) : entry.Request.Requester == requester;
 
-    public ConfirmationTransition? Withdraw(string planId, DateTimeOffset now)
+    public Outcome<ConfirmationState> Withdraw(string planId, DateTimeOffset now)
         => End(planId, ConfirmationOutcome.Denied, ConfirmationDenyReason.PlanInvalid, null, now);
 
-    public ConfirmationTransition? Expire(string planId, DateTimeOffset now)
+    public Outcome<ConfirmationState> Expire(string planId, DateTimeOffset now)
         => End(planId, ConfirmationOutcome.Expired, ConfirmationDenyReason.Expired, null, now);
 
-    public ConfirmationTransition? End(
+    public Outcome<ConfirmationState> End(
         string planId,
         ConfirmationOutcome outcome,
         ConfirmationDenyReason reason,
@@ -146,7 +139,7 @@ public sealed record ConfirmationState
         var index = Array.FindIndex(Entries, entry => entry.Request.PlanId == planId);
         if (index < 0 || Entries[index].Result is not null)
         {
-            return null;
+            return new ConfirmationRefusals.NotOpen(planId);
         }
 
         var entry = Entries[index];
@@ -160,7 +153,7 @@ public sealed record ConfirmationState
             Entries = Bound(entries)
         };
 
-        return new ConfirmationTransition(next, ConfirmationAudit.Record(entry.Request, result, approver, now), result);
+        return new Transition<ConfirmationState>(next, [ConfirmationAudit.Record(entry.Request, result, approver, now)]);
     }
 
     public static ConfirmationEntry[] Bound(ConfirmationEntry[] entries)

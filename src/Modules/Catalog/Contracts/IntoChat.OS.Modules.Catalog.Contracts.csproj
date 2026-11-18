@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsIntoChatOSModule>false</IsIntoChatOSModule>
+    <IntoChatOSContractsHost>false</IntoChatOSContractsHost>
+    <PackageId>IntoChat.OS.Modules.Catalog.Contracts</PackageId>
+    <Description>Wire contracts, signals and records of the IntoChat OS catalog module: apps, Ino, flows, runs, synapses, code blocks.</Description>
+    <NoWarn>$(NoWarn);CS1591;ORLEANSEXP005</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../../framework/src/DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../AI/Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
+    <ProjectReference Include="../../Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Unit" />
+    <InternalsVisibleTo Include="IntoChat.OS.Tests.Integration" />
+  </ItemGroup>
+</Project>

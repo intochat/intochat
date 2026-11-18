@@ -54,7 +54,7 @@ public sealed class HeldReactionNeuron : Neuron, IHeldReaction
     internal static TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal static TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public Task Follow(string source) => Context.Synapses.Ensure<Counted>(NeuronId.Parse(source));
+    public Task Follow(string source) => Context.Wires.Ensure<Counted>(NeuronId.Parse(source));
     public Task Mutate() => Task.CompletedTask;
 
     [On]
@@ -84,7 +84,7 @@ public sealed class ChangingSubscriptionsNeuron : Neuron<ChangingSubscriptionsSt
     public async Task Follow(string source)
     {
         await Save(State with { Source = source }, new Noted("configured"));
-        await Context.Synapses.Ensure<Counted>(NeuronId.Parse(source));
+        await Context.Wires.Ensure<Counted>(NeuronId.Parse(source));
     }
 
     public Task<int> Stage() => Task.FromResult(State.Stage);
@@ -93,9 +93,9 @@ public sealed class ChangingSubscriptionsNeuron : Neuron<ChangingSubscriptionsSt
     public async Task On(Counted signal)
     {
         await Save(State with { Stage = 1 }, new Noted("first"));
-        await Context.Synapses.Ensure<Noted>(NeuronId.Parse(State.Source));
+        await Context.Wires.Ensure<Noted>(NeuronId.Parse(State.Source));
         await Save(State with { Stage = 2 }, new Noted("second"));
-        await Context.Synapses.Remove(NeuronId.Parse(State.Source));
+        await Context.Wires.Remove(NeuronId.Parse(State.Source));
         await Save(State with { Stage = 3 }, new Noted("third"));
     }
 }

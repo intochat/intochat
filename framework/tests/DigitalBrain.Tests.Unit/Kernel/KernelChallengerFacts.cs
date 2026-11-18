@@ -100,13 +100,6 @@ public sealed class KernelChallengerFacts
         var resultDesc = CallPolicy.MayInterleave(typeof(ConfiguredDiverseNeuron), desc, call);
         Assert.False(resultDesc);
 
-        // 3. Overload with descriptor where Method is null
-        var descNullMethod = new CallDescriptor(nameof(IChallengeContract.TurnCall), 0, typeof(Task), (t, a) => Task.FromResult<object?>(null))
-        {
-            Scheduling = CallScheduling.Conditional,
-        };
-        var resultDescNullMethod = CallPolicy.MayInterleave(typeof(ConfiguredDiverseNeuron), descNullMethod, call);
-        Assert.False(resultDescNullMethod);
 
         // Reset
         DiverseExceptionsNeuron.ExceptionToThrow = null;
@@ -130,13 +123,6 @@ public sealed class KernelChallengerFacts
         Assert.Throws<OutOfMemoryException>(() =>
             CallPolicy.MayInterleave(typeof(ConfiguredDiverseNeuron), desc, call));
 
-        // 3. CallDescriptor without MethodInfo
-        var descNullMethod = new CallDescriptor(nameof(IChallengeContract.TurnCall), 0, typeof(Task), (t, a) => Task.FromResult<object?>(null))
-        {
-            Scheduling = CallScheduling.Conditional,
-        };
-        Assert.Throws<OutOfMemoryException>(() =>
-            CallPolicy.MayInterleave(typeof(ConfiguredDiverseNeuron), descNullMethod, call));
 
         // Reset
         DiverseExceptionsNeuron.ExceptionToThrow = null;

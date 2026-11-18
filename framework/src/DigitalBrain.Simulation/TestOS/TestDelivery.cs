@@ -162,12 +162,12 @@ internal sealed class SynapseRegistry : INudge
 
     public static void Committed(NeuronId id) { _ = id; }
 
-    public IReadOnlyList<Synapse> Of(NeuronId subscriber)
+    public IReadOnlyList<Wire> Of(NeuronId subscriber)
     {
         var view = _os.Journal(subscriber.Brain).MemoryJournal;
         var subs = view.Subscriptions.All.FirstOrDefault(s => s.Subscriber == subscriber);
         if (subs is null) { return []; }
-        var list = new List<Synapse>();
+        var list = new List<Wire>();
         foreach (var entry in subs.Entries)
         {
             var from = entry.Source ?? BrainWideOf(subscriber.Brain);
@@ -176,16 +176,16 @@ internal sealed class SynapseRegistry : INudge
                 var type = _os.TypeOf(alias);
                 if (type is not null)
                 {
-                    list.Add(new Synapse(from, type, subscriber));
+                    list.Add(new Wire(from, type, subscriber));
                 }
             }
         }
         return list.OrderBy(s => s.From.ToString(), StringComparer.Ordinal).ThenBy(s => s.Signal.FullName, StringComparer.Ordinal).ToList();
     }
 
-    public ObservedSynapse[] All()
+    public ObservedWire[] All()
     {
-        var list = new List<ObservedSynapse>();
+        var list = new List<ObservedWire>();
         foreach (var b in _os.AllBrains)
         {
             var view = _os.Journal(b).MemoryJournal;
@@ -196,7 +196,7 @@ internal sealed class SynapseRegistry : INudge
                     var from = entry.Source?.ToString() ?? BrainWide;
                     foreach (var alias in entry.Aliases)
                     {
-                        list.Add(new ObservedSynapse(from, subs.Subscriber.ToString(), alias));
+                        list.Add(new ObservedWire(from, subs.Subscriber.ToString(), alias));
                     }
                 }
             }

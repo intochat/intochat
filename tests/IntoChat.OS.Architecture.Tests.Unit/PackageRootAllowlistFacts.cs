@@ -3,14 +3,14 @@ using System.Xml.Linq;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
-// os packs only IntoChat.OS* and IntoChat.Cloud.* packages (DIST-04). DigitalBrain* belongs to the digitalbrain
+// os packs only IntoChat.OS* packages (DIST-04). DigitalBrain* belongs to the digitalbrain
 // repository and the deleted IntoChat.OS.Sdk* tier never comes back under its old name.
 public sealed partial class PackageRootAllowlistFacts
 {
-    // The packable count after consolidating the 14 module Aspire.Hosting projects and removing unused stub modules (D3); a drop below it means the scan stopped seeing projects.
-    private const int KnownPackable = 23;
+    // The packable count after consolidating the 14 module Aspire.Hosting projects and removing unused stub modules (D3) and Cloud; a drop below it means the scan stopped seeing projects.
+    private const int KnownPackable = 22;
 
-    [GeneratedRegex(@"^IntoChat\.OS(\.|$)|^IntoChat\.Cloud(\.|$)", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^IntoChat\.OS(\.|$)", RegexOptions.CultureInvariant)]
     private static partial Regex AllowedRoot();
 
     internal static IReadOnlyList<(string Project, string PackageId)> PackableProjects()
@@ -38,6 +38,6 @@ public sealed partial class PackageRootAllowlistFacts
                 || entry.PackageId.StartsWith("IntoChat.OS." + "Sdk", StringComparison.Ordinal)
                 || entry.PackageId.StartsWith("DigitalBrain", StringComparison.OrdinalIgnoreCase))
             .Select(entry => entry.Project + " -> " + entry.PackageId).ToArray();
-        Assert.True(offenders.Length == 0, "os packs IntoChat.OS* and IntoChat.Cloud.* only:\n" + string.Join('\n', offenders));
+        Assert.True(offenders.Length == 0, "os packs IntoChat.OS* only:\n" + string.Join('\n', offenders));
     }
 }

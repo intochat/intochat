@@ -20,7 +20,7 @@ builder.AddIntoChatOSPipelines();
 // The deployment: IntoChatOS:Topology picks models and storage, module enablement picks hosting (DeploymentProfile).
 var profile = DeploymentProfile.From(builder);
 var os = builder.AddIntoChatOS("Modules", profile, IntoChatOSHostingOptions.Named(builder.Configuration, "os"));
-os.AddKernel(profile.Cloud ? "../IntoChat.Cloud.Host/IntoChat.Cloud.Host.csproj" : "../IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj", profile);
+os.AddKernel("../IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj", profile);
 
 builder.Build().Run();
 return 0;

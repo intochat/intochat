@@ -11,7 +11,6 @@ public sealed class OrleansBanFacts
 {
     private static readonly string[] Allow =
     [
-        "IntoChat.Cloud",
         "IntoChat.OS.Modules.AI",
         "IntoChat.OS.Modules.Shell",
     ];
@@ -26,13 +25,15 @@ public sealed class OrleansBanFacts
     private static readonly string[] UnportedGrainModules =
     [
         "IntoChat.OS.Modules.Catalog",
+        // Catalog's unported analytics grain (IDataAnalyticsWorker) lives with its contracts; it leaves with the grain.
+        "IntoChat.OS.Modules.Catalog.Contracts",
         "IntoChat.OS.Apps",
     ];
 
     [Fact]
     public void TheModuleAllowListIsExactlyTheLedgerFive()
         => Assert.Equal(
-            ["IntoChat.Cloud", "IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.Shell"],
+            ["IntoChat.OS.Modules.AI", "IntoChat.OS.Modules.Shell"],
             Allow.Order(StringComparer.Ordinal).ToArray());
 
     [Fact]

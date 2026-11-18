@@ -148,7 +148,18 @@ internal static class SandboxEdgeEndpoints
             var edge = services.GetService<DigitalBrain.Access.EdgeAuthority>();
             var resolvedAccount = string.IsNullOrWhiteSpace(owner?.AccountId) ? identity.BrainId : owner.AccountId;
             var appPrincipal = DigitalBrain.Capabilities.AppPrincipal.Id(identity.AppKey);
-            using (edge?.Enter(edge.App(identity.AppKey, new DigitalBrain.Access.Actor.Person(appPrincipal, resolvedAccount), new BrainId(identity.BrainId))))
+            // A code block's call is held to its approved needs by the kernel itself, then made on behalf of the owner who approved
+            // them, via the block; any other sandboxed app acts as itself.
+            string? blockRun;
+            using (edge?.Enter(edge.Module("codeblocks", new BrainId(identity.BrainId))))
+            {
+                blockRun = await HoldToNeedsAsync(identity, request, services).ConfigureAwait(false);
+            }
+            var brainId = new BrainId(identity.BrainId);
+            var caller = blockRun is not null && owner is not null
+                ? edge?.OnBehalfOf(new DigitalBrain.Access.Actor.Person(owner.OwnerPrincipalId, owner.AccountId), brainId, via: new NeuronId(brainId, "codeblock.run", blockRun))
+                : edge?.App(identity.AppKey, new DigitalBrain.Access.Actor.Person(appPrincipal, resolvedAccount), new BrainId(identity.BrainId));
+            using (edge is not null && caller is not null ? edge.Enter(caller) : null)
             {
                 resultJson = await DispatchContractAsync(identity, request, ai, tables, services, ct).ConfigureAwait(false);
             }
@@ -227,6 +238,24 @@ internal static class SandboxEdgeEndpoints
         }
 
         return await DispatchGenericSlotAsync(identity, request, args, services, ct).ConfigureAwait(false);
+    }
+
+    // A code block reaches only the contracts its approved needs name; every call it makes, allowed or refused, is a step on its run.
+    // The run of a code block whose call is within its needs; null for any other app. Runs as the kernel's code block module.
+    private static async Task<string?> HoldToNeedsAsync(VerifiedAppToken identity, EdgeInvokeRequest request, IServiceProvider services)
+    {
+        if (!identity.AppKey.StartsWith(IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants.CodeBlockAppPrefix, StringComparison.Ordinal)) { return null; }
+        var grants = SiloNeurons.Get<IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants>(services,
+            new NeuronId(new BrainId(identity.BrainId), "client.grants", IntoChat.OS.Modules.Apps.CodeBlocks.IClientGrants.DefaultKey));
+        // The sandbox names a contract by its neuron alias or its type; needs are type names, so compare the resolved type.
+        var contract = KernelInvocationSink.ContractOf(request.Contract)?.FullName ?? request.Contract;
+        var allowed = (await grants.Allowed(identity.AppKey).ConfigureAwait(false)).Contains(contract, StringComparer.Ordinal);
+        await grants.Record(identity.AppKey, $"{contract[(contract.LastIndexOf('.') + 1)..]}.{request.Method}", allowed).ConfigureAwait(false);
+        if (!allowed)
+        {
+            throw new UnauthorizedAccessException($"{contract} is not among this code block's approved needs.");
+        }
+        return await grants.RunOf(identity.AppKey).ConfigureAwait(false);
     }
 
     private static async Task<string?> DispatchNotificationsAsync(

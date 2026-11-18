@@ -11,15 +11,16 @@ The product has four parts.
 | Modules | Capabilities and connectors the kernel composes. | `src/Modules` |
 | Shell | What you see: the Flutter client and the desktop launcher. | `ui`, `src/IntoChat.OS.Desktop` |
 
-`src/IntoChat.OS.Framework` holds product-side hosting code (identity, connections, the call filter, the gRPC service). `src/IntoChat.Cloud` holds the cloud service modules, which load only under the cloud topology.
+`src/IntoChat.OS.Framework` holds product-side hosting code (identity, connections, `SiloAccessCallFilter`, `NeuronsGrpcService`). `src/IntoChat.OS.AppHost` (`IntoChat.OS.Aspire.Hosting`) provides .NET Aspire helpers (`AddIntoChatOS` and `AddIntoChatOSContainer` in `Hosting/IntoChatOSHostingExtensions.cs`, and `AddKernel` in `Hosting/Composition/OperatingSystemHosting.cs`). `src/Modules/Shell/Contracts` (`IntoChat.OS.Modules.Shell.Contracts`) holds the shell wire contracts and signals separately from `src/Modules/Shell`.
 
 ## Kernel
 
-`src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Program.cs` is the entry point. It does three things:
+`src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Program.cs` delegates to `KernelHost.RunAsync(args)` in `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/KernelHost.cs` (which also accepts `rootAssembly`, `configureServer`, `beforeAccountSession`, `configureApp`, and `cancellationToken` so external hosts can compose additional modules and hooks):
 
-1. It takes the module list from `OperatingSystemModules`. On Windows it adds the Windows module. It keeps the modules that load under the configured topology.
-2. `AddIntoChatOSServer` configures the Orleans silo, the DigitalBrain runtime and every selected module. `AddOperatingSystem` adds the modules and the system apps.
-3. `MapIntoChatOSServer` maps the HTTP and gRPC endpoints. `MapIntoChatOSMcp` maps the MCP endpoint at `/mcp`.
+1. When `AzureInstaller.IsInstall(args)` matches, it discovers modules with `OperatingSystemModules.Discover(rootAssembly)` and runs `AzureInstaller.Run` before exiting.
+2. Otherwise it applies `LocalRunDefaults.Apply`, reads `IntoChatOS:Topology` (`IntoChatOSNames.TopologyKey`), and discovers modules via `OperatingSystemModules.WithWindowsEdge(rootAssembly)` on Windows or `OperatingSystemModules.Discover(rootAssembly)` elsewhere, keeping only those where `module.LoadsUnder(topology)` is true.
+3. `builder.AddIntoChatOSServer` configures the Orleans silo, the DigitalBrain runtime, `server.AddOperatingSystem(catalog)` (modules and shipped OS apps), and any `configureServer` callback (enabling the Orleans dashboard when configured); `builder.Services.AddIntoChatOSMcp()` registers MCP services.
+4. `app.MapIntoChatOSServer(beforeAccountSession)` maps the static web shell, HTTP endpoints, health probes, and gRPC endpoints; `app.MapIntoChatOSMcp()` maps `/mcp` plus the brain-scoped `/brains/{brainId}/mcp` route (via `OsBrainRoutes.Group` with `GuestSurface.Door`).
 
 The `IntoChatOS:Topology` setting picks clustering, state stores, streams, reminders and secrets.
 
@@ -56,9 +57,9 @@ A module adds neurons, contracts and settings to the kernel. Each lives in a fol
 ## How a request flows
 
 1. **Shell.** You act in a window. `NeuronChannel` (`ui/lib/src/core/neuron_channel.dart`) sends a call over gRPC, or gRPC-Web in a browser. The call names a brain, a contract, a key, a method and JSON arguments.
-2. **Kernel edge.** `NeuronsService` receives it. `BrainCall` checks that the caller may enter that brain and stamps the caller on the call.
-3. **Neuron surface.** `NeuronSurface` finds the contract, picks the method by name and argument count, reads the JSON arguments and calls the neuron.
-4. **Neuron.** The neuron runs in the Orleans silo. It may change its state and publish signals. `CallFilter` is the enforcement point for who may call what: it refuses a caller with no principal and a call into another brain, then asks each `ICallFilterStage` in order.
+2. **Kernel edge.** `NeuronsGrpcService` receives it. `BrainCall` checks that the caller may enter that brain and stamps the caller on the call.
+3. **Neuron surface.** `OsNeuronSurface` (backed by `NeuronSurface` in DigitalBrain) finds the contract, picks the method by name and argument count, reads the JSON arguments and calls the neuron.
+4. **Neuron.** The neuron runs in the Orleans silo. It may change its state and publish signals. `SiloAccessCallFilter` is the enforcement point for who may call what: it refuses a caller with no principal and a call into another brain, then asks each `ICallFilterStage` in order.
 5. **Back.** The result returns as JSON in the reply. The shell also holds a `Watch` stream on the neurons it shows. A change signal tells the view to read again, and Flutter draws the new `View`.
 
-The same `NeuronSurface` serves two other callers. The MCP tools in `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Mcp/Tools` use it, and so does Ino; see [Ino and memory](ino-and-memory.md).
+The same `OsNeuronSurface` serves two other callers. The MCP tools in `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Mcp/Tools` use it, and so does Ino; see [Ino and memory](ino-and-memory.md).

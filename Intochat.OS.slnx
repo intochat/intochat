@@ -53,10 +53,9 @@
     <Project Path="framework/tests/DigitalBrain.Testing.Tests.Unit/DigitalBrain.Testing.Tests.Unit.csproj" />
     <Project Path="framework/tests/DigitalBrain.Tests.Unit/DigitalBrain.Tests.Unit.csproj" />
   </Folder>
-  <Project Path="src/IntoChat.Cloud/IntoChat.Cloud.csproj" />
-  <Project Path="src/IntoChat.Cloud.Host/IntoChat.Cloud.Host.csproj" />
   <Project Path="src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj" />
   <Project Path="src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
+  <Project Path="src/IntoChat.OS.Cli/IntoChat.OS.Cli.csproj" />
   <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj" />
   <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
   <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
@@ -64,9 +63,11 @@
   <Project Path="src/IntoChat.OS.Sandbox/IntoChat.OS.Sandbox.csproj" />
   <Project Path="src/IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
   <Project Path="src/IntoChat.OS/IntoChat.OS.csproj" />
+  <Project Path="src/Modules/AI/Contracts/IntoChat.OS.Modules.AI.Contracts.csproj" />
   <Project Path="src/Modules/AI/IntoChat.OS.Modules.AI.csproj" />
   <Project Path="src/Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
   <Project Path="src/Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />
+  <Project Path="src/Modules/Catalog/Contracts/IntoChat.OS.Modules.Catalog.Contracts.csproj" />
   <Project Path="src/Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
   <Project Path="src/Modules/Circles/IntoChat.OS.Modules.Circles.csproj" />
   <Project Path="src/Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
@@ -83,7 +84,6 @@
   <Project Path="src/Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
   <Project Path="src/Modules/Time/IntoChat.OS.Modules.Time.csproj" />
   <Project Path="src/Modules/Windows/IntoChat.OS.Modules.Windows.csproj" />
-  <Project Path="tests/IntoChat.Cloud.Tests.Unit/IntoChat.Cloud.Tests.Unit.csproj" />
   <Project Path="tests/IntoChat.OS.Architecture.Tests.Unit/IntoChat.OS.Architecture.Tests.Unit.csproj" />
   <Project Path="tests/IntoChat.OS.Tests.Browser/IntoChat.OS.Tests.Browser.csproj" />
   <Project Path="tests/IntoChat.OS.Tests.E2E/IntoChat.OS.Tests.E2E.csproj" />

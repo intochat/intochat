@@ -35,7 +35,7 @@ internal sealed class FlowsNeuron(
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        await Context.Synapses.EnsureBrainWide(typeof(FlowStarted), typeof(FlowStep), typeof(FlowWaiting), typeof(FlowResolve), typeof(FlowDone), typeof(FlowRelated), typeof(FlowSubject),
+        await Context.Wires.EnsureBrainWide(typeof(FlowStarted), typeof(FlowStep), typeof(FlowWaiting), typeof(FlowResolve), typeof(FlowDone), typeof(FlowRelated), typeof(FlowSubject),
             typeof(ContextUpdated), typeof(ContextRemoved));
         await RebuildInterrupts();
     }

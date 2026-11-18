@@ -140,7 +140,7 @@ public sealed class BuildFlow : Flow<BuildInner>, IFlowStarter, IBuildChoices
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        await Context.Synapses.EnsureBrainWide(typeof(Installed), typeof(InstallDenied), typeof(ConnectionsChanged));
+        await Context.Wires.EnsureBrainWide(typeof(Installed), typeof(InstallDenied), typeof(ConnectionsChanged));
         await base.OnActivate(cancellationToken);
         if (WaitingOnConnection()) { await CheckConnections(); }
         else if (WaitingOnInstall()) { await CheckInstall(); }

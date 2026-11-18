@@ -1,3 +1,4 @@
+using IntoChat.OS.Framework;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
@@ -18,9 +19,7 @@ internal sealed class VaultSecretValueSource(AuthorityNeurons neurons, EdgeAutho
         {
             throw new UnauthorizedAccessException("Zero-token auth enforcement: sandbox and app principals cannot read raw vault secret values directly.");
         }
-        using (edge?.Enter(edge.Module("identity.secrets", new BrainId("system"))))
-        {
-            return await neurons.Vault(caller.PrincipalId).Values(caller);
-        }
+        if (edge is null) { return []; }
+        return await edge.AsKernel(BrainId.Kernel, () => neurons.Vault(caller.PrincipalId).Values());
     }
 }

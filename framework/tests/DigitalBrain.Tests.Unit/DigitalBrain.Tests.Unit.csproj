@@ -4,6 +4,7 @@
     <ProjectReference Include="../../src/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <ProjectReference Include="../../src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="CsCheck" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="MovedTypes.json" CopyToOutputDirectory="PreserveNewest" />

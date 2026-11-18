@@ -117,10 +117,10 @@ public sealed class Tier1_FeatureCoverageFacts
     [Trait("Feature", "F2")]
     public void F2_02_IApp_NameOf_ExtractsValidAppSlug()
     {
-        var name = IApp.NameOf("brain-alpha", "brain-alpha/apps/summarizer");
+        var name = IntoChat.OS.Primitives.AppRef.NameOf("brain-alpha", "brain-alpha/apps/summarizer");
         Assert.Equal("summarizer", name);
 
-        var foreign = IApp.NameOf("brain-beta", "brain-alpha/apps/summarizer");
+        var foreign = IntoChat.OS.Primitives.AppRef.NameOf("brain-beta", "brain-alpha/apps/summarizer");
         Assert.Null(foreign);
     }
 

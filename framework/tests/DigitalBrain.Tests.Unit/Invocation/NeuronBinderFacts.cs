@@ -63,7 +63,7 @@ public sealed class NeuronBinderFacts
         => new("behavior", typeof(IProbe).FullName!, "b1/probe/a", method, arguments);
 
     private static async Task<JsonElement?> Run(NeuronBinder binder, object target, RuntimeInvocation call, CancellationToken token = default)
-        => await binder.InvokeAsync(target, binder.Bind(typeof(IProbe), call), call.Arguments, token);
+        => await binder.Bind(typeof(IProbe), call).InvokeAsync(target, call.Arguments, token);
 
     [Fact]
     public async Task Overloads_bind_by_parameter_type_and_ambiguity_names_contract_and_method()
@@ -132,7 +132,7 @@ public sealed class NeuronBinderFacts
 
         var count = Call("Count", Json(3));
         List<int> items = [];
-        await foreach (var item in binder.StreamAsync(probe, binder.Bind(typeof(IProbe), count), count.Arguments, CancellationToken.None))
+        await foreach (var item in binder.Bind(typeof(IProbe), count).StreamAsync(probe, count.Arguments, CancellationToken.None))
         {
             items.Add(item.GetInt32());
         }
@@ -143,7 +143,7 @@ public sealed class NeuronBinderFacts
         var seen = 0;
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
         {
-            await foreach (var _ in binder.StreamAsync(probe, binder.Bind(typeof(IProbe), forever), forever.Arguments, source.Token))
+            await foreach (var _ in binder.Bind(typeof(IProbe), forever).StreamAsync(probe, forever.Arguments, source.Token))
             {
                 if (++seen == 2) { await source.CancelAsync(); }
             }
@@ -158,16 +158,13 @@ public sealed class NeuronBinderFacts
     }
 
     [Fact]
-    public void Second_bind_is_a_cache_hit()
+    public void Second_bind_returns_the_catalog_descriptor()
     {
         var binder = new NeuronBinder();
 
         var first = binder.Bind(typeof(IProbe), Call("Twice", Json(1)));
-        var misses = binder.Misses;
         var second = binder.Bind(typeof(IProbe), Call("Twice", Json(5)));
 
-        Assert.Equal(1, misses);
-        Assert.Equal(misses, binder.Misses);
         Assert.Same(first, second);
     }
 }

@@ -30,7 +30,7 @@ public sealed class StorageAccessThroughBrokerFacts
     public void ModulesDoNotReferenceTheAccessLog()
     {
         var offenders = new List<string>();
-        foreach (var project in Production().Where(project => project.Name.StartsWith("IntoChat.OS.Modules", StringComparison.Ordinal) || project.Name.StartsWith("IntoChat.Cloud.", StringComparison.Ordinal)))
+        foreach (var project in Production().Where(project => project.Name.StartsWith("IntoChat.OS.Modules", StringComparison.Ordinal)))
         {
             foreach (var file in Repository.SourceFiles(project.Directory, "*.cs").Where(path => Owns(project, path)))
             {

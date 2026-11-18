@@ -36,7 +36,7 @@ internal static class AskCall
         var binder = contract.IsCollectible ? new NeuronBinder() : SharedBinder;
         var invocation = new RuntimeInvocation(string.Empty, contract.Name, string.Empty, operation, ordered);
         var bound = binder.Bind(contract, invocation);
-        return await binder.InvokeAsync(capability, bound, ordered, ct).ConfigureAwait(true) ?? AskRules.NoResult;
+        return await bound.InvokeAsync(capability, ordered, ct).ConfigureAwait(true) ?? AskRules.NoResult;
     }
 
     private static MethodInfo FindMethod(Type contract, string operation)

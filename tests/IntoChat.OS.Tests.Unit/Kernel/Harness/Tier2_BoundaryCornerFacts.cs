@@ -114,7 +114,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F2")]
     public void F2_B02_IApp_NameOf_PathTraversalPattern_ReturnsNull()
     {
-        var result = IApp.NameOf("brain-1", "brain-1/apps/../../root");
+        var result = IntoChat.OS.Primitives.AppRef.NameOf("brain-1", "brain-1/apps/../../root");
         Assert.Null(result);
     }
 
@@ -123,7 +123,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F2")]
     public void F2_B03_IApp_NameOf_TrailingSlash_ReturnsNull()
     {
-        var result = IApp.NameOf("brain-1", "brain-1/apps/calc/");
+        var result = IntoChat.OS.Primitives.AppRef.NameOf("brain-1", "brain-1/apps/calc/");
         Assert.Null(result);
     }
 

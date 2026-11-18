@@ -4,6 +4,14 @@
     <Description>App catalog, install, versions, runtime authoring, flows, and Ino tools.</Description>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="Contracts/**" />
+    <EmbeddedResource Remove="Contracts/**" />
+    <None Remove="Contracts/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="Contracts/IntoChat.OS.Modules.Catalog.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../../framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" />

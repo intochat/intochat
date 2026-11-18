@@ -58,7 +58,7 @@ public interface IListener
 [Neuron("e2e.listener", State = "heard")]
 public sealed class ListenerNeuron : Neuron<ListenerState>, IListener
 {
-    public Task Follow(string source) => Context.Synapses.Ensure<Number>(NeuronId.Parse(source));
+    public Task Follow(string source) => Context.Wires.Ensure<Number>(NeuronId.Parse(source));
 
     public Task<string[]> Heard() => Task.FromResult(State.Heard.ToArray());
 

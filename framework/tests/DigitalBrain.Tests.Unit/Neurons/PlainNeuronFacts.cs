@@ -53,9 +53,9 @@ public sealed class CounterNeuron : Neuron<CounterState>
 
 public sealed class Notifier : Neuron
 {
-    public Task Follow(NeuronId from) => Context.Synapses.Ensure<Counted>(from);
+    public Task Follow(NeuronId from) => Context.Wires.Ensure<Counted>(from);
 
-    public Task Unfollow(NeuronId from) => Context.Synapses.Remove(from);
+    public Task Unfollow(NeuronId from) => Context.Wires.Remove(from);
 
     public Task Notice() => Publish(new Noticed("hello"));
 }
@@ -166,7 +166,7 @@ public sealed class PlainNeuronFacts
         await neuron.Follow(Source);
         await neuron.Follow(Source);
 
-        Assert.Equal([new Synapse(Source, typeof(Counted), CounterId)], context.SynapseList);
+        Assert.Equal([new Wire(Source, typeof(Counted), CounterId)], context.SynapseList);
     }
 
     [Fact]

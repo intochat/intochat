@@ -1,6 +1,6 @@
 # Repository working instructions
 
-Documentation lives next to the code: `docs/` for the product and `framework/docs/` for DigitalBrain. A change that makes a page untrue fixes the page in the same pull request. Dated plans, audits and reports do not go in this repository; they belong in the owner's planning folder (`E:/intochat/intochat.docs`) and move to `E:/intochat/archive` when the work ends.
+Documentation lives next to the code: `docs/` for the product and `framework/docs/` for DigitalBrain. A change that makes a page untrue fixes the page in the same pull request. Dated plans, audits and reports do not go in this repository; they belong in the owner's planning folder (`E:/intochat/cloud/web/docs/plans`) and move to `E:/intochat/archive` when the work ends.
 
 ## Code work
 
@@ -8,7 +8,7 @@ Documentation lives next to the code: `docs/` for the product and `framework/doc
 - Use codegraph for general structure when available.
 - Follow the existing neuron, signal, behavior and connector model. Propose new concepts, contract changes and module-shape changes before implementation.
 - Preserve per-brain ownership and kernel-stamped signal provenance. Do not derive authority from settings.
-- Contracts belong in src/IntoChat.OS and module Contracts assemblies; generic runtime implementation belongs in DigitalBrain (`framework/src/*`); OS-only hosting belongs in src/IntoChat.OS/Hosting/IntoChat.OS.Framework; platform authorities belong in the Identity module's Authority tree.
+- Contracts belong in `src/IntoChat.OS` and module `Contracts` assemblies (including `src/Modules/Shell/Contracts`, `IntoChat.OS.Modules.Shell.Contracts`); generic runtime implementation belongs in DigitalBrain (`framework/src/*`); OS-only hosting belongs in `src/IntoChat.OS.Framework`; platform authorities belong in `src/IntoChat.OS.Framework/Authority` (`IdentityModule`).
 - First-party apps are compiled shell apps in `src/IntoChat.OS.Apps/<App>`, one folder per app with its scenarios; apps authored at runtime are synapse units, never source in this repository. Inline app specifications and runtime prompts are source inputs and remain here.
 - Use shared module-owned testing infrastructure for engineering changes. Build individual projects on Windows rather than the solution. Tiers prove one subject: Unit = facts on TestOS, Integration = the same on a real silo through Testing.Silo, E2E = the product on an in-process host without Docker, Browser = the shell in a browser (nightly). The product tier boots the OS as a DigitalBrain app under Aspire's testing builder with no container; a journey that needs a container carries a `needs` trait and runs nightly. CI enforces a time budget per tier.
 - Product assessment and documentation work does not authorize running tests or starting the product. Follow the user's requested verification scope.

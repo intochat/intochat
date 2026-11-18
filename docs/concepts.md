@@ -16,7 +16,7 @@ You choose where your brain runs:
 
 The shell speaks one protocol in all three. Only the brain's address differs. On phones the shell connects to a brain that runs elsewhere; the kernel does not run on phones.
 
-In code this choice is the topology, set with `IntoChatOS:Topology`. The values are `local`, `local+cloud` and `cloud` (`IntoChatOSNames`). Unset means `local`. `Program.cs` in `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel` reads the topology and loads only the modules that belong to it. The desktop launcher in `src/IntoChat.OS.Desktop` starts the kernel with `local` and keeps state under `~/.intochat`.
+In code this choice is the topology, set with `IntoChatOS:Topology` (`IntoChatOSNames.TopologyKey`). The values are `local`, `local+cloud` and `cloud` (`IntoChatOSNames`); unset means `local`. The `local` and `local+cloud` topologies run in `IntoChat.OS.Kernel` (`Program.cs` delegates to `KernelHost.RunAsync` in `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/KernelHost.cs`, which filters discovered modules with `LoadsUnder` and applies `LocalRunDefaults`); the hosted `cloud` topology runs in IntoChat Cloud on top of `KernelHost` (container images backed by Azure Storage and Key Vault also run with `IntoChatOS__Topology=cloud`). The desktop launcher in `src/IntoChat.OS.Desktop` starts the kernel with `local` and keeps state under `~/.intochat`.
 
 ## Connection
 
@@ -43,13 +43,13 @@ A folder or file of the workspace can be shared with a confirmed friend as Viewe
 
 Limits today: both brains must run on the same kernel; a share names a path, so renaming the folder ends it; when two people save the same file, the last save wins; only the workspace's own storage can be shared.
 
-A group is a brain that several accounts share. Its members share apps, a chat and a share of the owner's compute. In code a group is still called a circle: the contract is `ICircle` and the module is in `src/Modules/Circles`.
+A group is a brain that several accounts share. Its members share apps, a chat and a share of the owner's compute. In code a group is still called a circle: the client-side group/circle contracts (`ICircle` and sibling interfaces in `src/Modules/Circles/Contracts`) and the `circles` module live in `src/Modules/Circles`.
 
 - The creator invites accounts. An invited account accepts and becomes a member.
 - Owners and admins can make invite codes.
 - When a member shares an app, the connections that app uses are bound for the group. They are withdrawn when the sharer leaves.
 
-The group server is in `src/IntoChat.Cloud/Circle/Server`. It loads only in the `cloud` topology.
+The multi-account group server runs in IntoChat Cloud.
 
 ## App
 

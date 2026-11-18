@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities.Connections.Connectors;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using IntoChat.OS.Connections.Platform.Integrations;
@@ -16,11 +18,11 @@ internal sealed class ModuleIntegrations<TModule>(IServiceProvider services, Mod
             || ConnectorDefinition.DeclaredBy(typeof(TModule))
                 .Any(c => c.RequiredIntegrations.Contains(integrationId, StringComparer.Ordinal) || c.OptionalIntegrations.Contains(integrationId, StringComparer.Ordinal))))
         { throw new UnauthorizedAccessException($"Module '{typeof(TModule).Name}' has not declared Integration '{integrationId}'."); }
-        return new IntegrationHandle(integrationId, services.GetRequiredService<AuthorityNeurons>(), services.GetRequiredService<IReadOnlyList<IntegrationSchema>>());
+        return new IntegrationHandle(integrationId, services.GetRequiredService<AuthorityNeurons>(), services.GetRequiredService<IReadOnlyList<IntegrationSchema>>(), services.GetRequiredService<EdgeAuthority>());
     }
 }
 
-internal sealed class IntegrationHandle(string integrationId, AuthorityNeurons neurons, IReadOnlyList<IntegrationSchema> schemas) : IIntegrationHandle
+internal sealed class IntegrationHandle(string integrationId, AuthorityNeurons neurons, IReadOnlyList<IntegrationSchema> schemas, EdgeAuthority edge) : IIntegrationHandle
 {
     public string IntegrationId => integrationId;
     private IIntegration Integration => neurons.Integration(integrationId);
@@ -40,6 +42,6 @@ internal sealed class IntegrationHandle(string integrationId, AuthorityNeurons n
     public async Task<ReleasedIntegration> ReleaseAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return await Integration.Release(IntegrationNeuron.PlatformCaller).WaitAsync(cancellationToken).ConfigureAwait(false);
+        return await edge.AsKernel(BrainId.Kernel, () => Integration.Release().WaitAsync(cancellationToken)).ConfigureAwait(false);
     }
 }

@@ -211,7 +211,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
         catch (Exception ex) { Log.LogSwallowed(ex, "Workspace follow is optional when running in standalone mode."); }
         try { await Follow<ISynapseStudio, SynapseStudioChanged>("ino/synapses"); }
         catch (Exception ex) when (ex is not OperationCanceledException) { Log.LogSwallowed(ex, "SynapseStudio follow is optional when running in standalone mode."); }
-        try { await Context.Synapses.EnsureBrainWide([typeof(DigitalBrain.Confirmation.ConfirmationResolved)]); }
+        try { await Context.Wires.EnsureBrainWide([typeof(DigitalBrain.Confirmation.ConfirmationResolved)]); }
         catch (Exception ex) when (ex is not OperationCanceledException) { Log.LogSwallowed(ex, "ConfirmationResolved follow is optional when running in standalone mode."); }
         await SyncSmartDesktopAsync(State.LayoutMode, State.IsNarrow);
     }
@@ -478,7 +478,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             var winId = window.Id;
             var activeIndex = Math.Max(0, Array.FindIndex(window.Tabs, t => t.Id == window.ActiveTabId));
             var activeTab = window.Tabs[activeIndex];
-            var appId = brain is { Length: > 0 } b ? IApp.NameOf(b, activeTab.App) ?? activeTab.Id : activeTab.Id;
+            var appId = brain is { Length: > 0 } b ? IntoChat.OS.Primitives.AppRef.NameOf(b, activeTab.App) ?? activeTab.Id : activeTab.Id;
             var title = char.ToUpperInvariant(appId[0]) + appId[1..];
             var isPinned = (state.Pins ?? []).Any(p => string.Equals(p.Id, appId, StringComparison.OrdinalIgnoreCase));
             var isFav = (state.Favourites ?? []).Any(f => string.Equals(f.App, activeTab.App, StringComparison.OrdinalIgnoreCase));

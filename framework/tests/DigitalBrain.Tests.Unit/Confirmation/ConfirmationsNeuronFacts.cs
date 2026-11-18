@@ -41,6 +41,24 @@ public sealed class ConfirmationsNeuronFacts
     }
 
     [Fact]
+    public async Task AnsweringAQuestionThatIsNoLongerOpenSaysSo()
+    {
+        var context = new FakeNeuronContext(new NeuronId(new BrainId("b1"), "runtime.confirmations", "confirmations"));
+        context.Caller = new DigitalBrain.Access.Caller(new DigitalBrain.Access.Actor.Person("alice", "acc-1"), new BrainId("b1"));
+        var neuron = new ConfirmationsNeuron();
+        NeuronAttachment.Attach(neuron, context);
+        await neuron.Request(Plan("cf-stale"));
+        await neuron.Resolve("cf-stale", approve: true);
+
+        await neuron.Resolve("cf-stale", approve: false);
+
+        var rejected = Assert.Single(context.Published.OfType<DigitalBrain.Rules.Rejected>());
+        Assert.Equal("confirmation.answer", rejected.Operation);
+        Assert.Equal(["confirmation.not-open"], rejected.Rules);
+        Assert.Equal(ConfirmationOutcome.Approved, (await neuron.Outcome("cf-stale"))!.Outcome);
+    }
+
+    [Fact]
     public async Task WithdrawCancelsPendingRequest()
     {
         var context = new FakeNeuronContext(new NeuronId(new BrainId("b1"), "runtime.confirmations", "confirmations"));

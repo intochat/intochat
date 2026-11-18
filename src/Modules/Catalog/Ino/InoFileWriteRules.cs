@@ -1,3 +1,4 @@
+using DigitalBrain.Capabilities.Storage;
 using IntoChat.OS.Primitives;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -17,5 +18,14 @@ internal static class InoFileWriteRules
         if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) { return $"'{name}' contains characters a file name cannot have."; }
         if ((content?.Length ?? 0) > MaxContentCharacters) { return $"The content is longer than {MaxContentCharacters:N0} characters."; }
         return null;
+    }
+
+    // The folder a new file goes to: the owner's Documents root when it is allowed, else the first writable root. Older brains
+    // still carry the kernel's working folder as their first root, so "first writable" alone is not enough.
+    internal static Item? Target(IReadOnlyList<Item> roots, string? documents = null)
+    {
+        var writable = roots.Where(item => item.Flags.HasFlag(ItemFlags.Write)).ToArray();
+        var name = Path.GetFileName((documents ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)).TrimEnd('\\', '/'));
+        return writable.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase)) ?? writable.FirstOrDefault();
     }
 }

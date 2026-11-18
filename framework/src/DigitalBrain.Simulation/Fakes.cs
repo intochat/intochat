@@ -162,9 +162,9 @@ public sealed class ManualReminders : IReminders
 }
 
 /// <summary>The synapses one subscriber holds, in memory. Ensure is idempotent and refuses a self-synapse.</summary>
-public sealed class RecordingSynapses : ISynapses
+public sealed class RecordingSynapses : IWires
 {
-    private readonly List<Synapse> _synapses = [];
+    private readonly List<Wire> _synapses = [];
     private readonly HashSet<Type> _brainWide = [];
     private readonly HashSet<string> _brainWideAliases = new(StringComparer.Ordinal);
 
@@ -175,7 +175,7 @@ public sealed class RecordingSynapses : ISynapses
     public NeuronId Subscriber { get; }
 
     /// <summary>The current synapses.</summary>
-    public IReadOnlyList<Synapse> Current => _synapses;
+    public IReadOnlyList<Wire> Current => _synapses;
 
     /// <inheritdoc />
     public Task Ensure<TSignal>(NeuronId from) where TSignal : Signal => Ensure(from, typeof(TSignal));
@@ -188,7 +188,7 @@ public sealed class RecordingSynapses : ISynapses
         foreach (var signal in signals)
         {
             if (signal is null || !typeof(Signal).IsAssignableFrom(signal)) { throw new ArgumentException($"{signal} is not a signal type.", nameof(signals)); }
-            var synapse = new Synapse(from, signal, Subscriber);
+            var synapse = new Wire(from, signal, Subscriber);
             if (!_synapses.Contains(synapse)) { _synapses.Add(synapse); }
         }
         return Task.CompletedTask;
@@ -463,6 +463,8 @@ public sealed class FakeNeuronProxies : INeuronProxies
         return this;
     }
 
+    internal bool Has<T>(NeuronId id) where T : class => _proxies.ContainsKey((id, typeof(T)));
+
     /// <inheritdoc />
     /// <exception cref="KeyNotFoundException">No proxy is registered for the id.</exception>
     public T Get<T>(NeuronId id) where T : class
@@ -552,7 +554,7 @@ public sealed class FakeNeuronContext : INeuronContext, INeuronSeat
     /// <summary>The recording synapses.</summary>
     public RecordingSynapses Synapses { get; }
 
-    ISynapses INeuronContext.Synapses => Synapses;
+    IWires INeuronContext.Wires => Synapses;
 
     /// <summary>The in-memory signal history.</summary>
     public InMemorySignalHistory History { get; } = new();
@@ -592,7 +594,8 @@ public sealed class FakeNeuronContext : INeuronContext, INeuronSeat
     /// <inheritdoc />
     public T Get<T>(NeuronId id) where T : class
     {
-        if (id == DigitalBrain.Confirmation.IConfirmationRequests.Of(Id.Brain))
+        // A test that registered its own confirmations answers wins over the built-in confirmations neuron.
+        if (id == DigitalBrain.Confirmation.IConfirmationRequests.Of(Id.Brain) && !Proxies.Has<T>(id))
         {
             if (typeof(T) == typeof(DigitalBrain.Confirmation.IConfirmationRequests)) { return (T)(object)ConfirmationsTarget(); }
             if (typeof(T) == typeof(DigitalBrain.Confirmation.IConfirmationInbox)) { return (T)(object)ConfirmationsTarget(); }

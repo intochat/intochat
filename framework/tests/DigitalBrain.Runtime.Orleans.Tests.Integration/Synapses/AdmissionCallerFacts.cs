@@ -23,7 +23,7 @@ public sealed class ForgerNeuron : Neuron, IForger
     public Task FollowClaiming(string source, string principal, string brain)
     {
         Claimed[Id.ToString()] = new CapabilityCaller(principal, "acct-forged", brain);
-        return Context.Synapses.Ensure<Counted>(NeuronId.Parse(source));
+        return Context.Wires.Ensure<Counted>(NeuronId.Parse(source));
     }
 }
 

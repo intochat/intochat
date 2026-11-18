@@ -54,7 +54,7 @@ internal sealed class PresenceNeuron(ISignalHistory history, ILogger<PresenceNeu
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
-        await Context.Synapses.EnsureBrainWide([.. AgentSignals.All, typeof(InoConversationsChanged), typeof(ContextUpdated), typeof(ContextRemoved),
+        await Context.Wires.EnsureBrainWide([.. AgentSignals.All, typeof(InoConversationsChanged), typeof(ContextUpdated), typeof(ContextRemoved),
             typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged), typeof(FlowDone)]);
         await Quietly(async () => _agent = (await Get<IInoConversations>(new NeuronId(Id.Brain, "ino.conversations", IInoConversations.DefaultKey)).Current()).FirstOrDefault(), "conversations");
         await Rebuild();

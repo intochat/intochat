@@ -25,7 +25,7 @@ public interface INeuronContext
     IReminders Reminders { get; }
 
     /// <summary>The synapses this neuron holds as a subscriber.</summary>
-    ISynapses Synapses { get; }
+    IWires Wires { get; }
 
     /// <summary>The trace id a save made now would be journaled with; null when the context does not stamp traces.</summary>
     string? TraceId => null;

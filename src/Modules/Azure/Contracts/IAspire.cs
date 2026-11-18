@@ -43,6 +43,12 @@ public interface IAspire
     [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
     Task<AspireTraceSpan[]> GetTracesAsync(string? resourceName = null, bool errorsOnly = false);
 
+    // Reads the running app through Aspire's own MCP server (local development): tool is one of list_resources, list_console_logs,
+    // list_structured_logs, list_traces or list_trace_structured_logs; argumentsJson is a JSON object such as {"resourceName":"OperatingSystem-a"}.
+    [Description("Read the running app through Aspire's MCP server. tool: list_resources, list_console_logs, list_structured_logs, list_traces or list_trace_structured_logs. argumentsJson: a JSON object, e.g. {\"resourceName\":\"OperatingSystem-a\",\"search\":\"error\"}.")]
+    [DigitalBrain.Contracts.ReadOnlyCall, DigitalBrain.Contracts.Interleaves]
+    Task<string> Ask(string tool, string argumentsJson = "{}");
+
     Task RecordLogAsync(AspireLogEntry entry);
 
     Task RecordTraceAsync(AspireTraceSpan span);

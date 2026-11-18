@@ -15,13 +15,13 @@ namespace IntoChat.OS.Modules.Apps.Flows;
 /// and checkpointed idempotent publish stages (<c>push</c> -&gt; <c>pr</c> -&gt; <c>clean</c>).
 /// </summary>
 [DigitalBrain.Neurons.Neuron(Alias)]
-public sealed class FeatureToPrFlow(
+internal sealed class FeatureToPrFlow(
     IWorkTree? workTree = null,
     ICoder? coder = null,
     IConfirmationRequests? confirmationRequests = null,
     IServiceProvider? services = null) : Flow<Change>, IFlowStarter
 {
-    public const string Alias = "flow.change";
+    public const string Alias = IFlows.ChangeFlow;
     public const string ConfirmationKind = "f2pr.publish";
 
     public static readonly TimeSpan ApprovalWindow = TimeSpan.FromHours(48);

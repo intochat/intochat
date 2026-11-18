@@ -117,7 +117,7 @@ public sealed class RegistryBroker : IRegistryBroker
                     if (match is null || !match.IsSet) { return null; }
 
                     var val = isPlatform
-                        ? await entries.Release(caller!, match.Name).ConfigureAwait(false)
+                        ? await entries.Release(match.Name).ConfigureAwait(false)
                         : MaskTail(match.Tail);
                     return new RegistryEntryDescriptor(uri, match.Name, RegistryTier.Vault, val, match.Tail, true, match.UpdatedAt);
                 }
@@ -255,7 +255,7 @@ public sealed class RegistryBroker : IRegistryBroker
                     }
                     else if (includeVault && item.Kind == EntryKind.Secret)
                     {
-                        var val = isPlatform ? await entries.Release(caller!, item.Name).ConfigureAwait(false) : MaskTail(item.Tail);
+                        var val = isPlatform ? await entries.Release(item.Name).ConfigureAwait(false) : MaskTail(item.Tail);
                         results.Add(new RegistryEntryDescriptor($"vault://{item.Name}", item.Name, RegistryTier.Vault, val, item.Tail, item.IsSet, item.UpdatedAt));
                     }
                 }

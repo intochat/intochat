@@ -1,3 +1,4 @@
+using DigitalBrain.Rules;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Confirmation;
@@ -37,6 +38,8 @@ public sealed class StorageConfirmationFacts : E2ETestBase
         return (handler, fakeStorage, provider);
     }
 
+    private static Transition<FlowState<StorageFlowData>> Moved(Outcome<FlowState<StorageFlowData>> outcome) => Assert.IsType<Transition<FlowState<StorageFlowData>>>(outcome.Value);
+
     [Fact]
     public async Task T3_Storage_Confirmation_EndToEndApprovalFlow_TransitionsThroughFlowStateAndExecutesWrite()
     {
@@ -50,14 +53,12 @@ public sealed class StorageConfirmationFacts : E2ETestBase
         var flow = new FlowState<StorageFlowData>();
         Assert.Equal(FlowStatus.Pending, flow.Status);
 
-        var started = flow.Start("Storage Delete", "alice", null, new StorageFlowData(), now, "trace-1", "storage.delete");
-        Assert.NotNull(started);
-        var running = started.Value.Next;
+        var started = Moved(flow.Start("Storage Delete", "alice", null, new StorageFlowData(), now, "trace-1", "storage.delete"));
+        var running = started.Next;
         Assert.Equal(FlowStatus.Running, running.Status);
 
-        var withStep = running.StartStep(["step-delete"], now);
-        Assert.NotNull(withStep);
-        var activeStep = withStep.Value.Next;
+        var withStep = Moved(running.StartStep(["step-delete"], now));
+        var activeStep = withStep.Next;
         Assert.Equal("step-delete", activeStep.Current);
 
         // 2. StorageWriteHandler.Describe produces approval with Guard
@@ -71,16 +72,14 @@ public sealed class StorageConfirmationFacts : E2ETestBase
         // 3. Flow enters Waiting status awaiting user confirmation
         const string planId = "plan-confirm-101";
         var waiting = new Waiting("step-delete", WaitReason.Approval, now.AddMinutes(10), planId);
-        var inWait = activeStep.Wait("step-delete", new StepResult<StorageFlowData>(activeStep.Inner, waiting), waiting, planId);
-        Assert.NotNull(inWait);
-        var waitingFlow = inWait.Value.Next;
+        var inWait = Moved(activeStep.Wait("step-delete", new StepResult<StorageFlowData>(activeStep.Inner, waiting), waiting, planId));
+        var waitingFlow = inWait.Next;
         Assert.Equal(FlowStatus.Waiting, waitingFlow.Status);
         Assert.Equal(planId, waitingFlow.Waiting?.ConfirmationPlanId);
 
         // 4. User approves confirmation plan
-        var approved = waitingFlow.Resolve("step-delete", WaitOutcome.Approved, "alice", now);
-        Assert.NotNull(approved);
-        var resolvedFlow = approved.Value.Next;
+        var approved = Moved(waitingFlow.Resolve("step-delete", WaitOutcome.Approved, "alice", now));
+        var resolvedFlow = approved.Next;
         Assert.Equal(FlowStatus.Running, resolvedFlow.Status);
         Assert.Null(resolvedFlow.Waiting);
         Assert.Contains("step-delete", resolvedFlow.Done);
@@ -94,9 +93,8 @@ public sealed class StorageConfirmationFacts : E2ETestBase
         Assert.Equal(1, storage.WriteCount);
 
         // 6. Flow completes all steps
-        var completed = resolvedFlow.StartStep(["step-delete"], now);
-        Assert.NotNull(completed);
-        var finalFlow = completed.Value.Next;
+        var completed = Moved(resolvedFlow.StartStep(["step-delete"], now));
+        var finalFlow = completed.Next;
         Assert.Equal(FlowStatus.Completed, finalFlow.Status);
     }
 
@@ -119,19 +117,19 @@ public sealed class StorageConfirmationFacts : E2ETestBase
 
         // Flow enters Waiting
         var now = DateTimeOffset.UtcNow;
-        var flow = new FlowState<StorageFlowData>()
-            .Start("Storage Delete", "alice", null, new StorageFlowData(), now, null, "storage.delete")!.Value.Next
-            .StartStep(["delete-step"], now)!.Value.Next;
+        var flow = Moved(Moved(new FlowState<StorageFlowData>()
+            .Start("Storage Delete", "alice", null, new StorageFlowData(), now, null, "storage.delete")).Next
+            .StartStep(["delete-step"], now)).Next;
 
         var waiting = new Waiting("delete-step", WaitReason.Approval, now.AddMinutes(5), "p-mutate");
-        var inWait = flow.Wait("delete-step", new StepResult<StorageFlowData>(flow.Inner, waiting), waiting, "p-mutate")!.Value.Next;
+        var inWait = Moved(flow.Wait("delete-step", new StepResult<StorageFlowData>(flow.Inner, waiting), waiting, "p-mutate")).Next;
         Assert.Equal(FlowStatus.Waiting, inWait.Status);
 
         // Mid-flight concurrent mutation modifies file before write execution
         storage.SetItem(itemId, "shared.docx", ItemKind.File, "stamp-v2-mutated");
 
         // Approval is granted for old guard
-        var resolved = inWait.Resolve("delete-step", WaitOutcome.Approved, "alice", now)!.Value.Next;
+        var resolved = Moved(inWait.Resolve("delete-step", WaitOutcome.Approved, "alice", now)).Next;
         Assert.Equal(FlowStatus.Running, resolved.Status);
 
         // Run executes with obsolete guard -> Guard mismatch detection
@@ -146,9 +144,8 @@ public sealed class StorageConfirmationFacts : E2ETestBase
         Assert.Equal(0, storage.WriteCount);
 
         // Flow transitions to Failed
-        var failedTransition = resolved.Fail("delete-step", failed.Code, now);
-        Assert.NotNull(failedTransition);
-        Assert.Equal(FlowStatus.Failed, failedTransition.Value.Next.Status);
+        var failedTransition = Moved(resolved.Fail("delete-step", failed.Code, now));
+        Assert.Equal(FlowStatus.Failed, failedTransition.Next.Status);
     }
 
     [Fact]
@@ -166,16 +163,16 @@ public sealed class StorageConfirmationFacts : E2ETestBase
         Assert.NotNull(approval);
 
         var now = DateTimeOffset.UtcNow;
-        var flow = new FlowState<StorageFlowData>()
-            .Start("Storage Delete", "bob", null, new StorageFlowData(), now, null, "storage.delete")!.Value.Next
-            .StartStep(["step-del"], now)!.Value.Next;
+        var flow = Moved(Moved(new FlowState<StorageFlowData>()
+            .Start("Storage Delete", "bob", null, new StorageFlowData(), now, null, "storage.delete")).Next
+            .StartStep(["step-del"], now)).Next;
 
         var waiting = new Waiting("step-del", WaitReason.Approval, now.AddMinutes(5), "p-deny");
-        var inWait = flow.Wait("step-del", new StepResult<StorageFlowData>(flow.Inner, waiting), waiting, "p-deny")!.Value.Next;
+        var inWait = Moved(flow.Wait("step-del", new StepResult<StorageFlowData>(flow.Inner, waiting), waiting, "p-deny")).Next;
         Assert.Equal(FlowStatus.Waiting, inWait.Status);
 
         // User denies approval -> Resolve with WaitOutcome.Denied cancels flow
-        var denied = inWait.Resolve("step-del", WaitOutcome.Denied, "bob", now)!.Value.Next;
+        var denied = Moved(inWait.Resolve("step-del", WaitOutcome.Denied, "bob", now)).Next;
 
         Assert.Equal(FlowStatus.Cancelled, denied.Status);
         Assert.Equal(0, storage.WriteCount);
@@ -185,16 +182,16 @@ public sealed class StorageConfirmationFacts : E2ETestBase
     public void T3_Storage_Confirmation_ApprovalExpiration_TransitionsFlowToTimedOutAndBlocksExecution()
     {
         var now = DateTimeOffset.UtcNow;
-        var flow = new FlowState<StorageFlowData>()
-            .Start("Storage Delete", "bob", null, new StorageFlowData(), now, null, "storage.delete")!.Value.Next
-            .StartStep(["step-timeout"], now)!.Value.Next;
+        var flow = Moved(Moved(new FlowState<StorageFlowData>()
+            .Start("Storage Delete", "bob", null, new StorageFlowData(), now, null, "storage.delete")).Next
+            .StartStep(["step-timeout"], now)).Next;
 
         var waiting = new Waiting("step-timeout", WaitReason.Approval, now.AddMinutes(5), "p-expire");
-        var inWait = flow.Wait("step-timeout", new StepResult<StorageFlowData>(flow.Inner, waiting), waiting, "p-expire")!.Value.Next;
+        var inWait = Moved(flow.Wait("step-timeout", new StepResult<StorageFlowData>(flow.Inner, waiting), waiting, "p-expire")).Next;
         Assert.Equal(FlowStatus.Waiting, inWait.Status);
 
         // Expired transition cancels flow
-        var expired = inWait.Resolve("step-timeout", WaitOutcome.Expired, null, now)!.Value.Next;
+        var expired = Moved(inWait.Resolve("step-timeout", WaitOutcome.Expired, null, now)).Next;
 
         Assert.Equal(FlowStatus.Cancelled, expired.Status);
     }
@@ -216,12 +213,12 @@ public sealed class StorageConfirmationFacts : E2ETestBase
 
         // Flow proceeds without waiting
         var now = DateTimeOffset.UtcNow;
-        var flow = new FlowState<StorageFlowData>()
-            .Start("Storage Preview", "alice", null, new StorageFlowData(), now, null, "storage.preview")!.Value.Next
-            .StartStep(["preview-step"], now)!.Value.Next;
+        var flow = Moved(Moved(new FlowState<StorageFlowData>()
+            .Start("Storage Preview", "alice", null, new StorageFlowData(), now, null, "storage.preview")).Next
+            .StartStep(["preview-step"], now)).Next;
 
-        var completedStep = flow.Complete("preview-step", new StepResult<StorageFlowData>(flow.Inner))!.Value.Next;
-        var completedFlow = completedStep.StartStep(["preview-step"], now)!.Value.Next;
+        var completedStep = Moved(flow.Complete("preview-step", new StepResult<StorageFlowData>(flow.Inner))).Next;
+        var completedFlow = Moved(completedStep.StartStep(["preview-step"], now)).Next;
 
         Assert.Equal(FlowStatus.Completed, completedFlow.Status);
     }

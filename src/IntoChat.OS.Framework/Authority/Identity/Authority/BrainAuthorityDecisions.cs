@@ -53,11 +53,7 @@ internal static class BrainAuthorityDecisions
             && (cache is EdgeGrantsCache directCache
                 ? await directCache.IsConnectionBoundAsync(caller, targetNeuron)
                 : await cache.IsConnectionBoundAsync(capCaller, targetNeuron));
-        var grants = state.Grants;
-        if (caller.Kind == CallerKind.Agent && !grants.Any(g => g.AppId == CapabilityCallers.AssistantApp))
-        {
-            grants = [.. grants, .. ShippedGrants.ForAssistant(grantsBrain)];
-        }
+        var grants = ShippedGrants.WithImplicit(state.Grants, caller.Kind, caller.AppId, grantsBrain);
         return GrantRules.Evaluate(caller, targetNeuron, operation, semanticTypeIds, targetScope, Member(state, caller.PrincipalId), grants, principals, connectionBound);
     }
 

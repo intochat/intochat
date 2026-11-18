@@ -1,6 +1,5 @@
 {
   "Grains": {
-    "IntoChat.Cloud.Circle.Server.MachineCredentialNeuron": "circle-server.machine-credential",
     "IntoChat.OS.Authority.Entries.BrainEntriesNeuron": "brain.entries",
     "IntoChat.OS.Authority.Identity.Directory.IdentityDirectoryNeuron": "identity-directory",
     "IntoChat.OS.Authority.Identity.External.ExternalTicketReplayGrain": "identity.external-ticket-replay",
@@ -13,7 +12,6 @@
     "IntoChat.OS.Modules.Apps.DataAnalyticsWorker": "dataanalyticsworker"
   },
   "GrainInterfaces": {
-    "IntoChat.Cloud.Circle.Server.IMachineCredential": "circle-server.machine-credential",
     "IntoChat.OS.Authority.Identity.External.IExternalTicketReplay": "identity.external-ticket-replay-grain",
     "IntoChat.OS.Authority.Identity.IPrincipalCredential": "identity.principal-credential-grain",
     "IntoChat.OS.Connections.Platform.Entries.IBrainEntries": "brain.entries",
@@ -164,7 +162,6 @@
     "IntoChat.OS.Verdict": "brain.verdict; Allowed=0, Reason=1, Rule=2"
   },
   "States": {
-    "IntoChat.Cloud.Circle.Server.MachineCredentialNeuron": "circle-server.machine-credential=cluster:IntoChat.Cloud.Circle.Server.MachineCredentialRecord",
     "IntoChat.OS.Authority.Entries.BrainEntriesNeuron": "entries=platform:IntoChat.OS.Authority.Entries.BrainEntriesState",
     "IntoChat.OS.Authority.Identity.External.ExternalTicketReplayGrain": "external-ticket-replay=platform:IntoChat.OS.Authority.Identity.External.ExternalTicketReplayState",
     "IntoChat.OS.Authority.Identity.PrincipalCredentialGrain": "credential=platform:IntoChat.OS.Authority.Identity.PrincipalCredentialState",

@@ -395,7 +395,7 @@ public sealed class FlowKickerNeuron : Neuron<FlowKick>, IFlowKicker
 [Neuron("test.flow.starter")]
 public sealed class FlowStarterNeuron : Neuron, IFlowStarter
 {
-    public Task Follow(string source) => Context.Synapses.Ensure<FlowKicked>(NeuronId.Parse(source));
+    public Task Follow(string source) => Context.Wires.Ensure<FlowKicked>(NeuronId.Parse(source));
 
     [On]
     public Task On(FlowKicked kicked) => Get<ITestFlow>(new NeuronId(Id.Brain, "test.flow", kicked.FlowKey)).Start("Build", "ann", null, new FlowBox());

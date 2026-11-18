@@ -47,10 +47,4 @@ public interface IApp
     // An app view's own Emit, resolved by its view neuron and checked against this app by the edge: exactly Request(signal,
     // args JSON), so the signal must be a declared operation and every request rule applies.
     Task<Guid> Emit(string signal, string args);
-
-    // The app's name when an instance key is one of this brain's apps; brain.Kernel.Instances<IApp>() lists them.
-    static string? NameOf(string brainId, string key) =>
-        DigitalBrain.BrainId.IsValid(brainId) && IntoChat.OS.Primitives.AppRef.TryParse(new DigitalBrain.BrainId(brainId), key, out var app)
-            ? app.Name
-            : null;
 }

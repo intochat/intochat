@@ -1,3 +1,4 @@
+using DigitalBrain.Rules;
 using System.Text.Json.Serialization;
 
 namespace DigitalBrain.Units;
@@ -114,49 +115,41 @@ public sealed record DeploymentState(
         return this with { Staged = staged with { Waiting = waiting } };
     }
 
-    /// <summary>Approves an alias of the staged build if its needs hash matches.</summary>
-    public DeploymentState Approve(string alias, string needsHash)
+    /// <summary>Approves an alias the staged build waits for, when the person approved the needs it declares.</summary>
+    public Outcome<DeploymentState> Approve(string alias, string needsHash)
     {
         ArgumentNullException.ThrowIfNull(alias);
         ArgumentNullException.ThrowIfNull(needsHash);
-        if (Staged is null) { return this; }
-        if (Staged.Build.NeedsHashes.TryGetValue(alias, out var expected) && !string.Equals(expected, needsHash, StringComparison.Ordinal))
+        if (Staged is not { } staged) { return new DeploymentRefusals.NothingStaged(); }
+        if (!staged.Waiting.ContainsKey(alias)) { return new DeploymentRefusals.NotWaiting(alias); }
+        if (staged.Build.NeedsHashes.TryGetValue(alias, out var expected) && !string.Equals(expected, needsHash, StringComparison.Ordinal))
         {
-            return this;
+            return new DeploymentRefusals.NeedsChanged(alias, expected, needsHash);
         }
-        if (!Staged.Waiting.ContainsKey(alias))
-        {
-            return this;
-        }
-        var nextWaiting = new Dictionary<string, string>(Staged.Waiting, StringComparer.Ordinal);
+        var nextWaiting = new Dictionary<string, string>(staged.Waiting, StringComparer.Ordinal);
         nextWaiting.Remove(alias);
-        return this with { Staged = Staged with { Waiting = nextWaiting } };
+        return new Transition<DeploymentState>(this with { Staged = staged with { Waiting = nextWaiting } });
     }
 
-    /// <summary>Denies a staged install: cancels the staged build if the plan matches.</summary>
-    public DeploymentState Deny(string alias, string planId)
+    /// <summary>Denies an alias the staged build waits for: the staged build is dropped.</summary>
+    public Outcome<DeploymentState> Deny(string alias, string planId)
     {
         ArgumentNullException.ThrowIfNull(alias);
         ArgumentNullException.ThrowIfNull(planId);
-        if (Staged is { } staged && staged.Waiting.TryGetValue(alias, out var plan) && string.Equals(plan, planId, StringComparison.Ordinal))
-        {
-            return Supersede();
-        }
-        return this;
+        if (Staged is not { } staged) { return new DeploymentRefusals.NothingStaged(); }
+        if (!staged.Waiting.TryGetValue(alias, out var plan)) { return new DeploymentRefusals.NotWaiting(alias); }
+        return string.Equals(plan, planId, StringComparison.Ordinal)
+            ? new Transition<DeploymentState>(Supersede())
+            : new DeploymentRefusals.PlanMismatch(alias, plan, planId);
     }
 
     /// <summary>Cancels and drops the currently staged build.</summary>
     public DeploymentState Supersede() => Staged is null ? this : this with { Staged = null };
 
     /// <summary>Promotes the staged build to live, clearing the staged build.</summary>
-    public DeploymentState Promote(DateTimeOffset now)
-    {
-        if (Staged is null)
-        {
-            throw new InvalidOperationException("Cannot promote when there is no staged build.");
-        }
-        return new DeploymentState(Live: Staged.Build with { RebuildReason = null }, Staged: null, At: now);
-    }
+    public Outcome<DeploymentState> Promote(DateTimeOffset now) => Staged is { } staged
+        ? new Transition<DeploymentState>(new DeploymentState(Live: staged.Build with { RebuildReason = null }, Staged: null, At: now))
+        : new DeploymentRefusals.NothingStaged();
 
     /// <summary>Marks a build as refused or drops it if staged.</summary>
     public DeploymentState Refuse(string hash, string reason)

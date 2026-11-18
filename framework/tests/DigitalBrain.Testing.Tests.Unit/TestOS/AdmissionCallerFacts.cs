@@ -17,7 +17,7 @@ public sealed class ClaimingSink : Neuron, IClaimingSink
     public Task SubscribeClaiming(NeuronId source, string principal)
     {
         _ = new CapabilityCaller(principal, "acct-forged", Id.Brain.Value); // named in the body; nothing reads it
-        return Context.Synapses.Ensure<Number>(source);
+        return Context.Wires.Ensure<Number>(source);
     }
 }
 

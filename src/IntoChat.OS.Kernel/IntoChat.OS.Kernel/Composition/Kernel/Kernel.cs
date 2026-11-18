@@ -58,7 +58,7 @@ public sealed class OsKernel(IGrainFactory grains, IBrainMembership? membership 
         return members.Contains(current, StringComparer.Ordinal) ? members : [current, .. members];
     }
 
-    public Task<ObservedSynapse[]> Synapses(CancellationToken cancellationToken = default)
+    public Task<ObservedWire[]> Wires(CancellationToken cancellationToken = default)
         => SynapseObservation.List(services, BrainScope.CurrentId(), cancellationToken);
 
     public IAsyncEnumerable<SignalDelivery> Deliveries(CancellationToken cancellationToken = default)

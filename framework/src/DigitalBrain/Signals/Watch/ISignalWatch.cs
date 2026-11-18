@@ -5,7 +5,7 @@ namespace DigitalBrain.Signals.Watch;
 
 /// <summary>
 /// A host outside a neuron that watches signals through the session synapse path.
-/// Inside a neuron, an <c>[On]</c> reaction and <c>Context.Synapses.Ensure</c> replace this.
+/// Inside a neuron, an <c>[On]</c> reaction and <c>Context.Wires.Ensure</c> replace this.
 /// </summary>
 [SuppressMessage("ApiDesign", "RS0026", Justification = "The token-only overload forwards to the subscribed overload; both are the watch contract.")]
 public interface ISignalWatch

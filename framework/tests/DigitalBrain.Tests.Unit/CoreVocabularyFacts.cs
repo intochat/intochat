@@ -8,7 +8,7 @@ public sealed class CoreVocabularyFacts
 {
     [Theory]
     [InlineData("DigitalBrain.Signal")]
-    [InlineData("DigitalBrain.Kernel.Synapse")]
+    [InlineData("DigitalBrain.Kernel.Wire")]
     [InlineData("DigitalBrain.Neurons.Neuron")]
     [InlineData("DigitalBrain.Neurons.Neuron`1")]
     [InlineData("DigitalBrain.BrainId")]
@@ -30,7 +30,7 @@ public sealed class CoreVocabularyFacts
     [InlineData("DigitalBrain.Neurons.ITimers")]
     [InlineData("DigitalBrain.Neurons.IReminders")]
     [InlineData("DigitalBrain.Operations.IOperations")]
-    [InlineData("DigitalBrain.Kernel.ISynapses")]
+    [InlineData("DigitalBrain.Kernel.IWires")]
     [InlineData("DigitalBrain.Neurons.INeuronProxies")]
     public void Core_exports_the_vocabulary(string name)
     {
@@ -46,7 +46,7 @@ public sealed class CoreVocabularyFacts
         var from = NeuronId.Parse("b1/files/a");
         var to = NeuronId.Parse("b1/index/main");
 
-        Assert.Equal(new Synapse(from, typeof(Changed), to), new Synapse(from, typeof(Changed), to));
+        Assert.Equal(new Wire(from, typeof(Changed), to), new Wire(from, typeof(Changed), to));
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class CoreVocabularyFacts
         public TimeProvider Time => TimeProvider.System;
         public ITimers Timers => throw new NotSupportedException();
         public IReminders Reminders => throw new NotSupportedException();
-        public ISynapses Synapses => throw new NotSupportedException();
+        public IWires Wires => throw new NotSupportedException();
 
         public string? TraceId => null;
         public Task Publish(Signal signal) => Task.CompletedTask;

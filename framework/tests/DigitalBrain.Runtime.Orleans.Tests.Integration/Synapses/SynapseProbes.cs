@@ -46,11 +46,11 @@ public interface IListener
 [Neuron("probe.listener")]
 public sealed class ListenerNeuron : Neuron, IListener
 {
-    public Task Follow(string source) => Context.Synapses.Ensure<Counted>(NeuronId.Parse(source));
+    public Task Follow(string source) => Context.Wires.Ensure<Counted>(NeuronId.Parse(source));
 
-    public Task FollowNotes(string source) => Context.Synapses.Ensure<Noted>(NeuronId.Parse(source));
+    public Task FollowNotes(string source) => Context.Wires.Ensure<Noted>(NeuronId.Parse(source));
 
-    public Task Unfollow(string source) => Context.Synapses.Remove(NeuronId.Parse(source));
+    public Task Unfollow(string source) => Context.Wires.Remove(NeuronId.Parse(source));
 
     public Task<int> Ping() => Task.FromResult(1);
 
@@ -83,11 +83,11 @@ public sealed class ListenerNeuron : Neuron, IListener
 [Neuron("probe.stateless.listener"), StatelessNeuron]
 public sealed class StatelessListener : Neuron, IListener
 {
-    public Task Follow(string source) => Context.Synapses.Ensure<Counted>(NeuronId.Parse(source));
+    public Task Follow(string source) => Context.Wires.Ensure<Counted>(NeuronId.Parse(source));
 
-    public Task FollowNotes(string source) => Context.Synapses.Ensure<Noted>(NeuronId.Parse(source));
+    public Task FollowNotes(string source) => Context.Wires.Ensure<Noted>(NeuronId.Parse(source));
 
-    public Task Unfollow(string source) => Context.Synapses.Remove(NeuronId.Parse(source));
+    public Task Unfollow(string source) => Context.Wires.Remove(NeuronId.Parse(source));
 
     public Task<int> Ping() => Task.FromResult(1);
 }

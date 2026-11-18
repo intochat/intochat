@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using System.Text;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Connectors;
@@ -35,6 +36,8 @@ internal sealed class BrainEntriesNeuron : Grain, IBrainEntries
 {
     internal const string StateName = "entries";
 
+    private readonly ICallerAmbient _callers;
+
     private readonly IPersistentState<BrainEntriesState> _store;
     private readonly IBrainSecretSealer _sealer;
     private readonly IReadOnlyList<IntegrationSchema> _integrations;
@@ -43,8 +46,10 @@ internal sealed class BrainEntriesNeuron : Grain, IBrainEntries
 
     public BrainEntriesNeuron(
         [PersistentState(StateName, IntoChatOSNames.PlatformGrainStorage)] IPersistentState<BrainEntriesState> store,
-        IBrainSecretSealer sealer, IReadOnlyList<IntegrationSchema> integrations, TimeProvider clock, ILogger<BrainEntriesNeuron> logger)
+        IBrainSecretSealer sealer, IReadOnlyList<IntegrationSchema> integrations, TimeProvider clock, ILogger<BrainEntriesNeuron> logger,
+        ICallerAmbient callers)
     {
+        _callers = callers;
         _store = store;
         _sealer = sealer;
         _integrations = integrations;
@@ -89,12 +94,11 @@ internal sealed class BrainEntriesNeuron : Grain, IBrainEntries
         Audit("remove", name, kind);
     }
 
-    public async Task<string?> Release(CapabilityCaller caller, string name)
+    public async Task<string?> Release(string name)
     {
-        // As IIntegration.Release: only a module's own call stamped by the Platform edge. Users and
+        // As IIntegration.Release: only platform code that entered the kernel scope, read from the stamped caller. Users and
         // assistants (authenticated HTTP), apps (app proxy) and the scheduler never qualify.
-        if (caller is null || !RuntimeCallerContext.IsTrusted(caller)
-            || caller.Kind != CallerKind.Platform || caller.StampedBy != TrustedEdge.Platform)
+        if (!CallerRules.IsKernel(_callers.Current))
         { throw new UntrustedCallerException("Only trusted platform code can release a brain entry."); }
         if (_store.State.Entries.FirstOrDefault(entry => entry.Name == name) is not { } entry) { return null; }
         Audit("release", name, entry.Kind);

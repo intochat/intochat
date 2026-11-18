@@ -1,3 +1,4 @@
+using DigitalBrain.Rules;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Confirmation;
@@ -47,6 +48,8 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
         return (handler, fakeStorage, provider);
     }
 
+    private static Transition<FlowState<StorageScenarioFlowData>> Moved(Outcome<FlowState<StorageScenarioFlowData>> outcome) => Assert.IsType<Transition<FlowState<StorageScenarioFlowData>>>(outcome.Value);
+
     [Fact]
     public async Task T4_Storage_DestructiveDeleteUserJourney_WithInboxApprovalAndGuardVerification()
     {
@@ -61,10 +64,10 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
 
         // Step 1: Initialize multi-step flow
         var flow = new FlowState<StorageScenarioFlowData>();
-        var started = flow.Start("Delete Document Workflow", "alice", null, new StorageScenarioFlowData { TargetId = itemId.Value }, now, "trace-del-1", "storage.delete")!.Value.Next;
+        var started = Moved(flow.Start("Delete Document Workflow", "alice", null, new StorageScenarioFlowData { TargetId = itemId.Value }, now, "trace-del-1", "storage.delete")).Next;
         Assert.Equal(FlowStatus.Running, started.Status);
 
-        var activeStep = started.StartStep(["prepare-approval", "execute-delete"], now)!.Value.Next;
+        var activeStep = Moved(started.StartStep(["prepare-approval", "execute-delete"], now)).Next;
         Assert.Equal("prepare-approval", activeStep.Current);
 
         // Step 2: StorageWriteHandler.Describe evaluates destructive plan and computes concurrency Guard
@@ -79,7 +82,7 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
         // Step 3: Flow enters Waiting status awaiting user confirmation
         var confirmationPlanId = approval.Question.Id;
         var waiting = new Waiting("prepare-approval", WaitReason.Approval, now.AddMinutes(5), confirmationPlanId);
-        var inWait = activeStep.Wait("prepare-approval", new StepResult<StorageScenarioFlowData>(activeStep.Inner, waiting), waiting, confirmationPlanId)!.Value.Next;
+        var inWait = Moved(activeStep.Wait("prepare-approval", new StepResult<StorageScenarioFlowData>(activeStep.Inner, waiting), waiting, confirmationPlanId)).Next;
         Assert.Equal(FlowStatus.Waiting, inWait.Status);
         Assert.Equal(confirmationPlanId, inWait.Waiting?.ConfirmationPlanId);
 
@@ -99,13 +102,13 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
         Assert.True(outcome.Approved);
 
         // Step 6: Flow resolves waiting step with Approved outcome
-        var resolvedFlow = inWait.Resolve("prepare-approval", WaitOutcome.Approved, "alice", now)!.Value.Next;
+        var resolvedFlow = Moved(inWait.Resolve("prepare-approval", WaitOutcome.Approved, "alice", now)).Next;
         Assert.Equal(FlowStatus.Running, resolvedFlow.Status);
         Assert.Null(resolvedFlow.Waiting);
         Assert.Contains("prepare-approval", resolvedFlow.Done);
 
         // Step 7: Next step executes durable write with verified concurrency Guard
-        var runStep = resolvedFlow.StartStep(["prepare-approval", "execute-delete"], now)!.Value.Next;
+        var runStep = Moved(resolvedFlow.StartStep(["prepare-approval", "execute-delete"], now)).Next;
         Assert.Equal("execute-delete", runStep.Current);
 
         var approvedScope = new OperationScope(brain, "alice", provider, Guard: approval.Guard, new StubOperationsQuery());
@@ -119,8 +122,8 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
         await Assert.ThrowsAsync<NotFound>(() => storage.Stat(itemId, ct));
 
         // Step 8: Flow completes
-        var completedStep = runStep.Complete("execute-delete", new StepResult<StorageScenarioFlowData>(runStep.Inner))!.Value.Next;
-        var finalFlow = completedStep.StartStep(["prepare-approval", "execute-delete"], now)!.Value.Next;
+        var completedStep = Moved(runStep.Complete("execute-delete", new StepResult<StorageScenarioFlowData>(runStep.Inner))).Next;
+        var finalFlow = Moved(completedStep.StartStep(["prepare-approval", "execute-delete"], now)).Next;
         Assert.Equal(FlowStatus.Completed, finalFlow.Status);
         Assert.True(finalFlow.IsOver);
     }
@@ -147,19 +150,19 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
         Assert.Equal("hash-ver-100", capturedGuard);
 
         // Step 2: Flow enters Waiting
-        var flow = new FlowState<StorageScenarioFlowData>()
-            .Start("Concurrent Delete Flow", "alice", null, new StorageScenarioFlowData(), now, null, "storage.delete")!.Value.Next
-            .StartStep(["delete-step"], now)!.Value.Next;
+        var flow = Moved(Moved(new FlowState<StorageScenarioFlowData>()
+            .Start("Concurrent Delete Flow", "alice", null, new StorageScenarioFlowData(), now, null, "storage.delete")).Next
+            .StartStep(["delete-step"], now)).Next;
 
         var waiting = new Waiting("delete-step", WaitReason.Approval, now.AddMinutes(5), approval.Question.Id);
-        var inWait = flow.Wait("delete-step", new StepResult<StorageScenarioFlowData>(flow.Inner, waiting), waiting, approval.Question.Id)!.Value.Next;
+        var inWait = Moved(flow.Wait("delete-step", new StepResult<StorageScenarioFlowData>(flow.Inner, waiting), waiting, approval.Question.Id)).Next;
         Assert.Equal(FlowStatus.Waiting, inWait.Status);
 
         // Step 3: Mid-flight concurrent mutation modifies file in storage while approval is open
         storage.SetItem(itemId, "shared.docx", ItemKind.File, "hash-ver-200-modified");
 
         // Step 4: User resolves approval
-        var resolved = inWait.Resolve("delete-step", WaitOutcome.Approved, "alice", now)!.Value.Next;
+        var resolved = Moved(inWait.Resolve("delete-step", WaitOutcome.Approved, "alice", now)).Next;
         Assert.Equal(FlowStatus.Running, resolved.Status);
 
         // Step 5: Run executes with obsolete guard -> Guard mismatch aborts execution
@@ -174,9 +177,8 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
         Assert.Equal(0, storage.WriteCount); // Storage mutation aborted!
 
         // Step 6: Flow handles failure and transitions to Failed
-        var failedTransition = resolved.Fail("delete-step", failed.Code, now);
-        Assert.NotNull(failedTransition);
-        Assert.Equal(FlowStatus.Failed, failedTransition.Value.Next.Status);
+        var failedTransition = Moved(resolved.Fail("delete-step", failed.Code, now));
+        Assert.Equal(FlowStatus.Failed, failedTransition.Next.Status);
     }
 
     [Fact]
@@ -197,12 +199,12 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
         var approval = await handler.Describe(plan, scope, ct);
         Assert.NotNull(approval);
 
-        var flow = new FlowState<StorageScenarioFlowData>()
-            .Start("Safe Delete Flow", "alice", null, new StorageScenarioFlowData(), now, null, "storage.delete")!.Value.Next
-            .StartStep(["delete-step"], now)!.Value.Next;
+        var flow = Moved(Moved(new FlowState<StorageScenarioFlowData>()
+            .Start("Safe Delete Flow", "alice", null, new StorageScenarioFlowData(), now, null, "storage.delete")).Next
+            .StartStep(["delete-step"], now)).Next;
 
         var waiting = new Waiting("delete-step", WaitReason.Approval, now.AddMinutes(5), approval.Question.Id);
-        var inWait = flow.Wait("delete-step", new StepResult<StorageScenarioFlowData>(flow.Inner, waiting), waiting, approval.Question.Id)!.Value.Next;
+        var inWait = Moved(flow.Wait("delete-step", new StepResult<StorageScenarioFlowData>(flow.Inner, waiting), waiting, approval.Question.Id)).Next;
         Assert.Equal(FlowStatus.Waiting, inWait.Status);
 
         // Publish to inbox
@@ -215,7 +217,7 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
         Assert.Equal(ConfirmationOutcome.Denied, outcome.Outcome);
 
         // Flow resolves with Denied outcome -> Cancelled
-        var cancelled = inWait.Resolve("delete-step", WaitOutcome.Denied, "alice", now)!.Value.Next;
+        var cancelled = Moved(inWait.Resolve("delete-step", WaitOutcome.Denied, "alice", now)).Next;
         Assert.Equal(FlowStatus.Cancelled, cancelled.Status);
         Assert.True(cancelled.IsOver);
 
@@ -229,18 +231,18 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
     public void T4_Storage_ExpiredConfirmation_TimesOutAndCancelsWorkflow()
     {
         var now = new DateTimeOffset(2026, 11, 12, 10, 0, 0, TimeSpan.Zero);
-        var flow = new FlowState<StorageScenarioFlowData>()
-            .Start("Timeout Delete Flow", "alice", null, new StorageScenarioFlowData(), now, null, "storage.delete")!.Value.Next
-            .StartStep(["await-approval"], now)!.Value.Next;
+        var flow = Moved(Moved(new FlowState<StorageScenarioFlowData>()
+            .Start("Timeout Delete Flow", "alice", null, new StorageScenarioFlowData(), now, null, "storage.delete")).Next
+            .StartStep(["await-approval"], now)).Next;
 
         var planId = "plan-will-expire";
         var waiting = new Waiting("await-approval", WaitReason.Approval, now.AddMinutes(5), planId);
-        var inWait = flow.Wait("await-approval", new StepResult<StorageScenarioFlowData>(flow.Inner, waiting), waiting, planId)!.Value.Next;
+        var inWait = Moved(flow.Wait("await-approval", new StepResult<StorageScenarioFlowData>(flow.Inner, waiting), waiting, planId)).Next;
         Assert.Equal(FlowStatus.Waiting, inWait.Status);
 
         // Wait expires when timeout elapses
         var expiredTime = now.AddMinutes(6);
-        var expired = inWait.Resolve("await-approval", WaitOutcome.Expired, null, expiredTime)!.Value.Next;
+        var expired = Moved(inWait.Resolve("await-approval", WaitOutcome.Expired, null, expiredTime)).Next;
 
         Assert.Equal(FlowStatus.Cancelled, expired.Status);
         Assert.True(expired.IsOver);
@@ -266,13 +268,13 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
         Assert.Null(approval);
 
         // Flow proceeds through steps without waiting
-        var flow = new FlowState<StorageScenarioFlowData>()
-            .Start("Dry Run Flow", "alice", null, new StorageScenarioFlowData(), now, null, "storage.preview")!.Value.Next
-            .StartStep(["simulate-step"], now)!.Value.Next;
+        var flow = Moved(Moved(new FlowState<StorageScenarioFlowData>()
+            .Start("Dry Run Flow", "alice", null, new StorageScenarioFlowData(), now, null, "storage.preview")).Next
+            .StartStep(["simulate-step"], now)).Next;
 
         Assert.Equal("simulate-step", flow.Current);
-        var completed = flow.Complete("simulate-step", new StepResult<StorageScenarioFlowData>(flow.Inner))!.Value.Next;
-        var finished = completed.StartStep(["simulate-step"], now)!.Value.Next;
+        var completed = Moved(flow.Complete("simulate-step", new StepResult<StorageScenarioFlowData>(flow.Inner))).Next;
+        var finished = Moved(completed.StartStep(["simulate-step"], now)).Next;
 
         Assert.Equal(FlowStatus.Completed, finished.Status);
         Assert.Equal(0, storage.WriteCount);
@@ -293,25 +295,25 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
         string[] steps = ["create-backup-folder", "copy-to-backup", "destructive-overwrite", "audit-log"];
 
         // 1. Flow start
-        var flow = new FlowState<StorageScenarioFlowData>()
-            .Start("Composite Document Pipeline", "alice", null, new StorageScenarioFlowData(), now, "trace-batch", "storage.batch")!.Value.Next;
+        var flow = Moved(new FlowState<StorageScenarioFlowData>()
+            .Start("Composite Document Pipeline", "alice", null, new StorageScenarioFlowData(), now, "trace-batch", "storage.batch")).Next;
 
         // Step 1: Create backup folder
-        var s1 = flow.StartStep(steps, now)!.Value.Next;
+        var s1 = Moved(flow.StartStep(steps, now)).Next;
         Assert.Equal("create-backup-folder", s1.Current);
         var backupFolderId = new ItemId("backup_dir");
         storage.SetItem(backupFolderId, "backup", ItemKind.Folder);
-        var s1Done = s1.Complete("create-backup-folder", new StepResult<StorageScenarioFlowData>(s1.Inner))!.Value.Next;
+        var s1Done = Moved(s1.Complete("create-backup-folder", new StepResult<StorageScenarioFlowData>(s1.Inner))).Next;
 
         // Step 2: Copy file to backup
-        var s2 = s1Done.StartStep(steps, now)!.Value.Next;
+        var s2 = Moved(s1Done.StartStep(steps, now)).Next;
         Assert.Equal("copy-to-backup", s2.Current);
         var backupFileId = new ItemId("presentation_backup");
         storage.SetItem(backupFileId, "presentation.pptx", ItemKind.File, "hash-original-v1");
-        var s2Done = s2.Complete("copy-to-backup", new StepResult<StorageScenarioFlowData>(s2.Inner))!.Value.Next;
+        var s2Done = Moved(s2.Complete("copy-to-backup", new StepResult<StorageScenarioFlowData>(s2.Inner))).Next;
 
         // Step 3: Destructive overwrite requires confirmation
-        var s3 = s2Done.StartStep(steps, now)!.Value.Next;
+        var s3 = Moved(s2Done.StartStep(steps, now)).Next;
         Assert.Equal("destructive-overwrite", s3.Current);
 
         var overwritePlan = WritePlan.Delete(sourceFile, permanent: true);
@@ -322,14 +324,14 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
 
         // Pause flow in Waiting
         var waiting = new Waiting("destructive-overwrite", WaitReason.Approval, now.AddMinutes(5), approval.Question.Id);
-        var s3Waiting = s3.Wait("destructive-overwrite", new StepResult<StorageScenarioFlowData>(s3.Inner, waiting), waiting, approval.Question.Id)!.Value.Next;
+        var s3Waiting = Moved(s3.Wait("destructive-overwrite", new StepResult<StorageScenarioFlowData>(s3.Inner, waiting), waiting, approval.Question.Id)).Next;
         Assert.Equal(FlowStatus.Waiting, s3Waiting.Status);
 
         // Inbox confirmation and approval
         await os.RequestConfirmation(brain, approval.Question);
         await os.ApprovePlan(brain, approval.Question.Id);
 
-        var s3Approved = s3Waiting.Resolve("destructive-overwrite", WaitOutcome.Approved, "alice", now)!.Value.Next;
+        var s3Approved = Moved(s3Waiting.Resolve("destructive-overwrite", WaitOutcome.Approved, "alice", now)).Next;
         Assert.Equal(FlowStatus.Running, s3Approved.Status);
 
         // Execute overwrite
@@ -339,11 +341,11 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
         Assert.IsType<OperationResult.Succeeded>(runResult);
 
         // Step 4: Audit log and finish
-        var s4 = s3Approved.StartStep(steps, now)!.Value.Next;
+        var s4 = Moved(s3Approved.StartStep(steps, now)).Next;
         Assert.Equal("audit-log", s4.Current);
-        var s4Done = s4.Complete("audit-log", new StepResult<StorageScenarioFlowData>(s4.Inner))!.Value.Next;
+        var s4Done = Moved(s4.Complete("audit-log", new StepResult<StorageScenarioFlowData>(s4.Inner))).Next;
 
-        var finalFlow = s4Done.StartStep(steps, now)!.Value.Next;
+        var finalFlow = Moved(s4Done.StartStep(steps, now)).Next;
         Assert.Equal(FlowStatus.Completed, finalFlow.Status);
         Assert.Equal(steps, finalFlow.Done);
     }
