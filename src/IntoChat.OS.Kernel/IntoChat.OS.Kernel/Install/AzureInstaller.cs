@@ -166,6 +166,10 @@ public static class AzureInstaller
                 var targetGroup = config.GroupName;
                 var targetRegistry = config.RegistryName;
                 await arm.ImportImage(config.Subscription, targetGroup, targetRegistry, promoteFrom, manifest.OsImage, ct);
+                if (!string.IsNullOrWhiteSpace(manifest.CloudImage))
+                {
+                    await arm.ImportImage(config.Subscription, targetGroup, targetRegistry, promoteFrom, manifest.CloudImage, ct);
+                }
             }
 
             var target = new DeploymentTarget(config.Subscription, config.Location, config.Prefix, config.Env);
@@ -218,6 +222,10 @@ public static class AzureInstaller
             }
             var osApp = InstallPlan.OsApp(config, variables, secrets);
             var osMade = await Ensure(osApp with { RegistryServer = foundation.RegistryServer }, ct);
+            if (InstallPlan.CloudApp(config, variables, secrets) is { } cloudApp)
+            {
+                _ = await Ensure(cloudApp with { RegistryServer = foundation.RegistryServer }, ct);
+            }
 
             if (dryRun)
             {

@@ -33,12 +33,17 @@ public static class InstallPlan
 
     public static ResourceSpec[] Build(InstallConfig config) => Build(config, new Dictionary<string, string>(), []);
 
-    // Everything the OS app runs on: its resources, without the app itself.
-    public static ResourceSpec[] Foundation(InstallConfig config) => Build(config)[..^1];
+    // Everything the OS app runs on: its resources, without the app(s) themselves.
+    public static ResourceSpec[] Foundation(InstallConfig config)
+        => [.. Build(config).Where(static spec => spec is not ContainerAppSpec)];
 
     // The OS app, with the variables and secrets the module deployments asked for.
     public static ContainerAppSpec OsApp(InstallConfig config, IReadOnlyDictionary<string, string> variables, IReadOnlyList<KeyVaultSecretRef> secrets) =>
-        (ContainerAppSpec)Build(config, variables, secrets)[^1];
+        Build(config, variables, secrets).OfType<ContainerAppSpec>().First(spec => string.Equals(spec.Name, config.Validated().OsName, StringComparison.Ordinal));
+
+    // Optional separate Cloud container app joining the same cluster, environment, vault, and storage.
+    public static ContainerAppSpec? CloudApp(InstallConfig config, IReadOnlyDictionary<string, string> variables, IReadOnlyList<KeyVaultSecretRef> secrets) =>
+        Build(config, variables, secrets).OfType<ContainerAppSpec>().FirstOrDefault(spec => string.Equals(spec.Name, config.Validated().CloudName, StringComparison.Ordinal));
 
     public static FoundationRefs Refs(InstallConfig config)
     {
@@ -148,6 +153,37 @@ public static class InstallPlan
                 ? [new RegistryCredentialSpec { Server = GhcrServer, Username = c.GhcrUsername, Vault = vault, PasswordSecret = GhcrTokenSecret }]
                 : [],
         }));
+        if (!string.IsNullOrWhiteSpace(c.CloudImage))
+        {
+            specs.Add(In(new ContainerAppSpec
+            {
+                Name = c.CloudName,
+                Environment = environment,
+                Identity = identity,
+                Image = c.CloudImage,
+                Cpu = c.CloudCpu,
+                Memory = c.CloudMemory,
+                IngressPort = HttpPort,
+                InternalPorts = [GatewayPort],
+                RegistryServer = c.LoginServer,
+                ProbePaths = [HostProbePaths.Alive, HostProbePaths.Ready, HostProbePaths.Health],
+                Variables = Variables(c, account, vault, lease, grainState, extraVariables),
+                Secrets = [new KeyVaultSecretRef { Name = MasterKeySecret, Vault = vault, VaultSecret = MasterKeySecret, Variable = IntoChatOSNames.MasterKeyEnvironmentVariable }, .. extraSecrets],
+                VolumeMounts =
+                [
+                    new VolumeMountSpec
+                    {
+                        Volume = BrainLogVolume,
+                        EnvironmentStorage = BrainLogShare,
+                        MountPath = BrainLogDirectory(c),
+                        MountOptions = string.Create(CultureInfo.InvariantCulture, $"dir_mode=0700,file_mode=0600,uid={AppUid},gid={AppGid},mfsymlinks,cache=strict,nosharesock"),
+                    },
+                ],
+                Registries = c.GhcrUsername.Length > 0
+                    ? [new RegistryCredentialSpec { Server = GhcrServer, Username = c.GhcrUsername, Vault = vault, PasswordSecret = GhcrTokenSecret }]
+                    : [],
+            }));
+        }
         return [.. specs];
     }
 

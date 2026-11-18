@@ -135,14 +135,6 @@ public static class OperatingSystemModules
             foreach (var library in rootContext.RuntimeLibraries) { Consider(new AssemblyName(library.Name)); }
         }
 
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            if (!assembly.IsDynamic)
-            {
-                Track(assembly);
-            }
-        }
-
         while (queue.TryDequeue(out var assembly))
         {
             AssemblyName[] references;

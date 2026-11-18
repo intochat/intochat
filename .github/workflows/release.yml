@@ -88,10 +88,9 @@ jobs:
             -o artifacts/kernel-bin -p:CodeGraphRefresh=false -p:DebugType=none
           tar -I 'gzip -1' -cf artifacts/kernel-bin.tar.gz -C artifacts/kernel-bin .
 
-      - name: Pack DigitalBrain packages
+      - name: Pack DigitalBrain and IntoChat.OS packages
         run: |
-          dotnet pack framework/DigitalBrain.slnx -c Release -o artifacts/packages -p:CodeGraphRefresh=false
-          dotnet pack framework/templates/DigitalBrain.Templates/DigitalBrain.Templates.csproj -c Release -o artifacts/packages -p:CodeGraphRefresh=false
+          dotnet pack Intochat.OS.slnx -c Release -o artifacts/packages -p:CodeGraphRefresh=false -p:DebugType=none -p:IncludeSymbols=false
 
       - name: Build and push OS container image
         id: build-os

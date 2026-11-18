@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <IsPackable>true</IsPackable>
     <RootNamespace>IntoChat.OS.LocalSetup</RootNamespace>
     <Description>Preflight checks, MSIX packaging, model pull and launcher command parsing behind intochat-os.cs.</Description>
   </PropertyGroup>

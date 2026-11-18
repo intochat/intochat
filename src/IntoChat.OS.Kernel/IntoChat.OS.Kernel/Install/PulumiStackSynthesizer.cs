@@ -94,10 +94,12 @@ public static class PulumiStackSynthesizer
 
         var foundationSpecs = InstallPlan.Foundation(validated);
         var osAppSpec = InstallPlan.OsApp(validated, variables, secrets);
-        var allSpecs = new List<ResourceSpec>(foundationSpecs.Length + secretSpecs.Count + 1);
+        var cloudAppSpec = InstallPlan.CloudApp(validated, variables, secrets);
+        var allSpecs = new List<ResourceSpec>(foundationSpecs.Length + secretSpecs.Count + 2);
         allSpecs.AddRange(foundationSpecs);
         allSpecs.AddRange(secretSpecs);
         allSpecs.Add(osAppSpec);
+        if (cloudAppSpec is not null) { allSpecs.Add(cloudAppSpec); }
 
         return new PulumiStackPlan(
             validated,
@@ -105,7 +107,7 @@ public static class PulumiStackSynthesizer
             osAppSpec,
             variables,
             secrets,
-            RenderPulumiYaml(validated, foundationSpecs, secretSpecs, osAppSpec),
+            RenderPulumiYaml(validated, foundationSpecs, secretSpecs, osAppSpec, cloudAppSpec),
             RenderStackConfigYaml(validated));
     }
 
@@ -200,7 +202,8 @@ public static class PulumiStackSynthesizer
         InstallConfig c,
         IReadOnlyList<ResourceSpec> foundationSpecs,
         IReadOnlyList<SecretSpec> moduleSecretSpecs,
-        ContainerAppSpec osApp)
+        ContainerAppSpec osApp,
+        ContainerAppSpec? cloudApp = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"name: {StackProjectName}");
@@ -220,6 +223,10 @@ public static class PulumiStackSynthesizer
         }
 
         AppendContainerAppYaml(sb, c, osApp);
+        if (cloudApp is not null)
+        {
+            AppendContainerAppYaml(sb, c, cloudApp);
+        }
 
         sb.AppendLine();
         sb.AppendLine("outputs:");

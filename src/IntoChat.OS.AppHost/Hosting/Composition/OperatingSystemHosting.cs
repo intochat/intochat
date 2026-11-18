@@ -110,6 +110,36 @@ public static class OperatingSystemHosting
         }
     }
 
+    /// <summary>
+    /// Adds the unmodified IntoChat OS container (<c>ghcr.io/intochat/os</c>) to the cluster so external hosts
+    /// or Dockerized apps can run alongside the containerized OS kernel without needing the <c>intochat</c> source tree.
+    /// </summary>
+    public static IResourceBuilder<ContainerResource> AddKernelContainer(
+        this IntoChatOSBuilder os,
+        DeploymentProfile profile,
+        string image = "ghcr.io/intochat/os",
+        string tag = "latest",
+        string name = "OperatingSystem-container")
+    {
+        ArgumentNullException.ThrowIfNull(os);
+        ArgumentNullException.ThrowIfNull(profile);
+        var builder = os.ApplicationBuilder;
+        var cookieProtection = profile.Cloud ? os.AddBlobContainer(os.Identity!.ProtectionContainerName) : null;
+        var container = builder.AddIntoChatOSContainer(name, image, tag)
+            .WithReference(os)
+            .WithOsEnvironment(IntoChatOSNames.TopologyKey, profile.Topology)
+            .WithOsEnvironment(IntoChatOSNames.HomeKey, "/data/home")
+            .WithOsEnvironment(ModuleConfiguration.ConnectionsPublicOriginKey, $"http://localhost:{profile.UiPort}")
+            .WithModuleOverrides(builder, profile)
+            .WithAllocatedOrleansPorts();
+        if (cookieProtection is not null) { container.WaitFor(cookieProtection); }
+        foreach (var key in ForwardedKernelKeys)
+        {
+            if (builder.Configuration[key] is { Length: > 0 } value) { container.WithEnvironment(key.Replace(":", "__"), value); }
+        }
+        return container;
+    }
+
     private static IResourceBuilder<T> WithOsEnvironment<T>(this IResourceBuilder<T> resource, string key, string value) where T : IResourceWithEnvironment
         => resource.WithEnvironment(ModuleConfiguration.EnvironmentName(key), value);
 
