@@ -4241,3 +4241,5 @@ const DigitalBrain.Units.ActivationRefusedException.UnknownChild = "UnknownChild
 DigitalBrain.Screen<TState>.Send(DigitalBrain.UI.Command! command) -> System.Threading.Tasks.Task!
 DigitalBrain.Screen<TState>.Slot<TChild>(string! key) -> DigitalBrain.UI.NeuronRef!
 static DigitalBrain.ScreenExtensions.ChildAddress(DigitalBrain.NeuronId parent, string! key) -> string!
+DigitalBrain.IScreen.Dispatch(DigitalBrain.UI.Command! command) -> System.Threading.Tasks.Task!
+DigitalBrain.Screen<TState>.Dispatch(DigitalBrain.UI.Command! command) -> System.Threading.Tasks.Task!

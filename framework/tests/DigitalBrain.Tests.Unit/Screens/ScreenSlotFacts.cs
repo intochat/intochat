@@ -101,6 +101,20 @@ public sealed class ScreenSlotFacts
     }
 
     [Fact]
+    public async Task Dispatch_routes_through_the_parent_gate()
+    {
+        var (parent, context) = await Attached();
+        var child = await Child(context);
+
+        await parent.Dispatch(new Command("editor", "slot.ping"));
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => parent.Dispatch(new Command("ghost", "slot.ping")));
+
+        Assert.Equal(1, child.Current.Count);
+        Assert.Equal(ActivationRefusedException.UnknownChild, refused.Reason);
+        Assert.Equal([ChildId], context.Gets);
+    }
+
+    [Fact]
     public async Task Send_to_unknown_child_is_refused_and_creates_nothing()
     {
         var (parent, context) = await Attached();

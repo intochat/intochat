@@ -50,8 +50,36 @@ internal static class AppUiEndpoints
             => ReadNode(kind, name, brain, BrainScope.CurrentId(), ct, logger, hosted.FirstOrDefault(), HttpCaller.Current(http)));
         apps.MapPost("/event", (HttpContext http, UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
             => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct, HttpCaller.Current(http), logger: logger));
+        OsBrainRoutes.Group(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, CancellationToken ct)
+            => Act(input, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http)));
 
     }
+
+    // POST /act: one command to a neuron address. The request names a top-level screen ({scope}/apps/{name}) and a target relative
+    // to it; the parent owns its children, so a child is reached only through the parent's Dispatch, which refuses a key its current
+    // view does not show. A raw child id is not a screen name and is refused here.
+    internal static async Task<IResult> Act(ActRequest input, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        if (caller?.For?.Principal is not { Length: > 0 }) { throw new UnauthorizedAccessException("Only a signed-in person acts on a screen."); }
+        ArgumentException.ThrowIfNullOrWhiteSpace(input.Neuron);
+        ArgumentException.ThrowIfNullOrWhiteSpace(input.Target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(input.Signal);
+        var alias = ScreenAlias(scope, input.Neuron) ?? throw new UnauthorizedAccessException($"{input.Neuron} is not a screen of this brain.");
+        var screen = brain.Get<IScreen>(new NeuronId(new BrainId(scope), alias, "default"));
+        try
+        {
+            await screen.Dispatch(new DigitalBrain.UI.Command(input.Target, input.Signal, input.Args)).WaitAsync(ct);
+        }
+        catch (ActivationRefusedException refused)
+        {
+            return Results.Conflict(new { error = $"{input.Target} of {input.Neuron} refused the command.", reason = refused.Reason });
+        }
+        return Results.Ok(new { delivered = true });
+    }
+
+    // Dart mirror: NodeContext.act in ui/lib/src/nodes/node_context.dart.
+    internal sealed record ActRequest(string Neuron, string Target, string Signal, JsonElement? Args = null);
 
     // GET /apps/node: one app UI node of the caller's brain, by kind.
     internal static async Task<IResult> ReadNode(string kind, string name, INeuronProxies brain, string scope, CancellationToken ct, ILogger? logger = null, IHostedAppTypes? hosted = null, DigitalBrain.Access.Caller? caller = null)

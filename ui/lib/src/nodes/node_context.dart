@@ -182,7 +182,6 @@ class NodeContext {
   Future<ActivationOutcome> activateReporting(
     String key, {
     String? value,
-    Map<String, Object?>? event,
     BuildContext? context,
   }) async {
     if (!interactive) return ActivationOutcome.refused;
@@ -194,7 +193,6 @@ class NodeContext {
         'generation': generation,
         'key': key,
         'value': ?value,
-        'event': ?event,
       });
     } on UiRequestException catch (error) {
       if (isStaleConflictError(error.statusCode, error.status ?? '')) {
@@ -219,16 +217,33 @@ class NodeContext {
     return ActivationOutcome.accepted;
   }
 
-  /// Emits a control event: activates [key] with the typed payload under
-  /// `event`. A control without [emit] sends nothing.
-  Future<void> emitEvent(
-    String key,
-    Emit? emit,
-    Map<String, Object?> event, {
+  /// The top-level neuron this view belongs to: the view name without `/view`.
+  String get neuron =>
+      view.endsWith('/view') ? view.substring(0, view.length - 5) : view;
+
+  /// Acts on a neuron [address] relative to this view's neuron (`.` is the
+  /// neuron itself, `key` or `./key` a slot it shows):
+  /// `{kind:"act", neuron, target, signal, args}`, posted to
+  /// `POST /brains/{brain}/act`. The parent routes the command, so a refused
+  /// child (`409`, `UnknownChild`) reads the view again.
+  Future<void> act(
+    String address,
+    String signal,
+    Map<String, Object?> args, {
     BuildContext? context,
   }) async {
-    if (emit == null) return;
-    await activateReporting(key, event: event, context: context);
+    if (!interactive) return;
+    try {
+      await _send({
+        'kind': 'act',
+        'neuron': neuron,
+        'target': address,
+        'signal': signal,
+        'args': args,
+      });
+    } catch (_) {
+      // The host has shown the refusal and reads the view again.
+    }
   }
 
   /// Resolves a confirmation plan: `{kind:"confirmation", name, planId, approve}`

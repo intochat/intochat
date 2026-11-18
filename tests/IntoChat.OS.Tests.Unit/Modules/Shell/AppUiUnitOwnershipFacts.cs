@@ -94,6 +94,7 @@ public sealed class AppUiUnitOwnershipFacts
             => Activate(alias, generation, nodeKey, fieldValue, by);
 
         public Task Request(string signal, JsonElement? args = null) => Task.CompletedTask;
+        public Task Dispatch(DigitalBrain.UI.Command command) => Task.CompletedTask;
     }
 
     private sealed class FakeHostedTypes : IHostedAppTypes

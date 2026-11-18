@@ -39,6 +39,8 @@ internal sealed class RecordingApp : Neuron, IScreen, IApp
         return Task.CompletedTask;
     }
 
+    public Task Dispatch(DigitalBrain.UI.Command command) => Request(command.Signal, command.Args);
+
     public Task<AppSnapshot> Read() => throw new NotSupportedException();
     public Task<AppSnapshot> Present(long expectedProgramRevision, Presentation presentation) => throw new NotSupportedException();
     public Task<AppSnapshot> Create(AppManifest manifest, string spec) => throw new NotSupportedException();

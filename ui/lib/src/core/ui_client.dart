@@ -949,6 +949,30 @@ final class IntoChatOSUiClient {
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
+  /// Posts one UI event from a [NodeContext]: an `act` goes to
+  /// `POST /brains/{workspace}/act` (AppUiEndpoints.ActRequest), every other
+  /// kind to `POST /brains/{workspace}/apps/event`.
+  Future<Map<String, dynamic>> uiEvent(
+    String workspace,
+    Map<String, Object?> event,
+  ) async {
+    if (event['kind'] != 'act') {
+      return appRequest(workspace, 'event', body: event);
+    }
+    final response = await _request(
+      'POST',
+      '/brains/${Uri.encodeComponent(workspace)}/act',
+      body: {
+        'neuron': event['neuron'],
+        'target': event['target'],
+        'signal': event['signal'],
+        'args': event['args'],
+      },
+      timeout: const Duration(seconds: 30),
+    );
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
   Future<Map<String, dynamic>> storeSecret(
     String name,
     String label,

@@ -8,12 +8,9 @@ import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
 const _unsupported = 'This component cannot be displayed.';
 
-List<Map<String, dynamic>> _catalog() =>
-    (jsonDecode(
-              File('lib/src/generated/showcase_catalog.json').readAsStringSync(),
-            )
-            as List)
-        .cast<Map<String, dynamic>>();
+List<Map<String, dynamic>> _catalog() => (jsonDecode(
+  File('lib/src/generated/showcase_catalog.json').readAsStringSync(),
+) as List).cast<Map<String, dynamic>>();
 
 bool _isEmit(Object? v) =>
     v is Map && v['owner'] is String && v['signal'] is String;
@@ -85,16 +82,6 @@ Map<String, dynamic>? _emitOf(Map<String, dynamic> node) {
   }
   return null;
 }
-
-/// The declared names of an emit's args shape: a map's keys, or a list of `{name}` / strings.
-Set<String> _argNames(Object? args) => switch (args) {
-  Map() => args.keys.map((k) => '$k').toSet(),
-  List() => {
-    for (final a in args)
-      if (a is Map && a['name'] != null) '${a['name']}' else if (a is String) a,
-  },
-  _ => {},
-};
 
 Future<List<Map<String, dynamic>>> _pump(
   WidgetTester tester,
@@ -168,16 +155,6 @@ Future<void> _check(WidgetTester tester, Map<String, dynamic> example) async {
     await _trigger(tester, find.byKey(Key(key)));
     final hit = sent.where((e) => e['key'] == key).toList();
     expect(hit, isNotEmpty, reason: 'no activation recorded for $key');
-    final declared = _argNames(emit['args']);
-    if (declared.isNotEmpty) {
-      final event = hit.last['event'];
-      expect(event, isA<Map>(), reason: 'no typed event for $key');
-      expect(
-        (event as Map).keys.map((k) => '$k').toSet(),
-        declared,
-        reason: 'event $event does not match declared args $declared',
-      );
-    }
   }
 }
 
@@ -213,37 +190,6 @@ void main() {
       tester,
     ) async {
       await _check(tester, {'kind': 'switch', 'key': 'plain', 'label': 'x'});
-    });
-
-    testWidgets('emitEvent sends the control key and the exact typed event', (
-      tester,
-    ) async {
-      final sent = <Map<String, dynamic>>[];
-      final ctx = NodeContext(
-        view: 'local/apps/showcase/view',
-        generation: 1,
-        send: (event) async {
-          sent.add(event);
-          return null;
-        },
-      );
-      const emit = Emit(owner: 'local/apps/x', signal: 'Submitted', args: null);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: TextButton(
-              key: const Key('submit'),
-              onPressed: () => ctx.emitEvent('submit', emit, {'text': 'hello'}),
-              child: const Text('go'),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.byKey(const Key('submit')));
-      await tester.pumpAndSettle();
-      expect(sent, hasLength(1));
-      expect(sent.single['key'], 'submit');
-      expect(sent.single['event'], {'text': 'hello'});
     });
 
     testWidgets('an unknown kind is reported as unsupported', (tester) async {

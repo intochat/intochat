@@ -136,6 +136,9 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     }
 
     /// <inheritdoc />
+    public Task Dispatch(Command command) => Send(command);
+
+    /// <inheritdoc />
     public Task Request(string signal, JsonElement? args = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(signal);

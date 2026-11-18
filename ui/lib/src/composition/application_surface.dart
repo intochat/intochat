@@ -1,4 +1,4 @@
-﻿import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
+import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'view_host.dart';
 
@@ -71,8 +71,7 @@ class _ApplicationSurfaceState extends State<ApplicationSurface> {
           widget.workspace,
           'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
         ),
-        onAction: (event) =>
-            widget.client.appRequest(widget.workspace, 'event', body: event),
+        onAction: (event) => widget.client.uiEvent(widget.workspace, event),
         onActivate: widget.onActivate,
         knowsApp: widget.knowsApp,
         transcribe: widget.client.transcribe,

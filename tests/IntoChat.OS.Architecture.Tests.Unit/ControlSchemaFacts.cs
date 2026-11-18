@@ -30,6 +30,9 @@ public sealed class ControlSchemaFacts
         "ApprovalCardNode", "ChoiceCardNode", "Conversation", "DiffCardNode", "DraftCardNode", "ErrorLineNode",
         "JobCardNode", "MetricTileNode", "RecordCardNode", "SecretCardNode", "Switch",
     };
+    // Node kinds that still activate through a legacy Emit rather than a Command to a neuron address (POST /brains/{brainId}/act).
+    // Shrink-only: a kind that moves to commands leaves this list (Task 4 enforces the end state).
+    private static readonly HashSet<string> LegacyEmitKinds = new(StringComparer.Ordinal) { "Button", "Field", "NavItemNode", "Switch" };
     private static readonly HashSet<string> TextControlOffenders = new(StringComparer.Ordinal) { };
 
     [Fact]
@@ -37,6 +40,10 @@ public sealed class ControlSchemaFacts
         => Check(EmitParametersOffenders, Nodes.SelectMany(type => ConstructorParameters(type)
             .Where(parameter => IsEmit(parameter.ParameterType)) // event args are gone, so every Emit is an offender until Task 4 rewrites this around commands
             .Select(parameter => $"{type.Name}.{parameter.Name}")));
+
+    [Fact]
+    public void Legacy_emit_kinds_only_shrink()
+        => Check(LegacyEmitKinds, Nodes.Where(type => ConstructorParameters(type).Any(parameter => IsEmit(parameter.ParameterType))).Select(type => type.Name));
 
     [Fact]
     public void Every_interactive_control_has_Key_and_AutomationName()

@@ -691,7 +691,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     .watchNode(_brain!, kind, name)
                                     .map((_) {}),
                                 onAction: (event) => widget.programmingClient!
-                                    .appRequest(_brain!, 'event', body: event),
+                                    .uiEvent(_brain!, event),
                                 knowsApp: (app) =>
                                     _knownApps.contains(app) ||
                                     _knownApps.contains(app.toLowerCase()),
@@ -764,7 +764,7 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     .watchNode(_brain!, kind, name)
                                     .map((_) {}),
                                 onAction: (event) => widget.programmingClient!
-                                    .appRequest(_brain!, 'event', body: event),
+                                    .uiEvent(_brain!, event),
                                 onActivate: (action) =>
                                     unawaited(_activate(action)),
                                 transcribe:

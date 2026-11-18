@@ -66,6 +66,7 @@ public sealed class AppUiScreenEndpointsFacts
         }
 
         public Task Request(string signal, JsonElement? args = null) => Task.CompletedTask;
+        public Task Dispatch(DigitalBrain.UI.Command command) => Task.CompletedTask;
     }
 
     private sealed class ScreenBrain : INeuronProxies

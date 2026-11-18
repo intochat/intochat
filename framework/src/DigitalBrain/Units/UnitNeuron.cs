@@ -172,6 +172,15 @@ internal sealed class UnitNeuron<TState> : Neuron<StoredUnit<TState>>, ISynapseR
         await Turn(pressed, Context.TraceId, null, said: pressed, CancellationToken.None).ConfigureAwait(true);
     }
 
+    // A unit has no slots: only "." reaches it.
+    public Task Dispatch(DigitalBrain.UI.Command command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return command.Target == "."
+            ? Request(command.Signal, command.Args)
+            : Task.FromException(new ActivationRefusedException(ActivationRefusedException.UnknownChild));
+    }
+
     public Task Request(string signal, JsonElement? args = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(signal);

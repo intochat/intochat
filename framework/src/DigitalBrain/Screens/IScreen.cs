@@ -63,6 +63,13 @@ public interface IScreen
     /// <param name="args">Optional JSON payload for the signal constructor/properties.</param>
     [OneWayCall]
     Task Request(string signal, JsonElement? args = null);
+
+    /// <summary>
+    /// Routes <paramref name="command"/> through this screen: "." is the screen itself, any other target a child key its current
+    /// view shows. The parent owns its children, so a client acts on a child only through this call.
+    /// </summary>
+    /// <exception cref="ActivationRefusedException">The current view names no slot with that key (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
+    Task Dispatch(DigitalBrain.UI.Command command);
 }
 
 /// <summary>
