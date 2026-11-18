@@ -28,7 +28,7 @@ internal static class BrainEventsEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
         => OsBrainRoutes.Group(endpoints).MapGet("/brain/events", Events);
 
-    private static async Task Events(HttpContext http, CancellationToken ct)
+    private static async Task<IResult> Events(HttpContext http, CancellationToken ct)
     {
         var brain = BrainEdge.Open(http.RequestServices, BrainScope.CurrentId());
         http.Response.ContentType = "text/event-stream";
@@ -39,6 +39,7 @@ internal static class BrainEventsEndpoints
             await http.Response.WriteAsync("event: brain-snapshot\ndata: " + snapshot + "\n\n", ct);
             await http.Response.Body.FlushAsync(ct);
         }
+        return Results.Empty;
     }
 
     private static readonly TimeSpan Burst = TimeSpan.FromMilliseconds(100);

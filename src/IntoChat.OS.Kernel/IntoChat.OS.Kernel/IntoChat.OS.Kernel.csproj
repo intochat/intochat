@@ -5,7 +5,16 @@
     <IsPackable>true</IsPackable>
     <PackageId>IntoChat.OS.Kernel</PackageId>
     <Description>The operating system: the named module composition, the OS apps, in-process MCP, and the host that runs them.</Description>
+    <PublishAot Condition="'$(IntoChatOSAot)' == 'true'">true</PublishAot>
+    <IlcOptimizationPreference Condition="'$(IntoChatOSAot)' == 'true'">Speed</IlcOptimizationPreference>
+    <IlcFoldIdenticalMethodBodies Condition="'$(IntoChatOSAot)' == 'true'">false</IlcFoldIdenticalMethodBodies>
+    <StripSymbols Condition="'$(IntoChatOSAot)' == 'true'">true</StripSymbols>
+    <TreatWarningsAsErrors Condition="'$(IntoChatOSAot)' == 'true'">false</TreatWarningsAsErrors>
+    <DefineConstants Condition="'$(IntoChatOSAot)' == 'true'">$(DefineConstants);INTOCHAT_OS_AOT</DefineConstants>
   </PropertyGroup>
+  <ItemGroup Condition="'$(IntoChatOSAot)' == 'true'">
+    <TrimmerRootDescriptor Include="TrimmerRoots.xml" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Azure.Data.Tables" />
     <PackageReference Include="Aspire.Azure.Storage.Blobs" />
@@ -46,7 +55,7 @@
     <ProjectReference Include="../../Modules/Notifications/IntoChat.OS.Modules.Notifications.csproj" />
     <ProjectReference Include="../../Modules/Playwright/IntoChat.OS.Modules.Playwright.csproj" />
     <ProjectReference Include="../../Modules/Postgres/IntoChat.OS.Modules.Postgres.csproj" />
-    <ProjectReference Include="../../Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" />
+    <ProjectReference Include="../../Modules/Roslyn/IntoChat.OS.Modules.Roslyn.csproj" Condition="'$(IntoChatOSAot)' != 'true'" />
     <ProjectReference Include="../../Modules/Salesforce/IntoChat.OS.Modules.Salesforce.csproj" />
     <ProjectReference Include="../../Modules/Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
     <ProjectReference Include="../../Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />

@@ -54,4 +54,52 @@ public sealed class InstallPlanFacts
         var secondaryPgConnection = Assert.Single(secretSpecs, s => s.Name == "postgres-connectionstring-secondary");
         Assert.Equal(secondaryDbConnection.Value, secondaryPgConnection.Value);
     }
+
+    [Fact]
+    public void PulumiStackSynthesizerMapsModuleManifestsAndIntegrationsToVaultSecretsWithoutSessionPools()
+    {
+        var config = InstallConfig.Parse("""
+            {
+              "subscription": "2a985480-6bb9-44ff-959d-edd5efe2cdb2",
+              "location": "polandcentral",
+              "prefix": "intochat",
+              "env": "test",
+              "resourceGroup": "rg-intochat-test",
+              "osImage": "acrintochattest.azurecr.io/os:latest",
+              "registryServer": "acrintochattest.azurecr.io",
+              "registry": { "enabled": true, "sku": "Basic" },
+              "postgres": { "enabled": true, "sku": "Standard_B1ms", "tier": "Burstable", "storageGb": 32, "adminLogin": "intochat", "databases": ["intochat"] },
+              "modules": {
+                "auth": {
+                  "Posture": "Secured",
+                  "PublicBaseUrl": "https://os.test.intochat.io"
+                }
+              }
+            }
+            """);
+
+        var providedSecrets = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["openai-apikey"] = "sk-test-openai-key",
+            ["postgres-connection-string"] = "Host=intochat-test-pg.postgres.database.azure.com;Database=intochat",
+        };
+
+        var plan = PulumiStackSynthesizer.Synthesize(config, OperatingSystemModules.Modules, providedSecrets);
+
+        // Zero SessionPool resources ever synthesized
+        Assert.DoesNotContain(plan.Resources, r => r.Kind.Contains("sessionPool", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain("sessionPools", plan.PulumiYaml, StringComparison.OrdinalIgnoreCase);
+
+        // Key Vault secrets and Container App bindings synthesized from ModuleManifests and IntegrationSchemas
+        Assert.Contains(plan.Secrets, s => s.VaultSecret == "openai-apikey");
+        Assert.Contains(plan.Secrets, s => s.VaultSecret == "postgres-connection-string");
+        Assert.Contains("keyVaultUrl: \"https://intochat-test-kv.vault.azure.net/secrets/openai-apikey\"", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("secretName: \"openai-apikey\"", plan.PulumiYaml, StringComparison.Ordinal);
+        Assert.Contains("containerAppName: \"intochat-test-os\"", plan.PulumiYaml, StringComparison.Ordinal);
+
+        var importJson = PulumiStackSynthesizer.ExportImportEntries(plan).ToJsonString();
+        Assert.Contains("azure-native:app:ContainerApp", importJson, StringComparison.Ordinal);
+        Assert.Contains("azure-native:keyvault:Vault", importJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("sessionPools", importJson, StringComparison.OrdinalIgnoreCase);
+    }
 }

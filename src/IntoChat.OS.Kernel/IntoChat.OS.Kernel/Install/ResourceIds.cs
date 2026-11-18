@@ -17,7 +17,6 @@ public static class ResourceIds
             ResourceKinds.KeyVault => Provider(group, "Microsoft.KeyVault/vaults", name),
             ResourceKinds.ManagedEnvironment => Provider(group, "Microsoft.App/managedEnvironments", name),
             ResourceKinds.ContainerApp => Provider(group, "Microsoft.App/containerApps", name),
-            ResourceKinds.SessionPool => Provider(group, "Microsoft.App/sessionPools", name),
             ResourceKinds.Registry => Provider(group, "Microsoft.ContainerRegistry/registries", name),
             ResourceKinds.Postgres => Provider(group, "Microsoft.DBforPostgreSQL/flexibleServers", name),
             ResourceKinds.NetworkSecurityGroup => Provider(group, "Microsoft.Network/networkSecurityGroups", name),

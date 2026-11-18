@@ -91,6 +91,6 @@ public sealed class OperationHandlers
             handler.Run((TPlan)plan, operation, scope, ct);
 
         public OperationPlan Deserialize(string planJson) =>
-            JsonSerializer.Deserialize<TPlan>(planJson, RuntimeProtocol.Json)!;
+            (TPlan)RuntimeProtocol.Deserialize(System.Text.Encoding.UTF8.GetBytes(planJson), typeof(TPlan))!;
     }
 }

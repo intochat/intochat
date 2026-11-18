@@ -149,7 +149,8 @@ internal sealed class WorkflowRunNeuron(IEnumerable<WorkflowDefinition> definiti
             using (AsWorkflows())
             {
                 await Confirmations().Request(new ConfirmationPlan(planId, ConfirmationAction.Other, false, $"Continue {State.Workflow}?",
-                    $"The workflow {State.Workflow} asks: {question}", "Continue", "Stop", State.Workflow) { RequiresPerson = true, Kind = "workflow.request", Subject = Id.Key });
+                    $"The workflow {State.Workflow} asks: {question}", "Continue", "Stop", State.Workflow)
+                { RequiresPerson = true, Kind = "workflow.request", Subject = Id.Key });
             }
         }
         catch (Exception refused) when (refused is UnauthorizedAccessException or InvalidOperationException)

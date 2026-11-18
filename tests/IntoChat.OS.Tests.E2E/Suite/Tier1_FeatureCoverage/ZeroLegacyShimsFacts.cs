@@ -158,10 +158,12 @@ public sealed class ZeroLegacyShimsFacts : E2ETestBase
         var deployDir = Path.Combine(RepoRoot, "deploy");
 
         Assert.True(Directory.Exists(appHostDir), $"AppHost directory must exist: {appHostDir}");
-        Assert.True(Directory.Exists(deployDir), $"Deploy directory must exist: {deployDir}");
 
         targets.AddRange(Directory.EnumerateFiles(appHostDir, "*.*", SearchOption.AllDirectories));
-        targets.AddRange(Directory.EnumerateFiles(deployDir, "*.*", SearchOption.AllDirectories));
+        if (Directory.Exists(deployDir))
+        {
+            targets.AddRange(Directory.EnumerateFiles(deployDir, "*.*", SearchOption.AllDirectories));
+        }
         Assert.NotEmpty(targets);
 
         var regex = new Regex(@"\b(signals-0|PubSubStore)\b", RegexOptions.Compiled);
@@ -315,7 +317,7 @@ public sealed class ZeroLegacyShimsFacts : E2ETestBase
         Assert.Contains("Time", properties);
         Assert.Contains("Timers", properties);
         Assert.Contains("Reminders", properties);
-        Assert.Contains("Synapses", properties);
+        Assert.Contains("Wires", properties);
         Assert.Contains("TraceId", properties);
 
         // Obsolete properties must NOT exist on INeuronContext

@@ -96,10 +96,12 @@ internal sealed record CallDescriptor(
         Type itemType,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var encodeAsDeclaredType = itemType.IsDefined(typeof(System.Text.Json.Serialization.JsonPolymorphicAttribute), inherit: false)
+            || (typeof(System.Runtime.CompilerServices.IUnion).IsAssignableFrom(itemType) && itemType.IsDefined(typeof(System.Runtime.CompilerServices.UnionAttribute), inherit: false));
         await foreach (var item in items.ConfigureAwait(true))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            yield return JsonSerializer.SerializeToElement(item, itemType, RuntimeProtocol.OptionsFor(item?.GetType() ?? itemType));
+            yield return PooledJson.Encode(item, encodeAsDeclaredType ? itemType : (item?.GetType() ?? itemType));
         }
     }
 
@@ -122,7 +124,7 @@ internal sealed record CallDescriptor(
 
             try
             {
-                values[index] = arguments[argument++].Deserialize(type, RuntimeProtocol.OptionsFor(type));
+                values[index] = RuntimeProtocol.Deserialize(arguments[argument++], type);
             }
             catch (Exception error) when (error is JsonException or NotSupportedException or InvalidOperationException)
             {

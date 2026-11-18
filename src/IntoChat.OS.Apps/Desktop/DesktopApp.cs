@@ -248,7 +248,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                     catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException)
                     {
                         Log.LogSwallowed(fallbackEx, "Falling back to app.ino screen for desktop greet.");
-                        await Get<IScreen>("app.ino").Request("open", JsonSerializer.SerializeToElement("greet"));
+                        await Get<IScreen>("app.ino").Request("open", DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement("greet", typeof(string)));
                     }
                 }
                 catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "Ino was not there to greet; the desktop starts without it."); }
@@ -335,7 +335,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
                     catch (Exception fallbackEx) when (fallbackEx is not OperationCanceledException)
                     {
                         Log.LogSwallowed(fallbackEx, $"Falling back to app.{app} screen for open view.");
-                        await Get<IScreen>("app." + app).Request("open", JsonSerializer.SerializeToElement(new DesktopOpenViewArgs(view.Trim(), view.Trim(), view.Trim())));
+                        await Get<IScreen>("app." + app).Request("open", DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(new DesktopOpenViewArgs(view.Trim(), view.Trim(), view.Trim()), typeof(DesktopOpenViewArgs)));
                     }
                 }
                 catch (Exception error) when (error is not OperationCanceledException) { Log.LogSwallowed(error, "The app was not there to receive its open view."); }
@@ -465,7 +465,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
     {
         ArgumentNullException.ThrowIfNull(signal);
         var alias = typeof(TSignal).GetCustomAttribute<SignalAttribute>(false)?.Alias ?? typeof(TSignal).Name;
-        return new Emit("app.desktop", alias, JsonSerializer.SerializeToElement(signal));
+        return new Emit("app.desktop", alias, DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(signal, typeof(TSignal)));
     }
 
     protected override View Render(DesktopAppState state)

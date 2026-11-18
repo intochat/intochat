@@ -25,7 +25,11 @@ public static class IntoChatOSClientHostingExtensions
         {
             builder.AddKeyedAzureTableServiceClient(IntoChatOSNames.Clustering);
         }
-        builder.UseOrleansClient(client => client.AddIntoChatOS());
+        builder.UseOrleansClient(client =>
+        {
+            client.AddIntoChatOS();
+            IntoChat.OS.Kernel.AspireServer.OrleansAotResponses.Register(client.Services);
+        });
         // The kernel view reads the instance directory through the cluster (the kernel composition, 06-02).
         builder.Services.TryAddSingleton<IBrainObserver>(IntoChat.OS.Kernel.Composition.Kernel.OsKernel.For);
         return builder;

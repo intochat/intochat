@@ -24,7 +24,7 @@ namespace IntoChat.OS.Kernel.Mcp.Tools;
 internal sealed class ScreenTools(INeuronProxies brain, McpCaller caller)
 {
     private const int MaxMappedErrorLength = 500;
-    private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
+    private static readonly JsonSerializerOptions Json = KernelMcpJsonContext.Default.Options;
 
     private const string ListName = "screen_list";
     private const string ReadName = "screen_read";

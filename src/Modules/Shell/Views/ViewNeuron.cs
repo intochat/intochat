@@ -94,7 +94,7 @@ internal static class ViewValidation
     public static string Serialize(View view)
     {
         ArgumentNullException.ThrowIfNull(view);
-        var json = JsonSerializer.Serialize(view, RuntimeProtocol.OptionsFor(typeof(View)));
+        var json = System.Text.Encoding.UTF8.GetString(RuntimeProtocol.SerializeToUtf8Bytes(view, typeof(View)));
         if (System.Text.Encoding.UTF8.GetByteCount(json) > 1_048_576) { throw new ArgumentException("A view is limited to 1 MiB."); }
         using var document = JsonDocument.Parse(json, Document);
         var count = 0;

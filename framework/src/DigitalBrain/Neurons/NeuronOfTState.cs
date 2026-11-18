@@ -1,3 +1,4 @@
+#pragma warning disable CA2263
 namespace DigitalBrain.Neurons;
 
 /// <summary>
@@ -14,7 +15,7 @@ public abstract class Neuron<TState> : Neuron, IStateInspectable where TState : 
     Task<System.Text.Json.JsonElement?> IStateInspectable.InspectState(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult<System.Text.Json.JsonElement?>(System.Text.Json.JsonSerializer.SerializeToElement(State, Invocation.RuntimeProtocol.OptionsFor(typeof(TState))));
+        return Task.FromResult<System.Text.Json.JsonElement?>(Invocation.PooledJson.Encode(State, typeof(TState)));
     }
 
     internal virtual Task<TState?> LoadState() => Seat.Load<TState>();

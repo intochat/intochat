@@ -13,9 +13,10 @@ public sealed partial class UnitsAllTheWayFacts
     private const string RoslynModule = "IntoChat.OS.Modules.Roslyn";
 
     // The only production code that holds the SynapseCompiler: the Creator's Builder (check_unit), the Apps module's authoring helpers
-    // that run the same analyzers, the build flow that verifies a unit before it installs, and Ino's synapse studio tool.
+    // that run the same analyzers, the build flow that verifies a unit before it installs, Ino's synapse studio tool, and the Sandbox DevKit worker.
     private static readonly string[] CompilerCallers =
     [
+        "AppSandboxHost.cs",
         "Apps/Creator.cs",
         "Authoring/BuilderTools.cs",
         "Authoring/SynapseCheck.cs",

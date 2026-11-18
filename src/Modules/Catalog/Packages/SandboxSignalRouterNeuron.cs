@@ -54,7 +54,7 @@ internal sealed class SandboxSignalRouterNeuron(ISandboxRuntimeBridge? bridge = 
             return Task.CompletedTask;
         }
 
-        var payloadJson = JsonSerializer.Serialize(change, JsonSerializerOptions.Web);
+        var payloadJson = System.Text.Encoding.UTF8.GetString(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(change, typeof(FileChanged)));
         return bridge.ForwardSignalAsync(Id.Brain.Value, "windows.file-changed", payloadJson);
     }
 
@@ -67,7 +67,7 @@ internal sealed class SandboxSignalRouterNeuron(ISandboxRuntimeBridge? bridge = 
             return Task.CompletedTask;
         }
 
-        var payloadJson = JsonSerializer.Serialize(sent, JsonSerializerOptions.Web);
+        var payloadJson = System.Text.Encoding.UTF8.GetString(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(sent, typeof(NotificationSent)));
         return bridge.ForwardSignalAsync(Id.Brain.Value, "notifications.sent", payloadJson);
     }
 }

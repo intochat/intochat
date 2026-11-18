@@ -1,0 +1,30 @@
+<linker>
+  <assembly fullname="Orleans.Clustering.AzureStorage" />
+  <assembly fullname="Orleans.Core" />
+  <assembly fullname="Orleans.Core.Abstractions" />
+  <assembly fullname="Orleans.Dashboard" />
+  <assembly fullname="Orleans.Dashboard.Abstractions" />
+  <assembly fullname="Orleans.Persistence.AzureStorage" />
+  <assembly fullname="Orleans.Persistence.Memory" />
+  <assembly fullname="Orleans.Reminders" />
+  <assembly fullname="Orleans.Reminders.AzureStorage" />
+  <assembly fullname="Orleans.Runtime" />
+  <assembly fullname="Orleans.Serialization" />
+  <assembly fullname="Orleans.Serialization.Abstractions" />
+  <assembly fullname="Orleans.Serialization.SystemTextJson" />
+  <assembly fullname="DigitalBrain.UI" />
+  <assembly fullname="Microsoft.AspNetCore.Http" />
+  <assembly fullname="Microsoft.AspNetCore.Http.Abstractions" />
+  <assembly fullname="Microsoft.AspNetCore.Http.Results" />
+  <assembly fullname="Microsoft.AspNetCore.Http.Extensions" />
+  <assembly fullname="Microsoft.AspNetCore.Routing" />
+  <assembly fullname="Microsoft.Extensions.Primitives" />
+  <assembly fullname="ModelContextProtocol.AspNetCore" />
+  <assembly fullname="ModelContextProtocol.Core" />
+  <assembly fullname="System.Private.CoreLib">
+    <type fullname="System.Threading.Tasks.Task" preserve="all" />
+    <type fullname="System.Threading.Tasks.Task`1" preserve="all" />
+    <type fullname="System.Threading.Tasks.ValueTask" preserve="all" />
+    <type fullname="System.Threading.Tasks.ValueTask`1" preserve="all" />
+  </assembly>
+</linker>

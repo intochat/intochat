@@ -215,7 +215,7 @@ jobs:
       # produce the win-arm64 shell.
       - name: Package the Windows bundle
         shell: pwsh
-        run: ./eng/release/package-release.ps1 -Rid win-x64 -OutputDir artifacts/release
+        run: dotnet run intochat-os.cs -- package-release --rid win-x64 --output artifacts/release
 
       - name: Check the bundle layout
         shell: pwsh

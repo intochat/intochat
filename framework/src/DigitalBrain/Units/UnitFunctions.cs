@@ -14,7 +14,7 @@ internal readonly record struct UnitCall(Signal? Signal, string? TraceId, string
     {
         if (signal is IUntypedSignal untyped) { return new SignalEnvelope(untyped.Alias, untyped.Payload, traceId, causationId); }
         var type = signal.GetType();
-        return new SignalEnvelope(SignalAliases.Of(signal), System.Text.Json.JsonSerializer.SerializeToElement(signal, type, RuntimeProtocol.OptionsFor(type)), traceId, causationId);
+        return new SignalEnvelope(SignalAliases.Of(signal), PooledJson.Encode(signal, type), traceId, causationId);
     }
 }
 

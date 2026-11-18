@@ -30,7 +30,7 @@ internal sealed class RecordingAzure : IAzureArm
         }
         return Task.FromResult(new ResourceRef($"/subscriptions/{subscription}/resourceGroups/{spec.ResourceGroup}/{spec.Kind}/{spec.Name}", spec.Kind, spec.Name, spec.ResourceGroup)
         {
-            Endpoint = spec is SessionPoolSpec ? $"https://{spec.Name}.env-123.{spec.Location}.azurecontainerapps.io/" : "",
+            Endpoint = "",
         });
     }
 

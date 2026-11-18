@@ -57,6 +57,7 @@ public static class RuntimeSiloBuilderExtensions
         }
         else { silo.Services.TryAddSingleton(RuntimeOptions.Default); }
         silo.AddNeuronHosting(modules);
+        OrleansRuntimeAot.Register(silo.Services);
         silo.Services.TryAddSingleton<IReadOnlyList<ActionDescriptor>>(sp =>
         {
             var fromTopology = sp.GetService<TopologyContext>()?.Modules.SelectMany(m => m.Actions) ?? [];

@@ -12,8 +12,6 @@ namespace DigitalBrain.Runtime.Orleans;
 /// <summary>File-backed grain storage persisting named stores (<c>platform</c> and module stores) under <c>&lt;Home&gt;/state/files/&lt;name&gt;</c>.</summary>
 internal sealed class LocalFileGrainStorage : IGrainStorage
 {
-    private static readonly JsonSerializerOptions EnvelopeJson = new(JsonSerializerDefaults.Web) { WriteIndented = false };
-
     private readonly string _directory;
     private readonly Serializer? _serializer;
     private readonly ConcurrentDictionary<string, Lock> _locks = new(StringComparer.Ordinal);
@@ -42,7 +40,7 @@ internal sealed class LocalFileGrainStorage : IGrainStorage
             }
 
             var bytes = File.ReadAllBytes(path);
-            var envelope = JsonSerializer.Deserialize<StoredGrainEnvelope>(bytes, EnvelopeJson)
+            var envelope = (DigitalBrain.Invocation.RuntimeProtocol.Deserialize(bytes, typeof(StoredGrainEnvelope)) as StoredGrainEnvelope)
                 ?? throw new IOException($"Corrupt grain state file '{path}'.");
             grainState.State = Decode<T>(envelope.Format, envelope.Payload);
             grainState.ETag = envelope.ETag;
@@ -63,7 +61,7 @@ internal sealed class LocalFileGrainStorage : IGrainStorage
             if (File.Exists(path))
             {
                 var existingBytes = File.ReadAllBytes(path);
-                var existing = JsonSerializer.Deserialize<StoredGrainEnvelope>(existingBytes, EnvelopeJson);
+                var existing = DigitalBrain.Invocation.RuntimeProtocol.Deserialize(existingBytes, typeof(StoredGrainEnvelope)) as StoredGrainEnvelope;
                 if (grainState.ETag is not null && existing is not null && !string.Equals(existing.ETag, grainState.ETag, StringComparison.Ordinal))
                 {
                     throw new InconsistentStateException("ETag mismatch writing local grain state.", existing.ETag, grainState.ETag);
@@ -77,7 +75,7 @@ internal sealed class LocalFileGrainStorage : IGrainStorage
             var (format, payload) = Encode(grainState.State);
             var nextEtag = Guid.NewGuid().ToString("N");
             var envelope = new StoredGrainEnvelope(grainId.ToString(), stateName, nextEtag, format, payload);
-            var serialized = JsonSerializer.SerializeToUtf8Bytes(envelope, EnvelopeJson);
+            var serialized = DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(envelope, typeof(StoredGrainEnvelope));
             var tempPath = $"{path}.{Guid.NewGuid():N}.tmp";
             try
             {
@@ -109,7 +107,7 @@ internal sealed class LocalFileGrainStorage : IGrainStorage
                 if (grainState.ETag is not null)
                 {
                     var existingBytes = File.ReadAllBytes(path);
-                    var existing = JsonSerializer.Deserialize<StoredGrainEnvelope>(existingBytes, EnvelopeJson);
+                    var existing = DigitalBrain.Invocation.RuntimeProtocol.Deserialize(existingBytes, typeof(StoredGrainEnvelope)) as StoredGrainEnvelope;
                     if (existing is not null && !string.Equals(existing.ETag, grainState.ETag, StringComparison.Ordinal))
                     {
                         throw new InconsistentStateException("ETag mismatch clearing local grain state.", existing.ETag, grainState.ETag);

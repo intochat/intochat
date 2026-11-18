@@ -25,10 +25,16 @@ internal static class IntegrationCatalogEndpoints
                 : Results.Unauthorized());
 
         // Inbound webhooks for external providers resolve the target connection neuron via 3-part ConnectionKeys.
-        endpoints.MapPost("/integrations/{provider}/webhook", (string provider, HttpContext context) =>
-            OAuthCallback.HandleWebhookAsync(context, provider));
-        endpoints.MapPost("/integrations/{provider}", (string provider, HttpContext context) =>
-            OAuthCallback.HandleWebhookAsync(context, provider));
+        endpoints.MapPost("/integrations/{provider}/webhook", async (string provider, HttpContext context) =>
+        {
+            await OAuthCallback.HandleWebhookAsync(context, provider);
+            return Results.Empty;
+        });
+        endpoints.MapPost("/integrations/{provider}", async (string provider, HttpContext context) =>
+        {
+            await OAuthCallback.HandleWebhookAsync(context, provider);
+            return Results.Empty;
+        });
 
         // Deliberately not brain-scoped: registrations are deployment info, not workspace data.
         var group = endpoints.MapGroup("/integrations");

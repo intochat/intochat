@@ -523,10 +523,18 @@ internal sealed class HttpSandboxRuntimeBridge(
         }
 
         var baseDir = AppContext.BaseDirectory;
-        var baseCandidate = Path.Combine(baseDir, "IntoChat.OS.Sandbox.dll");
-        if (HasValidRuntimeConfig(baseCandidate))
+        string[] relativeCandidates =
+        [
+            Path.Combine(baseDir, "IntoChat.OS.Sandbox.dll"),
+            Path.Combine(baseDir, "unithost", "IntoChat.OS.Sandbox.dll"),
+            Path.Combine(baseDir, "..", "unithost", "IntoChat.OS.Sandbox.dll"),
+        ];
+        foreach (var rel in relativeCandidates)
         {
-            return baseCandidate;
+            if (HasValidRuntimeConfig(rel))
+            {
+                return Path.GetFullPath(rel);
+            }
         }
 
         var current = new DirectoryInfo(baseDir);

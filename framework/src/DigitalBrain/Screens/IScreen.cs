@@ -79,6 +79,6 @@ public static class ScreenExtensions
     {
         ArgumentNullException.ThrowIfNull(screen);
         ArgumentNullException.ThrowIfNull(signal);
-        return screen.Request(SignalAliases.Of(typeof(TSignal)), JsonSerializer.SerializeToElement(signal, RuntimeProtocol.OptionsFor(typeof(TSignal))));
+        return screen.Request(SignalAliases.Of(typeof(TSignal)), PooledJson.Encode(signal, typeof(TSignal)));
     }
 }

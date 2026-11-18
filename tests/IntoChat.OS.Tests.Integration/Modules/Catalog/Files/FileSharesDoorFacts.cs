@@ -383,6 +383,8 @@ public sealed class FileSharesDoorFacts
 
         protected override void ConfigureSilo(IServiceCollection services)
         {
+            services.Configure<Orleans.Configuration.SiloMessagingOptions>(options => options.ResponseTimeout = TimeSpan.FromMinutes(2));
+            services.Configure<Orleans.Configuration.ClientMessagingOptions>(options => options.ResponseTimeout = TimeSpan.FromMinutes(2));
             services.AddSingleton<IBrainOwners, SameNameOwners>();
             AppsModule.ConfigureServices(services, new ConfigurationBuilder().Build());
             services.AddJournalPayloads(typeof(IApp).Assembly);

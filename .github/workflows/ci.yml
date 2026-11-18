@@ -75,8 +75,8 @@ jobs:
 
       - name: Pack DigitalBrain packages
         run: |
-          dotnet pack framework/DigitalBrain.slnx -c Release --no-build -o artifacts/packages -p:CodeGraphRefresh=false
-          dotnet pack framework/templates/DigitalBrain.Templates/DigitalBrain.Templates.csproj -c Release -o artifacts/packages -p:CodeGraphRefresh=false
+          dotnet pack framework/DigitalBrain.slnx -c Release --no-build -o artifacts/packages -p:CodeGraphRefresh=false -p:DebugType=none -p:IncludeSymbols=false
+          dotnet pack framework/templates/DigitalBrain.Templates/DigitalBrain.Templates.csproj -c Release -o artifacts/packages -p:CodeGraphRefresh=false -p:DebugType=none -p:IncludeSymbols=false
 
       - name: Upload DigitalBrain packages
         uses: actions/upload-artifact@v4
@@ -225,11 +225,11 @@ jobs:
           chmod +x ~/.aspire/bundle/dcp/dcp ~/.aspire/bundle/dcp/dcptun_c
           rm -f /tmp/dcp.zip
 
-      - name: Restore AppHost
-        run: dotnet restore src/IntoChat.OS.AppHost/IntoChat.OS.AppHost.csproj -v quiet
+      - name: Restore solution for Aspire AppHost project builds
+        run: dotnet restore Intochat.OS.slnx -v quiet
 
       - name: Prepare Kernel build state
-        run: dotnet build src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj -c Release -p:CodeGraphRefresh=false -p:DebugType=none --nologo -v minimal
+        run: dotnet build src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj -c Release --no-restore -p:CodeGraphRefresh=false --nologo -v minimal
 
       - name: Test E2E
         run: dotnet test --project tests/IntoChat.OS.Tests.E2E/IntoChat.OS.Tests.E2E.csproj -c Release --no-build -p:CodeGraphRefresh=false
@@ -266,8 +266,8 @@ jobs:
         working-directory: ui
         run: flutter test --no-pub --exclude-tags golden --concurrency=4
 
-  # The release workflow packages the Windows bundle with this script. The dry run checks, on the runner image the
-  # release uses, that the script still parses and that every project it publishes is where it looks.
+  # The release workflow packages the Windows bundle with AppHost package-release. The dry run checks, on the runner image the
+  # release uses, that every project it publishes is where it looks.
   package-dry-run:
     name: package-dry-run
     runs-on: windows-2025
@@ -275,9 +275,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
       - name: Dry-run the Windows release packaging
         shell: pwsh
-        run: ./eng/release/package-release.ps1 -Rid win-x64 -DryRun
+        run: dotnet run intochat-os.cs -- package-dry-run --rid win-x64
 
   ci:
     name: ci

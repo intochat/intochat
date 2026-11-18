@@ -42,12 +42,23 @@ public sealed class ReferenceSet
 
     private static ReferenceSet Build()
     {
+#if INTOCHAT_OS_AOT
+        return new ReferenceSet([]);
+#else
+        if (!System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
+        {
+            return new ReferenceSet([]);
+        }
         var available = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var assembly in AssemblyLoadContext.Default.Assemblies)
         {
-            if (!assembly.IsDynamic && assembly.Location.Length > 0 && assembly.GetName().Name is { } name)
+            if (assembly.IsDynamic) { continue; }
+            string location;
+            try { location = assembly.Location; }
+            catch (NotSupportedException) { continue; }
+            if (location.Length > 0 && assembly.GetName().Name is { } name)
             {
-                available.TryAdd(name, assembly.Location);
+                available.TryAdd(name, location);
             }
         }
 
@@ -104,5 +115,6 @@ public sealed class ReferenceSet
         }
 
         return new ReferenceSet([.. carried.Order(StringComparer.OrdinalIgnoreCase).Select(name => (MetadataReference)MetadataReference.CreateFromFile(available[name]))]);
+#endif
     }
 }

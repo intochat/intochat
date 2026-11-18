@@ -23,6 +23,7 @@ public static class ChildEnvironmentPolicy
     [
         "IntoChatOS__",
         "SANDBOX_",
+        "DIGITALBRAIN_",
     ];
 
     private static readonly string[] BlockedSubstrings =

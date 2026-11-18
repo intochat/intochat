@@ -122,11 +122,11 @@ public sealed class SynapseHostFacts
 
     private static void Collect()
     {
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < 10; i++)
         {
-            GC.Collect();
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
             GC.WaitForPendingFinalizers();
-            GC.Collect();
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
         }
     }
 
@@ -272,20 +272,26 @@ public sealed class SynapseHostFacts
         await using var os = Start();
         var first = await DeployApproved(os, "hs6");
 
+        await AssertRivalRefused(os, first.Hash!);
+        Collect();
+        Assert.Empty(os.Loader.Lingering());
+        await Pay(os, "hs6").Charge(50m);
+        await os.Idle();
+        Assert.Equal(50m, await Spent(os, "hs6"));
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static async Task AssertRivalRefused(OS os, string firstHash)
+    {
         var rival = await os.Synapses.Deploy(Brain("hs6"), HsSource.Of(HsSource.Rival, "Me.Rival"), None, Ct);
 
         Assert.Equal(DeployStatus.Refused, rival.Status);
         Assert.Contains("'hs.week'", rival.Reason, StringComparison.Ordinal);
         Assert.Contains(HsSource.Key, rival.Reason, StringComparison.Ordinal);
         Assert.Empty(rival.Installs);
-        Assert.Equal(first.Hash, Assert.Single(await os.Synapses.List(Brain("hs6"), Ct)).Hash);
+        Assert.Equal(firstHash, Assert.Single(await os.Synapses.List(Brain("hs6"), Ct)).Hash);
         var rivalDeployment = os.Get<IUnitDeployment>(NeuronId.Parse("hs6/synapse.deployment/Me.Rival"));
         Assert.Null(await rivalDeployment.Ref(UnitView.Live, Ct));
-        Collect();
-        Assert.Empty(os.Loader.Lingering());
-        await Pay(os, "hs6").Charge(50m);
-        await os.Idle();
-        Assert.Equal(50m, await Spent(os, "hs6"));
     }
 
     [Fact]

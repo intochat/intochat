@@ -614,7 +614,8 @@ internal static class ViewArgs
         {
             var items = System.Text.Json.Nodes.JsonArray.Create(array) ?? [];
             items.Add(value);
-            return JsonSerializer.SerializeToElement(items);
+            using var arrDoc = JsonDocument.Parse(items.ToJsonString());
+            return arrDoc.RootElement.Clone();
         }
         var payload = args is { ValueKind: JsonValueKind.Object } given ? System.Text.Json.Nodes.JsonObject.Create(given) ?? [] : new System.Text.Json.Nodes.JsonObject();
         foreach (var existing in payload.Select(kv => kv.Key).Where(k => string.Equals(k, Value, StringComparison.OrdinalIgnoreCase)).ToArray())
@@ -623,6 +624,7 @@ internal static class ViewArgs
         }
         if (args is { ValueKind: not (JsonValueKind.Object or JsonValueKind.Null or JsonValueKind.Undefined) } other) { payload["args"] = System.Text.Json.Nodes.JsonNode.Parse(other.GetRawText()); }
         payload["value"] = value;
-        return JsonSerializer.SerializeToElement(payload);
+        using var objDoc = JsonDocument.Parse(payload.ToJsonString());
+        return objDoc.RootElement.Clone();
     }
 }

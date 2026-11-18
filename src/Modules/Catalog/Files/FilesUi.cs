@@ -46,6 +46,8 @@ internal static class FilesPathRules
         "Open a writable folder before creating a subfolder.");
 }
 
+internal sealed record FilesActEnvelope(long ExpectedRevision, FilesWorkspaceInput Input);
+
 // The Files views' node vocabulary over IntoChat.OS.UI.Kit: every button emits to the files app with the revision it was drawn at.
 internal static class FilesUi
 {
@@ -59,11 +61,9 @@ internal static class FilesUi
 
     // A files request as FilesRequests forwards it: the verb, the revision the person saw and the item index it names.
     public static Emit Act(string revision, string verb, int? index = null)
-        => new("files", verb == "search-all" ? "search" : verb, JsonSerializer.SerializeToElement(new
-        {
-            expectedRevision = long.Parse(revision, CultureInfo.InvariantCulture),
-            input = new FilesWorkspaceInput(Index: index, Everywhere: verb == "search-all"),
-        }, JsonSerializerOptions.Web));
+        => new("files", verb == "search-all" ? "search" : verb, DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(new FilesActEnvelope(
+            long.Parse(revision, CultureInfo.InvariantCulture),
+            new FilesWorkspaceInput(Index: index, Everywhere: verb == "search-all")), typeof(FilesActEnvelope)));
 
     public static Node Text(string text) => Kit.Text(text);
 

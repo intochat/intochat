@@ -8,8 +8,6 @@ namespace DigitalBrain.Runtime.Orleans;
 /// <summary>File-backed reminder table storing Orleans reminders atomically under <c>&lt;Home&gt;/state/reminders.json</c>.</summary>
 internal sealed class FileReminderTable : IReminderTable
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = false };
-
     private readonly string _filePath;
     private readonly Lock _gate = new();
     private readonly Dictionary<string, ReminderEntry> _entries = new(StringComparer.Ordinal);
@@ -122,7 +120,7 @@ internal sealed class FileReminderTable : IReminderTable
             var bytes = File.ReadAllBytes(_filePath);
             if (bytes.Length > 0)
             {
-                var rows = JsonSerializer.Deserialize<StoredReminderRow[]>(bytes, JsonOptions) ?? [];
+                var rows = (DigitalBrain.Invocation.RuntimeProtocol.Deserialize(bytes, typeof(StoredReminderRow[])) as StoredReminderRow[]) ?? [];
                 foreach (var row in rows)
                 {
                     if (string.IsNullOrWhiteSpace(row.GrainId) || string.IsNullOrWhiteSpace(row.ReminderName)) { continue; }
@@ -159,7 +157,7 @@ internal sealed class FileReminderTable : IReminderTable
                 r.Period.Ticks,
                 r.ETag ?? string.Empty))
             .ToArray();
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(rows, JsonOptions);
+        var bytes = DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(rows, typeof(StoredReminderRow[]));
         var tempPath = $"{_filePath}.{Guid.NewGuid():N}.tmp";
         try
         {

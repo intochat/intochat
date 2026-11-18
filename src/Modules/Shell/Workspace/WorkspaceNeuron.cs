@@ -49,7 +49,7 @@ internal sealed partial class WorkspaceNeuron(INeuronProxies? proxies = null)
         { throw new ArgumentException("Focus must name an open view."); }
         if (next.Windows is { } windows) { CheckWindows(windows, next.OpenViews); }
         if (next.Favourites is { } favourites) { CheckFavourites(favourites); }
-        var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(next))));
+        var digest = Convert.ToHexString(SHA256.HashData(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(next, typeof(WorkspaceUpdate))));
         var receipt = Snapshot.Receipts.FirstOrDefault(item => item.Id == operationId);
         if (receipt is not null)
         {

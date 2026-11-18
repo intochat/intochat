@@ -10,7 +10,10 @@ public sealed class AgentTelemetryFacts
 {
     private static FunctionCallContent Call() => new("c1", "neurons_call", new Dictionary<string, object?>
     {
-        ["contract"] = "IntoChat.OS.Modules.Apps.IInoFiles", ["key"] = "{brain}/ino/files", ["method"] = "Write", ["arguments"] = "[\"a.txt\",\"secret\"]",
+        ["contract"] = "IntoChat.OS.Modules.Apps.IInoFiles",
+        ["key"] = "{brain}/ino/files",
+        ["method"] = "Write",
+        ["arguments"] = "[\"a.txt\",\"secret\"]",
     });
 
     private static List<Activity> Listen(out ActivityListener listener)

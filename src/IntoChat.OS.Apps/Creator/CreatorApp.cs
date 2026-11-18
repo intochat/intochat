@@ -420,9 +420,12 @@ public sealed class CreatorApp : Screen<CreatorState>
         try
         {
             var run = await Get<IntoChat.OS.Modules.AI.Workflows.IWorkflowRun>(runKey).Start(workflow, Blank(State.Draft) ?? workflow);
-            await Show(State with { Status = run.Status == IntoChat.OS.Modules.AI.Workflows.WorkflowRunStatus.Waiting
+            await Show(State with
+            {
+                Status = run.Status == IntoChat.OS.Modules.AI.Workflows.WorkflowRunStatus.Waiting
                 ? $"{workflow} is waiting for your approval ({runKey})."
-                : $"{workflow}: {run.Status} ({runKey})." });
+                : $"{workflow}: {run.Status} ({runKey})."
+            });
         }
         catch (Exception error) when (error is ArgumentException or InvalidOperationException)
         {

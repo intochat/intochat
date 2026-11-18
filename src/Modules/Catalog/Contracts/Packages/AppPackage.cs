@@ -59,17 +59,14 @@ public sealed record AppPackage(
         ArgumentException.ThrowIfNullOrWhiteSpace(version);
         ArgumentNullException.ThrowIfNull(sources);
 
-        var canonical = JsonSerializer.Serialize(new
+        var sb = new StringBuilder(256);
+        sb.Append(key).Append('|').Append(version).Append('|').Append(defaultSettingsJson);
+        foreach (var file in sources.OrderBy(file => file.Path, StringComparer.Ordinal))
         {
-            key,
-            version,
-            defaultSettingsJson,
-            sources = sources
-                .OrderBy(file => file.Path, StringComparer.Ordinal)
-                .Select(file => new { file.Path, file.Code }),
-        });
+            sb.Append('|').Append(file.Path).Append(':').Append(file.Code);
+        }
 
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
         return Convert.ToHexStringLower(hash);
     }
 }

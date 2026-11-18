@@ -36,8 +36,12 @@ public static class McpHosting
         services.AddHttpContextAccessor();
         services.TryAddSingleton<McpCaller>();
         services.TryAddScoped<OsNeuronSurface>();
+        var mcpSerializerOptions = new System.Text.Json.JsonSerializerOptions(ModelContextProtocol.McpJsonUtilities.DefaultOptions);
+        mcpSerializerOptions.TypeInfoResolverChain.Insert(0, KernelMcpJsonContext.Default);
         services.AddMcpServer().WithHttpTransport(options => options.Stateless = true)
-            .WithTools<Tools.NeuronTools>().WithTools<Tools.ScreenTools>().WithTools<McpCaller>();
+            .WithTools<Tools.NeuronTools>(mcpSerializerOptions)
+            .WithTools<Tools.ScreenTools>(mcpSerializerOptions)
+            .WithTools<McpCaller>(mcpSerializerOptions);
     }
 
     public static void MapIntoChatOSMcp(this WebApplication app)

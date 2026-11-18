@@ -3,6 +3,8 @@ using System.Text.Json;
 
 namespace IntoChat.OS.Modules.Apps;
 
+internal sealed record DigestEnvelope(AppManifest Manifest, string Spec, Dictionary<string, string> Files);
+
 internal static class AppPublicationDigest
 {
     public static string Of(AppBundle bundle)
@@ -13,7 +15,7 @@ internal static class AppPublicationDigest
         {
             writer.WriteStartArray();
             writer.WriteStringValue("intochat-os-release-v1");
-            Write(writer, JsonSerializer.SerializeToElement(new { bundle.Manifest, bundle.Spec, bundle.Files }));
+            Write(writer, DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(new DigestEnvelope(bundle.Manifest, bundle.Spec, bundle.Files), typeof(DigestEnvelope)));
             writer.WriteEndArray();
         }
         return Convert.ToHexStringLower(SHA256.HashData(stream.ToArray()));

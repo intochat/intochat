@@ -214,7 +214,9 @@ public static class SynapseShape
         }
 
         var returned = Unwrap(function.ReturnType);
-        var kind = returned == state || returned == typeof(Reaction<>).MakeGenericType(state) ? SynapseKind.Reaction
+        var kind = returned == state
+            || (returned.IsGenericType && returned.GetGenericTypeDefinition() == typeof(Reaction<>) && returned.GetGenericArguments()[0] == state)
+            ? SynapseKind.Reaction
             : SynapseKind.View;
         var isAsync = returned != function.ReturnType;
         var hasDeferred = slots.Any(s => s.Deferred);

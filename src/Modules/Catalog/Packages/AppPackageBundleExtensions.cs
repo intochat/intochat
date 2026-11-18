@@ -25,7 +25,7 @@ internal static class AppPackageExtensions
         ArgumentNullException.ThrowIfNull(package);
         var files = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [PackageManifestFile] = JsonSerializer.Serialize(package, Json),
+            [PackageManifestFile] = System.Text.Encoding.UTF8.GetString(DigitalBrain.Invocation.RuntimeProtocol.SerializeToUtf8Bytes(package, typeof(AppPackage))),
         };
 
         foreach (var file in package.SourceFiles)
@@ -73,7 +73,7 @@ internal static class AppPackageExtensions
         {
             try
             {
-                if (JsonSerializer.Deserialize<AppPackage>(json, Json) is { } parsed)
+                if (DigitalBrain.Invocation.RuntimeProtocol.Deserialize(System.Text.Encoding.UTF8.GetBytes(json), typeof(AppPackage)) is AppPackage parsed)
                 {
                     return parsed;
                 }

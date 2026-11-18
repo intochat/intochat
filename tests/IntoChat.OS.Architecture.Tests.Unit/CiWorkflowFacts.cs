@@ -131,22 +131,24 @@ public sealed partial class CiWorkflowFacts
     private static string[] Uses(string text) =>
         Regex.Matches(text, @"(?m)^\s*(?:-\s*)?uses:\s*(?<action>\S+)").Select(m => m.Groups["action"].Value).Distinct().ToArray();
 
-    private const string PackagingScript = "eng/release/package-release.ps1";
+    private const string PackagingCommand = "dotnet run intochat-os.cs -- package-release --rid win-x64";
+    private const string PackagingDryRunCommand = "dotnet run intochat-os.cs -- package-dry-run --rid win-x64";
 
-    // The deploy facts above say "zero scripts": deploys go through Kernel install. Packaging the desktop bundle is the
-    // one script a workflow runs, and it lives under eng/release, not the retired scripts/ directory.
+    // The deploy facts above say "zero scripts": deploys go through Kernel install, and packaging the desktop bundle
+    // runs through the C# ReleasePackager command on IntoChat.OS.AppHost.
     [Fact]
     public void ReleasePackagesTheWindowsBundleOnAWindowsRunnerAndAttachesItToTheRelease()
     {
-        Assert.True(File.Exists(Path.Combine(Repository.Root, PackagingScript)), PackagingScript + " must exist");
+        Assert.False(File.Exists(Path.Combine(Repository.Root, "eng", "release", "package-release.ps1")), "package-release.ps1 must be retired in favor of ReleasePackager");
+        Assert.False(File.Exists(Path.Combine(Repository.Root, "eng", "release", "package-release.sh")), "package-release.sh must be retired in favor of ReleasePackager");
         var release = Workflow("release.yml");
         var job = Job(release, "package-windows");
 
         Assert.Matches(@"(?m)^\s*runs-on:\s*windows-2025\s*$", job);
         Assert.Matches(@"(?m)^\s*timeout-minutes:\s*\d+\s*$", job);
-        Assert.Contains("./" + PackagingScript + " -Rid win-x64", job, StringComparison.Ordinal);
-        Assert.DoesNotContain("-SkipFlutter", job, StringComparison.Ordinal);
-        Assert.DoesNotContain("-DryRun", job, StringComparison.Ordinal);
+        Assert.Contains(PackagingCommand, job, StringComparison.Ordinal);
+        Assert.DoesNotContain("--skip-flutter", job, StringComparison.Ordinal);
+        Assert.DoesNotContain("--dry-run", job, StringComparison.Ordinal);
 
         // The same guards as the Linux package job: ci passed for this commit and the tag is the VERSION.
         Assert.Contains("check-runs", job, StringComparison.Ordinal);
@@ -193,7 +195,7 @@ public sealed partial class CiWorkflowFacts
         var job = Job(ci, "package-dry-run");
 
         Assert.Matches(@"(?m)^\s*runs-on:\s*windows-2025\s*$", job);
-        Assert.Contains("./" + PackagingScript + " -Rid win-x64 -DryRun", job, StringComparison.Ordinal);
+        Assert.Contains(PackagingDryRunCommand, job, StringComparison.Ordinal);
         Assert.Contains("package-dry-run", Needs(Job(ci, "ci")));
         Assert.Contains("needs.package-dry-run.result", Job(ci, "ci"), StringComparison.Ordinal);
     }

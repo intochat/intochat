@@ -52,7 +52,8 @@ internal sealed class CodeBlockRunNeuron(AppPackageCompiler compiler, ISandboxRu
             await Save(State with { Status = CodeBlockStatus.Waiting, Steps = ["compile"], Needs = needs, PlanId = planId }, new CodeBlockRunWaiting(Id.Key, planId, needs));
             await Confirmations().Request(new ConfirmationPlan(planId, ConfirmationAction.Other, false, $"Let \"{name}\" use {needs.Length} contract(s)?",
                 $"The code block \"{name}\" calls: {string.Join(", ", needs.Select(Short))}. Approving lets any code with these needs use them.",
-                "Allow", "Deny", name) { RequiresPerson = true, Kind = "codeblock.needs", Subject = CodeBlockNeeds.Hash(needs) });
+                "Allow", "Deny", name)
+            { RequiresPerson = true, Kind = "codeblock.needs", Subject = CodeBlockNeeds.Hash(needs) });
             return View();
         }
         return await Execute(compiled, needs);

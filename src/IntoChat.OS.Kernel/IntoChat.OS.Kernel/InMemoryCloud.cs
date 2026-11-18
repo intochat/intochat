@@ -43,7 +43,6 @@ public sealed class InMemoryCloud(bool autoSeedVaultSecrets = false) : IAzureArm
             Endpoint = spec switch
             {
                 ContainerAppSpec => $"{spec.Name}.inmemory.{spec.Location}.azurecontainerapps.io",
-                SessionPoolSpec => $"https://{spec.Name}.inmemory.{spec.Location}.azurecontainerapps.io/",
                 RegistrySpec => $"{spec.Name}.azurecr.io",
                 _ => "",
             },

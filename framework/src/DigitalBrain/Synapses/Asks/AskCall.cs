@@ -44,17 +44,13 @@ internal static class AskCall
         IEnumerable<MethodInfo> methods = contract.IsInterface
             ? contract.GetMethods().Concat(contract.GetInterfaces().SelectMany(inherited => inherited.GetMethods()))
             : contract.GetMethods(BindingFlags.Public | BindingFlags.Instance);
-        HashSet<MethodInfo> excluded = contract.IsInterface ? [] : contract.GetInterfaces()
-            .Where(inherited => inherited == typeof(IDisposable) || inherited == typeof(IAsyncDisposable))
-            .SelectMany(inherited => contract.GetInterfaceMap(inherited).TargetMethods)
-            .ToHashSet();
 
         MethodInfo? found = null;
         foreach (var method in methods)
         {
             if (method.IsSpecialName || method.IsGenericMethodDefinition || method.IsStatic
                 || method.DeclaringType == typeof(object) || method.DeclaringType == typeof(IDisposable) || method.DeclaringType == typeof(IAsyncDisposable)
-                || excluded.Contains(method)
+                || (!contract.IsInterface && Kernel.CallPolicy.IsDisposeMethod(method))
                 || !string.Equals(method.Name, operation, StringComparison.Ordinal))
             {
                 continue;

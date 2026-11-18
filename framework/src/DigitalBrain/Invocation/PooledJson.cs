@@ -24,7 +24,14 @@ internal static class PooledJson
         var writer = _writer ??= new Utf8JsonWriter(buffer, new JsonWriterOptions { Encoder = RuntimeProtocol.Json.Encoder, Indented = false, MaxDepth = RuntimeProtocol.Json.MaxDepth, SkipValidation = true });
         try
         {
-            JsonSerializer.Serialize(writer, value, type, RuntimeProtocol.OptionsFor(value?.GetType() ?? type));
+            if (!System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
+            {
+                RuntimeTypeInfoResolver.WriteAotValue(writer, value, type, RuntimeProtocol.Json);
+            }
+            else
+            {
+                JsonSerializer.Serialize(writer, value, type, RuntimeProtocol.OptionsFor(value?.GetType() ?? type));
+            }
             writer.Flush();
             return JsonElement.Parse(buffer.WrittenSpan, new JsonDocumentOptions { MaxDepth = RuntimeProtocol.Json.MaxDepth });
         }

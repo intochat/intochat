@@ -49,7 +49,11 @@ public static class LoadedContracts
         var pending = new Queue<AssemblyName>();
         if (Assembly.GetEntryAssembly() is { } entry)
         {
-            foreach (var reference in entry.GetReferencedAssemblies()) { pending.Enqueue(reference); }
+            try
+            {
+                foreach (var reference in entry.GetReferencedAssemblies()) { pending.Enqueue(reference); }
+            }
+            catch (PlatformNotSupportedException) { }
         }
         if (Directory.Exists(AppContext.BaseDirectory))
         {
@@ -59,6 +63,7 @@ public static class LoadedContracts
                 if (StartsWithAny(fileName, prefixes))
                 {
                     try { pending.Enqueue(AssemblyName.GetAssemblyName(file)); }
+                    catch (PlatformNotSupportedException) { continue; }
                     catch (BadImageFormatException) { continue; }
                     catch (FileLoadException) { continue; }
                 }
@@ -69,6 +74,7 @@ public static class LoadedContracts
             if (!StartsWithAny(reference.Name, prefixes)
                 || !seen.Add(reference.Name!)) { continue; }
             try { foreach (var next in Assembly.Load(reference).GetReferencedAssemblies()) { pending.Enqueue(next); } }
+            catch (PlatformNotSupportedException) { continue; }
             catch (FileNotFoundException) { continue; }
             catch (FileLoadException) { continue; }
             catch (BadImageFormatException) { continue; }

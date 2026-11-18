@@ -66,7 +66,7 @@ internal sealed record Subscriptions(NeuronId Subscriber, ImmutableList<Subscrip
     public Subscriptions Retreat(Subscription before)
         => Of(before.Source) is { } held ? this with { Entries = Entries.Replace(held, held with { Cursor = before.Cursor, At = before.At }) } : this;
 
-    public byte[] Encode() => JsonSerializer.SerializeToUtf8Bytes(this, RuntimeProtocol.Json);
+    public byte[] Encode() => RuntimeProtocol.SerializeToUtf8Bytes(this, typeof(Subscriptions));
 
     public static Subscriptions Decode(NeuronId subscriber, ReadOnlyMemory<byte> bytes)
     {
