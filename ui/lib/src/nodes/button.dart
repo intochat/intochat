@@ -70,7 +70,7 @@ Future<void> pressCommand(
   String key,
   Command? command,
   NodeContext ctx,
-  BuildContext context,
+  BuildContext? context,
 ) {
   if (command == null || ctx.isTopLevelSelf(command.target)) {
     return ctx.activate(key, context: context);

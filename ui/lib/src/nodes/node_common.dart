@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
+import 'button.dart';
 import 'node_context.dart';
 import 'node_renderer.dart';
 
@@ -61,11 +62,11 @@ CardSource cardSource(
   );
 }
 
-/// A child-button callback: activates the button's key when it is enabled and the view is live.
+/// A child-button callback: sends the button's command (see [pressCommand]) when it is enabled and the view is live.
 VoidCallback? pressOf(ButtonNode? button, NodeContext ctx) =>
     button == null || !button.enabled || !ctx.interactive
     ? null
-    : () => ctx.activate(button.key);
+    : () => pressCommand(button.key, button.command, ctx, null);
 
 /// The children of a layout node, rendered one level deeper.
 List<Widget> renderAll(List<Node> nodes, NodeContext ctx) => [

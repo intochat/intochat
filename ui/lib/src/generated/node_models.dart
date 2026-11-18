@@ -440,6 +440,8 @@ final class CardNode extends Node {
     required this.title,
     required this.body,
     required this.children,
+    required this.header,
+    required this.footer,
   });
 
   @override
@@ -448,6 +450,8 @@ final class CardNode extends Node {
   final String title;
   final String body;
   final List<Node> children;
+  final Node? header;
+  final Node? footer;
 
   factory CardNode.fromJson(Map<String, dynamic> json) => CardNode(
     title: _string(json['title']),
@@ -455,6 +459,8 @@ final class CardNode extends Node {
     children: [
       for (final item in _list(json['children'])) Node.fromJson(_map(item)),
     ],
+    header: json['header'] is Map ? Node.fromJson(_map(json['header'])) : null,
+    footer: json['footer'] is Map ? Node.fromJson(_map(json['footer'])) : null,
   );
 }
 

@@ -352,18 +352,28 @@ public sealed record InfoBar(
 [ViewNode("toast")]
 public sealed record Toast(string Message) : Node;
 
-/// <summary>A card: a title, a body and child nodes below them (the os <c>card</c> control).</summary>
+/// <summary>A card frame (the os <c>card</c> control): plain data with a title, a body, child nodes and optional header and footer slots.</summary>
 /// <param name="Title">The card title.</param>
 /// <param name="Body">The card body.</param>
 /// <param name="Children">Nodes shown below the body, in order.</param>
+/// <param name="Header">A node shown above the title, such as a badge row or a child neuron's slot.</param>
+/// <param name="Footer">A node shown below the children, such as a row of buttons.</param>
 [ViewNode("card")]
-public sealed record Card(string Title, string Body, IReadOnlyList<Node> Children) : Node
+public sealed record Card(
+    [Showcase("""{"kind":"card","title":"Weekly report","body":"Five tasks closed, two open.","children":[{"kind":"progress","label":"Done","value":0.7}]}""")]
+    [Showcase("""{"kind":"card","title":"Deploy","body":"Ready to ship.","children":[],"header":{"kind":"badge","label":"Staging","tone":"accent"},"footer":{"kind":"button","key":"ship","label":"Ship","command":{"target":".","signal":"Shipped"},"tone":"accent","automationName":"Ship"}}""")]
+    string Title,
+    string Body,
+    IReadOnlyList<Node> Children,
+    Node? Header = null,
+    Node? Footer = null) : Node
 {
     /// <inheritdoc />
-    public bool Equals(Card? other) => other is not null && Title == other.Title && Body == other.Body && Children.SequenceEqual(other.Children);
+    public bool Equals(Card? other) => other is not null && Title == other.Title && Body == other.Body && Children.SequenceEqual(other.Children)
+        && Equals(Header, other.Header) && Equals(Footer, other.Footer);
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(Title, Body, Children.Count);
+    public override int GetHashCode() => HashCode.Combine(Title, Body, Children.Count, Header, Footer);
 }
 
 /// <summary>The button tones the renderer knows (the os <c>ControlVisual.Tone</c>): only neutral and accent.</summary>

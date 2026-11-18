@@ -162,6 +162,8 @@ public sealed class CardBuilder : KitNode
     private readonly string _title;
     private readonly string _body;
     private IReadOnlyList<Node> _children;
+    private Node? _header;
+    private Node? _footer;
 
     internal CardBuilder(string title, string body, IReadOnlyList<Node?> children)
     {
@@ -179,7 +181,21 @@ public sealed class CardBuilder : KitNode
         }
     }
 
-    public override Node ToNode() => new Card(_title, _body, _children);
+    /// <summary>Sets the node shown above the title.</summary>
+    public CardBuilder Header(Node? header)
+    {
+        _header = header;
+        return this;
+    }
+
+    /// <summary>Sets the node shown below the children, such as a row of buttons.</summary>
+    public CardBuilder Footer(Node? footer)
+    {
+        _footer = footer;
+        return this;
+    }
+
+    public override Node ToNode() => new Card(_title, _body, _children, _header, _footer);
 }
 
 /// <summary>Fluent materiality surface builder (<c>acrylic</c>, <c>elevated</c>, <c>recessed</c>, <c>subtle</c>).</summary>

@@ -187,11 +187,15 @@ DigitalBrain.UI.ButtonTone
 DigitalBrain.UI.Card
 DigitalBrain.UI.Card.Body.get -> string!
 DigitalBrain.UI.Card.Body.init -> void
-DigitalBrain.UI.Card.Card(string! Title, string! Body, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>! Children) -> void
+DigitalBrain.UI.Card.Card(string! Title, string! Body, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>! Children, DigitalBrain.UI.Node? Header = null, DigitalBrain.UI.Node? Footer = null) -> void
 DigitalBrain.UI.Card.Children.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>!
 DigitalBrain.UI.Card.Children.init -> void
-DigitalBrain.UI.Card.Deconstruct(out string! Title, out string! Body, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>! Children) -> void
+DigitalBrain.UI.Card.Deconstruct(out string! Title, out string! Body, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>! Children, out DigitalBrain.UI.Node? Header, out DigitalBrain.UI.Node? Footer) -> void
 DigitalBrain.UI.Card.Equals(DigitalBrain.UI.Card? other) -> bool
+DigitalBrain.UI.Card.Footer.get -> DigitalBrain.UI.Node?
+DigitalBrain.UI.Card.Footer.init -> void
+DigitalBrain.UI.Card.Header.get -> DigitalBrain.UI.Node?
+DigitalBrain.UI.Card.Header.init -> void
 DigitalBrain.UI.Card.Title.get -> string!
 DigitalBrain.UI.Card.Title.init -> void
 DigitalBrain.UI.Chart

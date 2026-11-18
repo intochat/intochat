@@ -275,11 +275,56 @@
         "name": "children",
         "type": "List<Node>",
         "default": null
+      },
+      {
+        "name": "header",
+        "type": "Node?",
+        "default": null
+      },
+      {
+        "name": "footer",
+        "type": "Node?",
+        "default": null
       }
     ],
     "commands": [],
     "signals": [],
-    "examples": []
+    "examples": [
+      {
+        "kind": "card",
+        "title": "Weekly report",
+        "body": "Five tasks closed, two open.",
+        "children": [
+          {
+            "kind": "progress",
+            "label": "Done",
+            "value": 0.7
+          }
+        ]
+      },
+      {
+        "kind": "card",
+        "title": "Deploy",
+        "body": "Ready to ship.",
+        "children": [],
+        "header": {
+          "kind": "badge",
+          "label": "Staging",
+          "tone": "accent"
+        },
+        "footer": {
+          "kind": "button",
+          "key": "ship",
+          "label": "Ship",
+          "command": {
+            "target": ".",
+            "signal": "Shipped"
+          },
+          "tone": "accent",
+          "automationName": "Ship"
+        }
+      }
+    ]
   },
   {
     "kind": "chart",

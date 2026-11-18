@@ -429,7 +429,12 @@ internal static class NodeOwnerNormalizer
                 Trailing = Normalize(split.Trailing, owner),
             },
             Surface surface => surface with { Children = NormalizeList(surface.Children, owner) },
-            Card card => card with { Children = NormalizeList(card.Children, owner) },
+            Card card => card with
+            {
+                Children = NormalizeList(card.Children, owner),
+                Header = card.Header is null ? null : Normalize(card.Header, owner),
+                Footer = card.Footer is null ? null : Normalize(card.Footer, owner),
+            },
             Tabs tabs => tabs with
             {
                 Items = [.. tabs.Items.Select(item => item with { Emit = NormalizeEmit(item.Emit, owner)! })],
