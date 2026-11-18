@@ -4248,3 +4248,6 @@ DigitalBrain.IScreen.Dispatch(DigitalBrain.UI.Command! command) -> System.Thread
 DigitalBrain.Screen<TState>.Dispatch(DigitalBrain.UI.Command! command) -> System.Threading.Tasks.Task!
 static DigitalBrain.Screen<TState>.Sends<TSignal>(TSignal! signal) -> DigitalBrain.UI.Command!
 DigitalBrain.Screen<TState>.Slot<TChild, TProps>(string! key, TProps! props) -> DigitalBrain.UI.NeuronRef!
+DigitalBrain.Screen<TState>.FollowSlot<TChild, TSignal>(string! key) -> System.Threading.Tasks.Task!
+DigitalBrain.Screen<TState>.RenderDetached(TState! state) -> DigitalBrain.UI.View!
+DigitalBrain.Screen<TState>.SignalSlot.get -> string?

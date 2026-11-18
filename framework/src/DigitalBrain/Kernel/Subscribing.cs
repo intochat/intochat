@@ -73,7 +73,10 @@ internal static class Reactions
         }
         else
         {
-            await ReactionTable.React(neuron, signal.Signal, ct).ConfigureAwait(false);
+            // A reaction may ask who published (a screen maps it to its slot); the turn is single-threaded, so a field holds it.
+            neuron.Delivering = signal.Publisher;
+            try { await ReactionTable.React(neuron, signal.Signal, ct).ConfigureAwait(false); }
+            finally { neuron.Delivering = null; }
         }
     }
 }

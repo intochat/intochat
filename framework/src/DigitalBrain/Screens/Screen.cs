@@ -51,6 +51,38 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     protected Task Follow<TSource, TSignal>(string key) where TSource : class where TSignal : Signal
         => Context.Wires.Ensure<TSignal>(IdOf(typeof(TSource), key));
 
+    /// <summary>Ensures <typeparamref name="TSignal"/> published by this screen's slot child <paramref name="key"/> (a <typeparamref name="TChild"/>) reaches its <c>[On]</c> reaction, where <see cref="SignalSlot"/> names the key. Durable and idempotent.</summary>
+    /// <exception cref="ArgumentException">The key is empty, ".", ".." or contains '/'.</exception>
+    protected Task FollowSlot<TChild, TSignal>(string key) where TChild : class where TSignal : Signal
+        => Follow<TChild, TSignal>(ScreenExtensions.ChildAddress(Id, key));
+
+    /// <summary>
+    /// The key of the slot child that published the signal the running reaction handles (one <see cref="FollowSlot{TChild, TSignal}"/>
+    /// wired), or null when the signal came from elsewhere or the reaction runs for a command. It tells two slots of one control kind apart.
+    /// </summary>
+    protected string? SignalSlot
+    {
+        get
+        {
+            if (Delivering is not { } from || from.Brain != Id.Brain) { return null; }
+            var prefix = Id + "/";
+            return from.Key.StartsWith(prefix, StringComparison.Ordinal) && from.Key.IndexOf('/', prefix.Length) < 0 && from.Key.Length > prefix.Length
+                ? from.Key[prefix.Length..] : null;
+        }
+    }
+
+    /// <summary>
+    /// The view of <paramref name="state"/> drawn outside a save (a preview): slots render as in a save but nothing is stored and the
+    /// slots the current view routes to are unchanged. A screen no runtime attached addresses its slots under a "preview" brain.
+    /// </summary>
+    protected View RenderDetached(TState state)
+    {
+        var outer = _rendering;
+        _rendering = new Dictionary<string, SlotEntry>(StringComparer.Ordinal);
+        try { return Render(state); }
+        finally { _rendering = outer; }
+    }
+
     /// <summary>The view node of this screen's child <paramref name="key"/>, a <typeparamref name="TChild"/> neuron. Rendering it creates nothing; the client's first read of the slot (or a <see cref="Send"/>) does.</summary>
     /// <exception cref="InvalidOperationException">Called outside <see cref="Render"/>, or the key is used twice in one view.</exception>
     /// <exception cref="ArgumentException">The key is empty, ".", ".." or contains '/'.</exception>
@@ -76,7 +108,8 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen where TState : cl
     {
         ScreenExtensions.CheckChildKey(key);
         var rendering = _rendering ?? throw new InvalidOperationException($"Slot '{key}' of '{Alias}' is rendered outside Render.");
-        var child = new NeuronId(Id.Brain, TypeOf(typeof(TChild)), ScreenExtensions.ChildAddress(Id, key));
+        var parent = IsAttached ? Id : new NeuronId(new BrainId("preview"), "preview", "preview");
+        var child = new NeuronId(parent.Brain, TypeOf(typeof(TChild)), ScreenExtensions.ChildAddress(parent, key));
         if (!rendering.TryAdd(key, new SlotEntry(child, props))) { throw new InvalidOperationException($"The view of '{Alias}' names slot '{key}' twice."); }
         if (props is null) { return new NeuronRef("slot", child.ToString()); }
         var wire = PooledJson.Encode(props, props.GetType());

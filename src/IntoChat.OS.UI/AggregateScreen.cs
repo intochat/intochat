@@ -60,13 +60,11 @@ public abstract class AggregateScreenBase<TState> : Screen<TState> where TState 
     public Node PreviewNode(TState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        var owner = SafeOwnerAlias();
-        using var scope = CommandBinding.PushOwner(owner);
-        return NodeOwnerNormalizer.Normalize(RenderNodeCore(state), owner);
+        return PreviewView(state).Root;
     }
 
-    /// <summary>Builds a detached <see cref="View"/> preview for <paramref name="state"/> without requiring grain activation.</summary>
-    public View PreviewView(TState state) => Render(state);
+    /// <summary>Builds a detached <see cref="View"/> preview for <paramref name="state"/> without requiring grain activation; slots render without changing the live view's routing.</summary>
+    public View PreviewView(TState state) => RenderDetached(state);
 
     private protected abstract Node RenderNodeCore(TState state);
 
