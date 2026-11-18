@@ -145,8 +145,10 @@ public sealed class InoWiringFacts(InoSiloFixture fixture) : IClassFixture<InoSi
         await fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "first question");
         await held.Entered.WaitAsync(TimeSpan.FromSeconds(8), Ct);
 
-        // Attempt a second send via direct request while the first run is active
-        await screen.Request("ino.send", JsonSerializer.SerializeToElement(new InoSend(Message: "second question")));
+        // A second send through the composer while the first run is active: the thread refuses it in order (Ino said it cannot take a
+        // message), so it never reaches Ino. A one-way request to Ino could land after the run ends, when sending is allowed again.
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => fixture.ActOnThreadAsync(brain, ChatThreadNeuron.ComposerKey, "second question"));
+        Assert.Equal(ControlProps.Disabled, refused.Reason);
 
         held.Release();
         var finished = await fixture.WaitForScreenAsync(

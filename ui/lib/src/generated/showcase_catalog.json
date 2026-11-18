@@ -462,6 +462,11 @@
         "name": "showsRetry",
         "type": "bool",
         "default": null
+      },
+      {
+        "name": "acceptsText",
+        "type": "bool",
+        "default": null
       }
     ],
     "commands": [

@@ -7,6 +7,7 @@ using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Screens;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
+using DigitalBrain.Units;
 using IntoChat.OS.Apps.Creator;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Apps.FilmCraft;
@@ -383,6 +384,26 @@ public sealed class InoAppFacts
         Assert.Null(ino.App.State.ActiveRunId);
         Assert.Contains("Hi from the background", Texts(InoDrawing.Screen(ino.App)));
         Assert.Equal(("ino", 1_000L), FakeCompute.Records.Single());
+    }
+
+    [Fact]
+    public async Task A_second_send_through_the_thread_while_a_reply_runs_starts_nothing()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
+        await using var os = BackgroundOs();
+        var ino = await os.Install<InoApp>();
+        await ino.Request("send", new InoSend("hello"));
+        Assert.Equal("run-1", ino.App.State.ActiveRunId);
+        var thread = os.Get<IScreen>(new NeuronId(Brain, "control.chatThread", ScreenExtensions.ChildAddress(new NeuronId(Brain, "app.ino", "default"), InoView.ConversationKey)));
+        var view = await thread.Read();
+
+        // Ino said it cannot take a message: the thread refuses the text in order, before it could reach Ino.
+        var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => thread.Activate(view!.Alias, view.Generation, "composer", "second question"));
+        await os.Idle();
+
+        Assert.Equal(ControlProps.Disabled, refused.Reason);
+        Assert.Equal(1, BackgroundAgent.Starts);
+        Assert.DoesNotContain(ino.App.Messages, m => m.Text == "second question");
     }
 
     [Fact]

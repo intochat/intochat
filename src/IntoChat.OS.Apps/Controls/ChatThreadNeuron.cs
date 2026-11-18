@@ -77,7 +77,8 @@ public sealed class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThread
         // The stop and the error's retry show what the props routed with the parent's last write say (kept, so a redraw without
         // props still shows them); a write without props (not from the parent) leaves them.
         var (stop, retry) = Props is { } routed ? Shows(routed) : (State.ShowsStop, State.ShowsRetry);
-        var updated = State with { Messages = next, ShowsStop = stop, ShowsRetry = retry };
+        var accepts = Props is { } given ? given.CanSend && given.IsEnabled : State.AcceptsText;
+        var updated = State with { Messages = next, ShowsStop = stop, ShowsRetry = retry, AcceptsText = accepts };
         return updated.Equals(State) ? Task.CompletedTask : Show(updated);
     }
 
@@ -94,6 +95,8 @@ public sealed class ChatThreadNeuron : ControlNeuron<ChatThreadState, ChatThread
     public Task SubmitText(SubmitText command)
     {
         ArgumentNullException.ThrowIfNull(command);
+        // The parent said it cannot take a message (a reply is running): refused here, in order, before it could reach the parent.
+        if (!State.AcceptsText) { throw new DigitalBrain.Units.ActivationRefusedException(ControlProps.Disabled); }
         return string.IsNullOrWhiteSpace(command.Value)
             ? Task.CompletedTask
             : Publish(new Submitted(new Dictionary<string, string>(StringComparer.Ordinal) { ["text"] = command.Value }));

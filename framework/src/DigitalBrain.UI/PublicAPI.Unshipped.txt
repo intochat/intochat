@@ -2085,3 +2085,5 @@ DigitalBrain.UI.Controls.ChatThreadState.ShowsStop.init -> void
 DigitalBrain.UI.Controls.ChatThreadState.ShowsRetry.init -> void
 DigitalBrain.UI.Controls.ChatThreadState.ShowsRetry.get -> bool
 DigitalBrain.UI.Controls.ChatThreadState.ShowsStop.get -> bool
+DigitalBrain.UI.Controls.ChatThreadState.AcceptsText.get -> bool
+DigitalBrain.UI.Controls.ChatThreadState.AcceptsText.init -> void

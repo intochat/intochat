@@ -16,8 +16,14 @@ public sealed record ChatThreadState
     /// <summary>Whether the props the parent routed with its last write carry an error that retries: the error line's retry is drawn.</summary>
     public bool ShowsRetry { get; init; }
 
+    /// <summary>
+    /// False while the props the parent routed with its last write say it cannot take a message (it is busy or paused): the thread then
+    /// refuses the composer's text, so a send while a reply runs starts nothing and the person keeps the draft.
+    /// </summary>
+    public bool AcceptsText { get; init; } = true;
+
     /// <inheritdoc />
-    public bool Equals(ChatThreadState? other) => other is not null && ShowsStop == other.ShowsStop && ShowsRetry == other.ShowsRetry && Messages.SequenceEqual(other.Messages);
+    public bool Equals(ChatThreadState? other) => other is not null && ShowsStop == other.ShowsStop && ShowsRetry == other.ShowsRetry && AcceptsText == other.AcceptsText && Messages.SequenceEqual(other.Messages);
 
     /// <inheritdoc />
     public override int GetHashCode() => Messages.Count;
