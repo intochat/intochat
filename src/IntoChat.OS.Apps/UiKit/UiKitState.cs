@@ -13,6 +13,13 @@ public sealed record UiKitOpen(string? Page = null) : Signal;
 [Signal("uikit.append")]
 public sealed record UiKitAppend : Signal;
 
+/// <summary>A command a data node example sent: the UI Kit logs it instead of refusing its made-up signal.</summary>
+/// <param name="Kind">The kind of the example that sent it.</param>
+/// <param name="OriginalSignal">The signal alias the example's command named.</param>
+/// <param name="ArgsJson">The example command's args as JSON ("null" when none).</param>
+[Signal(UiKitPages.ShowcaseCommandSignal)]
+public sealed record UiKitShowcaseCommand(string? Kind = null, string? OriginalSignal = null, string? ArgsJson = null) : Signal;
+
 /// <summary>A signal a slotted control published, as the event log shows it.</summary>
 /// <param name="Control">The slot key of the control that published it.</param>
 /// <param name="Signal">The signal alias.</param>

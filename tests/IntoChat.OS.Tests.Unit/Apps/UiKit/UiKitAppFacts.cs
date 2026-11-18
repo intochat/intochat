@@ -91,7 +91,7 @@ public sealed class UiKitAppFacts
         await uikit.Request("append", new UiKitAppend());
 
         var chart = await Drawn<LiveChartView>(os, "control.liveChart", UiKitPages.LiveChart);
-        Assert.Equal(["#1", "#2"], chart.Points.Select(point => point.Label));
+        Assert.Equal(["Mon", "Tue", "Wed", "#1", "#2"], chart.Points.Select(point => point.Label));
         Assert.Contains(uikit.App.State.Log, entry => entry is { Control: UiKitPages.LiveChart, Signal: "control.chartChanged" });
     }
 
@@ -127,4 +127,75 @@ public sealed class UiKitAppFacts
 
         Assert.Equal("form", uikit.App.State.Page);
     }
+
+    [Fact]
+    public async Task The_chart_page_is_seeded_once()
+    {
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var uikit = await UiKit(os, UiKitPages.LiveChart);
+        await uikit.Request("open", new UiKitOpen(UiKitPages.First));
+        await uikit.Request("open", new UiKitOpen(UiKitPages.LiveChart));
+
+        var chart = await Drawn<LiveChartView>(os, "control.liveChart", UiKitPages.LiveChart);
+        Assert.Equal(["Mon", "Tue", "Wed"], chart.Points.Select(point => point.Label));
+    }
+
+    [Fact]
+    public async Task Every_data_node_example_command_lands_in_the_log()
+    {
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var uikit = await UiKit(os, UiKitPages.First);
+        var clicked = 0;
+        foreach (var page in UiKitPages.All)
+        {
+            await uikit.Request("open", new UiKitOpen(page.Id));
+            using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
+            var view = await uikit.Screen.Read() ?? throw new InvalidOperationException("no view");
+            foreach (var command in Commands(view.View))
+            {
+                var signal = command.GetProperty("signal").GetString();
+                if (page.Group != UiKitPages.DataNode) { continue; }
+                Assert.Equal(UiKitPages.ShowcaseCommandSignal, signal);
+                var before = uikit.App.State.Log.Length;
+                await uikit.Screen.Dispatch(new Command(".", signal!, command.GetProperty("args")));
+                await os.Idle();
+                var entry = uikit.App.State.Log[^1];
+                Assert.Equal(page.Id, entry.Control);
+                Assert.Equal(Math.Min(before + 1, UiKitState.MaxLog), uikit.App.State.Log.Length);
+                clicked++;
+            }
+        }
+        Assert.True(clicked >= 4, $"Only {clicked} example commands were found.");
+        Assert.Contains(uikit.App.State.Log, entry => entry.Signal == "Saved");
+    }
+
+    [Fact]
+    public async Task The_nav_groups_its_pages()
+    {
+        await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
+        var uikit = await UiKit(os, UiKitPages.First);
+
+        using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
+        var view = await uikit.Screen.Read() ?? throw new InvalidOperationException("no view");
+        var nav = Slots(view.View).Single(slot => slot.GetProperty("neuronUri").GetString()!.EndsWith("/nav", StringComparison.Ordinal));
+        var groups = nav.GetProperty("props").GetProperty("items").EnumerateArray().Select(item => item.GetProperty("group").GetString()).Distinct();
+        Assert.Equal(new[] { UiKitPages.Scenario, UiKitPages.ControlNeuron, UiKitPages.DataNode }.Order(StringComparer.Ordinal), groups.Order(StringComparer.Ordinal));
+    }
+
+    private static IEnumerable<JsonElement> Commands(JsonElement json) => json.ValueKind switch
+    {
+        JsonValueKind.Object => (json.TryGetProperty("command", out var command) && command.ValueKind == JsonValueKind.Object ? [command] : Enumerable.Empty<JsonElement>())
+            .Concat(json.TryGetProperty("close", out var close) && close.ValueKind == JsonValueKind.Object ? [close] : [])
+            .Concat(json.EnumerateObject().SelectMany(property => Commands(property.Value))),
+        JsonValueKind.Array => json.EnumerateArray().SelectMany(Commands),
+        _ => [],
+    };
+
+    private static IEnumerable<JsonElement> Slots(JsonElement json) => json.ValueKind switch
+    {
+        JsonValueKind.Object => (json.TryGetProperty("refKind", out var kind) && kind.GetString() == "slot" ? [json] : Enumerable.Empty<JsonElement>())
+            .Concat(json.EnumerateObject().SelectMany(property => Slots(property.Value))),
+        JsonValueKind.Array => json.EnumerateArray().SelectMany(Slots),
+        _ => [],
+    };
 }

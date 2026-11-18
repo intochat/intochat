@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DigitalBrain;
 using DigitalBrain.UI;
 using IntoChat.OS.Apps.Controls;
@@ -16,9 +17,9 @@ public sealed record UiKitPage(string Id, string Title, string Group);
 /// <summary>The UI Kit's pages: the scenarios first, then every catalog kind (control neurons and data nodes) in kind order.</summary>
 public static class UiKitPages
 {
-    public const string Scenario = "Scenario";
-    public const string ControlNeuron = "Control neuron";
-    public const string DataNode = "Data node";
+    public const string Scenario = "Scenarios";
+    public const string ControlNeuron = "Controls";
+    public const string DataNode = "Data nodes";
 
     public const string Message = "message";
     public const string FailedReply = "failed-reply";
@@ -108,10 +109,42 @@ public static class UiKitPages
                     ["kind"] = JsonSerializer.SerializeToElement(kind),
                     [JsonNamingPolicy.CamelCase.ConvertName(name)] = value,
                 });
-            if (json.Deserialize<Node>(JsonSerializerOptions.Web) is { } node) { nodes.Add(node); }
+            if (Captured(kind, JsonNode.Parse(json.GetRawText())).Deserialize<Node>(JsonSerializerOptions.Web) is { } node) { nodes.Add(node); }
         }
         return nodes;
     }
+
+    // Every command in an example (an object with a string target and signal) becomes a ShowcaseCommand to the UI Kit itself carrying the
+    // original signal and args: the example's made-up signals are logged instead of refused. The [Showcase] examples stay as written.
+    private static JsonNode? Captured(string kind, JsonNode? json)
+    {
+        switch (json)
+        {
+            case JsonObject command when command["target"] is JsonValue target && target.TryGetValue<string>(out _)
+                && command["signal"] is JsonValue signal && signal.TryGetValue<string>(out var alias):
+                var captured = new UiKitShowcaseCommand(kind, alias, command["args"]?.ToJsonString() ?? "null");
+                return new JsonObject
+                {
+                    ["target"] = ".",
+                    ["signal"] = ShowcaseCommandSignal,
+                    ["args"] = JsonSerializer.SerializeToNode(captured, JsonSerializerOptions.Web),
+                };
+            case JsonObject node:
+                foreach (var name in node.Select(property => property.Key).ToArray()) { node[name] = Captured(kind, node[name]?.DeepClone()); }
+                return node;
+            case JsonArray array:
+                for (var i = 0; i < array.Count; i++) { array[i] = Captured(kind, array[i]?.DeepClone()); }
+                return array;
+            default:
+                return json;
+        }
+    }
+
+    /// <summary>The alias of <see cref="UiKitShowcaseCommand"/>.</summary>
+    public const string ShowcaseCommandSignal = "uikit.showcaseCommand";
+
+    /// <summary>The points the live chart pages start with (fixed event ids, so writing them again is ignored while the chart holds them).</summary>
+    public static IReadOnlyList<LivePoint> ChartSeed { get; } = [new("seed-1", "Mon", 40), new("seed-2", "Tue", 65), new("seed-3", "Wed", 52)];
 
     /// <summary>The messages a scenario page writes into its chat thread when shown (idempotent by id), or none.</summary>
     public static IReadOnlyList<ThreadMessage> Seed(string page) => page switch

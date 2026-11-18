@@ -24,7 +24,20 @@ Widget renderListBoxView(ListBoxViewNode node, NodeContext ctx) {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final item in props.items)
+        for (final (index, item) in props.items.indexed) ...[
+          // A group header where the group changes from the item before.
+          if (item.group != null &&
+              (index == 0 || props.items[index - 1].group != item.group))
+            Padding(
+              key: ValueKey('${node.key}/group:${item.group}'),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Builder(
+                builder: (context) => Text(
+                  item.group!,
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ),
+            ),
           ListTile(
             key: ValueKey('${node.key}/${item.id}'),
             dense: true,
@@ -38,6 +51,7 @@ Widget renderListBoxView(ListBoxViewNode node, NodeContext ctx) {
                 ? () => actListBoxSelect(ctx, '.', id: item.id)
                 : null,
           ),
+        ],
       ],
     ),
   );

@@ -2,7 +2,7 @@
 # UI Kit
 Role: Default
 Shipped: true
-Operations: open, append
+Operations: open, append, showcaseCommand
 
 Working, clickable prototypes of every control: one page per catalog kind and a page per chat scenario. Control neuron kinds are real
 slotted children (slot key = the kind); data node kinds are drawn inline from their [Showcase] examples. The app follows every child's
@@ -39,6 +39,7 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
             [
                 new("open", "Show the page the input names: a scenario id or a catalog kind (the first scenario when empty or unknown)."),
                 new("append", "Append the next sample point to the live chart the current page shows."),
+                new("showcaseCommand", "Log a command a data node example sent (its kind, signal and args)."),
             ],
             Settings: [],
             Slots: [],
@@ -124,6 +125,13 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
         return Show(SignalSlot == UiKitPages.ControlledSwitch ? logged with { ControlledOn = toggled.IsOn } : logged);
     }
 
+    [On]
+    public Task ShowcaseCommand(UiKitShowcaseCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return Show(State.Logged(new UiKitEvent(command.Kind ?? "(example)", command.OriginalSignal ?? "", command.ArgsJson ?? "null", Context.Time.GetUtcNow())));
+    }
+
     [On] public Task OnExpanded(Expanded expanded) => Show(Log(expanded));
     [On] public Task OnSubmitted(Submitted submitted) => Show(Log(submitted));
     [On] public Task OnChartChanged(ChartChanged changed) => Show(Log(changed));
@@ -145,6 +153,11 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
     {
         await Show(basis with { Page = page });
         if (UiKitPages.Seed(page) is { Count: > 0 } seed) { await SendTo(page, new ImportMessages(seed)); }
+        // A chart starts with a few points: the chart ignores an event id it holds, so a later show (or one after Append) adds nothing.
+        if (page is "liveChart" or UiKitPages.LiveChart)
+        {
+            foreach (var point in UiKitPages.ChartSeed) { await SendTo(page, new Append(point)); }
+        }
     }
 
     private static string AliasOf(Type signal) => System.Reflection.CustomAttributeExtensions.GetCustomAttribute<SignalAttribute>(signal)!.Alias;
@@ -157,7 +170,7 @@ public sealed class UiKitApp : AggregateScreen<UiKitState>
         ArgumentNullException.ThrowIfNull(state);
         var page = UiKitPages.Find(state.Page) ?? UiKitPages.All[0];
         var nav = Slot<ListBoxNeuron, ListBoxProps>(UiKitPages.Nav, new ListBoxProps(
-            [.. UiKitPages.All.Select(item => new ListBoxItem(item.Id, item.Title, item.Group))], AutomationName: "UI Kit pages", SelectedId: page.Id));
+            [.. UiKitPages.All.Select(item => new ListBoxItem(item.Id, item.Title, Group: item.Group))], AutomationName: "UI Kit pages", SelectedId: page.Id));
         return new SplitPane(nav, new Column(
         [
             new Heading(page.Title, 1, page.Group),

@@ -1511,16 +1511,19 @@ final class ListBoxItem {
     required this.id,
     required this.title,
     required this.subtitle,
+    required this.group,
   });
 
   final String id;
   final String title;
   final String? subtitle;
+  final String? group;
 
   factory ListBoxItem.fromJson(Map<String, dynamic> json) => ListBoxItem(
     id: _string(json['id']),
     title: _string(json['title']),
     subtitle: _stringOrNull(json['subtitle']),
+    group: _stringOrNull(json['group']),
   );
 }
 

@@ -1583,11 +1583,13 @@ DigitalBrain.UI.Controls.ListBoxView.SelectedId.get -> string?
 DigitalBrain.UI.Controls.ListBoxView.SelectedId.init -> void
 DigitalBrain.UI.ListBoxItem
 DigitalBrain.UI.ListBoxItem.<Clone>$() -> DigitalBrain.UI.ListBoxItem!
-DigitalBrain.UI.ListBoxItem.Deconstruct(out string! Id, out string! Title, out string? Subtitle) -> void
+DigitalBrain.UI.ListBoxItem.Deconstruct(out string! Id, out string! Title, out string? Subtitle, out string? Group) -> void
 DigitalBrain.UI.ListBoxItem.Equals(DigitalBrain.UI.ListBoxItem? other) -> bool
 DigitalBrain.UI.ListBoxItem.Id.get -> string!
 DigitalBrain.UI.ListBoxItem.Id.init -> void
-DigitalBrain.UI.ListBoxItem.ListBoxItem(string! Id, string! Title, string? Subtitle = null) -> void
+DigitalBrain.UI.ListBoxItem.Group.get -> string?
+DigitalBrain.UI.ListBoxItem.Group.init -> void
+DigitalBrain.UI.ListBoxItem.ListBoxItem(string! Id, string! Title, string? Subtitle = null, string? Group = null) -> void
 DigitalBrain.UI.ListBoxItem.Subtitle.get -> string?
 DigitalBrain.UI.ListBoxItem.Subtitle.init -> void
 DigitalBrain.UI.ListBoxItem.Title.get -> string!

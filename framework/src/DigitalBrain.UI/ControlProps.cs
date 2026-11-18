@@ -135,7 +135,8 @@ public sealed record ComboBoxProps(string Header, IReadOnlyList<ComboBoxOption> 
 /// <param name="Id">The id a selection names.</param>
 /// <param name="Title">The item's main line.</param>
 /// <param name="Subtitle">An optional muted second line.</param>
-public sealed record ListBoxItem(string Id, string Title, string? Subtitle = null);
+/// <param name="Group">The group the item belongs to: a header is drawn where the group changes from the item before; null draws none.</param>
+public sealed record ListBoxItem(string Id, string Title, string? Subtitle = null, string? Group = null);
 
 /// <summary>Whether a list box lets a person select an item.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<ListSelectionMode>))]

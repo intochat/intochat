@@ -39,6 +39,24 @@ Future<List<Map<String, dynamic>>> _pump(
 }
 
 void main() {
+  testWidgets('a header is drawn where the item group changes', (tester) async {
+    await _pump(tester, {
+      'items': [
+        {'id': 'a', 'title': 'A', 'group': 'Scenarios'},
+        {'id': 'b', 'title': 'B', 'group': 'Scenarios'},
+        {'id': 'c', 'title': 'C', 'group': 'Controls'},
+        {'id': 'd', 'title': 'D'},
+      ],
+    }, selectedId: null);
+
+    expect(find.text('Scenarios'), findsOneWidget);
+    expect(find.text('Controls'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Controls')).dy,
+      greaterThan(tester.getTopLeft(find.text('B')).dy),
+    );
+  });
+
   testWidgets('a tap sends Select to the list box neuron', (tester) async {
     final sent = await _pump(tester, {'items': _items});
 
