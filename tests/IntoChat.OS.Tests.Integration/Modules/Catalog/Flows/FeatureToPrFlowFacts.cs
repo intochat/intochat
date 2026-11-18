@@ -1,8 +1,10 @@
+using IntoChat.OS.Tests;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
@@ -178,11 +180,12 @@ public sealed class FeatureToPrFlowFacts : IDisposable
 
         await using var fixture = new FeatureToPrFixture(workTree, coder);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         var studio = runtime.Get<IInoStudio>(new NeuronId(runtime.Brain, "ino.studio", "studio"));
 
         InoToolResult proposedResult;
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value)))
+        using (runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain)))
         {
             proposedResult = await studio.ProposeChange("os", "Add Multiply method to Calculator", Ct);
         }
@@ -223,14 +226,14 @@ public sealed class FeatureToPrFlowFacts : IDisposable
         // is rejected with UnauthorizedAccessException and leaves the human's plan pending & untouched!
         var resolver = runtime.Get<IntoChat.OS.Modules.Apps.Tests.Integration.Approvals.IPlanResolver>(
             new NeuronId(runtime.Brain, IntoChat.OS.Modules.Apps.Tests.Integration.Approvals.PlanResolver.Alias, "resolver"));
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value)))
+        using (runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain)))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
                 resolver.Resolve(waitingView.ConfirmationPlanId!, approve: true));
         }
 
         // An agent's cancel of the waiting run is refused: the run still waits and its tree stays.
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value, CallerKind.Agent, conversationId: "ino/conversations/main")))
+        using (runtime.Edge.Enter(runtime.Edge.Agent(new Actor.Person("person", "person"), runtime.Brain, conversation: "ino/conversations/main")))
         {
             var refused = await Assert.ThrowsAsync<DigitalBrain.Rules.RuleViolationException>(() => flows.Cancel(flowId, "agent says stop", Ct));
             Assert.Equal(["apps.flows-person-cancels-approval-wait"], refused.Rejected.Rules);
@@ -294,10 +297,11 @@ public sealed class FeatureToPrFlowFacts : IDisposable
         var siloHome = Path.Combine(_root, "silo-home");
         await using var fixture = new FeatureToPrFixture(faultWorkTree, coder);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct, home: siloHome);
+        using var person = runtime.As(Who.Person);
 
         var studio = runtime.Get<IInoStudio>(new NeuronId(runtime.Brain, "ino.studio", "studio"));
         InoToolResult proposed;
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value)))
+        using (runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain)))
         {
             proposed = await studio.ProposeChange("os", "Add Divide method [ci skip]", Ct);
         }
@@ -368,6 +372,7 @@ public sealed class FeatureToPrFlowFacts : IDisposable
 
         await using var fixture = new FeatureToPrFixture(workTree, coder);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         var (flowId, stopped) = await StartAndWaitUntilItStops(runtime, "fmtgate01", "Introduce trailing whitespace");
 
@@ -394,6 +399,7 @@ public sealed class FeatureToPrFlowFacts : IDisposable
 
         await using var fixture = new FeatureToPrFixture(workTree, coder);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         var flows = runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value));
 
@@ -466,6 +472,7 @@ public sealed class FeatureToPrFlowFacts : IDisposable
 
         await using var fixture = new FeatureToPrFixture(workTree, coder);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         var (flowId, stopped) = await StartAndWaitUntilItStops(runtime, "toobig01", "Add a very large helper class");
 
@@ -511,6 +518,7 @@ public sealed class FeatureToPrFlowFacts : IDisposable
 
         await using var fixture = new FeatureToPrFixture(workTree, coder);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         const string Goal = "Add three helper classes and Multiply\nand a second line only the pull request would show";
         var (flowId, stopped) = await StartAndWaitUntilItStops(
@@ -555,6 +563,7 @@ public sealed class FeatureToPrFlowFacts : IDisposable
 
         await using var fixture = new FeatureToPrFixture(workTree, coder);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         var (flowId, stopped) = await StartAndWaitUntilItStops(runtime, "binary01", "Add a data file");
 

@@ -365,8 +365,8 @@ public sealed class NetworkSignInFacts
 
     private sealed class ModuleSessions : IIdentitySessionPort
     {
-        public Task<SessionIssued> Issue(CapabilityCaller caller, SessionRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task End(CapabilityCaller caller, string sessionId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<SessionIssued> Issue(SessionRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task End(string sessionId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<Member?> Validate(string sessionId, CancellationToken cancellationToken) => Task.FromResult<Member?>(null);
         public IdentityProviderDescriptor Describe() => throw new NotSupportedException();
     }

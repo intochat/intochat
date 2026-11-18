@@ -12,6 +12,8 @@ public sealed class MarketplaceAndSharePackageFacts
     [Fact]
     public async Task DurableMarketplaceNeuronStoresListsReadsAndRemovesPackageListings()
     {
+        // The system brain is platform territory: its directory, marketplace and circles are reached by platform code.
+        using var kernel = IntoChat.OS.Tests.TestEdge.Authority.EnterKernel(new BrainId("system"));
         await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
         var marketplace = os.Get<IMarketplace>(new NeuronId(new BrainId("system"), "apps.marketplace", "main"));
 
@@ -68,6 +70,7 @@ public sealed class MarketplaceAndSharePackageFacts
     [Fact]
     public async Task ProfileNeuronShareAndForkPreserveAppPackageUnitFiles()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("alice", "alice", new BrainId("alice")));
         await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
         var profile = os.Get<IProfile>(new NeuronId(new BrainId("alice"), "os.profile", "profile"));
 

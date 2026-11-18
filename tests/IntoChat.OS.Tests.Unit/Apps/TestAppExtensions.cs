@@ -23,6 +23,10 @@ public sealed class InstalledApp<TApp> where TApp : Neuron
     }
 
     public TestOS OS => _os;
+
+    // The person who uses the installed app's screen, unless the fact already stamped a caller of its own.
+    private IDisposable? AsUser() => _os.Edge.Current is null ? _os.Edge.Enter(_os.Edge.Person("local", "local", new BrainId("local"))) : null;
+
     public TApp App => _app;
     public IScreen Screen => _screen;
 
@@ -30,6 +34,7 @@ public sealed class InstalledApp<TApp> where TApp : Neuron
     {
         get
         {
+            using var user = AsUser();
             var published = _screen.Read().GetAwaiter().GetResult();
             return published is not null ? PresentedView.From(published) : new PresentedView("main", null);
         }
@@ -47,6 +52,7 @@ public sealed class InstalledApp<TApp> where TApp : Neuron
             {
                 return new PresentedView("side", tasks.RenderSide());
             }
+            using var user = AsUser();
             var published = _screen.Read().GetAwaiter().GetResult();
             return published is not null ? PresentedView.From(published) : new PresentedView("side", null);
         }
@@ -85,7 +91,7 @@ public sealed class InstalledApp<TApp> where TApp : Neuron
         var json = input is not null
             ? JsonSerializer.SerializeToElement(input, RuntimeProtocol.OptionsFor(inputType!))
             : (JsonElement?)null;
-        await _screen.Request(signalAlias, json);
+        using (AsUser()) { await _screen.Request(signalAlias, json); }
         await _os.Idle();
     }
 }

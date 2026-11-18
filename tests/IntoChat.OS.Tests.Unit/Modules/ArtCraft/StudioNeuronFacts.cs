@@ -12,6 +12,7 @@ public sealed class StudioNeuronFacts(ArtCraftFixture fixture) : IClassFixture<A
     [Fact]
     public async Task AnAppThatIsNotArtCraftIsRefused()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", new BrainId("facts")));
         var runtime = fixture.Runtime;
         var studio = runtime.Get<IArtCraftStudio>(new NeuronId(FactsBrain, "artcraft.studio", "artcraft"));
 
@@ -21,6 +22,7 @@ public sealed class StudioNeuronFacts(ArtCraftFixture fixture) : IClassFixture<A
     [Fact]
     public async Task AnAppWithoutAnMcpServerInThisDeploymentIsRefused()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", new BrainId("facts")));
         var runtime = fixture.Runtime;
         var studio = runtime.Get<IArtCraftStudio>(new NeuronId(FactsBrain, "artcraft.studio", "artcraft"));
 

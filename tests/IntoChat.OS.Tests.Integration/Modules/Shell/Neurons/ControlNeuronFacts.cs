@@ -1,4 +1,6 @@
+using IntoChat.OS.Tests;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Fields;
@@ -21,7 +23,7 @@ public sealed class ControlNeuronFacts(FlutterFixture fixture) : IClassFixture<F
         var id = runtime.Id(UIVocabulary.FieldType, "apps/login/secret");
         var field = runtime.Get<IField>(id);
         // What the edge stamps on the person's request; a field refuses an unstamped call.
-        using var person = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(new DigitalBrain.Capabilities.CapabilityCaller("person", "person", runtime.Brain.Value));
+        using var person = runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain));
 
         await field.Configure(DigitalBrain.UI.FieldKind.Secret);
         await field.Set("hunter2-set");
@@ -37,6 +39,7 @@ public sealed class ControlNeuronFacts(FlutterFixture fixture) : IClassFixture<F
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id(ChatIndex.GrainType, "apps/ino-data/chats");
         var index = runtime.Get<IChatIndex>(id);
 
@@ -57,7 +60,9 @@ public sealed class ControlNeuronFacts(FlutterFixture fixture) : IClassFixture<F
     public async Task ComputeNeuronReturnsDefaultUsageAndRecordsNewUsage(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
-        var id = runtime.Id("ui.compute", "usage");
+        using var person = runtime.As(Who.Person);
+        // The person reads only the brain's own compute neuron, keyed compute (task 7 ruling: ComputeNeuron.EnsureAuthorized).
+        var id = runtime.Id("ui.compute", "compute");
         var compute = runtime.Get<IntoChat.OS.Modules.Flutter.Compute.ICompute>(id);
 
         var initial = await compute.Read();

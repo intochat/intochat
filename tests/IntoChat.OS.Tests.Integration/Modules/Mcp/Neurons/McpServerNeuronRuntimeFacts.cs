@@ -1,3 +1,4 @@
+using IntoChat.OS.Tests;
 using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Modules.Mcp.Tests.Integration;
@@ -12,6 +13,7 @@ public sealed class McpServerNeuronRuntimeFacts(McpFixture fixture) : IClassFixt
     public async Task ANeverConnectedServerReadsEmptyAndOffersNoTools(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var server = runtime.Get<IMcpServer>(runtime.Id("mcp.server", $"mcp/empty-{kind}"));
 
         Assert.False((await server.Read()).Connected);
@@ -23,6 +25,7 @@ public sealed class McpServerNeuronRuntimeFacts(McpFixture fixture) : IClassFixt
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("mcp.server", $"mcp/unreachable-{kind}");
         var server = runtime.Get<IMcpServer>(id);
 

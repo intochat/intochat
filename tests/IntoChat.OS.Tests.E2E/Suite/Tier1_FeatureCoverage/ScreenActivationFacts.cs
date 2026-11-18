@@ -82,6 +82,7 @@ public sealed class ScreenActivationFacts : E2ETestBase, IClassFixture<TestOSFix
         os.Register<TestCounterScreen>();
 
         var brain = NewBrain("screen-init");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.test_counter", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -101,6 +102,7 @@ public sealed class ScreenActivationFacts : E2ETestBase, IClassFixture<TestOSFix
         os.Register<TestCounterScreen>();
 
         var brain = NewBrain("screen-req");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.test_counter", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -125,6 +127,7 @@ public sealed class ScreenActivationFacts : E2ETestBase, IClassFixture<TestOSFix
         os.Register<TestCounterScreen>();
 
         var brain = NewBrain("screen-noop");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.test_counter", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -149,6 +152,7 @@ public sealed class ScreenActivationFacts : E2ETestBase, IClassFixture<TestOSFix
         os.Register<TestCounterScreen>();
 
         var brain = NewBrain("screen-act");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.test_counter", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -174,6 +178,7 @@ public sealed class ScreenActivationFacts : E2ETestBase, IClassFixture<TestOSFix
         os.Register<TestCounterScreen>();
 
         var brain = NewBrain("screen-stale");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.test_counter", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -199,6 +204,7 @@ public sealed class ScreenActivationFacts : E2ETestBase, IClassFixture<TestOSFix
         os.Register<TestCounterScreen>();
 
         var brain = NewBrain("screen-invalids");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.test_counter", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -225,6 +231,7 @@ public sealed class ScreenActivationFacts : E2ETestBase, IClassFixture<TestOSFix
         os.Register<TestCounterScreen>();
 
         var brain = NewBrain("screen-alias");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.test_counter", "default");
         var screen = os.Get<IScreen>(screenId);
 

@@ -1,4 +1,7 @@
+using IntoChat.OS.Tests;
+using IntoChat.OS.Framework;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections.Integrations;
@@ -27,6 +30,7 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await Start(StubChatClient.Replying("ok"), ct);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("agent", "agents/flow");
         var agent = runtime.Get<IAgent>(id);
 
@@ -42,6 +46,7 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await Start(StubChatClient.Replying("ok"), ct);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("agent", "agents/trace");
         var agent = runtime.Get<IAgent>(id);
         var trace = TraceContext.Begin("account-1", runtime.Brain.Value, id);
@@ -60,6 +65,7 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await Start(StubChatClient.Replying("ok"), ct);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("agent", "agents/model-switch");
         var agent = runtime.Get<IAgent>(id);
         var profileContext = runtime.Get<IAgentContext>(runtime.Id("agent-context", "context/user.profile"));
@@ -116,18 +122,19 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
             services.AddSingleton<IChatClient>(StubChatClient.Replying("Here is a joke and token sk_live_topsecret999!"));
             services.AddSingleton(new OsNeuronSurface(null!, null!, null!));
             services.AddSingleton<IAiCredentials, NoProviders>();
-            services.AddSingleton<ISecretValueSource>(new ZeroTokenGuardedSecretSource("sk_live_topsecret999"));
+            services.AddSingleton<ISecretValueSource>(sp => new ZeroTokenGuardedSecretSource(sp.GetRequiredService<ICallerAmbient>(), "sk_live_topsecret999"));
             services.AddSingleton<ISecretRedactor, SecretRedactor>();
             services.AddOptions<AIOptions>();
             services.AddSingleton<ModelCatalog>();
         });
+        using var person = runtime.As(Who.Person);
 
         var id = runtime.Id("agent", "ino/conversations/main");
         var agent = runtime.Get<IAgent>(id);
-        var appCaller = CapabilityCallers.Of(AppPrincipal.Id("owner/apps/ino"), runtime.Brain.Value, runtime.Brain.Value, CallerKind.App, "owner/apps/ino");
+        var appCaller = runtime.Edge.App("owner/apps/ino", new Actor.Person(runtime.Brain.Value, runtime.Brain.Value), runtime.Brain);
 
         string runId;
-        using (RuntimeCallerContext.Stamp(appCaller))
+        using (runtime.Edge.Enter(appCaller))
         {
             runId = await agent.Start(Turn("Hi, tell me a joke"));
         }
@@ -175,12 +182,11 @@ public sealed class AgentNeuronFacts(AiFixture fixture) : IClassFixture<AiFixtur
         public ValueTask<int> TailLength(CancellationToken cancellationToken) => ValueTask.FromResult(0);
     }
 
-    private sealed class ZeroTokenGuardedSecretSource(params string[] secrets) : ISecretValueSource
+    private sealed class ZeroTokenGuardedSecretSource(ICallerAmbient callers, params string[] secrets) : ISecretValueSource
     {
         public ValueTask<IReadOnlyList<string>> CurrentValues(CancellationToken cancellationToken)
         {
-            if (RuntimeCallerContext.TryGet(out var caller)
-                && (caller.Kind == CallerKind.App || AppPrincipal.IsApp(caller.PrincipalId)))
+            if (CallerRules.IsApp(callers.Current, out _))
             {
                 throw new UnauthorizedAccessException("Zero-token auth enforcement: sandbox and app principals cannot read raw vault secret values directly.");
             }

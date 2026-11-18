@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
@@ -102,6 +103,7 @@ public sealed class TestVerificationServiceFacts
     [Fact]
     public async Task TestVerificationNeuron_RunsTargetedSuite_AndRecordsHistoryInState()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var ct = TestContext.Current.CancellationToken;
         TestProcessRunner.OverrideExecutor = (req, token) => Task.FromResult(new TestExecutionResult(true, 5, 5, 0, 0, 100, "5 passed", []));
         try
@@ -135,6 +137,7 @@ public sealed class TestVerificationServiceFacts
     [Fact]
     public async Task TestVerificationNeuron_CapsHistoryAtFiftyRuns()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var ct = TestContext.Current.CancellationToken;
         TestProcessRunner.OverrideExecutor = (req, token) => Task.FromResult(new TestExecutionResult(true, 1, 1, 0, 0, 10, "ok", []));
         try
@@ -165,6 +168,7 @@ public sealed class TestVerificationServiceFacts
     [Fact]
     public async Task TestVerificationService_DelegatesToNeuron()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var ct = TestContext.Current.CancellationToken;
         TestProcessRunner.OverrideExecutor = (req, token) => Task.FromResult(new TestExecutionResult(true, 2, 2, 0, 0, 20, "2 passed", []));
         try
@@ -248,12 +252,12 @@ public sealed class TestVerificationServiceFacts
     [Fact]
     public void ResolveBrainId_RespectsStampedCaller()
     {
-        var services = new ServiceCollection().BuildServiceProvider();
+        var services = new ServiceCollection().AddSingleton(IntoChat.OS.Tests.TestEdge.Callers).BuildServiceProvider();
         var service = new TestVerificationService(services);
 
         Assert.Throws<InvalidOperationException>(() => service.ResolveBrainId());
 
-        using (RuntimeCallerContext.StampScope(CapabilityCallers.Of("usr-1", "acc-1", "tenant-beta")))
+        using (IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("usr-1", "acc-1", new BrainId("tenant-beta"))))
         {
             Assert.Equal(new BrainId("tenant-beta"), service.ResolveBrainId());
         }

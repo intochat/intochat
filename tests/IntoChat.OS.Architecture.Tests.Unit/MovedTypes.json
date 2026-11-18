@@ -402,11 +402,6 @@
       "persisted": false
     },
     {
-      "old": "IntoChat.OS.Framework.CallerContextStamper",
-      "alias": null,
-      "persisted": false
-    },
-    {
       "old": "IntoChat.OS.Framework.Compute.TraceContext",
       "alias": null,
       "persisted": false
@@ -630,11 +625,6 @@
       "old": "IntoChat.OS.Framework.TaskBoxing",
       "alias": null,
       "persisted": false
-    },
-    {
-      "old": "IntoChat.OS.Framework.UntrustedCallerException",
-      "alias": "enforcement.untrusted-caller",
-      "persisted": true
     },
     {
       "old": "IntoChat.OS.IBrain",

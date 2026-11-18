@@ -203,6 +203,7 @@ public sealed class DddReactorAndExplorerFacts
     [InlineData("app.test.workspace-filter")]
     public async Task AggregateScreensHandleEmptyJsonRequestAndStateInspectionCleanly(string alias)
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
         os.Register<HelloScreen>();
         os.Register<BankScreen>();
@@ -227,6 +228,7 @@ public sealed class DddReactorAndExplorerFacts
     [Fact]
     public async Task HelloScreenEndToEndToggleUpdatesStateViewAndJournal()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
         os.Register<HelloScreen>();
 
@@ -299,6 +301,7 @@ public sealed class DddReactorAndExplorerFacts
     [Fact]
     public async Task BankScreenGuardDisablesIllegalButtonAndDirectInvocationRefusesWithSameStateAndEphemeralRejected()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
         os.Register<BankScreen>();
 
@@ -378,6 +381,7 @@ public sealed class DddReactorAndExplorerFacts
     [Fact]
     public async Task TypedFieldBindingPureStateTransitionsAndAsyncOrchestrationWorkEndToEnd()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
         os.Register<WorkspaceFilterScreen>();
         os.Register<FxOracleNeuron>();

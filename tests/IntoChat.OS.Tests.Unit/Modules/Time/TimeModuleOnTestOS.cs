@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Time.Timers;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +19,7 @@ public sealed class TimeModuleOnTestOS : ModuleOnTestOSFacts<TimeModule>
     [Fact]
     public async Task TimerNeuronEnforcesConfiguredMinimumTimerPeriod()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var services = new ServiceCollection();
         services.Configure<TimeModuleOptions>(options => options.MinimumTimerPeriod = TimeSpan.FromSeconds(5));
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider())

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Storage;
@@ -52,7 +53,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
     public async Task DesktopSettingsGalleryPhotoCraftAndFilmCraftLifecycleRunsOnSilo()
     {
         var brain = fixture.NewBrain("shell");
-        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
+        using var stamp = fixture.Edge.Enter(fixture.Edge.Person(brain, brain, new BrainId(brain)));
         var settingsNeuron = SiloNeurons.Get<IUserSettings>(fixture.Services, $"{brain}/settings");
         var profileNeuron = SiloNeurons.Get<IProfile>(fixture.Services, $"{brain}/profile");
 
@@ -208,7 +209,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
     public async Task InoChatMemoryLoopDatabaseQueryStudioRoutingAndSecretPromptRunOnSilo()
     {
         var brain = fixture.NewBrain("ino");
-        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
+        using var stamp = fixture.Edge.Enter(fixture.Edge.Person(brain, brain, new BrainId(brain)));
         var memory = SiloNeurons.Get<IMemory>(fixture.Services, $"{brain}/memory");
         var settings = SiloNeurons.Get<IUserSettings>(fixture.Services, $"{brain}/settings");
 
@@ -268,7 +269,7 @@ public sealed class RestoredAppsE2EFacts(ProductHostFixture fixture)
         var brainId = new BrainId(brain);
         var appKey = $"{brain}/apps/files";
 
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("user-owner", "user-owner", brain, CallerKind.App, appKey)))
+        using (fixture.Edge.Enter(fixture.Edge.App(appKey, new Actor.Person("user-owner", "user-owner"), new BrainId(brain))))
         {
             var broker = fixture.Services.GetRequiredService<ICapabilityBroker>();
             var files = new FilesApp(

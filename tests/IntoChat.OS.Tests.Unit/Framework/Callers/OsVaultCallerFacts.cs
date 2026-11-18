@@ -13,6 +13,9 @@ public sealed class OsVaultCallerFacts : IAsyncLifetime
 {
     private static readonly BrainId Brain = new("system");
     private static readonly Actor.Person Alice = new("alice", "acc-1");
+
+    // identity.vault is cluster-internal: callers reach it relayed by a neuron (the secrets port), never directly from the edge.
+    private static readonly NeuronId Relay = new(Brain, "identity.secrets", "alice");
     private TestOS _os = null!;
 
     private EdgeAuthority Edge => _os.Edge;
@@ -38,14 +41,14 @@ public sealed class OsVaultCallerFacts : IAsyncLifetime
 
     private async Task<SecretRef> Stored()
     {
-        using (Edge.Enter(Edge.Person("alice", "acc-1", Brain))) { return await Vault.Set("pat", "PAT", "s3cret"); }
+        using (Edge.Enter(Edge.RelayedPerson("alice", "acc-1", Brain))) { return await Vault.Set("pat", "PAT", "s3cret"); }
     }
 
     [Fact]
     public async Task ResolveAllowsTheAssistantAppStampedByMcp()
     {
         var secret = await Stored();
-        using var _ = Edge.Enter(Edge.App("assistant", Alice, Brain));
+        using var _ = Edge.Enter(Edge.OnBehalfOf(Alice, Brain, viaApp: "assistant", via: Relay));
         Assert.Equal("s3cret", await Vault.Resolve(secret));
     }
 
@@ -53,23 +56,23 @@ public sealed class OsVaultCallerFacts : IAsyncLifetime
     public async Task ResolveRefusesAPerson()
     {
         var secret = await Stored();
-        using var _ = Edge.Enter(Edge.Person("alice", "acc-1", Brain));
-        await Assert.ThrowsAsync<UntrustedCallerException>(() => Vault.Resolve(secret));
+        using var _ = Edge.Enter(Edge.RelayedPerson("alice", "acc-1", Brain));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Vault.Resolve(secret));
     }
 
     [Fact]
     public async Task ValuesAllowsTheOwnerAndRefusesAnApp()
     {
         await Stored();
-        using (Edge.Enter(Edge.Person("alice", "acc-1", Brain))) { Assert.Equal(["s3cret"], await Vault.Values()); }
-        using (Edge.Enter(Edge.App("assistant", Alice, Brain))) { await Assert.ThrowsAsync<UntrustedCallerException>(Vault.Values); }
+        using (Edge.Enter(Edge.RelayedPerson("alice", "acc-1", Brain))) { Assert.Equal(["s3cret"], await Vault.Values()); }
+        using (Edge.Enter(Edge.OnBehalfOf(Alice, Brain, viaApp: "assistant", via: Relay))) { await Assert.ThrowsAsync<UnauthorizedAccessException>(Vault.Values); }
     }
 
     [Fact]
     public async Task SetAndRemoveRefuseAnotherPerson()
     {
         await Stored();
-        using var _ = Edge.Enter(Edge.Person("bob", "acc-2", Brain));
+        using var _ = Edge.Enter(Edge.RelayedPerson("bob", "acc-2", Brain));
         await Assert.ThrowsAnyAsync<Exception>(() => Vault.Set("pat", "PAT", "x"));
         await Assert.ThrowsAnyAsync<Exception>(() => Vault.Remove("pat"));
     }
@@ -78,8 +81,8 @@ public sealed class OsVaultCallerFacts : IAsyncLifetime
     public async Task AnAppActingForAnotherPersonCannotResolveOrStore()
     {
         var secret = await Stored();
-        using var _ = Edge.Enter(Edge.App("assistant", new Actor.Person("bob", "acc-2"), Brain));
-        await Assert.ThrowsAsync<UntrustedCallerException>(() => Vault.Resolve(secret));
+        using var _ = Edge.Enter(Edge.OnBehalfOf(new Actor.Person("bob", "acc-2"), Brain, viaApp: "assistant", via: Relay));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Vault.Resolve(secret));
         await Assert.ThrowsAnyAsync<Exception>(() => Vault.Set("pat", "PAT", "x"));
     }
 }

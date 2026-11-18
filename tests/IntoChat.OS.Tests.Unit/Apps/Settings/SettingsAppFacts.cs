@@ -69,6 +69,7 @@ public sealed class SettingsAppFacts
     [Fact]
     public async Task SettingsBddScenariosPass()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
         os.Register(typeof(SettingsApp).Assembly);
@@ -220,6 +221,7 @@ public sealed class SettingsAppFacts
     [Fact]
     public async Task ExportAndImportBrainRoundTripsSeededUnitsVariablesAndFriendsAcrossReset()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         InMemoryPortableSynapseStudio.Store.Clear();
         try
         {
@@ -270,6 +272,7 @@ public sealed class SettingsAppFacts
     [Fact]
     public async Task SettingsProjectsVariablesDeployedUnitsAndTeamFriendsFromLiveNeurons()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
         var settings = await os.Install<SettingsApp>();
         var friends = await os.Install<IntoChat.OS.Apps.Friends.FriendsApp>();
@@ -434,6 +437,7 @@ public sealed class SettingsAppFacts
     [Fact]
     public async Task BrainPreferenceStorePersistsPreferencesAcrossReload()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = TestOS.Local().Register(typeof(AppsModule).Assembly);
         var settings = await os.Install<SettingsApp>();
         var userSettings = os.Get<IUserSettings>(new NeuronId(new BrainId("local"), "os.settings", "settings"));

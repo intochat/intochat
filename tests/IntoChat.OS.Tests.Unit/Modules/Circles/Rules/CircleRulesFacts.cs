@@ -36,6 +36,8 @@ public sealed class CircleRulesFacts
     [Fact]
     public async Task CircleNeuronRefusesInvalidNameAndOutOfRangeComputeShareWithRules()
     {
+        // circles.circle is cluster-internal: its founder reaches it relayed by a neuron, never directly from the edge.
+        using var founder = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.RelayedPerson("c1", "c1", new BrainId("c1")));
         var services = new ServiceCollection();
         services.AddSingleton<ILogger<CircleNeuron>>(NullLogger<CircleNeuron>.Instance);
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<CircleNeuron>();
@@ -51,6 +53,8 @@ public sealed class CircleRulesFacts
     [Fact]
     public async Task InviteCodeAndKeyNeuronsRefuseCollisionsAndShortKeysWithRules()
     {
+        // The system brain is platform territory: its directory, marketplace and circles are reached by platform code.
+        using var kernel = IntoChat.OS.Tests.TestEdge.Authority.EnterKernel(new BrainId("system"));
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>

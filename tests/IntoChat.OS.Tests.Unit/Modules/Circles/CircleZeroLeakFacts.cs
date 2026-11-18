@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using System;
 using System.Reflection;
 using DigitalBrain.Capabilities;
@@ -43,7 +45,7 @@ public sealed class CircleZeroLeakFacts
         {
             EdgeGrantsCache.Current.BindFriendConnection(connectionKey, circleAppId);
 
-            var caller = CapabilityCallers.Of(AppPrincipal.Id(circleAppId), "user-bob", CircleBrain, CallerKind.App, circleAppId);
+            var caller = IntoChat.OS.Tests.TestEdge.Authority.App(circleAppId, new Actor.Person("user-bob", "user-bob"), new BrainId(CircleBrain));
             var request = new CallRequest
             {
                 TargetNeuron = connectionKey,
@@ -52,7 +54,7 @@ public sealed class CircleZeroLeakFacts
             };
 
             // Cross-brain call evaluation: allowed through reference grant without possessing local assembly
-            var decision = GrantRules.Evaluate(IntoChat.OS.Tests.TestEdge.From(caller), request, null, [], PrincipalSet.For(caller));
+            var decision = GrantRules.Evaluate(caller, request, null, [], PrincipalSet.For(caller));
             Assert.NotNull(decision);
             Assert.True(decision.Allowed, $"Cross-brain call to '{connectionKey}' should be allowed via reference grant.");
         }
@@ -71,7 +73,7 @@ public sealed class CircleZeroLeakFacts
         try
         {
             EdgeGrantsCache.Current.BindFriendConnection(connectionKey, circleAppId);
-            var caller = CapabilityCallers.Of(AppPrincipal.Id(circleAppId), "user-bob", CircleBrain, CallerKind.App, circleAppId);
+            var caller = IntoChat.OS.Tests.TestEdge.Authority.App(circleAppId, new Actor.Person("user-bob", "user-bob"), new BrainId(CircleBrain));
 
             // 1. Direct access to vault/secrets/credentials must be blocked by ZeroTokenGuard
             string[] forbiddenTargets =
@@ -83,7 +85,7 @@ public sealed class CircleZeroLeakFacts
                 "oauth-exchange"
             ];
 
-            var edge = IntoChat.OS.Tests.TestEdge.From(caller);
+            var edge = caller;
             foreach (var forbiddenTarget in forbiddenTargets)
             {
                 var vaultRequest = new CallRequest
@@ -147,8 +149,8 @@ public sealed class CircleZeroLeakFacts
     {
         var targetNeuron = $"{SharerBrain}/apps/notes";
         var circleAppId = $"{CircleBrain}/apps/notes";
-        var caller = CapabilityCallers.Of(AppPrincipal.Id(circleAppId), "user-bob", CircleBrain, CallerKind.App, circleAppId);
-        var edge = IntoChat.OS.Tests.TestEdge.From(caller);
+        var caller = IntoChat.OS.Tests.TestEdge.Authority.App(circleAppId, new Actor.Person("user-bob", "user-bob"), new BrainId(CircleBrain));
+        var edge = caller;
 
         var request = new CallRequest
         {

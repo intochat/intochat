@@ -39,6 +39,7 @@ public sealed class JournalGapRecoveryFacts : E2ETestBase, IAsyncLifetime
         os.Register<GapSubscriberNeuron>();
 
         var brain = NewBrain("gap-deep-trunc");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var pubId = new NeuronId(brain, "gap.publisher", "pub");
         var subId = new NeuronId(brain, "gap.subscriber", "sub");
 
@@ -88,6 +89,7 @@ public sealed class JournalGapRecoveryFacts : E2ETestBase, IAsyncLifetime
         os.Register<GapSubscriberNeuron>();
 
         var brain = NewBrain("gap-reaction-fail");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var pubId = new NeuronId(brain, "gap.publisher", "pub");
         var subId = new NeuronId(brain, "gap.subscriber", "sub");
 
@@ -130,6 +132,7 @@ public sealed class JournalGapRecoveryFacts : E2ETestBase, IAsyncLifetime
         os.Register<GapSubscriberNeuron>();
 
         var brain = NewBrain("gap-recovery");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var pubId = new NeuronId(brain, "gap.publisher", "pub");
         var subId = new NeuronId(brain, "gap.subscriber", "sub");
 

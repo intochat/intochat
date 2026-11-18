@@ -235,9 +235,8 @@ public sealed class EdgeSecurityBoundaryFacts : E2ETestBase, IClassFixture<TestO
         var brain = NewBrain("edge-unauth");
         var targetNeuron = new NeuronId(brain, "test.vault", "default");
 
-        // When no ambient caller is stamped and UnstampedEdgeIsKernel is false, SiloAccessCallFilter rejects the neuron call
-        var options = new AccessOptions { UnstampedEdgeIsKernel = false, AuditContractInternal = false };
-        var filter = new SiloAccessCallFilter([], new StubCallerAmbient(null), options);
+        // When no ambient caller is stamped, SiloAccessCallFilter rejects the neuron call
+        var filter = new SiloAccessCallFilter([], new StubCallerAmbient(null));
         var invocation = new RuntimeInvocation("test.vault", nameof(IStubSecurityContract), "default", "DoSomething", []);
         var context = new UnstampedNeuronHostCallContext(GrainId.Create("neuron", targetNeuron.ToString()), invocation);
 
@@ -286,6 +285,7 @@ public sealed class EdgeSecurityBoundaryFacts : E2ETestBase, IClassFixture<TestO
         os.Register<PayloadSanitizerProbeScreen>();
 
         var brain = NewBrain("payload-sanitizer");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.payload_sanitizer_probe", "default");
         var screen = os.Get<IScreen>(screenId);
 

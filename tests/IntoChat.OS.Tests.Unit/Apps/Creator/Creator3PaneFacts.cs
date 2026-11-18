@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
 using DigitalBrain.Neurons;
@@ -172,8 +173,7 @@ public sealed class Creator3PaneFacts
     [Fact]
     public async Task ScreenDirectorySurfacesPendingApprovalsForCreator()
     {
-        using var person = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(
-            DigitalBrain.Capabilities.CapabilityCallers.Of("alice", "alice", "test-brain"));
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("alice", "alice", new BrainId("test-brain")));
         var proxies = new MockProxies();
         var services = new ServiceCollection()
             .AddSingleton<INeuronProxies>(proxies)

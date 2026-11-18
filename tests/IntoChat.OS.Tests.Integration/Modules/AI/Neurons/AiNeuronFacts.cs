@@ -1,5 +1,4 @@
 using DigitalBrain.Capabilities;
-using DigitalBrain.Runtime.Orleans.Capabilities;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
@@ -12,6 +11,8 @@ using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Metering;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Models.Signals;
+
+using IntoChat.OS.Tests;
 
 namespace IntoChat.OS.Modules.AI.Tests;
 
@@ -28,6 +29,7 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("agent-context", "memory/context-" + kind);
         var context = runtime.Get<IAgentContext>(id);
 
@@ -45,24 +47,24 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     public async Task AnEntryIsStampedWithWriterAndTrust(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("agent-context", "memory/context-stamp-" + kind);
         var context = runtime.Get<IAgentContext>(id);
 
-        await WrittenBy(new CapabilityCaller("p1", "a1", id.Brain.Value), () => context.Set(new("working", "x", [])));
+        await WrittenBy(runtime, Who.Person, () => context.Set(new("working", "x", [])));
 
         var provenance = Assert.Single((await context.Read()).Entries).Provenance;
         Assert.Equal(("p1", "user"), (provenance!.Writer, provenance.Trust));
     }
 
     [Theory, MemberData(nameof(Kinds))]
-    public async Task AnUnstampedWriterGetsAppTrust(NeuronRuntimeKind kind)
+    public async Task AnUnstampedWriterIsRefused(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
         var context = runtime.Get<IAgentContext>(runtime.Id("agent-context", "memory/context-unstamped-" + kind));
 
-        await context.Set(new("working", "x", []));
-
-        Assert.Equal("app", Assert.Single((await context.Read()).Entries).Provenance!.Trust);
+        // An unstamped write was taken at app trust; the gate now refuses a call with no caller (task 1).
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => context.Set(new("working", "x", [])));
     }
 
     [Theory, MemberData(nameof(Kinds))]
@@ -70,13 +72,11 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("agent-context", "memory/context-interrupt-" + kind);
         var context = runtime.Get<IAgentContext>(id);
 
-#pragma warning disable CS0618 // AssistantApp is the reserved app id that makes a caller an Agent until 0.13
-        var model = new CapabilityCaller("p1", "a1", id.Brain.Value) { AppId = CapabilityCallers.AssistantApp };
-#pragma warning restore CS0618
-        await WrittenBy(model, () => context.Set(new("stop", "halt", [], [ContextTags.Interrupt])));
+        await WrittenBy(runtime, Who.Agent, () => context.Set(new("stop", "halt", [], [ContextTags.Interrupt])));
 
         var entry = Assert.Single((await context.Read()).Entries);
         Assert.Equal((ContextTags.Interrupt, "model"), (Assert.Single(entry.EffectiveTags), entry.Provenance!.Trust));
@@ -87,10 +87,11 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     public async Task AnAppWriterIsNamedByItsAppId(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("agent-context", "memory/context-app-" + kind);
         var context = runtime.Get<IAgentContext>(id);
 
-        await WrittenBy(new CapabilityCaller("p1", "a1", id.Brain.Value) { AppId = "notes" }, () => context.Set(new("working", "x", [])));
+        await WrittenBy(runtime, Who.App, () => context.Set(new("working", "x", [])));
 
         Assert.Equal("notes", Assert.Single((await context.Read()).Entries).Provenance!.Writer);
     }
@@ -100,10 +101,11 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("agent-context", "memory/context-platform-" + kind);
         var context = runtime.Get<IAgentContext>(id);
 
-        await WrittenBy(CapabilityCallers.Platform("p1", "a1", id.Brain.Value), () => context.Set(new("stop", "halt", [], [ContextTags.Interrupt])));
+        await WrittenBy(runtime, Who.Kernel, () => context.Set(new("stop", "halt", [], [ContextTags.Interrupt])));
 
         Assert.Equal("platform", Assert.Single((await context.Read()).Entries).Provenance!.Trust);
         Assert.False(Assert.Single(await runtime.WaitForSignals<ContextUpdated>(id, 1, Within, ct)).Ignored);
@@ -113,6 +115,7 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     public async Task TooManyTagsAreRejected(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var context = runtime.Get<IAgentContext>(runtime.Id("agent-context", "memory/context-tags-" + kind));
 
         await Assert.ThrowsAsync<ArgumentException>(() => context.Set(new("busy", "x", [], ["1", "2", "3", "4", "5", "6", "7", "8", "9"])));
@@ -123,6 +126,7 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("ai.vector-index", "memory/life-" + kind);
         var index = runtime.Get<IVectorIndex>(id);
         VectorEntry[] entries = [new("near", [1, 0], new() { ["kind"] = "a" }), new("far", [0, 1], new() { ["kind"] = "a" })];
@@ -140,6 +144,7 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await fixture.Start(kind, ct);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("ai-intent-usage", "intent-durable");
         await runtime.Get<IIntentUsage>(id).RecordAsync(new(MeterKind.Chat, "OpenAI", "gpt-5.6-luna", 10, 3, 2, 5, 15, true, DateTimeOffset.UnixEpoch), ct);
 
@@ -157,6 +162,7 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("ai.llm", "models");
         var model = runtime.Get<ILLM>(id);
         fixture.Inference.Expect(2);
@@ -176,6 +182,7 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var model = runtime.Get<ILLM>(runtime.Id("ai.llm.gpt56luna", "models"));
         fixture.Inference.Expect(2);
 
@@ -193,6 +200,7 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("agent", "agents/plain-" + kind);
         var agent = runtime.Get<IAgent>(id);
 
@@ -217,6 +225,7 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     public async Task MemoryNeuronCapturesEpisodesAndFactsAndRecallsByTopic(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var memory = runtime.Get<IMemory>(runtime.Id("ai.memory", "memory"));
 
         var ep = await memory.CaptureEpisode("user", "I prefer dark mode and clean C# apps", 5);
@@ -232,9 +241,9 @@ public sealed class AiNeuronFacts(AiFixture fixture) : IClassFixture<AiFixture>
     }
 
     // The stamp lives in the async-local of the Task.Run, so it never leaks into the next fact.
-    private static Task WrittenBy(CapabilityCaller caller, Func<Task> write) => Task.Run(() =>
+    private static Task WrittenBy(INeuronRuntime runtime, Who who, Func<Task> write) => Task.Run(() =>
     {
-        RuntimeCallerContext.Stamp(caller);
+        runtime.As(who, "p1", "a1", app: "notes");
         return write();
     });
 

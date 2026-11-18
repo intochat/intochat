@@ -127,7 +127,6 @@ public sealed class IntoChatOsTarget : OrleansFrameworkTarget
                 Microsoft.Extensions.Hosting.OrleansSiloGenericHostExtensions.UseOrleans(builder, silo =>
                 {
                     silo.ConfigureTopologySilo();
-                    silo.Services.AddSingleton(new DigitalBrain.Access.AccessOptions { UnstampedEdgeIsKernel = true, AuditContractInternal = true });
                     OrleansRun.ClockServices(clock)(silo.Services);
                     silo.Services.TryAddSingleton<ICapabilityConnections, EmptyCapabilityConnections>();
                 });

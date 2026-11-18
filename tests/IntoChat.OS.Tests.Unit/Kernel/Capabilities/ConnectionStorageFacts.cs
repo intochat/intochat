@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Operations;
 using DigitalBrain.Testing.Conformance.Storage;
@@ -12,9 +13,10 @@ public sealed class ConnectionStorageFacts
     [Fact]
     public async Task EqualProviderIdsRemainBoundToTheirConnection()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var backing = new InMemoryStorage();
-        var left = new ConnectionStorage(backing, "owner/connections/drive/left");
-        var right = new ConnectionStorage(backing, "owner/connections/drive/right");
+        var left = new ConnectionStorage(backing, "owner/connections/drive/left", edge: IntoChat.OS.Tests.TestEdge.Authority);
+        var right = new ConnectionStorage(backing, "owner/connections/drive/right", edge: IntoChat.OS.Tests.TestEdge.Authority);
         var a = Assert.Single(await left.Roots(Ct));
         var b = Assert.Single(await right.Roots(Ct));
         Assert.NotEqual(a.Id, b.Id);
@@ -27,9 +29,10 @@ public sealed class ConnectionStorageFacts
     [Fact]
     public async Task UploadTransfersChunksAndAbortedFilesStayInvisible()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var backing = new InMemoryStorage();
         await using var uploads = new StorageUploadSessions(() => backing, () => "authenticated-app");
-        var storage = new ConnectionStorage(backing, "owner/connections/drive/left", uploads);
+        var storage = new ConnectionStorage(backing, "owner/connections/drive/left", uploads, edge: IntoChat.OS.Tests.TestEdge.Authority);
         var root = Assert.Single(await storage.Roots(Ct));
         var bytes = new byte[900_001];
         new Random(71).NextBytes(bytes);

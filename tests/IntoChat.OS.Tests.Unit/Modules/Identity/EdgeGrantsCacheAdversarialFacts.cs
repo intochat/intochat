@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Authority.Identity.Grants;
@@ -15,8 +17,8 @@ namespace IntoChat.OS.Authority;
 [Collection("EdgeGrantsCache")]
 public sealed class EdgeGrantsCacheAdversarialFacts
 {
-    private static CapabilityCaller CreateAppCaller(string appKey, string brain = "test-brain")
-        => CapabilityCallers.Of(AppPrincipal.Id(appKey), "test-user", brain, CallerKind.App, appKey);
+    private static Caller CreateAppCaller(string appKey, string brain = "test-brain")
+        => IntoChat.OS.Tests.TestEdge.Authority.App(appKey, new Actor.Person("test-user", "test-user"), new BrainId(brain));
 
     [Fact]
     public async Task CrossBrain_ConnectionBinding_PreventsForeignBrainImpersonation()
@@ -168,7 +170,8 @@ public sealed class EdgeGrantsCacheAdversarialFacts
         Assert.False(await cache.IsConnectionBoundAsync(alphaBrain, callerAlpha1, "   ", ct));
         Assert.False(await cache.IsConnectionBoundAsync(alphaBrain, callerAlpha1, "invalid", ct));
         Assert.False(await cache.IsConnectionBoundAsync(alphaBrain, callerAlpha1, "not-a-connection/path", ct));
-        Assert.False(await cache.IsConnectionBoundAsync(alphaBrain, null!, alphaConnKey, ct));
+        // A Caller is never null now (task 5: the caller is a non-nullable stamp); a null is a programming error, not a denial.
+        await Assert.ThrowsAsync<ArgumentNullException>(() => cache.IsConnectionBoundAsync(alphaBrain, null!, alphaConnKey, ct));
 
         // 6. Connector-prefixed target with foreign brain MUST FAIL CLOSED
         var foreignNested = $"postgres/{betaBrain}/connection/postgres/main";

@@ -52,6 +52,8 @@ public static class UnitScenario
         }
 
         await using var os = TestOS.Local();
+        // The scenario runs as the brain's person: the person deploys, approves the installs and drives the steps.
+        using var person = os.Edge.Enter(os.Edge.Person(Brain.Value, Brain.Value, Brain));
         fakes.BindTo(os);
         os.Register<ScenarioInput>();
         os.Confirmations.ApproveAll();
@@ -94,7 +96,11 @@ public static class UnitScenario
                 switch (step)
                 {
                     case Publish publish:
-                        await input.Publish(publish.SignalAlias, publish.Payload).ConfigureAwait(false);
+                        // The scenario's publisher is a cluster-internal neuron: the harness feeds it as the kernel.
+                        using (os.Edge.EnterKernel(Brain))
+                        {
+                            await input.Publish(publish.SignalAlias, publish.Payload).ConfigureAwait(false);
+                        }
                         await os.Idle().ConfigureAwait(false);
                         break;
                     case Tick tick:

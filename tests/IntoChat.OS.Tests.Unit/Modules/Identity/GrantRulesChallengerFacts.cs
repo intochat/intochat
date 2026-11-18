@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Connectors;
@@ -15,8 +17,8 @@ namespace IntoChat.OS.Authority;
 [Collection("EdgeGrantsCache")]
 public sealed class GrantRulesChallengerFacts
 {
-    private static CapabilityCaller CreateAppCaller(string appKey)
-        => CapabilityCallers.Of(AppPrincipal.Id(appKey), "test-user", "test-brain", CallerKind.App, appKey);
+    private static Caller CreateAppCaller(string appKey)
+        => IntoChat.OS.Tests.TestEdge.Authority.App(appKey, new Actor.Person("test-user", "test-user"), new BrainId("test-brain"));
 
     [Fact]
     public void EmptySemanticTypes_DeniedForForeignNeuronsWithoutGrant()
@@ -40,9 +42,9 @@ public sealed class GrantRulesChallengerFacts
                 SemanticTypeIds = [],
             };
 
-            var decision = GrantRules.Evaluate(IntoChat.OS.Tests.TestEdge.From(caller), request, null, [], PrincipalSet.For(caller));
+            var decision = GrantRules.Evaluate(caller, request, null, [], PrincipalSet.For(caller));
             Assert.NotNull(decision);
-            Assert.False(decision!.Allowed, $"Target '{target}' should have been denied for caller '{caller.AppId}'");
+            Assert.False(decision!.Allowed, $"Target '{target}' should have been denied for caller '{((Actor.App)caller.Actor).Key}'");
             Assert.Equal(CallDenial.MissingGrant, decision.Denial);
         }
     }
@@ -67,9 +69,9 @@ public sealed class GrantRulesChallengerFacts
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(IntoChat.OS.Tests.TestEdge.From(caller), request, null, [], PrincipalSet.For(caller));
+        var decision = GrantRules.Evaluate(caller, request, null, [], PrincipalSet.For(caller));
         Assert.NotNull(decision);
-        Assert.True(decision!.Allowed, $"Target '{target}' should have been allowed for own app caller '{caller.AppId}'");
+        Assert.True(decision!.Allowed, $"Target '{target}' should have been allowed for own app caller '{((Actor.App)caller.Actor).Key}'");
     }
 
     [Fact]
@@ -88,7 +90,7 @@ public sealed class GrantRulesChallengerFacts
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(IntoChat.OS.Tests.TestEdge.From(caller), request, null, [], PrincipalSet.For(caller));
+        var decision = GrantRules.Evaluate(caller, request, null, [], PrincipalSet.For(caller));
         Assert.NotNull(decision);
         Assert.True(decision!.Allowed);
     }
@@ -124,7 +126,7 @@ public sealed class GrantRulesChallengerFacts
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(IntoChat.OS.Tests.TestEdge.From(caller), request, null, [], PrincipalSet.For(caller));
+        var decision = GrantRules.Evaluate(caller, request, null, [], PrincipalSet.For(caller));
         Assert.NotNull(decision);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, decision.Denial);
@@ -158,7 +160,7 @@ public sealed class GrantRulesChallengerFacts
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(IntoChat.OS.Tests.TestEdge.From(caller), request, null, [], PrincipalSet.For(caller));
+        var decision = GrantRules.Evaluate(caller, request, null, [], PrincipalSet.For(caller));
         Assert.NotNull(decision);
         Assert.False(decision!.Allowed);
         Assert.Equal(CallDenial.UntrustedCaller, decision.Denial);
@@ -168,7 +170,7 @@ public sealed class GrantRulesChallengerFacts
     public void ZeroTokenGuard_PermitsBenignTargetsWithSubstringOfForbiddenWords()
     {
         var caller = CreateAppCaller("local/apps/vault-helper");
-        var edge = IntoChat.OS.Tests.TestEdge.From(caller);
+        var edge = caller;
 
         var benignTargets = new[]
         {
@@ -191,31 +193,14 @@ public sealed class GrantRulesChallengerFacts
         }
     }
 
-    [Fact]
-    public void AppIdentitySpoofing_DeniedWithUntrustedCaller()
-    {
-        // Attacker claims AppId "local/apps/victim", but its principal is "app:local/apps/attacker"
-        var spoofedCaller = CapabilityCallers.Of("app:local/apps/attacker", "test-user", "test-brain", CallerKind.App, "local/apps/victim");
-
-        var request = new CallRequest
-        {
-            TargetNeuron = "local/apps/victim",
-            Operation = "Run",
-            SemanticTypeIds = [],
-        };
-
-        var decision = GrantRules.Evaluate(IntoChat.OS.Tests.TestEdge.From(spoofedCaller), request, null, [], PrincipalSet.For(spoofedCaller));
-        Assert.NotNull(decision);
-        Assert.False(decision!.Allowed);
-        Assert.Equal(CallDenial.UntrustedCaller, decision.Denial);
-        Assert.Contains("must identify its app", decision.Explanation, StringComparison.OrdinalIgnoreCase);
-    }
+    // AppIdentitySpoofing (principal app:attacker claiming AppId victim) is deleted: an Actor.App carries one key and no
+    // principal, so the spoof cannot be expressed (task 5 ruling 1, GrantRules.AppOf).
 
     [Fact]
     public void NonEmptySemanticTypes_RequiresMatchingLiveGrant()
     {
         var caller = CreateAppCaller("local/apps/weather");
-        var edge = IntoChat.OS.Tests.TestEdge.From(caller);
+        var edge = caller;
         var target = "test-brain/connection/weather/sensors";
 
         var request = new CallRequest
@@ -234,8 +219,8 @@ public sealed class GrantRulesChallengerFacts
         // 2. With unrelated grant -> Denied
         var unrelatedGrant = new Grant
         {
-            WorkspaceId = caller.BrainId,
-            AppId = caller.AppId!,
+            WorkspaceId = caller.Brain.Value,
+            AppId = ((Actor.App)caller.Actor).Key,
             SemanticTypeId = "weather.humidity",
             TargetNeuronKey = target,
             Mode = GrantMode.Always,
@@ -249,8 +234,8 @@ public sealed class GrantRulesChallengerFacts
         // 3. With revoked grant -> Denied
         var revokedGrant = new Grant
         {
-            WorkspaceId = caller.BrainId,
-            AppId = caller.AppId!,
+            WorkspaceId = caller.Brain.Value,
+            AppId = ((Actor.App)caller.Actor).Key,
             SemanticTypeId = "weather.temperature",
             TargetNeuronKey = target,
             Mode = GrantMode.Always,
@@ -265,8 +250,8 @@ public sealed class GrantRulesChallengerFacts
         // 4. With active matching grant -> Allowed
         var matchingGrant = new Grant
         {
-            WorkspaceId = caller.BrainId,
-            AppId = caller.AppId!,
+            WorkspaceId = caller.Brain.Value,
+            AppId = ((Actor.App)caller.Actor).Key,
             SemanticTypeId = "weather.temperature",
             TargetNeuronKey = target,
             Mode = GrantMode.Always,
@@ -303,7 +288,7 @@ public sealed class GrantRulesChallengerFacts
             SemanticTypeIds = [],
         };
 
-        var decision = GrantRules.Evaluate(IntoChat.OS.Tests.TestEdge.From(caller), request, null, [], PrincipalSet.For(caller));
+        var decision = GrantRules.Evaluate(caller, request, null, [], PrincipalSet.For(caller));
         Assert.NotNull(decision);
         // Fail-closed security requires that attacker app CANNOT access foreign victim app
         Assert.False(decision!.Allowed, $"Empirical Bug: foreign target '{victimTargetNeuron}' was allowed for app '{attackerAppKey}' because of substring matching target.Contains(app) in GrantRules.cs:137!");

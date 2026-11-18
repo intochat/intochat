@@ -12,6 +12,7 @@ public sealed class GrantsNeuronFacts
     [Fact]
     public async Task GrantAddsGrantIncrementsVersionAndEmitsSignal()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test-brain", "test-brain", new BrainId("test-brain")));
         await using var os = TestOS.Local();
         os.Register<GrantsNeuron>();
         var id = new NeuronId(new BrainId("test-brain"), IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey);
@@ -46,6 +47,7 @@ public sealed class GrantsNeuronFacts
     [Fact]
     public async Task RevokeRemovesGrantAndIncrementsVersion()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test-brain", "test-brain", new BrainId("test-brain")));
         await using var os = TestOS.Local();
         os.Register<GrantsNeuron>();
         var id = new NeuronId(new BrainId("test-brain"), IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey);
@@ -79,6 +81,7 @@ public sealed class GrantsNeuronFacts
     [Fact]
     public async Task LegacyRowWithoutCanonicalFieldsEvaluatesAsBefore()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test-brain", "test-brain", new BrainId("test-brain")));
         await using var os = TestOS.Local();
         os.Register<GrantsNeuron>();
         var g = os.Get<IGrantsNeuron>(new NeuronId(new BrainId("test-brain"), IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey));
@@ -96,6 +99,7 @@ public sealed class GrantsNeuronFacts
     [Fact]
     public async Task RevokeMatchesIdOnly()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test-brain", "test-brain", new BrainId("test-brain")));
         await using var os = TestOS.Local();
         os.Register<GrantsNeuron>();
         var g = os.Get<IGrantsNeuron>(new NeuronId(new BrainId("test-brain"), IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey));
@@ -110,6 +114,7 @@ public sealed class GrantsNeuronFacts
     [Fact]
     public async Task SameTupleReplacesInsteadOfDuplicating()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test-brain", "test-brain", new BrainId("test-brain")));
         await using var os = TestOS.Local();
         os.Register<GrantsNeuron>();
         var g = os.Get<IGrantsNeuron>(new NeuronId(new BrainId("test-brain"), IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey));

@@ -1,5 +1,4 @@
 using DigitalBrain.Access;
-using DigitalBrain.Capabilities;
 using DigitalBrain.Testing;
 
 namespace IntoChat.OS.Tests;
@@ -10,5 +9,5 @@ internal static class TestEdge
 
     public static EdgeAuthority Authority => Host.Edge;
 
-    public static Caller From(CapabilityCaller caller) => Host.Edge.From(caller);
+    public static ICallerAmbient Callers => Host.Callers;
 }

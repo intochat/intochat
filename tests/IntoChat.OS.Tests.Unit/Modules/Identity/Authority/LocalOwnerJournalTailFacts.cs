@@ -121,6 +121,7 @@ public sealed class LocalOwnerJournalTailFacts
         }
         builder.Services.AddKeyedSingleton<IIdentity>(Capability.Identity.V1Id, new Members(posture == IdentityPosture.Open ? "owner" : "ops"));
         builder.Services.AddSingleton<Func<BrainId, ISignalHistory>>(_ => history);
+        builder.Services.AddSingleton(IntoChat.OS.Tests.TestEdge.Authority).AddSingleton(IntoChat.OS.Tests.TestEdge.Callers);
         var app = builder.Build();
         app.UseAccountSession();
         app.MapGet("/probe", (HttpContext http) => http.User.Identity?.IsAuthenticated == true ? "True" : "False");

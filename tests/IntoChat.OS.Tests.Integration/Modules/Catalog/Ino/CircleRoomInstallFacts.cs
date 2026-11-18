@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -32,7 +33,7 @@ public sealed class CircleRoomInstallFacts
     }
 
     // The creator, at birth and when answering the approval.
-    private static IDisposable AsCreator(INeuronRuntime runtime) => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value));
+    private static IDisposable AsCreator(INeuronRuntime runtime) => runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain));
 
     [Fact]
     public async Task AShippedUnitWaitsForThePersonsConsent()

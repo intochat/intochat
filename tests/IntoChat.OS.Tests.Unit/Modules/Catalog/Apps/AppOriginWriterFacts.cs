@@ -19,6 +19,7 @@ public sealed class AppOriginWriterFacts
     [InlineData("replace")]
     public async Task AnAppCallerCannotClaimAShippedOrigin(string call)
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var services = new ServiceCollection();
         services.AddOptions<AppsOptions>();
         services.AddSingleton(TimeProvider.System);

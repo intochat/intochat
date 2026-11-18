@@ -9,6 +9,8 @@ public sealed class HandleDirectoryFacts
     [Fact]
     public async Task ClaimResolveReleaseRoundTrip()
     {
+        // The system brain is platform territory: its directory, marketplace and circles are reached by platform code.
+        using var kernel = IntoChat.OS.Tests.TestEdge.Authority.EnterKernel(new BrainId("system-00"));
         await using var os = TestOS.Local();
         os.Register<HandleDirectoryNeuron>();
         var h = os.Get<IHandleDirectory>(IHandleDirectory.Key("Vlad"));

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Sealing;
@@ -58,6 +59,7 @@ public sealed class GmailPolicyFacts
     [Fact]
     public async Task ARefusingPolicyStopsTheDraftBeforeTheApiCall()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("b", "b", new BrainId("b")));
         var (os, neuron, id, api) = await CreateHarnessAsync();
         await using var _ = os;
         var rule = new PolicyRule(
@@ -71,7 +73,7 @@ public sealed class GmailPolicyFacts
             os.Clock.GetUtcNow());
         await Adopt(os, rule);
 
-        using var caller = RuntimeCallerContext.StampScope(CapabilityCallers.Of("user-1", "acc-1", "b", CallerKind.User));
+        using var caller = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("user-1", "acc-1", new BrainId("b")));
         var preview = await neuron.PreviewDraft(new GmailDraftRequest(["alice@example.test"], [], [], "Hello", "Body"), Ct);
         Assert.NotNull(preview.Value);
 
@@ -89,6 +91,7 @@ public sealed class GmailPolicyFacts
     [Fact]
     public async Task AnAllowedDraftIsCountedOnce()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("b", "b", new BrainId("b")));
         var (os, neuron, _, api) = await CreateHarnessAsync();
         await using var _ = os;
         var rule = new PolicyRule(
@@ -102,7 +105,7 @@ public sealed class GmailPolicyFacts
             os.Clock.GetUtcNow());
         await Adopt(os, rule);
 
-        using var caller = RuntimeCallerContext.StampScope(CapabilityCallers.Of("user-1", "acc-1", "b", CallerKind.User));
+        using var caller = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("user-1", "acc-1", new BrainId("b")));
         var firstPreview = await neuron.PreviewDraft(new GmailDraftRequest(["alice@example.test"], [], [], "First", "Body 1"), Ct);
         var first = await neuron.CreateDraft(new GmailCreateDraftRequest(firstPreview.Value!.PreviewId, "req-1"), Ct);
         Assert.Equal(GmailDraftOperationStatus.Completed, first.Value!.Status);
@@ -117,6 +120,7 @@ public sealed class GmailPolicyFacts
     [Fact]
     public async Task AFailedApiCallReleasesTheReservation()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("b", "b", new BrainId("b")));
         var (os, neuron, _, api) = await CreateHarnessAsync();
         await using var _ = os;
         var rule = new PolicyRule(
@@ -130,7 +134,7 @@ public sealed class GmailPolicyFacts
             os.Clock.GetUtcNow());
         await Adopt(os, rule);
 
-        using var caller = RuntimeCallerContext.StampScope(CapabilityCallers.Of("user-1", "acc-1", "b", CallerKind.User));
+        using var caller = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("user-1", "acc-1", new BrainId("b")));
         api.NotDispatchedOnNextCreateDraft = true;
         var firstPreview = await neuron.PreviewDraft(new GmailDraftRequest(["alice@example.test"], [], [], "First", "Body 1"), Ct);
         var first = await neuron.CreateDraft(new GmailCreateDraftRequest(firstPreview.Value!.PreviewId, "req-1"), Ct);
@@ -148,6 +152,7 @@ public sealed class GmailPolicyFacts
     [Fact]
     public async Task AnUnknownOutcomeKeepsTheReservation()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("b", "b", new BrainId("b")));
         var (os, neuron, _, api) = await CreateHarnessAsync();
         await using var _ = os;
         var rule = new PolicyRule(
@@ -161,7 +166,7 @@ public sealed class GmailPolicyFacts
             os.Clock.GetUtcNow());
         await Adopt(os, rule);
 
-        using var caller = RuntimeCallerContext.StampScope(CapabilityCallers.Of("user-1", "acc-1", "b", CallerKind.User));
+        using var caller = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("user-1", "acc-1", new BrainId("b")));
         api.ThrowOnNextCreateDraft = true;
         var firstPreview = await neuron.PreviewDraft(new GmailDraftRequest(["alice@example.test"], [], [], "First", "Body 1"), Ct);
         await Assert.ThrowsAsync<HttpRequestException>(
@@ -177,6 +182,7 @@ public sealed class GmailPolicyFacts
     [Fact]
     public async Task ARecipientRuleSeesEveryAddressIncludingBcc()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("b", "b", new BrainId("b")));
         var (os, neuron, _, api) = await CreateHarnessAsync();
         await using var _ = os;
         var rule = new PolicyRule(
@@ -190,7 +196,7 @@ public sealed class GmailPolicyFacts
             os.Clock.GetUtcNow());
         await Adopt(os, rule);
 
-        using var caller = RuntimeCallerContext.StampScope(CapabilityCallers.Of("user-1", "acc-1", "b", CallerKind.User));
+        using var caller = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("user-1", "acc-1", new BrainId("b")));
         // The corp address is not the last one in To; it still counts.
         var firstPreview = await neuron.PreviewDraft(new GmailDraftRequest(["boss@corp.com", "friend@other.org"], [], [], "First", "Body 1"), Ct);
         var first = await neuron.CreateDraft(new GmailCreateDraftRequest(firstPreview.Value!.PreviewId, "req-1"), Ct);
@@ -249,7 +255,7 @@ public sealed class GmailPolicyFacts
                 DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(GmailState))));
 
         var neuron = os.Get<IGmail>(id);
-        using var caller = RuntimeCallerContext.StampScope(CapabilityCallers.Of("user-1", "acc-1", "b", CallerKind.User));
+        using var caller = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("user-1", "acc-1", new BrainId("b")));
         var preview = await neuron.PreviewDraft(new GmailDraftRequest(["alice@example.test"], [], [], "Hello", "Body"), Ct);
         Assert.NotNull(preview.Value);
         Assert.Equal(clock.GetUtcNow().UtcDateTime.Date, preview.Value.ExpiresAt.UtcDateTime.Date);

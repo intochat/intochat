@@ -17,6 +17,7 @@ public sealed class ContactsNeuronFacts
     [Fact]
     public async Task AddCreatesListAndIsMemberReflectsIt()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("vlad", "vlad", new BrainId("vlad")));
         var (os, c) = await Open();
         await using var _ = os;
         await c.Add("friends", new ContactEntry { Principal = "brain:bob", Handle = "bob" });
@@ -29,6 +30,7 @@ public sealed class ContactsNeuronFacts
     [Fact]
     public async Task RemoveDropsMemberAndBumpsVersionOnce()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("vlad", "vlad", new BrainId("vlad")));
         var (os, c) = await Open();
         await using var _ = os;
         await c.Add("friends", new ContactEntry { Principal = "brain:bob" });
@@ -41,6 +43,7 @@ public sealed class ContactsNeuronFacts
     [Fact]
     public async Task InvalidListNameIsRejected()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("vlad", "vlad", new BrainId("vlad")));
         var (os, c) = await Open();
         await using var _ = os;
         var ex = await Assert.ThrowsAsync<RuleViolationException>(() => c.Add("My Friends", new ContactEntry { Principal = "brain:bob" }));
@@ -53,6 +56,7 @@ public sealed class ContactsNeuronFacts
     [Fact]
     public async Task AddReplacesMemberWithSamePrincipal()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("vlad", "vlad", new BrainId("vlad")));
         var (os, c) = await Open();
         await using var _ = os;
         await c.Add("friends", new ContactEntry { Principal = "brain:bob", Handle = "bob1" });

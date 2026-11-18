@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using DigitalBrain;
 using DigitalBrain.Testing;
 using global::Microsoft.Extensions.DependencyInjection;
@@ -25,6 +26,7 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task NavigateReturnsASettingsCard()
     {
+        using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         using var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection().AddOptions<AppsOptions>().Services.AddSingleton(TimeProvider.System).BuildServiceProvider();
         await using var os = NewOs(services);
         await os.Get<IApp>(new NeuronId(Brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/settings"))
@@ -39,6 +41,7 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task SetModelWritesAnInferenceEntry()
     {
+        using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         await using var os = NewOs();
         await Settings(os).SetModel("x");
         var entry = Assert.Single((await Inference(os).Read()).Entries);
@@ -49,6 +52,7 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task SettingsChangedRewritesUserProfile()
     {
+        using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         await using var os = NewOs();
         var profile = os.Get<IAgentContext>(new NeuronId(Brain, "agent-context", "context/user.profile"));
         await os.Get<IProfileContextWriter>(new NeuronId(Brain, "ino.profile-writer", "ino/profile-writer")).Ensure();
@@ -69,6 +73,7 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task SetTemperatureKeepsTheModel()
     {
+        using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         await using var os = NewOs();
         await Settings(os).SetModel("x");
         await Settings(os).SetTemperature(0.5f);
@@ -79,6 +84,7 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task SettingsChangedDoesNotOverwriteConversationInferenceModel()
     {
+        using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         await using var os = NewOs();
         var profile = os.Get<IAgentContext>(new NeuronId(Brain, "agent-context", "context/user.profile"));
         await os.Get<IProfileContextWriter>(new NeuronId(Brain, "ino.profile-writer", "ino/profile-writer")).Ensure();
@@ -102,6 +108,7 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task SetVariableStoresItInUserSettings()
     {
+        using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         await using var os = NewOs();
         await Settings(os).SetVariable("region", "eu");
         var state = await os.Get<IUserSettings>(new NeuronId(Brain, "os.settings", "settings")).Read();
@@ -111,6 +118,7 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task OpenReadsAFileTheStorageHolds()
     {
+        using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         var storage = new DigitalBrain.Testing.Conformance.Storage.InMemoryStorage("Documents");
         storage.AddFile(storage.Root, "notes.md", "hello from storage"u8.ToArray());
         await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
@@ -125,6 +133,7 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task NavigateWithoutASettingsAppSaysSoAndHasNoCard()
     {
+        using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         await using var os = NewOs();
         var result = await Settings(os).Navigate("models");
         Assert.Null(result.Card);
@@ -134,6 +143,7 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task FindReturnsMatches()
     {
+        using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         var storage = new DigitalBrain.Testing.Conformance.Storage.InMemoryStorage("Documents");
         storage.AddFile(storage.Root, "roadmap.md", "ship it"u8.ToArray());
         await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
@@ -152,6 +162,7 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task MakeWithoutModelFailsHonestlyWithSettingsSetupCard()
     {
+        using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         await using var os = NewOs();
 
         var result = await os.Get<IInoStudio>(new NeuronId(Brain, "ino.studio", "ino/studio")).Make("Draft the Q4 plan");
@@ -166,6 +177,7 @@ public sealed class InoToolNeuronFacts
     [Fact]
     public async Task ListNamesTheStudios()
     {
+        using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         using var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection().AddOptions<AppsOptions>().Services
             .AddSingleton(TimeProvider.System)
             .AddSingleton(new FeatureCatalog([typeof(AppsModule).Assembly, typeof(IntoChat.OS.Apps.Settings.SettingsApp).Assembly])).BuildServiceProvider();
@@ -193,6 +205,7 @@ Subsea cabling condition,Trondheim Subsea,Won,95000
     [Fact]
     public async Task ConnectRefusesFakePostgresPretense()
     {
+        using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         var storage = CreateOpportunitiesStorage();
         await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
 
@@ -209,6 +222,7 @@ Subsea cabling condition,Trondheim Subsea,Won,95000
     [Fact]
     public async Task QueryWorkspaceFileReturnsRowsAndRefusesUnknownTable()
     {
+        using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         var storage = CreateOpportunitiesStorage();
         await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
 
@@ -230,6 +244,7 @@ Subsea cabling condition,Trondheim Subsea,Won,95000
     [Fact]
     public async Task ChartReturnsAChartCard()
     {
+        using var agent = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("owner", "owner"), new BrainId("owner")));
         var storage = CreateOpportunitiesStorage();
         await using var os = NewOs().With<DigitalBrain.Capabilities.Storage.IStorage>("documents", storage);
         var result = await Data(os).Chart("show a pie chart of opportunities");

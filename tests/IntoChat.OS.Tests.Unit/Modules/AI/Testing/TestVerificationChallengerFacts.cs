@@ -90,6 +90,7 @@ public sealed class TestVerificationChallengerFacts
     [Fact]
     public async Task TestVerificationNeuron_StressTransitions_NullStateToFiftyRunsCap()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var ct = TestContext.Current.CancellationToken;
         var runCounter = 0;
         TestProcessRunner.OverrideExecutor = (req, token) =>
@@ -134,6 +135,7 @@ public sealed class TestVerificationChallengerFacts
     [Fact]
     public async Task TestVerificationNeuron_HistoricalRuns_CaseInsensitiveFilteringAndNullSafety()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var ct = TestContext.Current.CancellationToken;
         TestProcessRunner.OverrideExecutor = (req, token) => Task.FromResult(new TestExecutionResult(true, 1, 1, 0, 0, 10, "ok", []));
         try

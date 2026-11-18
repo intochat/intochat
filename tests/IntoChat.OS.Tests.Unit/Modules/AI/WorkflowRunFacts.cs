@@ -27,6 +27,7 @@ public sealed class WorkflowRunFacts
     [Fact]
     public async Task ARunWaitsForAPersonAndFinishesAfterApprovalAcrossARestart()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = NewOs();
         var started = await Run(os, "workflows/r1").Start(ApprovalDemoWorkflow.Name, "write the report");
         Assert.Equal(WorkflowRunStatus.Waiting, started.Status);
@@ -48,6 +49,7 @@ public sealed class WorkflowRunFacts
     [Fact]
     public async Task ADeclinedRunFinishesWithItsDeclinedBranch()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = NewOs();
         var started = await Run(os, "workflows/r2").Start(ApprovalDemoWorkflow.Name, "x");
         await os.Confirmations.Deny(started.PlanId!);
@@ -58,6 +60,7 @@ public sealed class WorkflowRunFacts
     [Fact]
     public async Task AnUnknownWorkflowIsRefused()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = NewOs();
         await Assert.ThrowsAnyAsync<ArgumentException>(() => Run(os, "workflows/r3").Start("nope", "x"));
     }

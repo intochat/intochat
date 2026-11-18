@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Capabilities.Connections;
@@ -55,7 +56,7 @@ public sealed class GmailStateFacts
             },
         }, RuntimeProtocol.OptionsFor(typeof(GmailState))));
 
-        using var caller = RuntimeCallerContext.StampScope(CapabilityCallers.Of("user-1", "acc-1", brain.Value, CallerKind.User));
+        using var caller = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("user-1", "acc-1", brain));
         using var edge = os.Edge.Enter(os.Edge.Person("user-1", "acc-1", brain));
 
         var gmail = os.Get<IGmail>(id);

@@ -1,5 +1,7 @@
+using IntoChat.OS.Tests;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
@@ -101,7 +103,7 @@ public sealed class ApprovalsFacts
 
     private static IPlanRaiser Raiser(INeuronRuntime runtime) => runtime.Get<IPlanRaiser>(new NeuronId(runtime.Brain, PlanRaiser.Alias, "raiser"));
 
-    private static IDisposable AsPerson(INeuronRuntime runtime) => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value));
+    private static IDisposable AsPerson(INeuronRuntime runtime) => runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain));
 
     private static string Inner() => JsonSerializer.Serialize(new TestInner { WaitApproval = true }, TestFlow.Json);
 
@@ -123,6 +125,7 @@ public sealed class ApprovalsFacts
     {
         await using var fixture = new ApprovalsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flowId = await Flows(runtime).Start(TestFlow.Alias, "Quarterly report", null, Inner(), Ct);
         await Raiser(runtime).Raise("install:poller:1", ConfirmationAction.Other, "poller", Diff, "poller");
         await Raiser(runtime).Raise("delete:1", ConfirmationAction.Delete, "Delete report.pdf?", "It cannot be undone.", "report.pdf");
@@ -152,6 +155,7 @@ public sealed class ApprovalsFacts
     {
         await using var fixture = new ApprovalsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
         var flowId = await flows.Start(TestFlow.Alias, "Edge", null, Inner(), Ct);
         var pending = await Eventually(runtime, list => list.Any(a => a.Kind == ApprovalKind.FlowStep));
@@ -167,6 +171,7 @@ public sealed class ApprovalsFacts
     {
         await using var fixture = new ApprovalsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
         var flowId = await flows.Start(TestFlow.Alias, "Self", null, Inner(), Ct);
         var pending = await Eventually(runtime, list => list.Any(a => a.Kind == ApprovalKind.FlowStep));
@@ -193,19 +198,22 @@ public sealed class ApprovalsFacts
     {
         await using var fixture = new ApprovalsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
-        await Raiser(runtime).Raise("delete:2", ConfirmationAction.Delete, "Delete a.txt?", "Gone.", "a.txt");
+        using (AsPerson(runtime)) { await Raiser(runtime).Raise("delete:2", ConfirmationAction.Delete, "Delete a.txt?", "Gone.", "a.txt"); }
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Approvals(runtime).Pending(Ct));
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", "another-brain")))
+        using (runtime.Edge.Enter(runtime.Edge.Person("person", "person", new BrainId("another-brain"))))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Approvals(runtime).Pending(Ct));
         }
 
         // Same-brain neuron callers (e.g., InoApp during an async [On] reaction with no HTTP RuntimeCallerContext) can read pending approvals.
         _ = await Eventually(runtime, list => list.Count == 1);
+        // A reaction runs as the scheduler of its brain (activation and deferred work, task 7); it reaches the reader neuron as that.
+        using var reaction = runtime.Edge.Enter(runtime.Edge.Scheduler(runtime.Brain));
         var fromSameBrainNeuron = await runtime.Get<IPlanResolver>(new NeuronId(runtime.Brain, PlanResolver.Alias, "reader")).ReadPending();
         Assert.Single(fromSameBrainNeuron, a => a.PlanId == "delete:2");
         var foreignNeuron = runtime.Get<IPlanResolver>(new NeuronId(new BrainId("another-brain"), PlanResolver.Alias, "reader"));
+        using var foreignReaction = runtime.Edge.Enter(runtime.Edge.Scheduler(new BrainId("another-brain")));
         await Assert.ThrowsAsync<ArgumentException>(() => foreignNeuron.ReadPendingOf(runtime.Brain.Value));
     }
 
@@ -214,6 +222,7 @@ public sealed class ApprovalsFacts
     {
         await using var fixture = new ApprovalsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         await Raiser(runtime).Raise("other:1", ConfirmationAction.Other, "Do a thing", "Really.", "thing");
 
         var approval = Assert.Single(await Eventually(runtime, list => list.Count == 1));
@@ -227,6 +236,7 @@ public sealed class ApprovalsFacts
     {
         await using var fixture = new ApprovalsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         await Raiser(runtime).Raise("grant:1", ConfirmationAction.Other, "Allow calendar", "Read your calendar.", "grant:calendar.read");
 
         var approval = Assert.Single(await Eventually(runtime, list => list.Count == 1));
@@ -240,6 +250,7 @@ public sealed class ApprovalsFacts
     {
         await using var fixture = new ApprovalsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         await Raiser(runtime).Raise("install:poller:2", ConfirmationAction.Other, "poller", Diff, "poller");
 
         var pending = await Eventually(runtime, list => list.Count == 1);

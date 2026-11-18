@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Errors;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
@@ -19,8 +20,7 @@ public sealed class AppUiScreenEndpointsFacts
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static IDisposable AsPerson(string principal = "alice")
-        => DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(
-            DigitalBrain.Capabilities.CapabilityCallers.Of(principal, principal, Scope));
+        => IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person(principal, principal, new BrainId(Scope)));
 
     private static PublishedView CreateTestView(string alias, long generation, string key, string emitOwner, string emitSignal)
     {
@@ -167,7 +167,7 @@ public sealed class AppUiScreenEndpointsFacts
         using (AsPerson("alice"))
         {
             var ex = await Assert.ThrowsAsync<StaleActionException>(() =>
-                AppUiEndpoints.Deliver(uiEvent, brain, Scope, new EmptyHostedTypes(), Ct));
+                AppUiEndpoints.Deliver(uiEvent, brain, Scope, new EmptyHostedTypes(), Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
             Assert.Contains("This action is no longer available", ex.Message);
         }
     }
@@ -185,7 +185,7 @@ public sealed class AppUiScreenEndpointsFacts
         using (AsPerson("alice"))
         {
             var ex = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-                AppUiEndpoints.Deliver(uiEvent, brain, Scope, new EmptyHostedTypes(), Ct));
+                AppUiEndpoints.Deliver(uiEvent, brain, Scope, new EmptyHostedTypes(), Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
             Assert.Contains("cannot emit to another owner", ex.Message);
         }
     }
@@ -203,7 +203,7 @@ public sealed class AppUiScreenEndpointsFacts
 
         // REQUIREMENT: unsigned callers MUST be rejected with UnauthorizedAccessException
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            AppUiEndpoints.Deliver(uiEvent, brain, Scope, new EmptyHostedTypes(), Ct));
+            AppUiEndpoints.Deliver(uiEvent, brain, Scope, new EmptyHostedTypes(), Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public sealed class AppUiScreenEndpointsFacts
 
         using (AsPerson("alice"))
         {
-            var result = await AppUiEndpoints.Deliver(uiEvent, brain, Scope, new EmptyHostedTypes(), Ct);
+            var result = await AppUiEndpoints.Deliver(uiEvent, brain, Scope, new EmptyHostedTypes(), Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
             Assert.NotNull(result);
         }
 

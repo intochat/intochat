@@ -48,7 +48,6 @@ internal sealed record ContractManifest(
         ("IntoChat.OS.Framework.Modules.Platform.Identity.BrainEntry", typeof(DigitalBrain.Capabilities.Identity.BrainEntry), "identity.brain-entry"),
         ("IntoChat.OS.Framework.Modules.Platform.Identity.BrainProvision", typeof(DigitalBrain.Capabilities.Identity.BrainProvision), "identity.brain-provision"),
         ("IntoChat.OS.Framework.Modules.Platform.Identity.Member", typeof(DigitalBrain.Capabilities.Identity.Member), "identity.member"),
-        ("IntoChat.OS.Framework.UntrustedCallerException", typeof(DigitalBrain.Runtime.Orleans.Capabilities.UntrustedCallerException), null),
         ("IntoChat.OS.Owner", typeof(DigitalBrain.Brains.Owner), null),
         ("IntoChat.OS.ServiceUnavailableException", typeof(DigitalBrain.Errors.ServiceUnavailableException), "framework.service-unavailable"),
         ("IntoChat.OS.StaleActionException", typeof(DigitalBrain.Errors.StaleActionException), "ui.stale-action"),
@@ -156,7 +155,7 @@ internal sealed record ContractManifest(
     }
 
     internal static Dictionary<Type, Type> SurrogateMap()
-        => typeof(DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext).Assembly.GetTypes()
+        => typeof(DigitalBrain.Runtime.Orleans.Hosting.NeutralCallMapping).Assembly.GetTypes()
             .SelectMany(t => t.GetInterfaces()
                 .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(Orleans.IConverter<,>))
                 .Select(i => (Value: i.GetGenericArguments()[0], Surrogate: i.GetGenericArguments()[1])))

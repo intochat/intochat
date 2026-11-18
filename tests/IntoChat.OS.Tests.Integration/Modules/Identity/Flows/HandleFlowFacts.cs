@@ -1,3 +1,4 @@
+using IntoChat.OS.Tests;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority.Identity.Handles;
 
@@ -11,6 +12,7 @@ public sealed class HandleFlowFacts(IdentityFixture fixture) : IClassFixture<Ide
     public async Task AHandleClaimedInOneBrainResolvesFromAnother(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var handle = IHandleDirectory.Normalize("alice-" + kind.ToString().ToLowerInvariant());
         var id = runtime.Id(IHandleDirectory.TypeName, "handles/" + handle);
 

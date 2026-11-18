@@ -1,3 +1,5 @@
+using IntoChat.OS.Tests;
+using DigitalBrain.Access;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Broker;
@@ -90,7 +92,8 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
         Assert.Same(typeof(SettingsApp).Assembly, origin.Assembly);
 
         const string brain = "nofeaturesbrain";
-        using var _ = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
+        var edge = Services.GetRequiredService<EdgeAuthority>();
+        using var _ = edge.Enter(edge.Person(brain, brain, new BrainId(brain)));
 
         var loader = Services.GetRequiredService<FeatureLoader>();
         var settingsBundle = await catalog.Find("os", "settings");
@@ -113,7 +116,7 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
         {
             os.Register(typeof(AppsModule).Assembly);
             using var ungrantedCaller = os.Edge.Enter(
-                os.Edge.From(CapabilityCallers.Of("app:local/apps/calculator", "local", "local", CallerKind.App, "local/apps/calculator")));
+                os.Edge.App("local/apps/calculator", new Actor.Person("local", "local"), new BrainId("local")));
 
             var localModules = os.Get<IInstalledModules>(new NeuronId(new BrainId("local"), "apps.installed-modules", "modules"));
             await Assert.ThrowsAsync<UnauthorizedAccessException>(localModules.List);
@@ -121,24 +124,15 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
 
         // 2. Silo tier
         const string brain = "grantbrain";
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of(
-            $"app:{brain}/apps/calculator",
-            brain,
-            brain,
-            CallerKind.App,
-            $"{brain}/apps/calculator")))
+        var edge = Services.GetRequiredService<EdgeAuthority>();
+        using (edge.Enter(edge.App($"{brain}/apps/calculator", new Actor.Person(brain, brain), new BrainId(brain))))
         {
             var siloModules = SiloNeurons.Get<IInstalledModules>(Services, $"{brain}/modules");
             await Assert.ThrowsAsync<UnauthorizedAccessException>(siloModules.List);
         }
 
         // 3. Granted SettingsApp succeeds on the silo
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of(
-            $"app:{brain}/apps/settings",
-            brain,
-            brain,
-            CallerKind.App,
-            $"{brain}/apps/settings")))
+        using (edge.Enter(edge.App($"{brain}/apps/settings", new Actor.Person(brain, brain), new BrainId(brain))))
         {
             var siloModules = SiloNeurons.Get<IInstalledModules>(Services, $"{brain}/modules");
             var rows = await siloModules.List();
@@ -150,6 +144,7 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
     public async Task SettingsScenariosPassFromTheNewProject()
     {
         await using var os = TestOS.Local();
+        using var person = os.Edge.Enter(os.Edge.Person("test", "test", new BrainId("test")));
         os.Register(typeof(AppsModule).Assembly);
         os.Register(typeof(SettingsApp).Assembly);
         var screen = os.Get<IScreen>(new NeuronId(new BrainId("test"), "app.settings", "default"));
@@ -223,23 +218,23 @@ public sealed class ShellAppsLoadFacts : IAsyncLifetime
         public Task<Member?> Membership(string brainScopeId, string principalId, CancellationToken cancellationToken)
             => Task.FromResult<Member?>(new Member { PrincipalId = principalId, AccountId = principalId, BrainId = brainScopeId, Role = MemberRole.Owner, DisplayName = principalId, JoinedAt = DateTimeOffset.UtcNow });
 
-        public Task<Member?> EnsureMember(CapabilityCaller caller, Member member, CancellationToken cancellationToken)
+        public Task<Member?> EnsureMember(Member member, CancellationToken cancellationToken)
             => Task.FromResult<Member?>(member);
 
-        public Task RemoveMember(CapabilityCaller caller, string brainScopeId, string accountId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RemoveMember(string brainScopeId, string accountId, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task RemovePrincipalMember(CapabilityCaller caller, string brainScopeId, string principalId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RemovePrincipalMember(string brainScopeId, string principalId, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task<DigitalBrain.Capabilities.Identity.CallDecision?> Authorize(CapabilityCaller caller, DigitalBrain.Capabilities.Identity.CallRequest request, CancellationToken cancellationToken)
+        public Task<DigitalBrain.Capabilities.Identity.CallDecision?> Authorize(DigitalBrain.Capabilities.Identity.CallRequest request, CancellationToken cancellationToken)
             => Task.FromResult<DigitalBrain.Capabilities.Identity.CallDecision?>(new DigitalBrain.Capabilities.Identity.CallDecision { Allowed = true });
 
         public Task<IReadOnlyList<Grant>> ListGrants(string brainScopeId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<Grant>>([]);
 
-        public Task<Grant?> GrantAsOwner(CapabilityCaller caller, Grant grant, CancellationToken cancellationToken)
+        public Task<Grant?> GrantAsOwner(Grant grant, CancellationToken cancellationToken)
             => Task.FromResult<Grant?>(grant);
 
-        public Task<bool> RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, GrantMode mode, CancellationToken cancellationToken)
+        public Task<bool> RevokeAsOwner(string appId, string semanticTypeId, GrantMode mode, CancellationToken cancellationToken)
             => Task.FromResult(true);
     }
 }

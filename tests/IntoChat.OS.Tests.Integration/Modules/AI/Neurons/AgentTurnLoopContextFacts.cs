@@ -1,5 +1,7 @@
+using IntoChat.OS.Tests;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -24,6 +26,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         var ct = TestContext.Current.CancellationToken;
         var client = StubChatClient.Replying("ok");
         await using var runtime = await Start(client, ct);
+        using var person = runtime.As(Who.Person);
         await Write(runtime, "facts-a", new("fact", "a fact", []));
 
         var events = await TurnLoops.Collect(runtime.Services, "hello", [], ct, [Key(runtime, "facts-a")], [new("user", [new AiText("earlier")])]);
@@ -42,6 +45,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         var ct = TestContext.Current.CancellationToken;
         var client = StubChatClient.Replying("ok");
         await using var runtime = await Start(client, ct);
+        using var person = runtime.As(Who.Person);
         await Write(runtime, "relative", new("fact", "a relative fact", []));
 
         var events = await TurnLoops.Collect(runtime.Services, "hello", [], ct, ["context/relative"], conversation: runtime.Brain.Value + "/agents/loop");
@@ -56,6 +60,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         var ct = TestContext.Current.CancellationToken;
         var client = Capturing(out var options);
         await using var runtime = await Start(client, ct);
+        using var person = runtime.As(Who.Person);
         await Write(runtime, "tune", new("tune", """{"temperature":0.2}""", [], [ContextTags.Inference]));
 
         var events = await TurnLoops.Collect(runtime.Services, "hello", [], ct, [Key(runtime, "tune")]);
@@ -73,7 +78,9 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
             """{"model":"stub-b","created_at":"2026-01-01T00:00:00Z","message":{"role":"assistant","content":"ok"},"done":true,"done_reason":"stop"}""" + "\n", ct);
         await using var runtime = await Start(StubChatClient.Replying("host"), ct, options => options.ModelProfiles["stub-b"] = new()
         { Provider = "Ollama", Model = "stub-b", Endpoint = server.Url });
-        await Write(runtime, "pick", new("pick", """{"model":"stub-b"}""", [], [ContextTags.Inference]));
+        // The person picks the model.
+        using var person = runtime.As(Who.Person);
+        await Write(runtime, "pick", new("pick", """{"model":"stub-b"}""", [], [ContextTags.Inference]), Who.Person);
 
         var events = await TurnLoops.Collect(runtime.Services, "hello", [], ct, [Key(runtime, "pick")]);
 
@@ -90,9 +97,10 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         await using var runtime = await Start(client, ct);
         await Task.Run(async () =>
         {
-            using var _ = RuntimeCallerContext.Stamp(CapabilityCallers.Platform("p1", "a1", runtime.Brain.Value));
+            using var _ = runtime.Edge.EnterKernel(runtime.Brain);
             await runtime.Get<IAgentContext>(Id(runtime, "halt")).Set(new("stop", "halt now", [], [ContextTags.Interrupt]));
         }, ct);
+        using var person = runtime.As(Who.Person);
 
         var events = await TurnLoops.Collect(runtime.Services, "hello", [], ct, [Key(runtime, "halt")]);
 
@@ -134,9 +142,10 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         var ct = TestContext.Current.CancellationToken;
         var client = StubChatClient.Replying("ok");
         await using var runtime = await Start(client, ct);
+        using var person = runtime.As(Who.Person);
         await Task.Run(async () =>
         {
-            using var _ = RuntimeCallerContext.Stamp(new CapabilityCaller("p1", "a1", runtime.Brain.Value) { AppId = "notes" });
+            using var _ = runtime.Edge.Enter(runtime.Edge.App("notes", new Actor.Person("p1", "a1"), runtime.Brain));
             await runtime.Get<IAgentContext>(Id(runtime, "app-halt")).Set(new("stop", "halt by app", [], [ContextTags.Interrupt]));
         }, ct);
         await Write(runtime, "plain-halt", new("stop", "halt unstamped", [], [ContextTags.Interrupt]));
@@ -153,6 +162,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         var ct = TestContext.Current.CancellationToken;
         var client = StubChatClient.Replying("ok");
         await using var runtime = await Start(client, ct);
+        using var person = runtime.As(Who.Person);
         await Write(runtime, "focus", new("focus", "focused on tab 3", [], [ContextTags.UiFocus]));
         await Write(runtime, "halt", new("stop", "untrusted halt", [], [ContextTags.Interrupt]));
         await Write(runtime, "plain", new("fact", "a plain fact", []));
@@ -170,6 +180,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         var ct = TestContext.Current.CancellationToken;
         var client = Capturing(out var options);
         await using var runtime = await Start(client, ct);
+        using var person = runtime.As(Who.Person);
         await Write(runtime, "low", new("low", """{"temperature":0.2}""", [], [ContextTags.Inference]));
         await Write(runtime, "high", new("high", """{"temperature":0.7}""", [], [ContextTags.Inference]));
 
@@ -188,6 +199,7 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
         var qwenReply = server.ReplyOnce("application/x-ndjson",
             """{"model":"qwen3.5:4b","created_at":"2026-01-01T00:00:00Z","message":{"role":"assistant","content":"from qwen"},"done":true,"done_reason":"stop"}""" + "\n", ct);
         await using var runtime = await Start(StubChatClient.Replying("host"), ct, options => options.Ollama.Endpoint = server.Url);
+        using var person = runtime.As(Who.Person);
         var catalog = runtime.Services.GetRequiredService<ModelCatalog>();
 
         // 1. Resolve catalogued model by ID ("qwen3.5:4b") and marker ("IQwen35" / "Qwen35")
@@ -251,7 +263,12 @@ public sealed class AgentTurnLoopContextFacts(AiFixture fixture) : IClassFixture
 
     private static string Key(INeuronRuntime runtime, string name) => ContextKeys.Of(runtime.Brain.Value, name);
 
-    private static Task Write(INeuronRuntime runtime, string name, ContextEntry entry) => runtime.Get<IAgentContext>(Id(runtime, name)).Set(entry);
+    // An untrusted writer: an app acting for the person (an unstamped write used to read as app trust; task 1 refuses it now).
+    private static Task Write(INeuronRuntime runtime, string name, ContextEntry entry, Who who = Who.App) => Task.Run(async () =>
+    {
+        using var app = runtime.As(who, "p1", "a1", app: "notes");
+        await runtime.Get<IAgentContext>(Id(runtime, name)).Set(entry);
+    });
 
     private sealed class NoProviders : IAiCredentials
     {

@@ -47,6 +47,7 @@ public sealed class AspireFacts
     [Fact]
     public async Task AspireNeuronRecordsAndQueriesLogsAndTracesOnTestOS()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = TestOS.Local();
         os.Register<AspireNeuron>();
         var aspire = os.Get<IAspire>(new NeuronId(new BrainId("local"), "aspire", "aspire"));

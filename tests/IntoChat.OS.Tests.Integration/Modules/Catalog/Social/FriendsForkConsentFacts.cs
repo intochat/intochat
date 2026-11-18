@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Broker;
 using DigitalBrain.Confirmation;
@@ -67,7 +68,7 @@ public sealed class FriendsForkConsentFacts
     }
 
     private static IDisposable AsPerson(INeuronRuntime runtime)
-        => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value));
+        => runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain));
 
     [Fact]
     public async Task AuthorPublishesAppPostWithUnitFiles_PostIsPersistedAndVisibleInFeed()

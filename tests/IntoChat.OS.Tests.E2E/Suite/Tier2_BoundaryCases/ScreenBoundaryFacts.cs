@@ -140,6 +140,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-stale");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -169,6 +170,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-zero");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -189,6 +191,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-neg");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -211,6 +214,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-future");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -234,6 +238,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-mismatch-alias");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -254,6 +259,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-null-alias");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -268,6 +274,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-null-key");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -282,6 +289,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-unknown-node");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -301,6 +309,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-no-emit");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -320,6 +329,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-foreign-owner");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -340,6 +350,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-declares-by");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -367,6 +378,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-identical-render");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -400,6 +412,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-read-mismatch");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -417,6 +430,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-empty-signal");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -438,6 +452,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-unknown-signal");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -455,6 +470,7 @@ public sealed class ScreenBoundaryFacts : E2ETestBase, IClassFixture<TestOSFixtu
         os.Register<BoundaryTestScreen>();
 
         var brain = NewBrain("screen-oversized");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.boundary_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 

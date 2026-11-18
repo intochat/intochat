@@ -239,6 +239,7 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         os.Register<DesktopShellScreen>();
 
         var brain = NewBrain("desktop-init");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.desktop_shell", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -261,6 +262,7 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         os.Register<DesktopShellScreen>();
 
         var brain = NewBrain("desktop-launch");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.desktop_shell", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -287,6 +289,7 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         os.Register<DesktopShellScreen>();
 
         var brain = NewBrain("desktop-verbs");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.desktop_shell", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -339,6 +342,7 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         os.Register<DesktopShellScreen>();
 
         var brain = NewBrain("desktop-close");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.desktop_shell", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -376,6 +380,7 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         os.Register<DesktopShellScreen>();
 
         var brain = NewBrain("desktop-caps");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.desktop_shell", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -418,6 +423,7 @@ public sealed class DesktopShellScenarioFacts : E2ETestBase, IClassFixture<TestO
         os.Register<DesktopShellScreen>();
 
         var brain = NewBrain("desktop-persist");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.desktop_shell", "default");
         var screen = os.Get<IScreen>(screenId);
 

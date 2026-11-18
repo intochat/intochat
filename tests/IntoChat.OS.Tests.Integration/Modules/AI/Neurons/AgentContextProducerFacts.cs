@@ -1,3 +1,4 @@
+using IntoChat.OS.Tests;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Testing;
@@ -26,6 +27,7 @@ public sealed class AgentContextProducerFacts(AiFixture fixture) : IClassFixture
         var ct = TestContext.Current.CancellationToken;
         var client = StubChatClient.Replying("ok");
         await using var runtime = await Start(client, ct);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("agent", "agents/summary");
         var agent = runtime.Get<IAgent>(id);
         await agent.Configure(new() { Contexts = [ContextKeys.Of(runtime.Brain.Value, "conversation.summary")], MaxHistoryMessages = 2 }, 0);
@@ -52,6 +54,7 @@ public sealed class AgentContextProducerFacts(AiFixture fixture) : IClassFixture
         var ct = TestContext.Current.CancellationToken;
         var client = StubChatClient.Replying("ok");
         await using var runtime = await Start(client, ct);
+        using var person = runtime.As(Who.Person);
         await runtime.Get<IMemory>(runtime.Id("ai.memory", "memory")).RememberFact("preferences", "User prefers dark mode", 9);
         var id = runtime.Id("agent", "agents/recall");
         var agent = runtime.Get<IAgent>(id);

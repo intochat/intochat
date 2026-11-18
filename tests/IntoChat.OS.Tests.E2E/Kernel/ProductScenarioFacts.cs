@@ -35,7 +35,7 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
     public async Task Scenario02_HighThroughputStudioAppMediaPipeline_CoordinatesSignalsAndState()
     {
         var brain = fixture.NewBrain("s02");
-        using var stamp = RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
+        using var stamp = fixture.Edge.Enter(fixture.Edge.Person(brain, brain, new BrainId(brain)));
 
         // Step 1: Studio App Manifest Resolution and real FilmCraftApp execution on the silo
         var filmCraft = FilmCraftApp.Bundle;
@@ -127,16 +127,12 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
         var brain = fixture.NewBrain("s03");
 
         // Step 1: Malicious unauthenticated caller attempts sideloading and is rejected by PlainNeuronCallFilter on the silo
-        var untrustedCaller = new CapabilityCaller("malicious_actor", "acc_unknown", "");
-        Assert.False(RuntimeCallerContext.IsTrusted(untrustedCaller));
-
         var settingsNeuron = SiloNeurons.Get<IUserSettings>(fixture.Services, $"{brain}/settings");
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => settingsNeuron.Read());
 
         // Step 2: Legitimate developer authenticates with verified provenance on the silo
-        var verifiedCaller = CapabilityCallers.Of("dev_usr", "acc_corp", brain, CallerKind.User);
-        Assert.True(RuntimeCallerContext.IsTrusted(verifiedCaller));
-        using var stamp = RuntimeCallerContext.Stamp(verifiedCaller);
+        var verifiedCaller = fixture.Edge.Person("dev_usr", "acc_corp", new BrainId(brain));
+        using var stamp = fixture.Edge.Enter(verifiedCaller);
 
         // Step 3: Developer attempts to install app requiring elevated capabilities
         var existingRequirements = new AppRequirements(
@@ -195,8 +191,8 @@ public sealed class ProductScenarioFacts(ProductHostFixture fixture)
     public async Task Scenario04_KnowledgeAugmentedRoutingAndPlanSynthesis_DeliberatesAndExecutes()
     {
         var brain = fixture.NewBrain("s04");
-        var caller = CapabilityCallers.Of("knowledge_agent", "acc_infra", brain, CallerKind.User);
-        using var stamp = RuntimeCallerContext.Stamp(caller);
+        var caller = fixture.Edge.Person("knowledge_agent", "acc_infra", new BrainId(brain));
+        using var stamp = fixture.Edge.Enter(caller);
 
         // Step 1: Populate MemoryNeuron on the real silo and KnowledgeStore topology
         var memory = SiloNeurons.Get<IMemory>(fixture.Services, $"{brain}/memory");

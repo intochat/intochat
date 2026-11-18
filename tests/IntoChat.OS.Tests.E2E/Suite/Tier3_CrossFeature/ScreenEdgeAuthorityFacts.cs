@@ -89,6 +89,7 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
         os.Register<TestAuditedCounterScreen>();
 
         var brain = NewBrain("screen-edge-direct");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.audited_counter", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -137,6 +138,7 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
         os.Register<TestAuditedCounterScreen>();
 
         var brain = NewBrain("screen-foreign-owner");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.audited_counter", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -169,8 +171,9 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
 
         Assert.False(edge.IsKernelActive);
 
-        // Simulated internal host maintenance turn
-        using (edge.EnterInProcess())
+        // Simulated internal host maintenance turn. EnterInProcess no longer lends an unstamped call the kernel (task 1: no
+        // implicit kernel); the host turn enters the kernel of the brain explicitly.
+        using (edge.EnterKernel(brain))
         {
             Assert.True(edge.IsKernelActive);
 
@@ -180,6 +183,7 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
 
         Assert.False(edge.IsKernelActive);
 
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var view = await screen.Read();
         Assert.NotNull(view);
         Assert.Equal(2L, view.Generation);
@@ -192,6 +196,7 @@ public sealed class ScreenEdgeAuthorityFacts : E2ETestBase, IClassFixture<TestOS
         os.Register<TestAuditedCounterScreen>();
 
         var brain = NewBrain("screen-multi-turn");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.audited_counter", "default");
         var screen = os.Get<IScreen>(screenId);
 

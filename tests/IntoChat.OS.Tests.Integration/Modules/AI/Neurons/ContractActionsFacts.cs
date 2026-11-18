@@ -1,6 +1,7 @@
 using System.Text.Json;
-using DigitalBrain.Capabilities;
-using DigitalBrain.Runtime.Orleans.Capabilities;
+using DigitalBrain;
+using DigitalBrain.Access;
+using IntoChat.OS.Tests;
 using IntoChat.OS.Modules.AI.Agents;
 
 namespace IntoChat.OS.Modules.AI.Tests.Integration;
@@ -14,9 +15,10 @@ public sealed class ContractActionsFacts
     [Fact]
     public async Task ADeniedToolCallReturnsAnErrorToTheModel()
     {
-        using var _ = RuntimeCallerContext.Stamp(new CapabilityCaller("p1", "a1", "b1"));
+        var edge = TestEdge.Authority;
+        using var _ = edge.Enter(edge.Person("p1", "a1", new BrainId("b1")));
 
-        var result = await ContractActions.Marked("chat-1", () => throw new UnauthorizedAccessException(Denial));
+        var result = await ContractActions.Marked(edge, "chat-1", () => throw new UnauthorizedAccessException(Denial));
 
         using var json = JsonDocument.Parse(JsonSerializer.Serialize(result));
         Assert.True(json.RootElement.GetProperty("isError").GetBoolean());
@@ -26,19 +28,20 @@ public sealed class ContractActionsFacts
     [Fact]
     public async Task AToolCallRunsAsTheAgentInItsConversationAndRestoresTheCaller()
     {
-        var original = new CapabilityCaller("p1", "a1", "b1");
-        using var _ = RuntimeCallerContext.Stamp(original);
-        CapabilityCaller? seen = null;
+        var edge = TestEdge.Authority;
+        var original = edge.Person("p1", "a1", new BrainId("b1"));
+        using var _ = edge.Enter(original);
+        Caller? seen = null;
 
-        await ContractActions.Marked("chat-1", () =>
+        await ContractActions.Marked(edge, "chat-1", () =>
         {
-            seen = RuntimeCallerContext.Require();
+            seen = edge.Current;
             return Task.FromResult<object>(new { ok = true });
         });
 
-        Assert.Equal(CallerKind.Agent, seen!.Kind);
-        Assert.Equal(("p1", "a1", "b1", "chat-1"), (seen.PrincipalId, seen.AccountId, seen.BrainId, seen.ConversationId));
-        Assert.Equal(original, RuntimeCallerContext.Require());
+        Assert.IsType<Actor.Agent>(seen!.Actor);
+        Assert.Equal(("p1", "a1", "b1", "chat-1"), (seen.For!.Principal, seen.For.Account, seen.Brain.Value, seen.Conversation));
+        Assert.Equal(original, edge.Current);
     }
 
     [Fact]

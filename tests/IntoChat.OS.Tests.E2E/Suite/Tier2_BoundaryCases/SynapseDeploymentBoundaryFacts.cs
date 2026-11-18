@@ -51,6 +51,7 @@ public sealed class SynapseDeploymentBoundaryFacts : E2ETestBase
         os.Register<SourcesNeuron>();
 
         var brain = NewBrain("sources-conflict");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var sourcesId = new NeuronId(brain, "synapse.sources", "default");
         var sources = os.Get<ISources>(sourcesId);
 
@@ -72,6 +73,7 @@ public sealed class SynapseDeploymentBoundaryFacts : E2ETestBase
         os.Register<SourcesNeuron>();
 
         var brain = NewBrain("sources-null-args");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var sourcesId = new NeuronId(brain, "synapse.sources", "default");
         var sources = os.Get<ISources>(sourcesId);
 
@@ -86,6 +88,7 @@ public sealed class SynapseDeploymentBoundaryFacts : E2ETestBase
         os.Register<SourcesNeuron>();
 
         var brain = NewBrain("sources-release");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var sourcesId = new NeuronId(brain, "synapse.sources", "default");
         var sources = os.Get<ISources>(sourcesId);
 
@@ -111,6 +114,7 @@ public sealed class SynapseDeploymentBoundaryFacts : E2ETestBase
         os.Register<UnitDeployment>();
 
         var brain = NewBrain("deployment-conflict");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var sourcesId = new NeuronId(brain, "synapse.sources", "default");
         var sources = os.Get<ISources>(sourcesId);
 

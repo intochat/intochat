@@ -32,6 +32,7 @@ public sealed class ConnectionCatalogFacts : E2ETestBase
         os.Register<ConnectionCatalogNeuron>();
 
         var brainId = "test-alice-brain";
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", new BrainId(brainId)));
         var catalogNeuron = os.Get<IConnectionCatalog>(IConnectionCatalog.Id(brainId));
 
         var catalog = await catalogNeuron.Read();
@@ -51,6 +52,7 @@ public sealed class ConnectionCatalogFacts : E2ETestBase
         os.Register<SignalEmitterNeuron>();
 
         var brainId = "test-alice-brain";
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", new BrainId(brainId)));
         var brain = new BrainId(brainId);
         var catalogNeuron = os.Get<IConnectionCatalog>(IConnectionCatalog.Id(brainId));
         var emitter = os.Get<ISignalEmitter>(new NeuronId(brain, "signal-emitter", "main"));
@@ -59,7 +61,8 @@ public sealed class ConnectionCatalogFacts : E2ETestBase
         await catalogNeuron.Read();
 
         var now = DateTimeOffset.UtcNow;
-        await emitter.Connected("github", "conn_1", "oauth", "octocat", now);
+        // The emitter stands in for a connection neuron, a cluster-internal publisher, so the fact feeds it as the kernel.
+        using (os.Edge.EnterKernel(brain)) { await emitter.Connected("github", "conn_1", "oauth", "octocat", now); }
         await os.Idle();
 
         var catalog = await catalogNeuron.Read();
@@ -76,7 +79,7 @@ public sealed class ConnectionCatalogFacts : E2ETestBase
         Assert.Equal(now, stored.LastProbedAt);
 
         // Idempotence check: identical signal does NOT bump revision
-        await emitter.Connected("github", "conn_1", "oauth", "octocat", now);
+        using (os.Edge.EnterKernel(brain)) { await emitter.Connected("github", "conn_1", "oauth", "octocat", now); }
         await os.Idle();
         var unchangedCatalog = await catalogNeuron.Read();
         Assert.Equal(1L, unchangedCatalog.Revision);
@@ -90,6 +93,7 @@ public sealed class ConnectionCatalogFacts : E2ETestBase
         os.Register<SignalEmitterNeuron>();
 
         var brainId = "test-alice-brain";
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", new BrainId(brainId)));
         var brain = new BrainId(brainId);
         var catalogNeuron = os.Get<IConnectionCatalog>(IConnectionCatalog.Id(brainId));
         var emitter = os.Get<ISignalEmitter>(new NeuronId(brain, "signal-emitter", "main"));
@@ -100,12 +104,12 @@ public sealed class ConnectionCatalogFacts : E2ETestBase
         var key = ConnectionKeys.For(brainId, "github", "conn_1");
 
         // Step 1: Initial Connected
-        await emitter.Connected("github", "conn_1", "oauth", "octocat", initialTime);
+        using (os.Edge.EnterKernel(brain)) { await emitter.Connected("github", "conn_1", "oauth", "octocat", initialTime); }
         await os.Idle();
 
         // Step 2: Transition to Failing
         var failTime = DateTimeOffset.UtcNow.AddMinutes(-5);
-        await emitter.Failing("github", "conn_1", "Rate limited", failTime);
+        using (os.Edge.EnterKernel(brain)) { await emitter.Failing("github", "conn_1", "Rate limited", failTime); }
         await os.Idle();
 
         var failingCatalog = await catalogNeuron.Read();
@@ -118,7 +122,7 @@ public sealed class ConnectionCatalogFacts : E2ETestBase
 
         // Step 3: Transition to Expired
         var expireTime = DateTimeOffset.UtcNow;
-        await emitter.Expired("github", "conn_1", expireTime);
+        using (os.Edge.EnterKernel(brain)) { await emitter.Expired("github", "conn_1", expireTime); }
         await os.Idle();
 
         var expiredCatalog = await catalogNeuron.Read();
@@ -138,6 +142,7 @@ public sealed class ConnectionCatalogFacts : E2ETestBase
         os.Register<SignalEmitterNeuron>();
 
         var brainId = "test-alice-brain";
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", new BrainId(brainId)));
         var brain = new BrainId(brainId);
         var catalogNeuron = os.Get<IConnectionCatalog>(IConnectionCatalog.Id(brainId));
         var emitter = os.Get<ISignalEmitter>(new NeuronId(brain, "signal-emitter", "main"));
@@ -147,8 +152,8 @@ public sealed class ConnectionCatalogFacts : E2ETestBase
         var key1 = ConnectionKeys.For(brainId, "github", "conn_1");
         var key2 = ConnectionKeys.For(brainId, "slack", "conn_2");
 
-        await emitter.Connected("github", "conn_1", "oauth", "octocat");
-        await emitter.Connected("slack", "conn_2", "oauth", "slack_user");
+        using (os.Edge.EnterKernel(brain)) { await emitter.Connected("github", "conn_1", "oauth", "octocat"); }
+        using (os.Edge.EnterKernel(brain)) { await emitter.Connected("slack", "conn_2", "oauth", "slack_user"); }
         await os.Idle();
 
         var twoItemCatalog = await catalogNeuron.Read();
@@ -156,7 +161,7 @@ public sealed class ConnectionCatalogFacts : E2ETestBase
         Assert.Equal(2L, twoItemCatalog.Revision);
 
         // Disconnect conn_1
-        await emitter.Disconnected("github", "conn_1");
+        using (os.Edge.EnterKernel(brain)) { await emitter.Disconnected("github", "conn_1"); }
         await os.Idle();
 
         var afterDisconnect = await catalogNeuron.Read();
@@ -174,6 +179,7 @@ public sealed class ConnectionCatalogFacts : E2ETestBase
         os.Register<SignalEmitterNeuron>();
 
         var brainId = "test-alice-brain";
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", new BrainId(brainId)));
         var brain = new BrainId(brainId);
         var catalogNeuron = os.Get<IConnectionCatalog>(IConnectionCatalog.Id(brainId));
         var requestsNeuron = os.Get<IConnectionRequests>(IConnectionCatalog.Id(brainId));
@@ -185,9 +191,9 @@ public sealed class ConnectionCatalogFacts : E2ETestBase
         var k2 = ConnectionKeys.For(brainId, "slack", "conn_2");
         var k3 = ConnectionKeys.For(brainId, "google", "conn_3");
 
-        await emitter.Connected("github", "conn_1", "oauth", "acct1");
-        await emitter.Connected("slack", "conn_2", "oauth", "acct2");
-        await emitter.Connected("google", "conn_3", "oauth", "acct3");
+        using (os.Edge.EnterKernel(brain)) { await emitter.Connected("github", "conn_1", "oauth", "acct1"); }
+        using (os.Edge.EnterKernel(brain)) { await emitter.Connected("slack", "conn_2", "oauth", "acct2"); }
+        using (os.Edge.EnterKernel(brain)) { await emitter.Connected("google", "conn_3", "oauth", "acct3"); }
         await os.Idle();
 
         var beforeOrder = await catalogNeuron.Read();

@@ -155,6 +155,7 @@ public sealed class PresenceFoldFacts
     [Fact]
     public async Task ReactivationRebuildsPresenceFromAgentAndContexts()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = await Started();
         var run = new AgentRun("run-1", AgentRunStatus.Running, "hi", os.Clock.GetUtcNow())
         {
@@ -183,6 +184,7 @@ public sealed class PresenceFoldFacts
     [Fact]
     public async Task ListeningExpiresAfterTwoSeconds()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = await Started();
         await Settled(os);
 
@@ -197,6 +199,7 @@ public sealed class PresenceFoldFacts
     [Fact]
     public async Task AttentionExpiresAfterTenSeconds()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = await Started();
         await Settled(os);
         const string flowId = "local/test.flow/f1";

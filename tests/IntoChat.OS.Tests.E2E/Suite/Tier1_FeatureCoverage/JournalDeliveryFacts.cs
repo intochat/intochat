@@ -22,6 +22,7 @@ public sealed class JournalDeliveryFacts : E2ETestBase
         os.Register<DeliverySubscriberNeuron>();
 
         var brain = NewBrain("nudge-dup");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var pubId = new NeuronId(brain, "delivery.publisher", "pub");
         var subId = new NeuronId(brain, "delivery.subscriber", "sub");
 
@@ -53,6 +54,7 @@ public sealed class JournalDeliveryFacts : E2ETestBase
         os.Register<DeliverySubscriberNeuron>();
 
         var brain = NewBrain("catchup-advance");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var pubId = new NeuronId(brain, "delivery.publisher", "pub");
         var subId = new NeuronId(brain, "delivery.subscriber", "sub");
 
@@ -91,6 +93,7 @@ public sealed class JournalDeliveryFacts : E2ETestBase
         os.Register<FaultySubscriberNeuron>();
 
         var brain = NewBrain("failed-reaction");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var pubId = new NeuronId(brain, "delivery.publisher", "pub");
         var subId = new NeuronId(brain, "delivery.faulty", "sub");
 
@@ -145,6 +148,7 @@ public sealed class JournalDeliveryFacts : E2ETestBase
         os.Register<GapTrackingSubscriberNeuron>();
 
         var brain = NewBrain("gap-delivery");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var pubId = new NeuronId(brain, "delivery.publisher", "pub");
         var subId = new NeuronId(brain, "delivery.gap_tracker", "sub");
 
@@ -220,6 +224,7 @@ public sealed class JournalDeliveryFacts : E2ETestBase
         os.Register<ConcurrentCountingSubscriberNeuron>();
 
         var brain = NewBrain("concurrent-delivery");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var pubId = new NeuronId(brain, "delivery.publisher", "pub");
         var subId = new NeuronId(brain, "delivery.concurrent", "sub");
 

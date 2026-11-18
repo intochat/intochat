@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Errors;
 using DigitalBrain.Neurons;
@@ -24,8 +25,7 @@ public sealed class ScreenDirectoryNeuronFacts
     private const string Scope = "owner";
 
     private static IDisposable AsPerson(string principal = "alice")
-        => DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(
-            DigitalBrain.Capabilities.CapabilityCallers.Of(principal, principal, Scope));
+        => IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person(principal, principal, new BrainId(Scope)));
 
     private sealed class MockNeuronProxies : INeuronProxies
     {
@@ -311,6 +311,7 @@ public sealed class ScreenDirectoryNeuronFacts
     [Fact]
     public async Task ScreenDirectory_List_LogsSwallowedWorkspaceFailureToInjectedLogger()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var proxies = new MockNeuronProxies();
         var logger = new RecordingLogger<ScreenDirectoryNeuron>();
         var services = new ServiceCollection()

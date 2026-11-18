@@ -1,5 +1,7 @@
+using IntoChat.OS.Tests;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Broker;
@@ -164,7 +166,7 @@ public sealed class BuildFlowFacts
     private static Task<string> Start(INeuronRuntime runtime, string goal = "watch elonmusk on X")
         => Flows(runtime).Start(BuildFlow.Alias, goal, null, Goal(goal), Ct);
 
-    private static IDisposable AsPerson(INeuronRuntime runtime) => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value));
+    private static IDisposable AsPerson(INeuronRuntime runtime) => runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain));
 
     private static async Task<FlowView> Eventually(Func<Task<FlowView?>> read, Func<FlowView, bool> done)
     {
@@ -199,6 +201,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         var id = await Start(runtime);
 
@@ -227,6 +230,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(OneCovering(), Red);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         var id = await Start(runtime);
 
@@ -244,6 +248,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(new HttpConnections(("y1", ["api.y.com", "*.x.org"])), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         var id = await Start(runtime);
 
@@ -264,6 +269,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(new HttpConnections(("x1", ["api.x.com"]), ("x2", ["*.x.com"])), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         var id = await Start(runtime);
 
@@ -290,6 +296,7 @@ public sealed class BuildFlowFacts
         var connections = new HttpConnections(("y1", ["api.y.com"]));
         await using var fixture = Fixture(connections, AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var id = await Start(runtime);
         await Eventually(() => Flows(runtime).Read(id, Ct), v => v.WaitingStep == "deploy");
 
@@ -325,6 +332,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var id = await Start(runtime);
 
         var view = await Eventually(() => Flows(runtime).Read(id, Ct), v => v.WaitingStep == "install" && v.ConfirmationPlanId is not null);
@@ -345,6 +353,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var id = await Start(runtime);
         await Eventually(() => Flows(runtime).Read(id, Ct), v => v.WaitingStep == "install");
         var inner = await Inner(runtime, id);
@@ -365,6 +374,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/xwatch"));
         await app.Create(new AppManifest("X watch", "Watches X", [], [], [], Headless: true), "Count the mentions of elonmusk.");
 
@@ -392,6 +402,7 @@ public sealed class BuildFlowFacts
         var changed = AgentPrompts.XWatchExample.Replace("// Every six minutes", "// Every six minutes, as before", StringComparison.Ordinal);
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample, changed);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var first = await Start(runtime);
         await Eventually(() => Flows(runtime).Read(first, Ct), v => v.WaitingStep == "install");
         await runtime.ApproveAsPerson((await Inner(runtime, first)).PlanId!, Ct);
@@ -420,6 +431,7 @@ public sealed class BuildFlowFacts
         Assert.NotEqual(AgentPrompts.XWatchExample, wider);
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample, wider);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var first = await Start(runtime);
         await Eventually(() => Flows(runtime).Read(first, Ct), v => v.WaitingStep == "install");
         await runtime.ApproveAsPerson((await Inner(runtime, first)).PlanId!, Ct);
@@ -453,6 +465,7 @@ public sealed class BuildFlowFacts
         var drafter = new ScriptedDrafter(AgentPrompts.XWatchExample);
         await using var fixture = new BuildFixture(drafter, OneCovering());
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
         var first = await Start(runtime);
         await Eventually(() => Flows(runtime).Read(first, Ct), v => v.WaitingStep == "install");
@@ -475,6 +488,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var id = await Start(runtime);
         await Eventually(() => Flows(runtime).Read(id, Ct), v => v.WaitingStep == "install");
         var deployed = await Inner(runtime, id);
@@ -504,6 +518,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         var result = await runtime.Get<IInoStudio>(runtime.Id("ino.studio", "ino/studio")).Make("watch elonmusk on X");
 
@@ -523,6 +538,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var id = await Start(runtime);
 
         var view = await Eventually(() => Flows(runtime).Read(id, Ct), v => v.Subject is not null);
@@ -535,6 +551,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var ino = runtime.Get<IInoStudio>(runtime.Id("ino.studio", "ino/studio"));
         var card = Assert.IsType<InoCard>((await ino.Make("watch elonmusk on X")).Card);
         await Settled(runtime, card.Id);
@@ -552,6 +569,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(OneCovering(), Red);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/broken"));
         await app.Create(new AppManifest("Broken", "Never builds", [], [], []), "spec");
         await app.BeginBuild(null);
@@ -572,6 +590,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/failing"));
         await app.Create(new AppManifest("Failing", "Fails", [], [], []), "spec");
         await app.BeginBuild(null);
@@ -589,6 +608,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(OneCovering(), AgentPrompts.XWatchExample);
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/retried"));
         await app.Create(new AppManifest("Retried", "Fails once", [], [], []), "spec");
         var pump = runtime.Get<IFlowSignalPump>(runtime.Id(FlowSignalPump.Alias, "pump"));
@@ -614,6 +634,7 @@ public sealed class BuildFlowFacts
     {
         await using var fixture = Fixture(OneCovering());
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/doomed"));
         await app.Create(new AppManifest("Doomed", "Never drafts", [], [], []), "spec");
 
@@ -644,6 +665,7 @@ public sealed class BuildFlowFacts
         var drafter = new ScriptedDrafter(AgentPrompts.XWatchExample);
         await using var fixture = new BuildFixture(drafter, OneCovering());
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
         await FirstLive(runtime);
 
@@ -660,6 +682,7 @@ public sealed class BuildFlowFacts
         var drafter = new ScriptedDrafter(AgentPrompts.XWatchExample, Red);
         await using var fixture = new BuildFixture(drafter, OneCovering());
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
         await FirstLive(runtime);
 
@@ -674,6 +697,7 @@ public sealed class BuildFlowFacts
         var drafter = new ScriptedDrafter(AgentPrompts.XWatchExample, Red);
         await using var fixture = new BuildFixture(drafter, OneCovering());
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
         await FirstLive(runtime);
 
@@ -689,6 +713,7 @@ public sealed class BuildFlowFacts
         var drafter = new ScriptedDrafter(AgentPrompts.XWatchExample);
         await using var fixture = new BuildFixture(drafter, OneCovering());
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
         await FirstLive(runtime);
 

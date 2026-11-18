@@ -77,7 +77,7 @@ public sealed class TasksCancelOnRealHostFacts
         // What the button would send (ScreenAppEmitBridge: screen.Request("tasks.cancel")), stamped as McpCaller stamps an MCP
         // client. In process: no route gives an MCP client this request while the card is not published.
         using (Edge(host).EnterInProcess())
-        using (RuntimeCallerContext.Stamp(McpCaller.AsAgent(Person(host))))
+        using (Edge(host).Enter(McpCaller.AsAgent(Edge(host), Person(host))))
         {
             await TasksScreen(host).Request("tasks.cancel", JsonSerializer.SerializeToElement(new { flowId }));
         }
@@ -154,15 +154,15 @@ public sealed class TasksCancelOnRealHostFacts
         }
     }
 
-    private static CapabilityCaller Person(EdgeKernelHarness host)
-        => CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, host.Scope);
+    private static Caller Person(EdgeKernelHarness host)
+        => Edge(host).Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin, new BrainId(host.Scope));
 
     // The person starts a plan flow; it drafts, then waits at "approve" with its plan pending in the inbox.
     private static async Task<(string FlowId, string PlanId)> PlanWaitingForApproval(EdgeKernelHarness host)
     {
         string flowId;
         using (Edge(host).EnterInProcess())
-        using (RuntimeCallerContext.Stamp(Person(host)))
+        using (Edge(host).Enter(Person(host)))
         {
             flowId = await Flows(host).Start(PlanFlow.Alias, "Notes", null, JsonSerializer.Serialize(new PlanInner { Goal = "Keep notes" }, PlanFlow.Json), Ct);
         }

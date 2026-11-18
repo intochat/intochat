@@ -1,3 +1,5 @@
+using IntoChat.OS.Tests;
+using IntoChat.OS.Framework;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
@@ -22,6 +24,7 @@ public sealed class SecurityPostureFacts(AiFixture fixture) : IClassFixture<AiFi
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, ct);
+        using var person = runtime.As(Who.Person);
 
         await runtime.Get<ISecurityPosture>(runtime.Id("ai.security-posture", "security/posture")).Stop("breach suspected");
 
@@ -38,6 +41,7 @@ public sealed class SecurityPostureFacts(AiFixture fixture) : IClassFixture<AiFi
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, ct);
+        using var person = runtime.As(Who.Person);
         var posture = runtime.Get<ISecurityPosture>(runtime.Id("ai.security-posture", "security/posture"));
         await posture.Stop("breach suspected");
 
@@ -51,12 +55,11 @@ public sealed class SecurityPostureFacts(AiFixture fixture) : IClassFixture<AiFi
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, ct);
+        using var person = runtime.As(Who.Person);
         var postureId = runtime.Id("ai.security-posture", "security/posture");
         await runtime.Get<ISecurityPosture>(postureId).Resume(); // wakes the neuron, so its synapse on the grants exists
         var grants = runtime.Get<IGrantsNeuron>(runtime.Id(IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey));
-#pragma warning disable CS0618 // AssistantApp is the AppId every agent tool call runs under
-        var assistant = CapabilityCallers.AssistantApp;
-#pragma warning restore CS0618
+        var assistant = CallerApps.Assistant;
         await grants.Grant(new Grant { Id = "g-assistant", AppId = assistant, SemanticTypeId = "person.birthDate", WorkspaceId = runtime.Brain.Value });
         // Revoking is only news once the neuron has seen the grant in force: the activation read, then this grant.
         await runtime.WaitForSignals<SecurityPostureNoted>(postureId, 2, Within, ct);

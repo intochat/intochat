@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -24,7 +25,7 @@ public sealed class FieldNeuronFacts
 
     private static TestOS Started() => TestOS.Local().Register(typeof(FlutterModule).Assembly);
 
-    private static IDisposable As(string app) => RuntimeCallerContext.Stamp(new CapabilityCaller("p1", "a1", "owner", AppId: "owner/apps/" + app));
+    private static IDisposable As(string app) => IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.App("owner/apps/" + app, new Actor.Person("p1", "a1"), new BrainId("owner")));
 
     [Fact]
     public async Task InputJournalsFieldChangedWithoutTheValue()
@@ -203,7 +204,7 @@ public sealed class FieldNeuronFacts
         await using var os = Started();
         await os.Get<IField>(Title).Configure(FieldKind.Text);
 
-        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("field", "owner/apps/tasks/title", Value: "Ship docs"), new Brain(os), "owner", null, Ct);
+        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("field", "owner/apps/tasks/title", Value: "Ship docs"), new Brain(os), "owner", null, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
 
         Assert.Equal("Ship docs", (await os.Get<IField>(Title).Read()).Value);
     }
@@ -222,25 +223,25 @@ public sealed class FieldNeuronFacts
     {
         await using var os = Started();
         using (Edge.AsPerson()) { await os.Get<IField>(Title).Configure(FieldKind.Text); }
-        CapabilityCaller? caller = kind switch
+        Caller? caller = kind switch
         {
-            "person" => new("p1", "a1", "owner"),
-            "platform" => CapabilityCallers.Platform("p1", "a1", "owner"),
-            "platform-of-another-brain" => CapabilityCallers.Platform("p1", "a1", "elsewhere"),
-            "owning-app" => new("p1", "a1", "owner", AppId: "owner/apps/tasks"),
-            "other-app" => new("p1", "a1", "owner", AppId: "owner/apps/files"),
-            "scheduler" => new("p1", "a1", "owner", AppId: CapabilityCallers.SchedulerApp),
-            "other-brain" => new("p1", "a1", "elsewhere"),
+            "person" => IntoChat.OS.Tests.TestEdge.Authority.Person("p1", "a1", new BrainId("owner")),
+            "platform" => IntoChat.OS.Tests.TestEdge.Authority.Kernel(new BrainId("owner")),
+            "platform-of-another-brain" => IntoChat.OS.Tests.TestEdge.Authority.Kernel(new BrainId("elsewhere")),
+            "owning-app" => IntoChat.OS.Tests.TestEdge.Authority.App("owner/apps/tasks", new Actor.Person("p1", "a1"), new BrainId("owner")),
+            "other-app" => IntoChat.OS.Tests.TestEdge.Authority.App("owner/apps/files", new Actor.Person("p1", "a1"), new BrainId("owner")),
+            "scheduler" => IntoChat.OS.Tests.TestEdge.Authority.Scheduler(new BrainId("owner")),
+            "other-brain" => IntoChat.OS.Tests.TestEdge.Authority.Person("p1", "a1", new BrainId("elsewhere")),
             _ => null,
         };
         Task Type() => os.Get<IField>(Title).Input("typed");
-        using (caller is null ? null : RuntimeCallerContext.Stamp(caller))
+        using (caller is null ? null : IntoChat.OS.Tests.TestEdge.Authority.Enter(caller))
         {
             if (allowed) { await Type(); }
             else { await Assert.ThrowsAsync<UnauthorizedAccessException>(Type); }
         }
 
-        Assert.Equal(allowed ? "typed" : null, (await os.Get<IField>(Title).Read()).Value);
+        using (Edge.AsPerson()) { Assert.Equal(allowed ? "typed" : null, (await os.Get<IField>(Title).Read()).Value); }
     }
 
     // A call nobody stamped is never taken for the platform: configure, set, take and publish all refuse it.
@@ -264,6 +265,7 @@ public sealed class FieldNeuronFacts
     [Fact]
     public async Task APublishedFieldTakesInputThroughTheEdgeUnderItsFullName()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = Started();
         using (As("tasks"))
         {
@@ -273,7 +275,7 @@ public sealed class FieldNeuronFacts
 
         using (Edge.AsPerson())
         {
-            await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("field", "owner/apps/tasks/title", Value: "Ship docs"), new Brain(os), "owner", null, Ct);
+            await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("field", "owner/apps/tasks/title", Value: "Ship docs"), new Brain(os), "owner", null, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
         }
 
         var state = await os.Get<IField>(Title).Read();

@@ -22,7 +22,7 @@ public sealed class DesktopAppFacts
     [Fact]
     public async Task DesktopScenariosPass()
     {
-        using var person = Edge.AsPerson();
+        using var person = Edge.AsPerson("test");
         await using var os = TestOS.Local();
         os.Register<DesktopRecordsNeuron>();
         os.Register(typeof(AppsModule).Assembly);

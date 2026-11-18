@@ -1,3 +1,4 @@
+using IntoChat.OS.Tests;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Time.Reminders;
 using IntoChat.OS.Modules.Time.Reminders.Signals;
@@ -36,6 +37,7 @@ public sealed class ReminderFacts(TimeFixture fixture)
         var control = new ReminderControl();
         var (runtime, reminder, host) = await Start("registration", control, ct);
         await using var _ = runtime;
+        using var person = runtime.As(Who.Person);
         await reminder.Start(TimeSpan.FromDays(1), TimeSpan.FromMinutes(1));
         var initial = Assert.Single((await control.Table.ReadRows(host, ct)).Reminders);
         foreach (var due in new[] { TimeSpan.FromTicks(-1), Timeout.InfiniteTimeSpan, TimeSpan.MaxValue })
@@ -60,6 +62,7 @@ public sealed class ReminderFacts(TimeFixture fixture)
         var control = new ReminderControl { FailRegister = true };
         var (runtime, reminder, host) = await Start("failures", control, ct);
         await using var _ = runtime;
+        using var person = runtime.As(Who.Person);
         await Assert.ThrowsAsync<IOException>(() => reminder.Start(TimeSpan.FromDays(1), TimeSpan.FromMinutes(1)));
         Assert.Empty((await control.Table.ReadRows(host, ct)).Reminders);
         await reminder.Start(TimeSpan.FromDays(1), TimeSpan.FromMinutes(1));
@@ -81,6 +84,7 @@ public sealed class ReminderFacts(TimeFixture fixture)
         var control = new ReminderControl { FailAfterRegister = true };
         var (runtime, reminder, host) = await Start("ambiguous", control, ct);
         await using var _ = runtime;
+        using var person = runtime.As(Who.Person);
         await Assert.ThrowsAsync<IOException>(() => reminder.Start(TimeSpan.FromDays(1), TimeSpan.FromMinutes(1)));
         Assert.Single((await control.Table.ReadRows(host, ct)).Reminders);
         await reminder.Start(TimeSpan.FromDays(1), TimeSpan.FromMinutes(2));
@@ -101,6 +105,7 @@ public sealed class ReminderFacts(TimeFixture fixture)
         var control = new ReminderControl();
         var (runtime, reminder, host) = await Start("queued", control, ct);
         await using var _ = runtime;
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("reminder", "queued");
         await reminder.Start(TimeSpan.FromDays(1), TimeSpan.FromMinutes(1));
         await reminder.Stop();
@@ -120,6 +125,7 @@ public sealed class ReminderFacts(TimeFixture fixture)
         var control = new ReminderControl();
         var (runtime, reminder, host) = await Start("reactivate", control, ct);
         await using var _ = runtime;
+        using var person = runtime.As(Who.Person);
         await reminder.Start(TimeSpan.Zero, TimeSpan.FromMilliseconds(200));
         var before = await control.NextDeliveryAsync(ct);
         ReminderDelivery after;

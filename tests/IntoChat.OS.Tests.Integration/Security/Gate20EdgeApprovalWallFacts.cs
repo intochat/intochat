@@ -37,9 +37,7 @@ public sealed class Gate20EdgeApprovalWallFacts
     {
         await using var host = await EdgeKernelHarness.StartAsync(Ct);
 
-        // B04: UnstampedEdgeIsKernel is false on the composed product silo
-        var accessOptions = host.Services.GetRequiredService<AccessOptions>();
-        Assert.False(accessOptions.UnstampedEdgeIsKernel);
+        // B04: an unstamped edge is never the kernel; AccessOptions is gone and the gate refuses a call with no caller (task 1).
 
         // B04: Orleans Dashboard is gated off by default unless explicitly enabled
         var serverBuilder = host.Services.GetRequiredService<IntoChatOSServerBuilder>();
@@ -109,7 +107,8 @@ public sealed class Gate20EdgeApprovalWallFacts
 
         var context = await mcpClient.CallToolAsync("neurons_context", new Dictionary<string, object?>(), cancellationToken: Ct);
         Assert.NotEqual(true, context.IsError);
-        Assert.Contains($"\"appId\":\"{CapabilityCallers.AssistantApp}\"", ExtractText(context), StringComparison.Ordinal);
+        // MCP describes its caller by actor now: the agent acting for the session's person (task 6, McpCaller.Describe).
+        Assert.Contains("\"actor\":\"Agent\"", ExtractText(context), StringComparison.Ordinal);
 
         var neurons = await mcpClient.CallToolAsync("neurons_list", new Dictionary<string, object?>(), cancellationToken: Ct);
         Assert.NotEqual(true, neurons.IsError);
@@ -258,16 +257,10 @@ public sealed class Gate20EdgeApprovalWallFacts
         // -----------------------------------------------------------------------------------------
         // Attack 4: In-process Actor.Agent caller attempting Resolve(true), Resolve(false), Withdraw
         // -----------------------------------------------------------------------------------------
-        var agentCaller = CapabilityCallers.Of(
-            AccountSession.DefaultLogin,
-            AccountSession.DefaultLogin,
-            scope,
-            CallerKind.Agent,
-            CapabilityCallers.AssistantApp) with
-        { ConversationId = "ino-turn" };
+        var agentCaller = Edge(host.Services).Agent(new Actor.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin), new BrainId(scope), conversation: "ino-turn");
 
         using (Edge(host.Services).EnterInProcess())
-        using (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(agentCaller))
+        using (Edge(host.Services).Enter(agentCaller))
         {
             var inbox = proxies.Get<IConfirmationInbox>(inboxKey);
             var requests = proxies.Get<IConfirmationRequests>(requestsId);
@@ -394,15 +387,10 @@ public sealed class Gate20EdgeApprovalWallFacts
         NeuronId requestsId,
         ConfirmationPlan plan)
     {
-        var raiserCaller = CapabilityCallers.Of(
-            AccountSession.DefaultLogin,
-            AccountSession.DefaultLogin,
-            scope,
-            CallerKind.Scheduler,
-            CapabilityCallers.SchedulerApp);
+        var raiserCaller = Edge(services).Scheduler(new BrainId(scope));
 
         using var _ = Edge(services).EnterInProcess();
-        using var __ = DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(raiserCaller);
+        using var __ = Edge(services).Enter(raiserCaller);
         var requests = services.GetRequiredService<INeuronProxies>().Get<IConfirmationRequests>(requestsId);
         var immediate = await requests.Request(plan);
         Assert.Null(immediate);

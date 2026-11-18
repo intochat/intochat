@@ -49,6 +49,7 @@ public sealed class SalesforcePolicyFacts
     [Fact]
     public async Task ARefusingPolicyStopsTheWriteBeforeTheApiCall()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("b", "b", new BrainId("b")));
         var (os, neuron, provider) = await CreateHarnessAsync();
         await using var _ = os;
         var rule = new PolicyRule(
@@ -72,6 +73,7 @@ public sealed class SalesforcePolicyFacts
     [Fact]
     public async Task AnAllowedWriteIsCountedOnce()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("b", "b", new BrainId("b")));
         var (os, neuron, provider) = await CreateHarnessAsync();
         await using var _ = os;
         var rule = new PolicyRule(
@@ -99,6 +101,7 @@ public sealed class SalesforcePolicyFacts
     [Fact]
     public async Task AFailedApiCallReleasesTheReservation()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("b", "b", new BrainId("b")));
         var (os, neuron, provider) = await CreateHarnessAsync();
         await using var _ = os;
         var rule = new PolicyRule(
@@ -129,6 +132,7 @@ public sealed class SalesforcePolicyFacts
     [Fact]
     public async Task AnUncertainWriteKeepsTheReservation()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("b", "b", new BrainId("b")));
         var (os, neuron, provider) = await CreateHarnessAsync();
         await using var _ = os;
         var rule = new PolicyRule(

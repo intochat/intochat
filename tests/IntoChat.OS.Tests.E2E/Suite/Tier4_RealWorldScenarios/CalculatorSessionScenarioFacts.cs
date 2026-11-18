@@ -171,6 +171,7 @@ public sealed class CalculatorSessionScenarioFacts : E2ETestBase, IClassFixture<
         os.Register<InteractiveCalculatorScreen>();
 
         var brain = NewBrain("calc-init");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.interactive_calculator", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -192,6 +193,7 @@ public sealed class CalculatorSessionScenarioFacts : E2ETestBase, IClassFixture<
         os.Register<InteractiveCalculatorScreen>();
 
         var brain = NewBrain("calc-add");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.interactive_calculator", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -241,6 +243,7 @@ public sealed class CalculatorSessionScenarioFacts : E2ETestBase, IClassFixture<
         os.Register<InteractiveCalculatorScreen>();
 
         var brain = NewBrain("calc-chain");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.interactive_calculator", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -280,6 +283,7 @@ public sealed class CalculatorSessionScenarioFacts : E2ETestBase, IClassFixture<
         os.Register<InteractiveCalculatorScreen>();
 
         var brain = NewBrain("calc-clear");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.interactive_calculator", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -307,6 +311,7 @@ public sealed class CalculatorSessionScenarioFacts : E2ETestBase, IClassFixture<
         os.Register<InteractiveCalculatorScreen>();
 
         var brain = NewBrain("calc-stale");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.interactive_calculator", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -332,6 +337,7 @@ public sealed class CalculatorSessionScenarioFacts : E2ETestBase, IClassFixture<
         os.Register<InteractiveCalculatorScreen>();
 
         var brain = NewBrain("calc-divzero");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.interactive_calculator", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -368,6 +374,7 @@ public sealed class CalculatorSessionScenarioFacts : E2ETestBase, IClassFixture<
         os.Register<InteractiveCalculatorScreen>();
 
         var brain = NewBrain("calc-noop");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.interactive_calculator", "default");
         var screen = os.Get<IScreen>(screenId);
 

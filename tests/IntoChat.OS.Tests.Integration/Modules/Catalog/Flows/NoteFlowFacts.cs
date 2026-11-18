@@ -1,3 +1,4 @@
+using IntoChat.OS.Tests;
 using System.Text.Json;
 using DigitalBrain.Flows;
 using DigitalBrain.Testing;
@@ -14,6 +15,7 @@ public sealed class NoteFlowFacts
     {
         await using var fixture = new FlowTypesFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Index(runtime);
         var note = JsonSerializer.Serialize(new NoteInner { Text = "remember" }, NoteFlow.Json);
         var other = await flows.Start(NoteFlow.Alias, "Other", null, note, Ct);

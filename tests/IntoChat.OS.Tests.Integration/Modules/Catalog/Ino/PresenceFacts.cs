@@ -15,6 +15,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
 
+using IntoChat.OS.Tests;
+
 namespace IntoChat.OS.Modules.Apps.Tests.Integration.Ino;
 
 // Publishes an agent's turn signals as the agent neuron does, for the conversation agent the facts name.
@@ -85,17 +87,18 @@ public sealed class PresenceFacts
 
     private static IInoFocus FocusTool(INeuronRuntime runtime) => runtime.Get<IInoFocus>(new NeuronId(runtime.Brain, "ino.focus", IInoFocus.DefaultKey));
 
-    private static IDisposable As(INeuronRuntime runtime, CallerKind kind)
-        => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value, kind, kind == CallerKind.App ? "test-app" : null));
+    private static IDisposable As(INeuronRuntime runtime, Who kind)
+        => runtime.As(kind, app: "test-app");
 
-    // An agent's tool call as ContractActions.Marked stamps it: the person's principal, AppId "assistant" and the conversation.
+    // An agent's tool call as ContractActions.Marked stamps it: the person's principal, the agent and the conversation.
     private static IDisposable AsInoTool(INeuronRuntime runtime)
-        => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value, CallerKind.Agent, conversationId: Agent));
+        => runtime.As(Who.Agent, conversation: Agent);
 
     // Makes Agent the current conversation and activates the presence, so its synapses hold before the facts publish.
     private static async Task<INeuronRuntime> Started(PresenceFixture fixture)
     {
         var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         await runtime.Get<IInoConversations>(new NeuronId(runtime.Brain, "ino.conversations", IInoConversations.DefaultKey)).Use(Agent);
         await Presence(runtime).Read(Ct);
         return runtime;
@@ -123,6 +126,7 @@ public sealed class PresenceFacts
     {
         await using var fixture = new PresenceFixture();
         await using var runtime = await Started(fixture);
+        using var person = runtime.As(Who.Person);
 
         await Pump(runtime).Started(Agent, "run-1", null);
         await Pump(runtime).Tool(Agent, "run-1", "neuron_call", """{"method":"Write"}""", 1);
@@ -138,11 +142,11 @@ public sealed class PresenceFacts
         Assert.Equal("second", waiting.Step);
         Assert.Equal(TestFlow.Alias, waiting.FlowType);
 
-        using (As(runtime, CallerKind.User)) { await ContextOf(runtime, "security.posture").Set(new ContextEntry("stop", "Stop now.", [], [ContextTags.Interrupt])); }
+        using (As(runtime, Who.Person)) { await ContextOf(runtime, "security.posture").Set(new ContextEntry("stop", "Stop now.", [], [ContextTags.Interrupt])); }
         var paused = await Eventually(runtime, presence => presence.State == PresenceState.Paused);
         Assert.Equal("Stop now.", paused.Reason);
 
-        using (As(runtime, CallerKind.Platform)) { await ContextOf(runtime, "security.posture").Remove("stop"); }
+        using (As(runtime, Who.Kernel)) { await ContextOf(runtime, "security.posture").Remove("stop"); }
         await Eventually(runtime, presence => presence.State == PresenceState.Waiting);
     }
 
@@ -151,6 +155,7 @@ public sealed class PresenceFacts
     {
         await using var fixture = new PresenceFixture();
         await using var runtime = await Started(fixture);
+        using var person = runtime.As(Who.Person);
 
         await Pump(runtime).Started(Agent, "run-1", null);
         await Pump(runtime).Tool(Agent, "run-1", "neuron_call", """{"contract":"IntoChat.OS.Modules.Apps.IInoData","method":"Search"}""", 1);
@@ -163,6 +168,7 @@ public sealed class PresenceFacts
     {
         await using var fixture = new PresenceFixture();
         await using var runtime = await Started(fixture);
+        using var person = runtime.As(Who.Person);
 
         await Pump(runtime).Started("ino/conversations/other", "run-0", null);
         await Pump(runtime).Started(Agent, "run-1", null);
@@ -176,6 +182,7 @@ public sealed class PresenceFacts
     {
         await using var fixture = new PresenceFixture();
         await using var runtime = await Started(fixture);
+        using var person = runtime.As(Who.Person);
         var flows = runtime.Get<IFlows>(IFlows.Key(runtime.Brain.Value));
         string flowId;
         using (AsInoTool(runtime)) { flowId = await flows.Start(TestFlow.Alias, "Report", null, Inner(new TestInner { Wait = true }), Ct); }
@@ -193,8 +200,9 @@ public sealed class PresenceFacts
     {
         await using var fixture = new PresenceFixture();
         await using var runtime = await Started(fixture);
+        using var person = runtime.As(Who.Person);
 
-        using (As(runtime, CallerKind.App)) { await ContextOf(runtime, "ui.focus").Set(new ContextEntry("ui.focus", FocusText("window:files", "warning", "Look here."), [], [ContextTags.UiFocus])); }
+        using (As(runtime, Who.App)) { await ContextOf(runtime, "ui.focus").Set(new ContextEntry("ui.focus", FocusText("window:files", "warning", "Look here."), [], [ContextTags.UiFocus])); }
 
         var presence = await Eventually(runtime, presence => presence.Focus is not null);
         Assert.Equal(new Focus("window:files", FocusTone.Warning, "Look here.", new FocusAction("open", "files")), presence.Focus);
@@ -205,11 +213,12 @@ public sealed class PresenceFacts
     {
         await using var fixture = new PresenceFixture();
         await using var runtime = await Started(fixture);
+        using var person = runtime.As(Who.Person);
         var context = ContextOf(runtime, "ui.focus");
-        using (As(runtime, CallerKind.App)) { await context.Set(new ContextEntry("ui.focus", FocusText("window:files", "info", "Here."), [], [ContextTags.UiFocus])); }
+        using (As(runtime, Who.App)) { await context.Set(new ContextEntry("ui.focus", FocusText("window:files", "info", "Here."), [], [ContextTags.UiFocus])); }
         await Eventually(runtime, presence => presence.Focus is not null);
 
-        using (As(runtime, CallerKind.App)) { await context.Set(new ContextEntry("ui.focus", "{not json", [], [ContextTags.UiFocus])); }
+        using (As(runtime, Who.App)) { await context.Set(new ContextEntry("ui.focus", "{not json", [], [ContextTags.UiFocus])); }
 
         await Eventually(runtime, presence => presence.Focus is null);
     }
@@ -219,11 +228,12 @@ public sealed class PresenceFacts
     {
         await using var fixture = new PresenceFixture();
         await using var runtime = await Started(fixture);
+        using var person = runtime.As(Who.Person);
         var context = ContextOf(runtime, "ui.focus");
-        using (As(runtime, CallerKind.App)) { await context.Set(new ContextEntry("ui.focus", FocusText("window:files", "critical", "Platform says."), [], [ContextTags.UiFocus])); }
+        using (As(runtime, Who.App)) { await context.Set(new ContextEntry("ui.focus", FocusText("window:files", "critical", "Platform says."), [], [ContextTags.UiFocus])); }
         Assert.Equal(FocusTone.Critical, (await Eventually(runtime, presence => presence.Focus is not null)).Focus!.Tone);
 
-        using (As(runtime, CallerKind.Agent)) { await context.Set(new ContextEntry("ui.focus", FocusText("window:files", "critical", "Model says."), [], [ContextTags.UiFocus])); }
+        using (As(runtime, Who.Agent)) { await context.Set(new ContextEntry("ui.focus", FocusText("window:files", "critical", "Model says."), [], [ContextTags.UiFocus])); }
 
         await Eventually(runtime, presence => presence.Focus is null);
         var entry = Assert.Single((await context.Read()).Entries);
@@ -235,6 +245,7 @@ public sealed class PresenceFacts
     {
         await using var fixture = new PresenceFixture();
         await using var runtime = await Started(fixture);
+        using var person = runtime.As(Who.Person);
         await Pump(runtime).Started(Agent, "run-1", null);
         await Eventually(runtime, presence => presence.State == PresenceState.Listening);
 
@@ -263,9 +274,10 @@ public sealed class PresenceFacts
     {
         await using var fixture = new PresenceFixture();
         await using var runtime = await Started(fixture);
+        using var person = runtime.As(Who.Person);
 
         InoToolResult result;
-        using (As(runtime, CallerKind.Agent)) { result = await FocusTool(runtime).Point("window:files", FocusTone.Critical, "Look."); }
+        using (As(runtime, Who.Agent)) { result = await FocusTool(runtime).Point("window:files", FocusTone.Critical, "Look."); }
 
         Assert.False(result.Ok);
         Assert.Equal("Critical is reserved for the platform", result.Text);
@@ -277,6 +289,7 @@ public sealed class PresenceFacts
     {
         await using var fixture = new PresenceFixture();
         await using var runtime = await Started(fixture);
+        using var person = runtime.As(Who.Person);
         var trace = TraceContext.Begin("person", runtime.Brain.Value, new NeuronId(runtime.Brain, "edge", "request"));
 
         using (TraceContext.Enter(trace))

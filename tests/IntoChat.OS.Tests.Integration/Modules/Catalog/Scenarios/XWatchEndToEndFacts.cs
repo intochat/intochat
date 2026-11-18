@@ -1,3 +1,4 @@
+using IntoChat.OS.Tests;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
@@ -177,6 +178,7 @@ public sealed class XWatchEndToEndFacts
         var x = new FakeX();
         await using var fixture = new Fixture(new XConnection(x));
         await using var runtime = await fixture.Start(NeuronRuntimeKind.TestOS, Ct);
+        using var person = runtime.As(Who.Person);
         var ino = runtime.Get<IInoStudio>(runtime.Id("ino.studio", "ino/studio"));
 
         // 1. The sentence: Ino starts the build flow, which runs author, draft, verify, deploy and waits on install.
@@ -267,6 +269,7 @@ public sealed class XWatchEndToEndFacts
     {
         await using var fixture = new Fixture(new XConnection(new FakeX()));
         await using var runtime = await fixture.Start(NeuronRuntimeKind.TestOS, Ct);
+        using var person = runtime.As(Who.Person);
         var studio = runtime.Get<ISynapseStudio>(ISynapseStudio.Key(runtime.Brain.Value));
         var reads = runtime.Get<IDebuggerReads>(IDebuggerReads.Key(runtime.Brain.Value));
         var deployed = await studio.DeployFiles("flaky.unit", new Dictionary<string, string> { ["Flaky.cs"] = Flaky }, new Dictionary<string, string>());

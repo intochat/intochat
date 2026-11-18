@@ -2,6 +2,7 @@ using System.Collections;
 using System.Reflection;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Invocation;
@@ -122,6 +123,7 @@ public sealed class GrantsNeuronAdversarialFacts
     [Fact]
     public async Task MonotonicVersionProgression_SequentialMutationsStrictlyIncrementVersion()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("monotonic-brain", "monotonic-brain", new BrainId("monotonic-brain")));
         await using var os = TestOS.Local();
         os.Register<GrantsNeuron>();
         var brain = "monotonic-brain";
@@ -220,6 +222,7 @@ public sealed class GrantsNeuronAdversarialFacts
     [Fact]
     public async Task GrantsNeuron_FiltersExpiredAndRevokedGrantsFromList()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("filter-brain", "filter-brain", new BrainId("filter-brain")));
         await using var os = TestOS.Local();
         os.Register<GrantsNeuron>();
         var brain = "filter-brain";
@@ -357,6 +360,7 @@ public sealed class GrantsNeuronAdversarialFacts
             var grainFactory = new TestGrainFactory((_, _) => host, host);
             var services = new ServiceCollection()
                 .AddSingleton<IGrainFactory>(grainFactory)
+                .AddSingleton(IntoChat.OS.Tests.TestEdge.Authority)
                 .BuildServiceProvider();
 
             // EdgeGrantsCache with NO cluster listeners registered (simulating dropped broadcast / disconnected cluster)
@@ -434,6 +438,7 @@ public sealed class GrantsNeuronAdversarialFacts
             var grainFactory = new TestGrainFactory((_, _) => host, host);
             var services = new ServiceCollection()
                 .AddSingleton<IGrainFactory>(grainFactory)
+                .AddSingleton(IntoChat.OS.Tests.TestEdge.Authority)
                 .BuildServiceProvider();
 
             var cache = new EdgeGrantsCache(services: services, listeners: null, clock: clock);
@@ -510,7 +515,7 @@ public sealed class GrantsNeuronAdversarialFacts
             var cache = new EdgeGrantsCache();
             var brain = "binding-adversarial-brain";
 
-            var caller = CapabilityCallers.Of(AppPrincipal.Id("local/apps/client"), "user-1", brain, CallerKind.App, "local/apps/client");
+            var caller = IntoChat.OS.Tests.TestEdge.Authority.App("local/apps/client", new Actor.Person("user-1", "user-1"), new BrainId(brain));
 
             // Grant with neuron:// prefix on target and app: prefix on grantee
             var grant = new Grant
@@ -539,7 +544,7 @@ public sealed class GrantsNeuronAdversarialFacts
             Assert.True(await cache.IsConnectionBoundAsync(brain, caller, "connection/storage/files", ct));
 
             // Test with wrong caller app
-            var stranger = CapabilityCallers.Of(AppPrincipal.Id("local/apps/stranger"), "user-2", brain, CallerKind.App, "local/apps/stranger");
+            var stranger = IntoChat.OS.Tests.TestEdge.Authority.App("local/apps/stranger", new Actor.Person("user-2", "user-2"), new BrainId(brain));
             Assert.False(await cache.IsConnectionBoundAsync(brain, stranger, $"{brain}/connection/storage/files", ct));
 
             // Test with mismatching connection

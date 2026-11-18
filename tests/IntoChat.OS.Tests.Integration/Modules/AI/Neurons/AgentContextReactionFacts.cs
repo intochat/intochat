@@ -1,5 +1,7 @@
+using IntoChat.OS.Tests;
 using System.Runtime.CompilerServices;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -27,6 +29,7 @@ public sealed class AgentContextReactionFacts(AiFixture fixture) : IClassFixture
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await Start(ct);
+        using var person = runtime.As(Who.Person);
         var (agent, id) = await Agent(runtime, "cancel");
 
         var runId = await agent.Start(Turn("hello"));
@@ -47,13 +50,14 @@ public sealed class AgentContextReactionFacts(AiFixture fixture) : IClassFixture
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await Start(ct);
+        using var person = runtime.As(Who.Person);
         var agent = runtime.Get<IAgent>(runtime.Id("agent", "agents/react-relative"));
         await agent.Configure(new() { Contexts = ["context/relative-x"] }, 0);
 
         await Interrupt(runtime, "relative-x", ct);
         Assert.True((await Until(agent, state => state.Blocked, ct)).Blocked);
 
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Platform("p1", "a1", runtime.Brain.Value))) { await runtime.Get<IAgentContext>(ContextId(runtime, "relative-x")).Remove("stop"); }
+        using (runtime.Edge.EnterKernel(runtime.Brain)) { await runtime.Get<IAgentContext>(ContextId(runtime, "relative-x")).Remove("stop"); }
         Assert.False((await Until(agent, state => !state.Blocked, ct)).Blocked);
     }
 
@@ -62,11 +66,12 @@ public sealed class AgentContextReactionFacts(AiFixture fixture) : IClassFixture
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await Start(ct);
+        using var person = runtime.As(Who.Person);
         var (agent, id) = await Agent(runtime, "unblock");
         await Interrupt(runtime, "unblock", ct);
         await Until(agent, state => state.Blocked, ct);
 
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Platform("p1", "a1", runtime.Brain.Value))) { await runtime.Get<IAgentContext>(ContextId(runtime, "unblock")).Remove("stop"); }
+        using (runtime.Edge.EnterKernel(runtime.Brain)) { await runtime.Get<IAgentContext>(ContextId(runtime, "unblock")).Remove("stop"); }
 
         await Until(agent, state => !state.Blocked, ct);
         var signals = await runtime.WaitForSignals<AgentBlocked>(id, 2, Within, ct);
@@ -82,11 +87,12 @@ public sealed class AgentContextReactionFacts(AiFixture fixture) : IClassFixture
         // The fixture has no silo restart, so this asserts the stored flag follows the contexts without a turn.
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await Start(ct);
+        using var person = runtime.As(Who.Person);
         await Interrupt(runtime, "recompute", ct);
         var (agent, _) = await Agent(runtime, "recompute");
         Assert.True((await agent.Read()).Blocked);
 
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Platform("p1", "a1", runtime.Brain.Value))) { await runtime.Get<IAgentContext>(ContextId(runtime, "recompute")).Remove("stop"); }
+        using (runtime.Edge.EnterKernel(runtime.Brain)) { await runtime.Get<IAgentContext>(ContextId(runtime, "recompute")).Remove("stop"); }
 
         Assert.False((await Until(agent, state => !state.Blocked, ct)).Blocked);
     }
@@ -113,7 +119,7 @@ public sealed class AgentContextReactionFacts(AiFixture fixture) : IClassFixture
 
     private static Task Interrupt(INeuronRuntime runtime, string name, CancellationToken ct) => Task.Run(async () =>
     {
-        using var _ = RuntimeCallerContext.Stamp(CapabilityCallers.Platform("p1", "a1", runtime.Brain.Value));
+        using var _ = runtime.Edge.EnterKernel(runtime.Brain);
         await runtime.Get<IAgentContext>(ContextId(runtime, name)).Set(new("stop", "halt now", [], [ContextTags.Interrupt]));
     }, ct);
 

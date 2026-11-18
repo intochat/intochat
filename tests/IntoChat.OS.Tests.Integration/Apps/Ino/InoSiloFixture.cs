@@ -1,3 +1,4 @@
+using DigitalBrain.Access;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using DigitalBrain;
@@ -162,7 +163,9 @@ public sealed class InoSiloFixture : IAsyncLifetime
         => $"{prefix}{Interlocked.Increment(ref _brainCounter)}";
 
     public IDisposable AsPerson(string brain)
-        => RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
+        => Edge.Enter(Edge.Person(brain, brain, new BrainId(brain)));
+
+    public EdgeAuthority Edge => Services.GetRequiredService<EdgeAuthority>();
 
     public IScreen InoScreen(string brain)
         => SiloNeurons.Get<IScreen>(Services, new NeuronId(new BrainId(brain), "app.ino", "default"));
@@ -486,23 +489,23 @@ public sealed class InoSiloFixture : IAsyncLifetime
         public Task<Member?> Membership(string brainScopeId, string principalId, CancellationToken cancellationToken)
             => Task.FromResult<Member?>(new Member { PrincipalId = principalId, AccountId = principalId, BrainId = brainScopeId, Role = MemberRole.Owner, DisplayName = principalId, JoinedAt = DateTimeOffset.UtcNow });
 
-        public Task<Member?> EnsureMember(CapabilityCaller caller, Member member, CancellationToken cancellationToken)
+        public Task<Member?> EnsureMember(Member member, CancellationToken cancellationToken)
             => Task.FromResult<Member?>(member);
 
-        public Task RemoveMember(CapabilityCaller caller, string brainScopeId, string accountId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RemoveMember(string brainScopeId, string accountId, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task RemovePrincipalMember(CapabilityCaller caller, string brainScopeId, string principalId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RemovePrincipalMember(string brainScopeId, string principalId, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task<DigitalBrain.Capabilities.Identity.CallDecision?> Authorize(CapabilityCaller caller, DigitalBrain.Capabilities.Identity.CallRequest request, CancellationToken cancellationToken)
+        public Task<DigitalBrain.Capabilities.Identity.CallDecision?> Authorize(DigitalBrain.Capabilities.Identity.CallRequest request, CancellationToken cancellationToken)
             => Task.FromResult<DigitalBrain.Capabilities.Identity.CallDecision?>(new DigitalBrain.Capabilities.Identity.CallDecision { Allowed = true });
 
         public Task<IReadOnlyList<DigitalBrain.Capabilities.Identity.Grant>> ListGrants(string brainScopeId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<DigitalBrain.Capabilities.Identity.Grant>>([]);
 
-        public Task<DigitalBrain.Capabilities.Identity.Grant?> GrantAsOwner(CapabilityCaller caller, DigitalBrain.Capabilities.Identity.Grant grant, CancellationToken cancellationToken)
+        public Task<DigitalBrain.Capabilities.Identity.Grant?> GrantAsOwner(DigitalBrain.Capabilities.Identity.Grant grant, CancellationToken cancellationToken)
             => Task.FromResult<DigitalBrain.Capabilities.Identity.Grant?>(grant);
 
-        public Task<bool> RevokeAsOwner(CapabilityCaller caller, string appId, string semanticTypeId, DigitalBrain.Capabilities.Identity.GrantMode mode, CancellationToken cancellationToken)
+        public Task<bool> RevokeAsOwner(string appId, string semanticTypeId, DigitalBrain.Capabilities.Identity.GrantMode mode, CancellationToken cancellationToken)
             => Task.FromResult(true);
     }
 }

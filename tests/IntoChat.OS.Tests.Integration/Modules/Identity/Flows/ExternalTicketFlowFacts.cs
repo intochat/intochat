@@ -1,3 +1,4 @@
+using IntoChat.OS.Tests;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
@@ -21,6 +22,8 @@ public sealed class ExternalTicketFlowFacts(IdentityFixture fixture) : IClassFix
     public async Task AnExternalTicketForAnUnknownIssuerIsRefusedByRule(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        // The directory lives in the system brain and is cluster-internal: ticket redemption is platform code.
+        using var kernel = runtime.Edge.EnterKernel(new BrainId("system"));
         var directory = runtime.Get<IDirectoryStore>(new NeuronId(new BrainId("system"), IDirectoryStore.Type, "main"));
         IIdentityClient client = new ProxyIdentityClient(directory);
 
@@ -50,7 +53,7 @@ public sealed class ExternalTicketFlowFacts(IdentityFixture fixture) : IClassFix
         public Task<Member?> EnsureMember(Member member) => directory.EnsureMember(member);
         public Task RemoveMember(string brainScopeId, string accountId) => directory.RemoveMember(brainScopeId, accountId);
         public Task RemovePrincipalMember(string brainScopeId, string principalId) => directory.RemovePrincipalMember(brainScopeId, principalId);
-        public Task<CallDecision?> Authorize(Caller? caller, CallRequest request) => directory.Authorize(DirectoryAuthorizeRequest.From(caller, request));
+        public Task<CallDecision?> Authorize(Caller? caller, CallRequest request) => throw new NotSupportedException("The ticket flow never authorizes a call.");
         public Task<Grant[]> ListGrants(string brainScopeId) => directory.ListGrants(brainScopeId);
         public Task<Grant> GrantAsOwner(string brainId, Grant grant) => directory.GrantAsOwner(brainId, grant);
         public Task<Grant[]> GrantShipped(string brainScopeId, Grant[] grants) => directory.GrantShipped(brainScopeId, grants);

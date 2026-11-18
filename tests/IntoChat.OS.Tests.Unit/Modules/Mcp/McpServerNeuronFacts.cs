@@ -34,6 +34,7 @@ public sealed class McpServerNeuronFacts
     [InlineData("http://[fd00::1]/mcp")]
     public async Task ConnectRefusesAUrlThatIsNotCredentialFreeHttp(string url)
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", new BrainId("facts")));
         var (os, neuron) = Open();
         await using var _ = os;
         await Assert.ThrowsAsync<ArgumentException>(() => neuron.Connect(new McpServerSpec("Title", url), TestContext.Current.CancellationToken));
@@ -42,6 +43,7 @@ public sealed class McpServerNeuronFacts
     [Fact]
     public async Task ConnectRefusesABlankTitleAndANullSpec()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", new BrainId("facts")));
         var (os, neuron) = Open();
         await using var _ = os;
         await Assert.ThrowsAsync<ArgumentException>(() => neuron.Connect(new McpServerSpec(" ", "https://example.test/mcp"), TestContext.Current.CancellationToken));
@@ -51,6 +53,7 @@ public sealed class McpServerNeuronFacts
     [Fact]
     public async Task ANeverConnectedServerReadsEmptyAndOffersNoTools()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", new BrainId("facts")));
         var (os, neuron) = Open();
         await using var _ = os;
 
@@ -66,6 +69,7 @@ public sealed class McpServerNeuronFacts
     [Fact]
     public async Task ADisconnectedServerKeepsItsStateButOffersNoTools()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", new BrainId("facts")));
         var tool = new ToolDescriptor("echo", "Echo", "", "{\"type\":\"object\"}", true);
         var (os, neuron) = Open(new McpServerState("Fake", "https://example.test/mcp", false, [tool], null, null));
         await using var _ = os;
@@ -77,6 +81,7 @@ public sealed class McpServerNeuronFacts
     [Fact]
     public async Task AConnectedServerOffersItsToolsUnderItsTitle()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", new BrainId("facts")));
         var tool = new ToolDescriptor("echo", "Echo", "", "{\"type\":\"object\"}", true);
         var (os, neuron) = Open(new McpServerState("Fake", "https://example.test/mcp", true, [tool], null, null));
         await using var _ = os;
@@ -90,6 +95,7 @@ public sealed class McpServerNeuronFacts
     [Fact]
     public async Task RunNeedsAToolNameAndAConnectedServer()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", new BrainId("facts")));
         var (os, neuron) = Open();
         await using var _ = os;
         await Assert.ThrowsAsync<ArgumentException>(() => neuron.Run(" ", "{}", TestContext.Current.CancellationToken));
@@ -102,6 +108,7 @@ public sealed class McpServerNeuronFacts
     [InlineData("{broken")]
     public async Task RunRefusesArgumentsThatAreNotAJsonObject(string arguments)
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", new BrainId("facts")));
         var connected = new McpServerState("Fake", "https://example.test/mcp", true, [], null, null);
         var (os, neuron) = Open(connected);
         await using var _ = os;

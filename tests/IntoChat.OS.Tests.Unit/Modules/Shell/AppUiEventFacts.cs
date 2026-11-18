@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
@@ -32,7 +33,7 @@ public sealed class AppUiEventFacts
     }
 
     // The person the HTTP edge stamps for a signed-in caller.
-    private static IDisposable AsPerson() => DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(DigitalBrain.Capabilities.CapabilityCallers.Of("person-ann", "person-ann", Scope));
+    private static IDisposable AsPerson() => IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("person-ann", "person-ann", new BrainId(Scope)));
 
     private static AppUiEndpoints.UiEvent View(string name, string key, string? value = null) => new("view", name, Value: value, Generation: 1, Key: key);
 
@@ -41,7 +42,7 @@ public sealed class AppUiEventFacts
     {
         var brain = new RecordingBrain(new(ViewActivationKind.Emit, Emit: new Emit("tasks", "cancel", JsonSerializer.SerializeToElement(new[] { "f/1", "x:y" }))));
 
-        await AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "cancel"), brain, Scope, Hosted, Ct);
+        await AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "cancel"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
 
         Assert.Equal(("owner/apps/tasks", "cancel", "[\"f/1\",\"x:y\"]"), Assert.Single(brain.Emitted));
         Assert.Equal(("owner/apps/tasks/view", 1L, "cancel"), Assert.Single(brain.Activations));
@@ -52,7 +53,7 @@ public sealed class AppUiEventFacts
     {
         var brain = new RecordingBrain(new(ViewActivationKind.Emit, Emit: new Emit("tasks", "rename", JsonSerializer.SerializeToElement(new { id = "t1" }))));
 
-        await AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "title", "Ship docs"), brain, Scope, Hosted, Ct);
+        await AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "title", "Ship docs"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
 
         Assert.Equal(("owner/apps/tasks", "rename", "{\"id\":\"t1\",\"value\":\"Ship docs\"}"), Assert.Single(brain.Emitted));
     }
@@ -62,7 +63,7 @@ public sealed class AppUiEventFacts
     {
         var brain = new RecordingBrain(new(ViewActivationKind.Emit, Emit: new Emit("ino", "send")));
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "x"), brain, Scope, Hosted, Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "x"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
         Assert.Empty(brain.Emitted);
     }
 
@@ -71,7 +72,7 @@ public sealed class AppUiEventFacts
     {
         var brain = new RecordingBrain(new(ViewActivationKind.Intent, Intent: new Intent(IntentKind.OpenWindow, "os://window/open?app=trace")));
 
-        var result = await AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "open"), brain, Scope, Hosted, Ct);
+        var result = await AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "open"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
 
         Assert.Equal("{\"intent\":{\"kind\":\"OpenWindow\",\"arg\":\"os://window/open?app=trace\"}}", await Body(result));
         Assert.Empty(brain.Emitted);
@@ -82,8 +83,8 @@ public sealed class AppUiEventFacts
     {
         var brain = new RecordingBrain(new(ViewActivationKind.Resolve, Resolve: new Resolve("plan-1")));
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/dismisser/view", "approval", "approve"), brain, Scope, Hosted, Ct));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/spoof/view", "approval", "approve"), brain, Scope, null, Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/dismisser/view", "approval", "approve"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/spoof/view", "approval", "approve"), brain, Scope, null, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
         Assert.Empty(brain.Inbox.Resolved);
     }
 
@@ -92,14 +93,15 @@ public sealed class AppUiEventFacts
     {
         var brain = new RecordingBrain(new(ViewActivationKind.Resolve, Resolve: new Resolve("plan-1")));
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/ino/view", "approval", "approve"), brain, Scope, Hosted, Ct));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/tasks/side", "approval", "deny"), brain, Scope, Hosted, Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/ino/view", "approval", "approve"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(View("owner/apps/tasks/side", "approval", "deny"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
         Assert.Empty(brain.Inbox.Resolved);
     }
 
     [Fact]
     public async Task ActivateRoutesEmitToAUnitAlias()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = TestOS.Local().Register(typeof(CounterUnit).Assembly);
         os.Confirmations.ApproveAll();
         await os.Get<IInstalls>(NeuronId.Parse("owner/synapse.installs/default")).Install(new DigitalBrain.Units.InstallRequest("ctr", new Dictionary<string, string>()), Ct);
@@ -111,9 +113,9 @@ public sealed class AppUiEventFacts
         var shown = await reader.Read("ctr");
         Assert.NotNull(shown);
 
-        using (AsPerson()) { await AppUiEndpoints.Deliver(new("view", "owner/ctr", Value: "hi", Generation: shown.Generation, Key: "bump"), brain, Scope, Hosted, Ct); }
+        using (AsPerson()) { await AppUiEndpoints.Deliver(new("view", "owner/ctr", Value: "hi", Generation: shown.Generation, Key: "bump"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current); }
         await os.Idle();
-        var copy = await AppUiEndpoints.Deliver(new("view", "owner/ctr", Generation: (await reader.Read("ctr"))!.Generation, Key: "copy"), brain, Scope, Hosted, Ct);
+        var copy = await AppUiEndpoints.Deliver(new("view", "owner/ctr", Generation: (await reader.Read("ctr"))!.Generation, Key: "copy"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
 
         var state = await os.Get<IStateReader>(NeuronId.Parse("owner/ctr/default")).Read("ctr");
         Assert.Equal(1, state.GetProperty("bumps").GetInt32());
@@ -137,11 +139,12 @@ public sealed class AppUiEventFacts
     [Fact]
     public async Task AUnitViewEmitWithAForeignOwnerIsRefused()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var (os, _, shown) = await UnitOnTestOS();
         await using var _os = os;
         var before = os.Journal(new BrainId("owner")).Signals(NeuronId.Parse("owner/ctr/default")).Count;
 
-        using (AsPerson()) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Generation: shown.Generation, Key: "foreign"), new TestOSBrain(os), Scope, Hosted, Ct)); }
+        using (AsPerson()) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Generation: shown.Generation, Key: "foreign"), new TestOSBrain(os), Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current)); }
         await os.Idle();
 
         Assert.Equal(before, os.Journal(new BrainId("owner")).Signals(NeuronId.Parse("owner/ctr/default")).Count);
@@ -151,11 +154,12 @@ public sealed class AppUiEventFacts
     [Fact]
     public async Task AResolveNodeInAUnitViewIsRefused()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var (os, _, shown) = await UnitOnTestOS();
         await using var _os = os;
         var brain = new UnitAndInbox(os);
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Value: "approve", Generation: shown.Generation, Key: "approval"), brain, Scope, Hosted, Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Value: "approve", Generation: shown.Generation, Key: "approval"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
 
         Assert.Empty(brain.Inbox.Resolved);
     }
@@ -164,11 +168,12 @@ public sealed class AppUiEventFacts
     [Fact]
     public async Task AUnitActivationIsStampedWithThePersonWhoActed()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var (os, _, shown) = await UnitOnTestOS();
         await using var _os = os;
 
         using (AsPerson())
-        { await AppUiEndpoints.Deliver(new("view", "owner/ctr", Value: "{\"by\":\"mallory\"}", Generation: shown.Generation, Key: "bump"), new TestOSBrain(os), Scope, Hosted, Ct); }
+        { await AppUiEndpoints.Deliver(new("view", "owner/ctr", Value: "{\"by\":\"mallory\"}", Generation: shown.Generation, Key: "bump"), new TestOSBrain(os), Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current); }
         await os.Idle();
 
         Assert.Equal("person-ann", (await os.Get<IStateReader>(NeuronId.Parse("owner/ctr/default")).Read("ctr")).GetProperty("by").GetString());
@@ -178,10 +183,12 @@ public sealed class AppUiEventFacts
     [Fact]
     public async Task AUnitActivationWithoutAPersonIsRefused()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var (os, _, shown) = await UnitOnTestOS();
         await using var _os = os;
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Generation: shown.Generation, Key: "bump"), new TestOSBrain(os), Scope, Hosted, Ct));
+        // The edge stamped no person for this request: the person above only installed the unit.
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Generation: shown.Generation, Key: "bump"), new TestOSBrain(os), Scope, Hosted, Ct, caller: null));
         await os.Idle();
 
         Assert.Equal(0, (await os.Get<IStateReader>(NeuronId.Parse("owner/ctr/default")).Read("ctr")).GetProperty("bumps").GetInt32());
@@ -191,6 +198,7 @@ public sealed class AppUiEventFacts
     [Fact]
     public async Task AUnitViewDeclaringByIsNotPublished()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = TestOS.Local().Register(typeof(CounterUnit).Assembly);
         os.Confirmations.ApproveAll();
         await os.Get<IInstalls>(NeuronId.Parse("owner/synapse.installs/default")).Install(new DigitalBrain.Units.InstallRequest("forger", new Dictionary<string, string>()), Ct);
@@ -206,13 +214,14 @@ public sealed class AppUiEventFacts
     [Fact]
     public async Task AFieldValueOverADeclaredValueIsRefused()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var (os, _, shown) = await UnitOnTestOS();
         await using var _os = os;
-        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Value: "typed", Generation: shown.Generation, Key: "valued"), new TestOSBrain(os), Scope, Hosted, Ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new("view", "owner/ctr", Value: "typed", Generation: shown.Generation, Key: "valued"), new TestOSBrain(os), Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
         Assert.Equal(0, (await os.Get<IStateReader>(NeuronId.Parse("owner/ctr/default")).Read("ctr")).GetProperty("bumps").GetInt32());
 
         var brain = new RecordingBrain(new(ViewActivationKind.Emit, Emit: new Emit("tasks", "rename", JsonSerializer.SerializeToElement(new { value = "declared" }))));
-        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "title", "typed"), brain, Scope, Hosted, Ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "title", "typed"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
         Assert.Empty(brain.Emitted);
         Assert.Throws<ArgumentException>(() => ViewArgs.WithValue(JsonSerializer.SerializeToElement(new { Value = "x" }), "y"));
     }
@@ -234,7 +243,7 @@ public sealed class AppUiEventFacts
     {
         var brain = new RecordingBrain(new(ViewActivationKind.Emit, Emit: new Emit("tasks", "relate", JsonSerializer.SerializeToElement(new[] { "f/1", "blocks" }))));
 
-        await AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "lag", "2d"), brain, Scope, Hosted, Ct);
+        await AppUiEndpoints.Deliver(View("owner/apps/tasks/view", "lag", "2d"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
 
         Assert.Equal(("owner/apps/tasks", "relate", "[\"f/1\",\"blocks\",\"2d\"]"), Assert.Single(brain.Emitted));
     }
@@ -243,8 +252,9 @@ public sealed class AppUiEventFacts
     public async Task TheConfirmationInboxSurfaceStillResolves()
     {
         var brain = new RecordingBrain(ViewActivation.None);
+        using var person = AsPerson();
 
-        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, IConfirmationInbox.Key(Scope), PlanId: "plan-3", Approve: true), brain, Scope, Hosted, Ct);
+        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, IConfirmationInbox.Key(Scope), PlanId: "plan-3", Approve: true), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
 
         Assert.Equal(("owner/confirmations", "plan-3", true), Assert.Single(brain.Inbox.Resolved));
     }
@@ -256,10 +266,10 @@ public sealed class AppUiEventFacts
         var brain = new RecordingBrain(ViewActivation.None);
         var inbox = IConfirmationInbox.Key(Scope);
 
-        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, inbox, $"{DigitalBrain.UI.Confirmation.ConfirmView.ResolveOperation}:plan-3:true"), brain, Scope, Hosted, Ct));
-        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, inbox, PlanId: "plan-3"), brain, Scope, Hosted, Ct));
-        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, inbox, PlanId: new string('p', 129), Approve: true), brain, Scope, Hosted, Ct));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, "other/confirmations", PlanId: "plan-3", Approve: true), brain, Scope, Hosted, Ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, inbox, $"{DigitalBrain.UI.Confirmation.ConfirmView.ResolveOperation}:plan-3:true"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
+        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, inbox, PlanId: "plan-3"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
+        await Assert.ThrowsAsync<ArgumentException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, inbox, PlanId: new string('p', 129), Approve: true), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent(UIVocabulary.ConfirmationType, "other/confirmations", PlanId: "plan-3", Approve: true), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
 
         Assert.Empty(brain.Inbox.Resolved);
     }
@@ -269,7 +279,7 @@ public sealed class AppUiEventFacts
     {
         var brain = new RecordingBrain(ViewActivation.None);
 
-        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("field", "owner/apps/tasks/title", Value: "Ship docs"), brain, Scope, Hosted, Ct);
+        await AppUiEndpoints.Deliver(new AppUiEndpoints.UiEvent("field", "owner/apps/tasks/title", Value: "Ship docs"), brain, Scope, Hosted, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
 
         Assert.Equal(("owner/apps/tasks/title", "Ship docs"), Assert.Single(brain.Field.Inputs));
     }

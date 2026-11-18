@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain;
 using System.Text.Json;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -92,7 +94,8 @@ public sealed class RegistryBrokerFacts
     [Fact]
     public async Task VaultTier_EnforcesZeroRawTokenLeakageForNonPlatformCaller()
     {
-        var broker = new RegistryBroker();
+        // The broker reads the stamped caller from the host's ambient.
+        var broker = new RegistryBroker(new ServiceCollection().AddSingleton(IntoChat.OS.Tests.TestEdge.Callers).BuildServiceProvider());
         const string secretValue = "ghp_ultra_secret_platform_access_token_123456789";
 
         // Write secret into vault tier
@@ -113,8 +116,7 @@ public sealed class RegistryBrokerFacts
         Assert.DoesNotContain(secretValue, secretDescriptor.Value, StringComparison.Ordinal);
 
         // 3. Platform caller context reads the genuine unmasked secret
-        var platformCaller = CapabilityCallers.Platform("platform_sys", "acc_root", "brain_sys");
-        using var stamp = RuntimeCallerContext.StampScope(platformCaller);
+        using var stamp = IntoChat.OS.Tests.TestEdge.Authority.EnterKernel(new BrainId("brain_sys"));
 
         var unmaskedRead = await broker.GetAsync("vault://tokens/github", ct: Ct);
         Assert.Equal(secretValue, unmaskedRead);

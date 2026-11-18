@@ -1,5 +1,7 @@
+using IntoChat.OS.Tests;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
@@ -57,6 +59,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
 
         var id = await flows.Start(TestFlow.Alias, "Fold", null, Inner(new TestInner { Wait = true }), Ct);
@@ -67,7 +70,8 @@ public sealed class FlowsNeuronFacts
         Assert.Equal(1d / 3, view.Fraction, 6);
         Assert.Equal("Fold", view.Title);
         Assert.Equal(TestFlow.Alias, view.Type);
-        Assert.Equal("system", view.Owner);
+        // The owner is the stamped person now; no caller used to read as "system" (task 7 ruling: FlowsNeuron Owner).
+        Assert.Equal("person", view.Owner);
     }
 
     [Fact]
@@ -75,6 +79,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
 
         var id = await flows.Start(TestFlow.Alias, "Wait", null, Inner(new TestInner { Wait = true }), Ct);
@@ -93,6 +98,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
         var gate = Guid.NewGuid().ToString("N");
 
@@ -117,6 +123,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
 
         var id = await flows.Start(TestFlow.Alias, "Keyed", null, Inner(new TestInner()), Ct, "keyed");
@@ -131,6 +138,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
         var gate = Guid.NewGuid().ToString("N");
 
@@ -153,6 +161,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
 
         var id = await flows.Start(TestFlow.Alias, "Leaf", null, Inner(new TestInner { Wait = true, StartOperation = true }), Ct);
@@ -173,6 +182,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
 
         string[] waiting = [
@@ -200,6 +210,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var key = runtime.Id(TestFlow.Alias, Guid.NewGuid().ToString("N"));
         var id = key.ToString();
         await runtime.Get<IFlowStarter>(key).StartFromJson("Late", "owner-1", null, Inner(new TestInner()));
@@ -227,6 +238,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
         await flows.List(new FlowQuery(), Ct);
         var pump = runtime.Get<IFlowSignalPump>(runtime.Id(FlowSignalPump.Alias, "pump"));
@@ -246,6 +258,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
         await flows.List(new FlowQuery(), Ct);
         var pump = runtime.Get<IFlowSignalPump>(runtime.Id(FlowSignalPump.Alias, "pump"));
@@ -267,6 +280,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
         await flows.List(new FlowQuery(), Ct);
         var pump = runtime.Get<IFlowSignalPump>(runtime.Id(FlowSignalPump.Alias, "pump"));
@@ -309,6 +323,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
         var gate = Guid.NewGuid().ToString("N");
         var gone = runtime.Id(TestFlow.Alias, "evicted").ToString();
@@ -337,6 +352,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
 
         var id = await flows.Start(TestFlow.Alias, "Leaf", null, Inner(new TestInner { Wait = true, StartOperation = true }), Ct);
@@ -351,10 +367,11 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
 
         string id;
-        using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("person-1", "account-1", runtime.Brain.Value, CallerKind.Agent, conversationId: "ino/conversations/main")))
+        using (runtime.Edge.Enter(runtime.Edge.Agent(new Actor.Person("person-1", "account-1"), runtime.Brain, conversation: "ino/conversations/main")))
         {
             id = await flows.Start(TestFlow.Alias, "By Ino", null, Inner(new TestInner { Wait = true }), Ct);
         }
@@ -370,10 +387,11 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
 
         string id;
-        using (RuntimeCallerContext.Stamp(new CapabilityCaller("person-1", "account-1", runtime.Brain.Value)))
+        using (runtime.Edge.Enter(runtime.Edge.Person("person-1", "account-1", runtime.Brain)))
         {
             id = await flows.Start(TestFlow.Alias, "Mine", null, Inner(new TestInner { Wait = true }), Ct);
         }
@@ -387,6 +405,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
 
         var id = await flows.Start(TestFlow.Alias, "Ended", null, Inner(new TestInner { Wait = true, StartOperation = true }), Ct);
@@ -403,15 +422,15 @@ public sealed class FlowsNeuronFacts
 
     private const string PersonCancels = "apps.flows-person-cancels-approval-wait";
 
-    private static IDisposable AsPerson(INeuronRuntime runtime) => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value));
+    private static IDisposable AsPerson(INeuronRuntime runtime) => runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain));
 
     // An agent's tool call as ContractActions.Marked stamps it; an MCP client is the same with the conversation "mcp".
     private static IDisposable AsAgent(INeuronRuntime runtime, string conversation = "ino/conversations/main")
-        => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value, CallerKind.Agent, conversationId: conversation));
+        => runtime.Edge.Enter(runtime.Edge.Agent(new Actor.Person("person", "person"), runtime.Brain, conversation: conversation));
 
     // Unproved local traffic as AccountSession stamps it.
     private static IDisposable AsLocalApp(INeuronRuntime runtime)
-        => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value, CallerKind.App, "local"));
+        => runtime.Edge.Enter(runtime.Edge.App("local", new Actor.Person("person", "person"), runtime.Brain));
 
     private static IFlowCanceller Canceller(INeuronRuntime runtime) => runtime.Get<IFlowCanceller>(runtime.Id(FlowCanceller.Alias, "tasks"));
 
@@ -473,6 +492,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
         var (id, planId) = await WaitingForApproval(runtime);
 
@@ -494,6 +514,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
         var (id, planId) = await WaitingForApproval(runtime);
 
@@ -512,6 +533,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var (id, planId) = await WaitingForApproval(runtime);
 
         RuleViolationException refused;
@@ -527,6 +549,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var (id, planId) = await WaitingForApproval(runtime);
 
         using (AsPerson(runtime)) { await Canceller(runtime).Cancel(id, "I changed my mind"); }
@@ -541,6 +564,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
         var (id, planId) = await WaitingForApproval(runtime);
 
@@ -556,6 +580,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Flows(runtime);
         var id = await flows.Start(TestFlow.Alias, "External", null, Inner(new TestInner { Wait = true }), Ct);
         await Eventually(flows, id, v => v.Status == FlowStatus.Waiting && v.WaitingFor == WaitReason.External);
@@ -575,6 +600,7 @@ public sealed class FlowsNeuronFacts
     {
         await using var fixture = new FlowsFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id(TestFlow.Alias, Guid.NewGuid().ToString("N")).ToString();
         await runtime.Get<IFlowStarter>(NeuronId.Parse(id)).StartFromJson("Unseen", "owner-1", null, Inner(new TestInner { WaitApproval = approval, Wait = !approval }));
         await HeadEventually(runtime, id, FlowStatus.Waiting);

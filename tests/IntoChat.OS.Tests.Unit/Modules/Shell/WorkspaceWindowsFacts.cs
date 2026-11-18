@@ -152,6 +152,7 @@ public sealed class WorkspaceWindowsFacts
     [Fact]
     public async Task DesktopApp_UiActivation_AppliesWorkspaceStateToRealWorkspaceNeuron_AndRefusesDirectOrUnshippedCalls()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         using var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection()
             .AddOptions<AppsOptions>()
             .Services

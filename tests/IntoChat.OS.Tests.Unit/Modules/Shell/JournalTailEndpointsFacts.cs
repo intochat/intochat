@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Neurons;
 using DigitalBrain.Runtime.Http;
@@ -41,6 +42,7 @@ public sealed class JournalTailEndpointsFacts
     [Fact]
     public async Task TheStateOfAUnitIsItsCurrentRecord()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = await UnitOnTestOS();
 
         var result = await UnitReadEndpoints.State(new TestOSBrain(os), Brain, Catalog, "ctr", Ct);
@@ -52,6 +54,7 @@ public sealed class JournalTailEndpointsFacts
     [Fact]
     public async Task TheViewOfAUnitCarriesItsGeneration()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = await UnitOnTestOS();
 
         var result = await UnitReadEndpoints.View(new TestOSBrain(os), Brain, Catalog, "ctr", Ct);
@@ -65,6 +68,7 @@ public sealed class JournalTailEndpointsFacts
     [Fact]
     public async Task AnUnknownAliasIs404AndAnAliasThatAddressesAnotherNeuronIs400()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = await UnitOnTestOS();
         var brain = new TestOSBrain(os);
 
@@ -77,6 +81,7 @@ public sealed class JournalTailEndpointsFacts
     [Fact]
     public async Task TheRoutesAnswerAMemberAndRefuseAnyoneElse()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = await UnitOnTestOS();
         var access = new Access();
         await using var app = await Start(os, access);
@@ -100,6 +105,7 @@ public sealed class JournalTailEndpointsFacts
     [Fact]
     public async Task TheFrameworksTailRouteIsMappedBehindASession()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = await UnitOnTestOS();
         await using var app = await Start(os, new Access { Allowed = true });
         using var client = new HttpClient { BaseAddress = new Uri(app.Urls.First()) };
@@ -114,6 +120,7 @@ public sealed class JournalTailEndpointsFacts
     [Fact]
     public async Task ATopologyHasNodesAndEdgesAndNoActivity()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = await UnitOnTestOS();
         var installed = (await os.Get<IInstalls>(NeuronId.Parse("owner/synapse.installs/default")).List(Ct)).Select(record => record.Alias).ToArray();
         var catalog = SynapseCatalog.Scan(typeof(CounterUnit).Assembly);
@@ -160,11 +167,12 @@ public sealed class JournalTailEndpointsFacts
         builder.Services.AddSingleton<IBrainAccess>(access);
         builder.Services.AddSingleton<INeuronProxies>(new TestOSBrain(os));
         builder.Services.AddSingleton(Catalog);
+        builder.Services.AddSingleton(IntoChat.OS.Tests.TestEdge.Callers);
         var app = builder.Build();
         app.Use(async (http, next) =>
         {
-            var caller = CapabilityCallers.Of("ada", "owner", Brain, CallerKind.User);
-            using (RuntimeCallerContext.StampScope(caller))
+            var caller = IntoChat.OS.Tests.TestEdge.Authority.Person("ada", "owner", new BrainId(Brain));
+            using (IntoChat.OS.Tests.TestEdge.Authority.Enter(caller))
             {
                 await next(http);
             }

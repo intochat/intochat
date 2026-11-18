@@ -17,6 +17,7 @@ public sealed class OneCallerFacts
             "DigitalBrain/Access/EdgeAuthority.cs",                               // the definition
             "DigitalBrain.Identity.Local/Vault/LocalVaultPort.cs",                // platform port: own owner check first, then reads the vault as platform code; no edge, no scope, vault refuses
             "DigitalBrain.Testing.Silo/Conformance/Host/HostConformanceFacts.cs", // test host harness acting as the platform
+            "DigitalBrain.Simulation/Synapses/UnitScenario.cs",                   // scenario harness feeding its cluster-internal publisher
         ]),
         ("EnterKernelScope(",
         [

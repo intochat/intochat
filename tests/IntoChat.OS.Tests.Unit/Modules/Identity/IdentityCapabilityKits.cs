@@ -13,13 +13,11 @@ using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Authority;
 
-internal sealed class RuntimeCallerScope : CallerScope
+internal static class KitHost
 {
-    public override IDisposable As(CapabilityCaller caller)
-    {
-        ArgumentNullException.ThrowIfNull(caller);
-        return RuntimeCallerContext.Stamp(CapabilityCallers.Of(caller.PrincipalId, caller.AccountId, caller.BrainId, caller.Kind, caller.AppId, caller.ConversationId));
-    }
+    public static readonly DigitalBrain.Testing.TestOS Os = DigitalBrain.Testing.TestOS.Local();
+
+    public static CallerScope Scope => new EdgeCallerScope(Os.Edge);
 }
 
 internal sealed class CapturingLoggerProvider : ILoggerProvider
@@ -48,11 +46,11 @@ public sealed class SecretsCapabilityConformance : SecretsConformance<SecretsCap
     protected override Task<SecretsSubject> Connect(CancellationToken ct)
     {
         var logs = new CapturingLoggerProvider();
-        var vault = new InMemorySecretVault();
+        var vault = new InMemorySecretVault(KitHost.Os.Callers);
         var factory = LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
-        var secrets = new SecretsCapability(vault, factory.CreateLogger<SecretsCapability>()) { Declarations = KitDeclarations.Identity };
+        var secrets = new SecretsCapability(vault, factory.CreateLogger<SecretsCapability>(), KitHost.Os.Callers) { Declarations = KitDeclarations.Identity };
         vault.Provide(KitDeclarations.NamedSecret.Name, KitDeclarations.NamedSecret.Value);
-        return Task.FromResult(new SecretsSubject(secrets, new RuntimeCallerScope(), () => [.. logs.Lines, .. vault.Log]) { Named = KitDeclarations.NamedSecret });
+        return Task.FromResult(new SecretsSubject(secrets, KitHost.Scope, () => [.. logs.Lines, .. vault.Log]) { Named = KitDeclarations.NamedSecret });
     }
 }
 
@@ -60,10 +58,10 @@ public sealed class IdentityCapabilityConformance : IdentityConformance<BoundIde
 {
     protected override Task<IdentitySubject> Connect(CancellationToken ct)
     {
-        var directory = new InMemoryIdentityDirectory();
-        var sessions = new BoundSessions(directory, static () => RuntimeCallerContext.Current, KitDeclarations.Identity.RequirePrivileged);
-        var identity = new BoundIdentity(directory, static () => RuntimeCallerContext.Current);
-        return Task.FromResult(new IdentitySubject(identity, identity, new RuntimeCallerScope(), directory.SignIn)
+        var directory = new InMemoryIdentityDirectory(callers: KitHost.Os.Callers);
+        var sessions = new BoundSessions(directory, KitHost.Os.Callers, KitDeclarations.Identity.RequirePrivileged);
+        var identity = new BoundIdentity(directory, KitHost.Os.Callers);
+        return Task.FromResult(new IdentitySubject(identity, identity, KitHost.Scope, directory.SignIn)
         {
             Sessions = sessions,
             Description = sessions,

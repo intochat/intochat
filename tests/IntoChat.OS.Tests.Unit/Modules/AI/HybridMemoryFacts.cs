@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Rules;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -36,12 +37,10 @@ public sealed class HybridMemoryFacts : IDisposable
     }
 
     private static IDisposable AsPerson(string brain)
-        => RuntimeCallerContext.Stamp(new CapabilityCaller("person", "person", brain));
+        => IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("person", "person", new BrainId(brain)));
 
     private static IDisposable AsAgent(string brain)
-#pragma warning disable CS0618
-        => RuntimeCallerContext.Stamp(new CapabilityCaller("person", "person", brain, CapabilityCallers.AssistantApp));
-#pragma warning restore CS0618
+        => IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("person", "person"), new BrainId(brain)));
 
     private TestOS CreateOs()
     {
@@ -105,6 +104,7 @@ public sealed class HybridMemoryFacts : IDisposable
     [Fact]
     public async Task AgentCallerCannotSelfStampOwnerTrustOrPromoteNote()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("mem-trust", "mem-trust", new BrainId("mem-trust")));
         await using var os = CreateOs();
         var brain = new BrainId("mem-trust");
         var memory = os.Get<IMemory>(new NeuronId(brain, "ai.memory", "memory"));

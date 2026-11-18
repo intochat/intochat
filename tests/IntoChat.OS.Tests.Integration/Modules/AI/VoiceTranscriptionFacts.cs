@@ -1,3 +1,5 @@
+using DigitalBrain.Access;
+using DigitalBrain;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
@@ -190,17 +192,20 @@ public sealed class VoiceTranscriptionFacts
     [Fact]
     public void NonPersonCallersAreRejectedByCallerGuard()
     {
-        Assert.True(AIModule.IsDirectPersonCaller(CapabilityCallers.Of("owner", "owner", "owner")));
+        var edge = IntoChat.OS.Tests.TestEdge.Authority;
+        var owner = new Actor.Person("owner", "owner");
+        var brain = new BrainId("owner");
+        Assert.True(AIModule.IsDirectPersonCaller(edge.Person("owner", "owner", brain)));
         Assert.False(AIModule.IsDirectPersonCaller(null));
-        Assert.False(AIModule.IsDirectPersonCaller(CapabilityCallers.Of("owner", "owner", "owner", CallerKind.Agent)));
-        Assert.False(AIModule.IsDirectPersonCaller(CapabilityCallers.Of("owner", "owner", "owner", CallerKind.App, "some-app")));
-        Assert.False(AIModule.IsDirectPersonCaller(CapabilityCallers.Platform("owner", "owner", "owner")));
-        Assert.False(AIModule.IsDirectPersonCaller(CapabilityCallers.Of("owner", "owner", "owner", CallerKind.Scheduler)));
-        Assert.False(AIModule.IsDirectPersonCaller(CapabilityCallers.Of("try-guest1", "try-guest1", "try-guest1")));
-        Assert.False(AIModule.IsDirectPersonCaller(CapabilityCallers.Of("app:owner/apps/demo", "owner", "owner")));
-        Assert.False(AIModule.IsDirectPersonCaller(CapabilityCallers.Of("owner", "owner", "owner") with { ConversationId = "conv-1" }));
-        Assert.False(AIModule.IsDirectPersonCaller(CapabilityCallers.Of("owner", "owner", "owner") with { OnBehalfOf = "other" }));
-        Assert.False(AIModule.IsDirectPersonCaller(CapabilityCallers.Of("owner", "owner", "a/b")));
+        Assert.False(AIModule.IsDirectPersonCaller(edge.Agent(owner, brain)));
+        Assert.False(AIModule.IsDirectPersonCaller(edge.App("some-app", owner, brain)));
+        Assert.False(AIModule.IsDirectPersonCaller(edge.Kernel(brain)));
+        Assert.False(AIModule.IsDirectPersonCaller(edge.Scheduler(brain)));
+        Assert.False(AIModule.IsDirectPersonCaller(edge.Person("try-guest1", "try-guest1", new BrainId("try-guest1"))));
+        Assert.False(AIModule.IsDirectPersonCaller(edge.Guest("owner", "owner", brain)));
+        Assert.False(AIModule.IsDirectPersonCaller(edge.RelayedPerson("owner", "owner", brain)));
+        // An app principal ("app:...") as a person, a person in a model conversation and a brain id like "a/b" have no Caller
+        // to stand for any more: the edge mints none of them (task 7 ruling on IsDirectPersonCaller).
     }
 
     [Fact]

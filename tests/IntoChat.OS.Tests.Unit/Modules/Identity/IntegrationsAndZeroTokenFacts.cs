@@ -1,3 +1,4 @@
+using DigitalBrain;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Access;
@@ -138,8 +139,8 @@ public sealed class IntegrationsAndZeroTokenFacts
     [Fact]
     public async Task ZeroTokenAuthEnforcementDeniesDirectSecretAccessFromSandboxAndAppPrincipals()
     {
-        var appCaller = CapabilityCallers.Of(AppPrincipal.Id("local/apps/sandbox"), "ada", "local", CallerKind.App, "local/apps/sandbox");
-        var appEdge = IntoChat.OS.Tests.TestEdge.From(appCaller);
+        var appCaller = IntoChat.OS.Tests.TestEdge.Authority.App("local/apps/sandbox", new Actor.Person("ada", "ada"), new BrainId("local"));
+        var appEdge = appCaller;
 
         var vaultRequest = new CallRequest
         {
@@ -165,9 +166,9 @@ public sealed class IntegrationsAndZeroTokenFacts
         Assert.NotNull(exportDecision);
         Assert.False(exportDecision!.Allowed);
 
-        using (CallerContextScope.Scoped(appCaller))
+        using (IntoChat.OS.Tests.TestEdge.Authority.Enter(appCaller))
         {
-            var source = new VaultSecretValueSource(new AuthorityNeurons(null!, new EmptyServiceProvider()));
+            var source = new VaultSecretValueSource(new AuthorityNeurons(null!, new EmptyServiceProvider()), IntoChat.OS.Tests.TestEdge.Callers);
             await Assert.ThrowsAsync<UnauthorizedAccessException>(
                 async () => await source.CurrentValues(TestContext.Current.CancellationToken));
         }
@@ -262,8 +263,8 @@ public sealed class IntegrationsAndZeroTokenFacts
             var boundGrant = Grant.Tuple("brain:local", $"app:{friendApp}", connectionKey, $"use-via:{friendApp}");
             EdgeGrantsCache.Current.AddGrant("local", boundGrant);
 
-            var friendCaller = CapabilityCallers.Of(AppPrincipal.Id(friendApp), "ada", "local", CallerKind.App, friendApp);
-            var strangerCaller = CapabilityCallers.Of(AppPrincipal.Id(strangerApp), "ada", "local", CallerKind.App, strangerApp);
+            var friendCaller = IntoChat.OS.Tests.TestEdge.Authority.App(friendApp, new Actor.Person("ada", "ada"), new BrainId("local"));
+            var strangerCaller = IntoChat.OS.Tests.TestEdge.Authority.App(strangerApp, new Actor.Person("ada", "ada"), new BrainId("local"));
 
             var request = new CallRequest
             {
@@ -271,11 +272,11 @@ public sealed class IntegrationsAndZeroTokenFacts
                 Operation = "IGitHub.ReadRepo",
                 SemanticTypeIds = ["repo.contents"],
             };
-            var friendDecision = GrantRules.Evaluate(IntoChat.OS.Tests.TestEdge.From(friendCaller), request, null, [creatorGrant], PrincipalSet.For(friendCaller));
+            var friendDecision = GrantRules.Evaluate(friendCaller, request, null, [creatorGrant], PrincipalSet.For(friendCaller));
             Assert.NotNull(friendDecision);
             Assert.True(friendDecision!.Allowed);
 
-            var strangerDecision = GrantRules.Evaluate(IntoChat.OS.Tests.TestEdge.From(strangerCaller), request, null, [creatorGrant], PrincipalSet.For(strangerCaller));
+            var strangerDecision = GrantRules.Evaluate(strangerCaller, request, null, [creatorGrant], PrincipalSet.For(strangerCaller));
             Assert.NotNull(strangerDecision);
             Assert.False(strangerDecision!.Allowed);
         }
@@ -288,8 +289,8 @@ public sealed class IntegrationsAndZeroTokenFacts
     [Fact]
     public void GrantRulesFailClosedOnEmptySemanticTypeIdsAndEnforceTypedZeroTokenMatching()
     {
-        var appCaller = CapabilityCallers.Of(AppPrincipal.Id("local/apps/calculator"), "ada", "local", CallerKind.App, "local/apps/calculator");
-        var appEdge = IntoChat.OS.Tests.TestEdge.From(appCaller);
+        var appCaller = IntoChat.OS.Tests.TestEdge.Authority.App("local/apps/calculator", new Actor.Person("ada", "ada"), new BrainId("local"));
+        var appEdge = appCaller;
 
         // 1. Foreign target with empty SemanticTypeIds must fail closed (Deny MissingGrant).
         var foreignCall = new CallRequest
@@ -345,7 +346,7 @@ public sealed class IntegrationsAndZeroTokenFacts
             SemanticTypeIds = [],
         };
         var benignGuardDecision = GrantRules.EvaluateZeroTokenGuard(
-            IntoChat.OS.Tests.TestEdge.From(CapabilityCallers.Of(AppPrincipal.Id("local/apps/my-vault-helper"), "ada", "local", CallerKind.App, "local/apps/my-vault-helper")),
+            IntoChat.OS.Tests.TestEdge.Authority.App("local/apps/my-vault-helper", new Actor.Person("ada", "ada"), new BrainId("local")),
             benignCall);
         Assert.Null(benignGuardDecision);
     }
@@ -364,8 +365,5 @@ public sealed class IntegrationsAndZeroTokenFacts
     {
         public ValueTask<CallDecision?> AuthorizeAsync(Caller? caller, CallRequest request, CancellationToken cancellationToken)
             => ValueTask.FromResult<CallDecision?>(CallDecision.Allow());
-
-        public ValueTask<IReadOnlyList<Grant>> ListGrantsAsync(CapabilityCaller caller, CancellationToken cancellationToken)
-            => ValueTask.FromResult<IReadOnlyList<Grant>>([]);
     }
 }

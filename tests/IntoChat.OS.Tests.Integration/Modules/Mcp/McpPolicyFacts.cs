@@ -1,3 +1,4 @@
+using IntoChat.OS.Tests;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -47,6 +48,7 @@ public sealed class McpPolicyFacts
         await using var server = FakeMcpEndpoint.Start();
         var (os, neuron, brain) = await CreateHarnessAsync(server.Endpoint);
         await using var _ = os;
+        using var person = os.Edge.Enter(os.Edge.Person(brain, brain, new BrainId(brain)));
         var rule = new PolicyRule(
             "r1",
             "mcp.tool.run",
@@ -68,6 +70,7 @@ public sealed class McpPolicyFacts
         await using var server = FakeMcpEndpoint.Start();
         var (os, neuron, brain) = await CreateHarnessAsync(server.Endpoint);
         await using var _ = os;
+        using var person = os.Edge.Enter(os.Edge.Person(brain, brain, new BrainId(brain)));
         var rule = new PolicyRule(
             "r1",
             "mcp.tool.run",
@@ -94,6 +97,7 @@ public sealed class McpPolicyFacts
         await using var server = FakeMcpEndpoint.Start();
         var (os, neuron, brain) = await CreateHarnessAsync(server.Endpoint);
         await using var _ = os;
+        using var person = os.Edge.Enter(os.Edge.Person(brain, brain, new BrainId(brain)));
         var rule = new PolicyRule(
             "r1",
             "mcp.tool.run",

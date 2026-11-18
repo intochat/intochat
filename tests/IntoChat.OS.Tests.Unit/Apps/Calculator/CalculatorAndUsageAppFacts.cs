@@ -54,6 +54,7 @@ public sealed class CalculatorAndUsageAppFacts
     [Fact]
     public async Task CalculatorScenariosPass()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
         os.Register(typeof(CalculatorApp).Assembly);
@@ -64,6 +65,7 @@ public sealed class CalculatorAndUsageAppFacts
     [Fact]
     public async Task UsageScenariosPass()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
         os.Register(typeof(UsageApp).Assembly);
@@ -74,6 +76,7 @@ public sealed class CalculatorAndUsageAppFacts
     [Fact]
     public async Task UsageAndSettingsCanUpdateMonthlyBudgetAndReactToComputeChanges()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         FakeComputeNeuron.Reset();
         try
         {

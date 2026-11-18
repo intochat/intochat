@@ -23,6 +23,7 @@ public sealed class AppsModuleOnTestOS : ModuleOnTestOSFacts<AppsModule>
     [Fact]
     public async Task PortableBrainArchiveRoundTripsSettingsProfileAndUnitsThroughJson()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var sourceOs = TestOS.Local();
         sourceOs.Register<UserSettingsNeuron>();
         sourceOs.Register<ProfileNeuron>();
@@ -73,6 +74,7 @@ public sealed class AppsModuleOnTestOS : ModuleOnTestOSFacts<AppsModule>
     [Fact]
     public async Task BrainSnapshotArchiveRoundTripsSettingsProfileAndUnitsThroughJson()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var sourceOs = TestOS.Local();
         sourceOs.Register<UserSettingsNeuron>();
         sourceOs.Register<ProfileNeuron>();

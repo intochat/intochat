@@ -75,6 +75,7 @@ public sealed class CreatorAppFacts
     [Fact]
     public async Task ChangeItStartsABuildFlowWithExisting()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = FakeOs();
         FakeSynapses.Files = new() { ["ctr.cs"] = "// the counter" };
         FakeSynapses.SidecarFiles = new() { ["spec.md"] = "Counts bumps." };
@@ -128,6 +129,7 @@ public sealed class CreatorAppFacts
     [Fact]
     public async Task MakeEmitsToTheStudio()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = FakeOs();
         var creator = await os.Install<CreatorApp>();
         await Field(creator, CreatorView.DescribeField, "watch elonmusk on X");
@@ -143,6 +145,7 @@ public sealed class CreatorAppFacts
     [Fact]
     public async Task ASecondScenarioRunWhileOneIsInFlightIsRefused()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = FakeOs();
         var creator = await os.Install<CreatorApp>();
         var release = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -236,6 +239,7 @@ public sealed class CreatorAppFacts
     [Fact]
     public async Task SharePublishesInspectedUnitAsAppPostToProfile()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = FakeOs();
         os.Register<ProfileNeuron>();
         FakeSynapses.Files = new() { ["ctr.cs"] = "// the counter source" };

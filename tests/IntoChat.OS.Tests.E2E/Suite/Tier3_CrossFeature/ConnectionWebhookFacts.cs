@@ -20,6 +20,7 @@ public sealed class ConnectionWebhookFacts : E2ETestBase
         WebhookSimulator.Register(os);
 
         var brainId = "test-webhook-lifecycle";
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", new BrainId(brainId)));
         var brain = new BrainId(brainId);
         var catalogNeuron = os.Get<IConnectionCatalog>(IConnectionCatalog.Id(brainId));
 
@@ -88,6 +89,7 @@ public sealed class ConnectionWebhookFacts : E2ETestBase
         WebhookSimulator.Register(os);
 
         var brainId = "test-webhook-dedup";
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", new BrainId(brainId)));
         var brain = new BrainId(brainId);
         var catalogNeuron = os.Get<IConnectionCatalog>(IConnectionCatalog.Id(brainId));
         await catalogNeuron.Read();
@@ -117,6 +119,7 @@ public sealed class ConnectionWebhookFacts : E2ETestBase
         WebhookSimulator.Register(os);
 
         var brainId = "test-webhook-concurrent";
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", new BrainId(brainId)));
         var brain = new BrainId(brainId);
         var catalogNeuron = os.Get<IConnectionCatalog>(IConnectionCatalog.Id(brainId));
 
@@ -166,6 +169,7 @@ public sealed class ConnectionWebhookFacts : E2ETestBase
         WebhookSimulator.Register(os);
 
         var brainId = "test-webhook-timestamps";
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", new BrainId(brainId)));
         var brain = new BrainId(brainId);
         var catalogNeuron = os.Get<IConnectionCatalog>(IConnectionCatalog.Id(brainId));
         await catalogNeuron.Read();
@@ -192,6 +196,7 @@ public sealed class ConnectionWebhookFacts : E2ETestBase
         WebhookSimulator.Register(os);
 
         var brainId = "test-webhook-reorder";
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", new BrainId(brainId)));
         var brain = new BrainId(brainId);
         var catalogNeuron = os.Get<IConnectionCatalog>(IConnectionCatalog.Id(brainId));
         await catalogNeuron.Read();

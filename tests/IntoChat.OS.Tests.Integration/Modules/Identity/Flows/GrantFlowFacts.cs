@@ -1,3 +1,4 @@
+using IntoChat.OS.Tests;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Testing;
 using IntoChat.OS.Authority.Identity.Grants;
@@ -16,6 +17,7 @@ public sealed class GrantFlowFacts(IdentityFixture fixture) : IClassFixture<Iden
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id(IGrantsNeuron.TypeName, "grants/flow-" + kind);
         var grants = runtime.Get<IGrantsNeuron>(id);
 

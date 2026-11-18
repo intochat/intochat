@@ -114,6 +114,7 @@ public sealed class DeployFlowFacts
     [Fact]
     public async Task OneStepPerSiloWithScheduleWaitBetween()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var host = new Host();
         await using var os = Os(host);
         var flow = os.Get<IFlowStarter>(new NeuronId(Brain, DeployFlow.Alias, "deploy-new111"));
@@ -151,6 +152,7 @@ public sealed class DeployFlowFacts
     [Fact]
     public async Task AnInterruptedRestartStepDoesNotRestartTwice()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var host = new Host();
         host.CutOffAfter.Add("silo-1");
         await using var os = Os(host);
@@ -174,6 +176,7 @@ public sealed class DeployFlowFacts
     [Fact]
     public async Task AReRunRestartStepAfterTheMarkIssuesNothingForAnInstanceAlreadyRestarted()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var host = new Host();
         await using var os = Os(host);
         var flow = os.Get<IFlowStarter>(new NeuronId(Brain, DeployFlow.Alias, "deploy-new111"));
@@ -191,6 +194,7 @@ public sealed class DeployFlowFacts
     [Fact]
     public async Task SelfReadyRequiresAProcessStartedAfterTheMarker()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var host = new Host();
         host.NeverRestarts.Add("silo-1");
         await using var os = Os(host);
@@ -212,6 +216,7 @@ public sealed class DeployFlowFacts
     [Fact]
     public async Task RollbackStepOnFailure()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var host = new Host();
         host.NeverReady.Add("silo-0@new111");
         await using var os = Os(host);
@@ -243,6 +248,7 @@ public sealed class DeployFlowFacts
     [Fact]
     public async Task DeploymentStateFoldsFromFlowSignals()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var host = new Host();
         await using var os = Os(host);
         var deployment = Deployment(os);
@@ -270,6 +276,7 @@ public sealed class DeployFlowFacts
     [Fact]
     public async Task LegacyRollInProgressIsCompletedOnActivation()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var host = new Host { Current = "new111" };
         await using var os = Os(host);
         // What the reminder loop left after its own silo's handover: Rolling, nothing remaining, no flow.
@@ -285,6 +292,7 @@ public sealed class DeployFlowFacts
     [Fact]
     public async Task ALegacyRollCutOffBeforeItsHandoverEndsInterrupted()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var host = new Host { Current = "new111" };
         await using var os = Os(host);
         Seed(os, new AspireDeploymentState { CurrentSha = "base000", Stage = DeploymentStage.Rolling, TargetSha = "new111", PreviousSha = "base000", Remaining = ["silo-1"], Rolled = ["mcp-a", "silo-0"] });

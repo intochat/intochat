@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
 
@@ -7,5 +9,5 @@ namespace IntoChat.OS.Apps.Tests.Unit;
 // a call with none.
 internal static class Edge
 {
-    public static IDisposable AsPerson(string brain = "local") => RuntimeCallerContext.Stamp(new CapabilityCaller("person", "person", brain));
+    public static IDisposable AsPerson(string brain = "local") => IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("person", "person", new BrainId(brain)));
 }

@@ -1,3 +1,4 @@
+using IntoChat.OS.Tests;
 using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.Time.Reminders;
@@ -21,6 +22,7 @@ public sealed class TimeNeuronFacts(TimeFixture fixture) : IClassFixture<TimeFix
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("timer", "once");
         var timer = runtime.Get<ITimer>(id);
 
@@ -39,6 +41,7 @@ public sealed class TimeNeuronFacts(TimeFixture fixture) : IClassFixture<TimeFix
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("timer", "periodic");
         var timer = runtime.Get<ITimer>(id);
 
@@ -56,6 +59,7 @@ public sealed class TimeNeuronFacts(TimeFixture fixture) : IClassFixture<TimeFix
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("timer", "replaced");
         var timer = runtime.Get<ITimer>(id);
 
@@ -72,6 +76,7 @@ public sealed class TimeNeuronFacts(TimeFixture fixture) : IClassFixture<TimeFix
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("timer", "invalid");
         var timer = runtime.Get<ITimer>(id);
         await timer.Start(TimeSpan.FromMilliseconds(200));
@@ -90,6 +95,7 @@ public sealed class TimeNeuronFacts(TimeFixture fixture) : IClassFixture<TimeFix
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await fixture.Start(kind, ct);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("timer", "restarted");
         await runtime.Get<ITimer>(id).Start(TimeSpan.FromMilliseconds(400));
 
@@ -108,6 +114,7 @@ public sealed class TimeNeuronFacts(TimeFixture fixture) : IClassFixture<TimeFix
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("reminder", "live");
         var reminder = runtime.Get<IReminder>(id);
 
@@ -123,6 +130,7 @@ public sealed class TimeNeuronFacts(TimeFixture fixture) : IClassFixture<TimeFix
     public async Task AnInvalidReminderScheduleIsRefused(NeuronRuntimeKind kind)
     {
         var runtime = await fixture.Runtime(kind);
+        using var person = runtime.As(Who.Person);
         var reminder = runtime.Get<IReminder>(runtime.Id("reminder", "invalid"));
 
         foreach (var due in new[] { TimeSpan.FromTicks(-1), Timeout.InfiniteTimeSpan, TimeSpan.MaxValue })
@@ -137,6 +145,7 @@ public sealed class TimeNeuronFacts(TimeFixture fixture) : IClassFixture<TimeFix
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, ct);
+        using var person = runtime.As(Who.Person);
         var id = runtime.Id("reminder", "durable");
         await runtime.Get<IReminder>(id).Start(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(200));
         var before = (await runtime.WaitForSignals<ReminderTick>(id, 1, Within, ct)).Count;

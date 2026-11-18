@@ -123,6 +123,7 @@ public sealed class UnitMachineScreenFacts : E2ETestBase, IClassFixture<TestOSFi
         os.Register<MachineScreen>();
 
         var brain = NewBrain("screen-atomic-turn");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.machine_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -151,6 +152,7 @@ public sealed class UnitMachineScreenFacts : E2ETestBase, IClassFixture<TestOSFi
         os.Register<MachineScreen>();
 
         var brain = NewBrain("screen-rollback");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.machine_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -183,6 +185,7 @@ public sealed class UnitMachineScreenFacts : E2ETestBase, IClassFixture<TestOSFi
         os.Register<MachineScreen>();
 
         var brain = NewBrain("screen-identical-noop");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.machine_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -212,6 +215,7 @@ public sealed class UnitMachineScreenFacts : E2ETestBase, IClassFixture<TestOSFi
         os.Register<MachineScreen>();
 
         var brain = NewBrain("screen-reserved-by");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.machine_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -238,6 +242,7 @@ public sealed class UnitMachineScreenFacts : E2ETestBase, IClassFixture<TestOSFi
         os.Register<MachineScreen>();
 
         var brain = NewBrain("screen-refusal-matrix");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.machine_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 

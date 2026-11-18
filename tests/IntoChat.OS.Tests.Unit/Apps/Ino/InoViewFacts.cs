@@ -1,3 +1,4 @@
+using DigitalBrain;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Xml.Linq;
@@ -173,6 +174,7 @@ public sealed class InoViewFacts
     [Fact]
     public async Task AspireLiveTelemetryDiscoversConfiguredEndpointsCapturesActivitiesAndSanitizesSecrets()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         AspireLiveTelemetry.EnsureListener();
         using var source = new ActivitySource("IntoChat.OS.InoIntrospectionTest");
         using (var activity = source.StartActivity("InoTurnProbe", ActivityKind.Internal))

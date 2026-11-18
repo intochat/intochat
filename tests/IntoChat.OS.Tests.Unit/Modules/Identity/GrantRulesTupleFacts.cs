@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
@@ -12,18 +13,17 @@ namespace IntoChat.OS.Authority;
 [Collection("EdgeGrantsCache")]
 public sealed class GrantRulesTupleFacts
 {
-    private static CapabilityCaller App(string key) => CapabilityCallers.Of(AppPrincipal.Id(key), "test-user", "test-brain", CallerKind.App, key);
-    private static Caller Edge(CapabilityCaller caller) => IntoChat.OS.Tests.TestEdge.From(caller);
+    private static Caller App(string key) => IntoChat.OS.Tests.TestEdge.Authority.App(key, new Actor.Person("test-user", "test-user"), new BrainId("test-brain"));
     private static CallRequest Req(string target, params string[] types) => new() { TargetNeuron = target, Operation = "read", SemanticTypeIds = types };
 
     [Fact]
     public void OwnNamespaceIsAllowedWithoutGrant()
-        => Assert.True(GrantRules.Evaluate(Edge(App("photocraft")), Req("test-brain/apps/photocraft/data"), null, [], PrincipalSet.For(App("photocraft")))!.Allowed);
+        => Assert.True(GrantRules.Evaluate(App("photocraft"), Req("test-brain/apps/photocraft/data"), null, [], PrincipalSet.For(App("photocraft")))!.Allowed);
 
     [Fact]
     public void TargetContainingAppNameAsInnerSegmentIsDenied()
     {
-        var d = GrantRules.Evaluate(Edge(App("photocraft")), Req("test-brain/apps/x/shared/photocraft/data"), null, [], PrincipalSet.For(App("photocraft")));
+        var d = GrantRules.Evaluate(App("photocraft"), Req("test-brain/apps/x/shared/photocraft/data"), null, [], PrincipalSet.For(App("photocraft")));
         Assert.False(d!.Allowed); Assert.Equal(CallDenial.MissingGrant, d.Denial);
     }
 
@@ -32,8 +32,8 @@ public sealed class GrantRulesTupleFacts
     {
         var grant = Grant.Tuple("brain:test-brain", "contacts/friends#member", "test-brain/apps/gallery", GrantRelations.Run);
         var set = PrincipalSet.For(App("photocraft")).With("contacts/friends#member");
-        Assert.True(GrantRules.Evaluate(Edge(App("photocraft")), Req("test-brain/apps/gallery"), null, [grant], set)!.Allowed);
-        Assert.False(GrantRules.Evaluate(Edge(App("photocraft")), Req("test-brain/apps/gallery"), null, [grant], PrincipalSet.For(App("photocraft")))!.Allowed);
+        Assert.True(GrantRules.Evaluate(App("photocraft"), Req("test-brain/apps/gallery"), null, [grant], set)!.Allowed);
+        Assert.False(GrantRules.Evaluate(App("photocraft"), Req("test-brain/apps/gallery"), null, [grant], PrincipalSet.For(App("photocraft")))!.Allowed);
     }
 
     [Fact]
@@ -50,8 +50,8 @@ public sealed class GrantRulesTupleFacts
     {
         var grant = Grant.Tuple("brain:test-brain", "app:photocraft", "ui.workspace/test-brain/main", GrantRelations.Run);
         var request = Req("ui.workspace/test-brain/main") with { TargetScope = "test-brain" };
-        Assert.True(GrantRules.Evaluate(Edge(App("photocraft")), request, null, [grant], PrincipalSet.For(App("photocraft")))!.Allowed);
-        Assert.False(GrantRules.Evaluate(Edge(App("photocraft")), request with { TargetScope = "other-brain" }, null, [grant], PrincipalSet.For(App("photocraft")))!.Allowed);
+        Assert.True(GrantRules.Evaluate(App("photocraft"), request, null, [grant], PrincipalSet.For(App("photocraft")))!.Allowed);
+        Assert.False(GrantRules.Evaluate(App("photocraft"), request with { TargetScope = "other-brain" }, null, [grant], PrincipalSet.For(App("photocraft")))!.Allowed);
     }
 
     [Fact]
@@ -66,6 +66,6 @@ public sealed class GrantRulesTupleFacts
     public void GrantToOtherAppDoesNotLeakThroughFriendship()
     {
         var grant = Grant.Tuple("brain:test-brain", "app:ino", "test-brain/apps/files", GrantRelations.Run);
-        Assert.False(GrantRules.Evaluate(Edge(App("photocraft")), Req("test-brain/apps/files"), null, [grant], PrincipalSet.For(App("photocraft")))!.Allowed);
+        Assert.False(GrantRules.Evaluate(App("photocraft"), Req("test-brain/apps/files"), null, [grant], PrincipalSet.For(App("photocraft")))!.Allowed);
     }
 }

@@ -63,6 +63,7 @@ public sealed class UnitMachineStateLimitFacts : E2ETestBase, IClassFixture<Test
     private async Task SetExactStateAsync(string data, BrainId brain)
     {
         await using var os = _fixture.CreateIsolated();
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         os.Register(typeof(ExactLimitUnit).Assembly);
         var neuronId = new NeuronId(brain, "unit.limit_exact", "default");
         var init = await os.Get<IUnit>(neuronId).Handle(
@@ -128,6 +129,7 @@ public sealed class UnitMachineStateLimitFacts : E2ETestBase, IClassFixture<Test
         os.Register<UnitLimitTestScreen>();
 
         var brain = NewBrain("unit-rollback");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.unit_limit_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 

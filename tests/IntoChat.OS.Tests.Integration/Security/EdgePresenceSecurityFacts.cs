@@ -53,16 +53,16 @@ public sealed class EdgePresenceSecurityFacts
     [Fact]
     public async Task SiloAccessCallFilter_FailsClosed_WhenStagesEmptyOrReturnNull()
     {
-        var personCaller = IntoChat.OS.Tests.TestEdge.From(CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin));
+        var personCaller = IntoChat.OS.Tests.TestEdge.Authority.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin, new BrainId(AccountSession.DefaultLogin));
         var ambient = new FixedCallerAmbient(personCaller);
         var invocation = new RuntimeInvocation("app.view", "DigitalBrain.UI.IView", "main", "Read", []);
         var callContext = new FakeGrainCallContext(GrainId.Create("neuron", "owner/app.view/main"), invocation);
 
-        var emptyStagesFilter = new SiloAccessCallFilter([], ambient, new AccessOptions { UnstampedEdgeIsKernel = false });
+        var emptyStagesFilter = new SiloAccessCallFilter([], ambient);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => emptyStagesFilter.Invoke(callContext));
 
         var nullDecisionStage = new NullDecisionStage();
-        var silentStageFilter = new SiloAccessCallFilter([nullDecisionStage], ambient, new AccessOptions { UnstampedEdgeIsKernel = false });
+        var silentStageFilter = new SiloAccessCallFilter([nullDecisionStage], ambient);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => silentStageFilter.Invoke(callContext));
     }
 
@@ -75,9 +75,9 @@ public sealed class EdgePresenceSecurityFacts
         var source = new GrainGrantPolicySource(denyingIdentity, mirror, auth);
 
         // 1. Proven Owner person skips Open posture grant check and returns explicit Allow (never null).
-        var provenPerson = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin);
+        var provenPerson = IntoChat.OS.Tests.TestEdge.Authority.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin, new BrainId(AccountSession.DefaultLogin));
         var personDecision = await source.AuthorizeAsync(
-            IntoChat.OS.Tests.TestEdge.From(provenPerson),
+            provenPerson,
             new CallRequest
             {
                 TargetNeuron = "app.view/owner/main",
@@ -90,9 +90,9 @@ public sealed class EdgePresenceSecurityFacts
         Assert.Equal(0, denyingIdentity.AuthorizeCalls);
 
         // 2. Agent, App, and Scheduler MUST NOT take the Open-posture skip; they evaluate Decide/Identity.
-        var agent = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin, CallerKind.Agent, CapabilityCallers.AssistantApp);
+        var agent = IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin), new BrainId(AccountSession.DefaultLogin));
         var agentDecision = await source.AuthorizeAsync(
-            IntoChat.OS.Tests.TestEdge.From(agent),
+            agent,
             new CallRequest
             {
                 TargetNeuron = "app.view/owner/main",
@@ -103,9 +103,9 @@ public sealed class EdgePresenceSecurityFacts
         Assert.NotNull(agentDecision);
         Assert.False(agentDecision.Allowed);
 
-        var scheduler = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin, CallerKind.Scheduler, CapabilityCallers.SchedulerApp);
+        var scheduler = IntoChat.OS.Tests.TestEdge.Authority.Scheduler(new BrainId(AccountSession.DefaultLogin));
         var schedulerDecision = await source.AuthorizeAsync(
-            IntoChat.OS.Tests.TestEdge.From(scheduler),
+            scheduler,
             new CallRequest
             {
                 TargetNeuron = "app.view/owner/main",
@@ -116,9 +116,9 @@ public sealed class EdgePresenceSecurityFacts
         Assert.NotNull(schedulerDecision);
         Assert.False(schedulerDecision.Allowed);
 
-        var arbitraryApp = CapabilityCallers.Of(AccountSession.DefaultLogin, AccountSession.DefaultLogin, AccountSession.DefaultLogin, CallerKind.App, "untrusted-app");
+        var arbitraryApp = IntoChat.OS.Tests.TestEdge.Authority.App("untrusted-app", new Actor.Person(AccountSession.DefaultLogin, AccountSession.DefaultLogin), new BrainId(AccountSession.DefaultLogin));
         var appDecision = await source.AuthorizeAsync(
-            IntoChat.OS.Tests.TestEdge.From(arbitraryApp),
+            arbitraryApp,
             new CallRequest
             {
                 TargetNeuron = "app.view/owner/main",
@@ -154,6 +154,8 @@ public sealed class EdgePresenceSecurityFacts
         builder.Services.AddIntoChatOSConnections();
         builder.Services.AddIdentity();
         builder.Services.AddIntoChatOSMcp();
+        // The host registers the edge authority the session stamps through (a silo host gets it from the runtime).
+        builder.Services.AddSingleton(IntoChat.OS.Tests.TestEdge.Authority).AddSingleton(IntoChat.OS.Tests.TestEdge.Callers);
 
         await using var app = builder.Build();
         app.UseAuthentication();

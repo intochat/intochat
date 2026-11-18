@@ -89,6 +89,7 @@ public sealed class GallerySettingsFilesReactorFacts
     [Fact]
     public async Task GalleryAppShowcasesAllFourInteractiveTabsLiveBankGuardsAndStateGraphView()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("gallery-test", "gallery-test", new BrainId("gallery-test")));
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
         os.Register(typeof(GalleryApp).Assembly);

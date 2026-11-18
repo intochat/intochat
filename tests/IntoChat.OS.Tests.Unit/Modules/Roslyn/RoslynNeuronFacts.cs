@@ -11,6 +11,7 @@ public sealed class RoslynNeuronFacts(RoslynFixture fixture)
     [Fact]
     public async Task AWorkspaceNothingOpenedReadsAsNotOpenedAtGenerationZero()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", new BrainId("facts")));
         var runtime = fixture.Runtime;
         var roslyn = runtime.Get<IRoslyn>(new NeuronId(FactsBrain, "microsoft.roslyn", "fresh-testos"));
 
@@ -22,6 +23,7 @@ public sealed class RoslynNeuronFacts(RoslynFixture fixture)
     [Fact]
     public async Task ABlankSolutionPathAndAReloadOfNothingAreRefused()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", new BrainId("facts")));
         var runtime = fixture.Runtime;
         var roslyn = runtime.Get<IRoslyn>(new NeuronId(FactsBrain, "microsoft.roslyn", "refusals-testos"));
 

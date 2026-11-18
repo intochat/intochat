@@ -1,6 +1,7 @@
 #pragma warning disable xUnit1051
 
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Testing;
@@ -16,6 +17,7 @@ public sealed class EdgeGrantsCacheUsersetFacts
     [Fact]
     public async Task MemberOfListSatisfiesUsersetGrant()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("vlad", "vlad", new BrainId("vlad")));
         await using var os = TestOS.Local();
         os.Register<GrantsNeuron>();
         os.Register<ContactsNeuron>();
@@ -27,11 +29,11 @@ public sealed class EdgeGrantsCacheUsersetFacts
         await grants.Grant(Grant.Tuple("brain:vlad", IContactsNeuron.Userset("friends"), "vlad/apps/photocraft", GrantRelations.Run));
 
         var cache = new EdgeGrantsCache(
-            services: os.Services,
+            services: IntoChat.OS.Tests.TestEdge.WithEdge(os.Services),
             listeners: os.ClusterListeners,
             clock: TimeProvider.System,
             resolveNeuron: Resolve(os));
-        var bob = CapabilityCallers.Of(AppPrincipal.Id("gallery"), "bob-account", "bob", CallerKind.App, "gallery");
+        var bob = IntoChat.OS.Tests.TestEdge.Authority.App("gallery", new Actor.Person("bob-account", "bob-account"), new BrainId("bob"));
 
         Assert.True(await cache.IsGrantedAsync("vlad", bob, GrantRelations.Run, "vlad/apps/photocraft"));
     }
@@ -39,6 +41,7 @@ public sealed class EdgeGrantsCacheUsersetFacts
     [Fact]
     public async Task RemovingMemberInvalidatesEdgeCacheForOwnerBrain()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("vlad", "vlad", new BrainId("vlad")));
         await using var os = TestOS.Local();
         os.Register<GrantsNeuron>();
         os.Register<ContactsNeuron>();
@@ -50,11 +53,11 @@ public sealed class EdgeGrantsCacheUsersetFacts
         await grants.Grant(Grant.Tuple("brain:vlad", IContactsNeuron.Userset("friends"), "vlad/apps/photocraft", GrantRelations.Run));
 
         var cache = new EdgeGrantsCache(
-            services: os.Services,
+            services: IntoChat.OS.Tests.TestEdge.WithEdge(os.Services),
             listeners: os.ClusterListeners,
             clock: TimeProvider.System,
             resolveNeuron: Resolve(os));
-        var bob = CapabilityCallers.Of(AppPrincipal.Id("gallery"), "bob-account", "bob", CallerKind.App, "gallery");
+        var bob = IntoChat.OS.Tests.TestEdge.Authority.App("gallery", new Actor.Person("bob-account", "bob-account"), new BrainId("bob"));
 
         Assert.True(await cache.IsGrantedAsync("vlad", bob, GrantRelations.Run, "vlad/apps/photocraft"));
 
@@ -66,6 +69,7 @@ public sealed class EdgeGrantsCacheUsersetFacts
     [Fact]
     public async Task ListsInCallerBrainDoNotCount()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("bob", "bob", new BrainId("bob")));
         await using var os = TestOS.Local();
         os.Register<GrantsNeuron>();
         os.Register<ContactsNeuron>();
@@ -76,14 +80,17 @@ public sealed class EdgeGrantsCacheUsersetFacts
         // bob adds vlad to bob's own "friends"
         await bobContacts.Add("friends", new ContactEntry { Principal = "brain:vlad" });
         // vlad has a grant to contacts/friends#member
-        await vladGrants.Grant(Grant.Tuple("brain:vlad", IContactsNeuron.Userset("friends"), "vlad/apps/photocraft", GrantRelations.Run));
+        using (IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("vlad", "vlad", new BrainId("vlad"))))
+        {
+            await vladGrants.Grant(Grant.Tuple("brain:vlad", IContactsNeuron.Userset("friends"), "vlad/apps/photocraft", GrantRelations.Run));
+        }
 
         var cache = new EdgeGrantsCache(
-            services: os.Services,
+            services: IntoChat.OS.Tests.TestEdge.WithEdge(os.Services),
             listeners: os.ClusterListeners,
             clock: TimeProvider.System,
             resolveNeuron: Resolve(os));
-        var bob = CapabilityCallers.Of(AppPrincipal.Id("gallery"), "bob-account", "bob", CallerKind.App, "gallery");
+        var bob = IntoChat.OS.Tests.TestEdge.Authority.App("gallery", new Actor.Person("bob-account", "bob-account"), new BrainId("bob"));
 
         // bob is NOT in vlad's friends list, so must be false
         Assert.False(await cache.IsGrantedAsync("vlad", bob, GrantRelations.Run, "vlad/apps/photocraft"));

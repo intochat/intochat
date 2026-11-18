@@ -6,11 +6,28 @@ namespace DigitalBrain.Brains;
 
 public static class CallerAdmission
 {
+    private static readonly Lock RuntimesLock = new();
+    private static ICallerAmbient[] s_runtimes = [];
+
+    // An explicit ambient that replaces the registered runtimes (facts set and restore it).
     internal static ICallerAmbient? Callers { get; set; }
+
+    // Each runtime in the process registers its ambient once: a test process hosts TestOS and an Orleans silo side by side, and
+    // a call is stamped on at most one of them, so the first one carrying a caller answers.
+    internal static void Register(ICallerAmbient ambient)
+    {
+        ArgumentNullException.ThrowIfNull(ambient);
+        lock (RuntimesLock)
+        {
+            if (!s_runtimes.Contains(ambient)) { s_runtimes = [.. s_runtimes, ambient]; }
+        }
+    }
 
     internal static bool TryGetCaller([NotNullWhen(true)] out Caller? caller)
     {
-        caller = Callers?.Current;
+        caller = Callers is { } explicitAmbient
+            ? explicitAmbient.Current
+            : Array.Find(Volatile.Read(ref s_runtimes), ambient => ambient.Current is not null)?.Current;
         return caller is not null;
     }
 

@@ -15,6 +15,7 @@ public sealed class NotificationsSlotFacts
     [Fact]
     public async Task NotificationsSlotDeliversThroughRealNotificationsInboxOnTestOS()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         var services = new ServiceCollection();
         services.Configure<NotificationsOptions>(options => options.MaxItems = 200);
         await using var os = TestOS.Local(options => options.Services = services.BuildServiceProvider())

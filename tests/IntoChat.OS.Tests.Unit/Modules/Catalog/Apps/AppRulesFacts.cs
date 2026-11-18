@@ -38,6 +38,7 @@ public sealed class AppRulesFacts
     [Fact]
     public async Task DuplicateNameIsRejectedWithTheRuleName()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateTestOS();
         var brain = new BrainId("owner");
         var id = new NeuronId(brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/notes");
@@ -52,6 +53,7 @@ public sealed class AppRulesFacts
     [Fact]
     public async Task ConfigureRefusesReservedSettingKeys()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateTestOS();
         var id = new NeuronId(new BrainId("owner"), IntoChat.OS.Connections.AppGrainType.Name, "apps/notes");
         var app = os.Get<IApp>(id);
@@ -64,6 +66,7 @@ public sealed class AppRulesFacts
     [Fact]
     public async Task RefusedTurnLeavesTheJournalUnchanged()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateTestOS();
         var brain = new BrainId("owner");
         var id = new NeuronId(brain, IntoChat.OS.Connections.AppGrainType.Name, "apps/notes");
@@ -98,6 +101,7 @@ public sealed class AppRulesFacts
     [Fact]
     public async Task AnEmitForAnUndeclaredOperationIsRefused()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateTestOS();
         var id = new NeuronId(new BrainId("owner"), IntoChat.OS.Connections.AppGrainType.Name, "apps/notes");
         var app = os.Get<IApp>(id);
@@ -111,6 +115,7 @@ public sealed class AppRulesFacts
     [Fact]
     public async Task AnEmitRunsTheSameRulesAsRequest()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateTestOS();
         var id = new NeuronId(new BrainId("owner"), IntoChat.OS.Connections.AppGrainType.Name, "apps/notes");
         var app = os.Get<IApp>(id);

@@ -80,6 +80,7 @@ public sealed class ScreenAdversarialHardeningFacts : E2ETestBase, IClassFixture
         os.Register<ExactViewScreen>();
 
         var brain = NewBrain("screen-exact-2mb");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.exact_view_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -107,6 +108,7 @@ public sealed class ScreenAdversarialHardeningFacts : E2ETestBase, IClassFixture
         os.Register<ExactViewScreen>();
 
         var brain = NewBrain("screen-exact-plus-one");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.exact_view_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -138,6 +140,7 @@ public sealed class ScreenAdversarialHardeningFacts : E2ETestBase, IClassFixture
         os.Register<ExactViewScreen>();
 
         var brain = NewBrain("screen-corrupt-payload");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.exact_view_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 
@@ -167,6 +170,7 @@ public sealed class ScreenAdversarialHardeningFacts : E2ETestBase, IClassFixture
         os.Register<ExactViewScreen>();
 
         var brain = NewBrain("screen-truncated-json");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var screenId = new NeuronId(brain, "app.exact_view_screen", "default");
         var screen = os.Get<IScreen>(screenId);
 

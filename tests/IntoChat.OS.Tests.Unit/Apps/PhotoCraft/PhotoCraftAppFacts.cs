@@ -16,6 +16,7 @@ public sealed class PhotoCraftAppFacts
     [Fact]
     public async Task PhotoCraftScenariosPass()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
         os.Register(typeof(PhotoCraftApp).Assembly);

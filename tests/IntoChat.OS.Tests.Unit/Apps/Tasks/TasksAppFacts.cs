@@ -121,6 +121,7 @@ public sealed class TasksAppFacts
     [Fact]
     public async Task NewTaskFormDeliversTitleAndDescription()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = FakeOs();
         var tasks = await os.Install<TasksApp>();
 
@@ -169,6 +170,7 @@ public sealed class TasksAppFacts
     [Fact]
     public async Task RelateAddsRelation()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = FakeOs();
         FakeFlows.Views = [Flow("a", FlowStatus.Pending), Flow("b", FlowStatus.Running)];
         var tasks = await os.Install<TasksApp>();
@@ -318,6 +320,7 @@ public sealed class TasksAppFacts
     [Fact]
     public async Task FlowsChangedRefreshesTheBoard()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = FakeOs();
         var tasks = await os.Install<TasksApp>();
         await tasks.Request("open", new TasksOpen());

@@ -20,6 +20,7 @@ public sealed class ClientGrantsFacts
     [Fact]
     public async Task AnApprovedNeedSetIsRemembered()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = NewOs();
         Assert.False(await Grants(os).IsApproved("needs:a"));
         await Grants(os).Approve("needs:a", ["IRuns"]);
@@ -30,6 +31,7 @@ public sealed class ClientGrantsFacts
     [Fact]
     public async Task ABoundBlockReachesItsNeedsAndItsCallsAreKeptUntilReleased()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = NewOs();
         var grants = Grants(os);
         await grants.Bind("codeblock-1", "codeblocks/r1", ["IntoChat.OS.Modules.Apps.Runs.IRuns"]);

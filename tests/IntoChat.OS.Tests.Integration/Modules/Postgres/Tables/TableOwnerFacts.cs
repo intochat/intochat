@@ -1,3 +1,5 @@
+using DigitalBrain.Access;
+using DigitalBrain;
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Modules.Postgres.Tables;
@@ -28,10 +30,11 @@ public sealed class TableOwnerFacts
     [Fact]
     public void TheCurrentOwnerComesFromTheStampedCallerAndRequiresAnApp()
     {
-        var caller = CapabilityCallers.Of("alice", "alice", "brain-1", CallerKind.App, "brain-1/apps/notes");
+        var alice = new Actor.Person("alice", "alice");
+        var caller = IntoChat.OS.Tests.TestEdge.Authority.App("brain-1/apps/notes", alice, new BrainId("brain-1"));
         // Grain keys carry the brain scope id, never the caller's raw brain name.
         Assert.Equal(new TableOwner(BrainScope.Create("alice", "brain-1").Id, "brain-1/apps/notes"), TableOwner.Current(caller));
-        Assert.Throws<UnauthorizedAccessException>(() => TableOwner.Current(caller with { AppId = "" }));
-        Assert.Throws<UnauthorizedAccessException>(() => TableOwner.Current(new CapabilityCaller("", "alice", "brain-1", "brain-1/apps/notes")));
+        Assert.Throws<UnauthorizedAccessException>(() => TableOwner.Current(IntoChat.OS.Tests.TestEdge.Authority.Person("alice", "alice", new BrainId("brain-1"))));
+        Assert.Throws<UnauthorizedAccessException>(() => TableOwner.Current(null));
     }
 }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Errors;
 using DigitalBrain.Invocation;
 using DigitalBrain.UI;
@@ -143,24 +144,24 @@ public sealed class ViewNeuronFacts
     public async Task PublishByCallerKind(string kind, bool allowed)
     {
         await using var os = Started();
-        DigitalBrain.Capabilities.CapabilityCaller? caller = kind switch
+        Caller? caller = kind switch
         {
-            "person" => new("p1", "a1", "owner"),
-            "platform" => DigitalBrain.Capabilities.CapabilityCallers.Platform("p1", "a1", "owner"),
-            "owning-app" => new("p1", "a1", "owner", AppId: "owner/apps/tasks"),
-            "other-app" => new("p1", "a1", "owner", AppId: "owner/apps/other"),
-            "platform-of-another-brain" => DigitalBrain.Capabilities.CapabilityCallers.Platform("p1", "a1", "elsewhere"),
-            "other-brain" => new("p1", "a1", "elsewhere"),
+            "person" => IntoChat.OS.Tests.TestEdge.Authority.Person("p1", "a1", new BrainId("owner")),
+            "platform" => IntoChat.OS.Tests.TestEdge.Authority.Kernel(new BrainId("owner")),
+            "owning-app" => IntoChat.OS.Tests.TestEdge.Authority.App("owner/apps/tasks", new Actor.Person("p1", "a1"), new BrainId("owner")),
+            "other-app" => IntoChat.OS.Tests.TestEdge.Authority.App("owner/apps/other", new Actor.Person("p1", "a1"), new BrainId("owner")),
+            "platform-of-another-brain" => IntoChat.OS.Tests.TestEdge.Authority.Kernel(new BrainId("elsewhere")),
+            "other-brain" => IntoChat.OS.Tests.TestEdge.Authority.Person("p1", "a1", new BrainId("elsewhere")),
             _ => null,
         };
         Task Publish() => os.Get<IView>(Tasks).Publish(1, Sample);
-        using (caller is null ? null : DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(caller))
+        using (caller is null ? null : IntoChat.OS.Tests.TestEdge.Authority.Enter(caller))
         {
             if (allowed) { await Publish(); }
             else { await Assert.ThrowsAsync<UnauthorizedAccessException>(Publish); }
         }
 
-        Assert.Equal(allowed, await os.Get<IView>(Tasks).Read() is not null);
+        using (Edge.AsPerson()) { Assert.Equal(allowed, await os.Get<IView>(Tasks).Read() is not null); }
     }
 
     [Fact]

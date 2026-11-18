@@ -1,3 +1,4 @@
+using DigitalBrain;
 using System.Net;
 using System.Net.Http.Json;
 using DigitalBrain.Access;
@@ -27,14 +28,18 @@ public sealed class GuestSurfaceFacts
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    // What the host registers for the session edge: the authority it stamps through and the ambient it reads back.
+    private static readonly IServiceProvider EdgeServices = new ServiceCollection()
+        .AddSingleton(IntoChat.OS.Tests.TestEdge.Authority).AddSingleton(IntoChat.OS.Tests.TestEdge.Callers).BuildServiceProvider();
+
     [Fact]
     public void AGuest_IsKnownByItsPrincipal_WhateverAppItIsStampedAs()
     {
-        var guest = CapabilityCallers.Of(Guest, Guest, Guest);
+        var guest = IntoChat.OS.Tests.TestEdge.Authority.Person(Guest, Guest, new BrainId(Guest));
 
         Assert.True(GuestSurface.Is(guest));
-        Assert.True(GuestSurface.Is(guest with { AppId = GuestSurface.AppId }));
-        Assert.True(GuestSurface.Is(McpCaller.AsAgent(guest)));
+        Assert.True(GuestSurface.Is(IntoChat.OS.Tests.TestEdge.Authority.Guest(Guest, Guest, new BrainId(Guest))));
+        Assert.True(GuestSurface.Is(McpCaller.AsAgent(IntoChat.OS.Tests.TestEdge.Authority, guest)));
     }
 
     [Theory]
@@ -45,17 +50,15 @@ public sealed class GuestSurfaceFacts
     [InlineData("try")]
     [InlineData("u-try-0a1b2c3d4e5f")]
     public void AnyOtherPrincipal_IsNotAGuest_EvenInATryBrain(string principalId)
-        => Assert.False(GuestSurface.Is(CapabilityCallers.Of(principalId, principalId, Guest)));
+        => Assert.False(GuestSurface.Is(IntoChat.OS.Tests.TestEdge.Authority.Person(principalId, principalId, new BrainId(Guest))));
 
     [Fact]
     public void TheGuestApp_IsAnApp_AndNoOtherCallersApp()
     {
-        var stamped = CapabilityCallers.Of(Guest, Guest, Guest) with { AppId = GuestSurface.AppId };
+        var stamped = IntoChat.OS.Tests.TestEdge.Authority.Guest(Guest, Guest, new BrainId(Guest));
 
-        Assert.Equal(CallerKind.App, stamped.Kind);
-        Assert.IsNotType<Actor.Person>(IntoChat.OS.Tests.TestEdge.From(stamped).Actor);
-        Assert.DoesNotContain(GuestSurface.AppId,
-            new[] { CapabilityCallers.PlatformApp, CapabilityCallers.SchedulerApp, CapabilityCallers.AssistantApp });
+        Assert.Equal(GuestSurface.AppId, Assert.IsType<Actor.App>(stamped.Actor).Key);
+        Assert.NotEqual(CallerApps.Assistant, GuestSurface.AppId);
         Assert.DoesNotContain('/', GuestSurface.AppId);
     }
 
@@ -132,28 +135,24 @@ public sealed class GuestSurfaceFacts
     [Fact]
     public void ASessionForATryPrincipal_ResolvesAsANonPerson()
     {
-        var http = new DefaultHttpContext { User = AccountSession.SessionUser(CapabilityCallers.Of(Guest, Guest, Guest)) };
+        var http = new DefaultHttpContext { RequestServices = EdgeServices, User = AccountSession.SessionUser(IntoChat.OS.Tests.TestEdge.Authority.Person(Guest, Guest, new BrainId(Guest))) };
 
         var caller = AccountSession.ResolveCaller(http, new AuthOptions { Posture = IdentityPosture.Secured });
 
         Assert.NotNull(caller);
-        Assert.Equal(Guest, caller.PrincipalId);
-        Assert.NotEqual(CallerKind.User, caller.Kind);
-        Assert.Equal(GuestSurface.AppId, caller.AppId);
-        Assert.IsNotType<Actor.Person>(IntoChat.OS.Tests.TestEdge.From(caller).Actor);
+        Assert.Equal(Guest, caller.For?.Principal);
+        Assert.Equal(GuestSurface.AppId, Assert.IsType<Actor.App>(caller.Actor).Key);
     }
 
     [Fact]
     public void ASessionForAnyOtherPrincipal_StillResolvesAsThePerson()
     {
-        var http = new DefaultHttpContext { User = AccountSession.SessionUser(CapabilityCallers.Of("alice", "alice", "owner")) };
+        var http = new DefaultHttpContext { RequestServices = EdgeServices, User = AccountSession.SessionUser(IntoChat.OS.Tests.TestEdge.Authority.Person("alice", "alice", new BrainId("owner"))) };
 
         var caller = AccountSession.ResolveCaller(http, new AuthOptions { Posture = IdentityPosture.Secured });
 
         Assert.NotNull(caller);
-        Assert.Equal(CallerKind.User, caller.Kind);
-        Assert.Null(caller.AppId);
-        Assert.IsType<Actor.Person>(IntoChat.OS.Tests.TestEdge.From(caller).Actor);
+        Assert.IsType<Actor.Person>(caller.Actor);
     }
 
     [Fact]
@@ -169,12 +168,14 @@ public sealed class GuestSurfaceFacts
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { [AuthOptions.PostureKey] = IdentityPosture.Secured.ToString() });
         builder.Services.AddOptions<AuthOptions>().BindConfiguration(AuthOptions.SectionName);
+        builder.Services.AddSingleton(IntoChat.OS.Tests.TestEdge.Authority);
+        builder.Services.AddSingleton(IntoChat.OS.Tests.TestEdge.Callers);
 
         await using var app = builder.Build();
         // A guest identity made some other way than by the try middleware, on every route.
         app.Use((context, next) =>
         {
-            context.User = AccountSession.SessionUser(CapabilityCallers.Of(Guest, Guest, Guest));
+            context.User = AccountSession.SessionUser(IntoChat.OS.Tests.TestEdge.Authority.Person(Guest, Guest, new BrainId(Guest)));
             return next(context);
         });
         app.UseAccountSession();
@@ -190,7 +191,7 @@ public sealed class GuestSurfaceFacts
         Assert.NotNull(admitted);
         Assert.Equal(Guest, admitted.PrincipalId);
         Assert.Equal(Guest, admitted.BrainId);
-        Assert.Equal(CallerKind.App.ToString(), admitted.Kind);
+        Assert.Equal(nameof(Actor.App), admitted.Kind);
         Assert.Equal(GuestSurface.AppId, admitted.AppId);
         Assert.False(admitted.IsActorPerson);
 
@@ -207,10 +208,9 @@ public sealed class GuestSurfaceFacts
 
         var stamped = GuestMcp(os).Stamp(tool);
 
-        Assert.Equal(CallerKind.Agent, stamped.Kind);
-        Assert.Equal(CapabilityCallers.AssistantApp, stamped.AppId);
-        Assert.Equal("mcp", stamped.ConversationId);
-        Assert.Equal(Guest, stamped.PrincipalId);
+        Assert.IsType<Actor.Agent>(stamped.Actor);
+        Assert.Equal("mcp", stamped.Conversation);
+        Assert.Equal(Guest, stamped.For?.Principal);
         Assert.True(GuestSurface.Is(stamped));
     }
 
@@ -233,14 +233,14 @@ public sealed class GuestSurfaceFacts
 
     private static McpCaller GuestMcp(DigitalBrain.Kernel.IBrainObserver kernel)
     {
-        var http = new DefaultHttpContext { User = AccountSession.SessionUser(CapabilityCallers.Of(Guest, Guest, Guest)) };
-        return new McpCaller(new HttpContextAccessor { HttpContext = http }, Options.Create(new AuthOptions { Posture = IdentityPosture.Secured }), kernel);
+        var http = new DefaultHttpContext { RequestServices = EdgeServices, User = AccountSession.SessionUser(IntoChat.OS.Tests.TestEdge.Authority.Person(Guest, Guest, new BrainId(Guest))) };
+        return new McpCaller(new HttpContextAccessor { HttpContext = http }, Options.Create(new AuthOptions { Posture = IdentityPosture.Secured }), kernel, IntoChat.OS.Tests.TestEdge.Authority);
     }
 
-    private static IResult Probe()
+    private static IResult Probe(HttpContext http)
     {
-        var caller = RuntimeCallerContext.Require();
-        return Results.Ok(new CallerProbe(caller.PrincipalId, caller.BrainId, caller.Kind.ToString(), caller.AppId, IntoChat.OS.Tests.TestEdge.From(caller).Actor is Actor.Person));
+        var caller = HttpCaller.Current(http) ?? throw new UnauthorizedAccessException("The edge stamped no caller.");
+        return Results.Ok(new CallerProbe(caller.For?.Principal ?? "", caller.Brain.Value, caller.Actor.GetType().Name, (caller.Actor as Actor.App)?.Key, caller.Actor is Actor.Person));
     }
 
     private sealed record CallerProbe(string PrincipalId, string BrainId, string Kind, string? AppId, bool IsActorPerson);

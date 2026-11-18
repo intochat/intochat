@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using IntoChat.OS.Authority.Identity.Grants;
@@ -46,7 +48,7 @@ public sealed class EdgeGrantsCacheFacts
         var brain = "binding-test-brain";
         cache.Invalidate(brain);
 
-        var caller = CapabilityCallers.Of(AppPrincipal.Id("local/apps/friend-app"), "user", brain, CallerKind.App, "local/apps/friend-app");
+        var caller = IntoChat.OS.Tests.TestEdge.Authority.App("local/apps/friend-app", new Actor.Person("user", "user"), new BrainId(brain));
         var connectionKey = $"{brain}/connection/custom/target";
 
         var grant = new Grant
@@ -69,7 +71,7 @@ public sealed class EdgeGrantsCacheFacts
         var isBound = await cache.IsConnectionBoundAsync(brain, caller, connectionKey, ct);
         Assert.True(isBound);
 
-        var strangerCaller = CapabilityCallers.Of(AppPrincipal.Id("local/apps/stranger"), "user", brain, CallerKind.App, "local/apps/stranger");
+        var strangerCaller = IntoChat.OS.Tests.TestEdge.Authority.App("local/apps/stranger", new Actor.Person("user", "user"), new BrainId(brain));
         var strangerBound = await cache.IsConnectionBoundAsync(brain, strangerCaller, connectionKey, ct);
         Assert.False(strangerBound);
     }

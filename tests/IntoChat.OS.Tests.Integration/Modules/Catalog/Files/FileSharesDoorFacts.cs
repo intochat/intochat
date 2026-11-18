@@ -1,3 +1,5 @@
+using DigitalBrain.Access;
+using IntoChat.OS.Tests;
 using System.Text;
 using DigitalBrain;
 using DigitalBrain.Capabilities;
@@ -55,9 +57,9 @@ public sealed class FileSharesDoorFacts
     }
 
     [Theory]
-    [InlineData(CallerKind.App)]
-    [InlineData(CallerKind.Agent)]
-    public async Task An_app_or_an_agent_is_refused_behind_the_relay_and_at_the_door(CallerKind kind)
+    [InlineData(Who.App)]
+    [InlineData(Who.Agent)]
+    public async Task An_app_or_an_agent_is_refused_behind_the_relay_and_at_the_door(Who kind)
     {
         await using var world = await World.Start();
         var id = await world.ShareTrip(ShareRole.Editor);
@@ -176,8 +178,8 @@ public sealed class FileSharesDoorFacts
     {
         await using var world = await World.Start();
 
-        using (As(Ada, kind: CallerKind.App)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Share(Ben, "/work/trip", ShareRole.Viewer)); }
-        using (As(Ada, kind: CallerKind.Agent)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Share(Ben, "/work/trip", ShareRole.Viewer)); }
+        using (As(Ada, kind: Who.App)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Share(Ben, "/work/trip", ShareRole.Viewer)); }
+        using (As(Ada, kind: Who.Agent)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Share(Ben, "/work/trip", ShareRole.Viewer)); }
         using (As(Ben, brain: Ada)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Share(Ben, "/work/trip", ShareRole.Viewer)); }
         using (As(Ben, brain: Ada)) { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => world.Door(Ada).Shares()); }
         using (As(Ada)) { Assert.Empty(await world.Door(Ada).Shares()); }
@@ -212,9 +214,9 @@ public sealed class FileSharesDoorFacts
     {
         await using var world = await World.Start();
         await world.ShareTrip(ShareRole.Viewer);
+        using var ada = As(Ada);
         await world.RenameOwnerFolder("trip", "trip-moved");
 
-        using var ada = As(Ada);
         var share = Assert.Single(await world.Door(Ada).Shares());
         Assert.True(share.Broken);
     }
@@ -272,22 +274,21 @@ public sealed class FileSharesDoorFacts
         }
     }
 
-    internal static IDisposable As(string account, string? brain = null, CallerKind kind = CallerKind.User)
-        => RuntimeCallerContext.Stamp(kind switch
-        {
-            CallerKind.App => CapabilityCallers.Of(account, account, brain ?? account, CallerKind.App, $"{brain ?? account}/apps/calculator"),
-            CallerKind.Agent => CapabilityCallers.Of(account, account, brain ?? account, CallerKind.Agent, CapabilityCallers.AssistantApp),
-            _ => CapabilityCallers.Of(account, account, brain ?? account),
-        });
+    // Every silo's edge stamps through the one Orleans ambient, so the edge of the world last started serves them all.
+    internal static IDisposable As(string account, string? brain = null, Who kind = Who.Person)
+        => World.Edge.Enter(Stamp.Of(World.Edge, kind, new BrainId(brain ?? account), account, app: $"{brain ?? account}/apps/calculator"));
 
     internal sealed class World(DoorFixture fixture, INeuronRuntime runtime) : IAsyncDisposable
     {
+        internal static EdgeAuthority Edge { get; private set; } = null!;
+
         public static async Task<World> Start(DigitalBrain.Testing.Conformance.Host.OffsetClock? clock = null)
         {
             var fixture = new DoorFixture();
             var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct,
                 siloServices: clock is null ? null : DigitalBrain.Testing.Conformance.Host.OrleansRun.ClockServices(clock));
             var world = new World(fixture, runtime);
+            Edge = runtime.Edge;
             await world.Seed();
             await world.Befriend(Ada, Ben);
             return world;

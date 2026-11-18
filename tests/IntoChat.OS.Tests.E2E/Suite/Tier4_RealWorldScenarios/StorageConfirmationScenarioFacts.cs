@@ -56,6 +56,7 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
         await using var os = TestOS.Local();
         var (handler, storage, provider) = CreateStorageHarness();
         var brain = NewBrain("delete-journey");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var itemId = new ItemId("financials_2025");
         storage.SetItem(itemId, "financials_2025.pdf", ItemKind.File, "sha256-v1-hash");
 
@@ -187,6 +188,7 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
         await using var os = TestOS.Local();
         var (handler, storage, provider) = CreateStorageHarness();
         var brain = NewBrain("user-denial-journey");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var itemId = new ItemId("system_config");
         storage.SetItem(itemId, "system_config.json", ItemKind.File, "config-hash-1");
 
@@ -286,6 +288,7 @@ public sealed class StorageConfirmationScenarioFacts : E2ETestBase
         await using var os = TestOS.Local();
         var (handler, storage, provider) = CreateStorageHarness();
         var brain = NewBrain("composite-batch-journey");
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", brain));
         var sourceFile = new ItemId("original_file");
         storage.SetItem(sourceFile, "presentation.pptx", ItemKind.File, "hash-original-v1");
 

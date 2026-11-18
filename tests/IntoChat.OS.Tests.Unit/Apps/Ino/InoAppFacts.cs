@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Identity;
 using DigitalBrain.Neurons;
@@ -200,6 +201,7 @@ public sealed class InoAppFacts
     [Fact]
     public async Task RuntimeModelSwitchViaSlashCommandSettingsAppAndUserSettingsPropagatesToAgentAndProfileContext()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = BackgroundOs();
         var ino = await os.Install<InoApp>();
         var settingsApp = await os.Install<SettingsApp>();
@@ -312,6 +314,7 @@ public sealed class InoAppFacts
     [Fact]
     public async Task MissingOllamaUnderLocalTopologySurfacesNoProviderSetupCard()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = BackgroundOs();
         os.Register<FakeModelCatalog>();
         FakeModelCatalog.AutomaticModel = new ModelChoice("automatic", "Automatic", "Ollama", "qwen3.5:4b", true, ["Tools"]);
@@ -336,6 +339,7 @@ public sealed class InoAppFacts
     [Fact]
     public async Task NewConversationMovesTheWatchBeforeTheNextSend()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = BackgroundOs();
         var ino = await os.Install<InoApp>();
         await ino.Request("send", new InoSend("first"));
@@ -350,6 +354,7 @@ public sealed class InoAppFacts
     [Fact]
     public async Task SendStartsExactlyOnceAndReturnsBeforeCompletion()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = BackgroundOs();
         var ino = await os.Install<InoApp>();
 
@@ -365,6 +370,7 @@ public sealed class InoAppFacts
     [Fact]
     public async Task TurnCompletedUpdatesConversationAndRecordsCompute()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = BackgroundOs();
         var ino = await os.Install<InoApp>();
         await ino.Request("send", new InoSend("hello"));
@@ -409,6 +415,7 @@ public sealed class InoAppFacts
     [Fact]
     public async Task SmartToggleWritesVariable()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = BackgroundOs();
         var ino = await os.Install<InoApp>();
 
@@ -555,7 +562,7 @@ public sealed class InoAppFacts
         var focus = os.Get<IAgentContext>(new NeuronId(Brain, "agent-context", "context/ui.focus"));
         await Task.Run(async () =>
         {
-            using var _ = RuntimeCallerContext.Stamp(CapabilityCallers.Platform("p1", "a1", Brain.Value));
+            using var _ = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Kernel(Brain));
             await focus.Set(new("stop", "maintenance window", [], [ContextTags.Interrupt]));
         }, TestContext.Current.CancellationToken);
 
@@ -572,12 +579,11 @@ public sealed class InoAppFacts
     [Fact]
     public async Task TheSidePanelListsAgentGrants()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = AgentOs();
         os.Register<GrantsNeuron>();
         var grants = os.Get<IGrantsNeuron>(new NeuronId(Brain, IGrantsNeuron.TypeName, IGrantsNeuron.DefaultKey));
-#pragma warning disable CS0618
-        await grants.Grant(new Grant { AppId = CapabilityCallers.AssistantApp, Scope = "run", Target = "local/ino/settings", WorkspaceId = "local" });
-#pragma warning restore CS0618
+        await grants.Grant(new Grant { AppId = IntoChat.OS.Framework.CallerApps.Assistant, Scope = "run", Target = "local/ino/settings", WorkspaceId = "local" });
         await grants.Grant(new Grant { AppId = "other", Scope = "run", Target = "local/elsewhere", WorkspaceId = "local" });
         var ino = await os.Install<InoApp>();
 
@@ -637,12 +643,13 @@ public sealed class InoAppFacts
     [Fact]
     public async Task OnlyInoWritesItsLinks()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
         var id = new NeuronId(Brain, "apps.ino-records", IInoRecords.Key);
         var journaled = os.Journal(Brain).Signals(id).Count();
 
-        using (RuntimeCallerContext.Stamp(new CapabilityCaller("p1", "a1", "local", AppId: "local/apps/desktop")))
+        using (IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.App("local/apps/desktop", new Actor.Person("p1", "a1"), new BrainId("local"))))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => os.Get<IInoRecords>(id).Write(new InoRecords([new InoLink("x", "notes", "page=1")])));
         }

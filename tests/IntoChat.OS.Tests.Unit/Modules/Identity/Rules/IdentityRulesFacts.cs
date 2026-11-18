@@ -46,6 +46,8 @@ public sealed class IdentityRulesFacts
     [Fact]
     public async Task DirectoryNeuronRefusesInvalidAndTakenPrincipalsWithRules()
     {
+        // The system brain is platform territory: its directory, marketplace and circles are reached by platform code.
+        using var kernel = IntoChat.OS.Tests.TestEdge.Authority.EnterKernel(new BrainId("system"));
         var services = new ServiceCollection();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(Options.Create(new AuthOptions { Posture = IdentityPosture.Open }));
@@ -60,6 +62,7 @@ public sealed class IdentityRulesFacts
     [Fact]
     public async Task ContactsNeuronRefusesInvalidListAndEmptyPrincipalWithRules()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = TestOS.Local();
         os.Register<ContactsNeuron>();
         var contacts = os.Get<IContactsNeuron>(new NeuronId(new BrainId("owner"), IContactsNeuron.TypeName, IContactsNeuron.DefaultKey));
@@ -76,7 +79,7 @@ public sealed class IdentityRulesFacts
         await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider()).Register<OsVaultNeuron>();
         var vault = os.Get<IOsVault>(new NeuronId(new BrainId("system"), IOsVault.Type, "alice"));
 
-        using var bob = os.Edge.Enter(os.Edge.Person("bob", "bob", new BrainId("system")));
+        using var bob = os.Edge.Enter(os.Edge.RelayedPerson("bob", "bob", new BrainId("system")));
         var ex = await Assert.ThrowsAsync<RuleViolationException>(() => vault.Set("api", "API", "secret"));
         Assert.Contains("identity.caller-can-store-secret", ex.Rejected.Rules);
     }

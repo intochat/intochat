@@ -16,6 +16,7 @@ public sealed class GalleryAppFacts
     [Fact]
     public async Task GalleryScenariosPass()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("test", "test", new BrainId("test")));
         await using var os = TestOS.Local();
         os.Register(typeof(AppsModule).Assembly);
         os.Register(typeof(GalleryApp).Assembly);
@@ -26,6 +27,7 @@ public sealed class GalleryAppFacts
     [Fact]
     public async Task GalleryLibraryNeuronPersistsFilteredCategoryAndSelection()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var os = TestOS.Local();
         os.Register<GalleryLibrary>();
         var library = os.Get<IGalleryLibrary>(new NeuronId(new BrainId("local"), "os.gallery.library", "library"));

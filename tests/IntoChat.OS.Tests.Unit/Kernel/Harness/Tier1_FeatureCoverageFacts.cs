@@ -341,22 +341,9 @@ public sealed class Tier1_FeatureCoverageFacts
     [Fact]
     [Trait("Category", "Tier1_FeatureCoverage")]
     [Trait("Feature", "F5")]
-    public void F5_01_CallerContextStamper_IsTrusted_RequiresAllFields()
-    {
-        var valid = CapabilityCallers.Of("user_123", "acc_1", "brain_alpha", CallerKind.User);
-        Assert.True(RuntimeCallerContext.IsTrusted(valid));
-
-        var invalid = new CapabilityCaller("", "acc_1", "brain_alpha");
-        Assert.False(RuntimeCallerContext.IsTrusted(invalid));
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F5")]
     public void F5_02_CallRequest_InitializesWithRequiredProvenance()
     {
-        var caller = CapabilityCallers.Of("usr_9", "acc_1", "brain_1", CallerKind.User);
-        var edge = IntoChat.OS.Tests.TestEdge.From(caller);
+        var edge = IntoChat.OS.Tests.TestEdge.Authority.Person("usr_9", "acc_1", new BrainId("brain_1"));
         var request = new CallRequest
         {
             TargetNeuron = "brain_1/apps/calc",
@@ -369,84 +356,9 @@ public sealed class Tier1_FeatureCoverageFacts
         Assert.False(request.PublicOperation);
     }
 
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F5")]
-    public void F5_03_UntrustedCallerException_ConstructsWithMessage()
-    {
-        var ex = new UntrustedCallerException("Missing edge provenance stamp.");
-        Assert.Equal("Missing edge provenance stamp.", ex.Message);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F5")]
-    public void F5_04_CallerContextStamper_IsModelOriginated_TracksConversationId()
-    {
-        var humanCaller = CapabilityCallers.Of("user_1", "acc_1", "brain_1", CallerKind.User);
-        Assert.False(RuntimeCallerContext.IsModelOriginated(humanCaller));
-
-        var modelCaller = CapabilityCallers.Of("asst_1", "acc_1", "brain_1", CallerKind.Agent, conversationId: "conv_42");
-        Assert.True(RuntimeCallerContext.IsModelOriginated(modelCaller));
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F5")]
-    public void F5_05_CallerContextStamper_Constants_AreDefined()
-    {
-        Assert.Equal("db.cap.principal", RuntimeCallerContext.RequestContextKey);
-        Assert.Equal("intochatos.trusted-module-call", RuntimeCallerContext.ModuleCallKey);
-    }
-
     #endregion
 
     #region F6: Provenance Caller Construction Hygiene
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F6")]
-    public void F6_01_CapabilityCallersOf_User_StampsCorrectCallerKind()
-    {
-        var caller = CapabilityCallers.Of("usr_john", "acc_corp", "brain_main", CallerKind.User);
-        Assert.Equal("usr_john", caller.PrincipalId);
-        Assert.Equal("acc_corp", caller.AccountId);
-        Assert.Equal("brain_main", caller.BrainId);
-        Assert.Equal(CallerKind.User, caller.Kind);
-        Assert.Equal(TrustedEdge.AuthenticatedHttp, caller.StampedBy);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F6")]
-    public void F6_02_CapabilityCallersOf_App_StampsAppProxyEdge()
-    {
-        var caller = CapabilityCallers.Of("usr_john", "acc_corp", "brain_main", CallerKind.App, appId: "echo-bot");
-        Assert.Equal("echo-bot", caller.AppId);
-        Assert.Equal(CallerKind.App, caller.Kind);
-        Assert.Equal(TrustedEdge.AppProxy, caller.StampedBy);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F6")]
-    public void F6_03_CapabilityCallersOf_Platform_StampsPlatformConstants()
-    {
-        var caller = CapabilityCallers.Platform("platform_sys", "acc_root", "brain_sys");
-        Assert.Equal("platform", caller.AppId);
-        Assert.Equal(CallerKind.Platform, caller.Kind);
-        Assert.Equal(TrustedEdge.Platform, caller.StampedBy);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F6")]
-    public void F6_04_CapabilityCallersOf_RejectsEmptyParameters()
-    {
-        Assert.Throws<ArgumentException>(() => CapabilityCallers.Of("", "acc", "brain"));
-        Assert.Throws<ArgumentException>(() => CapabilityCallers.Of("p", "", "brain"));
-        Assert.Throws<ArgumentException>(() => CapabilityCallers.Of("p", "acc", ""));
-    }
 
     [Fact]
     [Trait("Category", "Tier1_FeatureCoverage")]
@@ -528,29 +440,12 @@ public sealed class Tier1_FeatureCoverageFacts
     [Fact]
     [Trait("Category", "Tier1_FeatureCoverage")]
     [Trait("Feature", "F8")]
-    public void F8_03_CapabilityCaller_PersonId_PreservedThroughGrants()
-    {
-        var caller = CapabilityCallers.Of("person_42", "acc_1", "brain_1", CallerKind.User);
-        Assert.Equal("person_42", caller.PersonId);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F8")]
     public void F8_04_GrantEvaluation_DistinguishesBetweenDifferentBrains()
     {
-        var callerAlpha = CapabilityCallers.Of("user_1", "acc_1", "brain_alpha", CallerKind.User);
-        var callerBeta = CapabilityCallers.Of("user_1", "acc_1", "brain_beta", CallerKind.User);
+        var callerAlpha = IntoChat.OS.Tests.TestEdge.Authority.Person("user_1", "acc_1", new BrainId("brain_alpha"));
+        var callerBeta = IntoChat.OS.Tests.TestEdge.Authority.Person("user_1", "acc_1", new BrainId("brain_beta"));
 
-        Assert.NotEqual(callerAlpha.BrainId, callerBeta.BrainId);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier1_FeatureCoverage")]
-    [Trait("Feature", "F8")]
-    public void F8_05_CallerContextStamper_Require_ThrowsWhenUnstamped()
-    {
-        Assert.Throws<UntrustedCallerException>(() => RuntimeCallerContext.Require());
+        Assert.NotEqual(callerAlpha.Brain, callerBeta.Brain);
     }
 
     #endregion
@@ -694,7 +589,7 @@ public sealed class Tier1_FeatureCoverageFacts
     public void F13_04_FrameworkAssembly_ExportsCanonicalConfigurationTypes()
     {
         var exportedTypes = typeof(CallRequest).Assembly.GetExportedTypes().Select(t => t.Name).ToList();
-        Assert.Contains("RuntimeCallerContext", typeof(DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext).Assembly.GetExportedTypes().Select(t => t.Name));
+        Assert.Contains("Caller", typeof(DigitalBrain.Access.Caller).Assembly.GetExportedTypes().Select(t => t.Name));
         Assert.Contains("CallRequest", exportedTypes);
     }
 

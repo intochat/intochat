@@ -11,6 +11,7 @@ public sealed class GraphRecallFacts(AiFixture fixture) : IClassFixture<AiFixtur
     [Fact]
     public async Task AFactTwoRelationsAwayIsRecalledWithItsPath()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", new BrainId("facts")));
         var ct = TestContext.Current.CancellationToken;
         var runtime = fixture.Runtime;
         var store = runtime.Get<IKnowledgeStore>(new NeuronId(FactsBrain, "ai.knowledge-store", "recall-testos"));
@@ -33,6 +34,7 @@ public sealed class GraphRecallFacts(AiFixture fixture) : IClassFixture<AiFixtur
     [Fact]
     public async Task MemoryFactsReachTheStoreOnceAndRecallMergesBoth()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("facts", "facts", new BrainId("facts")));
         var ct = TestContext.Current.CancellationToken;
         var runtime = fixture.Runtime;
         var memory = runtime.Get<IMemory>(new NeuronId(FactsBrain, "ai.memory", "sync-testos"));

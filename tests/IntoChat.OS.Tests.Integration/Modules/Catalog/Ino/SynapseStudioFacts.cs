@@ -1,4 +1,6 @@
+using IntoChat.OS.Tests;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Broker;
 using DigitalBrain.Runtime.Orleans;
@@ -104,6 +106,7 @@ public sealed class SynapseStudioFacts
     {
         await using var fixture = new StudioFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         var clean = await Studio(runtime).Check(TickPoller);
         var flagged = await Studio(runtime).Check(WithStatus);
@@ -117,6 +120,7 @@ public sealed class SynapseStudioFacts
     {
         await using var fixture = new StudioFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         var clean = await Studio(runtime).Check(TickPoller);
         var broken = await Studio(runtime).Check("this is not C# {");
@@ -144,6 +148,7 @@ public sealed class SynapseStudioFacts
     {
         await using var fixture = new StudioFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/" + Alias));
         await app.Create(new AppManifest("Tick poller", "Polls every five minutes", [], [], [], Headless: true), "spec");
 
@@ -169,6 +174,7 @@ public sealed class SynapseStudioFacts
     {
         await using var fixture = new StudioFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var signals = """
             namespace Ino.Units.Signals;
 
@@ -206,6 +212,7 @@ public sealed class SynapseStudioFacts
     {
         await using var fixture = new StudioFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         var deployed = await Studio(runtime).Deploy(Alias, TickPoller);
 
@@ -219,6 +226,7 @@ public sealed class SynapseStudioFacts
     {
         await using var fixture = new StudioFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         await Studio(runtime).Deploy(Alias, TickPoller);
         var before = Assert.Single(await Studio(runtime).List());
 
@@ -233,6 +241,7 @@ public sealed class SynapseStudioFacts
     {
         await using var fixture = new StudioFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         // 1. Deploy a multi-file unit ("two-file") and a scheduled tick unit ("tick-poller")
         var signals = """
@@ -295,6 +304,7 @@ public sealed class SynapseStudioFacts
     {
         await using var fixture = new StudioFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
 
         var app = runtime.Get<IApp>(runtime.Id(IntoChat.OS.Connections.AppGrainType.Name, "apps/" + Alias));
         await app.Create(new AppManifest("Tick poller", "Polls every five minutes", [], [], [], Headless: true), "spec");
@@ -305,7 +315,7 @@ public sealed class SynapseStudioFacts
         Assert.Null(failure);
 
         IReadOnlyList<IntoChat.OS.Modules.Apps.Approvals.Approval> approvalsBefore;
-        using (RuntimeCallerContext.StampScope(CapabilityCallers.Platform(runtime.Brain.Value, runtime.Brain.Value, runtime.Brain.Value)))
+        using (runtime.Edge.EnterKernel(runtime.Brain))
         {
             approvalsBefore = await runtime.Get<IntoChat.OS.Modules.Apps.Approvals.IApprovals>(runtime.Id("approvals", "approvals/index")).Pending(Ct);
         }
@@ -314,7 +324,7 @@ public sealed class SynapseStudioFacts
         await runtime.Restart(Ct);
 
         IReadOnlyList<IntoChat.OS.Modules.Apps.Approvals.Approval> approvalsAfter;
-        using (RuntimeCallerContext.StampScope(CapabilityCallers.Platform(runtime.Brain.Value, runtime.Brain.Value, runtime.Brain.Value)))
+        using (runtime.Edge.EnterKernel(runtime.Brain))
         {
             approvalsAfter = await runtime.Get<IntoChat.OS.Modules.Apps.Approvals.IApprovals>(runtime.Id("approvals", "approvals/index")).Pending(Ct);
         }

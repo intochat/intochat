@@ -313,38 +313,10 @@ public sealed class Tier2_BoundaryCornerFacts
     [Fact]
     [Trait("Category", "Tier2_BoundaryCorner")]
     [Trait("Feature", "F5")]
-    public void F5_B01_CallerContextStamper_WhitespacePrincipal_FailsClosed()
-    {
-        var invalid = new CapabilityCaller("   ", "acc", "brain");
-        Assert.False(RuntimeCallerContext.IsTrusted(invalid));
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F5")]
-    public void F5_B02_CallerContextStamper_WhitespaceBrainId_FailsClosed()
-    {
-        var invalid = new CapabilityCaller("user", "acc", "   ");
-        Assert.False(RuntimeCallerContext.IsTrusted(invalid));
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F5")]
     public void F5_B03_CallRequest_PathTraversalNeuronName_TreatedAsLiteralString()
     {
         var req = new CallRequest { TargetNeuron = "../../etc/shadow", Operation = "read" };
         Assert.Equal("../../etc/shadow", req.TargetNeuron);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F5")]
-    public void F5_B04_CallerContextStamper_StampNull_ThrowsArgumentNullException()
-    {
-        var method = typeof(RuntimeCallerContext).GetMethod("Stamp", [typeof(CapabilityCaller)])!;
-        var ex = Assert.Throws<TargetInvocationException>(() => method.Invoke(null, [null]));
-        Assert.IsType<ArgumentNullException>(ex.InnerException);
     }
 
     [Fact]
@@ -366,26 +338,6 @@ public sealed class Tier2_BoundaryCornerFacts
     [Fact]
     [Trait("Category", "Tier2_BoundaryCorner")]
     [Trait("Feature", "F6")]
-    public void F6_B01_CapabilityCallersOf_LongPrincipalId_ConstructsCleanly()
-    {
-        var longId = new string('k', 1024);
-        var caller = CapabilityCallers.Of(longId, "acc_1", "brain_1");
-        Assert.Equal(longId, caller.PrincipalId);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F6")]
-    public void F6_B02_CapabilityCallersOf_SpecialCharactersInAppId_PreservesValue()
-    {
-        var specialApp = "studio.video:cutter/v2@alpha";
-        var caller = CapabilityCallers.Of("u", "a", "b", CallerKind.App, appId: specialApp);
-        Assert.Equal(specialApp, caller.AppId);
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F6")]
     public void F6_B03_AppPrincipal_IsApp_ReturnsFalseForInvalidStrings()
     {
         Assert.False(AppPrincipal.IsApp(null));
@@ -401,15 +353,6 @@ public sealed class Tier2_BoundaryCornerFacts
     {
         Assert.Null(AppPrincipal.AppKeyOf("user_standard"));
         Assert.Null(AppPrincipal.AppKeyOf(""));
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F6")]
-    public void F6_B05_CapabilityCallersPlatform_PreservesOptionalConversationId()
-    {
-        var caller = CapabilityCallers.Platform("p", "a", "b", conversationId: "conv-99");
-        Assert.Equal("conv-99", caller.ConversationId);
     }
 
     #endregion
@@ -659,7 +602,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F13")]
     public void F13_B03_FrameworkAssembly_ExportsOnlyValidPublicTypes()
     {
-        var exported = typeof(RuntimeCallerContext).Assembly.GetExportedTypes();
+        var exported = typeof(DigitalBrain.Runtime.Orleans.Hosting.NeutralCallMapping).Assembly.GetExportedTypes();
         Assert.NotEmpty(exported);
     }
 
@@ -668,7 +611,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F13")]
     public void F13_B04_NoDeprecatedPrefixesInExportedTypes()
     {
-        var exported = typeof(RuntimeCallerContext).Assembly.GetExportedTypes();
+        var exported = typeof(DigitalBrain.Runtime.Orleans.Hosting.NeutralCallMapping).Assembly.GetExportedTypes();
         Assert.DoesNotContain(exported, t => t.Name.StartsWith("Deprecated", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -677,7 +620,7 @@ public sealed class Tier2_BoundaryCornerFacts
     [Trait("Feature", "F13")]
     public void F13_B05_ConfigurationNamespaces_AreClean()
     {
-        var exported = typeof(RuntimeCallerContext).Assembly.GetExportedTypes();
+        var exported = typeof(DigitalBrain.Runtime.Orleans.Hosting.NeutralCallMapping).Assembly.GetExportedTypes();
         Assert.All(exported, t => Assert.False(t.Namespace?.Contains("Obsolete", StringComparison.OrdinalIgnoreCase) ?? false));
     }
 

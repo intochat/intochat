@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Errors;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
@@ -16,8 +17,7 @@ public sealed class AppUiUnitOwnershipFacts
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static IDisposable AsPerson(string principal = "alice")
-        => DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(
-            DigitalBrain.Capabilities.CapabilityCallers.Of(principal, principal, Scope));
+        => IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person(principal, principal, new BrainId(Scope)));
 
     [Theory]
     [InlineData("owner/units/counter", true)]
@@ -137,7 +137,7 @@ public sealed class AppUiUnitOwnershipFacts
 
         using (AsPerson("bob"))
         {
-            var result = await AppUiEndpoints.Deliver(uiEvent, brain, Scope, new FakeHostedTypes(), Ct);
+            var result = await AppUiEndpoints.Deliver(uiEvent, brain, Scope, new FakeHostedTypes(), Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
             Assert.NotNull(result);
         }
 

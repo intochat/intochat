@@ -1,5 +1,7 @@
+using IntoChat.OS.Tests;
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Flows;
 using DigitalBrain.Runtime.Orleans.Capabilities;
@@ -26,6 +28,7 @@ public sealed class PlanFlowFacts
         ScriptedAgent.Replies["Plan"] = Plan;
         await using var fixture = new FlowTypesFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Index(runtime);
 
         var id = await flows.Start(PlanFlow.Alias, "Notes", null, JsonSerializer.Serialize(new PlanInner { Goal = "Keep notes" }, PlanFlow.Json), Ct);
@@ -57,7 +60,7 @@ public sealed class PlanFlowFacts
         var approvals = runtime.Get<IApprovals>(IApprovals.Key(runtime.Brain.Value));
         for (var i = 0; i < 200; i++)
         {
-            using (RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value)))
+            using (runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain)))
             {
                 if ((await approvals.Pending(Ct)).FirstOrDefault(a => a.Kind == ApprovalKind.FlowStep) is { } pending) { return pending.PlanId; }
             }
@@ -77,6 +80,7 @@ public sealed class PlanFlowFacts
         ScriptedAgent.Replies["Plan this goal as subtasks: " + goal] = plan;
         await using var fixture = new FlowTypesFixture();
         await using var runtime = await fixture.Start(NeuronRuntimeKind.Silo, Ct);
+        using var person = runtime.As(Who.Person);
         var flows = Index(runtime);
 
         var id = await flows.Start(PlanFlow.Alias, "Malformed", null, JsonSerializer.Serialize(new PlanInner { Goal = goal }, PlanFlow.Json), Ct);

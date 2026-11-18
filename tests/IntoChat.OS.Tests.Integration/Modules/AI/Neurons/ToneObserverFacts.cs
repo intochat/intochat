@@ -1,3 +1,4 @@
+using IntoChat.OS.Tests;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Testing;
@@ -25,6 +26,7 @@ public sealed class ToneObserverFacts(AiFixture fixture) : IClassFixture<AiFixtu
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await Start(ct);
+        using var person = runtime.As(Who.Person);
         var (agent, id) = await Watched(runtime, "short");
 
         await Talk(runtime, agent, id, 0, ["hi", "and then?", "ok go on"], ct);
@@ -39,6 +41,7 @@ public sealed class ToneObserverFacts(AiFixture fixture) : IClassFixture<AiFixtu
     {
         var ct = TestContext.Current.CancellationToken;
         await using var runtime = await Start(ct);
+        using var person = runtime.As(Who.Person);
         var (agent, id) = await Watched(runtime, "long");
         await Talk(runtime, agent, id, 0, ["hi", "and then?", "ok go on"], ct);
         await Entries(runtime, ct, entries => entries.Length > 0);

@@ -126,7 +126,7 @@ public sealed partial class TestOS : IAsyncDisposable, IBrainObserver
         Delivery = new SynapseRegistry(this);
         Listeners = new TestClusterListeners(this);
         Access = new AccessGate(TestCallerAmbient.Instance);
-        DigitalBrain.Brains.CallerAdmission.Callers = TestCallerAmbient.Instance;
+        DigitalBrain.Brains.CallerAdmission.Register(TestCallerAmbient.Instance);
         Edge = new EdgeAuthority(TestCallerAmbient.Instance);
         Confirmations = new TestConfirmations(this);
         AskProgress = new AskProgressHub(Clock);

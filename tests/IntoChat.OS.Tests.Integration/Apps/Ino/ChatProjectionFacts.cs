@@ -102,6 +102,7 @@ public sealed class ChatProjectionFacts(InoSiloFixture fixture) : IClassFixture<
 
         // 1. Prove ContractActions.Marked catches DigitalBrain.Rules.RuleViolationException and returns { isError = true, message }
         var violationResult = await ContractActions.Marked(
+            fixture.Edge,
             $"{brain}/ino/conversations/b06",
             () => throw new RuleViolationException(new Rejected("PromoteNote", ["owner-only"], ["Only a person may promote a memory note."])));
 

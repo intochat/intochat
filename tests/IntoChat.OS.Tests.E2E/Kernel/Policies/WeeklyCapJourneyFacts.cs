@@ -183,10 +183,10 @@ public sealed class WeeklyCapJourneyFacts(ProductHostFixture fixture)
         return await response.Content.ReadFromJsonAsync<PolicyRule[]>(Ct) ?? [];
     }
 
-    private static IDisposable StampPerson(string brain)
+    private IDisposable StampPerson(string brain)
     {
         RequestContext.Set(KernelInvocationSink.CallerKey, "");
-        return RuntimeCallerContext.Stamp(CapabilityCallers.Of(brain, brain, brain));
+        return fixture.Edge.Enter(fixture.Edge.Person(brain, brain, new BrainId(brain)));
     }
 
     private static async Task Until(Func<Task<bool>> predicate, CancellationToken ct)

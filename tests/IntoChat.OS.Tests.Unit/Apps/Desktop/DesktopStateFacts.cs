@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Testing;
 using IntoChat.OS.Apps.Desktop;
 using IntoChat.OS.Modules.Apps;
@@ -30,7 +31,7 @@ public sealed class DesktopStateFacts
         var before = (await os.Get<IDesktopRecords>(RecordsId).Read()).Widgets;
         var journaled = os.Journal(RecordsId.Brain).Signals(RecordsId).Count();
 
-        using (DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(new DigitalBrain.Capabilities.CapabilityCaller("p1", "a1", "local", AppId: "local/apps/ino")))
+        using (IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.App("local/apps/ino", new Actor.Person("p1", "a1"), new BrainId("local"))))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => os.Get<IDesktopRecords>(RecordsId).Write(new DesktopRecords(["weather"], true, "")));
         }
@@ -55,28 +56,26 @@ public sealed class DesktopStateFacts
     {
         await using var os = Os();
         var records = os.Get<IDesktopRecords>(RecordsId);
-        DigitalBrain.Capabilities.CapabilityCaller? caller = kind switch
+        Caller? caller = kind switch
         {
-            "person" => new("p1", "a1", "local"),
-            "desktop" => new("p1", "a1", "local", AppId: "local/apps/desktop"),
-            "other-app" => new("p1", "a1", "local", AppId: "local/apps/ino"),
-#pragma warning disable CS0618
-            "agent" => new("p1", "a1", "local", AppId: DigitalBrain.Capabilities.CapabilityCallers.AssistantApp),
-#pragma warning restore CS0618
-            "scheduler" => new("p1", "a1", "local", AppId: DigitalBrain.Capabilities.CapabilityCallers.SchedulerApp),
-            "platform" => DigitalBrain.Capabilities.CapabilityCallers.Platform("p1", "a1", "local"),
-            "platform-of-another-brain" => DigitalBrain.Capabilities.CapabilityCallers.Platform("p1", "a1", "elsewhere"),
-            "other-brain" => new("p1", "a1", "elsewhere"),
+            "person" => IntoChat.OS.Tests.TestEdge.Authority.Person("p1", "a1", new BrainId("local")),
+            "desktop" => IntoChat.OS.Tests.TestEdge.Authority.App("local/apps/desktop", new Actor.Person("p1", "a1"), new BrainId("local")),
+            "other-app" => IntoChat.OS.Tests.TestEdge.Authority.App("local/apps/ino", new Actor.Person("p1", "a1"), new BrainId("local")),
+            "agent" => IntoChat.OS.Tests.TestEdge.Authority.Agent(new Actor.Person("p1", "a1"), new BrainId("local")),
+            "scheduler" => IntoChat.OS.Tests.TestEdge.Authority.Scheduler(new BrainId("local")),
+            "platform" => IntoChat.OS.Tests.TestEdge.Authority.Kernel(new BrainId("local")),
+            "platform-of-another-brain" => IntoChat.OS.Tests.TestEdge.Authority.Kernel(new BrainId("elsewhere")),
+            "other-brain" => IntoChat.OS.Tests.TestEdge.Authority.Person("p1", "a1", new BrainId("elsewhere")),
             _ => null,
         };
         Task Write() => records.Write(new DesktopRecords(["weather"], true, ""));
-        using (caller is null ? null : DigitalBrain.Runtime.Orleans.Capabilities.RuntimeCallerContext.Stamp(caller))
+        using (caller is null ? null : IntoChat.OS.Tests.TestEdge.Authority.Enter(caller))
         {
             if (allowed) { await Write(); }
             else { await Assert.ThrowsAsync<UnauthorizedAccessException>(Write); }
         }
 
-        Assert.Equal(allowed ? ["weather"] : [], (await records.Read()).Widgets);
+        using (Edge.AsPerson()) { Assert.Equal(allowed ? ["weather"] : [], (await records.Read()).Widgets); }
     }
 
     [Fact]

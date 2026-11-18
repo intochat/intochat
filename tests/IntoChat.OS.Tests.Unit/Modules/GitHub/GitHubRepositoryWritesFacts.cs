@@ -47,6 +47,7 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
     [Fact]
     public async Task PushBranch_InvokesSourceAndPassesParameters()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var (neuron, mockSource) = CreateConnectedNeuron();
         var request = new PushBranchRequest("feature-x", "0123456789012345678901234567890123456789", true);
 
@@ -61,6 +62,7 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
     [Fact]
     public async Task CreatePullRequest_InvokesSourceAndReturnsView()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var (neuron, mockSource) = CreateConnectedNeuron();
         var expectedView = new PullRequestView(10, "Feature 10", "https://github.com/intochat/os/pull/10", "sha-head", "sha-base", true, false, null);
         mockSource.NextPullRequestView = expectedView;
@@ -77,6 +79,7 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
     [Fact]
     public async Task ReplyToReviewComment_InvokesSourceWithCommentIdAndBody()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var (neuron, mockSource) = CreateConnectedNeuron();
         var request = new ReplyReviewComment(42, 9999, "Fixed in latest commit");
 
@@ -103,7 +106,7 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
         var (neuron, _) = CreateConnectedNeuron();
         var request = new MergePullRequest(1, "head-sha-1234", "squash");
 
-        using (RuntimeCallerContext.StampScope(CapabilityCallers.Of("app-99", "acc-1", "local", CallerKind.App, "random.app")))
+        using (IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.App("random.app", new Actor.Person("app-99", "acc-1"), new BrainId("local"))))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => neuron.MergePullRequest(request));
         }
@@ -116,7 +119,7 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
         mockSource.SnapshotToReturn = CreateSnapshot(1, "head-sha-1234");
         var request = new MergePullRequest(1, "head-sha-1234", "squash");
 
-        using (RuntimeCallerContext.StampScope(CapabilityCallers.Of("user-1", "acc-1", "local", CallerKind.User)))
+        using (IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("user-1", "acc-1", new BrainId("local"))))
         {
             await neuron.MergePullRequest(request);
         }
@@ -133,7 +136,7 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
         mockSource.SnapshotToReturn = CreateSnapshot(1, "head-sha-1234");
         var request = new MergePullRequest(1, "head-sha-1234", "squash");
 
-        using (RuntimeCallerContext.StampScope(CapabilityCallers.Of("platform", "acc-1", "local", CallerKind.Platform)))
+        using (IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Kernel(new BrainId("local"))))
         {
             await neuron.MergePullRequest(request);
         }
@@ -148,7 +151,7 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
         mockSource.SnapshotToReturn = CreateSnapshot(1, "head-sha-1234");
         var request = new MergePullRequest(1, "head-sha-1234", "squash");
 
-        using (RuntimeCallerContext.StampScope(CapabilityCallers.Of("task-123", "acc-1", "local", CallerKind.App, "tasks.task")))
+        using (IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.App("tasks.task", new Actor.Person("task-123", "acc-1"), new BrainId("local"))))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => neuron.MergePullRequest(request));
         }
@@ -163,7 +166,7 @@ public sealed class GitHubRepositoryWritesFacts : IAsyncDisposable
         mockSource.SnapshotToReturn = CreateSnapshot(1, "new-remote-head-5678");
         var request = new MergePullRequest(1, "old-expected-head-1234", "squash");
 
-        using (RuntimeCallerContext.StampScope(CapabilityCallers.Of("user-1", "acc-1", "local", CallerKind.User)))
+        using (IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("user-1", "acc-1", new BrainId("local"))))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => neuron.MergePullRequest(request));
             Assert.Contains("does not match expected HEAD SHA", ex.Message);

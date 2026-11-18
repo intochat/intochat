@@ -54,6 +54,7 @@ public sealed class WindowsFolderMediationFacts : IDisposable
     [Fact]
     public async Task GrantedReadWriteAppCanPerformScopedCrudAndMove()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateOs();
         var gateway = os.Get<IWindowsFolderGateway>(GatewayId);
 
@@ -87,6 +88,7 @@ public sealed class WindowsFolderMediationFacts : IDisposable
     [Fact]
     public async Task PathTraversalAndRootedPathsAreRejected()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateOs();
         var gateway = os.Get<IWindowsFolderGateway>(GatewayId);
 
@@ -117,6 +119,7 @@ public sealed class WindowsFolderMediationFacts : IDisposable
     [Fact]
     public async Task ReadOnlyGrantAllowsReadsAndRefusesMutations()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateOs();
         var gateway = os.Get<IWindowsFolderGateway>(GatewayId);
 
@@ -145,6 +148,7 @@ public sealed class WindowsFolderMediationFacts : IDisposable
     [Fact]
     public async Task CrossAppIsolationAndAdminEndpointsAreEnforced()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateOs();
         var gateway = os.Get<IWindowsFolderGateway>(GatewayId);
 

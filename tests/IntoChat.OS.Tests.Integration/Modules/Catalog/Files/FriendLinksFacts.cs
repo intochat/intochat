@@ -1,3 +1,5 @@
+using DigitalBrain.Access;
+using IntoChat.OS.Tests;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Testing.Conformance.Host;
 using Xunit;
@@ -94,9 +96,9 @@ public sealed class FriendLinksFacts
     }
 
     [Theory]
-    [InlineData(CallerKind.App)]
-    [InlineData(CallerKind.Agent)]
-    public async Task An_app_or_an_agent_cannot_make_redeem_or_end_a_friendship(CallerKind kind)
+    [InlineData(Who.App)]
+    [InlineData(Who.Agent)]
+    public async Task An_app_or_an_agent_cannot_make_redeem_or_end_a_friendship(Who kind)
     {
         await using var world = await World.Start();
         FriendCode code;

@@ -1,3 +1,5 @@
+using DigitalBrain;
+using DigitalBrain.Access;
 using System.Net;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Http.Surface;
@@ -40,6 +42,7 @@ public sealed class HandleRoutesFacts
 
         var access = new TestBrainAccess();
         builder.Services.AddSingleton<IBrainAccess>(access);
+        builder.Services.AddSingleton(IntoChat.OS.Tests.TestEdge.Callers);
 
         var directory = new Dictionary<string, string?>
         {
@@ -55,7 +58,7 @@ public sealed class HandleRoutesFacts
 
         app.Use(async (http, next) =>
         {
-            using (RuntimeCallerContext.StampScope(CapabilityCallers.Of("stranger-user", "stranger-account", "b-stranger", CallerKind.User)))
+            using (IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("stranger-user", "stranger-account", new BrainId("b-stranger"))))
             {
                 await next(http);
             }

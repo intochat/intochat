@@ -55,6 +55,7 @@ public sealed class ModelVisualCatalogFacts
     [Fact]
     public async Task ModelCatalogAndNeuronListEnrichedVisualLabelsIconsAndLocalOllamaProviders()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var services = new ServiceCollection();
         services.AddOptions<AIOptions>();
         services.AddSingleton<IAiCredentials>(new FixedAiCredentials().Ready("anthropic", "test-key"));
@@ -134,6 +135,7 @@ public sealed class ModelVisualCatalogFacts
     [Fact]
     public async Task Sonnet46AndOpus46ModelNeuronsDispatchOnTestOS()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         await using var fixture = new IntoChat.OS.Modules.AI.Tests.AiFixture();
         var req = new InferenceRequest([new AiMessage("user", [new AiText("ping")])]);
 

@@ -25,6 +25,7 @@ public sealed class IdentityConnectionScenarioFacts : E2ETestBase
         WebhookSimulator.Register(os);
 
         var brainId = "alice-oauth-lifecycle";
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", new BrainId(brainId)));
         var brain = new BrainId(brainId);
         var catalogNeuron = os.Get<IConnectionCatalog>(IConnectionCatalog.Id(brainId));
 
@@ -99,6 +100,7 @@ public sealed class IdentityConnectionScenarioFacts : E2ETestBase
         WebhookSimulator.Register(os);
 
         var brainId = "bob-multi-connector";
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", new BrainId(brainId)));
         var brain = new BrainId(brainId);
         var catalogNeuron = os.Get<IConnectionCatalog>(IConnectionCatalog.Id(brainId));
         var requestsNeuron = os.Get<IConnectionRequests>(IConnectionCatalog.Id(brainId));
@@ -166,6 +168,7 @@ public sealed class IdentityConnectionScenarioFacts : E2ETestBase
         WebhookSimulator.Register(os);
 
         var brainId = "dedup-resilience";
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", new BrainId(brainId)));
         var brain = new BrainId(brainId);
         var catalogNeuron = os.Get<IConnectionCatalog>(IConnectionCatalog.Id(brainId));
         await catalogNeuron.Read();
@@ -217,6 +220,7 @@ public sealed class IdentityConnectionScenarioFacts : E2ETestBase
         WebhookSimulator.Register(os);
 
         var brainId = "onboarding-user";
+        using var person = os.Edge.Enter(os.Edge.Person("alice", "acct_1", new BrainId(brainId)));
         var brain = new BrainId(brainId);
         var catalogNeuron = os.Get<IConnectionCatalog>(IConnectionCatalog.Id(brainId));
         var requestsNeuron = os.Get<IConnectionRequests>(IConnectionCatalog.Id(brainId));

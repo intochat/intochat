@@ -87,25 +87,6 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
 
     [Fact]
     [Trait("Category", "Tier3_CrossFeature")]
-    [Trait("Pairwise", "F5_F8")]
-    public void TF08_CapabilityCaller_WithPlainNeuronFilter_RejectsImpersonationAndMalformedMetadata()
-    {
-        // F5 (Fail-Closed PlainNeuronCallFilter) + F8 (Strict Grant Rule Evaluation)
-        var validCaller = CapabilityCallers.Of("user-123", "account-xyz", "brain-prod", CallerKind.User);
-        Assert.True(RuntimeCallerContext.IsTrusted(validCaller));
-
-        // Malformed callers fail closed
-        var missingPrincipal = new CapabilityCaller("", "account-xyz", "brain-prod");
-        var missingBrain = new CapabilityCaller("user-123", "account-xyz", "");
-        var whitespacePrincipal = new CapabilityCaller("   ", "account-xyz", "brain-prod");
-
-        Assert.False(RuntimeCallerContext.IsTrusted(missingPrincipal));
-        Assert.False(RuntimeCallerContext.IsTrusted(missingBrain));
-        Assert.False(RuntimeCallerContext.IsTrusted(whitespacePrincipal));
-    }
-
-    [Fact]
-    [Trait("Category", "Tier3_CrossFeature")]
     [Trait("Pairwise", "F11_F12")]
     public void TF09_FastJson_WithAppState_SerializesCollectionsWithFidelity()
     {
@@ -194,8 +175,6 @@ public sealed class Tier3_CrossFeaturePairwiseFacts
     public void TF15_AppConsent_WithCapabilityCaller_DiffsRequirementsAgainstCallerScope()
     {
         // F6 (Caller Context Provenance) + F7 (App Consent Diffing)
-        var caller = CapabilityCallers.Of("agent-app-manager", "acc-root", "brain-primary", CallerKind.User);
-        Assert.True(RuntimeCallerContext.IsTrusted(caller));
 
         var registeredReqs = new AppRequirements(
             SemanticTypes: ["metrics/telemetry"],

@@ -25,6 +25,7 @@ public sealed class KnowledgeStoreStressChallengeFacts
     [Fact]
     public async Task StoreAsync_OverloadAmbiguity_ThrowsBindingExceptionOnNeuronProxy()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var ct = TestContext.Current.CancellationToken;
         var (os, store) = CreateNeuronHarness("overload-test");
         await using (os)
@@ -50,6 +51,7 @@ public sealed class KnowledgeStoreStressChallengeFacts
     [InlineData(false)]
     public async Task CyclicGraph_SelfLoop_TerminatesWithoutDuplicationOrLoop(bool useNeuron)
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var ct = TestContext.Current.CancellationToken;
         IKnowledgeStore store;
         TestOS? os = null;
@@ -103,6 +105,7 @@ public sealed class KnowledgeStoreStressChallengeFacts
     [InlineData(false)]
     public async Task CyclicGraph_MutualCycle_TerminatesWithExactNodesAndEdges(bool useNeuron)
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var ct = TestContext.Current.CancellationToken;
         IKnowledgeStore store;
         TestOS? os = null;
@@ -161,6 +164,7 @@ public sealed class KnowledgeStoreStressChallengeFacts
     [InlineData(false)]
     public async Task CyclicGraph_TriangleAndDenseMesh_DoesNotCauseStackOverflowOrInfiniteLoop(bool useNeuron)
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var ct = TestContext.Current.CancellationToken;
         IKnowledgeStore store;
         TestOS? os = null;
@@ -230,6 +234,7 @@ public sealed class KnowledgeStoreStressChallengeFacts
     [InlineData(false)]
     public async Task CascadingDeletion_RemovesAllIncidentEdgesBothWays(bool useNeuron)
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var ct = TestContext.Current.CancellationToken;
         IKnowledgeStore store;
         TestOS? os = null;

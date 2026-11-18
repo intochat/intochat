@@ -57,6 +57,8 @@ public sealed class ProductHostFixture : IAsyncLifetime
 
     public IServiceProvider Services => (_host ?? throw new InvalidOperationException("Silo host is not started.")).Services;
 
+    public DigitalBrain.Access.EdgeAuthority Edge => Services.GetRequiredService<DigitalBrain.Access.EdgeAuthority>();
+
     public HttpClient Http => _httpClient ?? throw new InvalidOperationException("HTTP host is not started.");
 
     /// <summary>A request header naming the app key a test request should be stamped as, instead of the person.</summary>
@@ -96,7 +98,6 @@ public sealed class ProductHostFixture : IAsyncLifetime
             {
                 services.AddSingleton<ICapabilityConnections>(_connections);
                 services.TryAddSingleton(TimeProvider.System);
-                services.AddSingleton(new DigitalBrain.Access.AccessOptions { UnstampedEdgeIsKernel = false, AuditContractInternal = true });
                 services.AddNeuronProxies();
                 services.AddSingleton<IPolicyModel>(_policyModel);
                 services.TryAddSingleton<PolicyWriter>();
@@ -131,6 +132,8 @@ public sealed class ProductHostFixture : IAsyncLifetime
         builder.Services.AddSingleton(_host.Services.GetRequiredService<INeuronProxies>());
         builder.Services.AddSingleton(_host.Services.GetRequiredService<PolicyWriter>());
         builder.Services.AddSingleton<IPolicyModel>(_policyModel);
+        builder.Services.AddSingleton(Edge);
+        builder.Services.AddSingleton(_host.Services.GetRequiredService<DigitalBrain.Access.ICallerAmbient>());
 
         var app = builder.Build();
         app.UseRouting();
@@ -140,10 +143,11 @@ public sealed class ProductHostFixture : IAsyncLifetime
             {
                 RequestContext.Set(KernelInvocationSink.CallerKey, "");
                 // The person by default; a request carrying the test app header arrives as that app through the app proxy.
+                var person = new DigitalBrain.Access.Actor.Person(brainId, brainId);
                 var caller = http.Request.Headers.TryGetValue(AppCallerHeader, out var app) && app.ToString() is { Length: > 0 } appKey
-                    ? CapabilityCallers.Of(brainId, brainId, brainId, CallerKind.App, appKey)
-                    : CapabilityCallers.Of(brainId, brainId, brainId);
-                using (RuntimeCallerContext.Stamp(caller))
+                    ? Edge.App(appKey, person, new BrainId(brainId))
+                    : Edge.Person(brainId, brainId, new BrainId(brainId));
+                using (Edge.Enter(caller))
                 {
                     await next(http);
                 }

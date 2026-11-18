@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Limits;
@@ -50,6 +51,7 @@ public sealed class GitHubPolicyFacts
     [Fact]
     public async Task ARefusingPolicyStopsTheWriteBeforeTheApiCall()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("b", "b", new BrainId("b")));
         var (os, neuron, source) = await CreateHarnessAsync();
         await using var _ = os;
         foreach (var action in (string[])["github.branch.push", "github.pull-request.create", "github.review.reply", "github.pull-request.merge"])
@@ -72,7 +74,7 @@ public sealed class GitHubPolicyFacts
         await Assert.ThrowsAsync<RuleViolationException>(
             () => neuron.ReplyToReviewComment(new ReplyReviewComment(42, 99, "Fixed")));
 
-        using (RuntimeCallerContext.StampScope(CapabilityCallers.Of("user-1", "acc-1", "b", CallerKind.User)))
+        using (IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("user-1", "acc-1", new BrainId("b"))))
         {
             await Assert.ThrowsAsync<RuleViolationException>(
                 () => neuron.MergePullRequest(new MergePullRequest(42, "head-sha-1234", "squash")));
@@ -84,6 +86,7 @@ public sealed class GitHubPolicyFacts
     [Fact]
     public async Task AnAllowedWriteIsCountedOnce()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("b", "b", new BrainId("b")));
         var (os, neuron, source) = await CreateHarnessAsync();
         await using var _ = os;
         await Adopt(os, new PolicyRule(
@@ -107,6 +110,7 @@ public sealed class GitHubPolicyFacts
     [Fact]
     public async Task AFailedApiCallReleasesTheReservation()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("b", "b", new BrainId("b")));
         var (os, neuron, source) = await CreateHarnessAsync();
         await using var _ = os;
         await Adopt(os, new PolicyRule(

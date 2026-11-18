@@ -127,7 +127,7 @@ public static class RuntimeSiloBuilderExtensions
         silo.Services.TryAddSingleton(new EdgeAuthority(OrleansCallerAmbient.Instance));
         silo.Services.TryAddSingleton(sp => new AccessGate(sp.GetRequiredService<ICallerAmbient>()));
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, CallerEdgeFilter>());
-        DigitalBrain.Brains.CallerAdmission.Callers = OrleansCallerAmbient.Instance;
+        DigitalBrain.Brains.CallerAdmission.Register(OrleansCallerAmbient.Instance);
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, DigitalBrainCallFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, DigitalBrainCallFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());

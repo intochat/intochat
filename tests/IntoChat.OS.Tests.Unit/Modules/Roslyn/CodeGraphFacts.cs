@@ -112,6 +112,7 @@ public sealed class CodeGraphFacts : IAsyncLifetime
     [Fact]
     public async Task SearchSymbolsFindsTypesAndMethodsAndSkipsBuildArtifacts()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var ct = TestContext.Current.CancellationToken;
         var hit = await Graph.SearchSymbols("billing-repo", "InvoiceService", limit: 10, ct);
 
@@ -132,6 +133,7 @@ public sealed class CodeGraphFacts : IAsyncLifetime
     [Fact]
     public async Task FileOutlineExtractsNamespaceTypesPropertiesConstantsAndMethods()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var ct = TestContext.Current.CancellationToken;
         var outline = await Graph.FileOutline("billing-repo", "modules/billing/InvoiceService.cs", ct);
 
@@ -146,6 +148,7 @@ public sealed class CodeGraphFacts : IAsyncLifetime
     [Fact]
     public async Task FindCallersResolvesDirectAndQualifiedInvocations()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var ct = TestContext.Current.CancellationToken;
         var callers = await Graph.FindCallers("billing-repo", "ILedgerStore.ReadBalanceAsync", limit: 10, ct);
 
@@ -158,6 +161,7 @@ public sealed class CodeGraphFacts : IAsyncLifetime
     [Fact]
     public async Task WarmCacheRespondsUnder200MillisecondsAndIncrementallyRefreshesModifiedFiles()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
         var ct = TestContext.Current.CancellationToken;
         _ = await Graph.SearchSymbols("billing-repo", "InvoiceService", limit: 10, ct);
 

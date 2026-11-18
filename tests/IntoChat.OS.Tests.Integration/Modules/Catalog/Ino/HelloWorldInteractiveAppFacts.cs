@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
+using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Connections.Broker;
 using DigitalBrain.Flows;
@@ -112,7 +113,7 @@ public sealed class HelloWorldInteractiveAppFacts
     }
 
     private static IDisposable AsPerson(INeuronRuntime runtime)
-        => RuntimeCallerContext.Stamp(CapabilityCallers.Of("person", "person", runtime.Brain.Value));
+        => runtime.Edge.Enter(runtime.Edge.Person("person", "person", runtime.Brain));
 
     private static string LocateHelloWorldFolder()
     {

@@ -26,6 +26,7 @@ public sealed class NotificationsNeuronFacts
     [Fact]
     public async Task SendAndNotifyPersistItemsEmitSignalAndDeriveTrustedSourceApp()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateOs();
         var inbox = os.Get<INotificationsInbox>(InboxId);
 
@@ -38,7 +39,7 @@ public sealed class NotificationsNeuronFacts
         }
 
         NotificationReceipt userReceipt;
-        using (RuntimeCallerContext.Stamp(new CapabilityCaller("p1", "a1", Owner.Value)))
+        using (IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("p1", "a1", Owner)))
         {
             userReceipt = await inbox.NotifyAsync("Reminder", "Standup in 5m", NotificationPriority.Normal, Ct);
         }
@@ -71,6 +72,7 @@ public sealed class NotificationsNeuronFacts
     [Fact]
     public async Task SendDeduplicatesByDedupeKeyWithoutEmittingDuplicateSignal()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateOs();
         var inbox = os.Get<INotificationsInbox>(InboxId);
 
@@ -88,6 +90,7 @@ public sealed class NotificationsNeuronFacts
     [Fact]
     public async Task MarkReadMarkAllReadAndClearUpdateStateAndUnreadCount()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateOs();
         var inbox = os.Get<INotificationsInbox>(InboxId);
 
@@ -119,6 +122,7 @@ public sealed class NotificationsNeuronFacts
     [Fact]
     public async Task MaxItemsBoundsInboxByTrimmingOldestItems()
     {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", new BrainId("owner")));
         await using var os = CreateOs(maxItems: 3);
         var inbox = os.Get<INotificationsInbox>(InboxId);
 
