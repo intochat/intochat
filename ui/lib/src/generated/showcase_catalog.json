@@ -812,6 +812,112 @@
     "examples": []
   },
   {
+    "kind": "expander",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "header",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "isExpanded",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "children",
+        "type": "Node[]",
+        "default": null
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "Expand",
+        "signal": "control.expand",
+        "args": {
+          "isExpanded": "bool"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "Expanded",
+        "signal": "control.expanded",
+        "args": {
+          "isExpanded": "bool"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "expanderView",
+        "key": "advanced",
+        "header": "Advanced options",
+        "isExpanded": true,
+        "automationName": "Advanced options",
+        "children": [
+          {
+            "kind": "text",
+            "value": "Shown while expanded."
+          }
+        ]
+      },
+      {
+        "kind": "expanderView",
+        "key": "details",
+        "header": "Details",
+        "isExpanded": false,
+        "automationName": "Details",
+        "children": [
+          {
+            "kind": "text",
+            "value": "Hidden until expanded."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "kind": "expanderView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "header",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "isExpanded",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "children",
+        "type": "List<Node>",
+        "default": null
+      }
+    ],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
     "kind": "field",
     "isNeuron": false,
     "props": [

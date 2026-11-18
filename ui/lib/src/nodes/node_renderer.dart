@@ -12,6 +12,7 @@ import 'markdown.dart';
 import 'card.dart';
 import 'chart.dart';
 import 'check_box_view.dart';
+import 'expander_view.dart';
 import 'choice_card.dart';
 import 'collection.dart';
 import 'column.dart';
@@ -79,6 +80,7 @@ abstract final class NodeRenderer {
     ApprovalCardNode(:final key) ||
     ButtonNode(:final key) ||
     CheckBoxViewNode(:final key) ||
+    ExpanderViewNode(:final key) ||
     ConversationNode(:final key) ||
     FieldNode(:final key) ||
     IconButtonNode(:final key) ||
@@ -138,6 +140,7 @@ abstract final class NodeRenderer {
       DiffCardNode() => renderDiffCard(node, ctx),
       CheckBoxViewNode() => renderCheckBoxView(node, ctx),
       ToggleSwitchViewNode() => renderToggleSwitchView(node, ctx),
+      ExpanderViewNode() => renderExpanderView(node, ctx),
       UnknownNode() => const _Unsupported(),
     };
   }

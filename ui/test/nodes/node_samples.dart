@@ -332,6 +332,16 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'onContent': 'On',
     'offContent': 'Off',
   },
+  'expanderView': {
+    'kind': 'expanderView',
+    'key': 'advanced',
+    'header': 'Advanced options',
+    'isExpanded': true,
+    'automationName': 'Advanced options',
+    'children': [
+      {'kind': 'text', 'value': 'Shown while expanded.'},
+    ],
+  },
   'diffCard': {
     'kind': 'diffCard',
     'id': 'diff-1',

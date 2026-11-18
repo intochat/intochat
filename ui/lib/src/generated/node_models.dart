@@ -103,6 +103,7 @@ sealed class Node {
     'diffCard' => DiffCardNode.fromJson(json),
     'checkBoxView' => CheckBoxViewNode.fromJson(json),
     'toggleSwitchView' => ToggleSwitchViewNode.fromJson(json),
+    'expanderView' => ExpanderViewNode.fromJson(json),
     final kind => UnknownNode(kind is String ? kind : '', json),
   };
 }
@@ -987,6 +988,36 @@ final class ErrorLineNode extends Node {
         ? ButtonNode.fromJson(_map(json['action']))
         : null,
   );
+}
+
+final class ExpanderViewNode extends Node {
+  const ExpanderViewNode({
+    required this.key,
+    required this.header,
+    required this.isExpanded,
+    required this.automationName,
+    required this.children,
+  });
+
+  @override
+  String get kind => 'expanderView';
+
+  final String key;
+  final String header;
+  final bool isExpanded;
+  final String automationName;
+  final List<Node> children;
+
+  factory ExpanderViewNode.fromJson(Map<String, dynamic> json) =>
+      ExpanderViewNode(
+        key: _string(json['key']),
+        header: _string(json['header']),
+        isExpanded: _bool(json['isExpanded']),
+        automationName: _string(json['automationName']),
+        children: [
+          for (final item in _list(json['children'])) Node.fromJson(_map(item)),
+        ],
+      );
 }
 
 final class FieldNode extends Node {

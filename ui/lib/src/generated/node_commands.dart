@@ -15,6 +15,13 @@ Future<ActivationOutcome> actCheckBoxSetChecked(
 Future<ActivationOutcome> actCheckBoxToggle(NodeContext ctx, String address) =>
     ctx.act(address, 'control.toggle', {});
 
+/// Sends `Expand` to the `expander` neuron at [address].
+Future<ActivationOutcome> actExpanderExpand(
+  NodeContext ctx,
+  String address, {
+  required bool isExpanded,
+}) => ctx.act(address, 'control.expand', {'isExpanded': isExpanded});
+
 /// Sends `SetChecked` to the `toggleSwitch` neuron at [address].
 Future<ActivationOutcome> actToggleSwitchSetChecked(
   NodeContext ctx,

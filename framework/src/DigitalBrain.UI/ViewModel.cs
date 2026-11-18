@@ -88,6 +88,7 @@ public sealed record View(string Title, Node Root);
 [JsonDerivedType(typeof(DiffCardNode), "diffCard")]
 [JsonDerivedType(typeof(Controls.CheckBoxView), "checkBoxView")]
 [JsonDerivedType(typeof(Controls.ToggleSwitchView), "toggleSwitchView")]
+[JsonDerivedType(typeof(Controls.ExpanderView), "expanderView")]
 public abstract record Node;
 
 /// <summary>Children laid out top to bottom.</summary>
