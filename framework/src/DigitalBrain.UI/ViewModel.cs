@@ -93,6 +93,7 @@ public sealed record View(string Title, Node Root);
 [JsonDerivedType(typeof(Controls.ComboBoxView), "comboBoxView")]
 [JsonDerivedType(typeof(Controls.FormView), "formView")]
 [JsonDerivedType(typeof(Controls.LiveChartView), "liveChartView")]
+[JsonDerivedType(typeof(Controls.ChatThreadView), "chatThreadView")]
 [JsonDerivedType(typeof(Controls.QueryTableView), "queryTableView")]
 [JsonDerivedType(typeof(Controls.ListBoxView), "listBoxView")]
 public abstract record Node;
@@ -880,7 +881,8 @@ public sealed record MessageNode(
     string? Model = null,
     Button? Retry = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ModelLabel = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ProviderIcon = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ProviderIcon = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ErrorLineNode? Error = null)
 {
     /// <inheritdoc />
     public bool Equals(MessageNode? other) =>
@@ -894,7 +896,8 @@ public sealed record MessageNode(
         && Model == other.Model
         && ModelLabel == other.ModelLabel
         && ProviderIcon == other.ProviderIcon
-        && Equals(Retry, other.Retry);
+        && Equals(Retry, other.Retry)
+        && Equals(Error, other.Error);
 
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(Id, Role, Text, Status);

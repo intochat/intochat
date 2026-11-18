@@ -390,3 +390,19 @@ public sealed record TablePage(IReadOnlyList<IReadOnlyDictionary<string, string>
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(Rows.Count, Total);
 }
+
+/// <summary>The props of a chat thread: what its parent decides. The thread owns the messages.</summary>
+/// <param name="Placeholder">The composer's placeholder.</param>
+/// <param name="CanSend">False draws the composer disabled (the parent is busy or paused).</param>
+/// <param name="ActiveModelLabel">The model the next message goes to, as the user reads it; null shows none.</param>
+/// <param name="ActiveProviderIcon">The icon key of that model's brand; null shows none.</param>
+/// <param name="Dictation">True offers dictation in the composer.</param>
+/// <param name="Status">ready, working, paused or failed.</param>
+/// <param name="Working">True draws the thread's stop button.</param>
+/// <param name="EmptyText">The text drawn while the thread holds no message; null draws nothing.</param>
+/// <param name="Error">An error no message carries, drawn under the messages; null draws none.</param>
+/// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
+public sealed record ChatThreadProps(string Placeholder = "Message", bool CanSend = true, string? ActiveModelLabel = null, string? ActiveProviderIcon = null,
+    bool Dictation = false, string Status = "ready", bool Working = false, string? EmptyText = null, ChatThreadError? Error = null,
+    bool IsEnabled = true, string? AutomationName = null) : ControlProps(IsEnabled, AutomationName);

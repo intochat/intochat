@@ -4,6 +4,50 @@
 
 import '../nodes/node_context.dart';
 
+/// Sends `AppendMessage` to the `chatThread` neuron at [address].
+Future<ActivationOutcome> actChatThreadAppendMessage(
+  NodeContext ctx,
+  String address, {
+  required Map<String, Object?> message,
+}) => ctx.act(address, 'control.appendMessage', {'message': message});
+
+/// Sends `ImportMessages` to the `chatThread` neuron at [address].
+Future<ActivationOutcome> actChatThreadImportMessages(
+  NodeContext ctx,
+  String address, {
+  required List<Map<String, Object?>> messages,
+  required bool replace,
+}) => ctx.act(address, 'control.importMessages', {
+  'messages': messages,
+  'replace': replace,
+});
+
+/// Sends `Retry` to the `chatThread` neuron at [address].
+Future<ActivationOutcome> actChatThreadRetry(
+  NodeContext ctx,
+  String address, {
+  required String id,
+}) => ctx.act(address, 'control.retry', {'id': id});
+
+/// Sends `Stop` to the `chatThread` neuron at [address].
+Future<ActivationOutcome> actChatThreadStop(NodeContext ctx, String address) =>
+    ctx.act(address, 'control.stop', {});
+
+/// Sends `SubmitText` to the `chatThread` neuron at [address].
+Future<ActivationOutcome> actChatThreadSubmitText(
+  NodeContext ctx,
+  String address, {
+  required String? value,
+}) => ctx.act(address, 'control.submitText', {'value': value});
+
+/// Sends `UpdateMessage` to the `chatThread` neuron at [address].
+Future<ActivationOutcome> actChatThreadUpdateMessage(
+  NodeContext ctx,
+  String address, {
+  required String id,
+  required Map<String, Object?> patch,
+}) => ctx.act(address, 'control.updateMessage', {'id': id, 'patch': patch});
+
 /// Sends `SetChecked` to the `checkBox` neuron at [address].
 Future<ActivationOutcome> actCheckBoxSetChecked(
   NodeContext ctx,

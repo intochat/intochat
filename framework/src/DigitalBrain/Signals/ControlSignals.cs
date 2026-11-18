@@ -90,3 +90,53 @@ public sealed record Page(int Number) : Signal;
 /// <param name="Page">The page shown.</param>
 [Signal("control.tableChanged")]
 public sealed record TableChanged(string Filter, string? SortBy, bool Descending, int Page) : Signal;
+
+/// <summary>Appends a message to a chat thread; a message whose id the thread holds is ignored.</summary>
+/// <param name="Message">The message.</param>
+[Signal("control.appendMessage")]
+public sealed record AppendMessage(DigitalBrain.UI.ThreadMessage Message) : Signal;
+
+/// <summary>Changes a message a chat thread holds; an id it does not hold is ignored.</summary>
+/// <param name="Id">The message id.</param>
+/// <param name="Patch">What changes.</param>
+[Signal("control.updateMessage")]
+public sealed record UpdateMessage(string Id, DigitalBrain.UI.ThreadMessagePatch Patch) : Signal;
+
+/// <summary>Imports messages into a chat thread: a held id is replaced in place, a new one appended; null entries, blank ids and repeated ids are skipped.</summary>
+/// <param name="Messages">The messages, oldest first.</param>
+/// <param name="Replace">True drops every held message the import does not name (the import is the whole thread).</param>
+[Signal("control.importMessages")]
+public sealed record ImportMessages(IReadOnlyList<DigitalBrain.UI.ThreadMessage?>? Messages, bool Replace = false) : Signal;
+
+/// <summary>Asks for a message's turn again; the thread only signals it.</summary>
+/// <param name="Id">The message id; empty asks for the last turn.</param>
+[Signal("control.retry")]
+public sealed record Retry(string Id = "") : Signal;
+
+/// <summary>Submits the composer's text.</summary>
+/// <param name="Value">The typed text (the client's field value).</param>
+[Signal("control.submitText")]
+public sealed record SubmitText(string? Value = null) : Signal;
+
+/// <summary>Asks the parent to stop what it is doing; the control only signals it.</summary>
+[Signal("control.stop")]
+public sealed record Stop : Signal;
+
+/// <summary>A chat thread appended a message.</summary>
+/// <param name="Id">The message id.</param>
+[Signal("control.messageAppended")]
+public sealed record MessageAppended(string Id) : Signal;
+
+/// <summary>A chat thread changed a message.</summary>
+/// <param name="Id">The message id.</param>
+[Signal("control.messageUpdated")]
+public sealed record MessageUpdated(string Id) : Signal;
+
+/// <summary>The user asked for a message's turn again.</summary>
+/// <param name="Id">The message id; empty asks for the last turn.</param>
+[Signal("control.retryRequested")]
+public sealed record RetryRequested(string Id) : Signal;
+
+/// <summary>The user asked the parent to stop.</summary>
+[Signal("control.stopRequested")]
+public sealed record StopRequested : Signal;

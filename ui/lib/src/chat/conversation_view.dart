@@ -23,10 +23,19 @@ import 'ui_copyable_message.dart';
 /// Holds only ephemeral client interaction state (composer draft, focus, and
 /// scroll position); all session state lives in the C# brain.
 class ConversationView extends StatefulWidget {
-  const ConversationView({super.key, required this.node, required this.ctx});
+  const ConversationView({
+    super.key,
+    required this.node,
+    required this.ctx,
+    this.onErrorAction,
+  });
 
   final ConversationNode node;
   final NodeContext ctx;
+
+  /// Runs the error line's action instead of activating its key (an action
+  /// the slot's parent decided, which the thread's view does not hold).
+  final VoidCallback? onErrorAction;
 
   @override
   State<ConversationView> createState() => _ConversationViewState();
@@ -283,7 +292,11 @@ class _ConversationViewState extends State<ConversationView> {
                 constraints: const BoxConstraints(maxWidth: _maxColumnWidth),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: renderErrorLine(error, widget.ctx.deeper()),
+                  child: ErrorLineView(
+                    node: error,
+                    ctx: widget.ctx.deeper(),
+                    onAction: widget.onErrorAction,
+                  ),
                 ),
               ),
             ),
@@ -323,6 +336,7 @@ class _ConversationViewState extends State<ConversationView> {
     if (msg.cards != null && msg.cards!.isNotEmpty) return false;
     if (msg.activities != null && msg.activities!.isNotEmpty) return false;
     if (msg.retry != null) return false;
+    if (msg.error != null) return false;
     return true;
   }
 
@@ -608,6 +622,20 @@ class _AssistantMessageItem extends StatelessWidget {
                 NodeRenderer.render(cards[i], ctx),
               ],
             ],
+            if (message.error case final error?) ...[
+              if (message.text.isNotEmpty || cards.isNotEmpty)
+                const SizedBox(height: 8),
+              // Why the reply failed; the retry below asks for this turn again.
+              ErrorLineView(
+                key: ValueKey('msg-error:${message.id}'),
+                node: ErrorLineNode(
+                  what: error.what,
+                  detail: error.detail,
+                  action: null,
+                ),
+                ctx: ctx,
+              ),
+            ],
             if (hasModelInfo || retry != null) ...[
               const SizedBox(height: 6),
               Row(
@@ -630,6 +658,7 @@ class _AssistantMessageItem extends StatelessWidget {
                   if (retry != null) ...[
                     if (hasModelInfo) const SizedBox(width: 10),
                     Btn(
+                      key: ValueKey(retry.key),
                       label: retry.label,
                       icon: LucideIcons.rotateCcw,
                       small: true,

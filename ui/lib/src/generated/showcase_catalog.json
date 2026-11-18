@@ -388,6 +388,241 @@
     "examples": []
   },
   {
+    "kind": "chatThread",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "placeholder",
+        "type": "String",
+        "default": "Message"
+      },
+      {
+        "name": "canSend",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "activeModelLabel",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "activeProviderIcon",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "dictation",
+        "type": "bool",
+        "default": false
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "default": "ready"
+      },
+      {
+        "name": "working",
+        "type": "bool",
+        "default": false
+      },
+      {
+        "name": "emptyText",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "error",
+        "type": "Map<String, Object?>",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "messages",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "AppendMessage",
+        "signal": "control.appendMessage",
+        "args": {
+          "message": "Map<String, Object?>"
+        }
+      },
+      {
+        "name": "ImportMessages",
+        "signal": "control.importMessages",
+        "args": {
+          "messages": "List<Map<String, Object?>>",
+          "replace": "bool"
+        }
+      },
+      {
+        "name": "Retry",
+        "signal": "control.retry",
+        "args": {
+          "id": "String"
+        }
+      },
+      {
+        "name": "Stop",
+        "signal": "control.stop",
+        "args": {}
+      },
+      {
+        "name": "SubmitText",
+        "signal": "control.submitText",
+        "args": {
+          "value": "String?"
+        }
+      },
+      {
+        "name": "UpdateMessage",
+        "signal": "control.updateMessage",
+        "args": {
+          "id": "String",
+          "patch": "Map<String, Object?>"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "MessageAppended",
+        "signal": "control.messageAppended",
+        "args": {
+          "id": "String"
+        }
+      },
+      {
+        "name": "MessageUpdated",
+        "signal": "control.messageUpdated",
+        "args": {
+          "id": "String"
+        }
+      },
+      {
+        "name": "RetryRequested",
+        "signal": "control.retryRequested",
+        "args": {
+          "id": "String"
+        }
+      },
+      {
+        "name": "StopRequested",
+        "signal": "control.stopRequested",
+        "args": {}
+      },
+      {
+        "name": "Submitted",
+        "signal": "control.submitted",
+        "args": {
+          "values": "Map<String, String>"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "chatThreadView",
+        "key": "conversation",
+        "messages": [
+          {
+            "id": "m1",
+            "role": "user",
+            "text": "Summarise my week",
+            "status": "completed"
+          },
+          {
+            "id": "m2",
+            "role": "assistant",
+            "text": "",
+            "status": "failed",
+            "retry": {
+              "kind": "button",
+              "key": "retry:m2",
+              "label": "Try again",
+              "command": {
+                "target": ".",
+                "signal": "control.retry",
+                "args": {
+                  "id": "m2"
+                }
+              },
+              "automationName": "Try again"
+            },
+            "error": {
+              "kind": "errorLine",
+              "what": "The model did not answer."
+            }
+          }
+        ],
+        "composer": {
+          "key": "composer",
+          "onSubmit": {
+            "owner": "control.chatThread",
+            "signal": "control.submitText"
+          }
+        },
+        "props": {
+          "placeholder": "Ask anything.",
+          "canSend": true,
+          "dictation": false,
+          "status": "failed",
+          "working": false,
+          "isEnabled": true,
+          "automationName": "Conversation"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "chatThreadView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "messages",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "composer",
+        "type": "Map<String, Object?>",
+        "default": null
+      },
+      {
+        "name": "stop",
+        "type": "ButtonNode",
+        "default": null
+      },
+      {
+        "name": "retry",
+        "type": "ButtonNode",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
     "kind": "checkBox",
     "isNeuron": true,
     "props": [

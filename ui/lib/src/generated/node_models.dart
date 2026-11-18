@@ -114,6 +114,7 @@ sealed class Node {
     'comboBoxView' => ComboBoxViewNode.fromJson(json),
     'formView' => FormViewNode.fromJson(json),
     'liveChartView' => LiveChartViewNode.fromJson(json),
+    'chatThreadView' => ChatThreadViewNode.fromJson(json),
     'queryTableView' => QueryTableViewNode.fromJson(json),
     'listBoxView' => ListBoxViewNode.fromJson(json),
     final kind => UnknownNode(kind is String ? kind : '', json),
@@ -534,6 +535,107 @@ final class ChartPointNode {
     label: _string(json['label']),
     value: _double(json['value']),
   );
+}
+
+final class ChatThreadError {
+  const ChatThreadError({
+    required this.what,
+    required this.detail,
+    required this.actionLabel,
+    required this.open,
+    required this.retry,
+  });
+
+  final String what;
+  final String? detail;
+  final String? actionLabel;
+  final String? open;
+  final bool retry;
+
+  factory ChatThreadError.fromJson(Map<String, dynamic> json) =>
+      ChatThreadError(
+        what: _string(json['what']),
+        detail: _stringOrNull(json['detail']),
+        actionLabel: _stringOrNull(json['actionLabel']),
+        open: _stringOrNull(json['open']),
+        retry: _bool(json['retry']),
+      );
+}
+
+final class ChatThreadProps {
+  const ChatThreadProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.placeholder,
+    required this.canSend,
+    required this.activeModelLabel,
+    required this.activeProviderIcon,
+    required this.dictation,
+    required this.status,
+    required this.working,
+    required this.emptyText,
+    required this.error,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String placeholder;
+  final bool canSend;
+  final String? activeModelLabel;
+  final String? activeProviderIcon;
+  final bool dictation;
+  final String status;
+  final bool working;
+  final String? emptyText;
+  final ChatThreadError? error;
+
+  factory ChatThreadProps.fromJson(Map<String, dynamic> json) =>
+      ChatThreadProps(
+        isEnabled: _bool(json['isEnabled'], true),
+        automationName: _stringOrNull(json['automationName']),
+        placeholder: _string(json['placeholder'], 'Message'),
+        canSend: _bool(json['canSend'], true),
+        activeModelLabel: _stringOrNull(json['activeModelLabel']),
+        activeProviderIcon: _stringOrNull(json['activeProviderIcon']),
+        dictation: _bool(json['dictation']),
+        status: _string(json['status'], 'ready'),
+        working: _bool(json['working']),
+        emptyText: _stringOrNull(json['emptyText']),
+        error: json['error'] is Map
+            ? ChatThreadError.fromJson(_map(json['error']))
+            : null,
+      );
+}
+
+final class ChatThreadViewNode extends Node {
+  const ChatThreadViewNode({
+    required this.key,
+    required this.messages,
+    required this.composer,
+    required this.stop,
+    required this.retry,
+  });
+
+  @override
+  String get kind => 'chatThreadView';
+
+  final String key;
+  final List<MessageNode> messages;
+  final ComposerNode composer;
+  final ButtonNode stop;
+  final ButtonNode retry;
+
+  factory ChatThreadViewNode.fromJson(Map<String, dynamic> json) =>
+      ChatThreadViewNode(
+        key: _string(json['key']),
+        messages: [
+          for (final item in _list(json['messages']))
+            MessageNode.fromJson(_map(item)),
+        ],
+        composer: ComposerNode.fromJson(_map(json['composer'])),
+        stop: ButtonNode.fromJson(_map(json['stop'])),
+        retry: ButtonNode.fromJson(_map(json['retry'])),
+      );
 }
 
 final class CheckBoxProps {
@@ -1525,6 +1627,7 @@ final class MessageNode {
     required this.retry,
     required this.modelLabel,
     required this.providerIcon,
+    required this.error,
   });
 
   final String id;
@@ -1537,6 +1640,7 @@ final class MessageNode {
   final ButtonNode? retry;
   final String? modelLabel;
   final String? providerIcon;
+  final ErrorLineNode? error;
 
   factory MessageNode.fromJson(Map<String, dynamic> json) => MessageNode(
     id: _string(json['id']),
@@ -1558,6 +1662,9 @@ final class MessageNode {
         : null,
     modelLabel: _stringOrNull(json['modelLabel']),
     providerIcon: _stringOrNull(json['providerIcon']),
+    error: json['error'] is Map
+        ? ErrorLineNode.fromJson(_map(json['error']))
+        : null,
   );
 }
 

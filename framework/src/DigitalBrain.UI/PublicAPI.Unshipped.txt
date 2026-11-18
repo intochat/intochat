@@ -539,11 +539,9 @@ DigitalBrain.UI.MessageNode.Activities.get -> System.Collections.Generic.IReadOn
 DigitalBrain.UI.MessageNode.Activities.init -> void
 DigitalBrain.UI.MessageNode.Cards.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>?
 DigitalBrain.UI.MessageNode.Cards.init -> void
-DigitalBrain.UI.MessageNode.Deconstruct(out string! Id, out string! Role, out string! Text, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>? Cards, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>? Activities, out string! Status, out string? Model, out DigitalBrain.UI.Button? Retry, out string? ModelLabel, out string? ProviderIcon) -> void
 DigitalBrain.UI.MessageNode.Equals(DigitalBrain.UI.MessageNode? other) -> bool
 DigitalBrain.UI.MessageNode.Id.get -> string!
 DigitalBrain.UI.MessageNode.Id.init -> void
-DigitalBrain.UI.MessageNode.MessageNode(string! Id, string! Role, string! Text, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>? Cards = null, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>? Activities = null, string! Status = "completed", string? Model = null, DigitalBrain.UI.Button? Retry = null, string? ModelLabel = null, string? ProviderIcon = null) -> void
 DigitalBrain.UI.MessageNode.Model.get -> string?
 DigitalBrain.UI.MessageNode.Model.init -> void
 DigitalBrain.UI.MessageNode.ModelLabel.get -> string?
@@ -1941,3 +1939,141 @@ static DigitalBrain.UI.TablePage.operator !=(DigitalBrain.UI.TablePage? left, Di
 static DigitalBrain.UI.TablePage.operator ==(DigitalBrain.UI.TablePage? left, DigitalBrain.UI.TablePage? right) -> bool
 static DigitalBrain.UI.TableQuery.operator !=(DigitalBrain.UI.TableQuery? left, DigitalBrain.UI.TableQuery? right) -> bool
 static DigitalBrain.UI.TableQuery.operator ==(DigitalBrain.UI.TableQuery? left, DigitalBrain.UI.TableQuery? right) -> bool
+const DigitalBrain.UI.Controls.ChatThreadState.MaxMessages = 500 -> int
+DigitalBrain.UI.Controls.ChatThreadState
+override DigitalBrain.UI.Controls.ChatThreadState.ToString() -> string!
+DigitalBrain.UI.ChatThreadProps.Placeholder.get -> string!
+DigitalBrain.UI.ChatThreadProps.Dictation.get -> bool
+DigitalBrain.UI.ChatThreadProps.Working.get -> bool
+DigitalBrain.UI.ChatThreadProps.Placeholder.init -> void
+static DigitalBrain.UI.Controls.ChatThreadState.operator !=(DigitalBrain.UI.Controls.ChatThreadState? left, DigitalBrain.UI.Controls.ChatThreadState? right) -> bool
+DigitalBrain.UI.ChatThreadProps.Dictation.init -> void
+DigitalBrain.UI.ChatThreadProps.CanSend.get -> bool
+DigitalBrain.UI.ChatThreadProps.ActiveModelLabel.get -> string?
+static DigitalBrain.UI.Controls.ChatThreadState.operator ==(DigitalBrain.UI.Controls.ChatThreadState? left, DigitalBrain.UI.Controls.ChatThreadState? right) -> bool
+DigitalBrain.UI.ChatThreadProps.Error.init -> void
+DigitalBrain.UI.ChatThreadProps.ActiveProviderIcon.get -> string?
+DigitalBrain.UI.ChatThreadProps.CanSend.init -> void
+DigitalBrain.UI.ChatThreadProps.Working.init -> void
+DigitalBrain.UI.ChatThreadProps.Status.get -> string!
+DigitalBrain.UI.ChatThreadProps.EmptyText.get -> string?
+DigitalBrain.UI.Controls.ChatThreadView.Key.get -> string!
+DigitalBrain.UI.Controls.ChatThreadView.Composer.get -> DigitalBrain.UI.ComposerNode!
+DigitalBrain.UI.Controls.ChatThreadView.Messages.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>!
+DigitalBrain.UI.ChatThreadProps.ActiveModelLabel.init -> void
+DigitalBrain.UI.ChatThreadProps.ActiveProviderIcon.init -> void
+DigitalBrain.UI.Controls.ChatThreadView.Stop.get -> DigitalBrain.UI.Button!
+DigitalBrain.UI.ChatThreadProps.Status.init -> void
+DigitalBrain.UI.Controls.ChatThreadView.Retry.get -> DigitalBrain.UI.Button!
+DigitalBrain.UI.Controls.ChatThreadView.Composer.init -> void
+override DigitalBrain.UI.Controls.ChatThreadState.Equals(object? obj) -> bool
+DigitalBrain.UI.Controls.ChatThreadView.Retry.init -> void
+DigitalBrain.UI.Controls.ChatThreadView.Key.init -> void
+DigitalBrain.UI.ChatThreadProps.EmptyText.init -> void
+DigitalBrain.UI.Controls.ChatThreadState.<Clone>$() -> DigitalBrain.UI.Controls.ChatThreadState!
+DigitalBrain.UI.Controls.ChatThreadView.Messages.init -> void
+DigitalBrain.UI.Controls.ChatThreadView
+DigitalBrain.UI.Controls.ChatThreadState.ChatThreadState() -> void
+override DigitalBrain.UI.Controls.ChatThreadView.ToString() -> string!
+static DigitalBrain.UI.Controls.ChatThreadView.operator !=(DigitalBrain.UI.Controls.ChatThreadView? left, DigitalBrain.UI.Controls.ChatThreadView? right) -> bool
+static DigitalBrain.UI.Controls.ChatThreadView.operator ==(DigitalBrain.UI.Controls.ChatThreadView? left, DigitalBrain.UI.Controls.ChatThreadView? right) -> bool
+override DigitalBrain.UI.Controls.ChatThreadView.Equals(object? obj) -> bool
+override sealed DigitalBrain.UI.Controls.ChatThreadView.Equals(DigitalBrain.UI.Node? other) -> bool
+DigitalBrain.UI.Controls.ChatThreadView.Stop.init -> void
+override DigitalBrain.UI.Controls.ChatThreadView.<Clone>$() -> DigitalBrain.UI.Controls.ChatThreadView!
+DigitalBrain.UI.Controls.ChatThreadView.Deconstruct(out string! Key, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>! Messages, out DigitalBrain.UI.ComposerNode! Composer, out DigitalBrain.UI.Button! Stop, out DigitalBrain.UI.Button! Retry) -> void
+DigitalBrain.UI.MessageNode.Deconstruct(out string! Id, out string! Role, out string! Text, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>? Cards, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>? Activities, out string! Status, out string? Model, out DigitalBrain.UI.Button? Retry, out string? ModelLabel, out string? ProviderIcon, out DigitalBrain.UI.ErrorLineNode? Error) -> void
+DigitalBrain.UI.MessageNode.Error.get -> DigitalBrain.UI.ErrorLineNode?
+DigitalBrain.UI.MessageNode.Error.init -> void
+DigitalBrain.UI.ChatThreadProps
+override DigitalBrain.UI.ChatThreadProps.ToString() -> string!
+static DigitalBrain.UI.ChatThreadProps.operator !=(DigitalBrain.UI.ChatThreadProps? left, DigitalBrain.UI.ChatThreadProps? right) -> bool
+static DigitalBrain.UI.ChatThreadProps.operator ==(DigitalBrain.UI.ChatThreadProps? left, DigitalBrain.UI.ChatThreadProps? right) -> bool
+override DigitalBrain.UI.ChatThreadProps.GetHashCode() -> int
+override DigitalBrain.UI.ChatThreadProps.Equals(object? obj) -> bool
+override sealed DigitalBrain.UI.ChatThreadProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+DigitalBrain.UI.ChatThreadProps.Equals(DigitalBrain.UI.ChatThreadProps? other) -> bool
+override DigitalBrain.UI.ChatThreadProps.<Clone>$() -> DigitalBrain.UI.ChatThreadProps!
+DigitalBrain.UI.Controls.ChatThreadView.ChatThreadView(string! Key, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>! Messages, DigitalBrain.UI.ComposerNode! Composer, DigitalBrain.UI.Button! Stop, DigitalBrain.UI.Button! Retry) -> void
+DigitalBrain.UI.Controls.ChatThreadState.Messages.init -> void
+DigitalBrain.UI.Controls.ChatThreadState.Equals(DigitalBrain.UI.Controls.ChatThreadState? other) -> bool
+override DigitalBrain.UI.Controls.ChatThreadState.GetHashCode() -> int
+DigitalBrain.UI.Controls.ChatThreadView.Equals(DigitalBrain.UI.Controls.ChatThreadView? other) -> bool
+override DigitalBrain.UI.Controls.ChatThreadView.GetHashCode() -> int
+DigitalBrain.UI.MessageNode.MessageNode(string! Id, string! Role, string! Text, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>? Cards = null, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>? Activities = null, string! Status = "completed", string? Model = null, DigitalBrain.UI.Button? Retry = null, string? ModelLabel = null, string? ProviderIcon = null, DigitalBrain.UI.ErrorLineNode? Error = null) -> void
+DigitalBrain.UI.ThreadMessage.Text.get -> string!
+DigitalBrain.UI.ThreadMessage.Text.init -> void
+DigitalBrain.UI.ThreadMessage.Id.get -> string!
+DigitalBrain.UI.ThreadMessage.Id.init -> void
+DigitalBrain.UI.ThreadMessage.Status.get -> string!
+DigitalBrain.UI.ThreadMessage.Role.get -> string!
+DigitalBrain.UI.ThreadMessage.Status.init -> void
+DigitalBrain.UI.ThreadMessagePatch.Model.get -> string?
+DigitalBrain.UI.ThreadMessagePatch.Text.get -> string?
+DigitalBrain.UI.ThreadMessagePatch.Failure.get -> string?
+DigitalBrain.UI.ThreadMessage.Role.init -> void
+DigitalBrain.UI.ThreadMessagePatch.Status.get -> string?
+DigitalBrain.UI.ThreadMessagePatch.Cards.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>?
+DigitalBrain.UI.ThreadMessagePatch.Activities.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>?
+DigitalBrain.UI.ThreadMessagePatch.Model.init -> void
+DigitalBrain.UI.ThreadMessagePatch.Text.init -> void
+DigitalBrain.UI.ThreadMessagePatch.Status.init -> void
+DigitalBrain.UI.ThreadMessagePatch.Activities.init -> void
+DigitalBrain.UI.ThreadMessagePatch.Failure.init -> void
+DigitalBrain.UI.ThreadMessagePatch.Cards.init -> void
+DigitalBrain.UI.ChatThreadError.Retry.get -> bool
+DigitalBrain.UI.ChatThreadError.Retry.init -> void
+DigitalBrain.UI.ChatThreadError.What.get -> string!
+DigitalBrain.UI.ChatThreadError.ActionLabel.get -> string?
+DigitalBrain.UI.ChatThreadError.What.init -> void
+DigitalBrain.UI.ChatThreadError.ActionLabel.init -> void
+DigitalBrain.UI.ChatThreadError.Detail.get -> string?
+DigitalBrain.UI.ChatThreadError.Open.get -> string?
+DigitalBrain.UI.ChatThreadError.Open.init -> void
+DigitalBrain.UI.ChatThreadProps.Deconstruct(out string! Placeholder, out bool CanSend, out string? ActiveModelLabel, out string? ActiveProviderIcon, out bool Dictation, out string! Status, out bool Working, out string? EmptyText, out DigitalBrain.UI.ChatThreadError? Error, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.ChatThreadProps.Error.get -> DigitalBrain.UI.ChatThreadError?
+DigitalBrain.UI.ChatThreadError.Detail.init -> void
+DigitalBrain.UI.ThreadMessage.ThreadMessage(string! Id, string! Role, string! Text, string! Status = "completed") -> void
+DigitalBrain.UI.ThreadMessagePatch.ThreadMessagePatch(string? Text = null, string? Status = null, string? Model = null, string? Failure = null, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>? Activities = null, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>? Cards = null) -> void
+DigitalBrain.UI.ChatThreadError.ChatThreadError(string! What, string? Detail = null, string? ActionLabel = null, string? Open = null, bool Retry = false) -> void
+DigitalBrain.UI.ThreadMessage.Model.get -> string?
+DigitalBrain.UI.ThreadMessage.Failure.get -> string?
+DigitalBrain.UI.ThreadMessage.Failure.init -> void
+DigitalBrain.UI.ThreadMessage.ProviderIcon.get -> string?
+DigitalBrain.UI.ThreadMessage.ProviderIcon.init -> void
+DigitalBrain.UI.ThreadMessage.Activities.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>!
+DigitalBrain.UI.ThreadMessage.Cards.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>!
+DigitalBrain.UI.ThreadMessage.Activities.init -> void
+DigitalBrain.UI.ThreadMessage.Cards.init -> void
+DigitalBrain.UI.ThreadMessage.IsFailed.get -> bool
+DigitalBrain.UI.ThreadMessagePatch.ApplyTo(DigitalBrain.UI.ThreadMessage! message) -> DigitalBrain.UI.ThreadMessage!
+DigitalBrain.UI.ThreadMessage.Model.init -> void
+DigitalBrain.UI.Controls.ChatThreadState.Messages.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ThreadMessage!>!
+DigitalBrain.UI.ChatThreadProps.ChatThreadProps(string! Placeholder = "Message", bool CanSend = true, string? ActiveModelLabel = null, string? ActiveProviderIcon = null, bool Dictation = false, string! Status = "ready", bool Working = false, string? EmptyText = null, DigitalBrain.UI.ChatThreadError? Error = null, bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.ThreadMessagePatch.Equals(DigitalBrain.UI.ThreadMessagePatch? other) -> bool
+override DigitalBrain.UI.ThreadMessagePatch.GetHashCode() -> int
+DigitalBrain.UI.ThreadMessage.Equals(DigitalBrain.UI.ThreadMessage? other) -> bool
+override DigitalBrain.UI.ThreadMessage.GetHashCode() -> int
+DigitalBrain.UI.ThreadMessagePatch
+override DigitalBrain.UI.ThreadMessagePatch.ToString() -> string!
+static DigitalBrain.UI.ThreadMessagePatch.operator !=(DigitalBrain.UI.ThreadMessagePatch? left, DigitalBrain.UI.ThreadMessagePatch? right) -> bool
+static DigitalBrain.UI.ThreadMessagePatch.operator ==(DigitalBrain.UI.ThreadMessagePatch? left, DigitalBrain.UI.ThreadMessagePatch? right) -> bool
+override DigitalBrain.UI.ThreadMessagePatch.Equals(object? obj) -> bool
+DigitalBrain.UI.ThreadMessagePatch.<Clone>$() -> DigitalBrain.UI.ThreadMessagePatch!
+DigitalBrain.UI.ThreadMessagePatch.Deconstruct(out string? Text, out string? Status, out string? Model, out string? Failure, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>? Activities, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>? Cards) -> void
+DigitalBrain.UI.ThreadMessage
+override DigitalBrain.UI.ThreadMessage.ToString() -> string!
+DigitalBrain.UI.ChatThreadError
+static DigitalBrain.UI.ThreadMessage.operator !=(DigitalBrain.UI.ThreadMessage? left, DigitalBrain.UI.ThreadMessage? right) -> bool
+override DigitalBrain.UI.ChatThreadError.ToString() -> string!
+static DigitalBrain.UI.ThreadMessage.operator ==(DigitalBrain.UI.ThreadMessage? left, DigitalBrain.UI.ThreadMessage? right) -> bool
+static DigitalBrain.UI.ChatThreadError.operator !=(DigitalBrain.UI.ChatThreadError? left, DigitalBrain.UI.ChatThreadError? right) -> bool
+override DigitalBrain.UI.ThreadMessage.Equals(object? obj) -> bool
+static DigitalBrain.UI.ChatThreadError.operator ==(DigitalBrain.UI.ChatThreadError? left, DigitalBrain.UI.ChatThreadError? right) -> bool
+DigitalBrain.UI.ThreadMessage.<Clone>$() -> DigitalBrain.UI.ThreadMessage!
+override DigitalBrain.UI.ChatThreadError.GetHashCode() -> int
+DigitalBrain.UI.ThreadMessage.Deconstruct(out string! Id, out string! Role, out string! Text, out string! Status) -> void
+override DigitalBrain.UI.ChatThreadError.Equals(object? obj) -> bool
+DigitalBrain.UI.ChatThreadError.Equals(DigitalBrain.UI.ChatThreadError? other) -> bool
+DigitalBrain.UI.ChatThreadError.<Clone>$() -> DigitalBrain.UI.ChatThreadError!
+DigitalBrain.UI.ChatThreadError.Deconstruct(out string! What, out string? Detail, out string? ActionLabel, out string? Open, out bool Retry) -> void

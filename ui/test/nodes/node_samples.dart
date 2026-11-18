@@ -367,6 +367,20 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'version': 1,
     'points': [],
   },
+  'chatThreadView': {
+    'kind': 'chatThreadView',
+    'key': 'conversation',
+    'messages': [],
+    'composer': {
+      'key': 'composer',
+      'onSubmit': {
+        'owner': 'control.chatThread',
+        'signal': 'control.submitText',
+      },
+    },
+    'stop': {'kind': 'button', 'key': 'stop', 'label': 'Stop'},
+    'retry': {'kind': 'button', 'key': 'error-action', 'label': 'Try again'},
+  },
   'diffCard': {
     'kind': 'diffCard',
     'id': 'diff-1',

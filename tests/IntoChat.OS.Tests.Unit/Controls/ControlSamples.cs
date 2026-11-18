@@ -25,5 +25,8 @@ internal static class ControlSamples
         [typeof(ListBoxNeuron)] = new(new ListBoxProps([new ListBoxItem("a", "A"), new ListBoxItem("b", "B", "Second")]), new ListBoxState(), [new SelectCommand("a"), new SelectCommand("b")]),
         [typeof(LiveChartNeuron)] = new(new LiveChartProps("Spend"), new LiveChartState(), [new Replace([new LivePoint("a", "Mon", 1)]), new Append(new LivePoint("b", "Tue", 2))]),
         [typeof(QueryTableNeuron)] = new(new QueryTableProps("People", [new QueryTableColumn("name", "Name")], "local/control.sampleTableSource/people"), new QueryTableState(), [new Filter("a"), new Sort("name"), new Page(2)]),
+        [typeof(ChatThreadNeuron)] = new(new ChatThreadProps("Ask anything."), new ChatThreadState(),
+            [new AppendMessage(new ThreadMessage("m1", "assistant", "", "failed")), new UpdateMessage("m1", new ThreadMessagePatch(Failure: "timed-out")),
+             new ImportMessages([new ThreadMessage("m2", "user", "hi")]), new Retry("m1"), new SubmitText("hello"), new Stop()]),
     };
 }

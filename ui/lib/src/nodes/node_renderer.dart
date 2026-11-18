@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'app_shell.dart';
@@ -43,6 +43,7 @@ import 'split_pane.dart';
 import 'stat_card.dart';
 import 'surface.dart';
 import 'switch.dart';
+import 'chat_thread_view.dart';
 import 'combo_box_view.dart';
 import 'form_view.dart';
 import 'list_box_view.dart';
@@ -92,6 +93,7 @@ abstract final class NodeRenderer {
     FormViewNode(:final key) ||
     ListBoxViewNode(:final key) ||
     LiveChartViewNode(:final key) ||
+    ChatThreadViewNode(:final key) ||
     QueryTableViewNode(:final key) ||
     ConversationNode(:final key) ||
     FieldNode(:final key) ||
@@ -158,6 +160,7 @@ abstract final class NodeRenderer {
       FormViewNode() => renderFormView(node, ctx),
       ListBoxViewNode() => renderListBoxView(node, ctx),
       LiveChartViewNode() => renderLiveChartView(node, ctx),
+      ChatThreadViewNode() => renderChatThreadView(node, ctx),
       QueryTableViewNode() => renderQueryTableView(node, ctx),
       UnknownNode() => const _Unsupported(),
     };

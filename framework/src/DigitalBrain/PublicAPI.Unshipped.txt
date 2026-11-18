@@ -4352,3 +4352,131 @@ static DigitalBrain.UI.Commands.TableChanged.operator !=(DigitalBrain.UI.Command
 static DigitalBrain.UI.Commands.TableChanged.operator ==(DigitalBrain.UI.Commands.TableChanged? left, DigitalBrain.UI.Commands.TableChanged? right) -> bool
 DigitalBrain.Neurons.INeuronContext.ClassOf(string! neuronType) -> System.Type?
 DigitalBrain.Neurons.Neuron.Implements<TContract>(DigitalBrain.NeuronId id) -> bool
+DigitalBrain.UI.Commands.Retry.Id.get -> string!
+DigitalBrain.UI.Commands.UpdateMessage
+DigitalBrain.UI.Commands.SubmitText.Value.get -> string?
+DigitalBrain.UI.Commands.UpdateMessage.Id.get -> string!
+DigitalBrain.UI.Commands.Stop
+DigitalBrain.UI.Commands.AppendMessage
+DigitalBrain.UI.Commands.AppendMessage.Message.init -> void
+DigitalBrain.UI.Commands.Retry
+override DigitalBrain.UI.Commands.Retry.ToString() -> string!
+DigitalBrain.UI.Commands.ImportMessages
+static DigitalBrain.UI.Commands.Retry.operator !=(DigitalBrain.UI.Commands.Retry? left, DigitalBrain.UI.Commands.Retry? right) -> bool
+DigitalBrain.UI.Commands.ImportMessages.Replace.get -> bool
+DigitalBrain.UI.Commands.UpdateMessage.Id.init -> void
+DigitalBrain.UI.Commands.MessageAppended.Id.get -> string!
+override DigitalBrain.UI.Commands.Stop.ToString() -> string!
+DigitalBrain.UI.Commands.MessageAppended
+override DigitalBrain.UI.Commands.ImportMessages.ToString() -> string!
+DigitalBrain.UI.Commands.Retry.Id.init -> void
+DigitalBrain.UI.Commands.ImportMessages.Messages.init -> void
+DigitalBrain.UI.Commands.MessageAppended.Id.init -> void
+override DigitalBrain.UI.Commands.UpdateMessage.ToString() -> string!
+override DigitalBrain.UI.Commands.MessageAppended.ToString() -> string!
+static DigitalBrain.UI.Commands.ImportMessages.operator !=(DigitalBrain.UI.Commands.ImportMessages? left, DigitalBrain.UI.Commands.ImportMessages? right) -> bool
+DigitalBrain.UI.Commands.SubmitText.Value.init -> void
+static DigitalBrain.UI.Commands.UpdateMessage.operator !=(DigitalBrain.UI.Commands.UpdateMessage? left, DigitalBrain.UI.Commands.UpdateMessage? right) -> bool
+override DigitalBrain.UI.Commands.AppendMessage.ToString() -> string!
+static DigitalBrain.UI.Commands.MessageAppended.operator !=(DigitalBrain.UI.Commands.MessageAppended? left, DigitalBrain.UI.Commands.MessageAppended? right) -> bool
+static DigitalBrain.UI.Commands.ImportMessages.operator ==(DigitalBrain.UI.Commands.ImportMessages? left, DigitalBrain.UI.Commands.ImportMessages? right) -> bool
+DigitalBrain.UI.Commands.UpdateMessage.Patch.init -> void
+static DigitalBrain.UI.Commands.UpdateMessage.operator ==(DigitalBrain.UI.Commands.UpdateMessage? left, DigitalBrain.UI.Commands.UpdateMessage? right) -> bool
+static DigitalBrain.UI.Commands.MessageAppended.operator ==(DigitalBrain.UI.Commands.MessageAppended? left, DigitalBrain.UI.Commands.MessageAppended? right) -> bool
+override DigitalBrain.UI.Commands.ImportMessages.GetHashCode() -> int
+override DigitalBrain.UI.Commands.UpdateMessage.GetHashCode() -> int
+override DigitalBrain.UI.Commands.MessageAppended.GetHashCode() -> int
+override DigitalBrain.UI.Commands.ImportMessages.Equals(object? obj) -> bool
+static DigitalBrain.UI.Commands.Stop.operator !=(DigitalBrain.UI.Commands.Stop? left, DigitalBrain.UI.Commands.Stop? right) -> bool
+override DigitalBrain.UI.Commands.UpdateMessage.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.MessageAppended.Equals(object? obj) -> bool
+DigitalBrain.UI.Commands.MessageUpdated.Id.get -> string!
+DigitalBrain.UI.Commands.StopRequested
+override sealed DigitalBrain.UI.Commands.ImportMessages.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.UpdateMessage.Equals(DigitalBrain.Signal? other) -> bool
+DigitalBrain.UI.Commands.MessageUpdated
+override sealed DigitalBrain.UI.Commands.MessageAppended.Equals(DigitalBrain.Signal? other) -> bool
+DigitalBrain.UI.Commands.ImportMessages.Equals(DigitalBrain.UI.Commands.ImportMessages? other) -> bool
+DigitalBrain.UI.Commands.MessageUpdated.Id.init -> void
+override DigitalBrain.UI.Commands.StopRequested.ToString() -> string!
+DigitalBrain.UI.Commands.UpdateMessage.Equals(DigitalBrain.UI.Commands.UpdateMessage? other) -> bool
+DigitalBrain.UI.Commands.MessageAppended.Equals(DigitalBrain.UI.Commands.MessageAppended? other) -> bool
+override DigitalBrain.UI.Commands.MessageUpdated.ToString() -> string!
+DigitalBrain.UI.Commands.RetryRequested.Id.get -> string!
+override DigitalBrain.UI.Commands.UpdateMessage.<Clone>$() -> DigitalBrain.UI.Commands.UpdateMessage!
+override DigitalBrain.UI.Commands.MessageAppended.<Clone>$() -> DigitalBrain.UI.Commands.MessageAppended!
+static DigitalBrain.UI.Commands.Stop.operator ==(DigitalBrain.UI.Commands.Stop? left, DigitalBrain.UI.Commands.Stop? right) -> bool
+DigitalBrain.UI.Commands.RetryRequested.Id.init -> void
+DigitalBrain.UI.Commands.SubmitText
+DigitalBrain.UI.Commands.RetryRequested
+static DigitalBrain.UI.Commands.MessageUpdated.operator !=(DigitalBrain.UI.Commands.MessageUpdated? left, DigitalBrain.UI.Commands.MessageUpdated? right) -> bool
+DigitalBrain.UI.Commands.MessageAppended.Deconstruct(out string! Id) -> void
+override DigitalBrain.UI.Commands.Stop.GetHashCode() -> int
+static DigitalBrain.UI.Commands.MessageUpdated.operator ==(DigitalBrain.UI.Commands.MessageUpdated? left, DigitalBrain.UI.Commands.MessageUpdated? right) -> bool
+override DigitalBrain.UI.Commands.SubmitText.ToString() -> string!
+override DigitalBrain.UI.Commands.ImportMessages.<Clone>$() -> DigitalBrain.UI.Commands.ImportMessages!
+static DigitalBrain.UI.Commands.Retry.operator ==(DigitalBrain.UI.Commands.Retry? left, DigitalBrain.UI.Commands.Retry? right) -> bool
+static DigitalBrain.UI.Commands.StopRequested.operator !=(DigitalBrain.UI.Commands.StopRequested? left, DigitalBrain.UI.Commands.StopRequested? right) -> bool
+override DigitalBrain.UI.Commands.Stop.Equals(object? obj) -> bool
+DigitalBrain.UI.Commands.ImportMessages.Replace.init -> void
+override DigitalBrain.UI.Commands.MessageUpdated.GetHashCode() -> int
+static DigitalBrain.UI.Commands.AppendMessage.operator !=(DigitalBrain.UI.Commands.AppendMessage? left, DigitalBrain.UI.Commands.AppendMessage? right) -> bool
+static DigitalBrain.UI.Commands.SubmitText.operator !=(DigitalBrain.UI.Commands.SubmitText? left, DigitalBrain.UI.Commands.SubmitText? right) -> bool
+override DigitalBrain.UI.Commands.RetryRequested.ToString() -> string!
+override sealed DigitalBrain.UI.Commands.Stop.Equals(DigitalBrain.Signal? other) -> bool
+static DigitalBrain.UI.Commands.StopRequested.operator ==(DigitalBrain.UI.Commands.StopRequested? left, DigitalBrain.UI.Commands.StopRequested? right) -> bool
+static DigitalBrain.UI.Commands.AppendMessage.operator ==(DigitalBrain.UI.Commands.AppendMessage? left, DigitalBrain.UI.Commands.AppendMessage? right) -> bool
+DigitalBrain.UI.Commands.Stop.Equals(DigitalBrain.UI.Commands.Stop? other) -> bool
+override DigitalBrain.UI.Commands.Retry.GetHashCode() -> int
+static DigitalBrain.UI.Commands.SubmitText.operator ==(DigitalBrain.UI.Commands.SubmitText? left, DigitalBrain.UI.Commands.SubmitText? right) -> bool
+static DigitalBrain.UI.Commands.RetryRequested.operator !=(DigitalBrain.UI.Commands.RetryRequested? left, DigitalBrain.UI.Commands.RetryRequested? right) -> bool
+override DigitalBrain.UI.Commands.AppendMessage.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Stop.<Clone>$() -> DigitalBrain.UI.Commands.Stop!
+override DigitalBrain.UI.Commands.Retry.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.SubmitText.GetHashCode() -> int
+static DigitalBrain.UI.Commands.RetryRequested.operator ==(DigitalBrain.UI.Commands.RetryRequested? left, DigitalBrain.UI.Commands.RetryRequested? right) -> bool
+override DigitalBrain.UI.Commands.AppendMessage.Equals(object? obj) -> bool
+DigitalBrain.UI.Commands.Stop.Stop() -> void
+override sealed DigitalBrain.UI.Commands.Retry.Equals(DigitalBrain.Signal? other) -> bool
+override DigitalBrain.UI.Commands.StopRequested.GetHashCode() -> int
+override DigitalBrain.UI.Commands.SubmitText.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.RetryRequested.GetHashCode() -> int
+override DigitalBrain.UI.Commands.MessageUpdated.Equals(object? obj) -> bool
+DigitalBrain.UI.Commands.Retry.Equals(DigitalBrain.UI.Commands.Retry? other) -> bool
+override sealed DigitalBrain.UI.Commands.SubmitText.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.AppendMessage.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.MessageUpdated.Equals(DigitalBrain.Signal? other) -> bool
+override DigitalBrain.UI.Commands.StopRequested.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Retry.<Clone>$() -> DigitalBrain.UI.Commands.Retry!
+DigitalBrain.UI.Commands.SubmitText.Equals(DigitalBrain.UI.Commands.SubmitText? other) -> bool
+DigitalBrain.UI.Commands.AppendMessage.Equals(DigitalBrain.UI.Commands.AppendMessage? other) -> bool
+DigitalBrain.UI.Commands.MessageUpdated.Equals(DigitalBrain.UI.Commands.MessageUpdated? other) -> bool
+override sealed DigitalBrain.UI.Commands.StopRequested.Equals(DigitalBrain.Signal? other) -> bool
+DigitalBrain.UI.Commands.Retry.Deconstruct(out string! Id) -> void
+override DigitalBrain.UI.Commands.RetryRequested.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.MessageUpdated.<Clone>$() -> DigitalBrain.UI.Commands.MessageUpdated!
+DigitalBrain.UI.Commands.StopRequested.Equals(DigitalBrain.UI.Commands.StopRequested? other) -> bool
+override DigitalBrain.UI.Commands.SubmitText.<Clone>$() -> DigitalBrain.UI.Commands.SubmitText!
+override sealed DigitalBrain.UI.Commands.RetryRequested.Equals(DigitalBrain.Signal? other) -> bool
+DigitalBrain.UI.Commands.MessageUpdated.Deconstruct(out string! Id) -> void
+override DigitalBrain.UI.Commands.StopRequested.<Clone>$() -> DigitalBrain.UI.Commands.StopRequested!
+DigitalBrain.UI.Commands.SubmitText.Deconstruct(out string? Value) -> void
+DigitalBrain.UI.Commands.RetryRequested.Equals(DigitalBrain.UI.Commands.RetryRequested? other) -> bool
+override DigitalBrain.UI.Commands.AppendMessage.<Clone>$() -> DigitalBrain.UI.Commands.AppendMessage!
+DigitalBrain.UI.Commands.StopRequested.StopRequested() -> void
+override DigitalBrain.UI.Commands.RetryRequested.<Clone>$() -> DigitalBrain.UI.Commands.RetryRequested!
+DigitalBrain.UI.Commands.RetryRequested.Deconstruct(out string! Id) -> void
+DigitalBrain.UI.Commands.RetryRequested.RetryRequested(string! Id) -> void
+DigitalBrain.UI.Commands.MessageUpdated.MessageUpdated(string! Id) -> void
+DigitalBrain.UI.Commands.MessageAppended.MessageAppended(string! Id) -> void
+DigitalBrain.UI.Commands.SubmitText.SubmitText(string? Value = null) -> void
+DigitalBrain.UI.Commands.Retry.Retry(string! Id = "") -> void
+DigitalBrain.UI.Commands.ImportMessages.Messages.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ThreadMessage?>?
+DigitalBrain.UI.Commands.AppendMessage.Message.get -> DigitalBrain.UI.ThreadMessage!
+DigitalBrain.UI.Commands.UpdateMessage.Deconstruct(out string! Id, out DigitalBrain.UI.ThreadMessagePatch! Patch) -> void
+DigitalBrain.UI.Commands.UpdateMessage.Patch.get -> DigitalBrain.UI.ThreadMessagePatch!
+DigitalBrain.UI.Commands.AppendMessage.Deconstruct(out DigitalBrain.UI.ThreadMessage! Message) -> void
+DigitalBrain.UI.Commands.ImportMessages.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ThreadMessage?>? Messages, out bool Replace) -> void
+DigitalBrain.UI.Commands.AppendMessage.AppendMessage(DigitalBrain.UI.ThreadMessage! Message) -> void
+DigitalBrain.UI.Commands.UpdateMessage.UpdateMessage(string! Id, DigitalBrain.UI.ThreadMessagePatch! Patch) -> void
+DigitalBrain.UI.Commands.ImportMessages.ImportMessages(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ThreadMessage?>? Messages, bool Replace = false) -> void
