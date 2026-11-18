@@ -9,8 +9,52 @@ import 'node_context.dart';
 /// from the neuron's view; the title and column titles from the slot's props.
 /// A header tap sends `Sort`, the filter field `Filter`, the pager `Page`, all
 /// to the neuron itself (`.`); the parent checks the column and page. A source
-/// error draws the table's error line instead of rows.
-Widget renderQueryTableView(QueryTableViewNode node, NodeContext ctx) {
+/// error draws the table's error line instead of rows. The neuron keeps no
+/// rows across a reactivation, so a view that is not loaded shows a "Not
+/// loaded" line and sends `Page` for its current page once, which reads it.
+Widget renderQueryTableView(QueryTableViewNode node, NodeContext ctx) =>
+    _QueryTable(node: node, ctx: ctx);
+
+class _QueryTable extends StatefulWidget {
+  const _QueryTable({required this.node, required this.ctx});
+
+  final QueryTableViewNode node;
+  final NodeContext ctx;
+
+  @override
+  State<_QueryTable> createState() => _QueryTableState();
+}
+
+class _QueryTableState extends State<_QueryTable> {
+  bool _asked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _askIfNotLoaded();
+  }
+
+  @override
+  void didUpdateWidget(_QueryTable old) {
+    super.didUpdateWidget(old);
+    _askIfNotLoaded();
+  }
+
+  void _askIfNotLoaded() {
+    final node = widget.node;
+    if (_asked || node.loaded || !widget.ctx.interactive) return;
+    _asked = true;
+    final page = node.page < 1 ? 1 : node.page;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) actQueryTablePage(widget.ctx, '.', number: page);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => _draw(widget.node, widget.ctx);
+}
+
+Widget _draw(QueryTableViewNode node, NodeContext ctx) {
   final props = QueryTableProps.fromJson(ctx.slotProps);
   final live = props.isEnabled && ctx.interactive;
   final titles = {for (final c in props.columns) c.id: c.title};
@@ -66,7 +110,10 @@ Widget renderQueryTableView(QueryTableViewNode node, NodeContext ctx) {
             Row(
               children: [for (final cell in row) Expanded(child: Text(cell))],
             ),
-          if (node.loaded && node.rows.isEmpty) const Text('No rows'),
+          if (!node.loaded)
+            Text('Not loaded', key: ValueKey('${node.key}/notLoaded'))
+          else if (node.rows.isEmpty)
+            const Text('No rows'),
         ],
         Row(
           mainAxisAlignment: MainAxisAlignment.end,

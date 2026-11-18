@@ -8,7 +8,7 @@ writes on the slot; the parent refuses a Sort naming a column the props do not s
 
 Render runs inside the save and cannot await, so the rows are read when the query changes: each command asks the source for the new
 page before it saves the query, and holds that one page in a field that is never persisted. After a reactivation the view says it is
-not loaded until a command (a Page for the current page) reads it again. A source that throws or cannot be found is logged and drawn
+not loaded; the client sends a Page for the current page on first drawing it, which reads it again. A command without props, an address that names no table source of this brain (never called), or a source that throws is logged and drawn
 as the table's error line; it never fails the command or the render. Named QueryTable because a `dataTable` data node already exists;
 it draws as a queryTableView.
 */
@@ -67,11 +67,20 @@ public sealed partial class QueryTableNeuron : ControlNeuron<QueryTableState, Qu
     // Asks the props' source for the page of `query`; a missing source or a failure becomes the error the table draws.
     private async Task<Shown> Read(QueryTableState query)
     {
-        if (Props is not { } props) { return new Shown([], [], 0, "The table has no source."); }
+        if (Props is not { } props)
+        {
+            Log.NoSource(GetLogger(), Id.ToString());
+            return new Shown([], [], 0, "The table has no source.");
+        }
         IReadOnlyList<string> columnIds = [.. props.Columns.Select(column => column.Id)];
+        // Only a table source of this brain is called: an address naming anything else is drawn as the error line, never called.
+        if (!NeuronId.TryParse(props.SourceAddress, out var address) || !Implements<ITableSource>(address))
+        {
+            Log.NotASource(GetLogger(), props.SourceAddress, Id.ToString());
+            return new Shown(columnIds, [], 0, "The table's source is not a table source.");
+        }
         try
         {
-            if (!NeuronId.TryParse(props.SourceAddress, out var address)) { throw new ArgumentException($"'{props.SourceAddress}' is not a neuron address."); }
             var page = await Get<ITableSource>(address).Query(new TableQuery(query.Filter, query.SortBy, query.Descending, query.Page, QueryTableState.PageSize)).ConfigureAwait(true);
             IReadOnlyList<IReadOnlyList<string>> rows = [.. page.Rows.Select(row => (IReadOnlyList<string>)[.. columnIds.Select(id => row.TryGetValue(id, out var value) ? value : "")])];
             return new Shown(columnIds, rows, page.Total, null);
@@ -97,5 +106,11 @@ public sealed partial class QueryTableNeuron : ControlNeuron<QueryTableState, Qu
     {
         [LoggerMessage(Level = LogLevel.Warning, Message = "The table source {Source} of {Table} failed")]
         public static partial void SourceFailed(ILogger logger, Exception error, string source, string table);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "The table {Table} got a command without props, so it has no source")]
+        public static partial void NoSource(ILogger logger, string table);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "The table {Table} was not given a table source: {Source}")]
+        public static partial void NotASource(ILogger logger, string source, string table);
     }
 }

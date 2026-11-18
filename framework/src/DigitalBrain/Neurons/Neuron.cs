@@ -63,6 +63,10 @@ public abstract class Neuron
         throw new RuleViolationException(rejected);
     }
 
+    /// <summary>Whether <paramref name="id"/> names a neuron of this brain whose registered class implements <typeparamref name="TContract"/>; it calls nothing.</summary>
+    protected bool Implements<TContract>(NeuronId id) where TContract : class
+        => id.Brain == Id.Brain && Context.ClassOf(id.Type) is { } type && typeof(TContract).IsAssignableFrom(type);
+
     /// <summary>A typed interface to another neuron of the same brain.</summary>
     /// <exception cref="ArgumentException"><paramref name="id"/> belongs to another brain.</exception>
     protected T Get<T>(NeuronId id) where T : class

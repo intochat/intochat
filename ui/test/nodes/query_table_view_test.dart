@@ -13,7 +13,11 @@ const _props = {
   'isEnabled': true,
 };
 
-Future<void> _pump(WidgetTester tester, QueryTableViewNode node) async {
+Future<List<Map<String, dynamic>>> _pump(
+  WidgetTester tester,
+  QueryTableViewNode node,
+) async {
+  final sent = <Map<String, dynamic>>[];
   await tester.pumpWidget(
     MaterialApp(
       theme: UiTheme.intochat(Brightness.light),
@@ -27,16 +31,60 @@ Future<void> _pump(WidgetTester tester, QueryTableViewNode node) async {
               actNeuron: 'local/apps/settings',
               slotPath: 'people',
               slotProps: _props,
-              send: (event) async => {'delivered': true},
+              send: (event) async {
+                sent.add(event);
+                return {'delivered': true};
+              },
             ),
           ),
         ),
       ),
     ),
   );
+  await tester.pump();
+  return sent;
 }
 
+QueryTableViewNode _node({required bool loaded, int page = 1}) =>
+    QueryTableViewNode(
+      key: 'people',
+      filter: '',
+      sortBy: null,
+      descending: false,
+      page: page,
+      pageSize: 50,
+      total: loaded ? 1 : 0,
+      loaded: loaded,
+      columnIds: const ['id', 'name'],
+      rows: loaded
+          ? const [
+              ['1', 'Ada'],
+            ]
+          : const [],
+      error: null,
+    );
+
 void main() {
+  testWidgets('a view that is not loaded asks for its page once', (
+    tester,
+  ) async {
+    final sent = await _pump(tester, _node(loaded: false, page: 3));
+    await tester.pump();
+
+    expect(find.text('Not loaded'), findsOneWidget);
+    expect(sent, hasLength(1));
+    expect(sent.single.toString(), contains('control.page'));
+    expect(sent.single.toString(), contains('3'));
+  });
+
+  testWidgets('a loaded view sends nothing', (tester) async {
+    final sent = await _pump(tester, _node(loaded: true));
+    await tester.pump();
+
+    expect(find.text('Not loaded'), findsNothing);
+    expect(sent, isEmpty);
+  });
+
   testWidgets('the table draws props columns and state rows', (tester) async {
     await _pump(
       tester,

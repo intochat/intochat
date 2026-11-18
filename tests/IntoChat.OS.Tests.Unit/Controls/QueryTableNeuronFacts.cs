@@ -28,6 +28,7 @@ public sealed class TableParent : Screen<TableParentState>
         return new("Parent", new Column([
             Slot<QueryTableNeuron, QueryTableProps>("people", new QueryTableProps("People", Columns, "local/control.sampleTableSource/people")),
             Slot<QueryTableNeuron, QueryTableProps>("broken", new QueryTableProps("Broken", Columns, "local/test.failingTableSource/x")),
+            Slot<QueryTableNeuron, QueryTableProps>("wrong", new QueryTableProps("Wrong", Columns, "local/test.notATableSource/x")),
             Slot<QueryTableNeuron, QueryTableProps>("probe", new QueryTableProps("Probe", Columns, "local/test.recordingTableSource/x")),
         ]));
     }
@@ -67,6 +68,14 @@ public sealed class RecordingTableSource : Neuron<FakeSourceState>, ITableSource
     }
 }
 
+/*
+# Not a table source
+
+A neuron that is not a table source; a table pointed at it must not call it.
+*/
+[Neuron("test.notATableSource")]
+public sealed class NotATableSource : Neuron<FakeSourceState>;
+
 public sealed class QueryTableNeuronFacts : IAsyncDisposable
 {
     private static readonly BrainId Brain = new("local");
@@ -82,6 +91,7 @@ public sealed class QueryTableNeuronFacts : IAsyncDisposable
         _os.Register<SampleTableSource>();
         _os.Register<FailingTableSource>();
         _os.Register<RecordingTableSource>();
+        _os.Register<NotATableSource>();
     }
 
     private Task Send<T>(string slot, string alias, T command) where T : Signal
@@ -154,6 +164,18 @@ public sealed class QueryTableNeuronFacts : IAsyncDisposable
         Assert.NotNull(drawn.Error);
         Assert.Empty(drawn.Rows);
         Assert.True(drawn.Loaded);
+    }
+
+    [Fact]
+    public async Task A_source_address_naming_no_table_source_draws_the_error_line_and_is_never_called()
+    {
+        await Send("wrong", "control.page", new Page(1));
+
+        var drawn = await Drawn("wrong");
+        Assert.NotNull(drawn.Error);
+        Assert.Empty(drawn.Rows);
+        Assert.False(_os.IsActive(new NeuronId(Brain, "test.notATableSource", "x")));
+        Assert.Empty(_os.Journal(Brain).Signals(new NeuronId(Brain, "test.notATableSource", "x")));
     }
 
     [Fact]

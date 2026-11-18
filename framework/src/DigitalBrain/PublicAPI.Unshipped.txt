@@ -4350,3 +4350,5 @@ static DigitalBrain.UI.Commands.Sort.operator !=(DigitalBrain.UI.Commands.Sort? 
 static DigitalBrain.UI.Commands.Sort.operator ==(DigitalBrain.UI.Commands.Sort? left, DigitalBrain.UI.Commands.Sort? right) -> bool
 static DigitalBrain.UI.Commands.TableChanged.operator !=(DigitalBrain.UI.Commands.TableChanged? left, DigitalBrain.UI.Commands.TableChanged? right) -> bool
 static DigitalBrain.UI.Commands.TableChanged.operator ==(DigitalBrain.UI.Commands.TableChanged? left, DigitalBrain.UI.Commands.TableChanged? right) -> bool
+DigitalBrain.Neurons.INeuronContext.ClassOf(string! neuronType) -> System.Type?
+DigitalBrain.Neurons.Neuron.Implements<TContract>(DigitalBrain.NeuronId id) -> bool
