@@ -50,6 +50,10 @@ public sealed class BrowserDriver(IPage page, ScenarioRecording recording, strin
     {
         var scope = await Find(step.Target, ct) ?? throw new InvalidOperationException($"The browser shows no node or slot '{step.Target}' to act on.");
         var control = Control(scope, step);
+        if (!await Shown(control))
+        {
+            throw new InvalidOperationException($"No control under '{step.Target}' sends {step.Signal}: the browser shows no {control}.");
+        }
         await Outline(control);
         await control.ClickAsync(new() { Timeout = Timeout }).WaitAsync(ct);
         await page.WaitForTimeoutAsync(300).WaitAsync(ct);
