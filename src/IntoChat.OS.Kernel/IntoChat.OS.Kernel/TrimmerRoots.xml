@@ -1,5 +1,8 @@
 <linker>
   <assembly fullname="Orleans.Clustering.AzureStorage" />
+  <assembly fullname="Azure.Data.Tables" />
+  <assembly fullname="Azure.Storage.Blobs" />
+  <assembly fullname="Azure.Core" />
   <assembly fullname="Orleans.Core" />
   <assembly fullname="Orleans.Core.Abstractions" />
   <assembly fullname="Orleans.Dashboard" />

@@ -6,6 +6,7 @@
     <PackageId>IntoChat.OS.Kernel</PackageId>
     <Description>The operating system: the named module composition, the OS apps, in-process MCP, and the host that runs them.</Description>
     <PublishAot Condition="'$(IntoChatOSAot)' == 'true'">true</PublishAot>
+    <JsonSerializerIsReflectionEnabledByDefault Condition="'$(IntoChatOSAot)' == 'true'">true</JsonSerializerIsReflectionEnabledByDefault>
     <IlcOptimizationPreference Condition="'$(IntoChatOSAot)' == 'true'">Speed</IlcOptimizationPreference>
     <IlcFoldIdenticalMethodBodies Condition="'$(IntoChatOSAot)' == 'true'">false</IlcFoldIdenticalMethodBodies>
     <StripSymbols Condition="'$(IntoChatOSAot)' == 'true'">true</StripSymbols>
