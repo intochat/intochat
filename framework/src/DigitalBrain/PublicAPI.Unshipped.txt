@@ -4245,7 +4245,8 @@ static DigitalBrain.ScreenExtensions.ChildAddress(DigitalBrain.NeuronId parent, 
 DigitalBrain.IScreen.Dispatch(DigitalBrain.UI.Command! command) -> System.Threading.Tasks.Task!
 DigitalBrain.Screen<TState>.Dispatch(DigitalBrain.UI.Command! command) -> System.Threading.Tasks.Task!
 static DigitalBrain.Screen<TState>.Sends<TSignal>(TSignal! signal) -> DigitalBrain.UI.Command!
-DigitalBrain.ISlotSeeds
-DigitalBrain.ISlotSeeds.SeedOf(string! key) -> System.Threading.Tasks.Task<System.Text.Json.JsonElement?>!
-DigitalBrain.Screen<TState>.SeedOf(string! key) -> System.Threading.Tasks.Task<System.Text.Json.JsonElement?>!
 DigitalBrain.Screen<TState>.Slot<TChild, TChildState>(string! key, TChildState! initial) -> DigitalBrain.UI.NeuronRef!
+DigitalBrain.ISlotChild
+DigitalBrain.ISlotChild.SeedIfEmpty(System.Text.Json.JsonElement initial) -> System.Threading.Tasks.Task!
+DigitalBrain.Screen<TState>.SeedIfEmpty(System.Text.Json.JsonElement initial) -> System.Threading.Tasks.Task!
+const DigitalBrain.Units.ActivationRefusedException.NotParent = "NotParent" -> string!

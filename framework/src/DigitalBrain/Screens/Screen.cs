@@ -3,6 +3,7 @@ using System.Text.Json;
 using DigitalBrain.Contracts;
 using DigitalBrain.Invocation;
 using DigitalBrain.Kernel;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
 using DigitalBrain.Units;
@@ -10,12 +11,12 @@ using DigitalBrain.Units;
 namespace DigitalBrain;
 
 /// <summary>A screen: a neuron whose state has one stored view. The view's alias is the neuron type.</summary>
-public abstract class Screen<TState> : Neuron<TState>, IScreen, ISlotSeeds where TState : class, new()
+public abstract class Screen<TState> : Neuron<TState>, IScreen, ISlotChild where TState : class, new()
 {
     private PublishedView? _view;
     private Dictionary<string, NeuronId> _children = new(StringComparer.Ordinal);
     private Dictionary<string, NeuronId>? _rendering;
-    private Dictionary<string, JsonElement> _seeds = new(StringComparer.Ordinal);
+    private bool _seedable;
     private Dictionary<string, JsonElement>? _seeding;
     private string _cause = "reaction";
 
@@ -68,7 +69,8 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen, ISlotSeeds where
     /// <summary>
     /// The view node of child <paramref name="key"/>, a <typeparamref name="TChild"/> neuron that starts from <paramref name="initial"/>:
     /// the seed is used only when the child has no stored state yet; after that the child owns its state, and the parent changes it
-    /// through the child's commands. Rendering it still creates nothing.
+    /// through the child's commands. The parent seeds it after its save, so a seeded slot is created when first rendered
+    /// (an unseeded slot is created on first use).
     /// </summary>
     /// <exception cref="InvalidOperationException">Called outside <see cref="Render"/>, or the key is used twice in one view.</exception>
     /// <exception cref="ArgumentException">The key is empty, ".", ".." or contains '/'.</exception>
@@ -81,19 +83,31 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen, ISlotSeeds where
     }
 
     /// <inheritdoc />
-    public Task<JsonElement?> SeedOf(string key)
+    public Task SeedIfEmpty(JsonElement initial)
     {
-        ArgumentNullException.ThrowIfNull(key);
-        return Task.FromResult<JsonElement?>(_seeds.TryGetValue(key, out var seed) ? seed : null);
+        if (!ScreenExtensions.TryParentOf(Id, out var parent) || Context.Caller?.Via is not { } via || via != parent)
+        {
+            return Task.FromException(new ActivationRefusedException(ActivationRefusedException.NotParent));
+        }
+        if (!_seedable) { return Task.CompletedTask; }
+        var seed = (TState?)RuntimeProtocol.Deserialize(initial, typeof(TState))
+            ?? throw new ArgumentException($"The seed of '{Id}' is null.", nameof(initial));
+        _cause = "seed";
+        return Show(seed);
     }
 
-    // A slot child (its key is its parent's id, '/', its child key) with no stored state asks its parent for the seed it rendered.
-    private async Task<TState?> SeedFromParent()
+    // After a save: seed each seeded slot that is new since the previous view. A child that fails starts from its default state.
+    private async Task SeedNewChildren(Dictionary<string, NeuronId> previous, Dictionary<string, NeuronId> children, Dictionary<string, JsonElement> seeds)
     {
-        var slash = Id.Key.LastIndexOf('/');
-        if (slash <= 0 || !NeuronId.TryParse(Id.Key[..slash], out var parent) || parent.Brain != Id.Brain) { return null; }
-        var seed = await Get<ISlotSeeds>(parent).SeedOf(Id.Key[(slash + 1)..]).ConfigureAwait(true);
-        return seed is { } json ? (TState?)RuntimeProtocol.Deserialize(json, typeof(TState)) : null;
+        foreach (var (key, seed) in seeds)
+        {
+            if (previous.ContainsKey(key)) { continue; }
+            try { await Get<ISlotChild>(children[key]).SeedIfEmpty(seed).ConfigureAwait(true); }
+            catch (Exception error)
+            {
+                GetLogger().LogSwallowed(error, $"Slot child {children[key]} of {Id} was not seeded; it starts from its default state.");
+            }
+        }
     }
 
     /// <summary>Sends <paramref name="command"/> to its target: "." is this screen, any other target a child key (optionally "./key") of the current view, or a key path "a/b" resolved hop by hop by each child's own gate.</summary>
@@ -129,19 +143,18 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen, ISlotSeeds where
         if (_view is not null)
         {
             // A stored legacy view: the slots it names are the current state's.
-            _ = RenderValidated(State, out _children, out _seeds);
+            _ = RenderValidated(State, out _children, out _);
             return;
         }
         if (ReferenceEquals(_cause, LoadedMarker))
         {
             _cause = "reaction";
-            _view = new PublishedView(Alias, 1, RenderValidated(State, out var children, out var seeds));
+            _view = new PublishedView(Alias, 1, RenderValidated(State, out var children, out _));
             _children = children;
-            _seeds = seeds;
             return;
         }
         _cause = "activate";
-        try { await Show(await SeedFromParent().ConfigureAwait(true) ?? State).ConfigureAwait(true); }
+        try { await Show(State).ConfigureAwait(true); }
         finally { _cause = "reaction"; }
     }
 
@@ -253,10 +266,12 @@ public abstract class Screen<TState> : Neuron<TState>, IScreen, ISlotSeeds where
     private async Task SaveAndCacheView(TState next, IReadOnlyList<Signal> entry, object shown, Dictionary<string, NeuronId> children, Dictionary<string, JsonElement> seeds)
     {
         await Seat.Save(next, entry).ConfigureAwait(true);
+        var previous = _children;
         _view = (PublishedView)shown;
         _children = children;
-        _seeds = seeds;
+        _seedable = _cause == "activate";
         _cause = "reaction";
+        if (seeds.Count > 0) { await SeedNewChildren(previous, children, seeds).ConfigureAwait(true); }
     }
 
     private JsonElement RenderValidated(TState state, out Dictionary<string, NeuronId> children, out Dictionary<string, JsonElement> seeds)

@@ -67,13 +67,10 @@ public sealed class ScreenSlotFacts
         return (parent, context);
     }
 
-    // A child with no stored state asks its parent for a seed when it activates, so its context knows the parent.
-    private static async Task<SlotChildScreen> Child(SlotParentScreen parent, RecordingContext context)
+    private static async Task<SlotChildScreen> Child(RecordingContext context)
     {
         var child = new SlotChildScreen();
-        var own = new RecordingContext(ChildId);
-        own.Neurons[ParentId] = parent;
-        NeuronAttachment.Attach(child, own);
+        NeuronAttachment.Attach(child, new RecordingContext(ChildId));
         await NeuronAttachment.Activate(child, CancellationToken.None);
         context.Neurons[ChildId] = child;
         return child;
@@ -106,7 +103,7 @@ public sealed class ScreenSlotFacts
     public async Task Send_to_child_runs_child_request()
     {
         var (parent, context) = await Attached();
-        var child = await Child(parent, context);
+        var child = await Child(context);
 
         await parent.TestSend(new Command("./editor", "slot.ping"));
         await parent.TestSend(new Command("editor", "slot.ping"));
@@ -119,7 +116,7 @@ public sealed class ScreenSlotFacts
     public async Task Dispatch_routes_through_the_parent_gate()
     {
         var (parent, context) = await Attached();
-        var child = await Child(parent, context);
+        var child = await Child(context);
 
         await parent.Dispatch(new Command("editor", "slot.ping"));
         var refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => parent.Dispatch(new Command("ghost", "slot.ping")));
@@ -141,14 +138,11 @@ public sealed class ScreenSlotFacts
         await NeuronAttachment.Activate(grand, CancellationToken.None);
         var mid = new SlotParentScreen();
         var midContext = new RecordingContext(midId);
-        midContext.Neurons[grandId] = grand;
         NeuronAttachment.Attach(mid, midContext);
         await NeuronAttachment.Activate(mid, CancellationToken.None);
         grandContext.Neurons[midId] = mid;
         var leaf = new SlotChildScreen();
-        var leafContext = new RecordingContext(leafId);
-        leafContext.Neurons[midId] = mid;
-        NeuronAttachment.Attach(leaf, leafContext);
+        NeuronAttachment.Attach(leaf, new RecordingContext(leafId));
         await NeuronAttachment.Activate(leaf, CancellationToken.None);
         midContext.Neurons[leafId] = leaf;
 
@@ -160,14 +154,14 @@ public sealed class ScreenSlotFacts
         refused = await Assert.ThrowsAsync<ActivationRefusedException>(() => grand.Dispatch(new Command("mid/ghost", "slot.ping")));
         Assert.Equal(ActivationRefusedException.UnknownChild, refused.Reason);
         Assert.Equal([midId, midId], grandContext.Gets);
-        Assert.Equal([grandId, leafId], midContext.Gets);
+        Assert.Equal([leafId], midContext.Gets);
     }
 
     [Fact]
     public async Task Dispatch_awaits_the_child_so_its_failure_reaches_the_caller()
     {
         var (parent, context) = await Attached();
-        _ = await Child(parent, context);
+        _ = await Child(context);
 
         var failed = await Assert.ThrowsAsync<InvalidOperationException>(() => parent.Dispatch(new Command("editor", "slot.boom")));
 
