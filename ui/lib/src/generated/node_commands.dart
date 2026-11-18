@@ -57,6 +57,27 @@ Future<ActivationOutcome> actLiveChartReplace(
   required List<Map<String, Object?>> points,
 }) => ctx.act(address, 'control.replace', {'points': points});
 
+/// Sends `Filter` to the `queryTable` neuron at [address].
+Future<ActivationOutcome> actQueryTableFilter(
+  NodeContext ctx,
+  String address, {
+  required String text,
+}) => ctx.act(address, 'control.filter', {'text': text});
+
+/// Sends `Page` to the `queryTable` neuron at [address].
+Future<ActivationOutcome> actQueryTablePage(
+  NodeContext ctx,
+  String address, {
+  required int number,
+}) => ctx.act(address, 'control.page', {'number': number});
+
+/// Sends `Sort` to the `queryTable` neuron at [address].
+Future<ActivationOutcome> actQueryTableSort(
+  NodeContext ctx,
+  String address, {
+  required String column,
+}) => ctx.act(address, 'control.sort', {'column': column});
+
 /// Sends `Select` to the `tabStrip` neuron at [address].
 Future<ActivationOutcome> actTabStripSelect(
   NodeContext ctx,

@@ -1819,3 +1819,125 @@ static DigitalBrain.UI.LivePoint.operator ==(DigitalBrain.UI.LivePoint? left, Di
 static DigitalBrain.UI.LiveChartProps.operator !=(DigitalBrain.UI.LiveChartProps? left, DigitalBrain.UI.LiveChartProps? right) -> bool
 static DigitalBrain.UI.LiveChartProps.operator ==(DigitalBrain.UI.LiveChartProps? left, DigitalBrain.UI.LiveChartProps? right) -> bool
 static readonly DigitalBrain.UI.ChartRefusals.Kinds -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.UI.Controls.QueryTableState
+DigitalBrain.UI.Controls.QueryTableState.<Clone>$() -> DigitalBrain.UI.Controls.QueryTableState!
+DigitalBrain.UI.Controls.QueryTableState.Descending.get -> bool
+DigitalBrain.UI.Controls.QueryTableState.Descending.init -> void
+DigitalBrain.UI.Controls.QueryTableState.Equals(DigitalBrain.UI.Controls.QueryTableState? other) -> bool
+DigitalBrain.UI.Controls.QueryTableState.Filter.get -> string!
+DigitalBrain.UI.Controls.QueryTableState.Filter.init -> void
+DigitalBrain.UI.Controls.QueryTableState.Page.get -> int
+DigitalBrain.UI.Controls.QueryTableState.Page.init -> void
+DigitalBrain.UI.Controls.QueryTableState.QueryTableState() -> void
+DigitalBrain.UI.Controls.QueryTableState.SortBy.get -> string?
+DigitalBrain.UI.Controls.QueryTableState.SortBy.init -> void
+DigitalBrain.UI.Controls.QueryTableView
+DigitalBrain.UI.Controls.QueryTableView.ColumnIds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.UI.Controls.QueryTableView.ColumnIds.init -> void
+DigitalBrain.UI.Controls.QueryTableView.Deconstruct(out string! Key, out string! Filter, out string? SortBy, out bool Descending, out int Page, out int PageSize, out int Total, out bool Loaded, out System.Collections.Generic.IReadOnlyList<string!>! ColumnIds, out System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string!>!>! Rows, out string? Error) -> void
+DigitalBrain.UI.Controls.QueryTableView.Descending.get -> bool
+DigitalBrain.UI.Controls.QueryTableView.Descending.init -> void
+DigitalBrain.UI.Controls.QueryTableView.Equals(DigitalBrain.UI.Controls.QueryTableView? other) -> bool
+DigitalBrain.UI.Controls.QueryTableView.Error.get -> string?
+DigitalBrain.UI.Controls.QueryTableView.Error.init -> void
+DigitalBrain.UI.Controls.QueryTableView.Filter.get -> string!
+DigitalBrain.UI.Controls.QueryTableView.Filter.init -> void
+DigitalBrain.UI.Controls.QueryTableView.Key.get -> string!
+DigitalBrain.UI.Controls.QueryTableView.Key.init -> void
+DigitalBrain.UI.Controls.QueryTableView.Loaded.get -> bool
+DigitalBrain.UI.Controls.QueryTableView.Loaded.init -> void
+DigitalBrain.UI.Controls.QueryTableView.Page.get -> int
+DigitalBrain.UI.Controls.QueryTableView.Page.init -> void
+DigitalBrain.UI.Controls.QueryTableView.PageSize.get -> int
+DigitalBrain.UI.Controls.QueryTableView.PageSize.init -> void
+DigitalBrain.UI.Controls.QueryTableView.QueryTableView(string! Key, string! Filter, string? SortBy, bool Descending, int Page, int PageSize, int Total, bool Loaded, System.Collections.Generic.IReadOnlyList<string!>! ColumnIds, System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string!>!>! Rows, string? Error) -> void
+DigitalBrain.UI.Controls.QueryTableView.Rows.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string!>!>!
+DigitalBrain.UI.Controls.QueryTableView.Rows.init -> void
+DigitalBrain.UI.Controls.QueryTableView.SortBy.get -> string?
+DigitalBrain.UI.Controls.QueryTableView.SortBy.init -> void
+DigitalBrain.UI.Controls.QueryTableView.Total.get -> int
+DigitalBrain.UI.Controls.QueryTableView.Total.init -> void
+DigitalBrain.UI.QueryTableColumn
+DigitalBrain.UI.QueryTableColumn.<Clone>$() -> DigitalBrain.UI.QueryTableColumn!
+DigitalBrain.UI.QueryTableColumn.Deconstruct(out string! Id, out string! Title) -> void
+DigitalBrain.UI.QueryTableColumn.Equals(DigitalBrain.UI.QueryTableColumn? other) -> bool
+DigitalBrain.UI.QueryTableColumn.Id.get -> string!
+DigitalBrain.UI.QueryTableColumn.Id.init -> void
+DigitalBrain.UI.QueryTableColumn.QueryTableColumn(string! Id, string! Title) -> void
+DigitalBrain.UI.QueryTableColumn.Title.get -> string!
+DigitalBrain.UI.QueryTableColumn.Title.init -> void
+DigitalBrain.UI.QueryTableProps
+DigitalBrain.UI.QueryTableProps.Columns.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.QueryTableColumn!>!
+DigitalBrain.UI.QueryTableProps.Columns.init -> void
+DigitalBrain.UI.QueryTableProps.Deconstruct(out string! Title, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.QueryTableColumn!>! Columns, out string! SourceAddress, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.QueryTableProps.Equals(DigitalBrain.UI.QueryTableProps? other) -> bool
+DigitalBrain.UI.QueryTableProps.QueryTableProps(string! Title, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.QueryTableColumn!>! Columns, string! SourceAddress, bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.QueryTableProps.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
+DigitalBrain.UI.QueryTableProps.SourceAddress.get -> string!
+DigitalBrain.UI.QueryTableProps.SourceAddress.init -> void
+DigitalBrain.UI.QueryTableProps.Title.get -> string!
+DigitalBrain.UI.QueryTableProps.Title.init -> void
+DigitalBrain.UI.TablePage
+DigitalBrain.UI.TablePage.<Clone>$() -> DigitalBrain.UI.TablePage!
+DigitalBrain.UI.TablePage.Deconstruct(out System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyDictionary<string!, string!>!>! Rows, out int Total) -> void
+DigitalBrain.UI.TablePage.Equals(DigitalBrain.UI.TablePage? other) -> bool
+DigitalBrain.UI.TablePage.Rows.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyDictionary<string!, string!>!>!
+DigitalBrain.UI.TablePage.Rows.init -> void
+DigitalBrain.UI.TablePage.TablePage(System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyDictionary<string!, string!>!>! Rows, int Total) -> void
+DigitalBrain.UI.TablePage.Total.get -> int
+DigitalBrain.UI.TablePage.Total.init -> void
+DigitalBrain.UI.TableQuery
+DigitalBrain.UI.TableQuery.<Clone>$() -> DigitalBrain.UI.TableQuery!
+DigitalBrain.UI.TableQuery.Deconstruct(out string! Filter, out string? SortBy, out bool Descending, out int Page, out int PageSize) -> void
+DigitalBrain.UI.TableQuery.Descending.get -> bool
+DigitalBrain.UI.TableQuery.Descending.init -> void
+DigitalBrain.UI.TableQuery.Equals(DigitalBrain.UI.TableQuery? other) -> bool
+DigitalBrain.UI.TableQuery.Filter.get -> string!
+DigitalBrain.UI.TableQuery.Filter.init -> void
+DigitalBrain.UI.TableQuery.Page.get -> int
+DigitalBrain.UI.TableQuery.Page.init -> void
+DigitalBrain.UI.TableQuery.PageSize.get -> int
+DigitalBrain.UI.TableQuery.PageSize.init -> void
+DigitalBrain.UI.TableQuery.SortBy.get -> string?
+DigitalBrain.UI.TableQuery.SortBy.init -> void
+DigitalBrain.UI.TableQuery.TableQuery(string! Filter, string? SortBy, bool Descending, int Page, int PageSize = 50) -> void
+DigitalBrain.UI.TableRefusals
+const DigitalBrain.UI.Controls.QueryTableState.PageSize = 50 -> int
+const DigitalBrain.UI.TableRefusals.PageOutOfRange = "control.pageOutOfRange" -> string!
+const DigitalBrain.UI.TableRefusals.PageSignal = "control.page" -> string!
+const DigitalBrain.UI.TableRefusals.SortSignal = "control.sort" -> string!
+const DigitalBrain.UI.TableRefusals.UnknownColumn = "control.unknownColumn" -> string!
+override DigitalBrain.UI.Controls.QueryTableState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.QueryTableState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.QueryTableState.ToString() -> string!
+override DigitalBrain.UI.Controls.QueryTableView.<Clone>$() -> DigitalBrain.UI.Controls.QueryTableView!
+override DigitalBrain.UI.Controls.QueryTableView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.QueryTableView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.QueryTableView.ToString() -> string!
+override DigitalBrain.UI.QueryTableColumn.Equals(object? obj) -> bool
+override DigitalBrain.UI.QueryTableColumn.GetHashCode() -> int
+override DigitalBrain.UI.QueryTableColumn.ToString() -> string!
+override DigitalBrain.UI.QueryTableProps.<Clone>$() -> DigitalBrain.UI.QueryTableProps!
+override DigitalBrain.UI.QueryTableProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.QueryTableProps.GetHashCode() -> int
+override DigitalBrain.UI.QueryTableProps.ToString() -> string!
+override DigitalBrain.UI.TablePage.Equals(object? obj) -> bool
+override DigitalBrain.UI.TablePage.GetHashCode() -> int
+override DigitalBrain.UI.TablePage.ToString() -> string!
+override DigitalBrain.UI.TableQuery.Equals(object? obj) -> bool
+override DigitalBrain.UI.TableQuery.GetHashCode() -> int
+override DigitalBrain.UI.TableQuery.ToString() -> string!
+override sealed DigitalBrain.UI.Controls.QueryTableView.Equals(DigitalBrain.UI.Node? other) -> bool
+override sealed DigitalBrain.UI.QueryTableProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+static DigitalBrain.UI.Controls.QueryTableState.operator !=(DigitalBrain.UI.Controls.QueryTableState? left, DigitalBrain.UI.Controls.QueryTableState? right) -> bool
+static DigitalBrain.UI.Controls.QueryTableState.operator ==(DigitalBrain.UI.Controls.QueryTableState? left, DigitalBrain.UI.Controls.QueryTableState? right) -> bool
+static DigitalBrain.UI.Controls.QueryTableView.operator !=(DigitalBrain.UI.Controls.QueryTableView? left, DigitalBrain.UI.Controls.QueryTableView? right) -> bool
+static DigitalBrain.UI.Controls.QueryTableView.operator ==(DigitalBrain.UI.Controls.QueryTableView? left, DigitalBrain.UI.Controls.QueryTableView? right) -> bool
+static DigitalBrain.UI.QueryTableColumn.operator !=(DigitalBrain.UI.QueryTableColumn? left, DigitalBrain.UI.QueryTableColumn? right) -> bool
+static DigitalBrain.UI.QueryTableColumn.operator ==(DigitalBrain.UI.QueryTableColumn? left, DigitalBrain.UI.QueryTableColumn? right) -> bool
+static DigitalBrain.UI.QueryTableProps.operator !=(DigitalBrain.UI.QueryTableProps? left, DigitalBrain.UI.QueryTableProps? right) -> bool
+static DigitalBrain.UI.QueryTableProps.operator ==(DigitalBrain.UI.QueryTableProps? left, DigitalBrain.UI.QueryTableProps? right) -> bool
+static DigitalBrain.UI.TablePage.operator !=(DigitalBrain.UI.TablePage? left, DigitalBrain.UI.TablePage? right) -> bool
+static DigitalBrain.UI.TablePage.operator ==(DigitalBrain.UI.TablePage? left, DigitalBrain.UI.TablePage? right) -> bool
+static DigitalBrain.UI.TableQuery.operator !=(DigitalBrain.UI.TableQuery? left, DigitalBrain.UI.TableQuery? right) -> bool
+static DigitalBrain.UI.TableQuery.operator ==(DigitalBrain.UI.TableQuery? left, DigitalBrain.UI.TableQuery? right) -> bool

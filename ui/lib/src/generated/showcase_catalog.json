@@ -1937,6 +1937,241 @@
     ]
   },
   {
+    "kind": "queryTable",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "columns",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "sourceAddress",
+        "type": "String",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "filter",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "sortBy",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "descending",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "Filter",
+        "signal": "control.filter",
+        "args": {
+          "text": "String"
+        }
+      },
+      {
+        "name": "Page",
+        "signal": "control.page",
+        "args": {
+          "number": "int"
+        }
+      },
+      {
+        "name": "Sort",
+        "signal": "control.sort",
+        "args": {
+          "column": "String"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "TableChanged",
+        "signal": "control.tableChanged",
+        "args": {
+          "filter": "String",
+          "sortBy": "String?",
+          "descending": "bool",
+          "page": "int"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "queryTableView",
+        "key": "people",
+        "filter": "",
+        "sortBy": "name",
+        "descending": false,
+        "page": 1,
+        "pageSize": 50,
+        "total": 3,
+        "loaded": true,
+        "columnIds": [
+          "id",
+          "name",
+          "status"
+        ],
+        "rows": [
+          [
+            "1",
+            "Ada",
+            "active"
+          ],
+          [
+            "2",
+            "Grace",
+            "away"
+          ],
+          [
+            "3",
+            "Linus",
+            "active"
+          ]
+        ],
+        "error": null,
+        "props": {
+          "title": "People",
+          "columns": [
+            {
+              "id": "id",
+              "title": "Id"
+            },
+            {
+              "id": "name",
+              "title": "Name"
+            },
+            {
+              "id": "status",
+              "title": "Status"
+            }
+          ],
+          "sourceAddress": "local/control.sampleTableSource/people",
+          "isEnabled": true,
+          "automationName": "People"
+        }
+      },
+      {
+        "kind": "queryTableView",
+        "key": "broken",
+        "filter": "",
+        "sortBy": null,
+        "descending": false,
+        "page": 1,
+        "pageSize": 50,
+        "total": 0,
+        "loaded": false,
+        "columnIds": [],
+        "rows": [],
+        "error": "The source did not answer.",
+        "props": {
+          "title": "Broken",
+          "columns": [
+            {
+              "id": "name",
+              "title": "Name"
+            }
+          ],
+          "sourceAddress": "local/control.sampleTableSource/none",
+          "isEnabled": true,
+          "automationName": "Broken"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "queryTableView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "filter",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "sortBy",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "descending",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "pageSize",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "total",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "loaded",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "columnIds",
+        "type": "List<String>",
+        "default": null
+      },
+      {
+        "name": "rows",
+        "type": "List<List<String>>",
+        "default": null
+      },
+      {
+        "name": "error",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
     "kind": "recordCard",
     "isNeuron": false,
     "props": [

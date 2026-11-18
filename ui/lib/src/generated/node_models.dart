@@ -114,6 +114,7 @@ sealed class Node {
     'comboBoxView' => ComboBoxViewNode.fromJson(json),
     'formView' => FormViewNode.fromJson(json),
     'liveChartView' => LiveChartViewNode.fromJson(json),
+    'queryTableView' => QueryTableViewNode.fromJson(json),
     'listBoxView' => ListBoxViewNode.fromJson(json),
     final kind => UnknownNode(kind is String ? kind : '', json),
   };
@@ -1694,6 +1695,93 @@ final class ProgressNode extends Node {
     showError: _bool(json['showError']),
     ring: _bool(json['ring']),
   );
+}
+
+final class QueryTableColumn {
+  const QueryTableColumn({required this.id, required this.title});
+
+  final String id;
+  final String title;
+
+  factory QueryTableColumn.fromJson(Map<String, dynamic> json) =>
+      QueryTableColumn(id: _string(json['id']), title: _string(json['title']));
+}
+
+final class QueryTableProps {
+  const QueryTableProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.title,
+    required this.columns,
+    required this.sourceAddress,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String title;
+  final List<QueryTableColumn> columns;
+  final String sourceAddress;
+
+  factory QueryTableProps.fromJson(Map<String, dynamic> json) =>
+      QueryTableProps(
+        isEnabled: _bool(json['isEnabled'], true),
+        automationName: _stringOrNull(json['automationName']),
+        title: _string(json['title']),
+        columns: [
+          for (final item in _list(json['columns']))
+            QueryTableColumn.fromJson(_map(item)),
+        ],
+        sourceAddress: _string(json['sourceAddress']),
+      );
+}
+
+final class QueryTableViewNode extends Node {
+  const QueryTableViewNode({
+    required this.key,
+    required this.filter,
+    required this.sortBy,
+    required this.descending,
+    required this.page,
+    required this.pageSize,
+    required this.total,
+    required this.loaded,
+    required this.columnIds,
+    required this.rows,
+    required this.error,
+  });
+
+  @override
+  String get kind => 'queryTableView';
+
+  final String key;
+  final String filter;
+  final String? sortBy;
+  final bool descending;
+  final int page;
+  final int pageSize;
+  final int total;
+  final bool loaded;
+  final List<String> columnIds;
+  final List<List<String>> rows;
+  final String? error;
+
+  factory QueryTableViewNode.fromJson(Map<String, dynamic> json) =>
+      QueryTableViewNode(
+        key: _string(json['key']),
+        filter: _string(json['filter']),
+        sortBy: _stringOrNull(json['sortBy']),
+        descending: _bool(json['descending']),
+        page: _int(json['page']),
+        pageSize: _int(json['pageSize']),
+        total: _int(json['total']),
+        loaded: _bool(json['loaded']),
+        columnIds: [for (final item in _list(json['columnIds'])) _string(item)],
+        rows: [
+          for (final item in _list(json['rows']))
+            [for (final item1 in _list(item)) _string(item1)],
+        ],
+        error: _stringOrNull(json['error']),
+      );
 }
 
 final class RecordCardNode extends Node {

@@ -24,5 +24,6 @@ internal static class ControlSamples
             [new Submit(new Dictionary<string, string> { ["name"] = "Ada", ["bio"] = "Engineer" })]),
         [typeof(ListBoxNeuron)] = new(new ListBoxProps([new ListBoxItem("a", "A"), new ListBoxItem("b", "B", "Second")]), new ListBoxState(), [new SelectCommand("a"), new SelectCommand("b")]),
         [typeof(LiveChartNeuron)] = new(new LiveChartProps("Spend"), new LiveChartState(), [new Replace([new LivePoint("a", "Mon", 1)]), new Append(new LivePoint("b", "Tue", 2))]),
+        [typeof(QueryTableNeuron)] = new(new QueryTableProps("People", [new QueryTableColumn("name", "Name")], "local/control.sampleTableSource/people"), new QueryTableState(), [new Filter("a"), new Sort("name"), new Page(2)]),
     };
 }

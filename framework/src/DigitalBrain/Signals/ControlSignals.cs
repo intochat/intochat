@@ -67,3 +67,26 @@ public sealed record Append(DigitalBrain.UI.LivePoint Point) : Signal;
 /// <param name="Version">The chart's change counter after the change.</param>
 [Signal("control.chartChanged")]
 public sealed record ChartChanged(int Version) : Signal;
+
+/// <summary>Orders a query table by a column: the column it is already ordered by flips direction, another orders it ascending. Back to page 1.</summary>
+/// <param name="Column">The column id; one the slot's props do not show is refused (control.unknownColumn).</param>
+[Signal("control.sort")]
+public sealed record Sort(string Column) : Signal;
+
+/// <summary>Filters a query table's rows by text. Back to page 1.</summary>
+/// <param name="Text">The filter text; empty matches every row.</param>
+[Signal("control.filter")]
+public sealed record Filter(string Text) : Signal;
+
+/// <summary>Shows a page of a query table; the current page reads it again.</summary>
+/// <param name="Number">The page number, from 1; below 1 is refused (control.pageOutOfRange).</param>
+[Signal("control.page")]
+public sealed record Page(int Number) : Signal;
+
+/// <summary>A query table's query changed (or its page was read again).</summary>
+/// <param name="Filter">The filter text.</param>
+/// <param name="SortBy">The column id the rows are ordered by, or null.</param>
+/// <param name="Descending">True orders largest first.</param>
+/// <param name="Page">The page shown.</param>
+[Signal("control.tableChanged")]
+public sealed record TableChanged(string Filter, string? SortBy, bool Descending, int Page) : Signal;

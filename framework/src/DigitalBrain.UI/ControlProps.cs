@@ -315,3 +315,78 @@ public sealed record LiveChartProps(string Title, string Kind = "bar", bool IsEn
 /// <param name="Label">The point's label.</param>
 /// <param name="Value">The point's value.</param>
 public sealed record LivePoint(string EventId, string Label, double Value);
+
+/// <summary>The refusal reasons of a command routed to a query table slot.</summary>
+public static class TableRefusals
+{
+    /// <summary>The alias of the sort command (<c>DigitalBrain.UI.Commands.Sort</c>, which this assembly cannot reference).</summary>
+    public const string SortSignal = "control.sort";
+
+    /// <summary>The alias of the page command (<c>DigitalBrain.UI.Commands.Page</c>, which this assembly cannot reference).</summary>
+    public const string PageSignal = "control.page";
+
+    /// <summary>A sort names no column of the slot's props.</summary>
+    public const string UnknownColumn = "control.unknownColumn";
+
+    /// <summary>A page number below 1.</summary>
+    public const string PageOutOfRange = "control.pageOutOfRange";
+}
+
+/// <summary>A column of a query table: the id its rows are keyed by and the title drawn above it.</summary>
+/// <param name="Id">The column id the source keys row values by.</param>
+/// <param name="Title">The header text.</param>
+public sealed record QueryTableColumn(string Id, string Title);
+
+/// <summary>
+/// The props of a query table: what its parent decides. The table owns only its query (filter, sort, page); the rows are read from the
+/// source at <see cref="SourceAddress"/> and never stored.
+/// </summary>
+/// <param name="Title">The table's title.</param>
+/// <param name="Columns">The columns to show, in order; a sort naming any other column is refused (control.unknownColumn).</param>
+/// <param name="SourceAddress">The address of the neuron the rows are read from (a table source of the same brain).</param>
+/// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
+/// <param name="AutomationName">The accessible name; null falls back to the title.</param>
+public sealed record QueryTableProps(string Title, IReadOnlyList<QueryTableColumn> Columns, string SourceAddress, bool IsEnabled = true, string? AutomationName = null)
+    : ControlProps(IsEnabled, AutomationName), ICommandGate
+{
+    /// <inheritdoc />
+    public string? RefusalOf(string signal, JsonElement? args)
+    {
+        var json = args is { ValueKind: JsonValueKind.Object } value ? value : (JsonElement?)null;
+        return signal switch
+        {
+            TableRefusals.SortSignal => json is { } sort && sort.TryGetProperty("column", out var column) && column.ValueKind == JsonValueKind.String
+                && Columns.Any(known => known.Id == column.GetString()) ? null : TableRefusals.UnknownColumn,
+            TableRefusals.PageSignal => json is { } page && page.TryGetProperty("number", out var number) && number.TryGetInt32(out var n) && n >= 1
+                ? null : TableRefusals.PageOutOfRange,
+            _ => null,
+        };
+    }
+
+    /// <inheritdoc />
+    public bool Equals(QueryTableProps? other) => other is not null && base.Equals(other) && Title == other.Title && SourceAddress == other.SourceAddress && Columns.SequenceEqual(other.Columns);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Title, SourceAddress, Columns.Count);
+}
+
+/// <summary>What a query table asks its source for: one page of the rows matching a filter, in an order.</summary>
+/// <param name="Filter">The filter text; empty matches every row.</param>
+/// <param name="SortBy">The column id to order by; null keeps the source's order.</param>
+/// <param name="Descending">True orders largest first.</param>
+/// <param name="Page">The page number, from 1.</param>
+/// <param name="PageSize">The rows per page.</param>
+public sealed record TableQuery(string Filter, string? SortBy, bool Descending, int Page, int PageSize = 50);
+
+/// <summary>One page of a table source's rows and how many rows matched in all.</summary>
+/// <param name="Rows">The page's rows: each maps a column id to its value.</param>
+/// <param name="Total">How many rows matched the filter across every page.</param>
+public sealed record TablePage(IReadOnlyList<IReadOnlyDictionary<string, string>> Rows, int Total)
+{
+    /// <inheritdoc />
+    public bool Equals(TablePage? other) => other is not null && Total == other.Total && Rows.Count == other.Rows.Count
+        && Rows.Zip(other.Rows).All(pair => pair.First.Count == pair.Second.Count && pair.First.All(cell => pair.Second.TryGetValue(cell.Key, out var v) && v == cell.Value));
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(Rows.Count, Total);
+}

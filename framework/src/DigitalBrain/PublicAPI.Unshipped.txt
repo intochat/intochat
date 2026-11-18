@@ -4289,3 +4289,64 @@ static DigitalBrain.UI.Commands.ChartChanged.operator !=(DigitalBrain.UI.Command
 static DigitalBrain.UI.Commands.ChartChanged.operator ==(DigitalBrain.UI.Commands.ChartChanged? left, DigitalBrain.UI.Commands.ChartChanged? right) -> bool
 static DigitalBrain.UI.Commands.Replace.operator !=(DigitalBrain.UI.Commands.Replace? left, DigitalBrain.UI.Commands.Replace? right) -> bool
 static DigitalBrain.UI.Commands.Replace.operator ==(DigitalBrain.UI.Commands.Replace? left, DigitalBrain.UI.Commands.Replace? right) -> bool
+DigitalBrain.ITableSource
+DigitalBrain.ITableSource.Columns() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.QueryTableColumn!>!>!
+DigitalBrain.ITableSource.Query(DigitalBrain.UI.TableQuery! q) -> System.Threading.Tasks.Task<DigitalBrain.UI.TablePage!>!
+DigitalBrain.UI.Commands.Filter
+DigitalBrain.UI.Commands.Filter.Deconstruct(out string! Text) -> void
+DigitalBrain.UI.Commands.Filter.Equals(DigitalBrain.UI.Commands.Filter? other) -> bool
+DigitalBrain.UI.Commands.Filter.Filter(string! Text) -> void
+DigitalBrain.UI.Commands.Filter.Text.get -> string!
+DigitalBrain.UI.Commands.Filter.Text.init -> void
+DigitalBrain.UI.Commands.Page
+DigitalBrain.UI.Commands.Page.Deconstruct(out int Number) -> void
+DigitalBrain.UI.Commands.Page.Equals(DigitalBrain.UI.Commands.Page? other) -> bool
+DigitalBrain.UI.Commands.Page.Number.get -> int
+DigitalBrain.UI.Commands.Page.Number.init -> void
+DigitalBrain.UI.Commands.Page.Page(int Number) -> void
+DigitalBrain.UI.Commands.Sort
+DigitalBrain.UI.Commands.Sort.Column.get -> string!
+DigitalBrain.UI.Commands.Sort.Column.init -> void
+DigitalBrain.UI.Commands.Sort.Deconstruct(out string! Column) -> void
+DigitalBrain.UI.Commands.Sort.Equals(DigitalBrain.UI.Commands.Sort? other) -> bool
+DigitalBrain.UI.Commands.Sort.Sort(string! Column) -> void
+DigitalBrain.UI.Commands.TableChanged
+DigitalBrain.UI.Commands.TableChanged.Deconstruct(out string! Filter, out string? SortBy, out bool Descending, out int Page) -> void
+DigitalBrain.UI.Commands.TableChanged.Descending.get -> bool
+DigitalBrain.UI.Commands.TableChanged.Descending.init -> void
+DigitalBrain.UI.Commands.TableChanged.Equals(DigitalBrain.UI.Commands.TableChanged? other) -> bool
+DigitalBrain.UI.Commands.TableChanged.Filter.get -> string!
+DigitalBrain.UI.Commands.TableChanged.Filter.init -> void
+DigitalBrain.UI.Commands.TableChanged.Page.get -> int
+DigitalBrain.UI.Commands.TableChanged.Page.init -> void
+DigitalBrain.UI.Commands.TableChanged.SortBy.get -> string?
+DigitalBrain.UI.Commands.TableChanged.SortBy.init -> void
+DigitalBrain.UI.Commands.TableChanged.TableChanged(string! Filter, string? SortBy, bool Descending, int Page) -> void
+override DigitalBrain.UI.Commands.Filter.<Clone>$() -> DigitalBrain.UI.Commands.Filter!
+override DigitalBrain.UI.Commands.Filter.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Filter.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Filter.ToString() -> string!
+override DigitalBrain.UI.Commands.Page.<Clone>$() -> DigitalBrain.UI.Commands.Page!
+override DigitalBrain.UI.Commands.Page.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Page.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Page.ToString() -> string!
+override DigitalBrain.UI.Commands.Sort.<Clone>$() -> DigitalBrain.UI.Commands.Sort!
+override DigitalBrain.UI.Commands.Sort.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.Sort.GetHashCode() -> int
+override DigitalBrain.UI.Commands.Sort.ToString() -> string!
+override DigitalBrain.UI.Commands.TableChanged.<Clone>$() -> DigitalBrain.UI.Commands.TableChanged!
+override DigitalBrain.UI.Commands.TableChanged.Equals(object? obj) -> bool
+override DigitalBrain.UI.Commands.TableChanged.GetHashCode() -> int
+override DigitalBrain.UI.Commands.TableChanged.ToString() -> string!
+override sealed DigitalBrain.UI.Commands.Filter.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.Page.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.Sort.Equals(DigitalBrain.Signal? other) -> bool
+override sealed DigitalBrain.UI.Commands.TableChanged.Equals(DigitalBrain.Signal? other) -> bool
+static DigitalBrain.UI.Commands.Filter.operator !=(DigitalBrain.UI.Commands.Filter? left, DigitalBrain.UI.Commands.Filter? right) -> bool
+static DigitalBrain.UI.Commands.Filter.operator ==(DigitalBrain.UI.Commands.Filter? left, DigitalBrain.UI.Commands.Filter? right) -> bool
+static DigitalBrain.UI.Commands.Page.operator !=(DigitalBrain.UI.Commands.Page? left, DigitalBrain.UI.Commands.Page? right) -> bool
+static DigitalBrain.UI.Commands.Page.operator ==(DigitalBrain.UI.Commands.Page? left, DigitalBrain.UI.Commands.Page? right) -> bool
+static DigitalBrain.UI.Commands.Sort.operator !=(DigitalBrain.UI.Commands.Sort? left, DigitalBrain.UI.Commands.Sort? right) -> bool
+static DigitalBrain.UI.Commands.Sort.operator ==(DigitalBrain.UI.Commands.Sort? left, DigitalBrain.UI.Commands.Sort? right) -> bool
+static DigitalBrain.UI.Commands.TableChanged.operator !=(DigitalBrain.UI.Commands.TableChanged? left, DigitalBrain.UI.Commands.TableChanged? right) -> bool
+static DigitalBrain.UI.Commands.TableChanged.operator ==(DigitalBrain.UI.Commands.TableChanged? left, DigitalBrain.UI.Commands.TableChanged? right) -> bool
