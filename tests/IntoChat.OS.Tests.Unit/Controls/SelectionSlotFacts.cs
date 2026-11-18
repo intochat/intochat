@@ -10,7 +10,13 @@ using IntoChat.OS.Apps.Controls;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Controls;
 
-public sealed record SelectionParentState;
+public sealed record SelectionParentState
+{
+    public bool PrivacyRemoved { get; init; }
+}
+
+[Signal("test.removePrivacy")]
+public sealed record RemovePrivacy : Signal;
 
 /*
 # Selection parent
@@ -20,8 +26,23 @@ A test parent that slots each selecting control with two items in its props.
 [Neuron("test.selection-parent")]
 public sealed class SelectionParent : Screen<SelectionParentState>
 {
-    protected override View Render(SelectionParentState state) => new("Parent", new Column([
-        Slot<TabStripNeuron, TabStripProps>("tabs", new TabStripProps([new TabStripItem("general", "General"), new TabStripItem("privacy", "Privacy")])),
+    protected override View Render(SelectionParentState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return Draw(state.PrivacyRemoved);
+    }
+
+    [On]
+    public Task RemovePrivacy(RemovePrivacy signal)
+    {
+        ArgumentNullException.ThrowIfNull(signal);
+        return Show(State with { PrivacyRemoved = true });
+    }
+
+    private View Draw(bool privacyRemoved) => new("Parent", new Column([
+        Slot<TabStripNeuron, TabStripProps>("tabs", new TabStripProps(privacyRemoved
+            ? [new TabStripItem("general", "General"), new TabStripItem("about", "About")]
+            : [new TabStripItem("general", "General"), new TabStripItem("privacy", "Privacy")])),
         Slot<ComboBoxNeuron, ComboBoxProps>("theme", new ComboBoxProps("Theme", [new ComboBoxOption("light", "Light"), new ComboBoxOption("dark", "Dark")])),
         Slot<ListBoxNeuron, ListBoxProps>("devices", new ListBoxProps([new ListBoxItem("laptop", "Laptop"), new ListBoxItem("phone", "Phone", "Yesterday")])),
         Slot<ListBoxNeuron, ListBoxProps>("history", new ListBoxProps([new ListBoxItem("1", "Signed in")], ListSelectionMode.None)),
@@ -123,6 +144,25 @@ public sealed class SelectionSlotFacts : IAsyncDisposable
         Assert.Equal(SelectionRefusals.SelectionOff, refused.Reason);
         Assert.False(_os.IsActive(Child("control.listBox", "history")));
     }
+
+    [Fact]
+    public async Task After_the_props_drop_the_selected_tab_selecting_a_valid_one_publishes()
+    {
+        await Select("tabs", "privacy");
+        await Parent.Dispatch(new Command(".", "test.removePrivacy"));
+
+        await Select("tabs", "general");
+
+        Assert.Equal([new SelectionChanged("privacy"), new SelectionChanged("general")], Signals(Child("control.tabStrip", "tabs")));
+    }
+
+    [Fact]
+    public void The_gate_names_the_select_command_alias()
+        => Assert.Equal(SelectionRefusals.SelectSignal, typeof(SelectCommand).GetCustomAttributes(typeof(SignalAttribute), false).Cast<SignalAttribute>().Single().Alias);
+
+    [Fact]
+    public void A_gate_passes_every_other_command()
+        => Assert.Null(new ListBoxProps([], ListSelectionMode.None).RefusalOf("control.toggle", null));
 
     public async ValueTask DisposeAsync()
     {

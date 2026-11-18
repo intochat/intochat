@@ -15,15 +15,16 @@ const _props = {
 
 Future<List<Map<String, dynamic>>> _pump(
   WidgetTester tester,
-  Map<String, dynamic> props,
-) async {
+  Map<String, dynamic> props, {
+  String? selectedId = 'dark',
+}) async {
   final sent = <Map<String, dynamic>>[];
   await tester.pumpWidget(
     MaterialApp(
       theme: UiTheme.intochat(Brightness.light),
       home: Scaffold(
         body: NodeRenderer.render(
-          const ComboBoxViewNode(key: 'theme', selectedId: 'dark'),
+          ComboBoxViewNode(key: 'theme', selectedId: selectedId),
           NodeContext(
             view: 'local/apps/settings/view',
             generation: 1,
@@ -78,5 +79,23 @@ void main() {
     await _pump(tester, const {});
 
     expect(find.bySemanticsLabel('theme'), findsOneWidget);
+  });
+
+  testWidgets('a stale selected id selects no option and the first option '
+      'sends Select', (tester) async {
+    final sent = await _pump(tester, _props, selectedId: 'sepia');
+
+    expect(
+      tester
+          .widget<UiKitSelect<String>>(find.byType(UiKitSelect<String>))
+          .value,
+      isNull,
+    );
+    await tester.tap(find.byKey(_box));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Light').last);
+    await tester.pumpAndSettle();
+
+    expect(sent.single['args'], {'id': 'light'});
   });
 }

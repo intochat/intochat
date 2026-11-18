@@ -10,15 +10,16 @@ const _items = [
 
 Future<List<Map<String, dynamic>>> _pump(
   WidgetTester tester,
-  Map<String, dynamic> props,
-) async {
+  Map<String, dynamic> props, {
+  String? selectedId = 'general',
+}) async {
   final sent = <Map<String, dynamic>>[];
   await tester.pumpWidget(
     MaterialApp(
       theme: UiTheme.intochat(Brightness.light),
       home: Scaffold(
         body: NodeRenderer.render(
-          const TabStripViewNode(key: 'sections', selectedId: 'general'),
+          TabStripViewNode(key: 'sections', selectedId: selectedId),
           NodeContext(
             view: 'local/apps/settings/view',
             generation: 1,
@@ -82,4 +83,16 @@ void main() {
       expect(find.bySemanticsLabel('sections'), findsOneWidget);
     },
   );
+
+  testWidgets('a stale selected id selects no tab and the first tab sends '
+      'Select', (tester) async {
+    final sent = await _pump(tester, {'items': _items}, selectedId: 'gone');
+
+    final tabs = tester.widget<UiKitTabs>(find.byType(UiKitTabs));
+    expect(tabs.index, -1);
+    await tester.tap(find.text('General'));
+    await tester.pumpAndSettle();
+
+    expect(sent.single['args'], {'id': 'general'});
+  });
 }

@@ -1480,8 +1480,6 @@ DigitalBrain.UI.Controls.TabStripView.Key.init -> void
 DigitalBrain.UI.Controls.TabStripView.SelectedId.get -> string?
 DigitalBrain.UI.Controls.TabStripView.SelectedId.init -> void
 DigitalBrain.UI.Controls.TabStripView.TabStripView(string! Key, string? SelectedId) -> void
-DigitalBrain.UI.ISelectionProps
-DigitalBrain.UI.ISelectionProps.RefusalOf(string? id) -> string?
 DigitalBrain.UI.SelectionRefusals
 DigitalBrain.UI.TabStripItem
 DigitalBrain.UI.TabStripItem.<Clone>$() -> DigitalBrain.UI.TabStripItem!
@@ -1499,7 +1497,6 @@ DigitalBrain.UI.TabStripProps.Deconstruct(out System.Collections.Generic.IReadOn
 DigitalBrain.UI.TabStripProps.Equals(DigitalBrain.UI.TabStripProps? other) -> bool
 DigitalBrain.UI.TabStripProps.Items.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.TabStripItem!>!
 DigitalBrain.UI.TabStripProps.Items.init -> void
-DigitalBrain.UI.TabStripProps.RefusalOf(string? id) -> string?
 DigitalBrain.UI.TabStripProps.TabStripProps(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.TabStripItem!>! Items, bool IsEnabled = true, string? AutomationName = null) -> void
 const DigitalBrain.UI.SelectionRefusals.SelectionOff = "control.selectionOff" -> string!
 const DigitalBrain.UI.SelectionRefusals.UnknownItem = "control.unknownItem" -> string!
@@ -1544,7 +1541,6 @@ DigitalBrain.UI.ComboBoxProps.Header.get -> string!
 DigitalBrain.UI.ComboBoxProps.Header.init -> void
 DigitalBrain.UI.ComboBoxProps.Options.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ComboBoxOption!>!
 DigitalBrain.UI.ComboBoxProps.Options.init -> void
-DigitalBrain.UI.ComboBoxProps.RefusalOf(string? id) -> string?
 DigitalBrain.UI.Controls.ComboBoxState
 DigitalBrain.UI.Controls.ComboBoxState.<Clone>$() -> DigitalBrain.UI.Controls.ComboBoxState!
 DigitalBrain.UI.Controls.ComboBoxState.ComboBoxState() -> void
@@ -1614,7 +1610,6 @@ DigitalBrain.UI.ListBoxProps.Equals(DigitalBrain.UI.ListBoxProps? other) -> bool
 DigitalBrain.UI.ListBoxProps.Items.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ListBoxItem!>!
 DigitalBrain.UI.ListBoxProps.Items.init -> void
 DigitalBrain.UI.ListBoxProps.ListBoxProps(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ListBoxItem!>! Items, DigitalBrain.UI.ListSelectionMode SelectionMode = DigitalBrain.UI.ListSelectionMode.Single, bool IsEnabled = true, string? AutomationName = null) -> void
-DigitalBrain.UI.ListBoxProps.RefusalOf(string? id) -> string?
 DigitalBrain.UI.ListBoxProps.SelectionMode.get -> DigitalBrain.UI.ListSelectionMode
 DigitalBrain.UI.ListBoxProps.SelectionMode.init -> void
 DigitalBrain.UI.ListSelectionMode
@@ -1644,3 +1639,9 @@ static DigitalBrain.UI.ListBoxItem.operator !=(DigitalBrain.UI.ListBoxItem? left
 static DigitalBrain.UI.ListBoxItem.operator ==(DigitalBrain.UI.ListBoxItem? left, DigitalBrain.UI.ListBoxItem? right) -> bool
 static DigitalBrain.UI.ListBoxProps.operator !=(DigitalBrain.UI.ListBoxProps? left, DigitalBrain.UI.ListBoxProps? right) -> bool
 static DigitalBrain.UI.ListBoxProps.operator ==(DigitalBrain.UI.ListBoxProps? left, DigitalBrain.UI.ListBoxProps? right) -> bool
+DigitalBrain.UI.ComboBoxProps.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
+DigitalBrain.UI.ICommandGate
+DigitalBrain.UI.ICommandGate.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
+DigitalBrain.UI.ListBoxProps.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
+DigitalBrain.UI.TabStripProps.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
+const DigitalBrain.UI.SelectionRefusals.SelectSignal = "control.select" -> string!

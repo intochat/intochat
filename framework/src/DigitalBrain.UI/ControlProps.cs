@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DigitalBrain.UI;
@@ -45,19 +46,28 @@ public sealed record ExpanderProps(string Header, IReadOnlyList<Node> Children, 
     : ControlProps(IsEnabled, AutomationName);
 
 /// <summary>
-/// The props of a control that selects one of its items. The parent checks a <c>Select(Id)</c> routed to the slot against them before the
-/// child is reached, because the items are the parent's: the child stores only the selected id.
+/// Props that check a command routed to their slot. The parent's Send asks them about every command before the child is reached, because
+/// what the check needs (the items, the mode) is the parent's: the child stores only what the user changes.
 /// </summary>
-public interface ISelectionProps
+public interface ICommandGate
 {
-    /// <summary>The refusal reason of selecting <paramref name="id"/>, or null when it may be selected.</summary>
-    /// <param name="id">The item id the command selects; null when the command names none.</param>
-    string? RefusalOf(string? id);
+    /// <summary>The refusal reason of <paramref name="signal"/> with <paramref name="args"/>, or null to pass it to the child.</summary>
+    /// <param name="signal">The command's signal alias.</param>
+    /// <param name="args">The command's arguments as wire JSON, if any.</param>
+    string? RefusalOf(string signal, JsonElement? args);
 }
 
 /// <summary>The refusal reasons of a selection routed to a slot.</summary>
 public static class SelectionRefusals
 {
+    /// <summary>The alias of the select command (<c>DigitalBrain.UI.Commands.Select</c>, which this assembly cannot reference).</summary>
+    public const string SelectSignal = "control.select";
+
+    // The refusal of a select command whose id `refusal` judges; other signals pass.
+    internal static string? OfSelect(string signal, JsonElement? args, Func<string?, string?> refusal)
+        => signal != SelectSignal ? null
+            : refusal(args is { ValueKind: JsonValueKind.Object } json && json.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String ? id.GetString() : null);
+
     /// <summary>The id names no item of the slot's props.</summary>
     public const string UnknownItem = "control.unknownItem";
 
@@ -76,10 +86,11 @@ public sealed record TabStripItem(string Id, string Label, string? Icon = null);
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
 /// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
 public sealed record TabStripProps(IReadOnlyList<TabStripItem> Items, bool IsEnabled = true, string? AutomationName = null)
-    : ControlProps(IsEnabled, AutomationName), ISelectionProps
+    : ControlProps(IsEnabled, AutomationName), ICommandGate
 {
     /// <inheritdoc />
-    public string? RefusalOf(string? id) => Items.Any(item => item.Id == id) ? null : SelectionRefusals.UnknownItem;
+    public string? RefusalOf(string signal, JsonElement? args)
+        => SelectionRefusals.OfSelect(signal, args, id => Items.Any(item => item.Id == id) ? null : SelectionRefusals.UnknownItem);
 
     /// <inheritdoc />
     public bool Equals(TabStripProps? other) => other is not null && base.Equals(other) && Items.SequenceEqual(other.Items);
@@ -99,10 +110,11 @@ public sealed record ComboBoxOption(string Id, string Label);
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
 /// <param name="AutomationName">The accessible name; null falls back to the header.</param>
 public sealed record ComboBoxProps(string Header, IReadOnlyList<ComboBoxOption> Options, bool IsEnabled = true, string? AutomationName = null)
-    : ControlProps(IsEnabled, AutomationName), ISelectionProps
+    : ControlProps(IsEnabled, AutomationName), ICommandGate
 {
     /// <inheritdoc />
-    public string? RefusalOf(string? id) => Options.Any(option => option.Id == id) ? null : SelectionRefusals.UnknownItem;
+    public string? RefusalOf(string signal, JsonElement? args)
+        => SelectionRefusals.OfSelect(signal, args, id => Options.Any(option => option.Id == id) ? null : SelectionRefusals.UnknownItem);
 
     /// <inheritdoc />
     public bool Equals(ComboBoxProps? other) => other is not null && base.Equals(other) && Header == other.Header && Options.SequenceEqual(other.Options);
@@ -136,12 +148,12 @@ public enum ListSelectionMode
 /// <param name="IsEnabled">False draws it disabled; its parent refuses commands to it.</param>
 /// <param name="AutomationName">The accessible name; null falls back to the slot key.</param>
 public sealed record ListBoxProps(IReadOnlyList<ListBoxItem> Items, ListSelectionMode SelectionMode = ListSelectionMode.Single, bool IsEnabled = true, string? AutomationName = null)
-    : ControlProps(IsEnabled, AutomationName), ISelectionProps
+    : ControlProps(IsEnabled, AutomationName), ICommandGate
 {
     /// <inheritdoc />
-    public string? RefusalOf(string? id) => SelectionMode == ListSelectionMode.None
+    public string? RefusalOf(string signal, JsonElement? args) => SelectionRefusals.OfSelect(signal, args, id => SelectionMode == ListSelectionMode.None
         ? SelectionRefusals.SelectionOff
-        : Items.Any(item => item.Id == id) ? null : SelectionRefusals.UnknownItem;
+        : Items.Any(item => item.Id == id) ? null : SelectionRefusals.UnknownItem);
 
     /// <inheritdoc />
     public bool Equals(ListBoxProps? other) => other is not null && base.Equals(other) && SelectionMode == other.SelectionMode && Items.SequenceEqual(other.Items);

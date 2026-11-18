@@ -10,15 +10,16 @@ const _items = [
 
 Future<List<Map<String, dynamic>>> _pump(
   WidgetTester tester,
-  Map<String, dynamic> props,
-) async {
+  Map<String, dynamic> props, {
+  String? selectedId = 'laptop',
+}) async {
   final sent = <Map<String, dynamic>>[];
   await tester.pumpWidget(
     MaterialApp(
       theme: UiTheme.intochat(Brightness.light),
       home: Scaffold(
         body: NodeRenderer.render(
-          const ListBoxViewNode(key: 'devices', selectedId: 'laptop'),
+          ListBoxViewNode(key: 'devices', selectedId: selectedId),
           NodeContext(
             view: 'local/apps/settings/view',
             generation: 1,
@@ -90,5 +91,21 @@ void main() {
     await _pump(tester, const {});
 
     expect(find.bySemanticsLabel('devices'), findsOneWidget);
+  });
+
+  testWidgets('a stale selected id selects no item and the first item sends '
+      'Select', (tester) async {
+    final sent = await _pump(tester, {'items': _items}, selectedId: 'watch');
+
+    expect(
+      tester
+          .widgetList<ListTile>(find.byType(ListTile))
+          .where((t) => t.selected),
+      isEmpty,
+    );
+    await tester.tap(find.text('Laptop'));
+    await tester.pumpAndSettle();
+
+    expect(sent.single['args'], {'id': 'laptop'});
   });
 }

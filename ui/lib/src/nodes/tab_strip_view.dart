@@ -8,7 +8,8 @@ import 'node_context.dart';
 /// What a tab strip neuron draws: the selected id from the neuron's view; the
 /// tabs, enabled and accessible name from the slot's props. A pick sends
 /// `Select` to the neuron itself (`.`); the parent checks the id against the
-/// props and the neuron owns the selection. Disabled props send nothing.
+/// props and the neuron owns the selection. A selected id naming no tab
+/// highlights none. Disabled props send nothing.
 Widget renderTabStripView(TabStripViewNode node, NodeContext ctx) {
   final props = TabStripProps.fromJson(ctx.slotProps);
   final enabled = props.isEnabled && ctx.interactive;
@@ -18,7 +19,8 @@ Widget renderTabStripView(TabStripViewNode node, NodeContext ctx) {
     enabled: enabled,
     child: UiKitTabs(
       labels: [for (final item in props.items) item.label],
-      index: index < 0 ? 0 : index,
+      // A selected id that names no tab of the props selects none.
+      index: index,
       disabled: enabled
           ? const {}
           : {for (var i = 0; i < props.items.length; i++) i},
