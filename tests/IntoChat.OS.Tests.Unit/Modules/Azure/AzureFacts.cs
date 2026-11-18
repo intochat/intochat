@@ -76,5 +76,27 @@ public sealed class AzureFacts
         Assert.Single(await neuron.Inventory("test"));
     }
 
+    [Fact]
+    public async Task Pulumi_neuron_synthesizes_and_reads_stack_summary()
+    {
+        var pulumi = new PulumiNeuron();
+        DigitalBrain.Neurons.NeuronAttachment.Attach(pulumi, new DigitalBrain.Testing.FakeNeuronContext(
+            new DigitalBrain.NeuronId(new DigitalBrain.BrainId("facts"), "pulumi", "azure/pulumi")));
+
+        Assert.Null(await pulumi.Read("test2"));
+
+        var summary = await pulumi.Synthesize("test2", includeCloud: true, includeSandbox: true);
+
+        Assert.Equal("test2", summary.Env);
+        Assert.Equal("rg-intochat-test2", summary.ResourceGroup);
+        Assert.Equal("intochat-test2-os", summary.OsAppName);
+        Assert.Equal("intochat-test2-cloud", summary.CloudAppName);
+        Assert.Equal("intochat-test2-sandbox", summary.SandboxAppName);
+
+        var readBack = await pulumi.Read("test2");
+        Assert.NotNull(readBack);
+        Assert.Equal(summary.ResourceCount, readBack.ResourceCount);
+    }
+
     private static AzureNeuron Neuron(IAzureArm arm) => AzureNeurons.Create(arm, Subscription);
 }

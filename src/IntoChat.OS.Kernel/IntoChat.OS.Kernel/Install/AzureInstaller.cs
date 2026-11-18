@@ -58,7 +58,8 @@ public static class AzureInstaller
                     subscription: options.Subscription,
                     location: options.Location,
                     prefix: options.Prefix,
-                    includeCloudApp: hasCloudModules);
+                    includeCloudApp: hasCloudModules,
+                    includeSandboxApp: options.SandboxContainer);
             }
 
             if (!string.IsNullOrEmpty(manifestPath))
@@ -241,6 +242,10 @@ public static class AzureInstaller
             {
                 _ = await Ensure(cloudApp with { RegistryServer = foundation.RegistryServer }, ct);
             }
+            if (InstallPlan.SandboxApp(config, variables, secrets) is { } sandboxApp)
+            {
+                _ = await Ensure(sandboxApp with { RegistryServer = foundation.RegistryServer }, ct);
+            }
 
             if (dryRun)
             {
@@ -396,11 +401,12 @@ public static class AzureInstaller
         });
     }
 
-    private sealed record Options(string Env, string? Config, string? Subscription, string? Location, string? Prefix, bool DryRun, string? SecretsFrom, bool PrintEnv, string? Manifest, string? PromoteFrom, bool EmitPulumi, string? PulumiOut)
+    private sealed record Options(string Env, string? Config, string? Subscription, string? Location, string? Prefix, bool SandboxContainer, bool DryRun, string? SecretsFrom, bool PrintEnv, string? Manifest, string? PromoteFrom, bool EmitPulumi, string? PulumiOut)
     {
         public static Options Parse(string[] args)
         {
             string? env = null, config = null, subscription = null, location = null, prefix = null, secrets = null, manifest = null, promoteFrom = null, pulumiOut = null;
+            var sandboxContainer = false;
             var dryRun = false;
             var printEnv = false;
             var emitPulumi = args is ["pulumi", ..];
@@ -413,6 +419,7 @@ public static class AzureInstaller
                     case "--subscription": subscription = Value(args, ref i); break;
                     case "--location": location = Value(args, ref i); break;
                     case "--prefix": prefix = Value(args, ref i); break;
+                    case "--sandbox-container": sandboxContainer = true; break;
                     case "--secrets-from": secrets = Value(args, ref i); break;
                     case "--manifest": manifest = Value(args, ref i); break;
                     case "--promote-from": promoteFrom = Value(args, ref i); break;
@@ -429,6 +436,7 @@ public static class AzureInstaller
                 subscription,
                 location,
                 prefix,
+                sandboxContainer,
                 dryRun,
                 secrets,
                 printEnv,

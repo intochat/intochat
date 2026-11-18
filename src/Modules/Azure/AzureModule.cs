@@ -23,7 +23,8 @@ public sealed class AzureModule : DigitalBrain.Modules.Module
 
     public static ConnectorDefinition Connector { get; } = new("azure", "Azure", ["identity"], [])
     {
-        Neurons = [typeof(IAzure)],
+        Neurons = [typeof(IAzure), typeof(IPulumi)],
+        Signals = [typeof(PulumiStackChanged)],
     };
 
     public static Assembly? Contracts => typeof(IAzure).Assembly;

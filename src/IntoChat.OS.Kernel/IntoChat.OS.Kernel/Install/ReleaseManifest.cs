@@ -4,4 +4,5 @@ public sealed record ReleaseManifest(
     string Version,
     string Commit,
     string OsImage,
-    string? CloudImage = null);
+    string? CloudImage = null,
+    string? SandboxImage = null);

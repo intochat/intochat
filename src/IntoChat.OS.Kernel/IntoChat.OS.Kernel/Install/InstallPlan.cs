@@ -14,6 +14,7 @@ public static class InstallPlan
     public const string PostgresPasswordSecret = "postgres-admin-password";
     public const string DbConnectionSecret = "db-connection";
     public const string GhcrTokenSecret = "ghcr-read-token";
+    public const string SandboxEnrollKeySecret = "sandbox-enroll-key";
     public const string GhcrServer = "ghcr.io";
     public const string BrainLogShare = "brainlog";
     public const string Owner = "os";
@@ -44,6 +45,10 @@ public static class InstallPlan
     // Optional separate Cloud container app joining the same cluster, environment, vault, and storage.
     public static ContainerAppSpec? CloudApp(InstallConfig config, IReadOnlyDictionary<string, string> variables, IReadOnlyList<KeyVaultSecretRef> secrets) =>
         Build(config, variables, secrets).OfType<ContainerAppSpec>().FirstOrDefault(spec => string.Equals(spec.Name, config.Validated().CloudName, StringComparison.Ordinal));
+
+    // Optional separate Sandbox container app (internal ingress, scaling to 0 when idle).
+    public static ContainerAppSpec? SandboxApp(InstallConfig config, IReadOnlyDictionary<string, string> variables, IReadOnlyList<KeyVaultSecretRef> secrets) =>
+        Build(config, variables, secrets).OfType<ContainerAppSpec>().FirstOrDefault(spec => string.Equals(spec.Name, config.Validated().SandboxName, StringComparison.Ordinal));
 
     public static FoundationRefs Refs(InstallConfig config)
     {
@@ -120,8 +125,20 @@ public static class InstallPlan
         if (c.Registry.Enabled) { specs.Add(Grant("registry-pull", AcrPull, registryScope)); }
         // Losing the master key loses the brain: a later install never overwrites it.
         specs.Add(In(new SecretSpec { Name = MasterKeySecret, Vault = vault, Overwrite = false }));
+        if (!string.IsNullOrWhiteSpace(c.SandboxImage))
+        {
+            specs.Add(In(new SecretSpec { Name = SandboxEnrollKeySecret, Vault = vault, Overwrite = false }));
+        }
         // The installer fills the value when the secrets file carries one; the token is then replaced.
         if (c.GhcrUsername.Length > 0) { specs.Add(In(new SecretSpec { Name = GhcrTokenSecret, Vault = vault, Overwrite = true })); }
+        KeyVaultSecretRef[] osAndCloudSecrets = !string.IsNullOrWhiteSpace(c.SandboxImage)
+            ?
+            [
+                new KeyVaultSecretRef { Name = MasterKeySecret, Vault = vault, VaultSecret = MasterKeySecret, Variable = IntoChatOSNames.MasterKeyEnvironmentVariable },
+                new KeyVaultSecretRef { Name = SandboxEnrollKeySecret, Vault = vault, VaultSecret = SandboxEnrollKeySecret, Variable = "IntoChatOS__Modules__sandbox__Options__EnrollKey" },
+                .. extraSecrets,
+            ]
+            : [new KeyVaultSecretRef { Name = MasterKeySecret, Vault = vault, VaultSecret = MasterKeySecret, Variable = IntoChatOSNames.MasterKeyEnvironmentVariable }, .. extraSecrets];
         specs.Add(In(new ContainerAppSpec
         {
             Name = app,
@@ -136,7 +153,7 @@ public static class InstallPlan
             // Liveness is the process alone, readiness the drain, startup waits for dependencies.
             ProbePaths = [HostProbePaths.Alive, HostProbePaths.Ready, HostProbePaths.Health],
             Variables = Variables(c, account, vault, lease, grainState, extraVariables),
-            Secrets = [new KeyVaultSecretRef { Name = MasterKeySecret, Vault = vault, VaultSecret = MasterKeySecret, Variable = IntoChatOSNames.MasterKeyEnvironmentVariable }, .. extraSecrets],
+            Secrets = osAndCloudSecrets,
             VolumeMounts =
             [
                 new VolumeMountSpec
@@ -168,7 +185,7 @@ public static class InstallPlan
                 RegistryServer = c.LoginServer,
                 ProbePaths = [HostProbePaths.Alive, HostProbePaths.Ready, HostProbePaths.Health],
                 Variables = Variables(c, account, vault, lease, grainState, extraVariables),
-                Secrets = [new KeyVaultSecretRef { Name = MasterKeySecret, Vault = vault, VaultSecret = MasterKeySecret, Variable = IntoChatOSNames.MasterKeyEnvironmentVariable }, .. extraSecrets],
+                Secrets = osAndCloudSecrets,
                 VolumeMounts =
                 [
                     new VolumeMountSpec
@@ -178,6 +195,37 @@ public static class InstallPlan
                         MountPath = BrainLogDirectory(c),
                         MountOptions = string.Create(CultureInfo.InvariantCulture, $"dir_mode=0700,file_mode=0600,uid={AppUid},gid={AppGid},mfsymlinks,cache=strict,nosharesock"),
                     },
+                ],
+                Registries = c.GhcrUsername.Length > 0
+                    ? [new RegistryCredentialSpec { Server = GhcrServer, Username = c.GhcrUsername, Vault = vault, PasswordSecret = GhcrTokenSecret }]
+                    : [],
+            }));
+        }
+        if (!string.IsNullOrWhiteSpace(c.SandboxImage))
+        {
+            specs.Add(In(new ContainerAppSpec
+            {
+                Name = c.SandboxName,
+                Environment = environment,
+                Identity = identity,
+                Image = c.SandboxImage,
+                Cpu = c.SandboxCpu,
+                Memory = c.SandboxMemory,
+                MinReplicas = 0,
+                MaxReplicas = 1,
+                IngressPort = HttpPort,
+                Ingress = new IngressSpec { External = false, TargetPort = HttpPort },
+                RegistryServer = c.LoginServer,
+                ProbePaths = [HostProbePaths.Alive, HostProbePaths.Ready, HostProbePaths.Health],
+                Variables = new Dictionary<string, string>
+                {
+                    ["ASPNETCORE_ENVIRONMENT"] = "Production",
+                    ["HOME"] = "/tmp",
+                    ["SANDBOX_KERNEL_URL"] = $"http://{c.OsName}",
+                },
+                Secrets =
+                [
+                    new KeyVaultSecretRef { Name = SandboxEnrollKeySecret, Vault = vault, VaultSecret = SandboxEnrollKeySecret, Variable = "SANDBOX_ENROLL_KEY" },
                 ],
                 Registries = c.GhcrUsername.Length > 0
                     ? [new RegistryCredentialSpec { Server = GhcrServer, Username = c.GhcrUsername, Vault = vault, PasswordSecret = GhcrTokenSecret }]
@@ -285,6 +333,10 @@ public static class InstallPlan
         if (!c.Postgres.Enabled)
         {
             variables["IntoChatOS__Modules__postgres__Enabled"] = "false";
+        }
+        if (!string.IsNullOrWhiteSpace(c.SandboxImage))
+        {
+            variables["IntoChatOS__Modules__sandbox__Options__Url"] = $"http://{c.SandboxName}";
         }
         foreach (var (name, value) in extra) { variables[name] = value; }
         return variables;

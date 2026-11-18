@@ -142,6 +142,7 @@ public static class PulumiDeploymentExtensions
         var env = builder.Configuration["Pulumi:Stack"] ?? "test";
         string? configPath = builder.Configuration["Pulumi:Config"];
         var synthOnly = false;
+        var sandboxContainer = builder.Configuration.GetValue<bool>("Pulumi:SandboxContainer");
         var pulumiArgs = new List<string>();
 
         for (var i = 0; i < extraArgs.Length; i++)
@@ -153,6 +154,9 @@ public static class PulumiDeploymentExtensions
                     break;
                 case "--config" when i + 1 < extraArgs.Length:
                     configPath = extraArgs[++i];
+                    break;
+                case "--sandbox-container":
+                    sandboxContainer = true;
                     break;
                 case "--synth-only" or "--emit-only" or "--dry-run":
                     synthOnly = true;
@@ -171,7 +175,7 @@ public static class PulumiDeploymentExtensions
         }
         var pulumiWorkDir = Path.Combine(repoRoot, "artifacts", "pulumi", env);
 
-        await SynthesizePulumiWorkspaceAsync(repoRoot, env, configPath, pulumiWorkDir, cancellationToken);
+        await SynthesizePulumiWorkspaceAsync(repoRoot, env, configPath, sandboxContainer, pulumiWorkDir, cancellationToken);
         if (synthOnly)
         {
             return 0;
@@ -200,8 +204,9 @@ public static class PulumiDeploymentExtensions
             configPath = File.Exists(candidate) ? candidate : null;
         }
         var pulumiWorkDir = Path.Combine(repoRoot, "artifacts", "pulumi", env);
+        var sandboxContainer = builder.Configuration.GetValue<bool>("Pulumi:SandboxContainer");
 
-        await SynthesizePulumiWorkspaceAsync(repoRoot, env, configPath, pulumiWorkDir, cancellationToken);
+        await SynthesizePulumiWorkspaceAsync(repoRoot, env, configPath, sandboxContainer, pulumiWorkDir, cancellationToken);
         if (builder.Configuration.GetValue<bool>("Pulumi:SynthOnly"))
         {
             return;
@@ -215,7 +220,7 @@ public static class PulumiDeploymentExtensions
         }
     }
 
-    private static async Task SynthesizePulumiWorkspaceAsync(string repoRoot, string env, string? configPath, string pulumiWorkDir, CancellationToken cancellationToken)
+    private static async Task SynthesizePulumiWorkspaceAsync(string repoRoot, string env, string? configPath, bool sandboxContainer, string pulumiWorkDir, CancellationToken cancellationToken)
     {
         var kernelProject = Path.Combine(repoRoot, "src", "IntoChat.OS.Kernel", "IntoChat.OS.Kernel", "IntoChat.OS.Kernel.csproj");
         var hostProject = Directory.Exists(Path.Combine(repoRoot, "src"))
@@ -230,6 +235,10 @@ public static class PulumiDeploymentExtensions
             "run", "--project", targetProject, "-c", "Release", "--",
             "pulumi", "--env", env, "--pulumi-out", pulumiWorkDir, "--dry-run",
         };
+        if (sandboxContainer)
+        {
+            args.Add("--sandbox-container");
+        }
         if (!string.IsNullOrWhiteSpace(configPath))
         {
             args.Add("--config");

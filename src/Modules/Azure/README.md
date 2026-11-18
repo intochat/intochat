@@ -24,6 +24,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 | --- | --- |
 | `CandidateModel` | no |
 
-Contracts: assembly `IntoChat.OS.Modules.Azure` (`IAspire`, `IAzureArm`, `IAzure`, `ICandidate`, `ICandidates`, `IDeployment`, `IModuleDeployment`).
+Contracts: assembly `IntoChat.OS.Modules.Azure` (`IAspire`, `IAzureArm`, `IAzure`, `ICandidate`, `ICandidates`, `IDeployment`, `IModuleDeployment`, `IPulumiEngine`, `IPulumi`).
 Hosting: runs in process.
 <!-- END GENERATED -->

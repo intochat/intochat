@@ -14,10 +14,13 @@ public sealed record InstallConfig
     public string Env { get; init; } = "";
     public string OsImage { get; init; } = "";
     public string CloudImage { get; init; } = "";
+    public string SandboxImage { get; init; } = "";
     public double Cpu { get; init; } = 0.5;
     public string Memory { get; init; } = "1Gi";
     public double CloudCpu { get; init; } = 0.25;
     public string CloudMemory { get; init; } = "0.5Gi";
+    public double SandboxCpu { get; init; } = 0.25;
+    public string SandboxMemory { get; init; } = "0.5Gi";
     public int StorageQuotaGb { get; init; } = 20;
     // Optional: the registry that holds OsImage, pulled with the runtime identity.
     public string RegistryServer { get; init; } = "";
@@ -57,6 +60,7 @@ public sealed record InstallConfig
         string? location = null,
         string? prefix = null,
         bool includeCloudApp = false,
+        bool includeSandboxApp = false,
         string? publicBaseUrl = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(env);
@@ -95,6 +99,7 @@ public sealed record InstallConfig
             RegistryServer = registryServer,
             OsImage = $"{registryServer}/os:latest",
             CloudImage = includeCloudApp ? $"{registryServer}/cloud:latest" : "",
+            SandboxImage = includeSandboxApp ? $"{registryServer}/sandbox:latest" : "",
             Registry = new RegistryConfig
             {
                 Enabled = true,
@@ -152,7 +157,7 @@ public sealed record InstallConfig
             process.WaitForExit(3000);
             return process.ExitCode == 0 && Guid.TryParse(output, out _) ? output : null;
         }
-        catch
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
         {
             return null;
         }
@@ -173,6 +178,8 @@ public sealed record InstallConfig
     public string OsName => Named("os", ResourceNames.App(Prefix, Env, "os"));
 
     public string CloudName => Named("cloud", ResourceNames.App(Prefix, Env, "cloud"));
+
+    public string SandboxName => Named("sandbox", ResourceNames.App(Prefix, Env, "sandbox"));
 
     // names.registry, else the first label of registryServer (an install config that already names its registry), else derived.
     public string RegistryName => Named("registry", RegistryServer.Length > 0 ? RegistryServer.Split('.')[0] : ResourceNames.Registry(Prefix, Env));
@@ -196,6 +203,7 @@ public sealed record InstallConfig
         {
             OsImage = !string.IsNullOrWhiteSpace(manifest.OsImage) ? RewriteRegistry(manifest.OsImage, LoginServer) : OsImage,
             CloudImage = !string.IsNullOrWhiteSpace(manifest.CloudImage) ? RewriteRegistry(manifest.CloudImage, LoginServer) : CloudImage,
+            SandboxImage = !string.IsNullOrWhiteSpace(manifest.SandboxImage) ? RewriteRegistry(manifest.SandboxImage, LoginServer) : SandboxImage,
             Modules = modules,
         };
     }

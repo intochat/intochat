@@ -171,6 +171,7 @@ public static class OperatingSystemModules
         server.AddNeuronModule(typeof(IntoChat.OS.Apps.ShippedShellAppsModule));
         server.ConfigureServices(services =>
         {
+            services.AddSingleton<IntoChat.OS.Modules.Microsoft.Azure.IPulumiEngine>(new Install.KernelPulumiEngine(selected));
             services.AddMeteredHttpPipelines(selected);
             services.AddOperatingSystemApps();
         });
