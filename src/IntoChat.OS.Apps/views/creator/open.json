@@ -153,6 +153,41 @@
         "children": [
           {
             "kind": "heading",
+            "value": "Synapses",
+            "level": 6,
+            "subtitle": null
+          },
+          {
+            "kind": "text",
+            "value": "Workflow",
+            "tone": "muted",
+            "tabular": false,
+            "mono": false
+          },
+          {
+            "kind": "row",
+            "children": [
+              {
+                "kind": "button",
+                "key": "synapse:workflow:approval-demo",
+                "label": "Run approval-demo",
+                "emit": {
+                  "owner": "app.creator",
+                  "signal": "start-workflow",
+                  "args": "approval-demo"
+                },
+                "intent": null,
+                "enabled": true,
+                "tone": "neutral",
+                "style": "secondary",
+                "small": true
+              }
+            ],
+            "gap": 6,
+            "padding": 0
+          },
+          {
+            "kind": "heading",
             "value": "Catalog Units",
             "level": 6,
             "subtitle": null
