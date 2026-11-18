@@ -342,8 +342,18 @@ class _ViewHostState extends State<ViewHost> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      KeyedSubtree(key: _focusKey, child: _content(context));
+  Widget build(BuildContext context) {
+    final content = KeyedSubtree(key: _focusKey, child: _content(context));
+    // A slot names its key path in the semantics tree, so a browser finds it as
+    // `flt-semantics-identifier="slot:<path>"` without reading widget keys.
+    return widget.slotPath.isEmpty
+        ? content
+        : Semantics(
+            identifier: 'slot:${widget.slotPath}',
+            container: true,
+            child: content,
+          );
+  }
 
   Widget _content(BuildContext context) {
     final identity = '${widget.kind}:${widget.name}';

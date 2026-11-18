@@ -74,7 +74,8 @@ List<Widget> renderAll(List<Node> nodes, NodeContext ctx) => [
 ];
 
 /// Tags a rendered control with its wire `key` (so tests and automation find it by
-/// `Key(node.key)`) and, when it declares one, its `automationName` as the semantics label.
+/// `Key(node.key)`, and a browser by its semantics identifier `key:<key>`) and, when it
+/// declares one, its `automationName` as the semantics label.
 Widget keyedControl(String? key, Widget child, {String? automationName}) {
   var wrapped = child;
   if (automationName != null && automationName.isNotEmpty) {
@@ -82,5 +83,8 @@ Widget keyedControl(String? key, Widget child, {String? automationName}) {
   }
   return key == null || key.isEmpty
       ? wrapped
-      : KeyedSubtree(key: ValueKey(key), child: wrapped);
+      : KeyedSubtree(
+          key: ValueKey(key),
+          child: Semantics(identifier: 'key:$key', container: true, child: wrapped),
+        );
 }
