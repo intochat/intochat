@@ -153,7 +153,7 @@ public static class ReleasePackager
                 var uiDir = Path.Combine(repoRoot, "ui");
 
                 await StepAsync(outWriter, $"Publishing IntoChat.OS.Desktop (Native AOT, {rid})...");
-                RunChecked("dotnet", ["publish", desktopProj, "-c", options.Configuration, "-r", rid, "-o", bundleDir, "-p:PublishAot=true", "-p:DebugType=none", "--nologo"]);
+                RunChecked("dotnet", ["publish", desktopProj, "-c", options.Configuration, "-r", rid, "-o", bundleDir, "-p:DebugType=none", "--nologo"]);
 
                 if (isWindowsTarget)
                 {
@@ -467,12 +467,20 @@ public static class ReleasePackager
 
     private static async Task BuildFlutterShellAsync(string uiDir, string shellDir, string rid, TextWriter outWriter)
     {
+        var flutterCmd = OperatingSystem.IsWindows() ? "flutter.bat" : "flutter";
         if (rid.StartsWith("win-", StringComparison.OrdinalIgnoreCase))
         {
             await StepAsync(outWriter, "Building Flutter Windows shell...");
-            RunChecked("flutter", ["build", "windows", "--release"], workingDirectory: uiDir);
             var archSegment = string.Equals(rid, "win-arm64", StringComparison.OrdinalIgnoreCase) ? "arm64" : "x64";
             var runnerOut = Path.Combine(uiDir, "build", "windows", archSegment, "runner", "Release");
+            try
+            {
+                RunChecked(flutterCmd, ["build", "windows", "--release"], workingDirectory: uiDir);
+            }
+            catch (InvalidOperationException) when (Directory.Exists(runnerOut) && File.Exists(Path.Combine(runnerOut, "intochat_os_flutter.exe")))
+            {
+                await StepAsync(outWriter, $"Using prebuilt Flutter Windows shell from '{runnerOut}'...");
+            }
             if (!Directory.Exists(runnerOut))
             {
                 throw new InvalidOperationException($"Flutter shell for {rid} not found at '{runnerOut}'.");
@@ -482,7 +490,7 @@ public static class ReleasePackager
         else if (rid.StartsWith("osx-", StringComparison.OrdinalIgnoreCase))
         {
             await StepAsync(outWriter, "Building Flutter macOS shell...");
-            RunChecked("flutter", ["build", "macos", "--release"], workingDirectory: uiDir);
+            RunChecked(flutterCmd, ["build", "macos", "--release"], workingDirectory: uiDir);
             var macOut = Path.Combine(uiDir, "build", "macos", "Build", "Products", "Release");
             if (Directory.Exists(macOut))
             {
@@ -492,7 +500,7 @@ public static class ReleasePackager
         else
         {
             await StepAsync(outWriter, "Building Flutter Linux shell...");
-            RunChecked("flutter", ["build", "linux", "--release"], workingDirectory: uiDir);
+            RunChecked(flutterCmd, ["build", "linux", "--release"], workingDirectory: uiDir);
             var archSegment = string.Equals(rid, "linux-arm64", StringComparison.OrdinalIgnoreCase) ? "arm64" : "x64";
             var linuxOut = Path.Combine(uiDir, "build", "linux", archSegment, "release", "bundle");
             if (Directory.Exists(linuxOut))
