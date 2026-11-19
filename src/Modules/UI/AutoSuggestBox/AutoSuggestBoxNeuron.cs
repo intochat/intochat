@@ -50,7 +50,7 @@ internal sealed class AutoSuggestBoxNeuron : Neuron<AutoSuggestBoxState>, IAutoS
 
     public Task<AutoSuggestBoxState> Read() => Task.FromResult(State);
 
-    private static IReadOnlyList<string> FilterSuggestions(IReadOnlyList<string> items, string query)
+    private static string[] FilterSuggestions(IReadOnlyList<string> items, string query)
         => string.IsNullOrWhiteSpace(query)
             ? [.. items.Take(8)]
             : [.. items.Where(i => i.Contains(query.Trim(), StringComparison.OrdinalIgnoreCase)).Take(8)];

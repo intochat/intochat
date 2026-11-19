@@ -49,7 +49,7 @@ internal sealed class CalendarViewNeuron : Neuron<CalendarViewState>, ICalendarV
         {
             dates = [normalized];
         }
-        var next = State with { Version = State.Version + 1, Year = parsed.Year, Month = parsed.Month, SelectedDates = dates };
+        var next = State with { Version = State.Version + 1, Year = parsed.Year, Month = parsed.Month, SelectedDates = [.. dates] };
         await Save(next, new CalendarViewChanged(Id.FullKey(), next.Version, next.Year, next.Month, next.SelectedDates));
         return next;
     }

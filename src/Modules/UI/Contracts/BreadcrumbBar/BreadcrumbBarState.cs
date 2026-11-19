@@ -11,7 +11,7 @@ public sealed record BreadcrumbItem(
 [GenerateSerializer, Alias("ui.breadcrumb.state")]
 public sealed record BreadcrumbBarState(
     [property: Id(0)] int Version,
-    [property: Id(1)] IReadOnlyList<BreadcrumbItem> Items,
+    [property: Id(1)] BreadcrumbItem[] Items,
     [property: Id(2)] string? ActiveId)
 {
     public BreadcrumbBarState() : this(0, [], null) { }

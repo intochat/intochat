@@ -54,9 +54,7 @@ class ToggleWidget extends StatelessWidget {
               value: isOn,
               locked: !isEnabled,
               semanticLabel: label.isEmpty ? neuronKey : label,
-              onChanged: isEnabled
-                  ? (_) => unawaited(invoke('Toggle'))
-                  : null,
+              onChanged: isEnabled ? (_) => unawaited(invoke('Toggle')) : null,
             ),
             const SizedBox(width: 8),
             Text(

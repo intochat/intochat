@@ -6,13 +6,12 @@ import '../core/node_contracts.dart';
 import '../design/tokens.dart';
 
 /// Invokes a typed method on a neuron contract over `NeuronChannel` (gRPC).
-typedef NeuronMethodCaller =
-    Future<Map<String, dynamic>?> Function(
-      String contract,
-      String key,
-      String method,
-      List<Object?> arguments,
-    );
+typedef NeuronMethodCaller = Future<Map<String, dynamic>?> Function(
+  String contract,
+  String key,
+  String method,
+  List<Object?> arguments,
+);
 
 /// Shared reactive host for every `IntoChat.OS.Modules.UI` neuron widget.
 ///
@@ -103,10 +102,7 @@ class _NeuronWidgetState extends State<NeuronWidget> {
     }
   }
 
-  Future<void> _invoke(
-    String method, [
-    List<Object?> args = const [],
-  ]) async {
+  Future<void> _invoke(String method, [List<Object?> args = const []]) async {
     try {
       final result = await widget.callNeuron(
         _contract.contract,

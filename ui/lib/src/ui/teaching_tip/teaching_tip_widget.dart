@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
@@ -34,7 +35,10 @@ class TeachingTipNeuronWidget extends StatelessWidget {
           return OutlinedButton.icon(
             onPressed: () => invoke('Show', [title, subtitle, actionLabel]),
             icon: const Icon(Icons.lightbulb_outline, size: 15),
-            label: Text('Show tip: $title', style: const TextStyle(fontSize: 12)),
+            label: Text(
+              'Show tip: $title',
+              style: const TextStyle(fontSize: 12),
+            ),
           );
         }
 
@@ -53,7 +57,14 @@ class TeachingTipNeuronWidget extends StatelessWidget {
                   Icon(Icons.lightbulb_outline, size: 16, color: c.accent),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textStrong)),
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: c.textStrong,
+                      ),
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, size: 16),
@@ -63,7 +74,10 @@ class TeachingTipNeuronWidget extends StatelessWidget {
               ),
               if (subtitle.isNotEmpty) ...[
                 const SizedBox(height: 6),
-                Text(subtitle, style: TextStyle(fontSize: 12, color: c.textBody)),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 12, color: c.textBody),
+                ),
               ],
               const SizedBox(height: 10),
               Row(
@@ -71,7 +85,10 @@ class TeachingTipNeuronWidget extends StatelessWidget {
                   if (actionLabel != null && actionLabel.isNotEmpty)
                     FilledButton(
                       onPressed: () => invoke('InvokeAction', const []),
-                      child: Text(actionLabel, style: const TextStyle(fontSize: 12)),
+                      child: Text(
+                        actionLabel,
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                   const SizedBox(width: 8),
                   TextButton(

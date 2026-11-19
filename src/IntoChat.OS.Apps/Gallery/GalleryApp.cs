@@ -26,33 +26,38 @@ using IntoChat.OS.Modules.UI.ContextMenu;
 using IntoChat.OS.Modules.UI.DatePicker;
 using IntoChat.OS.Modules.UI.Dialog;
 using IntoChat.OS.Modules.UI.Expander;
+using IntoChat.OS.Modules.UI.FilePicker;
 using IntoChat.OS.Modules.UI.Form;
 using IntoChat.OS.Modules.UI.GridView;
 using IntoChat.OS.Modules.UI.ImageViewer;
+using IntoChat.OS.Modules.UI.InfoBadge;
 using IntoChat.OS.Modules.UI.InfoBar;
+using IntoChat.OS.Modules.UI.KanbanBoard;
 using IntoChat.OS.Modules.UI.ListBox;
 using IntoChat.OS.Modules.UI.MarkdownViewer;
 using IntoChat.OS.Modules.UI.MediaPlayer;
+using IntoChat.OS.Modules.UI.NotificationToast;
 using IntoChat.OS.Modules.UI.NumberBox;
 using IntoChat.OS.Modules.UI.PersonPicture;
+using IntoChat.OS.Modules.UI.PipsPager;
 using IntoChat.OS.Modules.UI.Progress;
+using IntoChat.OS.Modules.UI.PropertyGrid;
 using IntoChat.OS.Modules.UI.RadioButtons;
 using IntoChat.OS.Modules.UI.Rating;
 using IntoChat.OS.Modules.UI.Select;
 using IntoChat.OS.Modules.UI.Slider;
 using IntoChat.OS.Modules.UI.SplitButton;
+using IntoChat.OS.Modules.UI.Stepper;
 using IntoChat.OS.Modules.UI.Table;
 using IntoChat.OS.Modules.UI.Tabs;
 using IntoChat.OS.Modules.UI.TeachingTip;
 using IntoChat.OS.Modules.UI.TimePicker;
 using IntoChat.OS.Modules.UI.Toggle;
+using IntoChat.OS.Modules.UI.ToggleSplitButton;
 using IntoChat.OS.Modules.UI.TreeView;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using UiListBoxItem = IntoChat.OS.Modules.UI.ListBox.ListBoxItem;
-using UiSelectOption = IntoChat.OS.Modules.UI.Select.SelectOption;
-using UiTabItem = IntoChat.OS.Modules.UI.Tabs.TabItem;
 
 namespace IntoChat.OS.Apps.Gallery;
 
@@ -125,7 +130,7 @@ public sealed record GalleryAppState(
         "colors", "typography", "icons", "spacing",
         "toggle", "checkbox", "select", "buttons", "form", "winui-inputs",
         "tabs", "expander", "listbox", "dialog", "winui-nav",
-        "datetime", "media", "workspace",
+        "datetime", "media", "workspace", "wave3",
         "charts", "table",
         "chat", "cards", "graphs",
     ];
@@ -137,6 +142,8 @@ public sealed record GalleryAppState(
     public string RevenueQueryFilter { get; init; } = "all";
     public bool LockedToggleDisabled { get; init; } = true;
     public int ButtonClicks { get; init; }
+    public string IconCategory { get; init; } = "All";
+    public string CodeLanguage { get; init; } = "csharp";
     public string LastAction { get; init; } = "Ready · Select any page from the navigation rail.";
 
     public GalleryAppState() : this(
@@ -219,6 +226,7 @@ public sealed record GalleryAppState(
         "datetime" or "date" or "time" or "calendar" => "datetime",
         "media" or "grid" or "image" or "player" or "context-menu" => "media",
         "workspace" or "editor" or "markdown" or "command-bar" or "split-button" or "person" or "tip" => "workspace",
+        "wave3" or "stepper" or "property-grid" or "kanban" or "pips-pager" or "info-badge" or "toast" or "file-picker" or "toggle-split-button" => "wave3",
         "charts" or "chart" or "data" => "charts",
         "table" or "datatable" => "table",
         "chat" or "ino" or "devui" => "chat",
@@ -247,6 +255,7 @@ public sealed record GalleryAppState(
         "datetime" => "Date & Time (DatePicker, TimePicker, Calendar)",
         "media" => "Menus, Grid & Media (ContextMenu, GridView, ImageViewer, MediaPlayer)",
         "workspace" => "Workspace Kit (CommandBar, CodeEditor, Markdown, SplitButton, Person, Tip)",
+        "wave3" => "WinUI 3 Wave 3 (Stepper, PropertyGrid, Kanban, FilePicker, Toast, Pips, Badge, ToggleSplit)",
         "charts" => "Charts (IChart)",
         "table" => "Data Table (ITable)",
         "chat" => "DevUI Chat (IChatThread)",
@@ -299,6 +308,16 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     public const string DemoSplitButtonKey = "gallery/split-button/demo";
     public const string DemoPersonKey = "gallery/person/demo";
     public const string DemoTeachingTipKey = "gallery/teaching-tip/demo";
+    public const string DemoStepperKey = "gallery/stepper/demo";
+    public const string DemoPropertyGridKey = "gallery/property-grid/demo";
+    public const string DemoPipsPagerKey = "gallery/pips-pager/demo";
+    public const string DemoInfoBadgeKey = "gallery/info-badge/demo";
+    public const string DemoToastKey = "gallery/toast/demo";
+    public const string DemoFilePickerKey = "gallery/file-picker/demo";
+    public const string DemoToggleSplitButtonKey = "gallery/toggle-split-button/demo";
+    public const string DemoKanbanKey = "gallery/kanban/demo";
+    public const string IconSuggestKey = "gallery/icons/suggest";
+    public const string IconGridKey = "gallery/icons/grid";
 
     private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<GalleryApp>();
     private readonly ILogger _logger;
@@ -330,7 +349,7 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
             Slots: [],
             Icon: "widgets",
             Dock: 8,
-            SideWidth: 256d,
+            SideWidth: 268d,
             Toolbar:
             [
                 new("open", Icon: "widgets", Label: "Home"),
@@ -442,6 +461,45 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                 await dlg.Open("Create folder", "Enter a folder name to test IDialog confirm-with-input.", "Create", "Cancel", inputLabel: "Folder name", inputPlaceholder: "e.g. q4-reports");
             }
             await Show(State with { LastAction = "Opened live IDialog neuron" });
+            return;
+        }
+
+        if (raw == "toast:show")
+        {
+            if (TryGetOptional<INotificationToast>(DemoToastKey) is { } toast)
+            {
+                await toast.Show("Wave 3 Notification", "Live INotificationToast pushed over gRPC.", severity: "info", actionLabel: "Inspect", actionId: "inspect");
+            }
+            await Show(State with { LastAction = "Pushed live INotificationToast" });
+            return;
+        }
+
+        if (raw.StartsWith("icons:cat:", StringComparison.OrdinalIgnoreCase))
+        {
+            var cat = raw["icons:cat:".Length..].Trim();
+            var resolved = GalleryIconCatalog.Categories.FirstOrDefault(c => string.Equals(c, cat, StringComparison.OrdinalIgnoreCase)) ?? "All";
+            await SeedIconBrowserAsync(resolved);
+            await Show(State with
+            {
+                IconCategory = resolved,
+                LastAction = $"Filtered Iconography catalog to '{resolved}'",
+            });
+            return;
+        }
+
+        if (raw.StartsWith("code:lang:", StringComparison.OrdinalIgnoreCase))
+        {
+            var lang = raw["code:lang:".Length..].Trim().ToLowerInvariant();
+            if (TryGetOptional<ICodeEditor>(DemoCodeEditorKey) is { } ed)
+            {
+                var (fileTitle, sample) = CodeSampleForLanguage(lang);
+                await ed.Configure(fileTitle, lang, sample);
+            }
+            await Show(State with
+            {
+                CodeLanguage = lang,
+                LastAction = $"Switched ICodeEditor syntax highlighting to '{lang}'",
+            });
             return;
         }
 
@@ -745,7 +803,83 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
             }
             if (TryGetOptional<ITeachingTip>(DemoTeachingTipKey) is { } tip && (await tip.Read()).Version == 0)
             {
-                await tip.Show("Direct gRPC Neurons", "All 34 UI controls talk directly to DigitalBrain neurons with zero host round-trips.", "Explore Charts");
+                await tip.Show("Direct gRPC Neurons", "All 42 UI controls talk directly to DigitalBrain neurons with zero host round-trips.", "Explore Charts");
+            }
+            if (TryGetOptional<IStepper>(DemoStepperKey) is { } stepper && (await stepper.Read()).Version == 0)
+            {
+                await stepper.Configure(
+                [
+                    new StepperStep("plan", "Brainstorm & Plan", StepperStatuses.Done, "Architect + Critic"),
+                    new StepperStep("worktree", "Prepare Worktree", StepperStatuses.Done, "Isolated lease"),
+                    new StepperStep("implement", "Implement Tasks", StepperStatuses.Active, "Roslyn + Dart"),
+                    new StepperStep("verify", "Live Verify", StepperStatuses.Pending, "Playwright E2E"),
+                    new StepperStep("pr", "Review & PR", StepperStatuses.Pending, "Approval gate"),
+                ], activeStepId: "implement", title: "Engineer Autonomous Pipeline");
+            }
+            if (TryGetOptional<IPropertyGrid>(DemoPropertyGridKey) is { } propGrid && (await propGrid.Read()).Version == 0)
+            {
+                await propGrid.LoadJson(
+                    "Live Neuron State",
+                    "{\"neuron\":\"app.gallery\",\"version\":3,\"healthy\":true,\"metrics\":{\"uiNeurons\":42,\"p95Ms\":4.2},\"tags\":[\"winui3\",\"grpc\"]}",
+                    readOnly: false);
+            }
+            if (TryGetOptional<IPipsPager>(DemoPipsPagerKey) is { } pips && (await pips.Read()).Version == 0)
+            {
+                await pips.Configure(pageCount: 5, selectedIndex: 0, maxVisiblePips: 5);
+            }
+            if (TryGetOptional<IInfoBadge>(DemoInfoBadgeKey) is { } badge && (await badge.Read()).Version == 0)
+            {
+                await badge.Configure("Pending PR reviews", value: 7, severity: "attention");
+            }
+            if (TryGetOptional<INotificationToast>(DemoToastKey) is { } toast && (await toast.Read()).Version == 0)
+            {
+                await toast.Show("Wave 3 UI Parity Ready", "All 42 Modules.UI neurons compiled with zero warnings.", severity: "success", actionLabel: "Open Report", actionId: "open-report", id: "toast-1");
+            }
+            if (TryGetOptional<IFilePicker>(DemoFilePickerKey) is { } picker && (await picker.Read()).Version == 0)
+            {
+                await picker.Configure(
+                    "Select Workspace Artifact",
+                    "neuron://owner/storage.files/workspace",
+                    [
+                        new FilePickerEntry("/workspace/src", "src", IsDirectory: true),
+                        new FilePickerEntry("/workspace/GalleryApp.cs", "GalleryApp.cs", SizeBytes: 28_400, NeuronUri: "neuron://owner/storage.files/workspace/GalleryApp.cs"),
+                        new FilePickerEntry("/workspace/architecture.md", "architecture.md", SizeBytes: 14_200, NeuronUri: "neuron://owner/storage.files/workspace/architecture.md"),
+                        new FilePickerEntry("/workspace/manifest.json", "manifest.json", SizeBytes: 6_100, NeuronUri: "neuron://owner/storage.files/workspace/manifest.json"),
+                    ],
+                    filters: ["*", ".cs", ".md", ".json"]);
+            }
+            if (TryGetOptional<IToggleSplitButton>(DemoToggleSplitButtonKey) is { } tsb && (await tsb.Read()).Version == 0)
+            {
+                await tsb.Configure(
+                    "Live Watch",
+                    [
+                        new ToggleSplitButtonOption("all", "Watch All Signals", "activity"),
+                        new ToggleSplitButtonOption("errors", "Watch Errors Only", "triangle-alert"),
+                        new ToggleSplitButtonOption("ui", "Watch UI Neurons", "sparkles"),
+                    ],
+                    isChecked: true,
+                    icon: "activity",
+                    selectedOptionId: "all");
+            }
+            if (TryGetOptional<IKanbanBoard>(DemoKanbanKey) is { } kanban && (await kanban.Read()).Version == 0)
+            {
+                await kanban.Configure(
+                    "Sprint Delivery Board",
+                    [
+                        new KanbanColumn("backlog", "Backlog", "list-todo"),
+                        new KanbanColumn("in-progress", "In Progress", "zap", WipLimit: 4),
+                        new KanbanColumn("done", "Done", "circle-check"),
+                    ],
+                    [
+                        new KanbanCard("c1", "backlog", "FilePicker VFS binding", "Canonical neuron:// URIs", "UI", "ui-kit", 0),
+                        new KanbanCard("c2", "in-progress", "Engineer Worktree Flow", "Parallel sandbox leases", "Flow", "engineer", 0),
+                        new KanbanCard("c3", "done", "Stepper & PropertyGrid", "Milestone 1 contracts", "DDD", "ui-kit", 0),
+                    ],
+                    selectedCardId: "c1");
+            }
+            if (TryGetOptional<IGridView>(IconGridKey) is { } iconGrid && (await iconGrid.Read()).Version == 0)
+            {
+                await SeedIconBrowserAsync("All");
             }
         }
 #pragma warning disable CA1031 // Seeding is best-effort when running in unit tests without UI module registered.
@@ -762,6 +896,36 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
 
     protected override Node Render(GalleryAppState state)
         => GalleryRendering.RenderRoot(state, LastRejection);
+
+    private async Task SeedIconBrowserAsync(string category)
+    {
+        var entries = GalleryIconCatalog.ForCategory(category);
+        if (TryGetOptional<IAutoSuggestBox>(IconSuggestKey) is { } suggest)
+        {
+            await suggest.Configure(
+                $"Search {entries.Length} Lucide icon slugs ({category})…",
+                entries.Select(e => e.Slug).ToArray());
+        }
+        if (TryGetOptional<IGridView>(IconGridKey) is { } grid)
+        {
+            await grid.Configure(
+                $"Icon Catalog · {category} ({entries.Length} glyphs · click any tile to copy slug)",
+                entries.Select(e => new GridViewItem(e.Slug, e.Slug, e.Category, e.Slug, Badge: e.Badge)).ToArray(),
+                selectedId: entries.FirstOrDefault()?.Slug,
+                columns: 4);
+        }
+    }
+
+    private static (string Title, string Sample) CodeSampleForLanguage(string lang) => lang switch
+    {
+        "dart" => ("CodeEditorDemo.dart", "final theme = buildIcCodeHighlightTheme(IcTheme.of(context), 'dart');\nreturn CodeEditor(controller: controller, style: CodeEditorStyle(codeTheme: theme));"),
+        "json" => ("manifest.json", "{\n  \"module\": \"ui\",\n  \"neurons\": 42,\n  \"syntaxHighlight\": true\n}"),
+        "sql" => ("telemetry.sql", "SELECT module, COUNT(*) AS spans, AVG(duration_ms) AS avg_ms\nFROM neuron_telemetry\nWHERE status = 'done'\nGROUP BY module;"),
+        "typescript" => ("client.ts", "export interface NeuronRef {\n  readonly kind: string;\n  readonly key: string;\n}\nconst stepper: NeuronRef = { kind: 'ui.stepper', key: 'engineer/pipeline' };"),
+        "yaml" => ("pipeline.yaml", "pipeline: engineer\nstages:\n  - id: brainstorm\n    status: done\n  - id: verify\n    browser: chromium"),
+        "markdown" => ("ARCHITECTURE.md", "# IntoChat UI Neurons\n\n- **42 stateful controls** synced over `gRPC`\n- Live `re_highlight` syntax coloring in light & dark presets"),
+        _ => ("ChartDemo.cs", "var chart = Get<IChart>(\"gallery/charts/stream\");\nawait chart.Append(new ChartPoint(\"T6\", 94, \"evt-6\"));"),
+    };
 
     private T? TryGetOptional<T>(string key) where T : class
     {

@@ -7,4 +7,4 @@ public sealed record FormSubmitted(
     string FormId,
     int Version,
     IReadOnlyDictionary<string, string> Values,
-    IReadOnlyDictionary<string, SecretRef> SecretRefs) : Signal;
+    IReadOnlyDictionary<string, UiSecretRef> SecretRefs) : Signal;

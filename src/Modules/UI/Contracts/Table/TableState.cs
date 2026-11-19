@@ -10,32 +10,32 @@ public sealed record TableColumn(
 }
 
 [GenerateSerializer, Alias("ui.table.query")]
-public sealed record TableQuery(
+public sealed record UiTableQuery(
     [property: Id(0)] string Filter = "",
     [property: Id(1)] string? SortBy = null,
     [property: Id(2)] bool Descending = false,
     [property: Id(3)] int Page = 1,
     [property: Id(4)] int PageSize = 10)
 {
-    public TableQuery() : this("", null, false, 1, 10) { }
+    public UiTableQuery() : this("", null, false, 1, 10) { }
 }
 
 [GenerateSerializer, Alias("ui.table.page")]
-public sealed record TablePage(
+public sealed record UiTablePage(
     [property: Id(0)] IReadOnlyList<IReadOnlyList<string>> Rows,
     [property: Id(1)] int Total,
     [property: Id(2)] string? Title = null,
     [property: Id(3)] IReadOnlyList<TableColumn>? Columns = null)
 {
-    public TablePage() : this([], 0, null, null) { }
+    public UiTablePage() : this([], 0, null, null) { }
 }
 
 [GenerateSerializer, Alias("ui.table.state")]
 public sealed record TableState(
     [property: Id(0)] int Version,
     [property: Id(1)] string Title,
-    [property: Id(2)] IReadOnlyList<TableColumn> Columns,
-    [property: Id(3)] IReadOnlyList<IReadOnlyList<string>> Rows,
+    [property: Id(2)] TableColumn[] Columns,
+    [property: Id(3)] string[][] Rows,
     [property: Id(4)] int Total,
     [property: Id(5)] string Filter,
     [property: Id(6)] string? SortBy,

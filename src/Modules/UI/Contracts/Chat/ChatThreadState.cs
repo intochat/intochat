@@ -35,9 +35,9 @@ public sealed record ChatMessage(
     [property: Id(1)] string Role,
     [property: Id(2)] string Text,
     [property: Id(3)] string Reasoning = "",
-    [property: Id(4)] IReadOnlyList<ChatToolCall>? ToolCalls = null,
-    [property: Id(5)] IReadOnlyList<ChatAttachment>? Attachments = null,
-    [property: Id(6)] IReadOnlyList<ChatInlineSlot>? Slots = null,
+    [property: Id(4)] ChatToolCall[]? ToolCalls = null,
+    [property: Id(5)] ChatAttachment[]? Attachments = null,
+    [property: Id(6)] ChatInlineSlot[]? Slots = null,
     [property: Id(7)] string Status = "done",
     [property: Id(8)] string? Error = null,
     [property: Id(9)] long InputTokens = 0,
@@ -66,16 +66,16 @@ public sealed record ChatModelOption(
 }
 
 [GenerateSerializer, Alias("ui.chat.state")]
-public sealed record ChatThreadState(
+public sealed record UiChatThreadState(
     [property: Id(0)] int Version,
     [property: Id(1)] string ConversationId,
     [property: Id(2)] string Title,
-    [property: Id(3)] IReadOnlyList<ChatMessage> Messages,
+    [property: Id(3)] ChatMessage[] Messages,
     [property: Id(4)] string ActiveModel,
-    [property: Id(5)] IReadOnlyList<ChatModelOption> AvailableModels,
+    [property: Id(5)] ChatModelOption[] AvailableModels,
     [property: Id(6)] bool Working,
     [property: Id(7)] bool CanSend,
-    [property: Id(8)] IReadOnlyList<ChatContextItem> ContextItems,
+    [property: Id(8)] ChatContextItem[] ContextItems,
     [property: Id(9)] string? ContextSummary,
     [property: Id(10)] long TotalInputTokens,
     [property: Id(11)] long TotalOutputTokens,
@@ -85,7 +85,7 @@ public sealed record ChatThreadState(
 {
     public const int MaxMessages = 500;
 
-    public ChatThreadState() : this(
+    public UiChatThreadState() : this(
         0,
         "default",
         "New conversation",

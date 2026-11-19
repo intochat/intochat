@@ -3,9 +3,9 @@ using DigitalBrain.Neurons;
 
 namespace IntoChat.OS.Modules.UI.Table;
 
-/// <summary>Built-in sample <see cref="ITableSource"/> for the UI Gallery and tests.</summary>
+/// <summary>Built-in sample <see cref="IUiTableSource"/> for the UI Gallery and tests.</summary>
 [Neuron("ui.sample-table-source")]
-internal sealed class SampleTableSource : Neuron, ITableSource
+internal sealed class SampleTableSource : Neuron, IUiTableSource
 {
     private static readonly (string Span, string Status, int LatencyMs, string Module)[] Spans =
     [
@@ -19,7 +19,7 @@ internal sealed class SampleTableSource : Neuron, ITableSource
         ("ui.table.query", "Done", 9, "Modules.UI"),
     ];
 
-    public Task<TablePage> Query(TableQuery query)
+    public Task<UiTablePage> Query(UiTableQuery query)
     {
         ArgumentNullException.ThrowIfNull(query);
         IEnumerable<(string Span, string Status, int LatencyMs, string Module)> rows = Spans;
@@ -54,6 +54,6 @@ internal sealed class SampleTableSource : Neuron, ITableSource
             ]),
         ];
 
-        return Task.FromResult(new TablePage(pageRows, materialized.Length));
+        return Task.FromResult(new UiTablePage(pageRows, materialized.Length));
     }
 }

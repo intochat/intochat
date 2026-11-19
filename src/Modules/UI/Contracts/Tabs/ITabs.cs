@@ -6,7 +6,7 @@ namespace IntoChat.OS.Modules.UI.Tabs;
 [DefaultNeuronType("ui.tabs")]
 public interface ITabs
 {
-    Task<TabsState> Configure(IReadOnlyList<TabItem> items, string? selectedId = null, bool isEnabled = true);
+    Task<TabsState> Configure(IReadOnlyList<UiTabItem> items, string? selectedId = null, bool isEnabled = true);
     Task<TabsState> Select(string tabId);
 
     [ReadOnlyCall]

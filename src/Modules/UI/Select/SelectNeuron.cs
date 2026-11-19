@@ -7,7 +7,7 @@ namespace IntoChat.OS.Modules.UI.Select;
 [Neuron("ui.select")]
 internal sealed class SelectNeuron : Neuron<SelectState>, ISelect
 {
-    public async Task<SelectState> Configure(string label, IReadOnlyList<SelectOption> options, string? selectedId = null, bool isEnabled = true)
+    public async Task<SelectState> Configure(string label, IReadOnlyList<UiSelectOption> options, string? selectedId = null, bool isEnabled = true)
     {
         ArgumentNullException.ThrowIfNull(options);
         var resolved = selectedId ?? State.SelectedId;

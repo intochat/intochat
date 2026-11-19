@@ -89,13 +89,26 @@ final class NeuronWatchMux {
     if (source.listeners.isNotEmpty) return;
     _sources.remove(id);
     _replayed.removeWhere((key, _) => key.startsWith('${spec.key}\u0000'));
-    for (final chunk in _chunks) {
+    for (final chunk in _chunks.toList()) {
       // A source that leaves stays on the server's watch until the chunk next reopens; nothing is
       // delivered for it. Only an emptied chunk closes.
       if (chunk.sources.remove(id) != null && chunk.sources.isEmpty) {
-        _schedule(chunk, debounce);
+        _closeChunk(chunk);
       }
     }
+  }
+
+  void _closeChunk(_Chunk chunk) {
+    chunk.generation++;
+    chunk.timer?.cancel();
+    chunk.timer = null;
+    final previous = chunk.previous;
+    final stream = chunk.stream;
+    chunk.previous = null;
+    chunk.stream = null;
+    _chunks.remove(chunk);
+    unawaited(previous?.cancel());
+    unawaited(stream?.cancel());
   }
 
   void _schedule(_Chunk chunk, Duration after) {
@@ -106,13 +119,12 @@ final class NeuronWatchMux {
 
   void _open(_Chunk chunk) {
     chunk.timer = null;
-    final previous = chunk.stream;
-    chunk.stream = null;
     if (_closed || chunk.sources.isEmpty) {
-      unawaited(previous?.cancel());
-      _chunks.remove(chunk);
+      _closeChunk(chunk);
       return;
     }
+    final previous = chunk.stream;
+    chunk.stream = null;
     final generation = ++chunk.generation;
     var retired = previous == null;
     void retire() {

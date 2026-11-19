@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
@@ -28,7 +29,9 @@ class ContextMenuNeuronWidget extends StatelessWidget {
         final c = IcTheme.of(context);
         final trigger = (state['triggerLabel'] as String?) ?? 'Actions';
         final last = state['lastInvokedItemId'] as String?;
-        final items = ((state['items'] as List?) ?? const []).whereType<Map<String, dynamic>>().toList();
+        final items = ((state['items'] as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -55,17 +58,27 @@ class ContextMenuNeuronWidget extends StatelessWidget {
                     child: Row(
                       children: [
                         if (iconSlug != null) ...[
-                          Icon(uiIcon(iconSlug), size: 15, color: destructive ? c.error : c.textBody),
+                          Icon(
+                            uiIcon(iconSlug),
+                            size: 15,
+                            color: destructive ? c.error : c.textBody,
+                          ),
                           const SizedBox(width: 8),
                         ],
                         Expanded(
                           child: Text(
                             label,
-                            style: TextStyle(fontSize: 13, color: destructive ? c.error : c.textStrong),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: destructive ? c.error : c.textStrong,
+                            ),
                           ),
                         ),
                         if (shortcut != null)
-                          Text(shortcut, style: TextStyle(fontSize: 11, color: c.textMuted)),
+                          Text(
+                            shortcut,
+                            style: TextStyle(fontSize: 11, color: c.textMuted),
+                          ),
                       ],
                     ),
                   );
@@ -75,13 +88,23 @@ class ContextMenuNeuronWidget extends StatelessWidget {
                   children: [
                     Icon(Icons.more_horiz, size: 16, color: c.accent),
                     const SizedBox(width: 6),
-                    Text(trigger, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: c.textStrong)),
+                    Text(
+                      trigger,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: c.textStrong,
+                      ),
+                    ),
                   ],
                 ),
               ),
               if (last != null && last.isNotEmpty) ...[
                 const SizedBox(width: 12),
-                Text('Last: $last', style: TextStyle(fontSize: 11, color: c.textMuted)),
+                Text(
+                  'Last: $last',
+                  style: TextStyle(fontSize: 11, color: c.textMuted),
+                ),
               ],
             ],
           ),

@@ -9,7 +9,7 @@ public sealed record CalendarViewState(
     [property: Id(1)] string Title,
     [property: Id(2)] int Year,
     [property: Id(3)] int Month,
-    [property: Id(4)] IReadOnlyList<string> SelectedDates,
+    [property: Id(4)] string[] SelectedDates,
     [property: Id(5)] bool MultiSelect)
 {
     public CalendarViewState() : this(0, "Calendar", 2026, 11, ["2026-11-19"], false) { }

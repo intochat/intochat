@@ -5,9 +5,9 @@ using IntoChat.OS.Modules.UI.ListBox.Signals;
 namespace IntoChat.OS.Modules.UI.ListBox;
 
 [Neuron("ui.listbox")]
-internal sealed class ListBoxNeuron : Neuron<ListBoxState>, IListBox
+internal sealed class ListBoxNeuron : Neuron<UiListBoxState>, IListBox
 {
-    public async Task<ListBoxState> Configure(IReadOnlyList<ListBoxItem> items, string? selectedId = null, bool isEnabled = true)
+    public async Task<UiListBoxState> Configure(IReadOnlyList<UiListBoxItem> items, string? selectedId = null, bool isEnabled = true)
     {
         ArgumentNullException.ThrowIfNull(items);
         var resolved = selectedId ?? State.SelectedId;
@@ -26,7 +26,7 @@ internal sealed class ListBoxNeuron : Neuron<ListBoxState>, IListBox
         return next;
     }
 
-    public async Task<ListBoxState> Select(string itemId)
+    public async Task<UiListBoxState> Select(string itemId)
     {
         if (!State.IsEnabled)
         {
@@ -43,5 +43,5 @@ internal sealed class ListBoxNeuron : Neuron<ListBoxState>, IListBox
         return next;
     }
 
-    public Task<ListBoxState> Read() => Task.FromResult(State);
+    public Task<UiListBoxState> Read() => Task.FromResult(State);
 }

@@ -6,7 +6,7 @@ namespace IntoChat.OS.Modules.UI.Form;
 [DefaultNeuronType("ui.form")]
 public interface IForm
 {
-    Task<FormState> Configure(
+    Task<UiFormState> Configure(
         string title,
         IReadOnlyList<FormField> fields,
         IReadOnlyDictionary<string, string>? initialValues = null,
@@ -14,16 +14,16 @@ public interface IForm
         bool isEnabled = true);
 
     /// <summary>Updates a non-secret field value. Refuses secret fields so plaintext never reaches the journal.</summary>
-    Task<FormState> SetValue(string fieldId, string value);
+    Task<UiFormState> SetValue(string fieldId, string value);
 
-    /// <summary>Records an opaque vault <see cref="SecretRef"/> handle for a secret field.</summary>
-    Task<FormState> SetSecretRef(string fieldId, SecretRef secretRef);
+    /// <summary>Records an opaque vault <see cref="UiSecretRef"/> handle for a secret field.</summary>
+    Task<UiFormState> SetSecretRef(string fieldId, UiSecretRef secretRef);
 
     /// <summary>Validates required fields and emits <see cref="Signals.FormSubmitted"/>.</summary>
-    Task<FormState> Submit(IReadOnlyDictionary<string, string>? values = null);
+    Task<UiFormState> Submit(IReadOnlyDictionary<string, string>? values = null);
 
-    Task<FormState> Reset();
+    Task<UiFormState> Reset();
 
     [ReadOnlyCall]
-    Task<FormState> Read();
+    Task<UiFormState> Read();
 }

@@ -8,7 +8,7 @@ public sealed record MarkdownViewerState(
     [property: Id(0)] int Version,
     [property: Id(1)] string Title,
     [property: Id(2)] string Markdown,
-    [property: Id(3)] IReadOnlyList<string> Headings)
+    [property: Id(3)] string[] Headings)
 {
     public MarkdownViewerState() : this(0, "Document", "", []) { }
 }

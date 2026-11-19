@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
@@ -51,7 +52,14 @@ class PersonPictureNeuronWidget extends StatelessWidget {
                   CircleAvatar(
                     radius: 18,
                     backgroundColor: c.accent.withValues(alpha: 0.16),
-                    child: Text(initials, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: c.accent)),
+                    child: Text(
+                      initials,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: c.accent,
+                      ),
+                    ),
                   ),
                   Positioned(
                     right: 0,
@@ -73,8 +81,18 @@ class PersonPictureNeuronWidget extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textStrong)),
-                  Text(subtitle ?? presence, style: TextStyle(fontSize: 11, color: c.textMuted)),
+                  Text(
+                    name,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: c.textStrong,
+                    ),
+                  ),
+                  Text(
+                    subtitle ?? presence,
+                    style: TextStyle(fontSize: 11, color: c.textMuted),
+                  ),
                 ],
               ),
             ],

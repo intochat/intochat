@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.Chart.Signals;
 
@@ -35,7 +36,7 @@ internal sealed class ChartNeuron : Neuron<ChartState>, IChart
         ArgumentException.ThrowIfNullOrWhiteSpace(point.Label);
 
         var targetName = string.IsNullOrWhiteSpace(seriesName)
-            ? (State.Series.Count > 0 ? State.Series[0].Name : "Primary")
+            ? (State.Series.Length > 0 ? State.Series[0].Name : "Primary")
             : seriesName.Trim();
 
         var list = State.Series.ToList();
@@ -59,7 +60,7 @@ internal sealed class ChartNeuron : Neuron<ChartState>, IChart
         var next = State with
         {
             Version = State.Version + 1,
-            Series = list,
+            Series = [.. list],
             Status = "ready",
             Error = null,
         };
@@ -179,6 +180,7 @@ internal sealed class ChartNeuron : Neuron<ChartState>, IChart
         catch (Exception ex)
 #pragma warning restore CA1031
         {
+            GetLogger().LogSwallowed(ex, "Bound chart source query failed.");
             var failed = basis with
             {
                 Version = basis.Version + 1,
@@ -190,7 +192,7 @@ internal sealed class ChartNeuron : Neuron<ChartState>, IChart
         }
     }
 
-    private static IReadOnlyList<ChartSeries> NormalizeSeries(IReadOnlyList<ChartSeries>? series)
+    private static ChartSeries[] NormalizeSeries(IReadOnlyList<ChartSeries>? series)
     {
         if (series is null || series.Count == 0) { return []; }
         return
@@ -202,8 +204,8 @@ internal sealed class ChartNeuron : Neuron<ChartState>, IChart
     }
 
     private static int TotalPoints(IReadOnlyList<ChartSeries> series)
-        => series.Sum(s => s.Points.Count);
+        => series.Sum(s => s.Points.Length);
 
-    private ChartChanged Changed(ChartState state)
+    private UiChartChanged Changed(ChartState state)
         => new(Id.FullKey(), state.Version, state.Kind, TotalPoints(state.Series), state.Status);
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
@@ -26,7 +27,9 @@ class CommandBarNeuronWidget extends StatelessWidget {
       watch: watch,
       builder: (context, state, invoke) {
         final c = IcTheme.of(context);
-        final items = ((state['items'] as List?) ?? const []).whereType<Map<String, dynamic>>().toList();
+        final items = ((state['items'] as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
         final primary = items.where((i) => i['primary'] != false).toList();
         final secondary = items.where((i) => i['primary'] == false).toList();
         final last = state['lastInvokedId'] as String?;
@@ -58,7 +61,10 @@ class CommandBarNeuronWidget extends StatelessWidget {
               if (last != null && last.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
-                  child: Text('Last: $last', style: TextStyle(fontSize: 11, color: c.textMuted)),
+                  child: Text(
+                    'Last: $last',
+                    style: TextStyle(fontSize: 11, color: c.textMuted),
+                  ),
                 ),
               if (secondary.isNotEmpty)
                 PopupMenuButton<String>(
@@ -68,7 +74,11 @@ class CommandBarNeuronWidget extends StatelessWidget {
                     final id = (item['id'] as String?) ?? '';
                     final label = (item['label'] as String?) ?? id;
                     final disabled = item['disabled'] == true;
-                    return PopupMenuItem<String>(value: id, enabled: !disabled, child: Text(label));
+                    return PopupMenuItem<String>(
+                      value: id,
+                      enabled: !disabled,
+                      child: Text(label),
+                    );
                   }).toList(),
                 ),
             ],

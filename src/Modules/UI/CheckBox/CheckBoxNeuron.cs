@@ -5,9 +5,9 @@ using IntoChat.OS.Modules.UI.CheckBox.Signals;
 namespace IntoChat.OS.Modules.UI.CheckBox;
 
 [Neuron("ui.checkbox")]
-internal sealed class CheckBoxNeuron : Neuron<CheckBoxState>, ICheckBox
+internal sealed class CheckBoxNeuron : Neuron<UiCheckBoxState>, ICheckBox
 {
-    public async Task<CheckBoxState> Configure(string label, bool? isChecked = null, bool isEnabled = true)
+    public async Task<UiCheckBoxState> Configure(string label, bool? isChecked = null, bool isEnabled = true)
     {
         var next = State with
         {
@@ -20,9 +20,9 @@ internal sealed class CheckBoxNeuron : Neuron<CheckBoxState>, ICheckBox
         return next;
     }
 
-    public Task<CheckBoxState> Toggle() => Set(!State.IsChecked);
+    public Task<UiCheckBoxState> Toggle() => Set(!State.IsChecked);
 
-    public async Task<CheckBoxState> Set(bool isChecked)
+    public async Task<UiCheckBoxState> Set(bool isChecked)
     {
         if (!State.IsEnabled)
         {
@@ -34,5 +34,5 @@ internal sealed class CheckBoxNeuron : Neuron<CheckBoxState>, ICheckBox
         return next;
     }
 
-    public Task<CheckBoxState> Read() => Task.FromResult(State);
+    public Task<UiCheckBoxState> Read() => Task.FromResult(State);
 }

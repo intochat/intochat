@@ -13,7 +13,7 @@ internal sealed class ColorPickerNeuron : Neuron<ColorPickerState>, IColorPicker
             Version = State.Version + 1,
             Label = label ?? "",
             Hex = NormalizeHex(hex),
-            Swatches = swatches is { Count: > 0 } ? [.. swatches] : ColorPickerState.DefaultSwatches,
+            Swatches = swatches is { Count: > 0 } ? [.. swatches] : [.. ColorPickerState.DefaultSwatches],
             IsEnabled = isEnabled,
         };
         await Save(next, new ColorChanged(Id.FullKey(), next.Version, next.Hex));

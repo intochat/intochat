@@ -19,7 +19,7 @@ public sealed record GridViewItem(
 public sealed record GridViewState(
     [property: Id(0)] int Version,
     [property: Id(1)] string Title,
-    [property: Id(2)] IReadOnlyList<GridViewItem> Items,
+    [property: Id(2)] GridViewItem[] Items,
     [property: Id(3)] string? SelectedId,
     [property: Id(4)] int Columns)
 {

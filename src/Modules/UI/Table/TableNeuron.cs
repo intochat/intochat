@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Log;
 using DigitalBrain.Neurons;
 using IntoChat.OS.Modules.UI.Table.Signals;
 
@@ -32,7 +33,7 @@ internal sealed class TableNeuron : Neuron<TableState>, ITable
             Version = State.Version + 1,
             Title = title ?? "",
             Columns = [.. columns],
-            Rows = [.. rows],
+            Rows = rows.Select(static r => r.ToArray()).ToArray(),
             Total = rows.Count,
             SourceNeuronId = null,
             SelectedRowIndex = null,
@@ -65,7 +66,7 @@ internal sealed class TableNeuron : Neuron<TableState>, ITable
 
     public async Task<TableState> SelectRow(int? rowIndex)
     {
-        int? resolved = rowIndex is >= 0 and var i && i < State.Rows.Count ? i : null;
+        int? resolved = rowIndex is >= 0 and var i && i < State.Rows.Length ? i : null;
         var next = State with { Version = State.Version + 1, SelectedRowIndex = resolved };
         await Save(next, Changed(next), new TableRowSelected(Id.FullKey(), resolved));
         return next;
@@ -90,7 +91,7 @@ internal sealed class TableNeuron : Neuron<TableState>, ITable
     private async Task<TableState> ExecuteBoundQuery(TableState basis)
     {
         var sourceId = basis.SourceNeuronId!;
-        if (!NeuronId.TryParse(sourceId, out var address) || !Implements<ITableSource>(address))
+        if (!NeuronId.TryParse(sourceId, out var address) || !Implements<IUiTableSource>(address))
         {
             var invalid = basis with
             {
@@ -98,7 +99,7 @@ internal sealed class TableNeuron : Neuron<TableState>, ITable
                 Rows = [],
                 Total = 0,
                 Status = "error",
-                Error = $"Source '{sourceId}' is not a valid ITableSource in this brain.",
+                Error = $"Source '{sourceId}' is not a valid IUiTableSource in this brain.",
             };
             await Save(invalid, Changed(invalid));
             return invalid;
@@ -106,13 +107,13 @@ internal sealed class TableNeuron : Neuron<TableState>, ITable
 
         try
         {
-            var page = await Get<ITableSource>(address).Query(new TableQuery(basis.Filter, basis.SortBy, basis.Descending, basis.Page, basis.PageSize));
+            var page = await Get<IUiTableSource>(address).Query(new UiTableQuery(basis.Filter, basis.SortBy, basis.Descending, basis.Page, basis.PageSize));
             var next = basis with
             {
                 Version = basis.Version + 1,
                 Title = string.IsNullOrWhiteSpace(page.Title) ? basis.Title : page.Title,
                 Columns = page.Columns is { Count: > 0 } cols ? [.. cols] : basis.Columns,
-                Rows = [.. page.Rows],
+                Rows = page.Rows.Select(static r => r.ToArray()).ToArray(),
                 Total = page.Total,
                 Status = page.Rows.Count > 0 ? "ready" : "empty",
                 Error = null,
@@ -124,6 +125,7 @@ internal sealed class TableNeuron : Neuron<TableState>, ITable
         catch (Exception ex)
 #pragma warning restore CA1031
         {
+            GetLogger().LogSwallowed(ex, "Bound table source query failed.");
             var failed = basis with
             {
                 Version = basis.Version + 1,
@@ -137,6 +139,6 @@ internal sealed class TableNeuron : Neuron<TableState>, ITable
         }
     }
 
-    private TableChanged Changed(TableState state)
+    private UiTableChanged Changed(TableState state)
         => new(Id.FullKey(), state.Version, state.Filter, state.SortBy, state.Descending, state.Page);
 }

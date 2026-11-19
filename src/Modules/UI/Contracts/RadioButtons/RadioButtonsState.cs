@@ -12,7 +12,7 @@ public sealed record RadioOption(
 public sealed record RadioButtonsState(
     [property: Id(0)] int Version,
     [property: Id(1)] string Header,
-    [property: Id(2)] IReadOnlyList<RadioOption> Options,
+    [property: Id(2)] RadioOption[] Options,
     [property: Id(3)] string? SelectedId,
     [property: Id(4)] bool IsEnabled)
 {

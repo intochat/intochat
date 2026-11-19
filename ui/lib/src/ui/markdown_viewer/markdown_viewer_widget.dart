@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
@@ -43,7 +44,14 @@ class MarkdownViewerNeuronWidget extends StatelessWidget {
                 children: [
                   Icon(Icons.article_outlined, size: 15, color: c.accent),
                   const SizedBox(width: 6),
-                  Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textStrong)),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: c.textStrong,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 10),

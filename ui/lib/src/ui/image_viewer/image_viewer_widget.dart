@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
@@ -29,7 +30,10 @@ class ImageViewerNeuronWidget extends StatelessWidget {
         final title = (state['title'] as String?) ?? 'Image';
         final sourceUrl = (state['sourceUrl'] as String?) ?? '';
         final caption = state['caption'] as String?;
-        final zoom = ((state['zoom'] as num?)?.toDouble() ?? 1.0).clamp(0.25, 4.0);
+        final zoom = ((state['zoom'] as num?)?.toDouble() ?? 1.0).clamp(
+          0.25,
+          4.0,
+        );
         final rotation = (state['rotationDegrees'] as num?)?.toInt() ?? 0;
 
         return Container(
@@ -45,16 +49,28 @@ class ImageViewerNeuronWidget extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textStrong)),
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: c.textStrong,
+                      ),
+                    ),
                   ),
-                  Text('${(zoom * 100).round()}% · $rotation°', style: TextStyle(fontSize: 11, color: c.textMuted)),
+                  Text(
+                    '${(zoom * 100).round()}% · $rotation°',
+                    style: TextStyle(fontSize: 11, color: c.textMuted),
+                  ),
                   IconButton(
                     icon: const Icon(Icons.zoom_out, size: 16),
-                    onPressed: () => invoke('SetZoom', [(zoom - 0.25).clamp(0.25, 4.0)]),
+                    onPressed: () =>
+                        invoke('SetZoom', [(zoom - 0.25).clamp(0.25, 4.0)]),
                   ),
                   IconButton(
                     icon: const Icon(Icons.zoom_in, size: 16),
-                    onPressed: () => invoke('SetZoom', [(zoom + 0.25).clamp(0.25, 4.0)]),
+                    onPressed: () =>
+                        invoke('SetZoom', [(zoom + 0.25).clamp(0.25, 4.0)]),
                   ),
                   IconButton(
                     icon: const Icon(Icons.rotate_right, size: 16),
@@ -82,16 +98,27 @@ class ImageViewerNeuronWidget extends StatelessWidget {
                           ? Image.network(
                               sourceUrl,
                               fit: BoxFit.contain,
-                              errorBuilder: (_, _, _) => Icon(Icons.image_outlined, size: 42, color: c.textMuted),
+                              errorBuilder: (_, _, _) => Icon(
+                                Icons.image_outlined,
+                                size: 42,
+                                color: c.textMuted,
+                              ),
                             )
-                          : Icon(Icons.image_outlined, size: 42, color: c.textMuted),
+                          : Icon(
+                              Icons.image_outlined,
+                              size: 42,
+                              color: c.textMuted,
+                            ),
                     ),
                   ),
                 ),
               ),
               if (caption != null && caption.isNotEmpty) ...[
                 const SizedBox(height: 6),
-                Text(caption, style: TextStyle(fontSize: 11, color: c.textMuted)),
+                Text(
+                  caption,
+                  style: TextStyle(fontSize: 11, color: c.textMuted),
+                ),
               ],
             ],
           ),

@@ -14,26 +14,34 @@ using IntoChat.OS.Modules.UI.ContextMenu;
 using IntoChat.OS.Modules.UI.DatePicker;
 using IntoChat.OS.Modules.UI.Dialog;
 using IntoChat.OS.Modules.UI.Expander;
+using IntoChat.OS.Modules.UI.FilePicker;
 using IntoChat.OS.Modules.UI.Form;
 using IntoChat.OS.Modules.UI.GridView;
 using IntoChat.OS.Modules.UI.ImageViewer;
+using IntoChat.OS.Modules.UI.InfoBadge;
 using IntoChat.OS.Modules.UI.InfoBar;
+using IntoChat.OS.Modules.UI.KanbanBoard;
 using IntoChat.OS.Modules.UI.ListBox;
 using IntoChat.OS.Modules.UI.MarkdownViewer;
 using IntoChat.OS.Modules.UI.MediaPlayer;
+using IntoChat.OS.Modules.UI.NotificationToast;
 using IntoChat.OS.Modules.UI.NumberBox;
 using IntoChat.OS.Modules.UI.PersonPicture;
+using IntoChat.OS.Modules.UI.PipsPager;
 using IntoChat.OS.Modules.UI.Progress;
+using IntoChat.OS.Modules.UI.PropertyGrid;
 using IntoChat.OS.Modules.UI.RadioButtons;
 using IntoChat.OS.Modules.UI.Rating;
 using IntoChat.OS.Modules.UI.Select;
 using IntoChat.OS.Modules.UI.Slider;
 using IntoChat.OS.Modules.UI.SplitButton;
+using IntoChat.OS.Modules.UI.Stepper;
 using IntoChat.OS.Modules.UI.Table;
 using IntoChat.OS.Modules.UI.Tabs;
 using IntoChat.OS.Modules.UI.TeachingTip;
 using IntoChat.OS.Modules.UI.TimePicker;
 using IntoChat.OS.Modules.UI.Toggle;
+using IntoChat.OS.Modules.UI.ToggleSplitButton;
 using IntoChat.OS.Modules.UI.TreeView;
 
 namespace IntoChat.OS.Modules.UI;
@@ -64,12 +72,12 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
         var s2 = await queryChart.Read();
 
         Assert.Equal(ChartKinds.Line, s1.Kind);
-        Assert.Equal(2, s1.Series[0].Points.Count);
+        Assert.Equal(2, s1.Series[0].Points.Length);
         Assert.Equal("T2", s1.Series[0].Points[1].Label);
 
         Assert.Equal(ChartKinds.Area, s2.Kind);
-        Assert.Equal(2, s2.Series.Count);
-        Assert.Equal(3, s2.Series[0].Points.Count); // Jan, Feb, Mar for Q1
+        Assert.Equal(2, s2.Series.Length);
+        Assert.Equal(3, s2.Series[0].Points.Length); // Jan, Feb, Mar for Q1
         Assert.NotNull(s2.SelectedPoint);
         Assert.Equal("Feb", s2.SelectedPoint!.Label);
         Assert.Equal(82, s2.SelectedPoint.Value);
@@ -89,7 +97,7 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
 
         var state = await chart.Read();
         Assert.Equal(205, state.Version);
-        Assert.Equal(ChartState.MaxPointsPerSeries, state.Series[0].Points.Count);
+        Assert.Equal(ChartState.MaxPointsPerSeries, state.Series[0].Points.Length);
         Assert.Equal("P6", state.Series[0].Points[0].Label);
         Assert.Equal("P205", state.Series[0].Points[^1].Label);
     }
@@ -114,11 +122,11 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
         Assert.True((await check.Toggle()).IsChecked);
 
         var select = os.Get<ISelect>(new NeuronId(Brain, "ui.select", "model"));
-        await select.Configure("Model", [new SelectOption("a", "Model A"), new SelectOption("b", "Model B")], "a");
+        await select.Configure("Model", [new UiSelectOption("a", "Model A"), new UiSelectOption("b", "Model B")], "a");
         Assert.Equal("b", (await select.Select("b")).SelectedId);
 
         var tabs = os.Get<ITabs>(new NeuronId(Brain, "ui.tabs", "nav"));
-        await tabs.Configure([new TabItem("home", "Home"), new TabItem("data", "Data")], "home");
+        await tabs.Configure([new UiTabItem("home", "Home"), new UiTabItem("data", "Data")], "home");
         Assert.Equal("data", (await tabs.Select("data")).SelectedId);
 
         var expander = os.Get<IExpander>(new NeuronId(Brain, "ui.expander", "details"));
@@ -126,7 +134,7 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
         Assert.True((await expander.Toggle()).IsExpanded);
 
         var listBox = os.Get<IListBox>(new NeuronId(Brain, "ui.listbox", "people"));
-        await listBox.Configure([new ListBoxItem("ana", "Ana"), new ListBoxItem("ben", "Ben")], "ana");
+        await listBox.Configure([new UiListBoxItem("ana", "Ana"), new UiListBoxItem("ben", "Ben")], "ana");
         Assert.Equal("ben", (await listBox.Select("ben")).SelectedId);
     }
 
@@ -142,7 +150,7 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
 
         var initial = await table.Read();
         Assert.Equal(8, initial.Total);
-        Assert.Equal(5, initial.Rows.Count);
+        Assert.Equal(5, initial.Rows.Length);
 
         var filtered = await table.Filter("Modules.UI");
         Assert.Equal(3, filtered.Total);
@@ -170,7 +178,7 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => form.SetValue("apiKey", "sk-plaintext"));
         await form.SetValue("provider", "Anthropic");
-        await form.SetSecretRef("apiKey", new SecretRef("vault://ANTHROPIC_API_KEY"));
+        await form.SetSecretRef("apiKey", new UiSecretRef("vault://ANTHROPIC_API_KEY"));
 
         var submitted = await form.Submit();
         Assert.Null(submitted.Error);
@@ -251,7 +259,7 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
         var crumb = os.Get<IBreadcrumbBar>(new NeuronId(Brain, "ui.breadcrumb", "b1"));
         await crumb.SetItems([new BreadcrumbItem("root", "Root"), new BreadcrumbItem("docs", "Docs"), new BreadcrumbItem("q4", "Q4")]);
         var nav = await crumb.NavigateTo("docs");
-        Assert.Equal(2, nav.Items.Count);
+        Assert.Equal(2, nav.Items.Length);
         Assert.Equal("docs", nav.ActiveId);
 
         var suggest = os.Get<IAutoSuggestBox>(new NeuronId(Brain, "ui.auto-suggest", "as1"));
@@ -259,8 +267,8 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
         Assert.Single((await suggest.SetQuery("chart")).Suggestions);
 
         var tree = os.Get<ITreeView>(new NeuronId(Brain, "ui.tree-view", "tv1"));
-        await tree.Configure([new TreeNode("src", "src", IsFolder: true), new TreeNode("a", "A.cs", ParentId: "src")]);
-        Assert.Contains("src", (await tree.ToggleExpand("src")).ExpandedIds);
+        await tree.Configure([new TreeNode("code", "code", IsFolder: true), new TreeNode("a", "A.cs", ParentId: "code")]);
+        Assert.Contains("code", (await tree.ToggleExpand("code")).ExpandedIds);
         Assert.Equal("a", (await tree.Select("a")).SelectedId);
 
         var prog = os.Get<IProgressIndicator>(new NeuronId(Brain, "ui.progress", "p1"));
@@ -289,7 +297,7 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
         var cal = os.Get<ICalendarView>(new NeuronId(Brain, "ui.calendar", "cal1"));
         await cal.Configure("Sprint", 2026, 11, ["2026-11-19"], multiSelect: true);
         var cNext = await cal.ToggleDate("2026-11-24");
-        Assert.Equal(2, cNext.SelectedDates.Count);
+        Assert.Equal(2, cNext.SelectedDates.Length);
 
         var menu = os.Get<IContextMenu>(new NeuronId(Brain, "ui.context-menu", "cm1"));
         await menu.Configure("Actions", [new ContextMenuItem("open", "Open"), new ContextMenuItem("del", "Delete", Destructive: true)]);
@@ -348,6 +356,140 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
         Assert.True((await tip.Show("Welcome", "Try Charts", "Go")).IsOpen);
         var tipAct = await tip.InvokeAction();
         Assert.Equal((false, 1), (tipAct.IsOpen, tipAct.ActionCount));
+    }
+
+    [Fact]
+    public async Task WinUi3Wave3StepperPropertyGridAndKanbanBoardMaintainStateAndInvariants()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", Brain));
+        await using var os = TestOS.Local().Register(typeof(UiModule).Assembly);
+
+        // 1. IStepper (ui.stepper)
+        var stepper = os.Get<IStepper>(new NeuronId(Brain, "ui.stepper", "pipeline"));
+        var stInit = await stepper.Configure(
+        [
+            new StepperStep("plan", "Plan", "running"),
+            new StepperStep("code", "Code", "pending"),
+            new StepperStep("verify", "Verify", "pending"),
+        ], title: "Engineer");
+        Assert.Equal("plan", stInit.ActiveStepId);
+        Assert.Equal(StepperStatuses.Active, stInit.Steps[0].Status);
+
+        var stAdv = await stepper.Advance();
+        Assert.Equal("code", stAdv.ActiveStepId);
+        Assert.Equal(StepperStatuses.Done, stAdv.Steps[0].Status);
+        Assert.Equal(StepperStatuses.Active, stAdv.Steps[1].Status);
+
+        var stErr = await stepper.SetStepStatus("verify", "failed", "1 test failed");
+        Assert.Equal(StepperStatuses.Error, stErr.Steps[2].Status);
+        Assert.Equal("1 test failed", stErr.Steps[2].Subtitle);
+        Assert.Equal("verify", (await stepper.Select("verify")).ActiveStepId);
+        await Assert.ThrowsAsync<ArgumentException>(() => stepper.Select("missing"));
+
+        var lockedStepper = os.Get<IStepper>(new NeuronId(Brain, "ui.stepper", "locked"));
+        await lockedStepper.Configure([new StepperStep("s1", "One")], allowInteractiveSelection: false);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => lockedStepper.Select("s1"));
+
+        // 2. IPropertyGrid (ui.property-grid)
+        var grid = os.Get<IPropertyGrid>(new NeuronId(Brain, "ui.property-grid", "inspector"));
+        var pgReadOnly = await grid.LoadJson("Neuron State", "{\"count\":42,\"nested\":{\"active\":true},\"items\":[\"a\",\"b\"]}", readOnly: true);
+        Assert.Contains(pgReadOnly.Entries, e => e.Path == "count" && e.Value == "42" && e.ValueKind == "number");
+        Assert.Contains(pgReadOnly.Entries, e => e.Path == "nested.active" && e.Value == "true" && e.ValueKind == "boolean");
+        Assert.Contains(pgReadOnly.Entries, e => e.Path == "items[1]" && e.Value == "b" && e.ValueKind == "string");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => grid.SetValue("count", "99"));
+
+        await grid.LoadJson("Editable State", "{\"count\":42}", readOnly: false);
+        var pgEdited = await grid.SetValue("count", "99");
+        Assert.Equal("99", pgEdited.Entries.Single(e => e.Path == "count").Value);
+        Assert.Equal("42", (await grid.SetFilter("42")).Filter);
+        var toggled = await grid.ToggleExpand("nested");
+        Assert.Contains("nested", toggled.ExpandedPaths);
+
+        // 3. IKanbanBoard (ui.kanban)
+        var kanban = os.Get<IKanbanBoard>(new NeuronId(Brain, "ui.kanban", "sprint"));
+        await kanban.Configure(
+            "Sprint",
+            [new KanbanColumn("todo", "To Do"), new KanbanColumn("doing", "Doing", WipLimit: 1), new KanbanColumn("done", "Done")],
+            [new KanbanCard("k1", "todo", "Task 1"), new KanbanCard("k2", "todo", "Task 2")]);
+
+        var moved1 = await kanban.MoveCard("k1", "doing");
+        Assert.Equal("doing", moved1.Cards.Single(c => c.Id == "k1").ColumnId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => kanban.MoveCard("k2", "doing")); // WIP limit = 1
+
+        var upserted = await kanban.UpsertCard(new KanbanCard("k3", "done", "Shipped"));
+        Assert.Equal(3, upserted.Cards.Length);
+        var removed = await kanban.RemoveCard("k2");
+        Assert.Equal(2, removed.Cards.Length);
+    }
+
+    [Fact]
+    public async Task WinUi3Wave3PipsPagerInfoBadgeToastFilePickerAndToggleSplitButtonMaintainState()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", Brain));
+        await using var os = TestOS.Local().Register(typeof(UiModule).Assembly);
+
+        // 4. IPipsPager (ui.pips-pager)
+        var pips = os.Get<IPipsPager>(new NeuronId(Brain, "ui.pips-pager", "pp1"));
+        await pips.Configure(pageCount: 4, selectedIndex: 0);
+        Assert.Equal(1, (await pips.Next()).SelectedIndex);
+        Assert.Equal(3, (await pips.SelectPage(99)).SelectedIndex); // clamped
+        Assert.Equal(2, (await pips.Previous()).SelectedIndex);
+
+        // 5. IInfoBadge (ui.info-badge)
+        var badge = os.Get<IInfoBadge>(new NeuronId(Brain, "ui.info-badge", "ib1"));
+        var b1 = await badge.Configure("Alerts", value: 5, severity: "critical");
+        Assert.Equal(("count", 5, "critical"), (b1.Kind, b1.Value, b1.Severity));
+        var b2 = await badge.SetValue(null);
+        Assert.Equal("dot", b2.Kind);
+        Assert.False((await badge.SetVisible(false)).IsVisible);
+
+        // 6. INotificationToast (ui.toast)
+        var toast = os.Get<INotificationToast>(new NeuronId(Brain, "ui.toast", "t1"));
+        var tShown = await toast.Show("Build Ready", "0 warnings", "success", actionLabel: "Open", actionId: "open-log", id: "toast-a");
+        Assert.True(tShown.IsOpen);
+        Assert.Single(tShown.Items);
+        var tAct = await toast.InvokeAction("toast-a");
+        Assert.Equal("open-log", tAct.LastInvokedActionId);
+        Assert.False(tAct.IsOpen);
+        await toast.Show("Second", "Body", id: "toast-b");
+        Assert.Equal(1, (await toast.Dismiss("toast-b")).DismissCount);
+
+        // 7. IFilePicker (ui.file-picker)
+        var picker = os.Get<IFilePicker>(new NeuronId(Brain, "ui.file-picker", "fp1"));
+        await picker.Configure(
+            "Open Source",
+            "neuron://owner/storage.files/src",
+            [
+                new FilePickerEntry("/src/App.cs", "App.cs", SizeBytes: 1200, NeuronUri: "neuron://owner/storage.files/src/App.cs"),
+                new FilePickerEntry("/src/README.md", "README.md", SizeBytes: 800, NeuronUri: "neuron://owner/storage.files/src/README.md"),
+            ],
+            filters: [".cs", ".md"]);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => picker.Select("/src/README.md")); // activeFilter is .cs
+        await picker.Select("/src/App.cs");
+        var confirmed = await picker.Confirm();
+        Assert.Equal("neuron://owner/storage.files/src/App.cs", confirmed.ConfirmedPath);
+
+        // 8. IToggleSplitButton (ui.toggle-split-button)
+        var tsb = os.Get<IToggleSplitButton>(new NeuronId(Brain, "ui.toggle-split-button", "tsb1"));
+        await tsb.Configure("Watch", [new ToggleSplitButtonOption("all", "Watch All"), new ToggleSplitButtonOption("err", "Watch Errors")], isChecked: false);
+        Assert.True((await tsb.Toggle()).IsChecked);
+        var optSel = await tsb.SelectOption("err");
+        Assert.Equal(("err", "Watch Errors", true), (optSel.SelectedOptionId, optSel.Label, optSel.IsChecked));
+
+        var disabledTsb = os.Get<IToggleSplitButton>(new NeuronId(Brain, "ui.toggle-split-button", "tsb-off"));
+        await disabledTsb.Configure("Locked", [], isEnabled: false);
+        await Assert.ThrowsAsync<InvalidOperationException>(disabledTsb.Toggle);
+    }
+
+    [Fact]
+    public void GalleryIconCatalogCoversAllEightWinUiCategories()
+    {
+        string[] expected = ["OS", "Code/DDD", "AI/Neurons", "Files", "Media", "Navigation", "Status", "Devices"];
+        foreach (var category in expected)
+        {
+            Assert.NotEmpty(IntoChat.OS.Apps.Gallery.GalleryIconCatalog.ForCategory(category));
+        }
+        Assert.True(IntoChat.OS.Apps.Gallery.GalleryIconCatalog.All.Length >= 100);
     }
 
     [Fact]

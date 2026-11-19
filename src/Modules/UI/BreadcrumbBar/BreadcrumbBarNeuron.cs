@@ -19,7 +19,7 @@ internal sealed class BreadcrumbBarNeuron : Neuron<BreadcrumbBarState>, IBreadcr
     public async Task<BreadcrumbBarState> NavigateTo(string itemId)
     {
         var idx = -1;
-        for (var i = 0; i < State.Items.Count; i++)
+        for (var i = 0; i < State.Items.Length; i++)
         {
             if (string.Equals(State.Items[i].Id, itemId, StringComparison.Ordinal)) { idx = i; break; }
         }

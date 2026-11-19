@@ -107,7 +107,7 @@ class ViewHost extends StatefulWidget {
 class _ViewHostState extends State<ViewHost> {
   Map<String, dynamic>? _data;
   Object? _error;
-  Timer? _timer, _resubscribe;
+  Timer? _timer, _resubscribe, _uiNeuronSync, _uiNeuronFollowUp;
   StreamSubscription<void>? _watch;
   bool _loading = false, _reloadAgain = false;
   int _generation = 0;
@@ -283,7 +283,20 @@ class _ViewHostState extends State<ViewHost> {
       return buildUiNeuronWidget(
         kind: kind,
         neuronKey: key,
-        callNeuron: caller,
+        callNeuron: (contract, targetKey, method, arguments) async {
+          final result = await caller(contract, targetKey, method, arguments);
+          if (method != 'Read' && mounted) {
+            _uiNeuronSync?.cancel();
+            _uiNeuronFollowUp?.cancel();
+            _uiNeuronSync = Timer(const Duration(milliseconds: 90), () {
+              if (mounted) _reload();
+            });
+            _uiNeuronFollowUp = Timer(const Duration(milliseconds: 380), () {
+              if (mounted) _reload();
+            });
+          }
+          return result;
+        },
         watch: widget.watch,
       );
     }
@@ -571,6 +584,8 @@ class _ViewHostState extends State<ViewHost> {
     FocusRegistry.instance.unregister(_focusTarget, _focusKey);
     _timer?.cancel();
     _resubscribe?.cancel();
+    _uiNeuronSync?.cancel();
+    _uiNeuronFollowUp?.cancel();
     _watch?.cancel();
     _events.removeListener(_reload);
     if (widget.events == null) _events.dispose();

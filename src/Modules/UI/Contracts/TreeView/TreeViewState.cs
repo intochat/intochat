@@ -14,8 +14,8 @@ public sealed record TreeNode(
 [GenerateSerializer, Alias("ui.tree-view.state")]
 public sealed record TreeViewState(
     [property: Id(0)] int Version,
-    [property: Id(1)] IReadOnlyList<TreeNode> Nodes,
-    [property: Id(2)] IReadOnlyList<string> ExpandedIds,
+    [property: Id(1)] TreeNode[] Nodes,
+    [property: Id(2)] string[] ExpandedIds,
     [property: Id(3)] string? SelectedId)
 {
     public TreeViewState() : this(0, [], [], null) { }

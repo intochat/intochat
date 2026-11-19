@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
@@ -29,7 +30,8 @@ class TimePickerNeuronWidget extends StatelessWidget {
         final hour = (state['hour'] as num?)?.toInt() ?? 9;
         final minute = (state['minute'] as num?)?.toInt() ?? 0;
         final disabled = state['disabled'] == true;
-        final formatted = '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+        final formatted =
+            '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -46,8 +48,18 @@ class TimePickerNeuronWidget extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label, style: TextStyle(fontSize: 11, color: c.textMuted)),
-                    Text(formatted, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textStrong)),
+                    Text(
+                      label,
+                      style: TextStyle(fontSize: 11, color: c.textMuted),
+                    ),
+                    Text(
+                      formatted,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: c.textStrong,
+                      ),
+                    ),
                   ],
                 ),
               ),

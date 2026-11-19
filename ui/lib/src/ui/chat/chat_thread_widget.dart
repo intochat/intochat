@@ -59,7 +59,8 @@ class _ChatThreadWidgetState extends State<ChatThreadWidget> {
         final error = state['error'] as String?;
         final totalIn = (state['totalInputTokens'] as num?)?.toInt() ?? 0;
         final totalOut = (state['totalOutputTokens'] as num?)?.toInt() ?? 0;
-        final budget = (state['contextBudgetTokens'] as num?)?.toInt() ?? 128000;
+        final budget =
+            (state['contextBudgetTokens'] as num?)?.toInt() ?? 128000;
         final usedRatio = budget <= 0
             ? 0.0
             : ((totalIn + totalOut) / budget).clamp(0.0, 1.0);
@@ -261,7 +262,10 @@ class _ChatThreadWidgetState extends State<ChatThreadWidget> {
                           child: TextField(
                             controller: _composer,
                             enabled: canSend,
-                            style: TextStyle(fontSize: 13.5, color: c.textStrong),
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              color: c.textStrong,
+                            ),
                             decoration: InputDecoration(
                               hintText: working
                                   ? 'Ino is thinking…'
@@ -329,7 +333,9 @@ class _ChatThreadWidgetState extends State<ChatThreadWidget> {
     );
   }
 
-  void _submit(Future<void> Function(String method, [List<Object?> args]) invoke) {
+  void _submit(
+    Future<void> Function(String method, [List<Object?> args]) invoke,
+  ) {
     final text = _composer.text.trim();
     if (text.isEmpty) return;
     _composer.clear();

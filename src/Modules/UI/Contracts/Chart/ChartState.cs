@@ -34,7 +34,7 @@ public sealed record ChartPoint(
 [GenerateSerializer, Alias("ui.chart.series")]
 public sealed record ChartSeries(
     [property: Id(0)] string Name,
-    [property: Id(1)] IReadOnlyList<ChartPoint> Points)
+    [property: Id(1)] ChartPoint[] Points)
 {
     public ChartSeries() : this("Primary", []) { }
 }
@@ -92,7 +92,7 @@ public sealed record ChartState(
     [property: Id(1)] string Title,
     [property: Id(2)] string Description,
     [property: Id(3)] string Kind,
-    [property: Id(4)] IReadOnlyList<ChartSeries> Series,
+    [property: Id(4)] ChartSeries[] Series,
     [property: Id(5)] string? SourceNeuronId,
     [property: Id(6)] ChartQuery? Query,
     [property: Id(7)] ChartSelection? SelectedPoint,

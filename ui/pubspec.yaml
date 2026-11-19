@@ -34,6 +34,7 @@ dependencies:
   markdraw: ^0.2.0
 
   re_editor: ^0.9.0
+  re_highlight: ^0.0.3
 
 dev_dependencies:
   flutter_test:

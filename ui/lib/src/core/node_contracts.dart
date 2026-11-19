@@ -32,7 +32,7 @@ abstract final class NodeContracts {
     // Unified DDD UI Neuron Kit (IntoChat.OS.Modules.UI)
     'ui.chart': NodeContract(
       'IntoChat.OS.Modules.UI.Chart.IChart',
-      'ChartChanged',
+      'UiChartChanged',
     ),
     'ui.toggle': NodeContract(
       'IntoChat.OS.Modules.UI.Toggle.IToggle',
@@ -46,10 +46,7 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.UI.Select.ISelect',
       'SelectChanged',
     ),
-    'ui.tabs': NodeContract(
-      'IntoChat.OS.Modules.UI.Tabs.ITabs',
-      'TabChanged',
-    ),
+    'ui.tabs': NodeContract('IntoChat.OS.Modules.UI.Tabs.ITabs', 'TabChanged'),
     'ui.expander': NodeContract(
       'IntoChat.OS.Modules.UI.Expander.IExpander',
       'ExpanderChanged',
@@ -60,12 +57,9 @@ abstract final class NodeContracts {
     ),
     'ui.table': NodeContract(
       'IntoChat.OS.Modules.UI.Table.ITable',
-      'TableChanged',
+      'UiTableChanged',
     ),
-    'ui.form': NodeContract(
-      'IntoChat.OS.Modules.UI.Form.IForm',
-      'FormChanged',
-    ),
+    'ui.form': NodeContract('IntoChat.OS.Modules.UI.Form.IForm', 'FormChanged'),
     'ui.dialog': NodeContract(
       'IntoChat.OS.Modules.UI.Dialog.IDialog',
       'DialogChanged',
@@ -165,6 +159,38 @@ abstract final class NodeContracts {
     'ui.teaching-tip': NodeContract(
       'IntoChat.OS.Modules.UI.TeachingTip.ITeachingTip',
       'TeachingTipChanged',
+    ),
+    'ui.stepper': NodeContract(
+      'IntoChat.OS.Modules.UI.Stepper.IStepper',
+      'StepperChanged',
+    ),
+    'ui.property-grid': NodeContract(
+      'IntoChat.OS.Modules.UI.PropertyGrid.IPropertyGrid',
+      'PropertyGridChanged',
+    ),
+    'ui.pips-pager': NodeContract(
+      'IntoChat.OS.Modules.UI.PipsPager.IPipsPager',
+      'PipsPagerChanged',
+    ),
+    'ui.info-badge': NodeContract(
+      'IntoChat.OS.Modules.UI.InfoBadge.IInfoBadge',
+      'InfoBadgeChanged',
+    ),
+    'ui.toast': NodeContract(
+      'IntoChat.OS.Modules.UI.NotificationToast.INotificationToast',
+      'NotificationToastChanged',
+    ),
+    'ui.file-picker': NodeContract(
+      'IntoChat.OS.Modules.UI.FilePicker.IFilePicker',
+      'FilePickerChanged',
+    ),
+    'ui.toggle-split-button': NodeContract(
+      'IntoChat.OS.Modules.UI.ToggleSplitButton.IToggleSplitButton',
+      'ToggleSplitButtonChanged',
+    ),
+    'ui.kanban': NodeContract(
+      'IntoChat.OS.Modules.UI.KanbanBoard.IKanbanBoard',
+      'KanbanBoardChanged',
     ),
   };
 

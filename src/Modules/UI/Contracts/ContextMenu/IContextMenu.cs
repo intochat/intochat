@@ -19,7 +19,7 @@ public sealed record ContextMenuItem(
 public sealed record ContextMenuState(
     [property: Id(0)] int Version,
     [property: Id(1)] string TriggerLabel,
-    [property: Id(2)] IReadOnlyList<ContextMenuItem> Items,
+    [property: Id(2)] ContextMenuItem[] Items,
     [property: Id(3)] string? LastInvokedItemId,
     [property: Id(4)] int InvokeCount)
 {

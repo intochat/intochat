@@ -13,27 +13,35 @@ import 'context_menu/context_menu_widget.dart';
 import 'date_picker/date_picker_widget.dart';
 import 'dialog/dialog_widget.dart';
 import 'expander/expander_widget.dart';
+import 'file_picker/file_picker_widget.dart';
 import 'form/form_widget.dart';
 import 'grid_view/grid_view_widget.dart';
 import 'image_viewer/image_viewer_widget.dart';
+import 'info_badge/info_badge_widget.dart';
 import 'info_bar/info_bar_widget.dart';
+import 'kanban_board/kanban_board_widget.dart';
 import 'listbox/listbox_widget.dart';
 import 'markdown_viewer/markdown_viewer_widget.dart';
 import 'media_player/media_player_widget.dart';
 import 'neuron_widget.dart';
+import 'notification_toast/notification_toast_widget.dart';
 import 'number_box/number_box_widget.dart';
 import 'person_picture/person_picture_widget.dart';
+import 'pips_pager/pips_pager_widget.dart';
 import 'progress/progress_widget.dart';
+import 'property_grid/property_grid_widget.dart';
 import 'radio_buttons/radio_buttons_widget.dart';
 import 'rating/rating_widget.dart';
 import 'select/select_widget.dart';
 import 'slider/slider_widget.dart';
 import 'split_button/split_button_widget.dart';
+import 'stepper/stepper_widget.dart';
 import 'table/table_widget.dart';
 import 'tabs/tabs_widget.dart';
 import 'teaching_tip/teaching_tip_widget.dart';
 import 'time_picker/time_picker_widget.dart';
 import 'toggle/toggle_widget.dart';
+import 'toggle_split_button/toggle_split_button_widget.dart';
 import 'tree_view/tree_view_widget.dart';
 
 /// Returns true when [refKind] names a direct `IntoChat.OS.Modules.UI` neuron.
@@ -71,7 +79,15 @@ bool isUiNeuronKind(String refKind) => switch (refKind.trim().toLowerCase()) {
   'ui.markdown' ||
   'ui.split-button' ||
   'ui.person-picture' ||
-  'ui.teaching-tip' => true,
+  'ui.teaching-tip' ||
+  'ui.stepper' ||
+  'ui.property-grid' ||
+  'ui.pips-pager' ||
+  'ui.info-badge' ||
+  'ui.toast' ||
+  'ui.file-picker' ||
+  'ui.toggle-split-button' ||
+  'ui.kanban' => true,
   _ => false,
 };
 
@@ -284,6 +300,54 @@ Widget? buildUiNeuronWidget({
     ),
     'ui.teaching-tip' => TeachingTipNeuronWidget(
       key: ValueKey('ui.teaching-tip:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.stepper' => StepperNeuronWidget(
+      key: ValueKey('ui.stepper:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.property-grid' => PropertyGridNeuronWidget(
+      key: ValueKey('ui.property-grid:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.pips-pager' => PipsPagerNeuronWidget(
+      key: ValueKey('ui.pips-pager:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.info-badge' => InfoBadgeNeuronWidget(
+      key: ValueKey('ui.info-badge:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.toast' => NotificationToastNeuronWidget(
+      key: ValueKey('ui.toast:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.file-picker' => FilePickerNeuronWidget(
+      key: ValueKey('ui.file-picker:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.toggle-split-button' => ToggleSplitButtonNeuronWidget(
+      key: ValueKey('ui.toggle-split-button:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.kanban' => KanbanBoardNeuronWidget(
+      key: ValueKey('ui.kanban:$neuronKey'),
       neuronKey: neuronKey,
       callNeuron: callNeuron,
       watch: watch,

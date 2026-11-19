@@ -17,7 +17,7 @@ public sealed record CommandBarItem(
 [GenerateSerializer, Alias("ui.command-bar.state")]
 public sealed record CommandBarState(
     [property: Id(0)] int Version,
-    [property: Id(1)] IReadOnlyList<CommandBarItem> Items,
+    [property: Id(1)] CommandBarItem[] Items,
     [property: Id(2)] string? LastInvokedId,
     [property: Id(3)] int InvokeCount)
 {

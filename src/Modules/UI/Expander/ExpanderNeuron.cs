@@ -5,9 +5,9 @@ using IntoChat.OS.Modules.UI.Expander.Signals;
 namespace IntoChat.OS.Modules.UI.Expander;
 
 [Neuron("ui.expander")]
-internal sealed class ExpanderNeuron : Neuron<ExpanderState>, IExpander
+internal sealed class ExpanderNeuron : Neuron<UiExpanderState>, IExpander
 {
-    public async Task<ExpanderState> Configure(string title, string body, bool? isExpanded = null, bool isEnabled = true)
+    public async Task<UiExpanderState> Configure(string title, string body, bool? isExpanded = null, bool isEnabled = true)
     {
         var next = State with
         {
@@ -21,9 +21,9 @@ internal sealed class ExpanderNeuron : Neuron<ExpanderState>, IExpander
         return next;
     }
 
-    public Task<ExpanderState> Toggle() => SetExpanded(!State.IsExpanded);
+    public Task<UiExpanderState> Toggle() => SetExpanded(!State.IsExpanded);
 
-    public async Task<ExpanderState> SetExpanded(bool isExpanded)
+    public async Task<UiExpanderState> SetExpanded(bool isExpanded)
     {
         if (!State.IsEnabled)
         {
@@ -35,5 +35,5 @@ internal sealed class ExpanderNeuron : Neuron<ExpanderState>, IExpander
         return next;
     }
 
-    public Task<ExpanderState> Read() => Task.FromResult(State);
+    public Task<UiExpanderState> Read() => Task.FromResult(State);
 }

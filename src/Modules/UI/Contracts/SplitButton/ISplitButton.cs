@@ -17,7 +17,7 @@ public sealed record SplitButtonState(
     [property: Id(0)] int Version,
     [property: Id(1)] string PrimaryLabel,
     [property: Id(2)] string? PrimaryIcon,
-    [property: Id(3)] IReadOnlyList<SplitButtonOption> Options,
+    [property: Id(3)] SplitButtonOption[] Options,
     [property: Id(4)] string? SelectedOptionId,
     [property: Id(5)] int InvokeCount)
 {

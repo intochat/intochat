@@ -44,7 +44,7 @@ internal static class GalleryRendering
             {
                 "colors" => RenderColorsPage(state),
                 "typography" => RenderTypographyPage(),
-                "icons" => RenderIconsPage(),
+                "icons" => RenderIconsPage(state),
                 "spacing" => RenderSpacingPage(),
                 "toggle" => RenderTogglePage(state),
                 "checkbox" => RenderCheckBoxPage(),
@@ -59,7 +59,8 @@ internal static class GalleryRendering
                 "winui-nav" => RenderWinUiNavPage(),
                 "datetime" => RenderDateTimePage(),
                 "media" => RenderMediaPage(),
-                "workspace" => RenderWorkspaceKitPage(),
+                "workspace" => RenderWorkspaceKitPage(state),
+                "wave3" => RenderWave3Page(),
                 "charts" => RenderChartsPage(state),
                 "table" => RenderTablePage(),
                 "chat" => RenderChatPage(),
@@ -108,6 +109,7 @@ internal static class GalleryRendering
             NavButton("datetime", "Date & Time (3)", "calendar"),
             NavButton("media", "Menus, Grid & Media (4)", "image"),
             NavButton("workspace", "Workspace Kit (6)", "code"),
+            NavButton("wave3", "WinUI 3 Wave 3 (8)", "milestone"),
             Divider("Data & charts"),
             NavButton("charts", "Charts (IChart)", "chart-column"),
             NavButton("table", "Data table (ITable)", "table"),
@@ -130,7 +132,7 @@ internal static class GalleryRendering
                 "Every interactive control below is a real stateful DigitalBrain Neuron in IntoChat.OS.Modules.UI rendered directly over gRPC.")[
                 VStack(Space.Md)[
                     HStack(Space.Sm)[
-                        StatusPill(StatusKind.Done, "34 live UI neurons"),
+                        StatusPill(StatusKind.Done, "42 live UI neurons"),
                         StatusPill(StatusKind.Working, "gRPC NeuronWatchMux"),
                         StatusPill(StatusKind.Idle, "WinUI 3 NavigationShell")
                     ],
@@ -233,21 +235,44 @@ internal static class GalleryRendering
         ]
     ];
 
-    private static Node RenderIconsPage() => VStack(Space.Lg)[
-        Heading("Iconography", 1, "Canonical Lucide icon slugs mapped 1-to-1 in ui_icon.dart."),
-        Surface(SurfaceKind.Elevated, "Common OS Icons & Semantic Pills")[
-            HStack(Space.Sm)[
-                new TagPill("sparkles", "accent", Icons.Sparkles),
-                new TagPill("chart-column", "done", "chart-column"),
-                new TagPill("table", "neutral", "table"),
-                new TagPill("brain-circuit", "accent", "brain-circuit"),
-                new TagPill("shield", "done", "shield"),
-                new TagPill("zap", "working", "zap"),
-                new TagPill("sliders", "neutral", Icons.Sliders),
-                new TagPill("palette", "accent", "palette")
+    private static Node RenderIconsPage(GalleryAppState state)
+    {
+        var categoryButtons = GalleryIconCatalog.Categories.Select(cat =>
+        {
+            var slug = cat.ToLowerInvariant().Replace('/', '-');
+            return (string.Equals(state.IconCategory, cat, StringComparison.OrdinalIgnoreCase)
+                    ? PrimaryButton(cat)
+                    : GhostButton(cat))
+                .Key($"icons:cat:{slug}")
+                .Small()
+                .Sends(SelectCmd($"icons:cat:{cat}"))
+                .ToNode();
+        }).ToArray();
+
+        return VStack(Space.Lg)[
+            Heading("Iconography Browser", 1, $"WinUI 3 searchable icon browser · {GalleryIconCatalog.All.Length} categorized Lucide glyphs mapped in ui_icon.dart · Click any icon card to copy its slug."),
+            Surface(SurfaceKind.Elevated, "Search & Filter Icon System", $"Active category: {state.IconCategory}")[
+                VStack(Space.Md)[
+                    HStack(Space.Xs, categoryButtons),
+                    UiNeuron("ui.auto-suggest", GalleryApp.IconSuggestKey)
+                ]
+            ],
+            Card("Icon Grid (Click any glyph to copy slug)", $"Key: {GalleryApp.IconGridKey}")[
+                UiNeuron("ui.grid-view", GalleryApp.IconGridKey)
+            ],
+            Surface(SurfaceKind.Elevated, "Common OS Semantic Pills")[
+                HStack(Space.Sm)[
+                    new TagPill("sparkles", "accent", Icons.Sparkles),
+                    new TagPill("brain-circuit", "accent", "brain-circuit"),
+                    new TagPill("kanban", "done", "kanban"),
+                    new TagPill("milestone", "working", "milestone"),
+                    new TagPill("braces", "neutral", "braces"),
+                    new TagPill("cpu", "accent", "cpu"),
+                    new TagPill("shield-check", "done", "shield-check")
+                ]
             ]
-        ]
-    ];
+        ];
+    }
 
     private static Node RenderSpacingPage() => VStack(Space.Lg)[
         Heading("Spacing, Padding & Layout", 1, "Strict 4pt/8pt spacing scale and responsive multi-column grids."),
@@ -358,7 +383,7 @@ internal static class GalleryRendering
         ],
         CodeSample(
             "var tabs = Get<ITabs>(\"gallery/tabs/demo\");\n" +
-            "await tabs.Configure([new TabItem(\"overview\", \"Overview\"), new TabItem(\"signals\", \"Signals\")]);")
+            "await tabs.Configure([new UiTabItem(\"overview\", \"Overview\"), new UiTabItem(\"signals\", \"Signals\")]);")
     ];
 
     private static Node RenderExpanderPage() => VStack(Space.Lg)[
@@ -446,7 +471,7 @@ internal static class GalleryRendering
         UiNeuron("ui.form", GalleryApp.DemoFormKey),
         CodeSample(
             "var form = Get<IForm>(\"gallery/form/demo\");\n" +
-            "await form.SetSecretRef(\"apiKey\", new SecretRef(\"vault://ANTHROPIC_API_KEY\"));\n" +
+            "await form.SetSecretRef(\"apiKey\", new UiSecretRef(\"vault://ANTHROPIC_API_KEY\"));\n" +
             "await form.Submit();")
     ];
 
@@ -625,28 +650,80 @@ internal static class GalleryRendering
         ]
     ];
 
-    private static Node RenderWorkspaceKitPage() => VStack(Space.Lg)[
-        Heading("Workspace Kit (Wave 2)", 1, "CommandBar, CodeEditor, MarkdownViewer, SplitButton, PersonPicture, and TeachingTip neurons."),
-        Card("CommandBar (ICommandBar)", $"Key: {GalleryApp.DemoCommandBarKey}")[
-            UiNeuron("ui.command-bar", GalleryApp.DemoCommandBarKey)
-        ],
-        Grid(2, Space.Md)[
-            Card("SplitButton (ISplitButton)", $"Key: {GalleryApp.DemoSplitButtonKey}")[
-                UiNeuron("ui.split-button", GalleryApp.DemoSplitButtonKey)
+    private static Node RenderWorkspaceKitPage(GalleryAppState state)
+    {
+        string[] langs = ["csharp", "dart", "json", "sql", "typescript", "yaml", "markdown"];
+        var langButtons = langs.Select(lang =>
+            (string.Equals(state.CodeLanguage, lang, StringComparison.OrdinalIgnoreCase)
+                ? PrimaryButton(lang.ToUpperInvariant())
+                : GhostButton(lang.ToUpperInvariant()))
+                .Key($"code:lang:{lang}")
+                .Small()
+                .Sends(SelectCmd($"code:lang:{lang}"))
+                .ToNode()).ToArray();
+
+        return VStack(Space.Lg)[
+            Heading("Workspace Kit (Wave 2 + Syntax Highlighting)", 1, "CommandBar, re_highlight CodeEditor (7 languages), MarkdownViewer, SplitButton, PersonPicture, and TeachingTip neurons."),
+            Card("CommandBar (ICommandBar)", $"Key: {GalleryApp.DemoCommandBarKey}")[
+                UiNeuron("ui.command-bar", GalleryApp.DemoCommandBarKey)
             ],
-            Card("PersonPicture (IPersonPicture)", $"Key: {GalleryApp.DemoPersonKey}")[
-                UiNeuron("ui.person-picture", GalleryApp.DemoPersonKey)
-            ]
-        ],
-        Card("TeachingTip (ITeachingTip)", $"Key: {GalleryApp.DemoTeachingTipKey}")[
-            UiNeuron("ui.teaching-tip", GalleryApp.DemoTeachingTipKey)
-        ],
-        Grid(2, Space.Md)[
-            Card("CodeEditor (ICodeEditor)", $"Key: {GalleryApp.DemoCodeEditorKey}")[
-                UiNeuron("ui.code-editor", GalleryApp.DemoCodeEditorKey)
+            Grid(2, Space.Md)[
+                Card("SplitButton (ISplitButton)", $"Key: {GalleryApp.DemoSplitButtonKey}")[
+                    UiNeuron("ui.split-button", GalleryApp.DemoSplitButtonKey)
+                ],
+                Card("PersonPicture (IPersonPicture)", $"Key: {GalleryApp.DemoPersonKey}")[
+                    UiNeuron("ui.person-picture", GalleryApp.DemoPersonKey)
+                ]
+            ],
+            Card("TeachingTip (ITeachingTip)", $"Key: {GalleryApp.DemoTeachingTipKey}")[
+                UiNeuron("ui.teaching-tip", GalleryApp.DemoTeachingTipKey)
+            ],
+            Card("Syntax-Highlighted CodeEditor (ICodeEditor · re_highlight)", $"Key: {GalleryApp.DemoCodeEditorKey} · Active grammar: {state.CodeLanguage}")[
+                VStack(Space.Sm)[
+                    HStack(Space.Xs, langButtons),
+                    UiNeuron("ui.code-editor", GalleryApp.DemoCodeEditorKey)
+                ]
             ],
             Card("MarkdownViewer (IMarkdownViewer)", $"Key: {GalleryApp.DemoMarkdownKey}")[
                 UiNeuron("ui.markdown", GalleryApp.DemoMarkdownKey)
+            ]
+        ];
+    }
+
+    private static Node RenderWave3Page() => VStack(Space.Lg)[
+        Heading("WinUI 3 Parity Kit (Wave 3)", 1, "Stepper, PropertyGrid, KanbanBoard, FilePicker, NotificationToast, PipsPager, InfoBadge, and ToggleSplitButton neurons."),
+        Card("Stepper (IStepper)", $"Key: {GalleryApp.DemoStepperKey}")[
+            UiNeuron("ui.stepper", GalleryApp.DemoStepperKey)
+        ],
+        Card("KanbanBoard (IKanbanBoard)", $"Key: {GalleryApp.DemoKanbanKey}")[
+            UiNeuron("ui.kanban", GalleryApp.DemoKanbanKey)
+        ],
+        Grid(2, Space.Md)[
+            Card("PropertyGrid (IPropertyGrid)", $"Key: {GalleryApp.DemoPropertyGridKey}")[
+                UiNeuron("ui.property-grid", GalleryApp.DemoPropertyGridKey)
+            ],
+            Card("FilePicker (IFilePicker)", $"Key: {GalleryApp.DemoFilePickerKey}")[
+                UiNeuron("ui.file-picker", GalleryApp.DemoFilePickerKey)
+            ]
+        ],
+        Grid(2, Space.Md)[
+            Card("NotificationToast (INotificationToast)", $"Key: {GalleryApp.DemoToastKey}")[
+                VStack(Space.Sm)[
+                    HStack(Space.Sm)[
+                        PrimaryButton("Push Toast", "bell")
+                            .Key("toast:show")
+                            .Small()
+                            .Sends(SelectCmd("toast:show"))
+                    ],
+                    UiNeuron("ui.toast", GalleryApp.DemoToastKey)
+                ]
+            ],
+            Card("PipsPager, InfoBadge & ToggleSplitButton", "Compact navigation, attention badges, and toggleable split flyouts")[
+                VStack(Space.Md)[
+                    UiNeuron("ui.info-badge", GalleryApp.DemoInfoBadgeKey),
+                    UiNeuron("ui.pips-pager", GalleryApp.DemoPipsPagerKey),
+                    UiNeuron("ui.toggle-split-button", GalleryApp.DemoToggleSplitButtonKey)
+                ]
             ]
         ]
     ];

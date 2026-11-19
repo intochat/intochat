@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
@@ -45,8 +46,18 @@ class DatePickerNeuronWidget extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label, style: TextStyle(fontSize: 11, color: c.textMuted)),
-                    Text(selected, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textStrong)),
+                    Text(
+                      label,
+                      style: TextStyle(fontSize: 11, color: c.textMuted),
+                    ),
+                    Text(
+                      selected,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: c.textStrong,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -61,7 +72,8 @@ class DatePickerNeuronWidget extends StatelessWidget {
                           lastDate: DateTime(2100),
                         );
                         if (picked != null) {
-                          final iso = '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                          final iso =
+                              '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
                           invoke('SetDate', [iso]);
                         }
                       },

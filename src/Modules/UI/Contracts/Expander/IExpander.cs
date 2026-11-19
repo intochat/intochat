@@ -6,10 +6,10 @@ namespace IntoChat.OS.Modules.UI.Expander;
 [DefaultNeuronType("ui.expander")]
 public interface IExpander
 {
-    Task<ExpanderState> Configure(string title, string body, bool? isExpanded = null, bool isEnabled = true);
-    Task<ExpanderState> Toggle();
-    Task<ExpanderState> SetExpanded(bool isExpanded);
+    Task<UiExpanderState> Configure(string title, string body, bool? isExpanded = null, bool isEnabled = true);
+    Task<UiExpanderState> Toggle();
+    Task<UiExpanderState> SetExpanded(bool isExpanded);
 
     [ReadOnlyCall]
-    Task<ExpanderState> Read();
+    Task<UiExpanderState> Read();
 }

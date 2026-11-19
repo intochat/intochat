@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
@@ -28,7 +29,9 @@ class CalendarViewNeuronWidget extends StatelessWidget {
         final title = (state['title'] as String?) ?? 'Calendar';
         final year = (state['year'] as num?)?.toInt() ?? 2026;
         final month = (state['month'] as num?)?.toInt() ?? 11;
-        final selected = ((state['selectedDates'] as List?) ?? const []).map((e) => e.toString()).toSet();
+        final selected = ((state['selectedDates'] as List?) ?? const [])
+            .map((e) => e.toString())
+            .toSet();
         final daysInMonth = DateUtils.getDaysInMonth(year, month);
 
         return Container(
@@ -46,7 +49,11 @@ class CalendarViewNeuronWidget extends StatelessWidget {
                   Expanded(
                     child: Text(
                       '$title · $year-${month.toString().padLeft(2, '0')}',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textStrong),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: c.textStrong,
+                      ),
                     ),
                   ),
                   IconButton(
@@ -73,7 +80,8 @@ class CalendarViewNeuronWidget extends StatelessWidget {
                 runSpacing: 4,
                 children: List.generate(daysInMonth, (index) {
                   final day = index + 1;
-                  final iso = '${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
+                  final iso =
+                      '${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
                   final isSelected = selected.contains(iso);
                   return InkWell(
                     borderRadius: BorderRadius.circular(6),
@@ -90,7 +98,9 @@ class CalendarViewNeuronWidget extends StatelessWidget {
                         '$day',
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
                           color: isSelected ? Colors.white : c.textBody,
                         ),
                       ),

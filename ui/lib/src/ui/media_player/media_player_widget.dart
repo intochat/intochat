@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../design/tokens.dart';
@@ -36,8 +37,12 @@ class MediaPlayerNeuronWidget extends StatelessWidget {
         final artist = (state['artist'] as String?) ?? '';
         final playing = state['playing'] == true;
         final pos = (state['positionSeconds'] as num?)?.toDouble() ?? 0.0;
-        final dur = ((state['durationSeconds'] as num?)?.toDouble() ?? 180.0).clamp(1.0, 86400.0);
-        final vol = ((state['volume'] as num?)?.toDouble() ?? 0.8).clamp(0.0, 1.0);
+        final dur = ((state['durationSeconds'] as num?)?.toDouble() ?? 180.0)
+            .clamp(1.0, 86400.0);
+        final vol = ((state['volume'] as num?)?.toDouble() ?? 0.8).clamp(
+          0.0,
+          1.0,
+        );
         final muted = state['muted'] == true;
 
         return Container(
@@ -53,22 +58,39 @@ class MediaPlayerNeuronWidget extends StatelessWidget {
               Row(
                 children: [
                   IconButton.filled(
-                    icon: Icon(playing ? Icons.pause : Icons.play_arrow, size: 18),
-                    onPressed: () => invoke(playing ? 'Pause' : 'Play', const []),
+                    icon: Icon(
+                      playing ? Icons.pause : Icons.play_arrow,
+                      size: 18,
+                    ),
+                    onPressed: () =>
+                        invoke(playing ? 'Pause' : 'Play', const []),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textStrong)),
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: c.textStrong,
+                          ),
+                        ),
                         if (artist.isNotEmpty)
-                          Text(artist, style: TextStyle(fontSize: 11, color: c.textMuted)),
+                          Text(
+                            artist,
+                            style: TextStyle(fontSize: 11, color: c.textMuted),
+                          ),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: Icon(muted ? Icons.volume_off : Icons.volume_up, size: 16),
+                    icon: Icon(
+                      muted ? Icons.volume_off : Icons.volume_up,
+                      size: 16,
+                    ),
                     onPressed: () => invoke('SetVolume', [vol, !muted]),
                   ),
                 ],
@@ -82,8 +104,14 @@ class MediaPlayerNeuronWidget extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(_fmt(pos), style: TextStyle(fontSize: 11, color: c.textMuted)),
-                  Text(_fmt(dur), style: TextStyle(fontSize: 11, color: c.textMuted)),
+                  Text(
+                    _fmt(pos),
+                    style: TextStyle(fontSize: 11, color: c.textMuted),
+                  ),
+                  Text(
+                    _fmt(dur),
+                    style: TextStyle(fontSize: 11, color: c.textMuted),
+                  ),
                 ],
               ),
             ],

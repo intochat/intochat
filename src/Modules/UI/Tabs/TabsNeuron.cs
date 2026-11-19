@@ -7,7 +7,7 @@ namespace IntoChat.OS.Modules.UI.Tabs;
 [Neuron("ui.tabs")]
 internal sealed class TabsNeuron : Neuron<TabsState>, ITabs
 {
-    public async Task<TabsState> Configure(IReadOnlyList<TabItem> items, string? selectedId = null, bool isEnabled = true)
+    public async Task<TabsState> Configure(IReadOnlyList<UiTabItem> items, string? selectedId = null, bool isEnabled = true)
     {
         ArgumentNullException.ThrowIfNull(items);
         var resolved = selectedId ?? State.SelectedId;

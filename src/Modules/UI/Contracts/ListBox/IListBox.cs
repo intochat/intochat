@@ -6,9 +6,9 @@ namespace IntoChat.OS.Modules.UI.ListBox;
 [DefaultNeuronType("ui.listbox")]
 public interface IListBox
 {
-    Task<ListBoxState> Configure(IReadOnlyList<ListBoxItem> items, string? selectedId = null, bool isEnabled = true);
-    Task<ListBoxState> Select(string itemId);
+    Task<UiListBoxState> Configure(IReadOnlyList<UiListBoxItem> items, string? selectedId = null, bool isEnabled = true);
+    Task<UiListBoxState> Select(string itemId);
 
     [ReadOnlyCall]
-    Task<ListBoxState> Read();
+    Task<UiListBoxState> Read();
 }
