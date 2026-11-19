@@ -123,20 +123,58 @@ internal sealed partial class ScreenDirectoryNeuron(
             }
         }
 
-        // 4. Include known standard apps if not already in open views
-        foreach (var standardApp in new[] { "ino", "calculator", "creator", "photocraft", "data", "tasks", "settings", "files", "uikit" })
+        // 4. Derive shipped and installed apps from the brain's app catalog (IAppStore),
+        // falling back to core shipped app ids only in minimal test hosts without IAppStore.
+        IReadOnlyList<GalleryEntry>? catalogEntries = null;
+        try
         {
-            if (!summaries.ContainsKey(standardApp))
+            catalogEntries = await ResolveNeuron<IAppStore>(IAppStore.Key(brainId)).List();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.LogSwallowed(ex, "IAppStore could not be read for screen directory; falling back to core apps.");
+        }
+
+        if (catalogEntries is { Count: > 0 })
+        {
+            foreach (var entry in catalogEntries)
             {
-                var pendingCount = pendingApprovalsByApp.GetValueOrDefault(standardApp, 0);
-                summaries[standardApp] = new ScreenSummary(
-                    AppId: standardApp,
-                    Title: FormatTitle(standardApp),
-                    Kind: "app",
-                    OpenInWorkspace: false,
-                    Focused: false,
-                    PendingApprovals: pendingCount,
-                    InstanceId: "main");
+                if (!string.Equals(entry.Kind, "app", StringComparison.OrdinalIgnoreCase)
+                    || string.IsNullOrWhiteSpace(entry.Name))
+                {
+                    continue;
+                }
+                var appId = NormalizeAppId(brainId, entry.InstalledName ?? entry.Name);
+                if (!summaries.ContainsKey(appId))
+                {
+                    var pendingCount = pendingApprovalsByApp.GetValueOrDefault(appId, 0);
+                    summaries[appId] = new ScreenSummary(
+                        AppId: appId,
+                        Title: string.IsNullOrWhiteSpace(entry.Title) ? FormatTitle(appId) : entry.Title,
+                        Kind: "app",
+                        OpenInWorkspace: false,
+                        Focused: false,
+                        PendingApprovals: pendingCount,
+                        InstanceId: "main");
+                }
+            }
+        }
+        else
+        {
+            foreach (var standardApp in new[] { "ino", "gallery", "calculator", "creator", "photocraft", "data", "tasks", "settings", "files", "uikit" })
+            {
+                if (!summaries.ContainsKey(standardApp))
+                {
+                    var pendingCount = pendingApprovalsByApp.GetValueOrDefault(standardApp, 0);
+                    summaries[standardApp] = new ScreenSummary(
+                        AppId: standardApp,
+                        Title: FormatTitle(standardApp),
+                        Kind: "app",
+                        OpenInWorkspace: false,
+                        Focused: false,
+                        PendingApprovals: pendingCount,
+                        InstanceId: "main");
+                }
             }
         }
 
