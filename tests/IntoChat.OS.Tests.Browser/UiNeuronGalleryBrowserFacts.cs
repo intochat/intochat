@@ -1,24 +1,24 @@
+using System.Text.RegularExpressions;
 using IntoChat.OS.Apps.Gallery;
+using IntoChat.OS.Modules.Microsoft.Playwright;
 using IntoChat.OS.Tests.Browser.Scenarios;
 using Microsoft.Playwright;
 
 namespace IntoChat.OS.Tests.Browser;
 
-/// <summary>
-/// End-to-end Playwright browser tests driving live `IntoChat.OS.Modules.UI` neurons
-/// rendered inside the WinUI 3-style Gallery via Flutter Web semantics (`?semantics=true`).
-/// Run with `INTOCHAT_E2E_HEADED=1` to watch Playwright drive the controls live.
-/// </summary>
 [Collection(nameof(WebShellCollection))]
-public sealed class UiNeuronGalleryBrowserFacts(WebShellHost host)
+public sealed partial class UiNeuronGalleryBrowserFacts(WebShellHost host)
 {
+    [GeneratedRegex(@"\(([1-9]\d*)\s+spans\)", RegexOptions.CultureInvariant)]
+    private static partial Regex PositiveSpanCountPattern();
+
     [Fact]
     public async Task Gallery_renders_and_drives_live_ui_neurons_without_http_errors()
     {
         var ct = TestContext.Current.CancellationToken;
         using var playwright = await Playwright.CreateAsync();
         await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
-        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 1600, Height = 1000 } });
+        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 1600, Height = 1400 } });
         var page = await context.NewPageAsync();
 
         var httpErrors = new List<string>();
@@ -40,9 +40,9 @@ public sealed class UiNeuronGalleryBrowserFacts(WebShellHost host)
         catch (Exception ex)
         {
             var visible = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? '<no-semantics>'");
-            var ids = await page.EvaluateAsync<string[]>("() => Array.from(document.querySelectorAll('[flt-semantics-identifier]')).map(e => e.getAttribute('flt-semantics-identifier')).slice(0, 60)");
+            var ids = await page.EvaluateAsync<string[]>("() => Array.from(document.querySelectorAll('[flt-semantics-identifier]')).map(e => e.getAttribute('flt-semantics-identifier')).slice(0, 80)");
             throw new Xunit.Sdk.XunitException(
-                $"Gallery E2E failed: {ex.Message}\nHTTP errors: [{string.Join(", ", httpErrors)}]\nIdentifiers: [{string.Join(", ", ids)}]\nVisible text:\n{visible[..Math.Min(1200, visible.Length)]}",
+                $"Gallery E2E failed: {ex.Message}\nHTTP errors: [{string.Join(", ", httpErrors)}]\nIdentifiers: [{string.Join(", ", ids)}]\nVisible text:\n{visible[..Math.Min(1500, visible.Length)]}",
                 ex);
         }
 
@@ -50,10 +50,6 @@ public sealed class UiNeuronGalleryBrowserFacts(WebShellHost host)
         Assert.True(await page.Locator("flt-semantics-host").CountAsync() > 0);
     }
 
-    /// <summary>
-    /// Helper demonstrating end-to-end Playwright neuron driving on a live Gallery page
-    /// (Toggle, Charts, Table, Expander, Tabs, ListBox).
-    /// </summary>
     internal static async Task ExerciseGalleryNeuronsAsync(IPage page, CancellationToken ct = default)
     {
         await page.ClickButtonAsync("nav:toggle", ct);
@@ -94,13 +90,57 @@ public sealed class UiNeuronGalleryBrowserFacts(WebShellHost host)
         await page.SelectGridItemAsync(GalleryApp.DemoGridViewKey, "hero-banner.png", ct);
         await page.ToggleMediaPlaybackAsync(GalleryApp.DemoMediaPlayerKey, ct);
 
+        // Workspace Kit + re_editor / re_highlight syntax highlighting verification across grammars
         await page.ClickButtonAsync("nav:workspace", ct);
         await page.Neuron("ui.command-bar", GalleryApp.DemoCommandBarKey).First.Locator("[role='button']").First.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
         await page.Neuron("ui.teaching-tip", GalleryApp.DemoTeachingTipKey).First.Locator("[role='button']").First.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
-        await page.Neuron("ui.code-editor", GalleryApp.DemoCodeEditorKey).First.Locator("[role='button']").First.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
         await page.Neuron("ui.split-button", GalleryApp.DemoSplitButtonKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
         await page.Neuron("ui.person-picture", GalleryApp.DemoPersonKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
-        await page.Neuron("ui.markdown", GalleryApp.DemoMarkdownKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+
+        await page.KeyedNode("code-highlight:csharp").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+        var csharpSemantics = await page.ReadCodeEditorSemanticsAsync(GalleryApp.DemoCodeEditorKey, ct);
+        Assert.Contains(csharpSemantics, s => s.Contains("Syntax highlight: csharp", StringComparison.Ordinal) && PositiveSpanCountPattern().IsMatch(s));
+
+        await page.ClickButtonAsync("code:lang:dart", ct);
+        await page.KeyedNode("code-highlight:dart").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+        var dartSemantics = await page.ReadCodeEditorSemanticsAsync(GalleryApp.DemoCodeEditorKey, ct);
+        Assert.Contains(dartSemantics, s => s.Contains("Syntax highlight: dart", StringComparison.Ordinal) && PositiveSpanCountPattern().IsMatch(s));
+
+        await page.ClickButtonAsync("code:lang:json", ct);
+        await page.KeyedNode("code-highlight:json").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+        var jsonSemantics = await page.ReadCodeEditorSemanticsAsync(GalleryApp.DemoCodeEditorKey, ct);
+        Assert.Contains(jsonSemantics, s => s.Contains("Syntax highlight: json", StringComparison.Ordinal) && PositiveSpanCountPattern().IsMatch(s));
+
+        await page.Neuron("ui.markdown", GalleryApp.DemoMarkdownKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+
+        // Searchable Iconography browser (IAutoSuggestBox + IGridView + category filter)
+        await page.ClickButtonAsync("nav:icons", ct);
+        await page.Neuron("ui.auto-suggest", GalleryApp.IconSuggestKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+        await page.Neuron("ui.grid-view", GalleryApp.IconGridKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+        await page.FillAutoSuggestAsync(GalleryApp.IconSuggestKey, "brain", ct);
+        var iconGridText = await page.ReadNeuronTextAsync("ui.grid-view", GalleryApp.IconGridKey, ct);
+        Assert.False(string.IsNullOrWhiteSpace(iconGridText));
+
+        // WinUI 3 Wave 3 (all 8 new UI neurons live over gRPC)
+        await page.ClickButtonAsync("nav:wave3", ct);
+        await page.Stepper(GalleryApp.DemoStepperKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+        Assert.False(string.IsNullOrWhiteSpace(await page.ReadStepperTextAsync(GalleryApp.DemoStepperKey, ct)));
+
+        await page.KanbanBoard(GalleryApp.DemoKanbanKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+        Assert.False(string.IsNullOrWhiteSpace(await page.ReadKanbanTextAsync(GalleryApp.DemoKanbanKey, ct)));
+
+        await page.PropertyGrid(GalleryApp.DemoPropertyGridKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+        await page.FilePicker(GalleryApp.DemoFilePickerKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+        await page.Toast(GalleryApp.DemoToastKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+        await page.InfoBadge(GalleryApp.DemoInfoBadgeKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+        await page.PipsPager(GalleryApp.DemoPipsPagerKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+        await page.ToggleSplitButton(GalleryApp.DemoToggleSplitButtonKey).First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+
+        await page.Mouse.MoveAsync(900, 600);
+        await page.Mouse.WheelAsync(0, 500);
+        await page.ClickButtonAsync("toast:show", ct);
+        await page.NextPipPageAsync(GalleryApp.DemoPipsPagerKey, ct);
+        await page.ClickToggleSplitPrimaryAsync(GalleryApp.DemoToggleSplitButtonKey, ct);
     }
 
     [Fact]

@@ -17,6 +17,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.UI` (`IAutoSuggestBox`, `IBreadcrumbBar`, `ICalendarView`, `IChartSource`, `IChart`, `IChatThread`, `ICheckBox`, `ICodeEditor`, `IColorPicker`, `ICommandBar`, `IContextMenu`, `IDatePicker`, `IDialog`, `IExpander`, `IForm`, `IGridView`, `IImageViewer`, `IInfoBar`, `IListBox`, `IMarkdownViewer`, `IMediaPlayer`, `INumberBox`, `IPersonPicture`, `IProgressIndicator`, `IRadioButtons`, `IRating`, `ISelect`, `ISlider`, `ISplitButton`, `ITableSource`, `ITable`, `ITabs`, `ITeachingTip`, `ITimePicker`, `IToggle`, `ITreeView`).
+Contracts: assembly `IntoChat.OS.Modules.UI` (`IAutoSuggestBox`, `IBreadcrumbBar`, `ICalendarView`, `IChartSource`, `IChart`, `IChatThread`, `ICheckBox`, `ICodeEditor`, `IColorPicker`, `ICommandBar`, `IContextMenu`, `IDatePicker`, `IDialog`, `IExpander`, `IFilePicker`, `IForm`, `IGridView`, `IImageViewer`, `IInfoBadge`, `IInfoBar`, `IKanbanBoard`, `IListBox`, `IMarkdownViewer`, `IMediaPlayer`, `INotificationToast`, `INumberBox`, `IPersonPicture`, `IPipsPager`, `IProgressIndicator`, `IPropertyGrid`, `IRadioButtons`, `IRating`, `ISelect`, `ISlider`, `ISplitButton`, `IStepper`, `ITable`, `ITabs`, `ITeachingTip`, `ITimePicker`, `IToggleSplitButton`, `IToggle`, `ITreeView`, `IUiTableSource`).
 Hosting: runs in process.
 <!-- END GENERATED -->
