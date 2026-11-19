@@ -9,18 +9,12 @@ namespace IntoChat.OS.Apps.Settings;
 
 internal static class SettingsViewRenderer
 {
-    public static View Render(SettingsAppState state)
-    {
-        using var scope = CommandBinding.PushOwner("app.settings");
-        return new View(state.Title, BindOwner(RenderRoot(state, null), "app.settings"));
-    }
-
-    public static Node RenderRoot(SettingsAppState state, Rejected? lastRejection = null)
+    public static Node RenderRoot(SettingsAppState state, SettingsSlots slots, Rejected? lastRejection = null)
     {
         var section = SettingsDecisions.NormalizeSection(state.Section);
         var sectionEntry = SettingsApp.SearchIndex.First(entry => entry.SectionId == section);
 
-        var sidebar = BuildSidebar(state, section);
+        var sidebar = BuildSidebar(state, section, slots);
         var contentChildren = new List<Node?>
         {
             RenderHeader(state, sectionEntry),
@@ -30,7 +24,7 @@ internal static class SettingsViewRenderer
             !string.IsNullOrEmpty(state.Sheet)
                 ? RenderModalSheet(state, state.Sheet!)
                 : null,
-            RenderSectionBody(state, section, state.SubPage),
+            RenderSectionBody(state, section, state.SubPage, slots),
         };
 
         return ResponsiveSplit(
@@ -39,15 +33,13 @@ internal static class SettingsViewRenderer
             leadingExtent: 248);
     }
 
-    private static Node BuildSidebar(SettingsAppState state, string activeSection)
+    private static Node BuildSidebar(SettingsAppState state, string activeSection, SettingsSlots slots)
     {
         var filtered = SettingsDecisions.FilterSections(state.SearchQuery);
         var groups = new[] { "Preferences", "Capabilities & Data", "Organization & System" };
         var nodes = new List<Node?>
         {
-            SearchField("Search settings…", "Search settings")
-                .Key("settings:search")
-                .OnChange<SettingsAppState>(s => s.Filter(Arg.Text)),
+            SettingsControls.SearchForm(slots, state),
             !string.IsNullOrWhiteSpace(state.SearchQuery)
                 ? GhostButton("Clear search", "x")
                     .Key("settings:clear-search")
@@ -157,24 +149,24 @@ internal static class SettingsViewRenderer
         ];
     }
 
-    private static Node RenderSectionBody(SettingsAppState state, string section, string? subPage) => section switch
+    private static Node RenderSectionBody(SettingsAppState state, string section, string? subPage, SettingsSlots slots) => section switch
     {
-        "desktop" => RenderDesktopSection(state),
+        "desktop" => RenderDesktopSection(state, slots),
         "apps" => RenderAppsSection(state, subPage),
         "connections" => RenderConnectionsSection(state, subPage),
         "files" => RenderFilesSection(state),
-        "models" => RenderModelsSection(state, subPage),
+        "models" => RenderModelsSection(state, subPage, slots),
         "keys" => RenderKeysSection(state),
         "variables" => RenderVariablesSection(state),
         "billing" => RenderBillingSection(state),
         "team" => RenderTeamSection(state, subPage),
-        "notifications" => RenderNotificationsSection(state),
+        "notifications" => RenderNotificationsSection(state, slots),
         "keyboard" => RenderKeyboardSection(),
         "danger" => RenderDangerSection(),
-        _ => RenderGeneralSection(state),
+        _ => RenderGeneralSection(state, slots),
     };
 
-    private static Node RenderGeneralSection(SettingsAppState state)
+    private static Node RenderGeneralSection(SettingsAppState state, SettingsSlots slots)
     {
         var connectionCount = (state.ConnectionKeys ?? []).Count;
 
@@ -186,18 +178,12 @@ internal static class SettingsViewRenderer
             ],
             Surface(SurfaceKind.Elevated, "Appearance & Regional Preferences", "How IntoChat looks and formats dates for you")[
                 VStack(Space.Md)[
-                    SelectBox(
-                        "Appearance mode",
-                        state.ThemeMode,
-                        Option("light", "Light")
-                            .Key("opt-theme-light")
-                            .Emits(PrefEmit(state, theme: "light", themeMode: "light")),
-                        Option("dark", "Dark")
-                            .Key("opt-theme-dark")
-                            .Emits(PrefEmit(state, theme: "dark", themeMode: "dark")),
-                        Option("auto", "Auto (follow system)")
-                            .Key("opt-theme-auto")
-                            .Emits(PrefEmit(state, themeMode: "auto"))),
+                    SettingsControls.ComboBox(slots, state, SettingsControls.ThemeMode, "Appearance mode",
+                    [
+                        new ComboBoxOption("light", "Light"),
+                        new ComboBoxOption("dark", "Dark"),
+                        new ComboBoxOption("auto", "Auto (follow system)"),
+                    ]),
                     HStack(Space.Sm)[
                         PrefButton(state, "pref-fluent-acrylic", "Fluent Acrylic", state.StylePreset == "fluent-acrylic", preset: "fluent-acrylic"),
                         PrefButton(state, "pref-spatial-glass", "Spatial Glass", state.StylePreset == "spatial-glass", preset: "spatial-glass"),
@@ -206,6 +192,7 @@ internal static class SettingsViewRenderer
                         PrefButton(state, "pref-midnight", "Midnight", state.StylePreset == "midnight", preset: "midnight"),
                         PrefButton(state, "pref-nordic", "Nordic", state.StylePreset == "nordic", preset: "nordic")
                     ],
+                    SettingsControls.RegionalForm(slots, state),
                     Table(
                         "Regional settings",
                         ["Setting", "Active value"],
@@ -241,7 +228,7 @@ internal static class SettingsViewRenderer
         ];
     }
 
-    private static Node RenderDesktopSection(SettingsAppState state) =>
+    private static Node RenderDesktopSection(SettingsAppState state, SettingsSlots slots) =>
         Surface(SurfaceKind.Elevated, "Desktop & Dock", "Ambient canvas tone, adaptive bar layout, and status indicators")[
             VStack(Space.Md)[
                 Heading("Desktop canvas tone", 3, "Choose the warm paper or deep ink surface behind windows."),
@@ -251,28 +238,14 @@ internal static class SettingsViewRenderer
                     PrefButton(state, "tone-peat", "Peat", state.DesktopTone == "peat", themeMode: state.ThemeMode, desktopTone: "peat"),
                     PrefButton(state, "tone-ink", "Ink", state.DesktopTone == "ink", themeMode: state.ThemeMode, desktopTone: "ink")
                 ],
-                SelectBox(
-                    "OS bar layout",
-                    state.BarLayout,
-                    Option("floating-glass", "Floating Glass")
-                        .Key("opt-bar-floating")
-                        .Emits(PrefEmit(state, barLayout: "floating-glass")),
-                    Option("compact-pill", "Compact Pill")
-                        .Key("opt-bar-compact")
-                        .Emits(PrefEmit(state, barLayout: "compact-pill")),
-                    Option("classic-bottom", "Classic Bottom")
-                        .Key("opt-bar-classic")
-                        .Emits(PrefEmit(state, barLayout: "classic-bottom"))),
+                SettingsControls.ComboBox(slots, state, SettingsControls.BarLayout, "OS bar layout",
+                [
+                    new ComboBoxOption("floating-glass", "Floating Glass"),
+                    new ComboBoxOption("compact-pill", "Compact Pill"),
+                    new ComboBoxOption("classic-bottom", "Classic Bottom"),
+                ]),
                 Divider("OS bar indicators"),
-                ToggleSwitch("Show notifications badge in OS bar", state.ShowOsBarNotifications)
-                    .Key("toggle:bar-notifications")
-                    .OnToggle<SettingsAppState>(s => s.ToggleNotificationPreference("bar-notifications")),
-                ToggleSwitch("Show live token & compute meter in OS bar", state.ShowOsBarComputeMeter)
-                    .Key("toggle:bar-compute")
-                    .OnToggle<SettingsAppState>(s => s.ToggleNotificationPreference("bar-compute")),
-                ToggleSwitch("Show clock & schedule calendar in OS bar", state.ShowOsBarClock)
-                    .Key("toggle:bar-clock")
-                    .OnToggle<SettingsAppState>(s => s.ToggleNotificationPreference("bar-clock"))
+                VStack(Space.Sm, [.. SettingsControls.Toggles.Where(toggle => toggle.Section == "desktop").Select(toggle => SettingsControls.ToggleSwitch(slots, state, toggle))])
             ]
         ];
 
@@ -436,7 +409,7 @@ internal static class SettingsViewRenderer
         ];
     }
 
-    private static Node RenderModelsSection(SettingsAppState state, string? subPage)
+    private static Node RenderModelsSection(SettingsAppState state, string? subPage, SettingsSlots slots)
     {
         if (string.Equals(subPage, "local-server", StringComparison.OrdinalIgnoreCase))
         {
@@ -467,15 +440,12 @@ internal static class SettingsViewRenderer
                 label = $"{label} · {opt.Reason}";
             }
 
-            var key = "model-opt-" + new string(opt.Id.Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray()).Trim('-');
-            return Option(opt.Id, label)
-                .Key(key)
-                .Emits(PrefEmit(state, model: opt.Id));
+            return new ComboBoxOption(opt.Id, label);
         }).ToArray();
 
         return Surface(SurfaceKind.Elevated, "AI models", "Select the default reasoning model for Ino and autonomous background neurons")[
             VStack(Space.Md)[
-                SelectBox("Default reasoning model", state.DefaultModel, options),
+                SettingsControls.ComboBox(slots, state, SettingsControls.DefaultModel, "Default reasoning model", options),
                 HStack(Space.Sm)[
                     PrimaryButton("Local server (Ollama)", "cpu")
                         .Key("models:local-server")
@@ -658,7 +628,7 @@ internal static class SettingsViewRenderer
         ];
     }
 
-    private static Node RenderNotificationsSection(SettingsAppState state)
+    private static Node RenderNotificationsSection(SettingsAppState state, SettingsSlots slots)
     {
         var approvalCards = state.PendingApprovals.Select(static approval =>
         {
@@ -682,18 +652,7 @@ internal static class SettingsViewRenderer
                         state.PendingApprovals.Count > 0 ? StatusKind.NeedsYou : StatusKind.Done,
                         state.PendingApprovals.Count > 0 ? $"{state.PendingApprovals.Count} awaiting approval" : "No pending approvals")
                 ],
-                ToggleSwitch("Needs you · ApprovalCards waiting for confirmation", state.NotifyApprovals)
-                    .Key("toggle:notify-approvals")
-                    .OnToggle<SettingsAppState>(s => s.ToggleNotificationPreference("approvals")),
-                ToggleSwitch("Background jobs & long-running agent completions", state.NotifyBackgroundJobs)
-                    .Key("toggle:notify-jobs")
-                    .OnToggle<SettingsAppState>(s => s.ToggleNotificationPreference("jobs")),
-                ToggleSwitch("Connection expirations & health probe failures", state.NotifyConnectionHealth)
-                    .Key("toggle:notify-connections")
-                    .OnToggle<SettingsAppState>(s => s.ToggleNotificationPreference("connections")),
-                ToggleSwitch("Quiet hours schedule (22:00 – 07:00)", state.QuietHoursEnabled)
-                    .Key("toggle:quiet-hours")
-                    .OnToggle<SettingsAppState>(s => s.ToggleNotificationPreference("quiet")),
+                .. SettingsControls.Toggles.Where(toggle => toggle.Section == "notifications").Select(toggle => SettingsControls.ToggleSwitch(slots, state, toggle)),
                 .. approvalCards,
             ])
         ];

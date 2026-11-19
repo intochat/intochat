@@ -63,6 +63,24 @@ public interface IScreen
     /// <param name="args">Optional JSON payload for the signal constructor/properties.</param>
     [OneWayCall]
     Task Request(string signal, JsonElement? args = null);
+
+    /// <summary>
+    /// Routes <paramref name="command"/> through this screen and awaits its handling: "." is the screen itself, any other target a
+    /// child key its current view shows, or a key path "a/b" that each child's own Dispatch resolves one hop further. The parent
+    /// owns its children, so a client acts on a child only through this call; a handler's failure reaches the caller.
+    /// </summary>
+    /// <exception cref="ActivationRefusedException">The current view names no slot with that key (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
+    Task Dispatch(DigitalBrain.UI.Command command);
+
+    /// <summary>
+    /// Reads the view of the child at a key path ("a" or "a/b") of this screen, routed hop by hop as <see cref="Dispatch"/> routes a
+    /// command: each parent resolves only a key its current view shows. A client reads a child only through its top-level screen.
+    /// </summary>
+    /// <param name="path">The key path, relative to this screen.</param>
+    /// <exception cref="ActivationRefusedException">A hop names no slot of its view (<see cref="ActivationRefusedException.UnknownChild"/>).</exception>
+    /// <exception cref="ArgumentException">The path is empty or has an empty, "." or ".." hop.</exception>
+    [ReadOnlyCall]
+    Task<PublishedView?> ReadSlot(string path);
 }
 
 /// <summary>
@@ -80,5 +98,22 @@ public static class ScreenExtensions
         ArgumentNullException.ThrowIfNull(screen);
         ArgumentNullException.ThrowIfNull(signal);
         return screen.Request(SignalAliases.Of(typeof(TSignal)), PooledJson.Encode(signal, typeof(TSignal)));
+    }
+
+    /// <summary>The address of the child <paramref name="key"/> of <paramref name="parent"/>: the parent's id, '/', the key. It is the child's neuron key.</summary>
+    /// <exception cref="ArgumentException">The key is empty, ".", ".." or contains '/': it would collide with another parent's child.</exception>
+    public static string ChildAddress(NeuronId parent, string key)
+    {
+        CheckChildKey(key);
+        return $"{parent}/{key}";
+    }
+
+    internal static void CheckChildKey(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        if (key.Length == 0 || key is "." or ".." || key.Contains('/', StringComparison.Ordinal) || string.IsNullOrWhiteSpace(key))
+        {
+            throw new ArgumentException($"Child key '{key}' is empty, '.', '..' or contains '/'.", nameof(key));
+        }
     }
 }

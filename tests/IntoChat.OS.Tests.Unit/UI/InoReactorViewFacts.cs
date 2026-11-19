@@ -5,7 +5,9 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Screens;
 using DigitalBrain.Testing;
 using DigitalBrain.UI;
+using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Ino;
+using IntoChat.OS.Apps.Tests.Unit.Ino;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.UI;
@@ -29,7 +31,7 @@ public sealed class InoReactorViewFacts
             .ForParameter("model", "qwen2.5-coder:14b");
 
         var graph = AggregateExplorer<InoSession>.Explore(
-            render: session => InoView.Screen(session.ToAppState()).Root,
+            render: session => InoDrawing.Screen(session.ToAppState()).Root,
             choices: choices,
             maxStates: 48);
 
@@ -55,7 +57,7 @@ public sealed class InoReactorViewFacts
 
         // Also explore InoAppState directly and verify StateGraphView + DOT export
         var appStateGraph = AggregateExplorer<InoAppState>.Explore(
-            render: s => InoView.Screen(s).Root,
+            render: s => InoDrawing.Screen(s).Root,
             maxStates: 8);
         appStateGraph.EnsureHealthy();
 
@@ -110,7 +112,7 @@ public sealed class InoReactorViewFacts
             ],
         };
 
-        var view = InoView.Screen(state);
+        var view = InoDrawing.Screen(state);
         var conversation = Assert.IsType<Conversation>(view.Root);
         var assistant = conversation.Messages[1];
 
@@ -168,7 +170,7 @@ public sealed class InoReactorViewFacts
                     "pending"),
             ]);
 
-        var rendered = InoView.Screen(vaultState);
+        var rendered = InoDrawing.Screen(vaultState);
         var secretCard = FindFirst<SecretCardNode>(rendered.Root);
         Assert.NotNull(secretCard);
         Assert.Contains("neuron://local/vault/secrets#TRIPLETEX_SESSION_TOKEN", secretCard!.SavedIn, StringComparison.Ordinal);
@@ -180,7 +182,7 @@ public sealed class InoReactorViewFacts
     {
         // 1. Empty state
         var emptyState = new InoAppState() with { SelectedModel = "claude-sonnet-4-6" };
-        var emptyConv = InoView.Conversation(emptyState);
+        var emptyConv = InoDrawing.Conversation(emptyState);
         Assert.Equal("ready", emptyConv.Status);
         Assert.Equal("What do you need?", emptyConv.Empty?.Title);
         Assert.True(emptyConv.Composer.Enabled);
@@ -191,7 +193,7 @@ public sealed class InoReactorViewFacts
 
         // 2. Working state
         var workingState = InoModel.Started(InoModel.Sent(emptyState, "Analyze pipeline", "p1", At), "run-42", "claude-sonnet-4-6");
-        var workingConv = InoView.Conversation(workingState);
+        var workingConv = InoDrawing.Conversation(workingState);
         Assert.Equal("working", workingConv.Status);
         Assert.False(workingConv.Composer.Enabled);
         Assert.NotNull(workingConv.Stop);
@@ -208,8 +210,8 @@ public sealed class InoReactorViewFacts
                 new Approval("plan-7", ApprovalKind.FlowStep, "change-pr-7", "Open pull request?", "2 files changed", At, At.AddHours(1), "trace-7"),
             ],
         };
-        var approvalConv = InoView.Conversation(approvalState);
-        var dockedApproval = Assert.IsType<ApprovalCardNode>(approvalConv.Waiting);
+        // The approval waits under the conversation thread, in Ino's own screen (its actions are Ino's, not the thread's).
+        var dockedApproval = Assert.IsType<ApprovalCardNode>(FindFirst<ApprovalCardNode>(InoDrawing.Screen(approvalState).Root));
         Assert.Null(dockedApproval.Resolve);
         var approvalSidePill = FindFirst<TagPill>(InoView.Side(approvalState).Root);
         Assert.NotNull(approvalSidePill);
@@ -227,12 +229,14 @@ public sealed class InoReactorViewFacts
                 new InoMessage("r1/assistant", "assistant", string.Empty, "failed") { Failure = "no-provider" },
             ],
         };
-        var errorConv = InoView.Conversation(errorState);
+        var errorConv = InoDrawing.Conversation(errorState);
         Assert.Equal("failed", errorConv.Status);
         Assert.Equal("Ino has no model to answer with.", errorConv.Error?.What);
-        Assert.Equal(InoView.RetryKey, errorConv.Messages[^1].Retry?.Key);
+        Assert.Equal(ChatThreadNeuron.RetryKeyOf("r1/assistant"), errorConv.Messages[^1].Retry?.Key);
+        Assert.Equal("Ino has no model to answer with.", errorConv.Messages[^1].Error?.What);
 
-        var setupCard = Assert.Single(errorConv.Messages[^1].Cards!.OfType<Card>());
+        // Model setup is Ino's own (its actions reach Ino): it is drawn under the conversation thread.
+        var setupCard = Assert.IsType<Card>(FindFirst<Card>(InoDrawing.Screen(errorState).Root));
         var useLocalBtn = Assert.Single(setupCard.Children.OfType<Button>());
         Assert.Equal(InoView.UseLocalKey, useLocalBtn.Key);
         var secretField = Assert.Single(setupCard.Children.OfType<Field>());

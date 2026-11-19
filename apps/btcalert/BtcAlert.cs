@@ -110,7 +110,7 @@ public static class BtcAlertUnit
                 Kind: FieldKind.Number,
                 Placeholder: state.Threshold.ToString(CultureInfo.InvariantCulture),
                 OnSubmit: new Emit("btcalert", "btcalert.setthreshold")),
-            new Button("rearm", "Re-arm Alert", new Emit("btcalert", "btcalert.rearm"), Enabled: !state.Armed),
+            new Button("rearm", "Re-arm Alert", new Command(".", "btcalert.rearm"), Enabled: !state.Armed),
         ], Title: "Bitcoin Spot Monitor", Subtitle: "Coinbase Spot · Every 1m"));
 
     private static bool TryReadSpotPrice(JsonElement root, out decimal price)

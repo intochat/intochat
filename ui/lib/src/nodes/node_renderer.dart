@@ -1,13 +1,18 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import 'app_shell.dart';
 import 'approval_card.dart';
 import 'badge.dart';
+import 'node_common.dart' show keyedControl;
 import 'brain_scene.dart';
 import 'button.dart';
+import 'icon_button.dart';
+import 'markdown.dart';
 import 'card.dart';
 import 'chart.dart';
+import 'check_box_view.dart';
+import 'expander_view.dart';
 import 'choice_card.dart';
 import 'collection.dart';
 import 'column.dart';
@@ -38,9 +43,17 @@ import 'split_pane.dart';
 import 'stat_card.dart';
 import 'surface.dart';
 import 'switch.dart';
+import 'chat_thread_view.dart';
+import 'combo_box_view.dart';
+import 'form_view.dart';
+import 'list_box_view.dart';
+import 'live_chart_view.dart';
+import 'query_table_view.dart';
+import 'tab_strip_view.dart';
 import 'tabs.dart';
 import 'tag_pill.dart';
 import 'text.dart';
+import 'toggle_switch_view.dart';
 import 'toast.dart';
 import 'web_browser.dart';
 
@@ -62,8 +75,47 @@ abstract final class NodeRenderer {
   /// Draws a whole view: its root node.
   static Widget view(AppView view, NodeContext ctx) => render(view.root, ctx);
 
+  /// Test hook: returns a widget to draw in place of a node, or null to draw
+  /// it as usual (the scenario driver's bite test blanks one node kind).
+  @visibleForTesting
+  static Widget? Function(Node node)? debugReplace;
+
   static Widget render(Node node, NodeContext ctx) {
     if (ctx.depth > maxDepth) return const _Unsupported();
+    return keyedControl(
+      keyOf(node),
+      debugReplace?.call(node) ?? _draw(node, ctx),
+    );
+  }
+
+  /// The wire `key` of the nodes whose generated model declares one (every such
+  /// model is covered; `showcase_catalog_test.dart` fails when a new one is not).
+  static String? keyOf(Node node) => switch (node) {
+    AppShellNode(:final key) ||
+    ApprovalCardNode(:final key) ||
+    ButtonNode(:final key) ||
+    CheckBoxViewNode(:final key) ||
+    ExpanderViewNode(:final key) ||
+    TabStripViewNode(:final key) ||
+    ComboBoxViewNode(:final key) ||
+    FormViewNode(:final key) ||
+    ListBoxViewNode(:final key) ||
+    LiveChartViewNode(:final key) ||
+    ChatThreadViewNode(:final key) ||
+    QueryTableViewNode(:final key) ||
+    ConversationNode(:final key) ||
+    FieldNode(:final key) ||
+    IconButtonNode(:final key) ||
+    InfoBarNode(:final key) ||
+    NavItemNode(:final key) ||
+    StatCardNode(:final key) ||
+    SwitchNode(:final key) ||
+    ToggleSwitchViewNode(:final key) ||
+    WebBrowserNode(:final key) => key,
+    _ => null,
+  };
+
+  static Widget _draw(Node node, NodeContext ctx) {
     return switch (node) {
       ColumnNode() => renderColumn(node, ctx),
       RowNode() => renderRow(node, ctx),
@@ -76,6 +128,7 @@ abstract final class NodeRenderer {
       CollectionNode() => renderCollection(node, ctx),
       HeadingNode() => renderHeading(node, ctx),
       TextNode() => renderText(node, ctx),
+      MarkdownNode() => renderMarkdown(node, ctx),
       BadgeNode() => renderBadge(node, ctx),
       TagPillNode() => renderTagPill(node, ctx),
       FieldNode() => renderField(node, ctx),
@@ -87,6 +140,7 @@ abstract final class NodeRenderer {
       ToastNode() => renderToast(node, ctx),
       CardNode() => renderCard(node, ctx),
       ButtonNode() => renderButton(node, ctx),
+      IconButtonNode() => renderIconButton(node, ctx),
       DataTableNode() => renderDataTable(node, ctx),
       ChartNode() => renderChart(node, ctx),
       ApprovalCardNode() => renderApprovalCard(node, ctx),
@@ -106,6 +160,16 @@ abstract final class NodeRenderer {
       EmptyStateNode() => renderEmptyState(node, ctx),
       MetricTileNode() => renderMetricTile(node, ctx),
       DiffCardNode() => renderDiffCard(node, ctx),
+      CheckBoxViewNode() => renderCheckBoxView(node, ctx),
+      ToggleSwitchViewNode() => renderToggleSwitchView(node, ctx),
+      ExpanderViewNode() => renderExpanderView(node, ctx),
+      TabStripViewNode() => renderTabStripView(node, ctx),
+      ComboBoxViewNode() => renderComboBoxView(node, ctx),
+      FormViewNode() => renderFormView(node, ctx),
+      ListBoxViewNode() => renderListBoxView(node, ctx),
+      LiveChartViewNode() => renderLiveChartView(node, ctx),
+      ChatThreadViewNode() => renderChatThreadView(node, ctx),
+      QueryTableViewNode() => renderQueryTableView(node, ctx),
       UnknownNode() => const _Unsupported(),
     };
   }

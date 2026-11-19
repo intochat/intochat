@@ -42,8 +42,8 @@ public sealed class TestAuditedCounterScreen : Screen<TestAuditedCounterState>
                 new Text($"Count: {state.Count}"),
                 new Text($"LastBy: {state.LastBy ?? "none"}"),
                 new Text($"MaintenancePerformed: {state.MaintenancePerformed}"),
-                new Button("btn-increment", "Increment", Emits(new TestCounterIncrement())),
-                new Button("btn-alien", "Alien Owner", new Emit("app.alien_owner", "test-counter.increment", null))
+                new Button("btn-increment", "Increment", Sends(new TestCounterIncrement())),
+                new Switch("btn-alien", "Alien Owner", false, new Emit("app.alien_owner", "test-counter.increment", null))
             ]));
     }
 

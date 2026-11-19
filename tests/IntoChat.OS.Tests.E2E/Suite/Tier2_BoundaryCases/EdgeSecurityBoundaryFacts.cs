@@ -329,7 +329,7 @@ public sealed class EdgeSecurityBoundaryFacts : E2ETestBase, IClassFixture<TestO
             "PayloadProbe",
             new Column([
                 new Text($"By: {state.LastBy ?? "none"};Action: {state.LastAction};Amount: {state.LastAmount}"),
-                new Button("btn-deposit", "Deposit", Emits(new PayloadProbeDeposit("deposit", 500))),
+                new Button("btn-deposit", "Deposit", Sends(new PayloadProbeDeposit("deposit", 500))),
             ]));
 
         [On]

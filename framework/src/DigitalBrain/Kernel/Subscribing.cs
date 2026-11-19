@@ -63,6 +63,8 @@ internal static class Reactions
 {
     public static async Task Dispatch(Neuron neuron, JournaledSignal signal, CancellationToken ct)
     {
+        // Every delivery path runs inside its own scope: the reaction (and only this neuron's) can ask who published.
+        using var scope = DeliveryScope.Enter(neuron, signal.Publisher);
         if (neuron is ISynapseReceiver receiver)
         {
             await receiver.Receive(signal, ct).ConfigureAwait(false);
@@ -75,5 +77,32 @@ internal static class Reactions
         {
             await ReactionTable.React(neuron, signal.Signal, ct).ConfigureAwait(false);
         }
+    }
+}
+
+/// <summary>
+/// The publisher of the signal a delivery hands to a neuron, scoped to that delivery's async flow (an AsyncLocal, not neuron state), so
+/// interleaved deliveries each see their own. It answers only for the neuron the delivery targets: a call that reaction makes into
+/// another neuron sees none.
+/// </summary>
+internal static class DeliveryScope
+{
+    private static readonly AsyncLocal<Frame?> Current = new();
+
+    private sealed record Frame(object Neuron, NeuronId Publisher);
+
+    public static IDisposable Enter(object neuron, NeuronId publisher)
+    {
+        var outer = Current.Value;
+        Current.Value = new Frame(neuron, publisher);
+        return new Exit(outer);
+    }
+
+    /// <summary>The publisher of the signal being delivered to <paramref name="neuron"/>, or null outside such a delivery.</summary>
+    public static NeuronId? PublisherFor(object neuron) => Current.Value is { } frame && ReferenceEquals(frame.Neuron, neuron) ? frame.Publisher : null;
+
+    private sealed class Exit(Frame? outer) : IDisposable
+    {
+        public void Dispose() => Current.Value = outer;
     }
 }

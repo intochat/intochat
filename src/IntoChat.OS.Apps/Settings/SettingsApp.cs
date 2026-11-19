@@ -14,6 +14,8 @@ using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
+using DigitalBrain.UI.Commands;
+using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.AI;
@@ -265,19 +267,6 @@ public sealed record SettingsAppState(
         });
     }
 
-    [IgnoreExplore]
-    public SettingsAppState ToggleNotificationPreference(string key) => key switch
-    {
-        "approvals" => this with { NotifyApprovals = !NotifyApprovals },
-        "jobs" => this with { NotifyBackgroundJobs = !NotifyBackgroundJobs },
-        "connections" => this with { NotifyConnectionHealth = !NotifyConnectionHealth },
-        "quiet" => this with { QuietHoursEnabled = !QuietHoursEnabled },
-        "bar-notifications" => this with { ShowOsBarNotifications = !ShowOsBarNotifications },
-        "bar-compute" => this with { ShowOsBarComputeMeter = !ShowOsBarComputeMeter },
-        "bar-clock" => this with { ShowOsBarClock = !ShowOsBarClock },
-        _ => this,
-    };
-
     public static string FormatUsd(long micros)
         => (micros / 1_000_000.0).ToString("$0.00", CultureInfo.InvariantCulture);
 
@@ -289,10 +278,59 @@ public sealed record SettingsAppState(
 [Screen("app.settings", Title = "Settings", Icon = Icons.Sliders)]
 public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
 {
-    protected override Task OnActivate(CancellationToken cancellationToken)
+    protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         AppActivationScope.Notify(this);
-        return base.OnActivate(cancellationToken);
+        await base.OnActivate(cancellationToken);
+        // Settings reacts to its control neurons through synapses: one wire per slot, told apart by SignalSlot.
+        foreach (var toggle in SettingsControls.Toggles) { await FollowSlot<ToggleSwitchNeuron, Toggled>(toggle.Key); }
+        foreach (var combo in SettingsControls.Combos) { await FollowSlot<ComboBoxNeuron, SelectionChanged>(combo.Key); }
+        await FollowSlot<FormNeuron, Submitted>(SettingsControls.Search);
+        await FollowSlot<FormNeuron, Submitted>(SettingsControls.Regional);
+    }
+
+    private SettingsSlots Slots => new(
+        Slot<ToggleSwitchNeuron, ToggleSwitchProps>,
+        Slot<ComboBoxNeuron, ComboBoxProps>,
+        Slot<FormNeuron, FormProps>);
+
+    [On]
+    public Task OnToggled(Toggled toggled)
+    {
+        ArgumentNullException.ThrowIfNull(toggled);
+        return SettingsControls.ToggleOf(SignalSlot) is { } toggle
+            ? toggle.Get(State) == toggled.IsOn ? Task.CompletedTask : UpdateAsync(toggle.Set(State, toggled.IsOn))
+            : Task.CompletedTask;
+    }
+
+    [On]
+    public Task OnSelectionChanged(SelectionChanged changed)
+    {
+        ArgumentNullException.ThrowIfNull(changed);
+        var key = SignalSlot;
+        SettingsSavePreferences? save = key switch
+        {
+            SettingsControls.ThemeMode when changed.Id != State.ThemeMode
+                => new SettingsSavePreferences(Theme: changed.Id is "light" or "dark" ? changed.Id : null, ThemeMode: changed.Id),
+            SettingsControls.BarLayout when changed.Id != State.BarLayout => new SettingsSavePreferences(BarLayout: changed.Id),
+            SettingsControls.DefaultModel when changed.Id != State.DefaultModel => new SettingsSavePreferences(DefaultModel: changed.Id),
+            _ => null,
+        };
+        return save is null ? Task.CompletedTask : SavePreferences(save);
+    }
+
+    [On]
+    public Task OnSubmitted(Submitted submitted)
+    {
+        ArgumentNullException.ThrowIfNull(submitted);
+        string? Value(string field) => submitted.Values.TryGetValue(field, out var value) && !string.IsNullOrWhiteSpace(value) ? value.Trim() : null;
+        return SignalSlot switch
+        {
+            SettingsControls.Search => UpdateAsync(State.Filter(Value("query") ?? "")),
+            SettingsControls.Regional => SavePreferences(new SettingsSavePreferences(
+                DisplayName: Value("displayName"), Language: Value("language"), TimeZone: Value("timeZone"), DateFormat: Value("dateFormat"))),
+            _ => Task.CompletedTask,
+        };
     }
 
     public ISecretVault? SecretVault { get; set; }
@@ -733,8 +771,9 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
     public View Render() => PreviewView(State);
 
     protected override Node Render(SettingsAppState state)
-        => SettingsViewRenderer.RenderRoot(state, LastRejection);
+        => SettingsViewRenderer.RenderRoot(state, Slots, LastRejection);
 
+    // The controls are controlled: their values are props of this view, so a save re-renders them; nothing is pushed to them.
     private Task UpdateAsync(SettingsAppState next) => Show(next);
 
     private T? TryGetOptional<T>(string key) where T : class

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -13,6 +13,7 @@ import '../nodes/error_line.dart';
 import '../nodes/neuron_ref.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
+import 'slot_route.dart';
 
 /// Hosts one node of the brain: a published view (`view`, `confirmation`), a
 /// window onto another app's view (`viewport`), a live nested `Slot` (`neuronRef`),
@@ -31,6 +32,9 @@ class ViewHost extends StatefulWidget {
     this.ancestors = const {},
     this.slotDepth = 0,
     this.slotAncestors = const {},
+    this.actNeuron,
+    this.slotPath = '',
+    this.slotProps = const {},
     this.inlineSlot = false,
     this.revision = 0,
     this.enabled = true,
@@ -56,6 +60,13 @@ class ViewHost extends StatefulWidget {
   /// Visited `neuronUri` / resolved view names along the active `Slot` chain.
   final Set<String> slotAncestors;
 
+  /// For a `slot` child: the root neuron its acts name and its key path from it (see [NodeContext.actNeuron]).
+  final String? actNeuron;
+  final String slotPath;
+
+  /// For a slot: the props its parent wrote on the slot node (see [NodeContext.slotProps]).
+  final Map<String, dynamic> slotProps;
+
   final NeuronLoader load;
   final ValueChanged<Map<String, dynamic>>? onActivate;
   final NeuronAction? onAction;
@@ -68,6 +79,11 @@ class ViewHost extends StatefulWidget {
   final bool enabled;
   final NeuronEventQueue? events;
   final Duration refreshEvery;
+
+  /// Test hook: receives each view context this host builds, so a widget test
+  /// can act through the real host (its dispatch, refusal display and reload).
+  @visibleForTesting
+  static void Function(String name, NodeContext ctx)? debugOnContext;
 
   /// The node's change events. With a watch the host never polls: it reads once on mount and
   /// once per event. Without one it falls back to [refreshEvery].
@@ -246,6 +262,7 @@ class _ViewHostState extends State<ViewHost> {
     String rawName,
     String identity,
     Set<String> activeSlotAncestors,
+    Map<String, dynamic> props,
   ) {
     final kind = rawKind.trim().toLowerCase();
     if (kind == 'confirmation') return null;
@@ -263,18 +280,37 @@ class _ViewHostState extends State<ViewHost> {
     final trimmedUri = rawName.trim();
     if (trimmedUri.isEmpty) return null;
 
-    final resolvedName = resolveSlotTargetName(
-      parentView: widget.name,
-      refKind: kind,
-      neuronUri: trimmedUri,
-    );
+    // A `slot` naming a bare key is this view's child: it is read and acted on through this view's root
+    // app with its key path (`{root}/slots/{path}`), never by the child's own neuron name (the kernel
+    // sends a screen's children by key only). A slot naming a whole address (`local/units/bank`) embeds
+    // that neuron's own view by name.
+    final isChild = isChildSlot(kind, trimmedUri);
+    final root =
+        widget.actNeuron ??
+        (widget.name.endsWith('/view')
+            ? widget.name.substring(0, widget.name.length - 5)
+            : widget.name);
+    final slotKey = isChild ? trimmedUri : '';
+    if (isChild && !isSlotKey(slotKey)) return null;
+    final slotPath = !isChild
+        ? ''
+        : widget.slotPath.isEmpty
+        ? slotKey
+        : '${widget.slotPath}/$slotKey';
+    final resolvedName = isChild
+        ? '$root/slots/$slotPath'
+        : resolveSlotTargetName(
+            parentView: widget.name,
+            refKind: kind,
+            neuronUri: trimmedUri,
+          );
     if (resolvedName.isEmpty || NodeContracts.tryResolve('view') == null) {
       return null;
     }
 
-    final targetIdentity = 'view:$resolvedName';
-    if (activeSlotAncestors.contains(trimmedUri) ||
-        activeSlotAncestors.contains(resolvedName) ||
+    final targetIdentity = '${isChild ? 'slot' : 'view'}:$resolvedName';
+    if (activeSlotAncestors.contains(resolvedName) ||
+        (!isChild && activeSlotAncestors.contains(trimmedUri)) ||
         widget.ancestors.contains(targetIdentity)) {
       return SlotGuardNotice(
         neuronUri: rawName,
@@ -290,7 +326,10 @@ class _ViewHostState extends State<ViewHost> {
 
     return ViewHost(
       key: ValueKey('slot:$resolvedName'),
-      kind: 'view',
+      actNeuron: isChild ? root : null,
+      slotPath: slotPath,
+      slotProps: props,
+      kind: isChild ? 'slot' : 'view',
       name: resolvedName,
       load: widget.load,
       onActivate: widget.onActivate,
@@ -298,10 +337,11 @@ class _ViewHostState extends State<ViewHost> {
       knowsApp: widget.knowsApp,
       events: _events,
       refreshEvery: widget.refreshEvery,
-      watch: widget.watch,
+      // A slot child has no watchable name of its own: it reloads with its parent's events and on the refresh timer.
+      watch: isChild ? null : widget.watch,
       ancestors: {...widget.ancestors, identity},
       slotDepth: widget.slotDepth + 1,
-      slotAncestors: {...activeSlotAncestors, trimmedUri, resolvedName},
+      slotAncestors: {...activeSlotAncestors, resolvedName},
       revision: widget.revision,
       enabled: widget.enabled,
       transcribe: widget.transcribe,
@@ -311,8 +351,19 @@ class _ViewHostState extends State<ViewHost> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      KeyedSubtree(key: _focusKey, child: _content(context));
+  Widget build(BuildContext context) {
+    final content = KeyedSubtree(key: _focusKey, child: _content(context));
+    // A slot names its key path in the semantics tree, so a browser finds it as
+    // `flt-semantics-identifier="slot:<path>"` without reading widget keys.
+    return widget.slotPath.isEmpty
+        ? content
+        : Semantics(
+            identifier: 'slot:${widget.slotPath}',
+            container: true,
+            explicitChildNodes: true,
+            child: content,
+          );
+  }
 
   Widget _content(BuildContext context) {
     final identity = '${widget.kind}:${widget.name}';
@@ -349,6 +400,7 @@ class _ViewHostState extends State<ViewHost> {
         !(widget.kind == 'confirmation' && widget.embedded);
     switch (widget.kind) {
       case 'view':
+      case 'slot':
       case 'confirmation':
         // An app view reads as {generation, view}; the confirmation inbox as the view itself.
         final rawView = data['view'] is Map ? data['view'] as Map : data;
@@ -375,16 +427,22 @@ class _ViewHostState extends State<ViewHost> {
           watch: widget.watch,
           onActivate: widget.onActivate,
           knowsApp: widget.knowsApp,
-          reference: (kind, name) =>
-              _buildReference(kind, name, identity, activeSlotAncestors),
+          reference: (kind, name, props) =>
+              _buildReference(kind, name, identity, activeSlotAncestors, props),
           confirmation: widget.kind == 'confirmation' && !widget.embedded,
           enabled: enabled,
           slotDepth: widget.slotDepth,
           slotAncestors: activeSlotAncestors,
+          actNeuron: widget.actNeuron,
+          slotPath: widget.slotPath,
+          slotProps: widget.slotProps,
+          // The server marks a screen's view: its commands all go to /act.
+          actsViaAct: rawView['acts'] == 'act',
           buttonHints: buttonHints,
           nodeKeys: nodeKeys,
           transcribe: widget.transcribe,
         );
+        ViewHost.debugOnContext?.call(widget.name, ctx);
         final appView = AppView.fromJson(normalizedView);
         final fills = NodeRenderer.fills(appView.root);
         final renderedView = FocusTraversalGroup(
@@ -644,10 +702,13 @@ class _ReadState extends StatelessWidget {
           : const ButtonNode(
               key: 'retry',
               label: 'Retry',
-              emit: null,
+              command: null,
               intent: null,
               enabled: true,
               tone: 'neutral',
+              automationName: 'Retry',
+              tooltip: null,
+              visible: true,
               style: 'secondary',
               icon: null,
               small: true,

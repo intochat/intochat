@@ -114,6 +114,7 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'action': _button,
   },
   'toast': {'kind': 'toast', 'message': 'Saved'},
+  'markdown': {'kind': 'markdown', 'value': '**Notes**: one, *two*'},
   'card': {
     'kind': 'card',
     'title': 'Card',
@@ -123,6 +124,14 @@ const nodeSamples = <String, Map<String, dynamic>>{
     ],
   },
   'button': {'kind': 'button', ..._button, 'tone': 'accent'},
+  'iconButton': {
+    'kind': 'iconButton',
+    'key': 'refresh',
+    'icon': 'refresh-cw',
+    'tooltip': 'Refresh',
+    'command': {'target': '.', 'signal': 'refreshed'},
+    'automationName': 'Refresh',
+  },
   'dataTable': {
     'kind': 'dataTable',
     'title': 'Deals',
@@ -304,6 +313,73 @@ const nodeSamples = <String, Map<String, dynamic>>{
     'sparkline': [86200.0, 85800.0, 85100.0, 84120.5],
     'threshold': 85000.0,
     'actions': [_button],
+  },
+  'checkBoxView': {'kind': 'checkBoxView', 'key': 'terms', 'isOn': true},
+  'toggleSwitchView': {
+    'kind': 'toggleSwitchView',
+    'key': 'dark-mode',
+    'isOn': true,
+  },
+  'expanderView': {
+    'kind': 'expanderView',
+    'key': 'advanced',
+    'isExpanded': true,
+  },
+  'tabStripView': {
+    'kind': 'tabStripView',
+    'key': 'sections',
+    'selectedId': 'general',
+  },
+  'formView': {
+    'kind': 'formView',
+    'key': 'profile',
+    'values': [
+      {'key': 'name', 'value': 'Ada'},
+    ],
+  },
+  'comboBoxView': {
+    'kind': 'comboBoxView',
+    'key': 'theme',
+    'selectedId': 'dark',
+  },
+  'listBoxView': {
+    'kind': 'listBoxView',
+    'key': 'devices',
+    'selectedId': 'laptop',
+  },
+  'queryTableView': {
+    'kind': 'queryTableView',
+    'key': 'people',
+    'filter': '',
+    'sortBy': null,
+    'descending': false,
+    'page': 1,
+    'pageSize': 50,
+    'total': 0,
+    'loaded': false,
+    'columnIds': [],
+    'rows': [],
+    'error': null,
+  },
+  'liveChartView': {
+    'kind': 'liveChartView',
+    'key': 'spend',
+    'version': 1,
+    'points': [],
+  },
+  'chatThreadView': {
+    'kind': 'chatThreadView',
+    'key': 'conversation',
+    'messages': [],
+    'composer': {
+      'key': 'composer',
+      'onSubmit': {
+        'owner': 'control.chatThread',
+        'signal': 'control.submitText',
+      },
+    },
+    'stop': {'kind': 'button', 'key': 'stop', 'label': 'Stop'},
+    'retry': {'kind': 'button', 'key': 'error-action', 'label': 'Try again'},
   },
   'diffCard': {
     'kind': 'diffCard',

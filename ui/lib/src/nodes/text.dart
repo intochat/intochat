@@ -30,8 +30,11 @@ Widget renderText(TextNode node, NodeContext ctx) => Builder(
             color: color ?? theme.textTheme.bodyMedium?.color,
           ).copyWith(letterSpacing: -0.1)
         : (theme.textTheme.bodyMedium ?? const TextStyle(fontSize: 13));
+    // Selectable text reaches the web accessibility tree as an empty read-only
+    // field; its label carries the text a screen reader (or a browser test) reads.
     return SelectableText(
       node.value,
+      semanticsLabel: node.value,
       style: baseStyle.copyWith(
         color: color,
         fontWeight: toneKind == TextToneVariant.strong

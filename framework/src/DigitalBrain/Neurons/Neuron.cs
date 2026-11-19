@@ -20,6 +20,9 @@ public abstract class Neuron
     /// <summary>What the runtime gives this neuron. Available once attached.</summary>
     protected INeuronContext Context => _context ?? throw new InvalidOperationException("The neuron is not attached to a runtime.");
 
+    // True once a runtime attached this neuron; a detached instance (a preview) has no id.
+    internal bool IsAttached => _context is not null;
+
     private protected INeuronSeat Seat => _seat ?? throw new InvalidOperationException("This context carries no seat: attach through a runtime, TestOS or FakeNeuronContext.");
 
     internal void Attach(INeuronContext context)
@@ -59,6 +62,10 @@ public abstract class Neuron
         await PublishEphemeral(rejected).ConfigureAwait(true);
         throw new RuleViolationException(rejected);
     }
+
+    /// <summary>Whether <paramref name="id"/> names a neuron of this brain whose registered class implements <typeparamref name="TContract"/>; it calls nothing.</summary>
+    protected bool Implements<TContract>(NeuronId id) where TContract : class
+        => id.Brain == Id.Brain && Context.ClassOf(id.Type) is { } type && typeof(TContract).IsAssignableFrom(type);
 
     /// <summary>A typed interface to another neuron of the same brain.</summary>
     /// <exception cref="ArgumentException"><paramref name="id"/> belongs to another brain.</exception>

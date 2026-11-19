@@ -425,7 +425,7 @@ public static partial class OfflineUnitSynthesizer
                     [
                         new TagPill(state.Visible ? "Greeting Visible" : "Ready", state.Visible ? "done" : "neutral", state.Visible ? "check" : "circle-dashed"),
                         new Text(state.Visible ? "Hello, IntoChat OS!" : "Click the button below"),
-                        new Button("toggle-hello", state.Visible ? "Hide Hello" : "Say Hello", new Emit("{{alias}}", "{{toggleSignal}}"), Tone: ButtonTone.Accent) { Style = "primary" },
+                        new Button("toggle-hello", state.Visible ? "Hide Hello" : "Say Hello", new Command(".", "{{toggleSignal}}"), Tone: ButtonTone.Accent) { Style = "primary" },
                     ], Title: "Hello World", Subtitle: $"Toggled {state.Clicks} time(s)"));
                 }
                 """;
@@ -466,7 +466,7 @@ public static partial class OfflineUnitSynthesizer
                     [
                         new TagPill($"Total: {state.Total}", "done", "check"),
                         new Text($"Last operation: {state.LastOp}"),
-                        new Button("add", "Add", new Emit("{{alias}}", "calc.add", JsonSerializer.SerializeToElement(new CalcAddArgs(5))), Tone: ButtonTone.Accent) { Style = "primary" }
+                        new Button("add", "Add", new Command(".", "calc.add", JsonSerializer.SerializeToElement(new CalcAddArgs(5))), Tone: ButtonTone.Accent) { Style = "primary" }
                     ], Title: "Calculator"));
                 }
                 """;
@@ -504,7 +504,7 @@ public static partial class OfflineUnitSynthesizer
                     [
                         new TagPill($"{state.ItemsCount} items", state.ItemsCount > 0 ? "done" : "neutral", state.ItemsCount > 0 ? "check" : "circle-dashed"),
                         new Text(state.LastItem),
-                        new Button("add", "Add Task", new Emit("{{alias}}", "todo.add", JsonSerializer.SerializeToElement(new TodoAdded("New task"))), Tone: ButtonTone.Accent) { Style = "primary" }
+                        new Button("add", "Add Task", new Command(".", "todo.add", JsonSerializer.SerializeToElement(new TodoAdded("New task"))), Tone: ButtonTone.Accent) { Style = "primary" }
                     ], Title: "Todo Tracker"));
                 }
                 """;
@@ -542,7 +542,7 @@ public static partial class OfflineUnitSynthesizer
                     [
                         new TagPill($"Balance: {state.Balance}", state.Balance >= 0 ? "done" : "error", state.Balance >= 0 ? "check" : "triangle-alert"),
                         new Text($"{state.Transactions} transactions recorded"),
-                        new Button("spend", "Spend", new Emit("{{alias}}", "budget.spend", JsonSerializer.SerializeToElement(new BudgetUpdated(10))))
+                        new Button("spend", "Spend", new Command(".", "budget.spend", JsonSerializer.SerializeToElement(new BudgetUpdated(10))))
                     ], Title: "Budget Tracker"));
                 }
                 """;
@@ -576,7 +576,7 @@ public static partial class OfflineUnitSynthesizer
                 [
                     new TagPill($"Count: {state.Count}", state.Count > 0 ? "done" : "neutral", state.Count > 0 ? "check" : "circle-dashed"),
                     new Text($"Last: {state.LastAction}"),
-                    new Button("increment", "Increment", new Emit("{{alias}}", "counter.increment"), Tone: ButtonTone.Accent) { Style = "primary" }
+                    new Button("increment", "Increment", new Command(".", "counter.increment"), Tone: ButtonTone.Accent) { Style = "primary" }
                 ], Title: "Counter"));
             }
             """;
@@ -625,8 +625,8 @@ public static partial class OfflineUnitSynthesizer
                 [
                     new TagPill($"Count: {state.Count}", state.Count > 0 ? "done" : "neutral", state.Count > 0 ? "check" : "circle-dashed"),
                     new Text($"Notes: {state.Notes}"),
-                    new Button("increment", "Increment", new Emit("{{alias}}", "counter.increment"), Tone: ButtonTone.Accent) { Style = "primary" },
-                    new Button("note", "Add Note", new Emit("{{alias}}", "{{alias}}.note", JsonSerializer.SerializeToElement(new CounterNoted("note"))))
+                    new Button("increment", "Increment", new Command(".", "counter.increment"), Tone: ButtonTone.Accent) { Style = "primary" },
+                    new Button("note", "Add Note", new Command(".", "{{alias}}.note", JsonSerializer.SerializeToElement(new CounterNoted("note"))))
                 ], Title: "Counter (Refined)"));
             }
             """;

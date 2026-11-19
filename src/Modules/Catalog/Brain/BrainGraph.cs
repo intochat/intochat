@@ -5,7 +5,7 @@ using IntoChat.OS.Modules.Apps.Flows;
 
 namespace IntoChat.OS.Modules.Apps;
 
-// The Creator's brain graph (owner is the app its select buttons emit to): a sphere per unit, compiled app and kernel neuron, a ghost per unit under construction, an edge per
+// The Creator's brain graph (its select buttons command the view's own neuron): a sphere per unit, compiled app and kernel neuron, a ghost per unit under construction, an edge per
 // reaction or gate labelled with its alias. The inspector reads three keys: `node:<id>` (a node's select button), `edge:<from>→<to>:<alias>`
 // and `pulse:<traceId>`. Edges and pulses are not nodes of the view: the renderer activates SelectKey with their key as the value.
 public static class BrainGraph
@@ -50,7 +50,7 @@ public static class BrainGraph
 
     public static string DraftId(string alias) => $"draft:{alias}";
 
-    public static BrainSceneNode Build(BrainTopology topology, string? selection, string owner = "creator")
+    public static BrainSceneNode Build(BrainTopology topology, string? selection)
     {
         ArgumentNullException.ThrowIfNull(topology);
         List<(string Id, string Label, string Kind, string? Subtitle)> members = [];
@@ -79,7 +79,7 @@ public static class BrainGraph
             nodes[i] = new BrainGraphNode(id, label, $"neuron://{id}", kind,
                 Math.Round(radius * Math.Cos(angle), 2), Math.Round(radius * Math.Sin(angle), 2), 0,
                 Status: kind == Draft ? "building" : "idle", Subtitle: subtitle,
-                Select: new Button(NodeKey(id), label, new Emit(owner, "select", JsonSerializer.SerializeToElement(NodeKey(id)))));
+                Select: new Button(NodeKey(id), label, new Command(".", "select", JsonSerializer.SerializeToElement(NodeKey(id)))));
         }
         var synapses = topology.Edges
             .Where(edge => seen.Contains(edge.TargetId))

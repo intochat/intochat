@@ -41,8 +41,8 @@ public static class AdvSynapses
     public static View Show(AdvCounter c) =>
         new("adv.counter", new Row(
             [
-                new Button("bump_btn", "Bump", new Emit("adv.counter", "adv.bump", JsonSerializer.SerializeToElement(new { Amount = 5 }))),
-                new Button("foreign_btn", "Foreign", new Emit("malicious.owner", "adv.bump", JsonSerializer.SerializeToElement(new { Amount = 1 }))),
+                new Button("bump_btn", "Bump", new Command(".", "adv.bump", JsonSerializer.SerializeToElement(new { Amount = 5 }))),
+                new Switch("foreign_btn", "Foreign", false, new Emit("malicious.owner", "adv.bump", JsonSerializer.SerializeToElement(new { Amount = 1 }))),
                 new Text($"Count is {c.Count}")
             ]));
 }
@@ -173,7 +173,7 @@ public sealed class UnitMachineAdversarialFacts
     {
         var step = _machine.Start(new StoredUnit<AdvCounter>(new AdvCounter(1), null));
         var maliciousView = new View(StateAlias, new Button("btn", "Bump",
-            new Emit(StateAlias, "adv.bump", JsonSerializer.SerializeToElement(new { by = "spoofed_user", amount = 1 }))));
+            new Command(".", "adv.bump", JsonSerializer.SerializeToElement(new { by = "spoofed_user", amount = 1 }))));
 
         var (viewedStep, outcome) = _machine.Viewed(step, maliciousView);
 
@@ -237,6 +237,38 @@ public sealed class UnitMachineAdversarialFacts
         var ex = Assert.Throws<ActivationRefusedException>(() =>
             _machine.Press(published, StateAlias, generation: 4, "btn", null, "user1"));
         Assert.Equal(ActivationRefusedException.Stale, ex.Reason);
+    }
+
+    [Fact]
+    public void Press_CommandToAChild_IsRefusedWithNoSlots()
+    {
+        var wire = JsonSerializer.SerializeToElement(new
+        {
+            kind = "button",
+            key = "btn",
+            command = new { target = "child", signal = "adv.bump" }
+        });
+        var published = new PublishedView(StateAlias, 1, wire);
+
+        var ex = Assert.Throws<ActivationRefusedException>(() =>
+            _machine.Press(published, StateAlias, generation: 1, "btn", null, "user1"));
+        Assert.Equal(ActivationRefusedException.NoSlots, ex.Reason);
+    }
+
+    [Fact]
+    public void Press_StrayCloseOnAButton_IsNotActivatable()
+    {
+        var wire = JsonSerializer.SerializeToElement(new
+        {
+            kind = "button",
+            key = "btn",
+            close = new { target = ".", signal = "adv.bump" }
+        });
+        var published = new PublishedView(StateAlias, 1, wire);
+
+        var ex = Assert.Throws<ActivationRefusedException>(() =>
+            _machine.Press(published, StateAlias, generation: 1, "btn", null, "user1"));
+        Assert.Equal(ActivationRefusedException.NoEmit, ex.Reason);
     }
 
     [Fact]

@@ -90,7 +90,7 @@ internal static class AgentPrompts
             [
                 new Badge($"{watch.Unseen} unseen", watch.Unseen > 0 ? "accent" : "neutral"),
                 new Text(watch.Latest),
-                new Button("seen", "Mark seen", new Emit("x.watch", "x.seen")),
+                new Button("seen", "Mark seen", new Command(".", "x.seen")),
             ]));
         }
         """;
@@ -191,7 +191,7 @@ internal static class AgentPrompts
         - The `Every` in code must be exactly needs.schedule; check_unit fails when they differ or only one exists.
         - When needs.view is true, one `[Synapse("<alias>")]` method takes the state and returns a `View`
           (`new View(title, root)` of Column, Row, Text, Badge, StatCardNode, Button). A Button has a stable key and emits
-          to the unit's own alias: `new Button("toggle-hello", "Say Hello", new Emit("<alias>", "<signal.alias>"))`.
+          to the unit's own alias: `new Button("toggle-hello", "Say Hello", new Command(".", "<signal.alias>"))`.
           Every interactive unit MUST render at least one `Button` node in its initial `View` (even when `Visible == false` or `Count == 0`) so the person can click it immediately!
           The view is pure: no slot, no await, the state in and a View out.
         - Global usings already cover System, System.Collections.Generic, System.Threading(.Tasks), DigitalBrain,

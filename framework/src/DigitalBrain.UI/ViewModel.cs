@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json.Serialization;
 
@@ -38,7 +39,13 @@ public sealed class ViewNodeAttribute(string kind) : Attribute
 }
 
 /// <summary>A screen an app returns: a title and a tree of nodes. Renderer-neutral.</summary>
-public sealed record View(string Title, Node Root);
+public sealed record View(string Title, Node Root)
+{
+    /// <summary>The value of the wire field <c>acts</c> on a view whose commands all go to the act route. Only the host that serves a
+    /// screen's view writes it into the outgoing JSON; a view has no such property, so app code cannot set it.</summary>
+    public const string ActRoute = "act";
+
+}
 
 /// <summary>A node of a view.</summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
@@ -53,6 +60,7 @@ public sealed record View(string Title, Node Root);
 [JsonDerivedType(typeof(Collection), "collection")]
 [JsonDerivedType(typeof(Heading), "heading")]
 [JsonDerivedType(typeof(Text), "text")]
+[JsonDerivedType(typeof(Markdown), "markdown")]
 [JsonDerivedType(typeof(Badge), "badge")]
 [JsonDerivedType(typeof(TagPill), "tagPill")]
 [JsonDerivedType(typeof(Field), "field")]
@@ -64,6 +72,7 @@ public sealed record View(string Title, Node Root);
 [JsonDerivedType(typeof(Toast), "toast")]
 [JsonDerivedType(typeof(Card), "card")]
 [JsonDerivedType(typeof(Button), "button")]
+[JsonDerivedType(typeof(IconButton), "iconButton")]
 [JsonDerivedType(typeof(DataTable), "dataTable")]
 [JsonDerivedType(typeof(Chart), "chart")]
 [JsonDerivedType(typeof(ApprovalCardNode), "approvalCard")]
@@ -83,6 +92,16 @@ public sealed record View(string Title, Node Root);
 [JsonDerivedType(typeof(EmptyStateNode), "emptyState")]
 [JsonDerivedType(typeof(MetricTileNode), "metricTile")]
 [JsonDerivedType(typeof(DiffCardNode), "diffCard")]
+[JsonDerivedType(typeof(Controls.CheckBoxView), "checkBoxView")]
+[JsonDerivedType(typeof(Controls.ToggleSwitchView), "toggleSwitchView")]
+[JsonDerivedType(typeof(Controls.ExpanderView), "expanderView")]
+[JsonDerivedType(typeof(Controls.TabStripView), "tabStripView")]
+[JsonDerivedType(typeof(Controls.ComboBoxView), "comboBoxView")]
+[JsonDerivedType(typeof(Controls.FormView), "formView")]
+[JsonDerivedType(typeof(Controls.LiveChartView), "liveChartView")]
+[JsonDerivedType(typeof(Controls.ChatThreadView), "chatThreadView")]
+[JsonDerivedType(typeof(Controls.QueryTableView), "queryTableView")]
+[JsonDerivedType(typeof(Controls.ListBoxView), "listBoxView")]
 public abstract record Node;
 
 /// <summary>Children laid out top to bottom.</summary>
@@ -185,7 +204,7 @@ public sealed record Tabs(IReadOnlyList<TabItem> Items, string SelectedId) : Nod
     public bool Equals(Tabs? other) => other is not null && SelectedId == other.SelectedId && Items.SequenceEqual(other.Items);
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(SelectedId, Items.Count);
+    public override int GetHashCode() => HashCode.Combine(SelectedId, SequenceHash.Of(Items));
 }
 
 /// <summary>A hairline section divider with an optional label.</summary>
@@ -298,30 +317,87 @@ public sealed record Select(string Label, string Selected, IReadOnlyList<SelectO
     public override int GetHashCode() => HashCode.Combine(Label, Selected, Options.Count);
 }
 
-/// <summary>A progress bar with label and percentage.</summary>
+/// <summary>A progress bar or ring with a label: plain data, no state of its own.</summary>
+/// <param name="Label">What is progressing.</param>
+/// <param name="Value">The fraction done, 0 to 1 (a percentage above 1 is read as 0 to 100); ignored while <paramref name="IsIndeterminate"/>.</param>
+/// <param name="Detail">A muted line below, such as "3/7".</param>
+/// <param name="IsIndeterminate">True shows activity without a known fraction.</param>
+/// <param name="ShowError">True draws it in the error tone: the work stopped.</param>
+/// <param name="Ring">True draws a ring instead of a bar.</param>
 [ViewNode("progress")]
-public sealed record Progress(string Label, double Value, string? Detail = null) : Node;
+public sealed record Progress(
+    [Showcase("""{"kind":"progress","label":"Uploading","value":0.42,"detail":"42 of 100 files"}""")]
+    [Showcase("""{"kind":"progress","label":"Connecting","value":0,"isIndeterminate":true,"ring":true}""")]
+    [Showcase("""{"kind":"progress","label":"Sync failed","value":0.7,"showError":true,"detail":"Stopped at 70%"}""")]
+    string Label,
+    double Value,
+    string? Detail = null,
+    bool IsIndeterminate = false,
+    bool ShowError = false,
+    bool Ring = false) : Node;
 
-/// <summary>An inline status/alert banner.</summary>
+/// <summary>An inline status/alert banner: plain data whose close control sends a <see cref="Command"/>.</summary>
+/// <param name="Title">The bold lead text.</param>
+/// <param name="Message">The body text.</param>
+/// <param name="Tone">neutral, accent, success, warning, danger or error.</param>
+/// <param name="Action">An optional trailing button.</param>
+/// <param name="Close">The command the close control sends; null shows no close control.</param>
+/// <param name="Key">The node's key within its view, by which its close names it; required with <paramref name="Close"/>.</param>
+/// <param name="AutomationName">The accessible name; empty falls back to <paramref name="Key"/>.</param>
 [ViewNode("infoBar")]
-public sealed record InfoBar(string Title, string Message, string Tone = "neutral", Button? Action = null) : Node;
+public sealed record InfoBar(
+    [Showcase("""{"kind":"infoBar","key":"sync-paused","title":"Sync paused","message":"Reconnect storage to resume.","tone":"warning","close":{"target":".","signal":"Dismissed"},"automationName":"Sync paused"}""")]
+    [Showcase("""{"kind":"infoBar","key":"saved","title":"Saved","message":"Your changes are stored.","tone":"success","automationName":"Saved"}""")]
+    string Title,
+    string Message,
+    string Tone = "neutral",
+    Button? Action = null,
+    Command? Close = null,
+    string Key = "",
+    string AutomationName = "") : Node
+{
+    // Not serialised (private); a close control is activated by key, so a closable bar has one.
+    private readonly bool _keyedClose = Close is null || !string.IsNullOrWhiteSpace(Key)
+        ? true
+        : throw new ArgumentException("An info bar with a Close command needs a Key.", nameof(Key));
+
+    /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
+    public string AutomationName { get; init; } = string.IsNullOrEmpty(AutomationName) ? Key : AutomationName;
+}
+
+/// <summary>Markdown text (headings, lists, emphasis, links, code): plain data drawn by the client.</summary>
+/// <param name="Value">The markdown source.</param>
+[ViewNode("markdown")]
+public sealed record Markdown(
+    [Showcase(@"""## Release notes\n\n- **Faster** sync\n- A new `Card` footer\n\nSee [the docs](https://intochat.io).""")]
+    string Value) : Node;
 
 /// <summary>A transient message.</summary>
 [ViewNode("toast")]
 public sealed record Toast(string Message) : Node;
 
-/// <summary>A card: a title, a body and child nodes below them (the os <c>card</c> control).</summary>
+/// <summary>A card frame (the os <c>card</c> control): plain data with a title, a body, child nodes and optional header and footer slots.</summary>
 /// <param name="Title">The card title.</param>
 /// <param name="Body">The card body.</param>
 /// <param name="Children">Nodes shown below the body, in order.</param>
+/// <param name="Header">A node shown above the title, such as a badge row or a child neuron's slot.</param>
+/// <param name="Footer">A node shown below the children, such as a row of buttons.</param>
 [ViewNode("card")]
-public sealed record Card(string Title, string Body, IReadOnlyList<Node> Children) : Node
+public sealed record Card(
+    [Showcase("""{"kind":"card","title":"Weekly report","body":"Five tasks closed, two open.","children":[{"kind":"progress","label":"Done","value":0.7}]}""")]
+    [Showcase("""{"kind":"card","title":"Deploy","body":"Ready to ship.","children":[],"header":{"kind":"badge","label":"Staging","tone":"accent"},"footer":{"kind":"button","key":"ship","label":"Ship","command":{"target":".","signal":"Shipped"},"tone":"accent","automationName":"Ship"}}""")]
+    string Title,
+    string Body,
+    IReadOnlyList<Node> Children,
+    Node? Header = null,
+    Node? Footer = null) : Node
 {
     /// <inheritdoc />
-    public bool Equals(Card? other) => other is not null && Title == other.Title && Body == other.Body && Children.SequenceEqual(other.Children);
+    public bool Equals(Card? other) => other is not null && Title == other.Title && Body == other.Body && Children.SequenceEqual(other.Children)
+        && Equals(Header, other.Header) && Equals(Footer, other.Footer);
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(Title, Body, Children.Count);
+    public override int GetHashCode() => HashCode.Combine(Title, Body, Children.Count, Header, Footer);
 }
 
 /// <summary>The button tones the renderer knows (the os <c>ControlVisual.Tone</c>): only neutral and accent.</summary>
@@ -334,20 +410,51 @@ public static class ButtonTone
     public const string Accent = "accent";
 }
 
-/// <summary>A button (the os <c>button</c> control).</summary>
+/// <summary>A button (the os <c>button</c> control): plain data with a <see cref="UI.Command"/>; pressing it sends the command to a neuron.</summary>
 /// <param name="Key">The node's key within its view, by which an activation names it.</param>
 /// <param name="Label">The label.</param>
-/// <param name="Emit">The signal a click emits; exactly one of <paramref name="Emit"/> and <paramref name="Intent"/> is given.</param>
+/// <param name="Command">The command a click sends, to a neuron address relative to the view's neuron ("." is the view's own); exactly one of <paramref name="Command"/> and <paramref name="Intent"/> is given.</param>
 /// <param name="Intent">The client-local intent a click performs.</param>
 /// <param name="Enabled">False shows the button disabled.</param>
 /// <param name="Tone"><see cref="ButtonTone.Neutral"/> or <see cref="ButtonTone.Accent"/>.</param>
+/// <param name="AutomationName">The accessible name; empty falls back to <paramref name="Key"/>.</param>
+/// <param name="Tooltip">Text shown on hover and focus.</param>
+/// <param name="Visible">False hides the button.</param>
 [ViewNode("button")]
-public sealed record Button(string Key, string Label, Emit? Emit = null, Intent? Intent = null, bool Enabled = true, string Tone = ButtonTone.Neutral) : Node
+public sealed record Button(
+    [Showcase("""{"kind":"button","key":"save","label":"Save","command":{"target":".","signal":"Saved"},"tone":"accent","automationName":"Save"}""")]
+    [Showcase("""{"kind":"button","key":"copy","label":"Copy link","intent":{"intentKind":"Copy","arg":"https://intochat.io"},"automationName":"Copy link","tooltip":"Copies the link"}""")]
+    string Key,
+    string Label,
+    Command? Command = null,
+    Intent? Intent = null,
+    bool Enabled = true,
+    string Tone = ButtonTone.Neutral,
+    string AutomationName = "",
+    string? Tooltip = null,
+    [property: DefaultValue(true)] bool Visible = true) : Node
 {
-    // Not serialised (private); a button that emits and intends, or does neither, cannot be built.
-    private readonly bool _oneAction = (Emit is null) != (Intent is null)
+    // Not serialised (private); a button that commands and intends, or does neither, cannot be built.
+    private readonly bool _oneAction = (Command is null) != (Intent is null)
         ? true
-        : throw new ArgumentException("A button carries exactly one of Emit and Intent.", nameof(Intent));
+        : throw new ArgumentException("A button carries exactly one of Command and Intent.", nameof(Intent));
+
+    // Reads stored views and fixtures written before buttons carried commands: a legacy emit becomes a command to the view's own
+    // neuron (".") with the emit's signal and args. Only "command" is ever written.
+    [JsonConstructor]
+    private Button(string key, string label, Command? command, Intent? intent, bool enabled, string tone, string automationName, string? tooltip, bool visible, Emit? emit)
+        : this(key, label, command ?? (emit is null ? null : new Command(".", emit.Signal, emit.Args)), intent, enabled, tone ?? ButtonTone.Neutral, automationName ?? "", tooltip, visible)
+    {
+    }
+
+    // The legacy member the reading constructor binds; never written.
+    [JsonInclude, JsonPropertyName("emit"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+#pragma warning disable CA1822 // an instance member, so the serializer binds the reading constructor's parameter to it
+    private Emit? Emit => null;
+#pragma warning restore CA1822
+
+    /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
+    public string AutomationName { get; init; } = string.IsNullOrEmpty(AutomationName) ? Key : AutomationName;
 
     /// <summary>Visual style (<c>primary</c>, <c>secondary</c>, <c>ghost</c>, <c>danger</c>, <c>link</c>).</summary>
     public string Style { get; init; } = "secondary";
@@ -358,6 +465,37 @@ public sealed record Button(string Key, string Label, Emit? Emit = null, Intent?
 
     /// <summary>True for the compact 30px desktop button height.</summary>
     public bool Small { get; init; }
+}
+
+/// <summary>An icon-only button (the os <c>iconButton</c> control): plain data with a <see cref="UI.Command"/>, its tooltip the visible name.</summary>
+/// <param name="Key">The node's key within its view, by which an activation names it.</param>
+/// <param name="Icon">The Lucide icon slug drawn.</param>
+/// <param name="Tooltip">Text shown on hover and focus; an icon button always says what it does.</param>
+/// <param name="Command">The command a click sends, to a neuron address relative to the view's neuron ("." is the view's own); exactly one of <paramref name="Command"/> and <paramref name="Intent"/> is given.</param>
+/// <param name="Intent">The client-local intent a click performs.</param>
+/// <param name="Enabled">False shows the button disabled.</param>
+/// <param name="AutomationName">The accessible name; empty falls back to <paramref name="Key"/>.</param>
+/// <param name="Visible">False hides the button.</param>
+[ViewNode("iconButton")]
+public sealed record IconButton(
+    [Showcase("""{"kind":"iconButton","key":"refresh","icon":"refresh-cw","tooltip":"Refresh","command":{"target":".","signal":"Refreshed"},"automationName":"Refresh"}""")]
+    [Showcase("""{"kind":"iconButton","key":"copy-id","icon":"copy","tooltip":"Copy id","intent":{"intentKind":"Copy","arg":"neuron://owner/notes"},"automationName":"Copy id","enabled":false}""")]
+    string Key,
+    string Icon,
+    string Tooltip,
+    Command? Command = null,
+    Intent? Intent = null,
+    bool Enabled = true,
+    string AutomationName = "",
+    [property: DefaultValue(true)] bool Visible = true) : Node
+{
+    // Not serialised (private); an icon button that commands and intends, or does neither, cannot be built.
+    private readonly bool _oneAction = (Command is null) != (Intent is null)
+        ? true
+        : throw new ArgumentException("An icon button carries exactly one of Command and Intent.", nameof(Intent));
+
+    /// <summary>The accessible name: the given one, or <see cref="Key"/> when none was given.</summary>
+    public string AutomationName { get; init; } = string.IsNullOrEmpty(AutomationName) ? Key : AutomationName;
 }
 
 /// <summary>A signal a node emits when activated: journaled with alias <paramref name="Signal"/> to the state alias <paramref name="Owner"/>.</summary>
@@ -654,8 +792,12 @@ public sealed record WebBrowser(
     string ExecutionMode = "wasm-ui") : Node;
 
 /// <summary>Reference to a live neuron control in the same brain.</summary>
+/// <param name="Kind">How the client hosts it ("slot" for a child of the view's screen).</param>
+/// <param name="NeuronUri">The neuron.</param>
+/// <param name="Props">A slot's props: the setup its parent decides (a <see cref="ControlProps"/> record as JSON); null for none.</param>
 [ViewNode("neuronRef")]
-public sealed record NeuronRef([property: JsonPropertyName("refKind")] string Kind, string NeuronUri) : Node;
+public sealed record NeuronRef([property: JsonPropertyName("refKind")] string Kind, string NeuronUri,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] System.Text.Json.JsonElement? Props = null) : Node;
 
 /// <summary>Semantic tone for status badges and stat cards.</summary>
 public enum BadgeTone
@@ -745,7 +887,8 @@ public sealed record MessageNode(
     string? Model = null,
     Button? Retry = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ModelLabel = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ProviderIcon = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ProviderIcon = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ErrorLineNode? Error = null)
 {
     /// <inheritdoc />
     public bool Equals(MessageNode? other) =>
@@ -759,7 +902,8 @@ public sealed record MessageNode(
         && Model == other.Model
         && ModelLabel == other.ModelLabel
         && ProviderIcon == other.ProviderIcon
-        && Equals(Retry, other.Retry);
+        && Equals(Retry, other.Retry)
+        && Equals(Error, other.Error);
 
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(Id, Role, Text, Status);

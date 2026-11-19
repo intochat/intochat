@@ -505,7 +505,7 @@ public sealed class DesktopApp : Screen<DesktopAppState>
             return VStack(0, [
                 new Row(chromeButtons) { Gap = 4, Extents = [0, .. chromeButtons.Skip(1).Select(_ => 32.0)] },
                 Tabs($"{winId}/{activeIndex}", tabItems),
-                Slot(brain is { Length: > 0 } ? IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildKey($"window/{winId}") : $"apps/desktop/window/{winId}", "viewport"),
+                Kit.Slot(brain is { Length: > 0 } ? IntoChat.OS.Primitives.AppRef.Of(new BrainId(brain), AppName).ChildKey($"window/{winId}") : $"apps/desktop/window/{winId}", "viewport"),
             ]).Extents(40, 38, 0);
         }
 

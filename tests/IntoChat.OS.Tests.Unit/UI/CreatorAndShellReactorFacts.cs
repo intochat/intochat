@@ -54,7 +54,7 @@ public sealed class CreatorAndShellReactorFacts
 
         // Toggle to Accordant State Graph via CreatorSelect("view:state-graph")
         var toggleBtn = Assert.Single(AllNodes(creator.App.Render()).OfType<Button>(), b => b.Key == "toggle-state-graph");
-        Assert.NotNull(toggleBtn.Emit);
+        Assert.NotNull(toggleBtn.Command);
         await creator.Request("select", new CreatorSelect(CreatorView.ToggleStateGraphTarget));
         Assert.True(creator.App.State.ShowStateGraph);
 

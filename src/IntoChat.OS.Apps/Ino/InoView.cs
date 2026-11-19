@@ -1,6 +1,8 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using DigitalBrain.UI;
+using DigitalBrain.UI.Controls;
+using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Markdraw;
 using IntoChat.OS.Framework.Visuals;
 using IntoChat.OS.Modules.Apps;
@@ -18,9 +20,7 @@ public static partial class InoView
     public const string ProviderCredentialKey = "provider-credential";
     public const string ProviderCredentialField = "apps/ino/provider-credential";
     public const string UseLocalKey = "use-local-model";
-    public const string StopKey = "stop";
-    public const string RetryKey = "retry";
-    public const string ErrorActionKey = "error-action";
+    public const string StopKey = ChatThreadNeuron.StopKey;
     public const string NewKey = "new-conversation";
     public const int MaxRenderedMessages = 100;
     public const int MaxRenderedChars = 1_000_000;
@@ -56,88 +56,83 @@ public static partial class InoView
         return selected;
     }
 
-    public static Conversation Conversation(InoAppState s, bool dictation = false)
+    /// <summary>The messages the conversation thread holds for <paramref name="s"/>: the shown ones and the pending prompt, each failed reply with its reason.</summary>
+    public static IReadOnlyList<ThreadMessage> Thread(InoAppState s)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        return [.. Shown(s).Select(ToThreadMessage)];
+    }
+
+    /// <summary>What Ino decides about its conversation thread: the composer, the model, the status and an error no message carries.</summary>
+    public static ChatThreadProps ThreadProps(InoAppState s, bool dictation = false, string? threadFailure = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         var shown = Shown(s);
-        var projectedCardIds = new HashSet<string>(shown.SelectMany(m => m.Cards).Select(c => c.Id), StringComparer.Ordinal);
-        var looseCardNodes = s.ActiveCards.Where(c => !projectedCardIds.Contains(c.Id)).SelectMany(RenderCardNodes).ToArray();
-        var setupNodes = ShouldShowModelSetup(s) ? RenderModelSetupNodes(s) : [];
-
-        var messageNodes = new List<MessageNode>(shown.Count);
-        for (var i = 0; i < shown.Count; i++)
-        {
-            var msg = shown[i];
-            var isLast = i == shown.Count - 1;
-            var (displayText, inlineSlots) = msg.Role == "assistant"
-                ? InoCards.ExtractInlineSlots(msg.Text)
-                : (msg.Text, Array.Empty<NeuronRef>());
-
-            var cardList = new List<Node>();
-            foreach (var card in msg.Cards) { cardList.AddRange(RenderCardNodes(card)); }
-            foreach (var slot in inlineSlots) { cardList.Add(slot); }
-            if (isLast)
-            {
-                cardList.AddRange(looseCardNodes);
-                cardList.AddRange(setupNodes);
-            }
-
-            var activities = msg.Activities.Length > 0 ? msg.Activities.Select(ToActivityNode).ToArray() : null;
-            var errorCarriesRetry = s.Error is { } activeErr && InoErrors.Of(activeErr).Retry;
-            Button? retry = isLast && msg.Role == "assistant" && msg.Status is "failed" or "interrupted" && !errorCarriesRetry
-                ? Button("Try again", Icons.RefreshCw).Small().Key(RetryKey).Emits(AppSignals.Emits("ino", new InoRetry())).ToButton()
-                : null;
-            var modelVisual = ResolveModelVisual(msg.Model);
-
-            messageNodes.Add(new MessageNode(
-                msg.Id,
-                msg.Role,
-                displayText,
-                Cards: cardList.Count > 0 ? cardList : null,
-                Activities: activities,
-                Status: msg.Status,
-                Model: modelVisual?.Label ?? msg.Model,
-                Retry: retry,
-                ModelLabel: modelVisual?.Label,
-                ProviderIcon: modelVisual?.IconKey));
-        }
-
-        var waiting = BuildDockedWaitingNode(s, shown.Count, looseCardNodes, setupNodes);
-        var errorLine = s.Error is { } err ? RenderErrorLine(err) : null;
-        Button? stop = s.ActiveRunId is not null
-            ? GhostButton("Stop").Small().Key(StopKey).Emits(AppSignals.Emits("ino", new InoStop())).ToButton()
-            : null;
         var activeModelVisual = ResolveModelVisual(s.SelectedModel);
-
-        return new Conversation(
-            ConversationKey,
-            messageNodes,
-            new ComposerNode(
-                ComposerKey,
-                AppSignals.Emits("ino", new InoSend()),
-                "Ask anything.",
-                Enabled: s.ActiveRunId is null && s.Pending is null && !s.Blocked,
-                ActiveModelLabel: activeModelVisual?.Label,
-                ActiveProviderIcon: activeModelVisual?.IconKey,
-                Dictation: dictation),
-            Waiting: waiting,
+        return new ChatThreadProps(
+            Placeholder: "Ask anything.",
+            CanSend: s.ActiveRunId is null && s.Pending is null && !s.Blocked,
+            ActiveModelLabel: activeModelVisual?.Label,
+            ActiveProviderIcon: activeModelVisual?.IconKey,
+            Dictation: dictation,
             Status: ConversationStatusOf(s),
-            Error: errorLine,
-            Stop: stop,
-            Empty: shown.Count == 0 ? Empty("What do you need?") : null);
+            Working: s.ActiveRunId is not null,
+            EmptyText: shown.Count == 0 ? "What do you need?" : null,
+            Error: threadFailure is { Length: > 0 } ? new ChatThreadError(threadFailure) : ThreadError(s, shown));
     }
 
-    public static View Screen(InoAppState s, bool dictation = false)
+    /// <summary>
+    /// Ino's screen: the conversation thread (<paramref name="thread"/> draws its slot with the props) and what waits on the user under it
+    /// (approvals, model setup, cards no message carries).
+    /// </summary>
+    public static View Screen(InoAppState s, bool dictation, Func<ChatThreadProps, Node> thread, string? threadFailure = null)
     {
         ArgumentNullException.ThrowIfNull(s);
-        var conversation = Conversation(s, dictation);
+        ArgumentNullException.ThrowIfNull(thread);
+        var shown = Shown(s);
+        var projectedCardIds = new HashSet<string>(shown.SelectMany(m => m.Cards).Select(c => c.Id), StringComparer.Ordinal);
+        Node[] loose = [.. s.ActiveCards.Where(c => !projectedCardIds.Contains(c.Id)).SelectMany(RenderCardNodes)];
+        Node[] setup = ShouldShowModelSetup(s) ? RenderModelSetupNodes(s) : [];
+        Node[] approvals = s.Approvals is { Length: > 0 } pending ? [.. pending.Select(RenderApproval)] : [];
+        var conversation = thread(ThreadProps(s, dictation, threadFailure));
         if (HasUnprojectedVaultSecretPrompt(s))
         {
-            Node[] topNodes = [.. s.ActiveCards.SelectMany(RenderCardNodes), conversation];
-            return new View("Ino", VStack(Space.Md, topNodes));
+            Node[] above = [.. s.ActiveCards.SelectMany(RenderCardNodes)];
+            Node[] below = [.. approvals, .. setup];
+            return new View("Ino", Filling(above, conversation, below));
         }
 
-        return new View("Ino", conversation);
+        Node[] under = [.. approvals, .. loose, .. setup];
+        return new View("Ino", under.Length == 0 ? conversation : Filling([], conversation, under));
+    }
+
+    // The thread fills the height a bounded parent gives (extent 1); what sits above and below it stretches to the width (extent -1).
+    private static Node Filling(Node[] above, Node thread, Node[] below)
+        => VStack(Space.Md, [.. above, thread, .. below]).Extents([.. above.Select(static _ => -1d), 1d, .. below.Select(static _ => -1d)]);
+
+    private static ThreadMessage ToThreadMessage(InoMessage msg)
+    {
+        var (displayText, inlineSlots) = msg.Role == "assistant" ? InoCards.ExtractInlineSlots(msg.Text) : (msg.Text, Array.Empty<NeuronRef>());
+        var modelVisual = ResolveModelVisual(msg.Model);
+        var failed = msg.Role == "assistant" && msg.Status is "failed" or "interrupted";
+        return new ThreadMessage(msg.Id, msg.Role, displayText ?? string.Empty, msg.Status)
+        {
+            Model = modelVisual?.Label ?? msg.Model,
+            ProviderIcon = modelVisual?.IconKey,
+            Failure = failed ? InoErrors.Describe(msg.Failure ?? (msg.Status == "interrupted" ? "interrupted" : null)) ?? ChatThreadNeuron.NoAnswer : null,
+            Activities = [.. msg.Activities.Select(ToActivityNode)],
+            Cards = [.. msg.Cards.SelectMany(RenderCardNodes), .. inlineSlots],
+        };
+    }
+
+    // The error drawn under the messages: none when the last message is a failed reply that already says why and offers a retry.
+    private static ChatThreadError? ThreadError(InoAppState s, IReadOnlyList<InoMessage> shown)
+    {
+        if (s.Error is not { } error) { return null; }
+        var line = InoErrors.Of(error);
+        var last = shown.Count > 0 ? shown[^1] : null;
+        if (line.Retry && last is { Role: "assistant", Status: "failed" or "interrupted" }) { return null; }
+        return new ChatThreadError(line.What, line.Detail, line.ActionLabel, line.Open, line.Retry);
     }
 
     public static View Side(InoAppState state)
@@ -181,22 +176,6 @@ public static partial class InoView
         => (s.Messages is null or { Length: 0 })
             && s.Pending is null
             && s.ActiveCards.Any(static c => string.Equals(c.Kind, "secret", StringComparison.Ordinal) && IsVaultSecretUri(c.SourceNeuronUri));
-
-    private static Node? BuildDockedWaitingNode(InoAppState s, int shownCount, Node[] looseCardNodes, Node[] setupNodes)
-    {
-        if (s.Approvals is { Length: > 0 } approvals)
-        {
-            return approvals.Length == 1 ? RenderApproval(approvals[0]) : VStack(Space.Sm, [.. approvals.Select(RenderApproval)]);
-        }
-
-        if (shownCount == 0 && (setupNodes.Length > 0 || looseCardNodes.Length > 0))
-        {
-            Node[] items = [.. looseCardNodes, .. setupNodes];
-            return items.Length == 1 ? items[0] : VStack(Space.Sm, items);
-        }
-
-        return null;
-    }
 
     private static ActivityNode ToActivityNode(InoActivity a)
     {
@@ -329,18 +308,6 @@ public static partial class InoView
                 SecretField(ProviderCredentialField, "Paste API key and press Enter to save").Key(ProviderCredentialKey).Emits(AppSignals.Emits("ino", new InoSaveProvider()))
             ],
         ];
-    }
-
-    internal static Button? BuildErrorAction(InoErrorLine line)
-        => line.ActionLabel is null ? null
-            : line.Retry ? Button(line.ActionLabel, Icons.RefreshCw).Small().Key(ErrorActionKey).Emits(AppSignals.Emits("ino", new InoRetry())).ToButton()
-            : line.Open is { Length: > 0 } open ? Button(line.ActionLabel).Small().Key(ErrorActionKey).WithIntent(IntentKind.OpenWindow, open).ToButton()
-            : null;
-
-    private static ErrorLineNode RenderErrorLine(InoError error)
-    {
-        var line = InoErrors.Of(error);
-        return new ErrorLineNode(line.What, line.Detail, BuildErrorAction(line));
     }
 
     internal static Node RenderApproval(Approval approval)

@@ -56,7 +56,7 @@ public static class WorkNotesOrganizerUnit
     [
         new Heading("Workspace Markdown Organizer", Subtitle: string.IsNullOrEmpty(state.LatestNote) ? "No notes indexed yet." : $"Latest: {state.LatestNote}"),
         new Badge($"{state.NoteCount} markdown note(s)", Tone: state.NoteCount > 0 ? "accent" : "neutral"),
-        new Button("reset-notes", "Reset Index", new Emit("organizer.work.notes", "notes.reset")),
+        new Button("reset-notes", "Reset Index", new Command(".", "notes.reset")),
     ]) { Gap = 8 });
 
     private static string? Read(JsonElement payload, string name)

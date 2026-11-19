@@ -213,6 +213,17 @@ public static class InoModel
         return refusal is not null ? refusal : Decision.Accept(lastUser!);
     }
 
+    /// <summary>The prompt of the turn message <paramref name="id"/> belongs to: a user message's own text, a reply's prompt before it; null when there is none.</summary>
+    public static string? PromptOf(InoAppState s, string id)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        var messages = s.Messages ?? [];
+        var index = Array.FindIndex(messages, m => string.Equals(m.Id, id, StringComparison.Ordinal));
+        if (index < 0) { return null; }
+        var prompt = messages[index].Role == "user" ? messages[index].Text : messages.Take(index).LastOrDefault(m => m.Role == "user")?.Text;
+        return string.IsNullOrWhiteSpace(prompt) ? null : prompt;
+    }
+
     internal static string DeriveTitle(string trimmed) => trimmed.Length <= 52 ? trimmed : trimmed[..52];
 
     internal static string NormalizeBlockReason(string? reason)

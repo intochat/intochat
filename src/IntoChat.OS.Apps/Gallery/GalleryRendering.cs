@@ -245,9 +245,8 @@ internal static class GalleryRendering
                         DangerButton("Destructive", Icons.Trash2)
                             .Key("ctrl:danger")
                             .Emits(AppSignals.Emit("gallery", "select", "pulse")),
-                        IconButton(Icons.RefreshCw, "Pulse signal")
+                        IconButton(Icons.RefreshCw, tooltip: "Pulse live signal counter")
                             .Key("ctrl:icon-pulse")
-                            .Tooltip("Pulse live signal counter")
                             .Emits(AppSignals.Emit("gallery", "select", "pulse"))
                     ],
                     SearchField("Filter 28 gallery components…", "Component search")

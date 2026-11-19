@@ -6,6 +6,12 @@ namespace IntoChat.OS.Apps.Tests;
 // The arguments of an Emit as the app's operations read them: a string is one, an array several.
 internal static class EmitArgs
 {
+    public static string[] Of(Command command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return Of(new Emit(".", command.Signal, command.Args));
+    }
+
     public static string[] Of(Emit emit)
     {
         ArgumentNullException.ThrowIfNull(emit);

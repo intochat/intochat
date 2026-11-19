@@ -45,7 +45,7 @@ internal static class ScreenAppEmitBridge
         var node = ViewValidation.Find(published.View, key)
             ?? throw new ActivationRefusedException(ActivationRefusedException.UnknownNode);
 
-        var action = ViewValidation.ActionOf(node);
+        var action = ViewValidation.ActionOf(node, screenAlias);
         switch (action.Kind)
         {
             case ViewActivationKind.Intent:
@@ -53,6 +53,11 @@ internal static class ScreenAppEmitBridge
 
             case ViewActivationKind.Resolve:
                 throw new ActivationRefusedException(ActivationRefusedException.NoEmit);
+
+            case ViewActivationKind.Command:
+                // A command to a child address: the screen's own Activate dispatches it hop by hop, like POST /act.
+                await screen.Activate(screenAlias, targetGen, key, value, callerPersonId).WaitAsync(ct).ConfigureAwait(false);
+                return action;
 
             case ViewActivationKind.Emit:
                 var emit = action.Emit!;

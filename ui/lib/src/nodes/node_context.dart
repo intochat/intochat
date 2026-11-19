@@ -7,7 +7,9 @@ import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import '../components/kit/kit_toast.dart';
 import '../theme/wire_node_values.dart';
 
-/// Reads one node of the brain: `GET /apps/node?kind=…&name=…`.
+/// Reads one node of the brain: `GET /apps/node?kind=…&name=…`, or for a
+/// `slot` (named `{brain}/apps/{app}/slots/{path}`) its app's key path
+/// `GET /apps/{app}/slots/{path}` (see `appNodePath` in slot_route.dart).
 typedef NeuronLoader = Future<Map<String, dynamic>> Function(
   String kind,
   String name,
@@ -73,9 +75,13 @@ class NodeContext {
     this.depth = 0,
     this.slotDepth = 0,
     this.slotAncestors = const {},
+    this.actNeuron,
+    this.slotPath = '',
     this.buttonHints = const {},
     this.nodeKeys = const {},
     this.transcribe,
+    this.slotProps = const {},
+    this.actsViaAct = false,
   });
 
   /// The view neuron's name, which every activation names.
@@ -99,8 +105,10 @@ class NodeContext {
   /// The app keys the shell knows; an `OpenWindow` intent for any other is refused.
   final bool Function(String app)? knowsApp;
 
-  /// Hosts a referenced neuron surface (`neuronRef`) in place; null for a kind the host cannot show.
-  final Widget? Function(String kind, String name)? reference;
+  /// Hosts a referenced neuron surface (`neuronRef`) in place with the slot's
+  /// [props]; null for a kind the host cannot show.
+  final Widget? Function(String kind, String name, Map<String, dynamic> props)?
+  reference;
 
   final NeuronEventQueue? events;
 
@@ -115,6 +123,15 @@ class NodeContext {
   /// Ancestor `neuronUri` / resolved view names along the active `Slot` chain for cycle detection.
   final Set<String> slotAncestors;
 
+  /// The top-level neuron an [act] names; null for a view that is its own
+  /// top level (derived from [view]). A slot's context carries its root's.
+  final String? actNeuron;
+
+  /// The key path from [actNeuron] to this view (`""` at the top level,
+  /// `a/b` in a slot nested in slot `a`). The parent owns its children, so
+  /// every act goes to the root and the path routes it hop by hop.
+  final String slotPath;
+
   /// Optional per-button tooltip / `.Guard(rule)` disabled reasons extracted from view metadata.
   final Map<String, String> buttonHints;
 
@@ -124,6 +141,18 @@ class NodeContext {
 
   /// Transcribes recorded voice drafts into text without submitting them.
   final VoiceTranscriber? transcribe;
+
+  /// The props the parent wrote on this view's slot (`neuronRef.props`): a
+  /// control draws its label, header, content and enabled from them, and its
+  /// value from its own view. Empty outside a slot, and cleared by [deeper]:
+  /// only the slot view's root reads them.
+  final Map<String, dynamic> slotProps;
+
+  /// True when the server marked this view's commands for the act route
+  /// (`acts: "act"` on a screen's view): every command, a top-level button's
+  /// included, goes to `POST /brains/{brain}/act`; otherwise a top-level
+  /// button activates by key.
+  final bool actsViaAct;
 
   bool get interactive => enabled && send != null;
 
@@ -143,9 +172,14 @@ class NodeContext {
     depth: depth + 1,
     slotDepth: slotDepth,
     slotAncestors: slotAncestors,
+    actNeuron: actNeuron,
+    slotPath: slotPath,
     buttonHints: buttonHints,
     nodeKeys: nodeKeys,
     transcribe: transcribe,
+    actsViaAct: actsViaAct,
+    // Props belong to the slot's root control only; nested nodes (an
+    // expander's content) never read them.
   );
 
   /// The brain scope the view lives under: `{scope}/apps/{app}/…` or `{scope}/{alias}`.
@@ -213,6 +247,56 @@ class NodeContext {
           context: context != null && context.mounted ? context : null,
         );
       }
+    }
+    return ActivationOutcome.accepted;
+  }
+
+  /// The top-level neuron this view belongs to: [actNeuron], or the view
+  /// name without `/view`.
+  String get neuron =>
+      actNeuron ??
+      (view.endsWith('/view') ? view.substring(0, view.length - 5) : view);
+
+  /// The act target for [address] relative to this view (`.` itself, `key`
+  /// or `./key` a slot it shows), as a key path from [neuron].
+  String actTarget(String address) {
+    if (slotPath.isEmpty) return address;
+    if (const {'.', './'}.contains(address)) return slotPath;
+    final key = address.startsWith('./') ? address.substring(2) : address;
+    return '$slotPath/$key';
+  }
+
+  /// Whether [address] names this view's own neuron on a top-level view
+  /// (not a slot), where activating a node's key reaches it for any app kind.
+  bool isTopLevelSelf(String address) =>
+      slotPath.isEmpty && const {'.', './'}.contains(address);
+
+  /// Acts on a neuron [address] relative to this view:
+  /// `{kind:"act", neuron, target, signal, args}`, posted to
+  /// `POST /brains/{brain}/act`. A refusal (`409` with its reason) or a
+  /// handler failure (`422`) is shown by the host, which reads the view
+  /// again; the outcome reports it to the caller.
+  Future<ActivationOutcome> act(
+    String address,
+    String signal,
+    Map<String, Object?> args, {
+    BuildContext? context,
+  }) async {
+    if (!interactive) return ActivationOutcome.refused;
+    try {
+      await _send({
+        'kind': 'act',
+        'neuron': neuron,
+        'target': actTarget(address),
+        'signal': signal,
+        'args': args,
+      });
+    } on UiRequestException catch (error) {
+      return isStaleConflictError(error.statusCode, error.status ?? '')
+          ? ActivationOutcome.stale
+          : ActivationOutcome.refused;
+    } on StateError {
+      return ActivationOutcome.refused;
     }
     return ActivationOutcome.accepted;
   }
@@ -316,3 +400,12 @@ abstract final class IntentGate {
     }
   }
 }
+
+/// A slotted control's accessible name: its props' `automationName`, else its
+/// label or header, else its slot key.
+String controlNameOf(String? automationName, String label, String key) =>
+    automationName != null && automationName.isNotEmpty
+    ? automationName
+    : label.isNotEmpty
+    ? label
+    : key;

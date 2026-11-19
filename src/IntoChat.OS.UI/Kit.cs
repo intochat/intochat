@@ -162,6 +162,8 @@ public sealed class CardBuilder : KitNode
     private readonly string _title;
     private readonly string _body;
     private IReadOnlyList<Node> _children;
+    private Node? _header;
+    private Node? _footer;
 
     internal CardBuilder(string title, string body, IReadOnlyList<Node?> children)
     {
@@ -179,7 +181,21 @@ public sealed class CardBuilder : KitNode
         }
     }
 
-    public override Node ToNode() => new Card(_title, _body, _children);
+    /// <summary>Sets the node shown above the title.</summary>
+    public CardBuilder Header(Node? header)
+    {
+        _header = header;
+        return this;
+    }
+
+    /// <summary>Sets the node shown below the children, such as a row of buttons.</summary>
+    public CardBuilder Footer(Node? footer)
+    {
+        _footer = footer;
+        return this;
+    }
+
+    public override Node ToNode() => new Card(_title, _body, _children, _header, _footer);
 }
 
 /// <summary>Fluent materiality surface builder (<c>acrylic</c>, <c>elevated</c>, <c>recessed</c>, <c>subtle</c>).</summary>
@@ -285,6 +301,69 @@ public sealed class TextBuilder : KitNode
     };
 }
 
+/// <summary>Fluent icon-only button builder: the same bindings as <see cref="ButtonBuilder"/>, built as an <see cref="DigitalBrain.UI.IconButton"/>.</summary>
+public sealed class IconButtonBuilder
+{
+    private readonly string _icon;
+    private readonly string _tooltip;
+    private readonly ButtonBuilder _button;
+
+    internal IconButtonBuilder(string icon, string tooltip)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(icon);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tooltip);
+        _icon = icon;
+        _tooltip = tooltip;
+        _button = new ButtonBuilder(tooltip, style: "ghost", tone: ButtonTone.Neutral, icon: icon, small: true);
+    }
+
+    /// <summary>Overrides the deterministic node key.</summary>
+    public IconButtonBuilder Key(string key) { _button.Key(key); return this; }
+
+    /// <summary>Sets the accessible name; the key is used when none is set.</summary>
+    public IconButtonBuilder AutomationName(string automationName) { _button.AutomationName(automationName); return this; }
+
+    /// <summary>Explicitly disables (or enables) the button.</summary>
+    public IconButtonBuilder Disabled(bool disabled = true) { _button.Disabled(disabled); return this; }
+
+    /// <summary>Disables the button while <paramref name="rule"/> is broken (see <see cref="ButtonBuilder.Guard(Rule)"/>).</summary>
+    public IconButtonBuilder Guard(Rule rule) { _button.Guard(rule); return this; }
+
+    /// <summary>Binds a pure <c>TState -&gt; TState</c> aggregate command expression.</summary>
+    public IconButtonBuilder OnClick<TState>(Expression<Func<TState, TState>> command) where TState : class { _button.OnClick(command); return this; }
+
+    /// <summary>Binds a rule-checked <c>TState -&gt; Decision&lt;TState&gt;</c> aggregate command expression.</summary>
+    public IconButtonBuilder OnClick<TState>(Expression<Func<TState, Decision<TState>>> command) where TState : class { _button.OnClick(command); return this; }
+
+    /// <summary>Binds an async screen orchestration method (<c>screen =&gt; screen.SyncAsync()</c>).</summary>
+    public IconButtonBuilder OnClickAsync<TScreen>(Expression<Func<TScreen, Task>> command) where TScreen : class { _button.OnClickAsync(command); return this; }
+
+    /// <summary>Binds a classic <c>[On]</c> signal as a command to the view's own neuron (".").</summary>
+    public IconButtonBuilder Emits(Emit emit) { _button.Emits(emit); return this; }
+
+    /// <summary>Binds the <see cref="Command"/> a click sends.</summary>
+    public IconButtonBuilder Sends(Command command) { _button.Sends(command); return this; }
+
+    /// <summary>Binds a client-local <see cref="DigitalBrain.UI.Intent"/>.</summary>
+    public IconButtonBuilder WithIntent(IntentKind kind, string? arg = null) { _button.WithIntent(kind, arg); return this; }
+
+    /// <summary>Materializes this builder as an <see cref="DigitalBrain.UI.IconButton"/>.</summary>
+    public IconButton ToIconButton()
+    {
+        var button = _button.ToButton();
+        return new IconButton(button.Key, _icon, _tooltip, button.Command, button.Intent, button.Enabled, button.AutomationName);
+    }
+
+    /// <summary>Materializes this builder as a <see cref="Node"/>.</summary>
+    public Node ToNode() => ToIconButton();
+
+    public static implicit operator Node(IconButtonBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder.ToIconButton();
+    }
+}
+
 /// <summary>
 /// Fluent interactive button builder supporting typed expression-tree command binding (<c>.OnClick(x =&gt; x.Withdraw(30m))</c>),
 /// domain rule guards (<c>.Guard(rule)</c>), client-local intents, and visual styles.
@@ -301,7 +380,8 @@ public sealed class ButtonBuilder
     private bool _enabled = true;
     private string? _guardMessage;
     private string? _tooltip;
-    private Emit? _emit;
+    private Command? _command;
+    private string? _automationName;
     private Intent? _intent;
 
     internal ButtonBuilder(string label, string style, string tone, string? icon = null, bool small = false)
@@ -378,7 +458,7 @@ public sealed class ButtonBuilder
     {
         var bound = CommandBinding.FromState(command);
         _derivedKey = bound.CanonicalKey;
-        _emit = bound.ToEmit(CommandBinding.ActiveOwner);
+        _command = bound.ToCommand();
         _intent = null;
         return this;
     }
@@ -388,7 +468,7 @@ public sealed class ButtonBuilder
     {
         var bound = CommandBinding.FromDecision(command);
         _derivedKey = bound.CanonicalKey;
-        _emit = bound.ToEmit(CommandBinding.ActiveOwner);
+        _command = bound.ToCommand();
         _intent = null;
         return this;
     }
@@ -398,7 +478,7 @@ public sealed class ButtonBuilder
     {
         var bound = CommandBinding.FromScreen(command);
         _derivedKey = bound.CanonicalKey;
-        _emit = bound.ToEmit(CommandBinding.ActiveOwner);
+        _command = bound.ToCommand();
         _intent = null;
         return this;
     }
@@ -408,17 +488,33 @@ public sealed class ButtonBuilder
     {
         var bound = CommandBinding.FromScreen(command);
         _derivedKey = bound.CanonicalKey;
-        _emit = bound.ToEmit(CommandBinding.ActiveOwner);
+        _command = bound.ToCommand();
         _intent = null;
         return this;
     }
 
-    /// <summary>Binds an explicit <see cref="DigitalBrain.UI.Emit"/> (for compatibility with classic <c>[On]</c> signal screens).</summary>
+    /// <summary>Binds a classic <c>[On]</c> signal: a button sends it as a <see cref="Command"/> to its own view's neuron (".");
+    /// the emit's owner is not kept, since a button only commands the view it is in or that view's children.</summary>
     public ButtonBuilder Emits(Emit emit)
     {
         ArgumentNullException.ThrowIfNull(emit);
-        _emit = emit;
+        return Sends(new Command(".", emit.Signal, emit.Args));
+    }
+
+    /// <summary>Binds the <see cref="Command"/> a click sends to a neuron address relative to the view's neuron.</summary>
+    public ButtonBuilder Sends(Command command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        _command = command;
         _intent = null;
+        return this;
+    }
+
+    /// <summary>Sets the accessible name; the key is used when none is set.</summary>
+    public ButtonBuilder AutomationName(string automationName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(automationName);
+        _automationName = automationName;
         return this;
     }
 
@@ -426,7 +522,7 @@ public sealed class ButtonBuilder
     public ButtonBuilder WithIntent(IntentKind kind, string? arg = null)
     {
         _intent = new Intent(kind, arg);
-        _emit = null;
+        _command = null;
         return this;
     }
 
@@ -434,20 +530,20 @@ public sealed class ButtonBuilder
     public Button ToButton()
     {
         var key = _explicitKey ?? _derivedKey ?? SlugifyKey("btn", _label.Length > 0 ? _label : (_icon ?? "action"));
-        var emit = _emit;
+        var command = _command;
         var intent = _intent;
-        if (emit is null && intent is null)
+        if (command is null && intent is null)
         {
-            // DigitalBrain.UI.Button requires either Emit or Intent; provide a safe inert no-op UiCommand when unbound.
-            emit = new Emit(CommandBinding.ActiveOwner, UiCommand.SignalAlias);
+            // DigitalBrain.UI.Button requires either Command or Intent; provide a safe inert no-op UiCommand when unbound.
+            command = new Command(".", UiCommand.SignalAlias);
         }
 
-        if (emit is not null && (_guardMessage is not null || _tooltip is not null))
+        if (command is not null && _guardMessage is not null)
         {
-            emit = BoundCommand.AttachHintMetadata(emit, _guardMessage, _tooltip);
+            command = BoundCommand.AttachHintMetadata(command, _guardMessage, tooltip: null);
         }
 
-        return new Button(key, _label, emit, intent, _enabled, _tone)
+        return new Button(key, _label, command, intent, _enabled, _tone, _automationName ?? "", _tooltip)
         {
             Style = _style,
             Icon = _icon,
@@ -967,6 +1063,9 @@ public static class Kit
     public static TextBuilder MutedText(string value)
         => new(value, "muted");
 
+    /// <summary>Markdown text (<see cref="DigitalBrain.UI.Markdown"/>): headings, lists, emphasis, links and code drawn by the client.</summary>
+    public static Markdown Markdown(string value) => new(value ?? string.Empty);
+
     /// <summary>Display heading (<see cref="DigitalBrain.UI.Heading"/>).</summary>
     public static Heading Heading(string value, int level = 2, string? subtitle = null)
         => new(value, level, subtitle);
@@ -1046,9 +1145,9 @@ public static class Kit
     public static EmptyStateNode Empty(string title, string? body = null, params Button[] suggestions)
         => new(title, body, suggestions.Length == 0 ? null : suggestions);
 
-    /// <summary>Inline status or warning banner (<see cref="InfoBar"/>).</summary>
-    public static InfoBar Banner(string title, string message, string tone = "neutral", Button? action = null)
-        => new(title, message, tone, action);
+    /// <summary>Inline status or warning banner (<see cref="InfoBar"/>); a closable one names its <paramref name="key"/> and <paramref name="close"/> command.</summary>
+    public static InfoBar Banner(string title, string message, string tone = "neutral", Button? action = null, Command? close = null, string key = "")
+        => new(title, message, tone, action, close, key);
 
     // ── Interactive Controls ─────────────────────────────────────────────────
 
@@ -1068,9 +1167,12 @@ public static class Kit
     public static ButtonBuilder DangerButton(string label, string? icon = null)
         => new(label, style: "danger", tone: ButtonTone.Neutral, icon: icon);
 
-    /// <summary>Compact icon-first button.</summary>
-    public static ButtonBuilder IconButton(string icon, string label = "")
-        => new(label, style: "ghost", tone: ButtonTone.Neutral, icon: icon, small: true);
+    /// <summary>An icon-only button; <paramref name="tooltip"/> says what it does (name it: <c>IconButton(icon, tooltip: "...")</c>).</summary>
+    public static IconButtonBuilder IconButton(string icon, string tooltip) => new(icon, tooltip);
+
+    /// <summary>Replaced: an icon button names its tooltip.</summary>
+    [Obsolete("An icon button says what it does: IconButton(icon, tooltip: \"...\").", error: true)]
+    public static IconButtonBuilder IconButton(string icon) => throw new NotSupportedException("IconButton(icon, tooltip:)");
 
     /// <summary>Single-line editable text field (<see cref="FieldKind.Text"/>).</summary>
     public static FieldBuilder TextField(string label, string? placeholder = null)

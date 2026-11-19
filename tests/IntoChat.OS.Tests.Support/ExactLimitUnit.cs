@@ -14,7 +14,7 @@ public static class ExactLimitUnit
 {
     [Synapse("unit.limit_exact")]
     public static View Show(ExactLimitUnitState _)
-        => new("unit.limit_exact", new Button("apply", "Apply", new Emit("unit.limit_exact", "unit.limit_exact.set", JsonSerializer.SerializeToElement(new { }))));
+        => new("unit.limit_exact", new Button("apply", "Apply", new Command(".", "unit.limit_exact.set", JsonSerializer.SerializeToElement(new { }))));
 
     [Synapse("unit.limit_exact.init", "unit.limit_exact")]
     public static ExactLimitUnitState Init(SignalEnvelope _, ExactLimitUnitState state)

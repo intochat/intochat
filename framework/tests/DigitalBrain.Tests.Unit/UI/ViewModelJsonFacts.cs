@@ -9,13 +9,13 @@ namespace DigitalBrain.Tests.Unit.UI;
 
 public sealed class ViewModelJsonFacts
 {
-    private static readonly string[] ActionMembers = ["Emit", "Intent", "Resolve", "OnSubmit"];
+    private static readonly string[] ActionMembers = ["Command", "Emit", "Intent", "Resolve", "OnSubmit"];
 
-    private static readonly Type[] ActionCarriers = [typeof(Button), typeof(TabItem), typeof(Switch), typeof(SelectOption), typeof(Field), typeof(ApprovalCardNode), typeof(NavItemNode), typeof(ComposerNode)];
+    private static readonly Type[] ActionCarriers = [typeof(Button), typeof(IconButton), typeof(InfoBar), typeof(TabItem), typeof(Switch), typeof(SelectOption), typeof(Field), typeof(ApprovalCardNode), typeof(NavItemNode), typeof(ComposerNode)];
 
     private static bool CarriesAction(Type type) => type.GetProperties().Any(p => ActionMembers.Contains(p.Name)
         || p.PropertyType == typeof(Emit) || Nullable.GetUnderlyingType(p.PropertyType) == typeof(Emit)
-        || p.PropertyType == typeof(Intent) || p.PropertyType == typeof(Resolve));
+        || p.PropertyType == typeof(Command) || p.PropertyType == typeof(Intent) || p.PropertyType == typeof(Resolve));
 
     [Fact]
     public void EveryInteractiveNodeHasAKey()
@@ -30,7 +30,7 @@ public sealed class ViewModelJsonFacts
     [Fact]
     public void OnlyInteractiveTypesDeclareAnAction()
     {
-        var model = typeof(Node).Assembly.GetTypes().Where(t => t.Namespace == typeof(Node).Namespace && t.IsPublic && t != typeof(Emit) && t != typeof(Resolve) && t != typeof(Intent));
+        var model = typeof(Node).Assembly.GetTypes().Where(t => t.Namespace == typeof(Node).Namespace && t.IsPublic && t != typeof(Emit) && t != typeof(Command) && t != typeof(Resolve) && t != typeof(Intent));
 
         Assert.Equal(ActionCarriers.Select(t => t.Name).Order(StringComparer.Ordinal), model.Where(CarriesAction).Select(t => t.Name).Order(StringComparer.Ordinal));
     }
@@ -57,9 +57,9 @@ public sealed class ViewModelJsonFacts
     }
 
     [Fact]
-    public void ButtonRoundTripsWithEmit()
+    public void ButtonRoundTripsWithCommand()
     {
-        var view = new View("v", new Column([new Button("go", "Go", new Emit("app.files", "files.open", JsonSerializer.SerializeToElement(new { id = 1 })))]));
+        var view = new View("v", new Column([new Button("go", "Go", new Command(".", "files.open", JsonSerializer.SerializeToElement(new { id = 1 })))]));
         var options = RuntimeProtocol.OptionsFor(typeof(View));
 
         var element = JsonSerializer.SerializeToElement(view, options);
@@ -67,22 +67,79 @@ public sealed class ViewModelJsonFacts
 
         Assert.Equal("button", button.GetProperty("kind").GetString());
         Assert.Equal("go", button.GetProperty("key").GetString());
-        var emit = button.GetProperty("emit");
-        Assert.Equal(("app.files", "files.open", 1), (emit.GetProperty("owner").GetString(), emit.GetProperty("signal").GetString(), emit.GetProperty("args").GetProperty("id").GetInt32()));
+        var command = button.GetProperty("command");
+        Assert.Equal((".", "files.open", 1), (command.GetProperty("target").GetString(), command.GetProperty("signal").GetString(), command.GetProperty("args").GetProperty("id").GetInt32()));
+        Assert.False(button.TryGetProperty("emit", out _));
+        Assert.Equal("go", button.GetProperty("automationName").GetString());
         var found = ViewNodes.Find(element, "go");
         Assert.NotNull(found);
-        var (owner, signal, args) = ViewNodes.EmitOf(found.Value)!.Value;
-        Assert.Equal(("app.files", "files.open", 1), (owner, signal, args!.Value.GetProperty("id").GetInt32()));
+        var sent = ViewNodes.CommandOf(found.Value)!;
+        Assert.Equal((".", "files.open", 1), (sent.Target, sent.Signal, sent.Args!.Value.GetProperty("id").GetInt32()));
         var again = Assert.IsType<Button>(Assert.IsType<Column>(JsonSerializer.Deserialize<View>(element.GetRawText(), options)!.Root).Children[0]);
-        Assert.Equal("files.open", again.Emit!.Signal);
+        Assert.Equal("files.open", again.Command!.Signal);
         Assert.Null(again.Intent);
+    }
+
+    [Fact]
+    public void An_icon_button_carries_one_action_and_names_itself_by_key()
+    {
+        Assert.Throws<ArgumentException>(() => new IconButton("r", "refresh-cw", "Refresh"));
+        var icon = new IconButton("r", "refresh-cw", "Refresh", new Command(".", "refreshed"));
+
+        var wire = JsonSerializer.SerializeToElement<Node>(icon, RuntimeProtocol.OptionsFor(typeof(View)));
+
+        Assert.Equal("iconButton", wire.GetProperty("kind").GetString());
+        Assert.Equal("r", wire.GetProperty("automationName").GetString());
+        Assert.Equal("Refresh", wire.GetProperty("tooltip").GetString());
+        Assert.Equal(icon, JsonSerializer.Deserialize<Node>(wire.GetRawText(), RuntimeProtocol.OptionsFor(typeof(View))));
+    }
+
+    [Fact]
+    public void An_info_bar_close_is_a_command_found_by_the_bar_key()
+    {
+        Assert.Throws<ArgumentException>(() => new InfoBar("Paused", "Reconnect.", Close: new Command(".", "dismissed")));
+        var view = new View("v", new Column([new InfoBar("Paused", "Reconnect.", "warning", Close: new Command(".", "dismissed"), Key: "paused")]));
+
+        var wire = JsonSerializer.SerializeToElement(view, RuntimeProtocol.OptionsFor(typeof(View)));
+        var bar = ViewNodes.Find(wire, "paused");
+
+        Assert.NotNull(bar);
+        Assert.Equal(new Command(".", "dismissed"), ViewNodes.CommandOf(bar.Value));
+        Assert.Equal("paused", bar.Value.GetProperty("automationName").GetString());
+    }
+
+    [Fact]
+    public void Markdown_and_a_card_with_header_and_footer_round_trip()
+    {
+        var options = RuntimeProtocol.OptionsFor(typeof(View));
+        var view = new View("v", new Card("Deploy", "Ready.", [new Markdown("**bold**")], Header: new Badge("Staging"), Footer: new Button("ship", "Ship", new Command(".", "shipped"))));
+
+        var wire = JsonSerializer.SerializeToElement(view, options);
+
+        Assert.Equal("markdown", wire.GetProperty("root").GetProperty("children")[0].GetProperty("kind").GetString());
+        Assert.Equal("badge", wire.GetProperty("root").GetProperty("header").GetProperty("kind").GetString());
+        Assert.Equal(view, JsonSerializer.Deserialize<View>(wire.GetRawText(), options));
+    }
+
+    [Fact]
+    public void A_stored_button_emit_reads_as_a_command_to_its_own_view()
+    {
+        const string stored = """{"title":"v","root":{"kind":"button","key":"go","label":"Go","emit":{"owner":"app.files","signal":"files.open","args":{"id":1}}}}""";
+        var options = RuntimeProtocol.OptionsFor(typeof(View));
+
+        var button = Assert.IsType<Button>(JsonSerializer.Deserialize<View>(stored, options)!.Root);
+
+        Assert.Equal((".", "files.open", 1), (button.Command!.Target, button.Command.Signal, button.Command.Args!.Value.GetProperty("id").GetInt32()));
+        var written = JsonSerializer.SerializeToElement<Node>(button, options);
+        Assert.True(written.TryGetProperty("command", out _));
+        Assert.False(written.TryGetProperty("emit", out _));
     }
 
     [Fact]
     public void ButtonCarriesExactlyOneOfEmitOrIntent()
     {
         Assert.Throws<ArgumentException>(() => new Button("a", "A"));
-        Assert.Throws<ArgumentException>(() => new Button("a", "A", new Emit("o", "s"), new Intent(IntentKind.Copy, "x")));
+        Assert.Throws<ArgumentException>(() => new Button("a", "A", new Command(".", "s"), new Intent(IntentKind.Copy, "x")));
         var copy = new Button("c", "Copy", Intent: new Intent(IntentKind.Copy, "x"));
 
         var json = JsonSerializer.Serialize<Node>(copy);

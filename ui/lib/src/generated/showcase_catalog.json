@@ -1,0 +1,3076 @@
+[
+  {
+    "kind": "appShell",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "sidebar",
+        "type": "Node?",
+        "default": null
+      },
+      {
+        "name": "body",
+        "type": "Node",
+        "default": null
+      },
+      {
+        "name": "toolbar",
+        "type": "Node?",
+        "default": null
+      },
+      {
+        "name": "inspector",
+        "type": "Node?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "approvalCard",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "id",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "summary",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "rows",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "valueLabel",
+        "type": "String",
+        "default": "Value"
+      },
+      {
+        "name": "systemName",
+        "type": "String",
+        "default": "DigitalBrain"
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "default": "pending"
+      },
+      {
+        "name": "resolve",
+        "type": "Map<String, Object?>",
+        "default": null
+      },
+      {
+        "name": "sourceNeuronUri",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "icon",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "capabilityLabel",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "badge",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "tone",
+        "type": "String",
+        "default": "neutral"
+      },
+      {
+        "name": "icon",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "brainScene",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "nodes",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "synapses",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "pauseRotation",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "zoomTargetId",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "targetZoom",
+        "type": "double",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "button",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "command",
+        "type": "Map<String, Object?>",
+        "default": null
+      },
+      {
+        "name": "intent",
+        "type": "IntentNode?",
+        "default": null
+      },
+      {
+        "name": "enabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "tone",
+        "type": "String",
+        "default": "neutral"
+      },
+      {
+        "name": "tooltip",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "visible",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": ""
+      },
+      {
+        "name": "style",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "icon",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "small",
+        "type": "bool",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": [
+      {
+        "kind": "button",
+        "key": "save",
+        "label": "Save",
+        "command": {
+          "target": ".",
+          "signal": "Saved"
+        },
+        "tone": "accent",
+        "automationName": "Save"
+      },
+      {
+        "kind": "button",
+        "key": "copy",
+        "label": "Copy link",
+        "intent": {
+          "intentKind": "Copy",
+          "arg": "https://intochat.io"
+        },
+        "automationName": "Copy link",
+        "tooltip": "Copies the link"
+      }
+    ]
+  },
+  {
+    "kind": "card",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "body",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "children",
+        "type": "List<Node>",
+        "default": null
+      },
+      {
+        "name": "header",
+        "type": "Node?",
+        "default": null
+      },
+      {
+        "name": "footer",
+        "type": "Node?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": [
+      {
+        "kind": "card",
+        "title": "Weekly report",
+        "body": "Five tasks closed, two open.",
+        "children": [
+          {
+            "kind": "progress",
+            "label": "Done",
+            "value": 0.7
+          }
+        ]
+      },
+      {
+        "kind": "card",
+        "title": "Deploy",
+        "body": "Ready to ship.",
+        "children": [],
+        "header": {
+          "kind": "badge",
+          "label": "Staging",
+          "tone": "accent"
+        },
+        "footer": {
+          "kind": "button",
+          "key": "ship",
+          "label": "Ship",
+          "command": {
+            "target": ".",
+            "signal": "Shipped"
+          },
+          "tone": "accent",
+          "automationName": "Ship"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "chart",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "chartKind",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "points",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "comparePoints",
+        "type": "List<double>?",
+        "default": null
+      },
+      {
+        "name": "seriesName",
+        "type": "String",
+        "default": ""
+      },
+      {
+        "name": "compareName",
+        "type": "String",
+        "default": ""
+      },
+      {
+        "name": "sourceNeuronUri",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "from",
+        "type": "String",
+        "default": "DigitalBrain"
+      },
+      {
+        "name": "prefix",
+        "type": "String",
+        "default": ""
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "chatThread",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "placeholder",
+        "type": "String",
+        "default": "Message"
+      },
+      {
+        "name": "canSend",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "activeModelLabel",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "activeProviderIcon",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "dictation",
+        "type": "bool",
+        "default": false
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "default": "ready"
+      },
+      {
+        "name": "working",
+        "type": "bool",
+        "default": false
+      },
+      {
+        "name": "emptyText",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "error",
+        "type": "Map<String, Object?>",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "messages",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "showsStop",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "showsRetry",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "acceptsText",
+        "type": "bool",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "AppendMessage",
+        "signal": "control.appendMessage",
+        "args": {
+          "message": "Map<String, Object?>"
+        }
+      },
+      {
+        "name": "ImportMessages",
+        "signal": "control.importMessages",
+        "args": {
+          "messages": "List<Map<String, Object?>>",
+          "replace": "bool"
+        }
+      },
+      {
+        "name": "Retry",
+        "signal": "control.retry",
+        "args": {
+          "id": "String"
+        }
+      },
+      {
+        "name": "Stop",
+        "signal": "control.stop",
+        "args": {}
+      },
+      {
+        "name": "SubmitText",
+        "signal": "control.submitText",
+        "args": {
+          "value": "String?"
+        }
+      },
+      {
+        "name": "UpdateMessage",
+        "signal": "control.updateMessage",
+        "args": {
+          "id": "String",
+          "patch": "Map<String, Object?>"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "MessageAppended",
+        "signal": "control.messageAppended",
+        "args": {
+          "id": "String"
+        }
+      },
+      {
+        "name": "MessageUpdated",
+        "signal": "control.messageUpdated",
+        "args": {
+          "id": "String"
+        }
+      },
+      {
+        "name": "RetryRequested",
+        "signal": "control.retryRequested",
+        "args": {
+          "id": "String"
+        }
+      },
+      {
+        "name": "StopRequested",
+        "signal": "control.stopRequested",
+        "args": {}
+      },
+      {
+        "name": "Submitted",
+        "signal": "control.submitted",
+        "args": {
+          "values": "Map<String, String>"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "chatThreadView",
+        "key": "conversation",
+        "messages": [
+          {
+            "id": "m1",
+            "role": "user",
+            "text": "Summarise my week",
+            "status": "completed"
+          },
+          {
+            "id": "m2",
+            "role": "assistant",
+            "text": "",
+            "status": "failed",
+            "retry": {
+              "kind": "button",
+              "key": "retry:m2",
+              "label": "Try again",
+              "command": {
+                "target": ".",
+                "signal": "control.retry",
+                "args": {
+                  "id": "m2"
+                }
+              },
+              "automationName": "Try again"
+            },
+            "error": {
+              "kind": "errorLine",
+              "what": "The model did not answer."
+            }
+          }
+        ],
+        "composer": {
+          "key": "composer",
+          "onSubmit": {
+            "owner": "control.chatThread",
+            "signal": "control.submitText"
+          }
+        },
+        "props": {
+          "placeholder": "Ask anything.",
+          "canSend": true,
+          "dictation": false,
+          "status": "failed",
+          "working": false,
+          "isEnabled": true,
+          "automationName": "Conversation"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "chatThreadView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "messages",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "composer",
+        "type": "Map<String, Object?>",
+        "default": null
+      },
+      {
+        "name": "stop",
+        "type": "ButtonNode?",
+        "default": null
+      },
+      {
+        "name": "retry",
+        "type": "ButtonNode?",
+        "default": null
+      },
+      {
+        "name": "props",
+        "type": "Map<String, Object?>",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "checkBox",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "isOn",
+        "type": "bool?",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "isOn",
+        "type": "bool",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "SetChecked",
+        "signal": "control.setChecked",
+        "args": {
+          "isOn": "bool"
+        }
+      },
+      {
+        "name": "Toggle",
+        "signal": "control.toggle",
+        "args": {}
+      }
+    ],
+    "signals": [
+      {
+        "name": "Toggled",
+        "signal": "control.toggled",
+        "args": {
+          "isOn": "bool"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "checkBoxView",
+        "key": "terms",
+        "isOn": false,
+        "props": {
+          "label": "I accept the terms",
+          "isEnabled": true,
+          "automationName": "Accept the terms"
+        }
+      },
+      {
+        "kind": "checkBoxView",
+        "key": "locked",
+        "isOn": true,
+        "props": {
+          "label": "Managed by your organisation",
+          "isEnabled": false,
+          "automationName": "Managed setting"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "checkBoxView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "isOn",
+        "type": "bool",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "choiceCard",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "id",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "question",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "options",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "pickedIndex",
+        "type": "int?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "collection",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "entries",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "column",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "children",
+        "type": "List<Node>",
+        "default": null
+      },
+      {
+        "name": "gap",
+        "type": "double",
+        "default": null
+      },
+      {
+        "name": "padding",
+        "type": "double",
+        "default": null
+      },
+      {
+        "name": "extents",
+        "type": "List<double>?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "comboBox",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "header",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "options",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "Select",
+        "signal": "control.select",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "SelectionChanged",
+        "signal": "control.selectionChanged",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "comboBoxView",
+        "key": "theme",
+        "selectedId": "dark",
+        "props": {
+          "header": "Theme",
+          "options": [
+            {
+              "id": "light",
+              "label": "Light"
+            },
+            {
+              "id": "dark",
+              "label": "Dark"
+            },
+            {
+              "id": "system",
+              "label": "Use system setting"
+            }
+          ],
+          "isEnabled": true,
+          "automationName": "Theme"
+        }
+      },
+      {
+        "kind": "comboBoxView",
+        "key": "region",
+        "selectedId": "eu",
+        "props": {
+          "header": "Data region",
+          "options": [
+            {
+              "id": "eu",
+              "label": "Europe"
+            },
+            {
+              "id": "us",
+              "label": "United States"
+            }
+          ],
+          "isEnabled": false,
+          "automationName": "Data region"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "comboBoxView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "conversation",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "messages",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "composer",
+        "type": "Map<String, Object?>",
+        "default": null
+      },
+      {
+        "name": "waiting",
+        "type": "Node?",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "default": "ready"
+      },
+      {
+        "name": "error",
+        "type": "ErrorLineNode?",
+        "default": null
+      },
+      {
+        "name": "stop",
+        "type": "ButtonNode?",
+        "default": null
+      },
+      {
+        "name": "empty",
+        "type": "EmptyStateNode?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "dataTable",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "columns",
+        "type": "List<String>",
+        "default": null
+      },
+      {
+        "name": "rows",
+        "type": "List<List<String>>",
+        "default": null
+      },
+      {
+        "name": "sourceNeuronUri",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "from",
+        "type": "String",
+        "default": "DigitalBrain"
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "diffCard",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "id",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "repo",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "targetBranch",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "headSha",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "filesChanged",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "additions",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "deletions",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "files",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "divider",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "label",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "draftCard",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "id",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "channel",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "to",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "body",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "from",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "subject",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "default": "pending"
+      },
+      {
+        "name": "send",
+        "type": "ButtonNode?",
+        "default": null
+      },
+      {
+        "name": "discard",
+        "type": "ButtonNode?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "emptyState",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "body",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "suggestions",
+        "type": "List<ButtonNode>?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "errorLine",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "what",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "detail",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "action",
+        "type": "ButtonNode?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "expander",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "header",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "children",
+        "type": "List<Node>",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "isExpanded",
+        "type": "bool",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "Expand",
+        "signal": "control.expand",
+        "args": {
+          "isExpanded": "bool"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "Expanded",
+        "signal": "control.expanded",
+        "args": {
+          "isExpanded": "bool"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "expanderView",
+        "key": "advanced",
+        "isExpanded": true,
+        "props": {
+          "header": "Advanced options",
+          "isEnabled": true,
+          "automationName": "Advanced options",
+          "children": [
+            {
+              "kind": "text",
+              "value": "Shown while expanded."
+            }
+          ]
+        }
+      },
+      {
+        "kind": "expanderView",
+        "key": "details",
+        "isExpanded": false,
+        "props": {
+          "header": "Details",
+          "isEnabled": true,
+          "automationName": "Details",
+          "children": [
+            {
+              "kind": "text",
+              "value": "Hidden until expanded."
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "kind": "expanderView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "isExpanded",
+        "type": "bool",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "field",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "fieldKind",
+        "type": "FieldKind",
+        "default": null
+      },
+      {
+        "name": "placeholder",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "onSubmit",
+        "type": "Map<String, Object?>",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "form",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "fields",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "submitLabel",
+        "type": "String",
+        "default": "Submit"
+      }
+    ],
+    "state": [
+      {
+        "name": "values",
+        "type": "Map<String, String>",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "Submit",
+        "signal": "control.submit",
+        "args": {
+          "values": "Map<String, String>"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "Submitted",
+        "signal": "control.submitted",
+        "args": {
+          "values": "Map<String, String>"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "formView",
+        "key": "about-you",
+        "values": [
+          {
+            "key": "name",
+            "value": "Ada"
+          }
+        ],
+        "props": {
+          "fields": [
+            {
+              "key": "name",
+              "label": "Display name",
+              "kind": "Text",
+              "maxLength": 64
+            },
+            {
+              "key": "bio",
+              "label": "Bio",
+              "kind": "Multiline",
+              "placeholder": "A line about you"
+            },
+            {
+              "key": "age",
+              "label": "Age",
+              "kind": "Number"
+            },
+            {
+              "key": "id",
+              "label": "Account id",
+              "kind": "Text",
+              "value": "ada-1",
+              "isReadOnly": true
+            }
+          ],
+          "submitLabel": "Save",
+          "isEnabled": true,
+          "automationName": "About you"
+        }
+      },
+      {
+        "kind": "formView",
+        "key": "budget",
+        "values": [],
+        "props": {
+          "fields": [
+            {
+              "key": "cap",
+              "label": "Monthly cap",
+              "kind": "Number",
+              "value": "50"
+            }
+          ],
+          "submitLabel": "Set cap",
+          "isEnabled": false,
+          "automationName": "Budget"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "formView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "values",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "grid",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "columns",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "children",
+        "type": "List<Node>",
+        "default": null
+      },
+      {
+        "name": "gap",
+        "type": "double",
+        "default": 12
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "heading",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "value",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "level",
+        "type": "int",
+        "default": 2
+      },
+      {
+        "name": "subtitle",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "iconButton",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "icon",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "tooltip",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "command",
+        "type": "Map<String, Object?>",
+        "default": null
+      },
+      {
+        "name": "intent",
+        "type": "IntentNode?",
+        "default": null
+      },
+      {
+        "name": "enabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "visible",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": ""
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": [
+      {
+        "kind": "iconButton",
+        "key": "refresh",
+        "icon": "refresh-cw",
+        "tooltip": "Refresh",
+        "command": {
+          "target": ".",
+          "signal": "Refreshed"
+        },
+        "automationName": "Refresh"
+      },
+      {
+        "kind": "iconButton",
+        "key": "copy-id",
+        "icon": "copy",
+        "tooltip": "Copy id",
+        "intent": {
+          "intentKind": "Copy",
+          "arg": "neuron://owner/notes"
+        },
+        "automationName": "Copy id",
+        "enabled": false
+      }
+    ]
+  },
+  {
+    "kind": "infoBar",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "message",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "tone",
+        "type": "String",
+        "default": "neutral"
+      },
+      {
+        "name": "action",
+        "type": "ButtonNode?",
+        "default": null
+      },
+      {
+        "name": "close",
+        "type": "Map<String, Object?>",
+        "default": null
+      },
+      {
+        "name": "key",
+        "type": "String",
+        "default": ""
+      },
+      {
+        "name": "automationName",
+        "type": "String",
+        "default": ""
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": [
+      {
+        "kind": "infoBar",
+        "key": "sync-paused",
+        "title": "Sync paused",
+        "message": "Reconnect storage to resume.",
+        "tone": "warning",
+        "close": {
+          "target": ".",
+          "signal": "Dismissed"
+        },
+        "automationName": "Sync paused"
+      },
+      {
+        "kind": "infoBar",
+        "key": "saved",
+        "title": "Saved",
+        "message": "Your changes are stored.",
+        "tone": "success",
+        "automationName": "Saved"
+      }
+    ]
+  },
+  {
+    "kind": "intent",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "intentKind",
+        "type": "IntentKind",
+        "default": null
+      },
+      {
+        "name": "arg",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "jobCard",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "steps",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "progress",
+        "type": "double",
+        "default": 0
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "default": "running"
+      },
+      {
+        "name": "resultText",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "cancel",
+        "type": "ButtonNode?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "listBox",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "items",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "selectionMode",
+        "type": "ListSelectionMode",
+        "default": "Single"
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "Select",
+        "signal": "control.select",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "SelectionChanged",
+        "signal": "control.selectionChanged",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "listBoxView",
+        "key": "devices",
+        "selectedId": "laptop",
+        "props": {
+          "items": [
+            {
+              "id": "laptop",
+              "title": "Laptop",
+              "subtitle": "Last seen today"
+            },
+            {
+              "id": "phone",
+              "title": "Phone",
+              "subtitle": "Last seen yesterday"
+            },
+            {
+              "id": "tablet",
+              "title": "Tablet"
+            }
+          ],
+          "selectionMode": "Single",
+          "isEnabled": true,
+          "automationName": "Devices"
+        }
+      },
+      {
+        "kind": "listBoxView",
+        "key": "history",
+        "props": {
+          "items": [
+            {
+              "id": "1",
+              "title": "Signed in",
+              "subtitle": "09:12"
+            },
+            {
+              "id": "2",
+              "title": "Key rotated",
+              "subtitle": "08:40"
+            }
+          ],
+          "selectionMode": "None",
+          "isEnabled": true,
+          "automationName": "History"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "listBoxView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "liveChart",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "kind",
+        "type": "String",
+        "default": "bar"
+      }
+    ],
+    "state": [
+      {
+        "name": "version",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "points",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "Append",
+        "signal": "control.append",
+        "args": {
+          "point": "Map<String, Object?>"
+        }
+      },
+      {
+        "name": "Replace",
+        "signal": "control.replace",
+        "args": {
+          "points": "List<Map<String, Object?>>"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "ChartChanged",
+        "signal": "control.chartChanged",
+        "args": {
+          "version": "int"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "liveChartView",
+        "key": "spend",
+        "version": 2,
+        "points": [
+          {
+            "label": "Mon",
+            "value": 12
+          },
+          {
+            "label": "Tue",
+            "value": 30
+          },
+          {
+            "label": "Wed",
+            "value": 21
+          }
+        ],
+        "props": {
+          "title": "Daily spend",
+          "kind": "bar",
+          "isEnabled": true,
+          "automationName": "Daily spend"
+        }
+      },
+      {
+        "kind": "liveChartView",
+        "key": "share",
+        "version": 1,
+        "points": [
+          {
+            "label": "Chat",
+            "value": 60
+          },
+          {
+            "label": "Files",
+            "value": 40
+          }
+        ],
+        "props": {
+          "title": "Share of use",
+          "kind": "pie",
+          "isEnabled": true,
+          "automationName": "Share of use"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "liveChartView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "version",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "points",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "markdown",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "value",
+        "type": "String",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": [
+      {
+        "kind": "markdown",
+        "value": "## Release notes\n\n- **Faster** sync\n- A new `Card` footer\n\nSee [the docs](https://intochat.io)."
+      }
+    ]
+  },
+  {
+    "kind": "metricTile",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "id",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "appId",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "value",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "delta",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "deltaTone",
+        "type": "String",
+        "default": "neutral"
+      },
+      {
+        "name": "statusLabel",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "statusTone",
+        "type": "String",
+        "default": "neutral"
+      },
+      {
+        "name": "sparkline",
+        "type": "List<double>?",
+        "default": null
+      },
+      {
+        "name": "threshold",
+        "type": "double?",
+        "default": null
+      },
+      {
+        "name": "actions",
+        "type": "List<ButtonNode>?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "navItem",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "icon",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "action",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "selected",
+        "type": "bool",
+        "default": false
+      },
+      {
+        "name": "badge",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "emit",
+        "type": "Map<String, Object?>",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "neuronRef",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "refKind",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "neuronUri",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "props",
+        "type": "Object?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "progress",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "value",
+        "type": "double",
+        "default": null
+      },
+      {
+        "name": "detail",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "isIndeterminate",
+        "type": "bool",
+        "default": false
+      },
+      {
+        "name": "showError",
+        "type": "bool",
+        "default": false
+      },
+      {
+        "name": "ring",
+        "type": "bool",
+        "default": false
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": [
+      {
+        "kind": "progress",
+        "label": "Uploading",
+        "value": 0.42,
+        "detail": "42 of 100 files"
+      },
+      {
+        "kind": "progress",
+        "label": "Connecting",
+        "value": 0,
+        "isIndeterminate": true,
+        "ring": true
+      },
+      {
+        "kind": "progress",
+        "label": "Sync failed",
+        "value": 0.7,
+        "showError": true,
+        "detail": "Stopped at 70%"
+      }
+    ]
+  },
+  {
+    "kind": "queryTable",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "columns",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "sourceAddress",
+        "type": "String",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "filter",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "sortBy",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "descending",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "Filter",
+        "signal": "control.filter",
+        "args": {
+          "text": "String"
+        }
+      },
+      {
+        "name": "Page",
+        "signal": "control.page",
+        "args": {
+          "number": "int"
+        }
+      },
+      {
+        "name": "Sort",
+        "signal": "control.sort",
+        "args": {
+          "column": "String"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "TableChanged",
+        "signal": "control.tableChanged",
+        "args": {
+          "filter": "String",
+          "sortBy": "String?",
+          "descending": "bool",
+          "page": "int"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "queryTableView",
+        "key": "people",
+        "filter": "",
+        "sortBy": "name",
+        "descending": false,
+        "page": 1,
+        "pageSize": 50,
+        "total": 3,
+        "loaded": true,
+        "columnIds": [
+          "id",
+          "name",
+          "status"
+        ],
+        "rows": [
+          [
+            "1",
+            "Ada",
+            "active"
+          ],
+          [
+            "2",
+            "Grace",
+            "away"
+          ],
+          [
+            "3",
+            "Linus",
+            "active"
+          ]
+        ],
+        "error": null,
+        "props": {
+          "title": "People",
+          "columns": [
+            {
+              "id": "id",
+              "title": "Id"
+            },
+            {
+              "id": "name",
+              "title": "Name"
+            },
+            {
+              "id": "status",
+              "title": "Status"
+            }
+          ],
+          "sourceAddress": "local/control.sampleTableSource/people",
+          "isEnabled": true,
+          "automationName": "People"
+        }
+      },
+      {
+        "kind": "queryTableView",
+        "key": "broken",
+        "filter": "",
+        "sortBy": null,
+        "descending": false,
+        "page": 1,
+        "pageSize": 50,
+        "total": 0,
+        "loaded": false,
+        "columnIds": [],
+        "rows": [],
+        "error": "The source did not answer.",
+        "props": {
+          "title": "Broken",
+          "columns": [
+            {
+              "id": "name",
+              "title": "Name"
+            }
+          ],
+          "sourceAddress": "local/control.sampleTableSource/none",
+          "isEnabled": true,
+          "automationName": "Broken"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "queryTableView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "filter",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "sortBy",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "descending",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "pageSize",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "total",
+        "type": "int",
+        "default": null
+      },
+      {
+        "name": "loaded",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "columnIds",
+        "type": "List<String>",
+        "default": null
+      },
+      {
+        "name": "rows",
+        "type": "List<List<String>>",
+        "default": null
+      },
+      {
+        "name": "error",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "recordCard",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "objectLabel",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "fields",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "subtitle",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "linkLabel",
+        "type": "String",
+        "default": "Open Neuron"
+      },
+      {
+        "name": "open",
+        "type": "ButtonNode?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "row",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "children",
+        "type": "List<Node>",
+        "default": null
+      },
+      {
+        "name": "gap",
+        "type": "double",
+        "default": null
+      },
+      {
+        "name": "padding",
+        "type": "double",
+        "default": null
+      },
+      {
+        "name": "extents",
+        "type": "List<double>?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "secretCard",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "name",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "why",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "savedIn",
+        "type": "String",
+        "default": "Variables and secrets"
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "default": "pending"
+      },
+      {
+        "name": "enter",
+        "type": "ButtonNode?",
+        "default": null
+      },
+      {
+        "name": "skip",
+        "type": "ButtonNode?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "select",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "selected",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "options",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "spacer",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "size",
+        "type": "double",
+        "default": 12
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "splitPane",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "leading",
+        "type": "Node",
+        "default": null
+      },
+      {
+        "name": "trailing",
+        "type": "Node",
+        "default": null
+      },
+      {
+        "name": "leadingExtent",
+        "type": "double",
+        "default": 280
+      },
+      {
+        "name": "gap",
+        "type": "double",
+        "default": 16
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "statCard",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "value",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "delta",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "tone",
+        "type": "BadgeTone",
+        "default": 0
+      },
+      {
+        "name": "icon",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "surface",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "children",
+        "type": "List<Node>",
+        "default": null
+      },
+      {
+        "name": "surfaceKind",
+        "type": "String",
+        "default": "acrylic"
+      },
+      {
+        "name": "title",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "subtitle",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "padding",
+        "type": "double",
+        "default": 18
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "switch",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "isOn",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "emit",
+        "type": "Map<String, Object?>",
+        "default": null
+      },
+      {
+        "name": "locked",
+        "type": "bool",
+        "default": false
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "tabStrip",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "items",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "Select",
+        "signal": "control.select",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "signals": [
+      {
+        "name": "SelectionChanged",
+        "signal": "control.selectionChanged",
+        "args": {
+          "id": "String"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "tabStripView",
+        "key": "sections",
+        "selectedId": "general",
+        "props": {
+          "items": [
+            {
+              "id": "general",
+              "label": "General",
+              "icon": "settings"
+            },
+            {
+              "id": "privacy",
+              "label": "Privacy",
+              "icon": "lock"
+            },
+            {
+              "id": "about",
+              "label": "About"
+            }
+          ],
+          "isEnabled": true,
+          "automationName": "Settings sections"
+        }
+      },
+      {
+        "kind": "tabStripView",
+        "key": "locked",
+        "selectedId": "day",
+        "props": {
+          "items": [
+            {
+              "id": "day",
+              "label": "Day"
+            },
+            {
+              "id": "week",
+              "label": "Week"
+            }
+          ],
+          "isEnabled": false,
+          "automationName": "Range"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "tabStripView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "tabs",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "items",
+        "type": "List<Map<String, Object?>>",
+        "default": null
+      },
+      {
+        "name": "selectedId",
+        "type": "String",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "tagPill",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "tone",
+        "type": "String",
+        "default": "neutral"
+      },
+      {
+        "name": "icon",
+        "type": "String?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "text",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "value",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "tone",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "tabular",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "mono",
+        "type": "bool",
+        "default": null
+      },
+      {
+        "name": "size",
+        "type": "double?",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "toast",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "message",
+        "type": "String",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "toggleSwitch",
+    "isNeuron": true,
+    "props": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "default": true
+      },
+      {
+        "name": "automationName",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "onContent",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "offContent",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "isOn",
+        "type": "bool?",
+        "default": null
+      }
+    ],
+    "state": [
+      {
+        "name": "isOn",
+        "type": "bool",
+        "default": null
+      }
+    ],
+    "commands": [
+      {
+        "name": "SetChecked",
+        "signal": "control.setChecked",
+        "args": {
+          "isOn": "bool"
+        }
+      },
+      {
+        "name": "Toggle",
+        "signal": "control.toggle",
+        "args": {}
+      }
+    ],
+    "signals": [
+      {
+        "name": "Toggled",
+        "signal": "control.toggled",
+        "args": {
+          "isOn": "bool"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "kind": "toggleSwitchView",
+        "key": "dark-mode",
+        "isOn": true,
+        "props": {
+          "label": "Dark mode",
+          "onContent": "On",
+          "offContent": "Off",
+          "isEnabled": true,
+          "automationName": "Dark mode"
+        }
+      },
+      {
+        "kind": "toggleSwitchView",
+        "key": "wifi",
+        "isOn": false,
+        "props": {
+          "label": "Wi-Fi",
+          "isEnabled": false,
+          "automationName": "Wi-Fi"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "toggleSwitchView",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "isOn",
+        "type": "bool",
+        "default": null
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  },
+  {
+    "kind": "webBrowser",
+    "isNeuron": false,
+    "props": [
+      {
+        "name": "key",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "url",
+        "type": "String",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "String?",
+        "default": null
+      },
+      {
+        "name": "height",
+        "type": "double",
+        "default": 520
+      },
+      {
+        "name": "executionMode",
+        "type": "String",
+        "default": "wasm-ui"
+      }
+    ],
+    "state": [],
+    "commands": [],
+    "signals": [],
+    "examples": []
+  }
+]

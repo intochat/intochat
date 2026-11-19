@@ -92,7 +92,7 @@ internal static class ShippedPackages
                     => new("Email Notifier", new Column(
                     [
                         new Text($"Notified messages: {State.TotalNotified}"),
-                        new Button("test-alert", "Send Test Alert", Emit: new Emit("app.email-notifier", "test-alert")),
+                        new Button("test-alert", "Send Test Alert", Command: new Command(".", "test-alert")),
                     ]));
             }
             """;
@@ -244,7 +244,7 @@ internal static class ShippedPackages
                     => new("Downloads Invoices", new Column(
                     [
                         new Text($"Invoices processed: {State.ProcessedCount}"),
-                        new Button("scan-now", "Scan Downloads Now", Emit: new Emit("app.downloads-invoices", "scan-now")),
+                        new Button("scan-now", "Scan Downloads Now", Command: new Command(".", "scan-now")),
                     ]));
             }
             """;

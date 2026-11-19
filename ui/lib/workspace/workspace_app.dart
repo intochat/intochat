@@ -685,13 +685,13 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 load: (kind, name) =>
                                     widget.programmingClient!.appRequest(
                                       _brain!,
-                                      'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
+                                      appNodePath(kind, name),
                                     ),
                                 watch: (kind, name) => widget.programmingClient!
                                     .watchNode(_brain!, kind, name)
                                     .map((_) {}),
                                 onAction: (event) => widget.programmingClient!
-                                    .appRequest(_brain!, 'event', body: event),
+                                    .uiEvent(_brain!, event),
                                 knowsApp: (app) =>
                                     _knownApps.contains(app) ||
                                     _knownApps.contains(app.toLowerCase()),
@@ -757,14 +757,14 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 load: (kind, name) =>
                                     widget.programmingClient!.appRequest(
                                       _brain!,
-                                      'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
+                                      appNodePath(kind, name),
                                     ),
                                 // Reads once per change signal instead of every 2 s.
                                 watch: (kind, name) => widget.programmingClient!
                                     .watchNode(_brain!, kind, name)
                                     .map((_) {}),
                                 onAction: (event) => widget.programmingClient!
-                                    .appRequest(_brain!, 'event', body: event),
+                                    .uiEvent(_brain!, event),
                                 onActivate: (action) =>
                                     unawaited(_activate(action)),
                                 transcribe:

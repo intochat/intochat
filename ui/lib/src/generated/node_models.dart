@@ -27,6 +27,8 @@ int? _intOrNull(Object? value) => value is num ? value.toInt() : null;
 bool _bool(Object? value, [bool fallback = false]) =>
     value is bool ? value : fallback;
 
+bool? _boolOrNull(Object? value) => value is bool ? value : null;
+
 T _enum<T extends Enum>(List<T> values, Object? value) =>
     _enumOrNull(values, value) ?? values.first;
 
@@ -48,7 +50,11 @@ enum BadgeTone { neutral, accent, done, working, error }
 
 enum FieldKind { text, search, number, password, secret, suggest, multiline }
 
+enum FormFieldKind { text, multiline, secret, number }
+
 enum IntentKind { copy, openWindow, openSettings }
+
+enum ListSelectionMode { single, none }
 
 /// A node of a view, discriminated by `kind`.
 sealed class Node {
@@ -69,6 +75,7 @@ sealed class Node {
     'collection' => CollectionNode.fromJson(json),
     'heading' => HeadingNode.fromJson(json),
     'text' => TextNode.fromJson(json),
+    'markdown' => MarkdownNode.fromJson(json),
     'badge' => BadgeNode.fromJson(json),
     'tagPill' => TagPillNode.fromJson(json),
     'field' => FieldNode.fromJson(json),
@@ -80,6 +87,7 @@ sealed class Node {
     'toast' => ToastNode.fromJson(json),
     'card' => CardNode.fromJson(json),
     'button' => ButtonNode.fromJson(json),
+    'iconButton' => IconButtonNode.fromJson(json),
     'dataTable' => DataTableNode.fromJson(json),
     'chart' => ChartNode.fromJson(json),
     'approvalCard' => ApprovalCardNode.fromJson(json),
@@ -99,6 +107,16 @@ sealed class Node {
     'emptyState' => EmptyStateNode.fromJson(json),
     'metricTile' => MetricTileNode.fromJson(json),
     'diffCard' => DiffCardNode.fromJson(json),
+    'checkBoxView' => CheckBoxViewNode.fromJson(json),
+    'toggleSwitchView' => ToggleSwitchViewNode.fromJson(json),
+    'expanderView' => ExpanderViewNode.fromJson(json),
+    'tabStripView' => TabStripViewNode.fromJson(json),
+    'comboBoxView' => ComboBoxViewNode.fromJson(json),
+    'formView' => FormViewNode.fromJson(json),
+    'liveChartView' => LiveChartViewNode.fromJson(json),
+    'chatThreadView' => ChatThreadViewNode.fromJson(json),
+    'queryTableView' => QueryTableViewNode.fromJson(json),
+    'listBoxView' => ListBoxViewNode.fromJson(json),
     final kind => UnknownNode(kind is String ? kind : '', json),
   };
 }
@@ -386,10 +404,13 @@ final class ButtonNode extends Node {
   const ButtonNode({
     required this.key,
     required this.label,
-    required this.emit,
+    required this.command,
     required this.intent,
     required this.enabled,
     required this.tone,
+    required this.tooltip,
+    required this.visible,
+    required this.automationName,
     required this.style,
     required this.icon,
     required this.small,
@@ -400,10 +421,13 @@ final class ButtonNode extends Node {
 
   final String key;
   final String label;
-  final Emit? emit;
+  final Command? command;
   final IntentNode? intent;
   final bool enabled;
   final String tone;
+  final String? tooltip;
+  final bool visible;
+  final String automationName;
   final String style;
   final String? icon;
   final bool small;
@@ -411,12 +435,17 @@ final class ButtonNode extends Node {
   factory ButtonNode.fromJson(Map<String, dynamic> json) => ButtonNode(
     key: _string(json['key']),
     label: _string(json['label']),
-    emit: json['emit'] is Map ? Emit.fromJson(_map(json['emit'])) : null,
+    command: json['command'] is Map
+        ? Command.fromJson(_map(json['command']))
+        : null,
     intent: json['intent'] is Map
         ? IntentNode.fromJson(_map(json['intent']))
         : null,
     enabled: _bool(json['enabled'], true),
     tone: _string(json['tone'], 'neutral'),
+    tooltip: _stringOrNull(json['tooltip']),
+    visible: _bool(json['visible'], true),
+    automationName: _string(json['automationName']),
     style: _string(json['style']),
     icon: _stringOrNull(json['icon']),
     small: _bool(json['small']),
@@ -428,6 +457,8 @@ final class CardNode extends Node {
     required this.title,
     required this.body,
     required this.children,
+    required this.header,
+    required this.footer,
   });
 
   @override
@@ -436,6 +467,8 @@ final class CardNode extends Node {
   final String title;
   final String body;
   final List<Node> children;
+  final Node? header;
+  final Node? footer;
 
   factory CardNode.fromJson(Map<String, dynamic> json) => CardNode(
     title: _string(json['title']),
@@ -443,6 +476,8 @@ final class CardNode extends Node {
     children: [
       for (final item in _list(json['children'])) Node.fromJson(_map(item)),
     ],
+    header: json['header'] is Map ? Node.fromJson(_map(json['header'])) : null,
+    footer: json['footer'] is Map ? Node.fromJson(_map(json['footer'])) : null,
   );
 }
 
@@ -500,6 +535,150 @@ final class ChartPointNode {
     label: _string(json['label']),
     value: _double(json['value']),
   );
+}
+
+final class ChatThreadError {
+  const ChatThreadError({
+    required this.what,
+    required this.detail,
+    required this.actionLabel,
+    required this.open,
+    required this.retry,
+  });
+
+  final String what;
+  final String? detail;
+  final String? actionLabel;
+  final String? open;
+  final bool retry;
+
+  factory ChatThreadError.fromJson(Map<String, dynamic> json) =>
+      ChatThreadError(
+        what: _string(json['what']),
+        detail: _stringOrNull(json['detail']),
+        actionLabel: _stringOrNull(json['actionLabel']),
+        open: _stringOrNull(json['open']),
+        retry: _bool(json['retry']),
+      );
+}
+
+final class ChatThreadProps {
+  const ChatThreadProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.placeholder,
+    required this.canSend,
+    required this.activeModelLabel,
+    required this.activeProviderIcon,
+    required this.dictation,
+    required this.status,
+    required this.working,
+    required this.emptyText,
+    required this.error,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String placeholder;
+  final bool canSend;
+  final String? activeModelLabel;
+  final String? activeProviderIcon;
+  final bool dictation;
+  final String status;
+  final bool working;
+  final String? emptyText;
+  final ChatThreadError? error;
+
+  factory ChatThreadProps.fromJson(Map<String, dynamic> json) =>
+      ChatThreadProps(
+        isEnabled: _bool(json['isEnabled'], true),
+        automationName: _stringOrNull(json['automationName']),
+        placeholder: _string(json['placeholder'], 'Message'),
+        canSend: _bool(json['canSend'], true),
+        activeModelLabel: _stringOrNull(json['activeModelLabel']),
+        activeProviderIcon: _stringOrNull(json['activeProviderIcon']),
+        dictation: _bool(json['dictation']),
+        status: _string(json['status'], 'ready'),
+        working: _bool(json['working']),
+        emptyText: _stringOrNull(json['emptyText']),
+        error: json['error'] is Map
+            ? ChatThreadError.fromJson(_map(json['error']))
+            : null,
+      );
+}
+
+final class ChatThreadViewNode extends Node {
+  const ChatThreadViewNode({
+    required this.key,
+    required this.messages,
+    required this.composer,
+    required this.stop,
+    required this.retry,
+    required this.props,
+  });
+
+  @override
+  String get kind => 'chatThreadView';
+
+  final String key;
+  final List<MessageNode> messages;
+  final ComposerNode composer;
+  final ButtonNode? stop;
+  final ButtonNode? retry;
+  final ChatThreadProps? props;
+
+  factory ChatThreadViewNode.fromJson(Map<String, dynamic> json) =>
+      ChatThreadViewNode(
+        key: _string(json['key']),
+        messages: [
+          for (final item in _list(json['messages']))
+            MessageNode.fromJson(_map(item)),
+        ],
+        composer: ComposerNode.fromJson(_map(json['composer'])),
+        stop: json['stop'] is Map
+            ? ButtonNode.fromJson(_map(json['stop']))
+            : null,
+        retry: json['retry'] is Map
+            ? ButtonNode.fromJson(_map(json['retry']))
+            : null,
+        props: json['props'] is Map
+            ? ChatThreadProps.fromJson(_map(json['props']))
+            : null,
+      );
+}
+
+final class CheckBoxProps {
+  const CheckBoxProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.label,
+    required this.isOn,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String label;
+  final bool? isOn;
+
+  factory CheckBoxProps.fromJson(Map<String, dynamic> json) => CheckBoxProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    label: _string(json['label']),
+    isOn: _boolOrNull(json['isOn']),
+  );
+}
+
+final class CheckBoxViewNode extends Node {
+  const CheckBoxViewNode({required this.key, required this.isOn});
+
+  @override
+  String get kind => 'checkBoxView';
+
+  final String key;
+  final bool isOn;
+
+  factory CheckBoxViewNode.fromJson(Map<String, dynamic> json) =>
+      CheckBoxViewNode(key: _string(json['key']), isOn: _bool(json['isOn']));
 }
 
 final class ChoiceCardNode extends Node {
@@ -593,6 +772,80 @@ final class ColumnNode extends Node {
     extents: json['extents'] == null
         ? null
         : [for (final item in _list(json['extents'])) _double(item)],
+  );
+}
+
+final class ComboBoxOption {
+  const ComboBoxOption({required this.id, required this.label});
+
+  final String id;
+  final String label;
+
+  factory ComboBoxOption.fromJson(Map<String, dynamic> json) =>
+      ComboBoxOption(id: _string(json['id']), label: _string(json['label']));
+}
+
+final class ComboBoxProps {
+  const ComboBoxProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.header,
+    required this.options,
+    required this.selectedId,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String header;
+  final List<ComboBoxOption> options;
+  final String? selectedId;
+
+  factory ComboBoxProps.fromJson(Map<String, dynamic> json) => ComboBoxProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    header: _string(json['header']),
+    options: [
+      for (final item in _list(json['options']))
+        ComboBoxOption.fromJson(_map(item)),
+    ],
+    selectedId: _stringOrNull(json['selectedId']),
+  );
+}
+
+final class ComboBoxViewNode extends Node {
+  const ComboBoxViewNode({required this.key, required this.selectedId});
+
+  @override
+  String get kind => 'comboBoxView';
+
+  final String key;
+  final String? selectedId;
+
+  factory ComboBoxViewNode.fromJson(Map<String, dynamic> json) =>
+      ComboBoxViewNode(
+        key: _string(json['key']),
+        selectedId: _stringOrNull(json['selectedId']),
+      );
+}
+
+final class Command {
+  const Command({
+    required this.target,
+    required this.signal,
+    required this.args,
+    required this.props,
+  });
+
+  final String target;
+  final String signal;
+  final Object? args;
+  final Object? props;
+
+  factory Command.fromJson(Map<String, dynamic> json) => Command(
+    target: _string(json['target']),
+    signal: _string(json['signal']),
+    args: json['args'],
+    props: json['props'],
   );
 }
 
@@ -919,6 +1172,45 @@ final class ErrorLineNode extends Node {
   );
 }
 
+final class ExpanderProps {
+  const ExpanderProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.header,
+    required this.children,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String header;
+  final List<Node> children;
+
+  factory ExpanderProps.fromJson(Map<String, dynamic> json) => ExpanderProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    header: _string(json['header']),
+    children: [
+      for (final item in _list(json['children'])) Node.fromJson(_map(item)),
+    ],
+  );
+}
+
+final class ExpanderViewNode extends Node {
+  const ExpanderViewNode({required this.key, required this.isExpanded});
+
+  @override
+  String get kind => 'expanderView';
+
+  final String key;
+  final bool isExpanded;
+
+  factory ExpanderViewNode.fromJson(Map<String, dynamic> json) =>
+      ExpanderViewNode(
+        key: _string(json['key']),
+        isExpanded: _bool(json['isExpanded']),
+      );
+}
+
 final class FieldNode extends Node {
   const FieldNode({
     required this.key,
@@ -945,6 +1237,86 @@ final class FieldNode extends Node {
     onSubmit: json['onSubmit'] is Map
         ? Emit.fromJson(_map(json['onSubmit']))
         : null,
+  );
+}
+
+final class FormInput {
+  const FormInput({
+    required this.key,
+    required this.label,
+    required this.kind,
+    required this.value,
+    required this.placeholder,
+    required this.maxLength,
+    required this.isReadOnly,
+  });
+
+  final String key;
+  final String label;
+  final FormFieldKind kind;
+  final String? value;
+  final String? placeholder;
+  final int? maxLength;
+  final bool isReadOnly;
+
+  factory FormInput.fromJson(Map<String, dynamic> json) => FormInput(
+    key: _string(json['key']),
+    label: _string(json['label']),
+    kind: _enum(FormFieldKind.values, json['kind']),
+    value: _stringOrNull(json['value']),
+    placeholder: _stringOrNull(json['placeholder']),
+    maxLength: _intOrNull(json['maxLength']),
+    isReadOnly: _bool(json['isReadOnly']),
+  );
+}
+
+final class FormProps {
+  const FormProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.fields,
+    required this.submitLabel,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final List<FormInput> fields;
+  final String submitLabel;
+
+  factory FormProps.fromJson(Map<String, dynamic> json) => FormProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    fields: [
+      for (final item in _list(json['fields'])) FormInput.fromJson(_map(item)),
+    ],
+    submitLabel: _string(json['submitLabel'], 'Submit'),
+  );
+}
+
+final class FormValue {
+  const FormValue({required this.key, required this.value});
+
+  final String key;
+  final String value;
+
+  factory FormValue.fromJson(Map<String, dynamic> json) =>
+      FormValue(key: _string(json['key']), value: _string(json['value']));
+}
+
+final class FormViewNode extends Node {
+  const FormViewNode({required this.key, required this.values});
+
+  @override
+  String get kind => 'formView';
+
+  final String key;
+  final List<FormValue> values;
+
+  factory FormViewNode.fromJson(Map<String, dynamic> json) => FormViewNode(
+    key: _string(json['key']),
+    values: [
+      for (final item in _list(json['values'])) FormValue.fromJson(_map(item)),
+    ],
   );
 }
 
@@ -992,12 +1364,55 @@ final class HeadingNode extends Node {
   );
 }
 
+final class IconButtonNode extends Node {
+  const IconButtonNode({
+    required this.key,
+    required this.icon,
+    required this.tooltip,
+    required this.command,
+    required this.intent,
+    required this.enabled,
+    required this.visible,
+    required this.automationName,
+  });
+
+  @override
+  String get kind => 'iconButton';
+
+  final String key;
+  final String icon;
+  final String tooltip;
+  final Command? command;
+  final IntentNode? intent;
+  final bool enabled;
+  final bool visible;
+  final String automationName;
+
+  factory IconButtonNode.fromJson(Map<String, dynamic> json) => IconButtonNode(
+    key: _string(json['key']),
+    icon: _string(json['icon']),
+    tooltip: _string(json['tooltip']),
+    command: json['command'] is Map
+        ? Command.fromJson(_map(json['command']))
+        : null,
+    intent: json['intent'] is Map
+        ? IntentNode.fromJson(_map(json['intent']))
+        : null,
+    enabled: _bool(json['enabled'], true),
+    visible: _bool(json['visible'], true),
+    automationName: _string(json['automationName']),
+  );
+}
+
 final class InfoBarNode extends Node {
   const InfoBarNode({
     required this.title,
     required this.message,
     required this.tone,
     required this.action,
+    required this.close,
+    required this.key,
+    required this.automationName,
   });
 
   @override
@@ -1007,6 +1422,9 @@ final class InfoBarNode extends Node {
   final String message;
   final String tone;
   final ButtonNode? action;
+  final Command? close;
+  final String key;
+  final String automationName;
 
   factory InfoBarNode.fromJson(Map<String, dynamic> json) => InfoBarNode(
     title: _string(json['title']),
@@ -1015,6 +1433,9 @@ final class InfoBarNode extends Node {
     action: json['action'] is Map
         ? ButtonNode.fromJson(_map(json['action']))
         : null,
+    close: json['close'] is Map ? Command.fromJson(_map(json['close'])) : null,
+    key: _string(json['key']),
+    automationName: _string(json['automationName']),
   );
 }
 
@@ -1085,6 +1506,127 @@ final class JobStepNode {
   );
 }
 
+final class ListBoxItem {
+  const ListBoxItem({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.group,
+  });
+
+  final String id;
+  final String title;
+  final String? subtitle;
+  final String? group;
+
+  factory ListBoxItem.fromJson(Map<String, dynamic> json) => ListBoxItem(
+    id: _string(json['id']),
+    title: _string(json['title']),
+    subtitle: _stringOrNull(json['subtitle']),
+    group: _stringOrNull(json['group']),
+  );
+}
+
+final class ListBoxProps {
+  const ListBoxProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.items,
+    required this.selectionMode,
+    required this.selectedId,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final List<ListBoxItem> items;
+  final ListSelectionMode selectionMode;
+  final String? selectedId;
+
+  factory ListBoxProps.fromJson(Map<String, dynamic> json) => ListBoxProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    items: [
+      for (final item in _list(json['items'])) ListBoxItem.fromJson(_map(item)),
+    ],
+    selectionMode: _enum(ListSelectionMode.values, json['selectionMode']),
+    selectedId: _stringOrNull(json['selectedId']),
+  );
+}
+
+final class ListBoxViewNode extends Node {
+  const ListBoxViewNode({required this.key, required this.selectedId});
+
+  @override
+  String get kind => 'listBoxView';
+
+  final String key;
+  final String? selectedId;
+
+  factory ListBoxViewNode.fromJson(Map<String, dynamic> json) =>
+      ListBoxViewNode(
+        key: _string(json['key']),
+        selectedId: _stringOrNull(json['selectedId']),
+      );
+}
+
+final class LiveChartProps {
+  const LiveChartProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.title,
+    required this.kind,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String title;
+  final String kind;
+
+  factory LiveChartProps.fromJson(Map<String, dynamic> json) => LiveChartProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    title: _string(json['title']),
+    kind: _string(json['kind'], 'bar'),
+  );
+}
+
+final class LiveChartViewNode extends Node {
+  const LiveChartViewNode({
+    required this.key,
+    required this.version,
+    required this.points,
+  });
+
+  @override
+  String get kind => 'liveChartView';
+
+  final String key;
+  final int version;
+  final List<ChartPointNode> points;
+
+  factory LiveChartViewNode.fromJson(Map<String, dynamic> json) =>
+      LiveChartViewNode(
+        key: _string(json['key']),
+        version: _int(json['version']),
+        points: [
+          for (final item in _list(json['points']))
+            ChartPointNode.fromJson(_map(item)),
+        ],
+      );
+}
+
+final class MarkdownNode extends Node {
+  const MarkdownNode({required this.value});
+
+  @override
+  String get kind => 'markdown';
+
+  final String value;
+
+  factory MarkdownNode.fromJson(Map<String, dynamic> json) =>
+      MarkdownNode(value: _string(json['value']));
+}
+
 final class MessageNode {
   const MessageNode({
     required this.id,
@@ -1097,6 +1639,7 @@ final class MessageNode {
     required this.retry,
     required this.modelLabel,
     required this.providerIcon,
+    required this.error,
   });
 
   final String id;
@@ -1109,6 +1652,7 @@ final class MessageNode {
   final ButtonNode? retry;
   final String? modelLabel;
   final String? providerIcon;
+  final ErrorLineNode? error;
 
   factory MessageNode.fromJson(Map<String, dynamic> json) => MessageNode(
     id: _string(json['id']),
@@ -1130,6 +1674,9 @@ final class MessageNode {
         : null,
     modelLabel: _stringOrNull(json['modelLabel']),
     providerIcon: _stringOrNull(json['providerIcon']),
+    error: json['error'] is Map
+        ? ErrorLineNode.fromJson(_map(json['error']))
+        : null,
   );
 }
 
@@ -1219,17 +1766,23 @@ final class NavItemNode extends Node {
 }
 
 final class NeuronRefNode extends Node {
-  const NeuronRefNode({required this.refKind, required this.neuronUri});
+  const NeuronRefNode({
+    required this.refKind,
+    required this.neuronUri,
+    required this.props,
+  });
 
   @override
   String get kind => 'neuronRef';
 
   final String refKind;
   final String neuronUri;
+  final Object? props;
 
   factory NeuronRefNode.fromJson(Map<String, dynamic> json) => NeuronRefNode(
     refKind: _string(json['refKind']),
     neuronUri: _string(json['neuronUri']),
+    props: json['props'],
   );
 }
 
@@ -1238,6 +1791,9 @@ final class ProgressNode extends Node {
     required this.label,
     required this.value,
     required this.detail,
+    required this.isIndeterminate,
+    required this.showError,
+    required this.ring,
   });
 
   @override
@@ -1246,12 +1802,105 @@ final class ProgressNode extends Node {
   final String label;
   final double value;
   final String? detail;
+  final bool isIndeterminate;
+  final bool showError;
+  final bool ring;
 
   factory ProgressNode.fromJson(Map<String, dynamic> json) => ProgressNode(
     label: _string(json['label']),
     value: _double(json['value']),
     detail: _stringOrNull(json['detail']),
+    isIndeterminate: _bool(json['isIndeterminate']),
+    showError: _bool(json['showError']),
+    ring: _bool(json['ring']),
   );
+}
+
+final class QueryTableColumn {
+  const QueryTableColumn({required this.id, required this.title});
+
+  final String id;
+  final String title;
+
+  factory QueryTableColumn.fromJson(Map<String, dynamic> json) =>
+      QueryTableColumn(id: _string(json['id']), title: _string(json['title']));
+}
+
+final class QueryTableProps {
+  const QueryTableProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.title,
+    required this.columns,
+    required this.sourceAddress,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String title;
+  final List<QueryTableColumn> columns;
+  final String sourceAddress;
+
+  factory QueryTableProps.fromJson(Map<String, dynamic> json) =>
+      QueryTableProps(
+        isEnabled: _bool(json['isEnabled'], true),
+        automationName: _stringOrNull(json['automationName']),
+        title: _string(json['title']),
+        columns: [
+          for (final item in _list(json['columns']))
+            QueryTableColumn.fromJson(_map(item)),
+        ],
+        sourceAddress: _string(json['sourceAddress']),
+      );
+}
+
+final class QueryTableViewNode extends Node {
+  const QueryTableViewNode({
+    required this.key,
+    required this.filter,
+    required this.sortBy,
+    required this.descending,
+    required this.page,
+    required this.pageSize,
+    required this.total,
+    required this.loaded,
+    required this.columnIds,
+    required this.rows,
+    required this.error,
+  });
+
+  @override
+  String get kind => 'queryTableView';
+
+  final String key;
+  final String filter;
+  final String? sortBy;
+  final bool descending;
+  final int page;
+  final int pageSize;
+  final int total;
+  final bool loaded;
+  final List<String> columnIds;
+  final List<List<String>> rows;
+  final String? error;
+
+  factory QueryTableViewNode.fromJson(Map<String, dynamic> json) =>
+      QueryTableViewNode(
+        key: _string(json['key']),
+        filter: _string(json['filter']),
+        sortBy: _stringOrNull(json['sortBy']),
+        descending: _bool(json['descending']),
+        page: _int(json['page']),
+        pageSize: _int(json['pageSize']),
+        total: _int(json['total']),
+        loaded: _bool(json['loaded']),
+        columnIds: [for (final item in _list(json['columnIds'])) _string(item)],
+        rows: [
+          for (final item in _list(json['rows']))
+            [for (final item1 in _list(item)) _string(item1)],
+        ],
+        error: _stringOrNull(json['error']),
+      );
 }
 
 final class RecordCardNode extends Node {
@@ -1566,6 +2215,64 @@ final class TabItem {
   );
 }
 
+final class TabStripItem {
+  const TabStripItem({
+    required this.id,
+    required this.label,
+    required this.icon,
+  });
+
+  final String id;
+  final String label;
+  final String? icon;
+
+  factory TabStripItem.fromJson(Map<String, dynamic> json) => TabStripItem(
+    id: _string(json['id']),
+    label: _string(json['label']),
+    icon: _stringOrNull(json['icon']),
+  );
+}
+
+final class TabStripProps {
+  const TabStripProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.items,
+    required this.selectedId,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final List<TabStripItem> items;
+  final String? selectedId;
+
+  factory TabStripProps.fromJson(Map<String, dynamic> json) => TabStripProps(
+    isEnabled: _bool(json['isEnabled'], true),
+    automationName: _stringOrNull(json['automationName']),
+    items: [
+      for (final item in _list(json['items']))
+        TabStripItem.fromJson(_map(item)),
+    ],
+    selectedId: _stringOrNull(json['selectedId']),
+  );
+}
+
+final class TabStripViewNode extends Node {
+  const TabStripViewNode({required this.key, required this.selectedId});
+
+  @override
+  String get kind => 'tabStripView';
+
+  final String key;
+  final String? selectedId;
+
+  factory TabStripViewNode.fromJson(Map<String, dynamic> json) =>
+      TabStripViewNode(
+        key: _string(json['key']),
+        selectedId: _stringOrNull(json['selectedId']),
+      );
+}
+
 final class TabsNode extends Node {
   const TabsNode({required this.items, required this.selectedId});
 
@@ -1643,6 +2350,50 @@ final class ToastNode extends Node {
       ToastNode(message: _string(json['message']));
 }
 
+final class ToggleSwitchProps {
+  const ToggleSwitchProps({
+    required this.isEnabled,
+    required this.automationName,
+    required this.label,
+    required this.onContent,
+    required this.offContent,
+    required this.isOn,
+  });
+
+  final bool isEnabled;
+  final String? automationName;
+  final String label;
+  final String? onContent;
+  final String? offContent;
+  final bool? isOn;
+
+  factory ToggleSwitchProps.fromJson(Map<String, dynamic> json) =>
+      ToggleSwitchProps(
+        isEnabled: _bool(json['isEnabled'], true),
+        automationName: _stringOrNull(json['automationName']),
+        label: _string(json['label']),
+        onContent: _stringOrNull(json['onContent']),
+        offContent: _stringOrNull(json['offContent']),
+        isOn: _boolOrNull(json['isOn']),
+      );
+}
+
+final class ToggleSwitchViewNode extends Node {
+  const ToggleSwitchViewNode({required this.key, required this.isOn});
+
+  @override
+  String get kind => 'toggleSwitchView';
+
+  final String key;
+  final bool isOn;
+
+  factory ToggleSwitchViewNode.fromJson(Map<String, dynamic> json) =>
+      ToggleSwitchViewNode(
+        key: _string(json['key']),
+        isOn: _bool(json['isOn']),
+      );
+}
+
 final class WebBrowserNode extends Node {
   const WebBrowserNode({
     required this.key,
@@ -1669,3 +2420,6 @@ final class WebBrowserNode extends Node {
     executionMode: _string(json['executionMode'], 'wasm-ui'),
   );
 }
+
+/// The chart kinds a live chart draws (`ChartRefusals.Kinds`).
+const liveChartKinds = {'bar', 'line', 'area', 'pie'};

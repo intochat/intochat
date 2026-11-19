@@ -17,9 +17,9 @@ public sealed class ViewNeuronFacts
     private static readonly View Sample = new("Tasks", new Column(
     [
         new DigitalBrain.UI.Text("Two open"),
-        new DigitalBrain.UI.Button("cancel", "Cancel", new Emit("tasks", "cancel", JsonSerializer.SerializeToElement(new[] { "f/1", "x:y" }))),
+        new DigitalBrain.UI.Button("cancel", "Cancel", new Command(".", "cancel", JsonSerializer.SerializeToElement(new[] { "f/1", "x:y" }))),
         new DigitalBrain.UI.Button("copy", "Copy", Intent: new Intent(IntentKind.Copy, "neuron://owner/tasks")),
-        new DigitalBrain.UI.Button("off", "Off", new Emit("tasks", "off"), Enabled: false),
+        new DigitalBrain.UI.Button("off", "Off", new Command(".", "off"), Enabled: false),
         new Field("title", "apps/tasks/title", FieldKind.Text, OnSubmit: new Emit("tasks", "rename")),
         new ApprovalCardNode("approval", "plan-1", "Approve", "Detail", [], Resolve: new Resolve("plan-1")),
         new NavItemNode("nav-filter", "All", "list", "filter-all", Emit: new Emit("tasks", "filter", JsonSerializer.SerializeToElement("all"))),
@@ -75,7 +75,8 @@ public sealed class ViewNeuronFacts
 
         var cancel = await view.Activate(1, "cancel", null);
         Assert.Equal(ViewActivationKind.Emit, cancel.Kind);
-        Assert.Equal(("tasks", "cancel"), (cancel.Emit!.Owner, cancel.Emit.Signal));
+        // A button's command to "." resolves to the view's own key.
+        Assert.Equal(("owner/apps/tasks", "cancel"), (cancel.Emit!.Owner, cancel.Emit.Signal));
         Assert.Equal("[\"f/1\",\"x:y\"]", cancel.Emit.Args!.Value.GetRawText());
 
         var copy = await view.Activate(1, "copy", null);

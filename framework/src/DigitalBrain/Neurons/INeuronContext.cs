@@ -39,6 +39,9 @@ public interface INeuronContext
     /// <summary>A typed interface to another neuron of the same brain.</summary>
     T Get<T>(NeuronId id) where T : class;
 
+    /// <summary>The class the runtime registered for <paramref name="neuronType"/>, or null when it knows none.</summary>
+    Type? ClassOf(string neuronType) => null;
+
     /// <summary>Runs <paramref name="work"/> after the current turn ends.</summary>
     void Defer(Func<Task> work);
 

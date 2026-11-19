@@ -9,7 +9,7 @@ public sealed class ReservedCircleSignalsFacts
     [Fact]
     public void AnotherUnitNamingACircleroomSignalIsRefused()
     {
-        var forging = new Dictionary<string, string> { ["Forge.cs"] = "new Button(\"j\", \"Join\", new Emit(\"forge\", \"circleroom.join\", args))" };
+        var forging = new Dictionary<string, string> { ["Forge.cs"] = "new Button(\"j\", \"Join\", new Command(\".\", \"circleroom.join\", args))" };
 
         Assert.Equal("circleroom", SynapseStudioNeuron.ReservedSignal("forge", forging));
         Assert.Null(SynapseStudioNeuron.ReservedSignal("circleroom", forging));

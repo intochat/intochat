@@ -82,6 +82,8 @@ internal sealed class TestNeuronContext : INeuronContext, INeuronSeat
         return Task.CompletedTask;
     }
 
+    public Type? ClassOf(string neuronType) => _host.OS.ClassOf(neuronType);
+
     public T Get<T>(NeuronId id) where T : class
     {
         if (id.Brain != Id.Brain) { throw new ArgumentException($"Neuron {id} belongs to another brain than {Id}.", nameof(id)); }

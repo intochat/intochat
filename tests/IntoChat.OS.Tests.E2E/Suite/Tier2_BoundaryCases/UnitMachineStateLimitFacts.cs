@@ -35,7 +35,7 @@ public sealed class UnitLimitTestScreen : Screen<UnitLimitTestState>
         return new View("UnitLimit", new Column([
             new Text($"Count: {state.Count}"),
             new Text(state.Data),
-            new Button("btn-expand", "Expand", Emits(new UnitLimitExpand(2_097_153)))
+            new Button("btn-expand", "Expand", Sends(new UnitLimitExpand(2_097_153)))
         ]));
     }
 

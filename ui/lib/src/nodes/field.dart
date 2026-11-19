@@ -14,11 +14,8 @@ Map<String, dynamic> _fieldMeta(FieldNode node) {
   return args is Map ? Map<String, dynamic>.from(args) : const {};
 }
 
-Widget renderField(FieldNode node, NodeContext ctx) => FieldNodeView(
-  key: ValueKey('field:${ctx.fieldName(node.name)}:${node.key}'),
-  node: node,
-  ctx: ctx,
-);
+Widget renderField(FieldNode node, NodeContext ctx) =>
+    FieldNodeView(node: node, ctx: ctx);
 
 /// A view field bound to its field neuron (and/or `AggregateScreen` `UiCommand`):
 /// - Supports explicit `uiLabel` (including `""` to omit label), `uiValue`
@@ -73,6 +70,11 @@ class _FieldNodeViewState extends State<FieldNodeView> {
   @override
   void didUpdateWidget(covariant FieldNodeView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // The control's key is its wire key; a rebinding to another field neuron reads that one.
+    if (oldWidget.ctx.fieldName(oldWidget.node.name) !=
+        widget.ctx.fieldName(widget.node.name)) {
+      _read();
+    }
     if (!_secret && !_dirty && !_focus.hasFocus) {
       final nextControlled = _controlledValue;
       if (nextControlled != null && nextControlled != _controller.text) {

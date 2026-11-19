@@ -71,18 +71,18 @@ public sealed class DesktopShellScreen : Screen<DesktopShellState>
             new Text($"LastVerb: {state.LastVerb}"),
             new Text($"LastCaller: {state.LastCaller ?? "none"}"),
             new Text($"TurnCount: {state.TurnCount}"),
-            new Button("launch-calculator", "Launch Calculator", Emits(new DesktopLaunchSignal("calculator", "Calculator"))),
-            new Button("launch-notes", "Launch Notes", Emits(new DesktopLaunchSignal("notes", "Notes"))),
-            new Button("launch-files", "Launch Files", Emits(new DesktopLaunchSignal("files", "Files")))
+            new Button("launch-calculator", "Launch Calculator", Sends(new DesktopLaunchSignal("calculator", "Calculator"))),
+            new Button("launch-notes", "Launch Notes", Sends(new DesktopLaunchSignal("notes", "Notes"))),
+            new Button("launch-files", "Launch Files", Sends(new DesktopLaunchSignal("files", "Files")))
         };
 
         foreach (var w in state.Windows)
         {
-            elements.Add(new Button($"focus-{w.WindowId}", $"Focus {w.Title}", Emits(new DesktopFocusSignal(w.WindowId))));
-            elements.Add(new Button($"pin-{w.WindowId}", w.IsPinned ? "Unpin" : "Pin", Emits(new DesktopPinSignal(w.WindowId, !w.IsPinned))));
-            elements.Add(new Button($"minimize-{w.WindowId}", w.IsMinimized ? "Restore" : "Minimize", Emits(new DesktopMinimizeSignal(w.WindowId, !w.IsMinimized))));
-            elements.Add(new Button($"close-{w.WindowId}", $"Close {w.Title}", Emits(new DesktopCloseSignal(w.WindowId))));
-            elements.Add(new Button($"tab-{w.WindowId}", "Add Tab", Emits(new DesktopAddTabSignal(w.WindowId, "sub-view"))));
+            elements.Add(new Button($"focus-{w.WindowId}", $"Focus {w.Title}", Sends(new DesktopFocusSignal(w.WindowId))));
+            elements.Add(new Button($"pin-{w.WindowId}", w.IsPinned ? "Unpin" : "Pin", Sends(new DesktopPinSignal(w.WindowId, !w.IsPinned))));
+            elements.Add(new Button($"minimize-{w.WindowId}", w.IsMinimized ? "Restore" : "Minimize", Sends(new DesktopMinimizeSignal(w.WindowId, !w.IsMinimized))));
+            elements.Add(new Button($"close-{w.WindowId}", $"Close {w.Title}", Sends(new DesktopCloseSignal(w.WindowId))));
+            elements.Add(new Button($"tab-{w.WindowId}", "Add Tab", Sends(new DesktopAddTabSignal(w.WindowId, "sub-view"))));
         }
 
         return new View("DesktopShell", new Column([.. elements]));

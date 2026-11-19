@@ -32,8 +32,8 @@ public sealed class SampleCounterScreen : Screen<SampleCounterState>
             Title: "Sample Counter",
             Root: new Column([
                 new Heading($"Count: {state.Count}"),
-                new Button("btn-inc", "Add One", Emits(new Increment(1))),
-                new Button("btn-alien", "Alien Button", new Emit("alien.screen", "alien.signal")),
+                new Button("btn-inc", "Add One", Sends(new Increment(1))),
+                new Switch("btn-alien", "Alien Button", false, new Emit("alien.screen", "alien.signal")),
                 new Button("btn-no-emit", "No Emit Button", Intent: new Intent(IntentKind.Copy, "nothing")),
                 new Field("fld-input", "input-label", FieldKind.Text, state.LastBy, OnSubmit: new Emit(Alias, "counter.set-caller", emptyObj.RootElement.Clone()))
             ])
@@ -61,7 +61,7 @@ public sealed class InvalidByScreen : Screen<SampleCounterState>
         return new View(
             Title: "Invalid",
             Root: new Column([
-                new Button("btn-hack", "Hack", new Emit(Alias, "counter.increment", jsonDoc.RootElement.Clone()))
+                new Button("btn-hack", "Hack", new Command(".", "counter.increment", jsonDoc.RootElement.Clone()))
             ])
         );
     }

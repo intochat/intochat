@@ -232,7 +232,7 @@ public static class CreatorView
         }
         else
         {
-            var graph = BrainGraph.Build(topology, state.Selected is { Kind: Selection.Node } node ? node.Id : null, App);
+            var graph = BrainGraph.Build(topology, state.Selected is { Kind: Selection.Node } node ? node.Id : null);
             if (state.Selected is { Kind: Selection.Pulse } && inspection.Hops.Count > 0)
             {
                 graph = graph with { Synapses = [.. graph.Synapses, .. ReplayScript.Synapses(inspection.Hops, inspection.Id, state.ReplayCursor, topology)] };

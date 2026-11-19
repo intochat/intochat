@@ -39,7 +39,7 @@ public static class HelloWorldUnit
             new Button(
                 Key: "toggle-hello",
                 Label: state.Visible ? "Hide Hello" : "Say Hello",
-                Emit: new Emit("helloworld", "helloworld.toggle"),
+                Command: new Command(".", "helloworld.toggle"),
                 Tone: ButtonTone.Accent),
         ], Title: "Hello World", Subtitle: "Interactive Micro-App"));
 }

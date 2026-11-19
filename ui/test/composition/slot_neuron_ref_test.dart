@@ -80,7 +80,8 @@ void main() {
                     'root': {'kind': 'text', 'value': 'Summary slot live'},
                   },
                 },
-                'local/orders.live' => {
+                // A bare-key slot is the view's child, read through its app's key path.
+                'local/apps/dashboard/slots/orders.live' => {
                   'generation': 3,
                   'view': {
                     'title': 'Orders',
@@ -128,6 +129,7 @@ void main() {
       // 'browser' and 'confirmation' render display-only URI chips and never mount ViewHost.
       expect(find.text('local/browser/tab-1'), findsOneWidget);
       expect(find.text('local/confirmations'), findsOneWidget);
+      expect(loaded, contains('slot:local/apps/dashboard/slots/orders.live'));
       expect(loaded, isNot(contains('view:local/browser/tab-1')));
       expect(loaded, isNot(contains('confirmation:local/confirmations')));
     },

@@ -22,14 +22,14 @@ public sealed class ConversationNodeFacts
                 Activities: [new ActivityNode("act-1", "Searched files", "done", "3 files")],
                 Status: "completed",
                 Model: "gpt-5.4",
-                Retry: new Button("retry-u1", "Try again", new Emit("app.ino", "ino.asked", JsonSerializer.SerializeToElement(new { value = "hello" })))),
+                Retry: new Button("retry-u1", "Try again", new Command(".", "ino.asked", JsonSerializer.SerializeToElement(new { value = "hello" })))),
         ],
         new ComposerNode("composer", new Emit("app.ino", "ino.asked"), "Ask Ino", Enabled: true),
         Waiting: new Progress("Thinking", 0.5),
         Status: "working",
-        Error: new ErrorLineNode("Ino could not answer.", "Timed out.", new Button("err-retry", "Try again", new Emit("app.ino", "ino.asked"))),
-        Stop: new Button("stop", "Stop", new Emit("app.ino", "ino.cancelled")),
-        Empty: new EmptyStateNode("Start a conversation", "Ask anything.", [new Button("s1", "Summarise today", new Emit("app.ino", "ino.asked"))]));
+        Error: new ErrorLineNode("Ino could not answer.", "Timed out.", new Button("err-retry", "Try again", new Command(".", "ino.asked"))),
+        Stop: new Button("stop", "Stop", new Command(".", "ino.cancelled")),
+        Empty: new EmptyStateNode("Start a conversation", "Ask anything.", [new Button("s1", "Summarise today", new Command(".", "ino.asked"))]));
 
     [Fact]
     public void ConversationRoundTripsThroughViewJson()
@@ -87,7 +87,7 @@ public sealed class ConversationNodeFacts
             statusTone: "accent",
             sparkline: [96100.0, 97250.5, 98420.0],
             threshold: 95000.0,
-            actions: [new Button("refresh-btc", "Refresh", new Emit("app.btc-alert", "btc.refresh"))]);
+            actions: [new Button("refresh-btc", "Refresh", new Command(".", "btc.refresh"))]);
 
         var view = new View("Dashboard", tile);
         var wire = JsonSerializer.SerializeToElement(view, Json);

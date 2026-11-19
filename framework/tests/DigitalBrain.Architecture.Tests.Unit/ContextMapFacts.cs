@@ -21,7 +21,7 @@ public sealed class ContextMapFacts
         new("Limits", ["DigitalBrain.Limits"], ["Authoring", "Kernel", "Neurons"]),
         new("Units", ["DigitalBrain.Units"], ["Authoring", "Kernel", "Neurons", "Connections"]),
         new("Modules", ["DigitalBrain.Modules", "DigitalBrain.Modules.Configuration", "DigitalBrain.Modules.Options", "DigitalBrain.Modules.Validation"], ["Authoring", "Limits", "Connections"]),
-        new("Presentation", ["DigitalBrain.Screens", "DigitalBrain.Signals.Watch"], ["Authoring", "Kernel", "Neurons", "Modules"]),
+        new("Presentation", ["DigitalBrain.Screens", "DigitalBrain.Signals.Watch", "DigitalBrain.UI.Commands"], ["Authoring", "Kernel", "Neurons", "Modules"]),
         new("Simulation", ["DigitalBrain.Hosting"], ["Authoring", "Kernel", "Neurons"]),
     ];
 

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -72,7 +72,7 @@ List<String> _generatedKinds() {
 void main() {
   test('there is a sample for every generated kind', () {
     final kinds = _generatedKinds();
-    expect(kinds, hasLength(41));
+    expect(kinds, hasLength(53));
     expect(nodeSamples.keys.toSet(), kinds.toSet());
     for (final MapEntry(:key, :value) in nodeSamples.entries) {
       expect(Node.fromJson(value).kind, key);

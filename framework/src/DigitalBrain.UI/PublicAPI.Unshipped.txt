@@ -156,10 +156,16 @@ DigitalBrain.UI.BrainSceneNode.TargetZoom.init -> void
 DigitalBrain.UI.BrainSceneNode.ZoomTargetId.get -> string?
 DigitalBrain.UI.BrainSceneNode.ZoomTargetId.init -> void
 DigitalBrain.UI.Button
-DigitalBrain.UI.Button.Button(string! Key, string! Label, DigitalBrain.UI.Emit? Emit = null, DigitalBrain.UI.Intent? Intent = null, bool Enabled = true, string! Tone = "neutral") -> void
-DigitalBrain.UI.Button.Deconstruct(out string! Key, out string! Label, out DigitalBrain.UI.Emit? Emit, out DigitalBrain.UI.Intent? Intent, out bool Enabled, out string! Tone) -> void
-DigitalBrain.UI.Button.Emit.get -> DigitalBrain.UI.Emit?
-DigitalBrain.UI.Button.Emit.init -> void
+DigitalBrain.UI.Button.Button(string! Key, string! Label, DigitalBrain.UI.Command? Command = null, DigitalBrain.UI.Intent? Intent = null, bool Enabled = true, string! Tone = "neutral", string! AutomationName = "", string? Tooltip = null, bool Visible = true) -> void
+DigitalBrain.UI.Button.Deconstruct(out string! Key, out string! Label, out DigitalBrain.UI.Command? Command, out DigitalBrain.UI.Intent? Intent, out bool Enabled, out string! Tone, out string! AutomationName, out string? Tooltip, out bool Visible) -> void
+DigitalBrain.UI.Button.AutomationName.get -> string!
+DigitalBrain.UI.Button.AutomationName.init -> void
+DigitalBrain.UI.Button.Command.get -> DigitalBrain.UI.Command?
+DigitalBrain.UI.Button.Command.init -> void
+DigitalBrain.UI.Button.Tooltip.get -> string?
+DigitalBrain.UI.Button.Tooltip.init -> void
+DigitalBrain.UI.Button.Visible.get -> bool
+DigitalBrain.UI.Button.Visible.init -> void
 DigitalBrain.UI.Button.Enabled.get -> bool
 DigitalBrain.UI.Button.Enabled.init -> void
 DigitalBrain.UI.Button.Equals(DigitalBrain.UI.Button? other) -> bool
@@ -181,11 +187,15 @@ DigitalBrain.UI.ButtonTone
 DigitalBrain.UI.Card
 DigitalBrain.UI.Card.Body.get -> string!
 DigitalBrain.UI.Card.Body.init -> void
-DigitalBrain.UI.Card.Card(string! Title, string! Body, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>! Children) -> void
+DigitalBrain.UI.Card.Card(string! Title, string! Body, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>! Children, DigitalBrain.UI.Node? Header = null, DigitalBrain.UI.Node? Footer = null) -> void
 DigitalBrain.UI.Card.Children.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>!
 DigitalBrain.UI.Card.Children.init -> void
-DigitalBrain.UI.Card.Deconstruct(out string! Title, out string! Body, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>! Children) -> void
+DigitalBrain.UI.Card.Deconstruct(out string! Title, out string! Body, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>! Children, out DigitalBrain.UI.Node? Header, out DigitalBrain.UI.Node? Footer) -> void
 DigitalBrain.UI.Card.Equals(DigitalBrain.UI.Card? other) -> bool
+DigitalBrain.UI.Card.Footer.get -> DigitalBrain.UI.Node?
+DigitalBrain.UI.Card.Footer.init -> void
+DigitalBrain.UI.Card.Header.get -> DigitalBrain.UI.Node?
+DigitalBrain.UI.Card.Header.init -> void
 DigitalBrain.UI.Card.Title.get -> string!
 DigitalBrain.UI.Card.Title.init -> void
 DigitalBrain.UI.Chart
@@ -477,9 +487,7 @@ DigitalBrain.UI.Heading.Value.init -> void
 DigitalBrain.UI.InfoBar
 DigitalBrain.UI.InfoBar.Action.get -> DigitalBrain.UI.Button?
 DigitalBrain.UI.InfoBar.Action.init -> void
-DigitalBrain.UI.InfoBar.Deconstruct(out string! Title, out string! Message, out string! Tone, out DigitalBrain.UI.Button? Action) -> void
 DigitalBrain.UI.InfoBar.Equals(DigitalBrain.UI.InfoBar? other) -> bool
-DigitalBrain.UI.InfoBar.InfoBar(string! Title, string! Message, string! Tone = "neutral", DigitalBrain.UI.Button? Action = null) -> void
 DigitalBrain.UI.InfoBar.Message.get -> string!
 DigitalBrain.UI.InfoBar.Message.init -> void
 DigitalBrain.UI.InfoBar.Title.get -> string!
@@ -531,11 +539,9 @@ DigitalBrain.UI.MessageNode.Activities.get -> System.Collections.Generic.IReadOn
 DigitalBrain.UI.MessageNode.Activities.init -> void
 DigitalBrain.UI.MessageNode.Cards.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>?
 DigitalBrain.UI.MessageNode.Cards.init -> void
-DigitalBrain.UI.MessageNode.Deconstruct(out string! Id, out string! Role, out string! Text, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>? Cards, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>? Activities, out string! Status, out string? Model, out DigitalBrain.UI.Button? Retry, out string? ModelLabel, out string? ProviderIcon) -> void
 DigitalBrain.UI.MessageNode.Equals(DigitalBrain.UI.MessageNode? other) -> bool
 DigitalBrain.UI.MessageNode.Id.get -> string!
 DigitalBrain.UI.MessageNode.Id.init -> void
-DigitalBrain.UI.MessageNode.MessageNode(string! Id, string! Role, string! Text, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>? Cards = null, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>? Activities = null, string! Status = "completed", string? Model = null, DigitalBrain.UI.Button? Retry = null, string? ModelLabel = null, string? ProviderIcon = null) -> void
 DigitalBrain.UI.MessageNode.Model.get -> string?
 DigitalBrain.UI.MessageNode.Model.init -> void
 DigitalBrain.UI.MessageNode.ModelLabel.get -> string?
@@ -595,24 +601,20 @@ DigitalBrain.UI.NavItemNode.NavItemNode(string! Key, string! Label, string! Icon
 DigitalBrain.UI.NavItemNode.Selected.get -> bool
 DigitalBrain.UI.NavItemNode.Selected.init -> void
 DigitalBrain.UI.NeuronRef
-DigitalBrain.UI.NeuronRef.Deconstruct(out string! Kind, out string! NeuronUri) -> void
 DigitalBrain.UI.NeuronRef.Equals(DigitalBrain.UI.NeuronRef? other) -> bool
 DigitalBrain.UI.NeuronRef.Kind.get -> string!
 DigitalBrain.UI.NeuronRef.Kind.init -> void
-DigitalBrain.UI.NeuronRef.NeuronRef(string! Kind, string! NeuronUri) -> void
 DigitalBrain.UI.NeuronRef.NeuronUri.get -> string!
 DigitalBrain.UI.NeuronRef.NeuronUri.init -> void
 DigitalBrain.UI.Node
 DigitalBrain.UI.Node.Node() -> void
 DigitalBrain.UI.Node.Node(DigitalBrain.UI.Node! original) -> void
 DigitalBrain.UI.Progress
-DigitalBrain.UI.Progress.Deconstruct(out string! Label, out double Value, out string? Detail) -> void
 DigitalBrain.UI.Progress.Detail.get -> string?
 DigitalBrain.UI.Progress.Detail.init -> void
 DigitalBrain.UI.Progress.Equals(DigitalBrain.UI.Progress? other) -> bool
 DigitalBrain.UI.Progress.Label.get -> string!
 DigitalBrain.UI.Progress.Label.init -> void
-DigitalBrain.UI.Progress.Progress(string! Label, double Value, string? Detail = null) -> void
 DigitalBrain.UI.Progress.Value.get -> double
 DigitalBrain.UI.Progress.Value.init -> void
 DigitalBrain.UI.RecordCardNode
@@ -1236,3 +1238,853 @@ static DigitalBrain.UI.WebBrowser.operator ==(DigitalBrain.UI.WebBrowser? left, 
 virtual DigitalBrain.UI.Node.EqualityContract.get -> System.Type!
 virtual DigitalBrain.UI.Node.Equals(DigitalBrain.UI.Node? other) -> bool
 virtual DigitalBrain.UI.Node.PrintMembers(System.Text.StringBuilder! builder) -> bool
+DigitalBrain.UI.ShowcaseAttribute
+DigitalBrain.UI.ShowcaseAttribute.ExampleJson.get -> string!
+DigitalBrain.UI.ShowcaseAttribute.ShowcaseAttribute(string! exampleJson) -> void
+DigitalBrain.UI.EphemeralAttribute
+DigitalBrain.UI.EphemeralAttribute.EphemeralAttribute() -> void
+DigitalBrain.UI.Command
+DigitalBrain.UI.Command.<Clone>$() -> DigitalBrain.UI.Command!
+DigitalBrain.UI.Command.Args.get -> System.Text.Json.JsonElement?
+DigitalBrain.UI.Command.Args.init -> void
+DigitalBrain.UI.Command.Equals(DigitalBrain.UI.Command? other) -> bool
+DigitalBrain.UI.Command.Signal.get -> string!
+DigitalBrain.UI.Command.Signal.init -> void
+DigitalBrain.UI.Command.Target.get -> string!
+DigitalBrain.UI.Command.Target.init -> void
+override DigitalBrain.UI.Command.Equals(object? obj) -> bool
+override DigitalBrain.UI.Command.GetHashCode() -> int
+override DigitalBrain.UI.Command.ToString() -> string!
+static DigitalBrain.UI.Command.operator !=(DigitalBrain.UI.Command? left, DigitalBrain.UI.Command? right) -> bool
+static DigitalBrain.UI.Command.operator ==(DigitalBrain.UI.Command? left, DigitalBrain.UI.Command? right) -> bool
+DigitalBrain.UI.EmitsAttribute
+DigitalBrain.UI.EmitsAttribute.EmitsAttribute(System.Type! signal) -> void
+DigitalBrain.UI.EmitsAttribute.Signal.get -> System.Type!
+DigitalBrain.UI.IconButton
+DigitalBrain.UI.IconButton.AutomationName.get -> string!
+DigitalBrain.UI.IconButton.AutomationName.init -> void
+DigitalBrain.UI.IconButton.Command.get -> DigitalBrain.UI.Command?
+DigitalBrain.UI.IconButton.Command.init -> void
+DigitalBrain.UI.IconButton.Deconstruct(out string! Key, out string! Icon, out string! Tooltip, out DigitalBrain.UI.Command? Command, out DigitalBrain.UI.Intent? Intent, out bool Enabled, out string! AutomationName, out bool Visible) -> void
+DigitalBrain.UI.IconButton.Enabled.get -> bool
+DigitalBrain.UI.IconButton.Enabled.init -> void
+DigitalBrain.UI.IconButton.Equals(DigitalBrain.UI.IconButton? other) -> bool
+DigitalBrain.UI.IconButton.Icon.get -> string!
+DigitalBrain.UI.IconButton.Icon.init -> void
+DigitalBrain.UI.IconButton.IconButton(string! Key, string! Icon, string! Tooltip, DigitalBrain.UI.Command? Command = null, DigitalBrain.UI.Intent? Intent = null, bool Enabled = true, string! AutomationName = "", bool Visible = true) -> void
+DigitalBrain.UI.IconButton.Intent.get -> DigitalBrain.UI.Intent?
+DigitalBrain.UI.IconButton.Intent.init -> void
+DigitalBrain.UI.IconButton.Key.get -> string!
+DigitalBrain.UI.IconButton.Key.init -> void
+DigitalBrain.UI.IconButton.Tooltip.get -> string!
+DigitalBrain.UI.IconButton.Tooltip.init -> void
+DigitalBrain.UI.IconButton.Visible.get -> bool
+DigitalBrain.UI.IconButton.Visible.init -> void
+DigitalBrain.UI.InfoBar.AutomationName.get -> string!
+DigitalBrain.UI.InfoBar.AutomationName.init -> void
+DigitalBrain.UI.InfoBar.Close.get -> DigitalBrain.UI.Command?
+DigitalBrain.UI.InfoBar.Close.init -> void
+DigitalBrain.UI.InfoBar.Deconstruct(out string! Title, out string! Message, out string! Tone, out DigitalBrain.UI.Button? Action, out DigitalBrain.UI.Command? Close, out string! Key, out string! AutomationName) -> void
+DigitalBrain.UI.InfoBar.InfoBar(string! Title, string! Message, string! Tone = "neutral", DigitalBrain.UI.Button? Action = null, DigitalBrain.UI.Command? Close = null, string! Key = "", string! AutomationName = "") -> void
+DigitalBrain.UI.InfoBar.Key.get -> string!
+DigitalBrain.UI.InfoBar.Key.init -> void
+DigitalBrain.UI.Markdown
+DigitalBrain.UI.Markdown.Deconstruct(out string! Value) -> void
+DigitalBrain.UI.Markdown.Equals(DigitalBrain.UI.Markdown? other) -> bool
+DigitalBrain.UI.Markdown.Markdown(string! Value) -> void
+DigitalBrain.UI.Markdown.Value.get -> string!
+DigitalBrain.UI.Markdown.Value.init -> void
+DigitalBrain.UI.Progress.Deconstruct(out string! Label, out double Value, out string? Detail, out bool IsIndeterminate, out bool ShowError, out bool Ring) -> void
+DigitalBrain.UI.Progress.IsIndeterminate.get -> bool
+DigitalBrain.UI.Progress.IsIndeterminate.init -> void
+DigitalBrain.UI.Progress.Progress(string! Label, double Value, string? Detail = null, bool IsIndeterminate = false, bool ShowError = false, bool Ring = false) -> void
+DigitalBrain.UI.Progress.Ring.get -> bool
+DigitalBrain.UI.Progress.Ring.init -> void
+DigitalBrain.UI.Progress.ShowError.get -> bool
+DigitalBrain.UI.Progress.ShowError.init -> void
+override DigitalBrain.UI.IconButton.<Clone>$() -> DigitalBrain.UI.IconButton!
+override DigitalBrain.UI.IconButton.Equals(object? obj) -> bool
+override DigitalBrain.UI.IconButton.GetHashCode() -> int
+override DigitalBrain.UI.IconButton.ToString() -> string!
+override DigitalBrain.UI.Markdown.<Clone>$() -> DigitalBrain.UI.Markdown!
+override DigitalBrain.UI.Markdown.Equals(object? obj) -> bool
+override DigitalBrain.UI.Markdown.GetHashCode() -> int
+override DigitalBrain.UI.Markdown.ToString() -> string!
+override sealed DigitalBrain.UI.IconButton.Equals(DigitalBrain.UI.Node? other) -> bool
+override sealed DigitalBrain.UI.Markdown.Equals(DigitalBrain.UI.Node? other) -> bool
+static DigitalBrain.UI.IconButton.operator !=(DigitalBrain.UI.IconButton? left, DigitalBrain.UI.IconButton? right) -> bool
+static DigitalBrain.UI.IconButton.operator ==(DigitalBrain.UI.IconButton? left, DigitalBrain.UI.IconButton? right) -> bool
+static DigitalBrain.UI.Markdown.operator !=(DigitalBrain.UI.Markdown? left, DigitalBrain.UI.Markdown? right) -> bool
+static DigitalBrain.UI.Markdown.operator ==(DigitalBrain.UI.Markdown? left, DigitalBrain.UI.Markdown? right) -> bool
+DigitalBrain.UI.Controls.CheckBoxState
+DigitalBrain.UI.Controls.CheckBoxState.<Clone>$() -> DigitalBrain.UI.Controls.CheckBoxState!
+DigitalBrain.UI.Controls.CheckBoxState.CheckBoxState() -> void
+DigitalBrain.UI.Controls.CheckBoxState.Equals(DigitalBrain.UI.Controls.CheckBoxState? other) -> bool
+DigitalBrain.UI.Controls.CheckBoxState.IsOn.get -> bool
+DigitalBrain.UI.Controls.CheckBoxState.IsOn.init -> void
+DigitalBrain.UI.Controls.CheckBoxView
+DigitalBrain.UI.Controls.CheckBoxView.Equals(DigitalBrain.UI.Controls.CheckBoxView? other) -> bool
+DigitalBrain.UI.Controls.CheckBoxView.IsOn.get -> bool
+DigitalBrain.UI.Controls.CheckBoxView.IsOn.init -> void
+DigitalBrain.UI.Controls.CheckBoxView.Key.get -> string!
+DigitalBrain.UI.Controls.CheckBoxView.Key.init -> void
+DigitalBrain.UI.Controls.ExpanderState
+DigitalBrain.UI.Controls.ExpanderState.<Clone>$() -> DigitalBrain.UI.Controls.ExpanderState!
+DigitalBrain.UI.Controls.ExpanderState.Equals(DigitalBrain.UI.Controls.ExpanderState? other) -> bool
+DigitalBrain.UI.Controls.ExpanderState.ExpanderState() -> void
+DigitalBrain.UI.Controls.ExpanderState.IsExpanded.get -> bool
+DigitalBrain.UI.Controls.ExpanderState.IsExpanded.init -> void
+DigitalBrain.UI.Controls.ExpanderView
+DigitalBrain.UI.Controls.ExpanderView.Equals(DigitalBrain.UI.Controls.ExpanderView? other) -> bool
+DigitalBrain.UI.Controls.ExpanderView.IsExpanded.get -> bool
+DigitalBrain.UI.Controls.ExpanderView.IsExpanded.init -> void
+DigitalBrain.UI.Controls.ExpanderView.Key.get -> string!
+DigitalBrain.UI.Controls.ExpanderView.Key.init -> void
+DigitalBrain.UI.Controls.ToggleSwitchState
+DigitalBrain.UI.Controls.ToggleSwitchState.<Clone>$() -> DigitalBrain.UI.Controls.ToggleSwitchState!
+DigitalBrain.UI.Controls.ToggleSwitchState.Equals(DigitalBrain.UI.Controls.ToggleSwitchState? other) -> bool
+DigitalBrain.UI.Controls.ToggleSwitchState.IsOn.get -> bool
+DigitalBrain.UI.Controls.ToggleSwitchState.IsOn.init -> void
+DigitalBrain.UI.Controls.ToggleSwitchState.ToggleSwitchState() -> void
+DigitalBrain.UI.Controls.ToggleSwitchView
+DigitalBrain.UI.Controls.ToggleSwitchView.Equals(DigitalBrain.UI.Controls.ToggleSwitchView? other) -> bool
+DigitalBrain.UI.Controls.ToggleSwitchView.IsOn.get -> bool
+DigitalBrain.UI.Controls.ToggleSwitchView.IsOn.init -> void
+DigitalBrain.UI.Controls.ToggleSwitchView.Key.get -> string!
+DigitalBrain.UI.Controls.ToggleSwitchView.Key.init -> void
+override DigitalBrain.UI.Controls.CheckBoxState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.CheckBoxState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.CheckBoxState.ToString() -> string!
+override DigitalBrain.UI.Controls.CheckBoxView.<Clone>$() -> DigitalBrain.UI.Controls.CheckBoxView!
+override DigitalBrain.UI.Controls.CheckBoxView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.CheckBoxView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.CheckBoxView.ToString() -> string!
+override DigitalBrain.UI.Controls.ExpanderState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.ExpanderState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.ExpanderState.ToString() -> string!
+override DigitalBrain.UI.Controls.ExpanderView.<Clone>$() -> DigitalBrain.UI.Controls.ExpanderView!
+override DigitalBrain.UI.Controls.ExpanderView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.ExpanderView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.ExpanderView.ToString() -> string!
+override DigitalBrain.UI.Controls.ToggleSwitchState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.ToggleSwitchState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.ToggleSwitchState.ToString() -> string!
+override DigitalBrain.UI.Controls.ToggleSwitchView.<Clone>$() -> DigitalBrain.UI.Controls.ToggleSwitchView!
+override DigitalBrain.UI.Controls.ToggleSwitchView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.ToggleSwitchView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.ToggleSwitchView.ToString() -> string!
+override sealed DigitalBrain.UI.Controls.CheckBoxView.Equals(DigitalBrain.UI.Node? other) -> bool
+override sealed DigitalBrain.UI.Controls.ExpanderView.Equals(DigitalBrain.UI.Node? other) -> bool
+override sealed DigitalBrain.UI.Controls.ToggleSwitchView.Equals(DigitalBrain.UI.Node? other) -> bool
+static DigitalBrain.UI.Controls.CheckBoxState.operator !=(DigitalBrain.UI.Controls.CheckBoxState? left, DigitalBrain.UI.Controls.CheckBoxState? right) -> bool
+static DigitalBrain.UI.Controls.CheckBoxState.operator ==(DigitalBrain.UI.Controls.CheckBoxState? left, DigitalBrain.UI.Controls.CheckBoxState? right) -> bool
+static DigitalBrain.UI.Controls.CheckBoxView.operator !=(DigitalBrain.UI.Controls.CheckBoxView? left, DigitalBrain.UI.Controls.CheckBoxView? right) -> bool
+static DigitalBrain.UI.Controls.CheckBoxView.operator ==(DigitalBrain.UI.Controls.CheckBoxView? left, DigitalBrain.UI.Controls.CheckBoxView? right) -> bool
+static DigitalBrain.UI.Controls.ExpanderState.operator !=(DigitalBrain.UI.Controls.ExpanderState? left, DigitalBrain.UI.Controls.ExpanderState? right) -> bool
+static DigitalBrain.UI.Controls.ExpanderState.operator ==(DigitalBrain.UI.Controls.ExpanderState? left, DigitalBrain.UI.Controls.ExpanderState? right) -> bool
+static DigitalBrain.UI.Controls.ExpanderView.operator !=(DigitalBrain.UI.Controls.ExpanderView? left, DigitalBrain.UI.Controls.ExpanderView? right) -> bool
+static DigitalBrain.UI.Controls.ExpanderView.operator ==(DigitalBrain.UI.Controls.ExpanderView? left, DigitalBrain.UI.Controls.ExpanderView? right) -> bool
+static DigitalBrain.UI.Controls.ToggleSwitchState.operator !=(DigitalBrain.UI.Controls.ToggleSwitchState? left, DigitalBrain.UI.Controls.ToggleSwitchState? right) -> bool
+static DigitalBrain.UI.Controls.ToggleSwitchState.operator ==(DigitalBrain.UI.Controls.ToggleSwitchState? left, DigitalBrain.UI.Controls.ToggleSwitchState? right) -> bool
+static DigitalBrain.UI.Controls.ToggleSwitchView.operator !=(DigitalBrain.UI.Controls.ToggleSwitchView? left, DigitalBrain.UI.Controls.ToggleSwitchView? right) -> bool
+static DigitalBrain.UI.Controls.ToggleSwitchView.operator ==(DigitalBrain.UI.Controls.ToggleSwitchView? left, DigitalBrain.UI.Controls.ToggleSwitchView? right) -> bool
+DigitalBrain.UI.Controls.CheckBoxView.CheckBoxView(string! Key, bool IsOn) -> void
+DigitalBrain.UI.Controls.CheckBoxView.Deconstruct(out string! Key, out bool IsOn) -> void
+DigitalBrain.UI.Controls.ExpanderView.Deconstruct(out string! Key, out bool IsExpanded) -> void
+DigitalBrain.UI.Controls.ExpanderView.ExpanderView(string! Key, bool IsExpanded) -> void
+DigitalBrain.UI.Controls.ToggleSwitchView.Deconstruct(out string! Key, out bool IsOn) -> void
+DigitalBrain.UI.Controls.ToggleSwitchView.ToggleSwitchView(string! Key, bool IsOn) -> void
+DigitalBrain.UI.NeuronRef.Deconstruct(out string! Kind, out string! NeuronUri, out System.Text.Json.JsonElement? Props) -> void
+DigitalBrain.UI.NeuronRef.NeuronRef(string! Kind, string! NeuronUri, System.Text.Json.JsonElement? Props = null) -> void
+DigitalBrain.UI.NeuronRef.Props.get -> System.Text.Json.JsonElement?
+DigitalBrain.UI.NeuronRef.Props.init -> void
+DigitalBrain.UI.CheckBoxProps
+DigitalBrain.UI.CheckBoxProps.Equals(DigitalBrain.UI.CheckBoxProps? other) -> bool
+DigitalBrain.UI.CheckBoxProps.Label.get -> string!
+DigitalBrain.UI.CheckBoxProps.Label.init -> void
+DigitalBrain.UI.ControlProps
+DigitalBrain.UI.ControlProps.AutomationName.get -> string?
+DigitalBrain.UI.ControlProps.AutomationName.init -> void
+DigitalBrain.UI.ControlProps.ControlProps(DigitalBrain.UI.ControlProps! original) -> void
+DigitalBrain.UI.ControlProps.ControlProps(bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.ControlProps.Deconstruct(out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.ControlProps.IsEnabled.get -> bool
+DigitalBrain.UI.ControlProps.IsEnabled.init -> void
+DigitalBrain.UI.ExpanderProps
+DigitalBrain.UI.ExpanderProps.Children.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>!
+DigitalBrain.UI.ExpanderProps.Children.init -> void
+DigitalBrain.UI.ExpanderProps.Deconstruct(out string! Header, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>! Children, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.ExpanderProps.Equals(DigitalBrain.UI.ExpanderProps? other) -> bool
+DigitalBrain.UI.ExpanderProps.ExpanderProps(string! Header, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>! Children, bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.ExpanderProps.Header.get -> string!
+DigitalBrain.UI.ExpanderProps.Header.init -> void
+DigitalBrain.UI.ToggleSwitchProps
+DigitalBrain.UI.ToggleSwitchProps.Equals(DigitalBrain.UI.ToggleSwitchProps? other) -> bool
+DigitalBrain.UI.ToggleSwitchProps.Label.get -> string!
+DigitalBrain.UI.ToggleSwitchProps.Label.init -> void
+DigitalBrain.UI.ToggleSwitchProps.OffContent.get -> string?
+DigitalBrain.UI.ToggleSwitchProps.OffContent.init -> void
+DigitalBrain.UI.ToggleSwitchProps.OnContent.get -> string?
+DigitalBrain.UI.ToggleSwitchProps.OnContent.init -> void
+abstract DigitalBrain.UI.ControlProps.<Clone>$() -> DigitalBrain.UI.ControlProps!
+const DigitalBrain.UI.ControlProps.Disabled = "control.disabled" -> string!
+override DigitalBrain.UI.CheckBoxProps.<Clone>$() -> DigitalBrain.UI.CheckBoxProps!
+override DigitalBrain.UI.CheckBoxProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.CheckBoxProps.GetHashCode() -> int
+override DigitalBrain.UI.CheckBoxProps.ToString() -> string!
+override DigitalBrain.UI.ControlProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.ControlProps.GetHashCode() -> int
+override DigitalBrain.UI.ControlProps.ToString() -> string!
+override DigitalBrain.UI.ExpanderProps.<Clone>$() -> DigitalBrain.UI.ExpanderProps!
+override DigitalBrain.UI.ExpanderProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.ExpanderProps.GetHashCode() -> int
+override DigitalBrain.UI.ExpanderProps.ToString() -> string!
+override DigitalBrain.UI.ToggleSwitchProps.<Clone>$() -> DigitalBrain.UI.ToggleSwitchProps!
+override DigitalBrain.UI.ToggleSwitchProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.ToggleSwitchProps.GetHashCode() -> int
+override DigitalBrain.UI.ToggleSwitchProps.ToString() -> string!
+override sealed DigitalBrain.UI.CheckBoxProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+override sealed DigitalBrain.UI.ExpanderProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+override sealed DigitalBrain.UI.ToggleSwitchProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+static DigitalBrain.UI.CheckBoxProps.operator !=(DigitalBrain.UI.CheckBoxProps? left, DigitalBrain.UI.CheckBoxProps? right) -> bool
+static DigitalBrain.UI.CheckBoxProps.operator ==(DigitalBrain.UI.CheckBoxProps? left, DigitalBrain.UI.CheckBoxProps? right) -> bool
+static DigitalBrain.UI.ControlProps.operator !=(DigitalBrain.UI.ControlProps? left, DigitalBrain.UI.ControlProps? right) -> bool
+static DigitalBrain.UI.ControlProps.operator ==(DigitalBrain.UI.ControlProps? left, DigitalBrain.UI.ControlProps? right) -> bool
+static DigitalBrain.UI.ExpanderProps.operator !=(DigitalBrain.UI.ExpanderProps? left, DigitalBrain.UI.ExpanderProps? right) -> bool
+static DigitalBrain.UI.ExpanderProps.operator ==(DigitalBrain.UI.ExpanderProps? left, DigitalBrain.UI.ExpanderProps? right) -> bool
+static DigitalBrain.UI.ToggleSwitchProps.operator !=(DigitalBrain.UI.ToggleSwitchProps? left, DigitalBrain.UI.ToggleSwitchProps? right) -> bool
+static DigitalBrain.UI.ToggleSwitchProps.operator ==(DigitalBrain.UI.ToggleSwitchProps? left, DigitalBrain.UI.ToggleSwitchProps? right) -> bool
+virtual DigitalBrain.UI.ControlProps.EqualityContract.get -> System.Type!
+virtual DigitalBrain.UI.ControlProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+virtual DigitalBrain.UI.ControlProps.PrintMembers(System.Text.StringBuilder! builder) -> bool
+DigitalBrain.UI.IControl<TProps>
+DigitalBrain.UI.Controls.TabStripState
+DigitalBrain.UI.Controls.TabStripState.<Clone>$() -> DigitalBrain.UI.Controls.TabStripState!
+DigitalBrain.UI.Controls.TabStripState.Equals(DigitalBrain.UI.Controls.TabStripState? other) -> bool
+DigitalBrain.UI.Controls.TabStripState.SelectedId.get -> string?
+DigitalBrain.UI.Controls.TabStripState.SelectedId.init -> void
+DigitalBrain.UI.Controls.TabStripState.TabStripState() -> void
+DigitalBrain.UI.Controls.TabStripView
+DigitalBrain.UI.Controls.TabStripView.Deconstruct(out string! Key, out string? SelectedId) -> void
+DigitalBrain.UI.Controls.TabStripView.Equals(DigitalBrain.UI.Controls.TabStripView? other) -> bool
+DigitalBrain.UI.Controls.TabStripView.Key.get -> string!
+DigitalBrain.UI.Controls.TabStripView.Key.init -> void
+DigitalBrain.UI.Controls.TabStripView.SelectedId.get -> string?
+DigitalBrain.UI.Controls.TabStripView.SelectedId.init -> void
+DigitalBrain.UI.Controls.TabStripView.TabStripView(string! Key, string? SelectedId) -> void
+DigitalBrain.UI.SelectionRefusals
+DigitalBrain.UI.TabStripItem
+DigitalBrain.UI.TabStripItem.<Clone>$() -> DigitalBrain.UI.TabStripItem!
+DigitalBrain.UI.TabStripItem.Deconstruct(out string! Id, out string! Label, out string? Icon) -> void
+DigitalBrain.UI.TabStripItem.Equals(DigitalBrain.UI.TabStripItem? other) -> bool
+DigitalBrain.UI.TabStripItem.Icon.get -> string?
+DigitalBrain.UI.TabStripItem.Icon.init -> void
+DigitalBrain.UI.TabStripItem.Id.get -> string!
+DigitalBrain.UI.TabStripItem.Id.init -> void
+DigitalBrain.UI.TabStripItem.Label.get -> string!
+DigitalBrain.UI.TabStripItem.Label.init -> void
+DigitalBrain.UI.TabStripItem.TabStripItem(string! Id, string! Label, string? Icon = null) -> void
+DigitalBrain.UI.TabStripProps
+DigitalBrain.UI.TabStripProps.Equals(DigitalBrain.UI.TabStripProps? other) -> bool
+DigitalBrain.UI.TabStripProps.Items.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.TabStripItem!>!
+DigitalBrain.UI.TabStripProps.Items.init -> void
+const DigitalBrain.UI.SelectionRefusals.SelectionOff = "control.selectionOff" -> string!
+const DigitalBrain.UI.SelectionRefusals.UnknownItem = "control.unknownItem" -> string!
+override DigitalBrain.UI.Controls.TabStripState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.TabStripState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.TabStripState.ToString() -> string!
+override DigitalBrain.UI.Controls.TabStripView.<Clone>$() -> DigitalBrain.UI.Controls.TabStripView!
+override DigitalBrain.UI.Controls.TabStripView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.TabStripView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.TabStripView.ToString() -> string!
+override DigitalBrain.UI.TabStripItem.Equals(object? obj) -> bool
+override DigitalBrain.UI.TabStripItem.GetHashCode() -> int
+override DigitalBrain.UI.TabStripItem.ToString() -> string!
+override DigitalBrain.UI.TabStripProps.<Clone>$() -> DigitalBrain.UI.TabStripProps!
+override DigitalBrain.UI.TabStripProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.TabStripProps.GetHashCode() -> int
+override DigitalBrain.UI.TabStripProps.ToString() -> string!
+override sealed DigitalBrain.UI.Controls.TabStripView.Equals(DigitalBrain.UI.Node? other) -> bool
+override sealed DigitalBrain.UI.TabStripProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+static DigitalBrain.UI.Controls.TabStripState.operator !=(DigitalBrain.UI.Controls.TabStripState? left, DigitalBrain.UI.Controls.TabStripState? right) -> bool
+static DigitalBrain.UI.Controls.TabStripState.operator ==(DigitalBrain.UI.Controls.TabStripState? left, DigitalBrain.UI.Controls.TabStripState? right) -> bool
+static DigitalBrain.UI.Controls.TabStripView.operator !=(DigitalBrain.UI.Controls.TabStripView? left, DigitalBrain.UI.Controls.TabStripView? right) -> bool
+static DigitalBrain.UI.Controls.TabStripView.operator ==(DigitalBrain.UI.Controls.TabStripView? left, DigitalBrain.UI.Controls.TabStripView? right) -> bool
+static DigitalBrain.UI.TabStripItem.operator !=(DigitalBrain.UI.TabStripItem? left, DigitalBrain.UI.TabStripItem? right) -> bool
+static DigitalBrain.UI.TabStripItem.operator ==(DigitalBrain.UI.TabStripItem? left, DigitalBrain.UI.TabStripItem? right) -> bool
+static DigitalBrain.UI.TabStripProps.operator !=(DigitalBrain.UI.TabStripProps? left, DigitalBrain.UI.TabStripProps? right) -> bool
+static DigitalBrain.UI.TabStripProps.operator ==(DigitalBrain.UI.TabStripProps? left, DigitalBrain.UI.TabStripProps? right) -> bool
+DigitalBrain.UI.ComboBoxOption
+DigitalBrain.UI.ComboBoxOption.<Clone>$() -> DigitalBrain.UI.ComboBoxOption!
+DigitalBrain.UI.ComboBoxOption.ComboBoxOption(string! Id, string! Label) -> void
+DigitalBrain.UI.ComboBoxOption.Deconstruct(out string! Id, out string! Label) -> void
+DigitalBrain.UI.ComboBoxOption.Equals(DigitalBrain.UI.ComboBoxOption? other) -> bool
+DigitalBrain.UI.ComboBoxOption.Id.get -> string!
+DigitalBrain.UI.ComboBoxOption.Id.init -> void
+DigitalBrain.UI.ComboBoxOption.Label.get -> string!
+DigitalBrain.UI.ComboBoxOption.Label.init -> void
+DigitalBrain.UI.ComboBoxProps
+DigitalBrain.UI.ComboBoxProps.Equals(DigitalBrain.UI.ComboBoxProps? other) -> bool
+DigitalBrain.UI.ComboBoxProps.Header.get -> string!
+DigitalBrain.UI.ComboBoxProps.Header.init -> void
+DigitalBrain.UI.ComboBoxProps.Options.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ComboBoxOption!>!
+DigitalBrain.UI.ComboBoxProps.Options.init -> void
+DigitalBrain.UI.Controls.ComboBoxState
+DigitalBrain.UI.Controls.ComboBoxState.<Clone>$() -> DigitalBrain.UI.Controls.ComboBoxState!
+DigitalBrain.UI.Controls.ComboBoxState.ComboBoxState() -> void
+DigitalBrain.UI.Controls.ComboBoxState.Equals(DigitalBrain.UI.Controls.ComboBoxState? other) -> bool
+DigitalBrain.UI.Controls.ComboBoxState.SelectedId.get -> string?
+DigitalBrain.UI.Controls.ComboBoxState.SelectedId.init -> void
+DigitalBrain.UI.Controls.ComboBoxView
+DigitalBrain.UI.Controls.ComboBoxView.ComboBoxView(string! Key, string? SelectedId) -> void
+DigitalBrain.UI.Controls.ComboBoxView.Deconstruct(out string! Key, out string? SelectedId) -> void
+DigitalBrain.UI.Controls.ComboBoxView.Equals(DigitalBrain.UI.Controls.ComboBoxView? other) -> bool
+DigitalBrain.UI.Controls.ComboBoxView.Key.get -> string!
+DigitalBrain.UI.Controls.ComboBoxView.Key.init -> void
+DigitalBrain.UI.Controls.ComboBoxView.SelectedId.get -> string?
+DigitalBrain.UI.Controls.ComboBoxView.SelectedId.init -> void
+override DigitalBrain.UI.ComboBoxOption.Equals(object? obj) -> bool
+override DigitalBrain.UI.ComboBoxOption.GetHashCode() -> int
+override DigitalBrain.UI.ComboBoxOption.ToString() -> string!
+override DigitalBrain.UI.ComboBoxProps.<Clone>$() -> DigitalBrain.UI.ComboBoxProps!
+override DigitalBrain.UI.ComboBoxProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.ComboBoxProps.GetHashCode() -> int
+override DigitalBrain.UI.ComboBoxProps.ToString() -> string!
+override DigitalBrain.UI.Controls.ComboBoxState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.ComboBoxState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.ComboBoxState.ToString() -> string!
+override DigitalBrain.UI.Controls.ComboBoxView.<Clone>$() -> DigitalBrain.UI.Controls.ComboBoxView!
+override DigitalBrain.UI.Controls.ComboBoxView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.ComboBoxView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.ComboBoxView.ToString() -> string!
+override sealed DigitalBrain.UI.ComboBoxProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+override sealed DigitalBrain.UI.Controls.ComboBoxView.Equals(DigitalBrain.UI.Node? other) -> bool
+static DigitalBrain.UI.ComboBoxOption.operator !=(DigitalBrain.UI.ComboBoxOption? left, DigitalBrain.UI.ComboBoxOption? right) -> bool
+static DigitalBrain.UI.ComboBoxOption.operator ==(DigitalBrain.UI.ComboBoxOption? left, DigitalBrain.UI.ComboBoxOption? right) -> bool
+static DigitalBrain.UI.ComboBoxProps.operator !=(DigitalBrain.UI.ComboBoxProps? left, DigitalBrain.UI.ComboBoxProps? right) -> bool
+static DigitalBrain.UI.ComboBoxProps.operator ==(DigitalBrain.UI.ComboBoxProps? left, DigitalBrain.UI.ComboBoxProps? right) -> bool
+static DigitalBrain.UI.Controls.ComboBoxState.operator !=(DigitalBrain.UI.Controls.ComboBoxState? left, DigitalBrain.UI.Controls.ComboBoxState? right) -> bool
+static DigitalBrain.UI.Controls.ComboBoxState.operator ==(DigitalBrain.UI.Controls.ComboBoxState? left, DigitalBrain.UI.Controls.ComboBoxState? right) -> bool
+static DigitalBrain.UI.Controls.ComboBoxView.operator !=(DigitalBrain.UI.Controls.ComboBoxView? left, DigitalBrain.UI.Controls.ComboBoxView? right) -> bool
+static DigitalBrain.UI.Controls.ComboBoxView.operator ==(DigitalBrain.UI.Controls.ComboBoxView? left, DigitalBrain.UI.Controls.ComboBoxView? right) -> bool
+DigitalBrain.UI.Controls.ListBoxState
+DigitalBrain.UI.Controls.ListBoxState.<Clone>$() -> DigitalBrain.UI.Controls.ListBoxState!
+DigitalBrain.UI.Controls.ListBoxState.Equals(DigitalBrain.UI.Controls.ListBoxState? other) -> bool
+DigitalBrain.UI.Controls.ListBoxState.ListBoxState() -> void
+DigitalBrain.UI.Controls.ListBoxState.SelectedId.get -> string?
+DigitalBrain.UI.Controls.ListBoxState.SelectedId.init -> void
+DigitalBrain.UI.Controls.ListBoxView
+DigitalBrain.UI.Controls.ListBoxView.Deconstruct(out string! Key, out string? SelectedId) -> void
+DigitalBrain.UI.Controls.ListBoxView.Equals(DigitalBrain.UI.Controls.ListBoxView? other) -> bool
+DigitalBrain.UI.Controls.ListBoxView.Key.get -> string!
+DigitalBrain.UI.Controls.ListBoxView.Key.init -> void
+DigitalBrain.UI.Controls.ListBoxView.ListBoxView(string! Key, string? SelectedId) -> void
+DigitalBrain.UI.Controls.ListBoxView.SelectedId.get -> string?
+DigitalBrain.UI.Controls.ListBoxView.SelectedId.init -> void
+DigitalBrain.UI.ListBoxItem
+DigitalBrain.UI.ListBoxItem.<Clone>$() -> DigitalBrain.UI.ListBoxItem!
+DigitalBrain.UI.ListBoxItem.Deconstruct(out string! Id, out string! Title, out string? Subtitle, out string? Group) -> void
+DigitalBrain.UI.ListBoxItem.Equals(DigitalBrain.UI.ListBoxItem? other) -> bool
+DigitalBrain.UI.ListBoxItem.Id.get -> string!
+DigitalBrain.UI.ListBoxItem.Id.init -> void
+DigitalBrain.UI.ListBoxItem.Group.get -> string?
+DigitalBrain.UI.ListBoxItem.Group.init -> void
+DigitalBrain.UI.ListBoxItem.ListBoxItem(string! Id, string! Title, string? Subtitle = null, string? Group = null) -> void
+DigitalBrain.UI.ListBoxItem.Subtitle.get -> string?
+DigitalBrain.UI.ListBoxItem.Subtitle.init -> void
+DigitalBrain.UI.ListBoxItem.Title.get -> string!
+DigitalBrain.UI.ListBoxItem.Title.init -> void
+DigitalBrain.UI.ListBoxProps
+DigitalBrain.UI.ListBoxProps.Equals(DigitalBrain.UI.ListBoxProps? other) -> bool
+DigitalBrain.UI.ListBoxProps.Items.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ListBoxItem!>!
+DigitalBrain.UI.ListBoxProps.Items.init -> void
+DigitalBrain.UI.ListBoxProps.SelectionMode.get -> DigitalBrain.UI.ListSelectionMode
+DigitalBrain.UI.ListBoxProps.SelectionMode.init -> void
+DigitalBrain.UI.ListSelectionMode
+DigitalBrain.UI.ListSelectionMode.None = 1 -> DigitalBrain.UI.ListSelectionMode
+DigitalBrain.UI.ListSelectionMode.Single = 0 -> DigitalBrain.UI.ListSelectionMode
+override DigitalBrain.UI.Controls.ListBoxState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.ListBoxState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.ListBoxState.ToString() -> string!
+override DigitalBrain.UI.Controls.ListBoxView.<Clone>$() -> DigitalBrain.UI.Controls.ListBoxView!
+override DigitalBrain.UI.Controls.ListBoxView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.ListBoxView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.ListBoxView.ToString() -> string!
+override DigitalBrain.UI.ListBoxItem.Equals(object? obj) -> bool
+override DigitalBrain.UI.ListBoxItem.GetHashCode() -> int
+override DigitalBrain.UI.ListBoxItem.ToString() -> string!
+override DigitalBrain.UI.ListBoxProps.<Clone>$() -> DigitalBrain.UI.ListBoxProps!
+override DigitalBrain.UI.ListBoxProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.ListBoxProps.GetHashCode() -> int
+override DigitalBrain.UI.ListBoxProps.ToString() -> string!
+override sealed DigitalBrain.UI.Controls.ListBoxView.Equals(DigitalBrain.UI.Node? other) -> bool
+override sealed DigitalBrain.UI.ListBoxProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+static DigitalBrain.UI.Controls.ListBoxState.operator !=(DigitalBrain.UI.Controls.ListBoxState? left, DigitalBrain.UI.Controls.ListBoxState? right) -> bool
+static DigitalBrain.UI.Controls.ListBoxState.operator ==(DigitalBrain.UI.Controls.ListBoxState? left, DigitalBrain.UI.Controls.ListBoxState? right) -> bool
+static DigitalBrain.UI.Controls.ListBoxView.operator !=(DigitalBrain.UI.Controls.ListBoxView? left, DigitalBrain.UI.Controls.ListBoxView? right) -> bool
+static DigitalBrain.UI.Controls.ListBoxView.operator ==(DigitalBrain.UI.Controls.ListBoxView? left, DigitalBrain.UI.Controls.ListBoxView? right) -> bool
+static DigitalBrain.UI.ListBoxItem.operator !=(DigitalBrain.UI.ListBoxItem? left, DigitalBrain.UI.ListBoxItem? right) -> bool
+static DigitalBrain.UI.ListBoxItem.operator ==(DigitalBrain.UI.ListBoxItem? left, DigitalBrain.UI.ListBoxItem? right) -> bool
+static DigitalBrain.UI.ListBoxProps.operator !=(DigitalBrain.UI.ListBoxProps? left, DigitalBrain.UI.ListBoxProps? right) -> bool
+static DigitalBrain.UI.ListBoxProps.operator ==(DigitalBrain.UI.ListBoxProps? left, DigitalBrain.UI.ListBoxProps? right) -> bool
+DigitalBrain.UI.ComboBoxProps.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
+DigitalBrain.UI.ICommandGate
+DigitalBrain.UI.ICommandGate.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
+DigitalBrain.UI.ListBoxProps.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
+DigitalBrain.UI.TabStripProps.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
+const DigitalBrain.UI.SelectionRefusals.SelectSignal = "control.select" -> string!
+DigitalBrain.UI.Controls.FormState
+DigitalBrain.UI.Controls.FormState.<Clone>$() -> DigitalBrain.UI.Controls.FormState!
+DigitalBrain.UI.Controls.FormState.Equals(DigitalBrain.UI.Controls.FormState? other) -> bool
+DigitalBrain.UI.Controls.FormState.FormState() -> void
+DigitalBrain.UI.Controls.FormState.Values.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+DigitalBrain.UI.Controls.FormState.Values.init -> void
+DigitalBrain.UI.Controls.FormView
+DigitalBrain.UI.Controls.FormView.Deconstruct(out string! Key, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.FormValue!>! Values) -> void
+DigitalBrain.UI.Controls.FormView.Equals(DigitalBrain.UI.Controls.FormView? other) -> bool
+DigitalBrain.UI.Controls.FormView.FormView(string! Key, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.FormValue!>! Values) -> void
+DigitalBrain.UI.Controls.FormView.Key.get -> string!
+DigitalBrain.UI.Controls.FormView.Key.init -> void
+DigitalBrain.UI.Controls.FormView.Values.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.FormValue!>!
+DigitalBrain.UI.Controls.FormView.Values.init -> void
+DigitalBrain.UI.FormInput
+DigitalBrain.UI.FormInput.<Clone>$() -> DigitalBrain.UI.FormInput!
+DigitalBrain.UI.FormInput.Deconstruct(out string! Key, out string! Label, out DigitalBrain.UI.FormFieldKind Kind, out string? Value, out string? Placeholder, out int? MaxLength, out bool IsReadOnly) -> void
+DigitalBrain.UI.FormInput.Equals(DigitalBrain.UI.FormInput? other) -> bool
+DigitalBrain.UI.FormInput.FormInput(string! Key, string! Label, DigitalBrain.UI.FormFieldKind Kind = DigitalBrain.UI.FormFieldKind.Text, string? Value = null, string? Placeholder = null, int? MaxLength = null, bool IsReadOnly = false) -> void
+DigitalBrain.UI.FormInput.IsReadOnly.get -> bool
+DigitalBrain.UI.FormInput.IsReadOnly.init -> void
+DigitalBrain.UI.FormInput.Key.get -> string!
+DigitalBrain.UI.FormInput.Key.init -> void
+DigitalBrain.UI.FormInput.Kind.get -> DigitalBrain.UI.FormFieldKind
+DigitalBrain.UI.FormInput.Kind.init -> void
+DigitalBrain.UI.FormInput.Label.get -> string!
+DigitalBrain.UI.FormInput.Label.init -> void
+DigitalBrain.UI.FormInput.MaxLength.get -> int?
+DigitalBrain.UI.FormInput.MaxLength.init -> void
+DigitalBrain.UI.FormInput.Placeholder.get -> string?
+DigitalBrain.UI.FormInput.Placeholder.init -> void
+DigitalBrain.UI.FormInput.Value.get -> string?
+DigitalBrain.UI.FormInput.Value.init -> void
+DigitalBrain.UI.FormFieldKind
+DigitalBrain.UI.FormFieldKind.Multiline = 1 -> DigitalBrain.UI.FormFieldKind
+DigitalBrain.UI.FormFieldKind.Number = 3 -> DigitalBrain.UI.FormFieldKind
+DigitalBrain.UI.FormFieldKind.Secret = 2 -> DigitalBrain.UI.FormFieldKind
+DigitalBrain.UI.FormFieldKind.Text = 0 -> DigitalBrain.UI.FormFieldKind
+DigitalBrain.UI.FormProps
+DigitalBrain.UI.FormProps.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.FormInput!>! Fields, out string! SubmitLabel, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.FormProps.Equals(DigitalBrain.UI.FormProps? other) -> bool
+DigitalBrain.UI.FormProps.Fields.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.FormInput!>!
+DigitalBrain.UI.FormProps.Fields.init -> void
+DigitalBrain.UI.FormProps.FormProps(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.FormInput!>! Fields, string! SubmitLabel = "Submit", bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.FormProps.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
+DigitalBrain.UI.FormProps.SubmitLabel.get -> string!
+DigitalBrain.UI.FormProps.SubmitLabel.init -> void
+DigitalBrain.UI.FormRefusals
+DigitalBrain.UI.FormValue
+DigitalBrain.UI.FormValue.<Clone>$() -> DigitalBrain.UI.FormValue!
+DigitalBrain.UI.FormValue.Deconstruct(out string! Key, out string! Value) -> void
+DigitalBrain.UI.FormValue.Equals(DigitalBrain.UI.FormValue? other) -> bool
+DigitalBrain.UI.FormValue.FormValue(string! Key, string! Value) -> void
+DigitalBrain.UI.FormValue.Key.get -> string!
+DigitalBrain.UI.FormValue.Key.init -> void
+DigitalBrain.UI.FormValue.Value.get -> string!
+DigitalBrain.UI.FormValue.Value.init -> void
+const DigitalBrain.UI.FormRefusals.NoValues = "control.noValues" -> string!
+const DigitalBrain.UI.FormRefusals.NotANumber = "control.notANumber" -> string!
+const DigitalBrain.UI.FormRefusals.ReadOnlyField = "control.readOnlyField" -> string!
+const DigitalBrain.UI.FormRefusals.SubmitSignal = "control.submit" -> string!
+const DigitalBrain.UI.FormRefusals.TooLong = "control.tooLong" -> string!
+const DigitalBrain.UI.FormRefusals.UnknownField = "control.unknownField" -> string!
+override DigitalBrain.UI.Controls.FormState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.FormState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.FormState.ToString() -> string!
+override DigitalBrain.UI.Controls.FormView.<Clone>$() -> DigitalBrain.UI.Controls.FormView!
+override DigitalBrain.UI.Controls.FormView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.FormView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.FormView.ToString() -> string!
+override DigitalBrain.UI.FormInput.Equals(object? obj) -> bool
+override DigitalBrain.UI.FormInput.GetHashCode() -> int
+override DigitalBrain.UI.FormInput.ToString() -> string!
+override DigitalBrain.UI.FormProps.<Clone>$() -> DigitalBrain.UI.FormProps!
+override DigitalBrain.UI.FormProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.FormProps.GetHashCode() -> int
+override DigitalBrain.UI.FormProps.ToString() -> string!
+override DigitalBrain.UI.FormValue.Equals(object? obj) -> bool
+override DigitalBrain.UI.FormValue.GetHashCode() -> int
+override DigitalBrain.UI.FormValue.ToString() -> string!
+override sealed DigitalBrain.UI.Controls.FormView.Equals(DigitalBrain.UI.Node? other) -> bool
+override sealed DigitalBrain.UI.FormProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+static DigitalBrain.UI.Controls.FormState.operator !=(DigitalBrain.UI.Controls.FormState? left, DigitalBrain.UI.Controls.FormState? right) -> bool
+static DigitalBrain.UI.Controls.FormState.operator ==(DigitalBrain.UI.Controls.FormState? left, DigitalBrain.UI.Controls.FormState? right) -> bool
+static DigitalBrain.UI.Controls.FormView.operator !=(DigitalBrain.UI.Controls.FormView? left, DigitalBrain.UI.Controls.FormView? right) -> bool
+static DigitalBrain.UI.Controls.FormView.operator ==(DigitalBrain.UI.Controls.FormView? left, DigitalBrain.UI.Controls.FormView? right) -> bool
+static DigitalBrain.UI.FormInput.operator !=(DigitalBrain.UI.FormInput? left, DigitalBrain.UI.FormInput? right) -> bool
+static DigitalBrain.UI.FormInput.operator ==(DigitalBrain.UI.FormInput? left, DigitalBrain.UI.FormInput? right) -> bool
+static DigitalBrain.UI.FormProps.operator !=(DigitalBrain.UI.FormProps? left, DigitalBrain.UI.FormProps? right) -> bool
+static DigitalBrain.UI.FormProps.operator ==(DigitalBrain.UI.FormProps? left, DigitalBrain.UI.FormProps? right) -> bool
+static DigitalBrain.UI.FormValue.operator !=(DigitalBrain.UI.FormValue? left, DigitalBrain.UI.FormValue? right) -> bool
+static DigitalBrain.UI.FormValue.operator ==(DigitalBrain.UI.FormValue? left, DigitalBrain.UI.FormValue? right) -> bool
+DigitalBrain.UI.CheckBoxProps.CheckBoxProps(string! Label, bool IsEnabled = true, string? AutomationName = null, bool? IsOn = null) -> void
+DigitalBrain.UI.CheckBoxProps.Deconstruct(out string! Label, out bool IsEnabled, out string? AutomationName, out bool? IsOn) -> void
+DigitalBrain.UI.CheckBoxProps.IsOn.get -> bool?
+DigitalBrain.UI.CheckBoxProps.IsOn.init -> void
+DigitalBrain.UI.ComboBoxProps.ComboBoxProps(string! Header, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ComboBoxOption!>! Options, bool IsEnabled = true, string? AutomationName = null, string? SelectedId = null) -> void
+DigitalBrain.UI.ComboBoxProps.Deconstruct(out string! Header, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ComboBoxOption!>! Options, out bool IsEnabled, out string? AutomationName, out string? SelectedId) -> void
+DigitalBrain.UI.ComboBoxProps.SelectedId.get -> string?
+DigitalBrain.UI.ComboBoxProps.SelectedId.init -> void
+DigitalBrain.UI.Command.Command(string! Target, string! Signal, System.Text.Json.JsonElement? Args = null, System.Text.Json.JsonElement? Props = null) -> void
+DigitalBrain.UI.Command.Deconstruct(out string! Target, out string! Signal, out System.Text.Json.JsonElement? Args, out System.Text.Json.JsonElement? Props) -> void
+DigitalBrain.UI.Command.Props.get -> System.Text.Json.JsonElement?
+DigitalBrain.UI.Command.Props.init -> void
+DigitalBrain.UI.ListBoxProps.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ListBoxItem!>! Items, out DigitalBrain.UI.ListSelectionMode SelectionMode, out bool IsEnabled, out string? AutomationName, out string? SelectedId) -> void
+DigitalBrain.UI.ListBoxProps.ListBoxProps(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ListBoxItem!>! Items, DigitalBrain.UI.ListSelectionMode SelectionMode = DigitalBrain.UI.ListSelectionMode.Single, bool IsEnabled = true, string? AutomationName = null, string? SelectedId = null) -> void
+DigitalBrain.UI.ListBoxProps.SelectedId.get -> string?
+DigitalBrain.UI.ListBoxProps.SelectedId.init -> void
+DigitalBrain.UI.TabStripProps.Deconstruct(out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.TabStripItem!>! Items, out bool IsEnabled, out string? AutomationName, out string? SelectedId) -> void
+DigitalBrain.UI.TabStripProps.SelectedId.get -> string?
+DigitalBrain.UI.TabStripProps.SelectedId.init -> void
+DigitalBrain.UI.TabStripProps.TabStripProps(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.TabStripItem!>! Items, bool IsEnabled = true, string? AutomationName = null, string? SelectedId = null) -> void
+DigitalBrain.UI.ToggleSwitchProps.Deconstruct(out string! Label, out string? OnContent, out string? OffContent, out bool IsEnabled, out string? AutomationName, out bool? IsOn) -> void
+DigitalBrain.UI.ToggleSwitchProps.IsOn.get -> bool?
+DigitalBrain.UI.ToggleSwitchProps.IsOn.init -> void
+DigitalBrain.UI.ToggleSwitchProps.ToggleSwitchProps(string! Label, string? OnContent = null, string? OffContent = null, bool IsEnabled = true, string? AutomationName = null, bool? IsOn = null) -> void
+const DigitalBrain.UI.FormRefusals.SecretUnsupported = "control.secretUnsupported" -> string!
+DigitalBrain.UI.ChartRefusals
+DigitalBrain.UI.Controls.LiveChartState
+DigitalBrain.UI.Controls.LiveChartState.<Clone>$() -> DigitalBrain.UI.Controls.LiveChartState!
+DigitalBrain.UI.Controls.LiveChartState.Equals(DigitalBrain.UI.Controls.LiveChartState? other) -> bool
+DigitalBrain.UI.Controls.LiveChartState.LiveChartState() -> void
+DigitalBrain.UI.Controls.LiveChartState.Points.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.LivePoint!>!
+DigitalBrain.UI.Controls.LiveChartState.Points.init -> void
+DigitalBrain.UI.Controls.LiveChartState.Version.get -> int
+DigitalBrain.UI.Controls.LiveChartState.Version.init -> void
+DigitalBrain.UI.Controls.LiveChartView
+DigitalBrain.UI.Controls.LiveChartView.Deconstruct(out string! Key, out int Version, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ChartPointNode!>! Points) -> void
+DigitalBrain.UI.Controls.LiveChartView.Equals(DigitalBrain.UI.Controls.LiveChartView? other) -> bool
+DigitalBrain.UI.Controls.LiveChartView.Key.get -> string!
+DigitalBrain.UI.Controls.LiveChartView.Key.init -> void
+DigitalBrain.UI.Controls.LiveChartView.LiveChartView(string! Key, int Version, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ChartPointNode!>! Points) -> void
+DigitalBrain.UI.Controls.LiveChartView.Points.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ChartPointNode!>!
+DigitalBrain.UI.Controls.LiveChartView.Points.init -> void
+DigitalBrain.UI.Controls.LiveChartView.Version.get -> int
+DigitalBrain.UI.Controls.LiveChartView.Version.init -> void
+DigitalBrain.UI.LivePoint
+DigitalBrain.UI.LivePoint.<Clone>$() -> DigitalBrain.UI.LivePoint!
+DigitalBrain.UI.LivePoint.Deconstruct(out string! EventId, out string! Label, out double Value) -> void
+DigitalBrain.UI.LivePoint.Equals(DigitalBrain.UI.LivePoint? other) -> bool
+DigitalBrain.UI.LivePoint.EventId.get -> string!
+DigitalBrain.UI.LivePoint.EventId.init -> void
+DigitalBrain.UI.LivePoint.Label.get -> string!
+DigitalBrain.UI.LivePoint.Label.init -> void
+DigitalBrain.UI.LivePoint.LivePoint(string! EventId, string! Label, double Value) -> void
+DigitalBrain.UI.LivePoint.Value.get -> double
+DigitalBrain.UI.LivePoint.Value.init -> void
+DigitalBrain.UI.LiveChartProps
+DigitalBrain.UI.LiveChartProps.Deconstruct(out string! Title, out string! Kind, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.LiveChartProps.Equals(DigitalBrain.UI.LiveChartProps? other) -> bool
+DigitalBrain.UI.LiveChartProps.Kind.get -> string!
+DigitalBrain.UI.LiveChartProps.Kind.init -> void
+DigitalBrain.UI.LiveChartProps.KindIsKnown.get -> bool
+DigitalBrain.UI.LiveChartProps.LiveChartProps(string! Title, string! Kind = "bar", bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.LiveChartProps.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
+DigitalBrain.UI.LiveChartProps.Title.get -> string!
+DigitalBrain.UI.LiveChartProps.Title.init -> void
+const DigitalBrain.UI.ChartRefusals.AppendSignal = "control.append" -> string!
+const DigitalBrain.UI.ChartRefusals.ReplaceSignal = "control.replace" -> string!
+const DigitalBrain.UI.ChartRefusals.UnknownKind = "control.unknownKind" -> string!
+const DigitalBrain.UI.Controls.LiveChartState.MaxPoints = 200 -> int
+override DigitalBrain.UI.Controls.LiveChartState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.LiveChartState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.LiveChartState.ToString() -> string!
+override DigitalBrain.UI.Controls.LiveChartView.<Clone>$() -> DigitalBrain.UI.Controls.LiveChartView!
+override DigitalBrain.UI.Controls.LiveChartView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.LiveChartView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.LiveChartView.ToString() -> string!
+override DigitalBrain.UI.LivePoint.Equals(object? obj) -> bool
+override DigitalBrain.UI.LivePoint.GetHashCode() -> int
+override DigitalBrain.UI.LivePoint.ToString() -> string!
+override DigitalBrain.UI.LiveChartProps.<Clone>$() -> DigitalBrain.UI.LiveChartProps!
+override DigitalBrain.UI.LiveChartProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.LiveChartProps.GetHashCode() -> int
+override DigitalBrain.UI.LiveChartProps.ToString() -> string!
+override sealed DigitalBrain.UI.Controls.LiveChartView.Equals(DigitalBrain.UI.Node? other) -> bool
+override sealed DigitalBrain.UI.LiveChartProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+static DigitalBrain.UI.Controls.LiveChartState.operator !=(DigitalBrain.UI.Controls.LiveChartState? left, DigitalBrain.UI.Controls.LiveChartState? right) -> bool
+static DigitalBrain.UI.Controls.LiveChartState.operator ==(DigitalBrain.UI.Controls.LiveChartState? left, DigitalBrain.UI.Controls.LiveChartState? right) -> bool
+static DigitalBrain.UI.Controls.LiveChartView.operator !=(DigitalBrain.UI.Controls.LiveChartView? left, DigitalBrain.UI.Controls.LiveChartView? right) -> bool
+static DigitalBrain.UI.Controls.LiveChartView.operator ==(DigitalBrain.UI.Controls.LiveChartView? left, DigitalBrain.UI.Controls.LiveChartView? right) -> bool
+static DigitalBrain.UI.LivePoint.operator !=(DigitalBrain.UI.LivePoint? left, DigitalBrain.UI.LivePoint? right) -> bool
+static DigitalBrain.UI.LivePoint.operator ==(DigitalBrain.UI.LivePoint? left, DigitalBrain.UI.LivePoint? right) -> bool
+static DigitalBrain.UI.LiveChartProps.operator !=(DigitalBrain.UI.LiveChartProps? left, DigitalBrain.UI.LiveChartProps? right) -> bool
+static DigitalBrain.UI.LiveChartProps.operator ==(DigitalBrain.UI.LiveChartProps? left, DigitalBrain.UI.LiveChartProps? right) -> bool
+static readonly DigitalBrain.UI.ChartRefusals.Kinds -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.UI.Controls.QueryTableState
+DigitalBrain.UI.Controls.QueryTableState.<Clone>$() -> DigitalBrain.UI.Controls.QueryTableState!
+DigitalBrain.UI.Controls.QueryTableState.Descending.get -> bool
+DigitalBrain.UI.Controls.QueryTableState.Descending.init -> void
+DigitalBrain.UI.Controls.QueryTableState.Equals(DigitalBrain.UI.Controls.QueryTableState? other) -> bool
+DigitalBrain.UI.Controls.QueryTableState.Filter.get -> string!
+DigitalBrain.UI.Controls.QueryTableState.Filter.init -> void
+DigitalBrain.UI.Controls.QueryTableState.Page.get -> int
+DigitalBrain.UI.Controls.QueryTableState.Page.init -> void
+DigitalBrain.UI.Controls.QueryTableState.QueryTableState() -> void
+DigitalBrain.UI.Controls.QueryTableState.SortBy.get -> string?
+DigitalBrain.UI.Controls.QueryTableState.SortBy.init -> void
+DigitalBrain.UI.Controls.QueryTableView
+DigitalBrain.UI.Controls.QueryTableView.ColumnIds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DigitalBrain.UI.Controls.QueryTableView.ColumnIds.init -> void
+DigitalBrain.UI.Controls.QueryTableView.Deconstruct(out string! Key, out string! Filter, out string? SortBy, out bool Descending, out int Page, out int PageSize, out int Total, out bool Loaded, out System.Collections.Generic.IReadOnlyList<string!>! ColumnIds, out System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string!>!>! Rows, out string? Error) -> void
+DigitalBrain.UI.Controls.QueryTableView.Descending.get -> bool
+DigitalBrain.UI.Controls.QueryTableView.Descending.init -> void
+DigitalBrain.UI.Controls.QueryTableView.Equals(DigitalBrain.UI.Controls.QueryTableView? other) -> bool
+DigitalBrain.UI.Controls.QueryTableView.Error.get -> string?
+DigitalBrain.UI.Controls.QueryTableView.Error.init -> void
+DigitalBrain.UI.Controls.QueryTableView.Filter.get -> string!
+DigitalBrain.UI.Controls.QueryTableView.Filter.init -> void
+DigitalBrain.UI.Controls.QueryTableView.Key.get -> string!
+DigitalBrain.UI.Controls.QueryTableView.Key.init -> void
+DigitalBrain.UI.Controls.QueryTableView.Loaded.get -> bool
+DigitalBrain.UI.Controls.QueryTableView.Loaded.init -> void
+DigitalBrain.UI.Controls.QueryTableView.Page.get -> int
+DigitalBrain.UI.Controls.QueryTableView.Page.init -> void
+DigitalBrain.UI.Controls.QueryTableView.PageSize.get -> int
+DigitalBrain.UI.Controls.QueryTableView.PageSize.init -> void
+DigitalBrain.UI.Controls.QueryTableView.QueryTableView(string! Key, string! Filter, string? SortBy, bool Descending, int Page, int PageSize, int Total, bool Loaded, System.Collections.Generic.IReadOnlyList<string!>! ColumnIds, System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string!>!>! Rows, string? Error) -> void
+DigitalBrain.UI.Controls.QueryTableView.Rows.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string!>!>!
+DigitalBrain.UI.Controls.QueryTableView.Rows.init -> void
+DigitalBrain.UI.Controls.QueryTableView.SortBy.get -> string?
+DigitalBrain.UI.Controls.QueryTableView.SortBy.init -> void
+DigitalBrain.UI.Controls.QueryTableView.Total.get -> int
+DigitalBrain.UI.Controls.QueryTableView.Total.init -> void
+DigitalBrain.UI.QueryTableColumn
+DigitalBrain.UI.QueryTableColumn.<Clone>$() -> DigitalBrain.UI.QueryTableColumn!
+DigitalBrain.UI.QueryTableColumn.Deconstruct(out string! Id, out string! Title) -> void
+DigitalBrain.UI.QueryTableColumn.Equals(DigitalBrain.UI.QueryTableColumn? other) -> bool
+DigitalBrain.UI.QueryTableColumn.Id.get -> string!
+DigitalBrain.UI.QueryTableColumn.Id.init -> void
+DigitalBrain.UI.QueryTableColumn.QueryTableColumn(string! Id, string! Title) -> void
+DigitalBrain.UI.QueryTableColumn.Title.get -> string!
+DigitalBrain.UI.QueryTableColumn.Title.init -> void
+DigitalBrain.UI.QueryTableProps
+DigitalBrain.UI.QueryTableProps.Columns.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.QueryTableColumn!>!
+DigitalBrain.UI.QueryTableProps.Columns.init -> void
+DigitalBrain.UI.QueryTableProps.Deconstruct(out string! Title, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.QueryTableColumn!>! Columns, out string! SourceAddress, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.QueryTableProps.Equals(DigitalBrain.UI.QueryTableProps? other) -> bool
+DigitalBrain.UI.QueryTableProps.QueryTableProps(string! Title, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.QueryTableColumn!>! Columns, string! SourceAddress, bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.QueryTableProps.RefusalOf(string! signal, System.Text.Json.JsonElement? args) -> string?
+DigitalBrain.UI.QueryTableProps.SourceAddress.get -> string!
+DigitalBrain.UI.QueryTableProps.SourceAddress.init -> void
+DigitalBrain.UI.QueryTableProps.Title.get -> string!
+DigitalBrain.UI.QueryTableProps.Title.init -> void
+DigitalBrain.UI.TablePage
+DigitalBrain.UI.TablePage.<Clone>$() -> DigitalBrain.UI.TablePage!
+DigitalBrain.UI.TablePage.Deconstruct(out System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyDictionary<string!, string!>!>! Rows, out int Total) -> void
+DigitalBrain.UI.TablePage.Equals(DigitalBrain.UI.TablePage? other) -> bool
+DigitalBrain.UI.TablePage.Rows.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyDictionary<string!, string!>!>!
+DigitalBrain.UI.TablePage.Rows.init -> void
+DigitalBrain.UI.TablePage.TablePage(System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyDictionary<string!, string!>!>! Rows, int Total) -> void
+DigitalBrain.UI.TablePage.Total.get -> int
+DigitalBrain.UI.TablePage.Total.init -> void
+DigitalBrain.UI.TableQuery
+DigitalBrain.UI.TableQuery.<Clone>$() -> DigitalBrain.UI.TableQuery!
+DigitalBrain.UI.TableQuery.Deconstruct(out string! Filter, out string? SortBy, out bool Descending, out int Page, out int PageSize) -> void
+DigitalBrain.UI.TableQuery.Descending.get -> bool
+DigitalBrain.UI.TableQuery.Descending.init -> void
+DigitalBrain.UI.TableQuery.Equals(DigitalBrain.UI.TableQuery? other) -> bool
+DigitalBrain.UI.TableQuery.Filter.get -> string!
+DigitalBrain.UI.TableQuery.Filter.init -> void
+DigitalBrain.UI.TableQuery.Page.get -> int
+DigitalBrain.UI.TableQuery.Page.init -> void
+DigitalBrain.UI.TableQuery.PageSize.get -> int
+DigitalBrain.UI.TableQuery.PageSize.init -> void
+DigitalBrain.UI.TableQuery.SortBy.get -> string?
+DigitalBrain.UI.TableQuery.SortBy.init -> void
+DigitalBrain.UI.TableQuery.TableQuery(string! Filter, string? SortBy, bool Descending, int Page, int PageSize = 50) -> void
+DigitalBrain.UI.TableRefusals
+const DigitalBrain.UI.Controls.QueryTableState.PageSize = 50 -> int
+const DigitalBrain.UI.TableRefusals.PageOutOfRange = "control.pageOutOfRange" -> string!
+const DigitalBrain.UI.TableRefusals.PageSignal = "control.page" -> string!
+const DigitalBrain.UI.TableRefusals.SortSignal = "control.sort" -> string!
+const DigitalBrain.UI.TableRefusals.UnknownColumn = "control.unknownColumn" -> string!
+override DigitalBrain.UI.Controls.QueryTableState.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.QueryTableState.GetHashCode() -> int
+override DigitalBrain.UI.Controls.QueryTableState.ToString() -> string!
+override DigitalBrain.UI.Controls.QueryTableView.<Clone>$() -> DigitalBrain.UI.Controls.QueryTableView!
+override DigitalBrain.UI.Controls.QueryTableView.Equals(object? obj) -> bool
+override DigitalBrain.UI.Controls.QueryTableView.GetHashCode() -> int
+override DigitalBrain.UI.Controls.QueryTableView.ToString() -> string!
+override DigitalBrain.UI.QueryTableColumn.Equals(object? obj) -> bool
+override DigitalBrain.UI.QueryTableColumn.GetHashCode() -> int
+override DigitalBrain.UI.QueryTableColumn.ToString() -> string!
+override DigitalBrain.UI.QueryTableProps.<Clone>$() -> DigitalBrain.UI.QueryTableProps!
+override DigitalBrain.UI.QueryTableProps.Equals(object? obj) -> bool
+override DigitalBrain.UI.QueryTableProps.GetHashCode() -> int
+override DigitalBrain.UI.QueryTableProps.ToString() -> string!
+override DigitalBrain.UI.TablePage.Equals(object? obj) -> bool
+override DigitalBrain.UI.TablePage.GetHashCode() -> int
+override DigitalBrain.UI.TablePage.ToString() -> string!
+override DigitalBrain.UI.TableQuery.Equals(object? obj) -> bool
+override DigitalBrain.UI.TableQuery.GetHashCode() -> int
+override DigitalBrain.UI.TableQuery.ToString() -> string!
+override sealed DigitalBrain.UI.Controls.QueryTableView.Equals(DigitalBrain.UI.Node? other) -> bool
+override sealed DigitalBrain.UI.QueryTableProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+static DigitalBrain.UI.Controls.QueryTableState.operator !=(DigitalBrain.UI.Controls.QueryTableState? left, DigitalBrain.UI.Controls.QueryTableState? right) -> bool
+static DigitalBrain.UI.Controls.QueryTableState.operator ==(DigitalBrain.UI.Controls.QueryTableState? left, DigitalBrain.UI.Controls.QueryTableState? right) -> bool
+static DigitalBrain.UI.Controls.QueryTableView.operator !=(DigitalBrain.UI.Controls.QueryTableView? left, DigitalBrain.UI.Controls.QueryTableView? right) -> bool
+static DigitalBrain.UI.Controls.QueryTableView.operator ==(DigitalBrain.UI.Controls.QueryTableView? left, DigitalBrain.UI.Controls.QueryTableView? right) -> bool
+static DigitalBrain.UI.QueryTableColumn.operator !=(DigitalBrain.UI.QueryTableColumn? left, DigitalBrain.UI.QueryTableColumn? right) -> bool
+static DigitalBrain.UI.QueryTableColumn.operator ==(DigitalBrain.UI.QueryTableColumn? left, DigitalBrain.UI.QueryTableColumn? right) -> bool
+static DigitalBrain.UI.QueryTableProps.operator !=(DigitalBrain.UI.QueryTableProps? left, DigitalBrain.UI.QueryTableProps? right) -> bool
+static DigitalBrain.UI.QueryTableProps.operator ==(DigitalBrain.UI.QueryTableProps? left, DigitalBrain.UI.QueryTableProps? right) -> bool
+static DigitalBrain.UI.TablePage.operator !=(DigitalBrain.UI.TablePage? left, DigitalBrain.UI.TablePage? right) -> bool
+static DigitalBrain.UI.TablePage.operator ==(DigitalBrain.UI.TablePage? left, DigitalBrain.UI.TablePage? right) -> bool
+static DigitalBrain.UI.TableQuery.operator !=(DigitalBrain.UI.TableQuery? left, DigitalBrain.UI.TableQuery? right) -> bool
+static DigitalBrain.UI.TableQuery.operator ==(DigitalBrain.UI.TableQuery? left, DigitalBrain.UI.TableQuery? right) -> bool
+const DigitalBrain.UI.Controls.ChatThreadState.MaxMessages = 500 -> int
+DigitalBrain.UI.Controls.ChatThreadState
+override DigitalBrain.UI.Controls.ChatThreadState.ToString() -> string!
+DigitalBrain.UI.ChatThreadProps.Placeholder.get -> string!
+DigitalBrain.UI.ChatThreadProps.Dictation.get -> bool
+DigitalBrain.UI.ChatThreadProps.Working.get -> bool
+DigitalBrain.UI.ChatThreadProps.Placeholder.init -> void
+static DigitalBrain.UI.Controls.ChatThreadState.operator !=(DigitalBrain.UI.Controls.ChatThreadState? left, DigitalBrain.UI.Controls.ChatThreadState? right) -> bool
+DigitalBrain.UI.ChatThreadProps.Dictation.init -> void
+DigitalBrain.UI.ChatThreadProps.CanSend.get -> bool
+DigitalBrain.UI.ChatThreadProps.ActiveModelLabel.get -> string?
+static DigitalBrain.UI.Controls.ChatThreadState.operator ==(DigitalBrain.UI.Controls.ChatThreadState? left, DigitalBrain.UI.Controls.ChatThreadState? right) -> bool
+DigitalBrain.UI.ChatThreadProps.Error.init -> void
+DigitalBrain.UI.ChatThreadProps.ActiveProviderIcon.get -> string?
+DigitalBrain.UI.ChatThreadProps.CanSend.init -> void
+DigitalBrain.UI.ChatThreadProps.Working.init -> void
+DigitalBrain.UI.ChatThreadProps.Status.get -> string!
+DigitalBrain.UI.ChatThreadProps.EmptyText.get -> string?
+DigitalBrain.UI.Controls.ChatThreadView.Key.get -> string!
+DigitalBrain.UI.Controls.ChatThreadView.Composer.get -> DigitalBrain.UI.ComposerNode!
+DigitalBrain.UI.Controls.ChatThreadView.Messages.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>!
+DigitalBrain.UI.ChatThreadProps.ActiveModelLabel.init -> void
+DigitalBrain.UI.ChatThreadProps.ActiveProviderIcon.init -> void
+DigitalBrain.UI.ChatThreadProps.Status.init -> void
+DigitalBrain.UI.Controls.ChatThreadView.Composer.init -> void
+override DigitalBrain.UI.Controls.ChatThreadState.Equals(object? obj) -> bool
+DigitalBrain.UI.Controls.ChatThreadView.Retry.init -> void
+DigitalBrain.UI.Controls.ChatThreadView.Key.init -> void
+DigitalBrain.UI.ChatThreadProps.EmptyText.init -> void
+DigitalBrain.UI.Controls.ChatThreadState.<Clone>$() -> DigitalBrain.UI.Controls.ChatThreadState!
+DigitalBrain.UI.Controls.ChatThreadView.Messages.init -> void
+DigitalBrain.UI.Controls.ChatThreadView
+DigitalBrain.UI.Controls.ChatThreadState.ChatThreadState() -> void
+override DigitalBrain.UI.Controls.ChatThreadView.ToString() -> string!
+static DigitalBrain.UI.Controls.ChatThreadView.operator !=(DigitalBrain.UI.Controls.ChatThreadView? left, DigitalBrain.UI.Controls.ChatThreadView? right) -> bool
+static DigitalBrain.UI.Controls.ChatThreadView.operator ==(DigitalBrain.UI.Controls.ChatThreadView? left, DigitalBrain.UI.Controls.ChatThreadView? right) -> bool
+override DigitalBrain.UI.Controls.ChatThreadView.Equals(object? obj) -> bool
+override sealed DigitalBrain.UI.Controls.ChatThreadView.Equals(DigitalBrain.UI.Node? other) -> bool
+DigitalBrain.UI.Controls.ChatThreadView.Stop.init -> void
+override DigitalBrain.UI.Controls.ChatThreadView.<Clone>$() -> DigitalBrain.UI.Controls.ChatThreadView!
+DigitalBrain.UI.MessageNode.Deconstruct(out string! Id, out string! Role, out string! Text, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>? Cards, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>? Activities, out string! Status, out string? Model, out DigitalBrain.UI.Button? Retry, out string? ModelLabel, out string? ProviderIcon, out DigitalBrain.UI.ErrorLineNode? Error) -> void
+DigitalBrain.UI.MessageNode.Error.get -> DigitalBrain.UI.ErrorLineNode?
+DigitalBrain.UI.MessageNode.Error.init -> void
+DigitalBrain.UI.ChatThreadProps
+override DigitalBrain.UI.ChatThreadProps.ToString() -> string!
+static DigitalBrain.UI.ChatThreadProps.operator !=(DigitalBrain.UI.ChatThreadProps? left, DigitalBrain.UI.ChatThreadProps? right) -> bool
+static DigitalBrain.UI.ChatThreadProps.operator ==(DigitalBrain.UI.ChatThreadProps? left, DigitalBrain.UI.ChatThreadProps? right) -> bool
+override DigitalBrain.UI.ChatThreadProps.GetHashCode() -> int
+override DigitalBrain.UI.ChatThreadProps.Equals(object? obj) -> bool
+override sealed DigitalBrain.UI.ChatThreadProps.Equals(DigitalBrain.UI.ControlProps? other) -> bool
+DigitalBrain.UI.ChatThreadProps.Equals(DigitalBrain.UI.ChatThreadProps? other) -> bool
+override DigitalBrain.UI.ChatThreadProps.<Clone>$() -> DigitalBrain.UI.ChatThreadProps!
+DigitalBrain.UI.Controls.ChatThreadState.Messages.init -> void
+DigitalBrain.UI.Controls.ChatThreadState.Equals(DigitalBrain.UI.Controls.ChatThreadState? other) -> bool
+override DigitalBrain.UI.Controls.ChatThreadState.GetHashCode() -> int
+DigitalBrain.UI.Controls.ChatThreadView.Equals(DigitalBrain.UI.Controls.ChatThreadView? other) -> bool
+override DigitalBrain.UI.Controls.ChatThreadView.GetHashCode() -> int
+DigitalBrain.UI.MessageNode.MessageNode(string! Id, string! Role, string! Text, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>? Cards = null, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>? Activities = null, string! Status = "completed", string? Model = null, DigitalBrain.UI.Button? Retry = null, string? ModelLabel = null, string? ProviderIcon = null, DigitalBrain.UI.ErrorLineNode? Error = null) -> void
+DigitalBrain.UI.ThreadMessage.Text.get -> string!
+DigitalBrain.UI.ThreadMessage.Text.init -> void
+DigitalBrain.UI.ThreadMessage.Id.get -> string!
+DigitalBrain.UI.ThreadMessage.Id.init -> void
+DigitalBrain.UI.ThreadMessage.Status.get -> string!
+DigitalBrain.UI.ThreadMessage.Role.get -> string!
+DigitalBrain.UI.ThreadMessage.Status.init -> void
+DigitalBrain.UI.ThreadMessagePatch.Model.get -> string?
+DigitalBrain.UI.ThreadMessagePatch.Text.get -> string?
+DigitalBrain.UI.ThreadMessagePatch.Failure.get -> string?
+DigitalBrain.UI.ThreadMessage.Role.init -> void
+DigitalBrain.UI.ThreadMessagePatch.Status.get -> string?
+DigitalBrain.UI.ThreadMessagePatch.Cards.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>?
+DigitalBrain.UI.ThreadMessagePatch.Activities.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>?
+DigitalBrain.UI.ThreadMessagePatch.Model.init -> void
+DigitalBrain.UI.ThreadMessagePatch.Text.init -> void
+DigitalBrain.UI.ThreadMessagePatch.Status.init -> void
+DigitalBrain.UI.ThreadMessagePatch.Activities.init -> void
+DigitalBrain.UI.ThreadMessagePatch.Failure.init -> void
+DigitalBrain.UI.ThreadMessagePatch.Cards.init -> void
+DigitalBrain.UI.ChatThreadError.Retry.get -> bool
+DigitalBrain.UI.ChatThreadError.Retry.init -> void
+DigitalBrain.UI.ChatThreadError.What.get -> string!
+DigitalBrain.UI.ChatThreadError.ActionLabel.get -> string?
+DigitalBrain.UI.ChatThreadError.What.init -> void
+DigitalBrain.UI.ChatThreadError.ActionLabel.init -> void
+DigitalBrain.UI.ChatThreadError.Detail.get -> string?
+DigitalBrain.UI.ChatThreadError.Open.get -> string?
+DigitalBrain.UI.ChatThreadError.Open.init -> void
+DigitalBrain.UI.ChatThreadProps.Deconstruct(out string! Placeholder, out bool CanSend, out string? ActiveModelLabel, out string? ActiveProviderIcon, out bool Dictation, out string! Status, out bool Working, out string? EmptyText, out DigitalBrain.UI.ChatThreadError? Error, out bool IsEnabled, out string? AutomationName) -> void
+DigitalBrain.UI.ChatThreadProps.Error.get -> DigitalBrain.UI.ChatThreadError?
+DigitalBrain.UI.ChatThreadError.Detail.init -> void
+DigitalBrain.UI.ThreadMessage.ThreadMessage(string! Id, string! Role, string! Text, string! Status = "completed") -> void
+DigitalBrain.UI.ThreadMessagePatch.ThreadMessagePatch(string? Text = null, string? Status = null, string? Model = null, string? Failure = null, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>? Activities = null, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>? Cards = null) -> void
+DigitalBrain.UI.ChatThreadError.ChatThreadError(string! What, string? Detail = null, string? ActionLabel = null, string? Open = null, bool Retry = false) -> void
+DigitalBrain.UI.ThreadMessage.Model.get -> string?
+DigitalBrain.UI.ThreadMessage.Failure.get -> string?
+DigitalBrain.UI.ThreadMessage.Failure.init -> void
+DigitalBrain.UI.ThreadMessage.ProviderIcon.get -> string?
+DigitalBrain.UI.ThreadMessage.ProviderIcon.init -> void
+DigitalBrain.UI.ThreadMessage.Activities.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>!
+DigitalBrain.UI.ThreadMessage.Cards.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>!
+DigitalBrain.UI.ThreadMessage.Activities.init -> void
+DigitalBrain.UI.ThreadMessage.Cards.init -> void
+DigitalBrain.UI.ThreadMessage.IsFailed.get -> bool
+DigitalBrain.UI.ThreadMessagePatch.ApplyTo(DigitalBrain.UI.ThreadMessage! message) -> DigitalBrain.UI.ThreadMessage!
+DigitalBrain.UI.ThreadMessage.Model.init -> void
+DigitalBrain.UI.Controls.ChatThreadState.Messages.get -> System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ThreadMessage!>!
+DigitalBrain.UI.ChatThreadProps.ChatThreadProps(string! Placeholder = "Message", bool CanSend = true, string? ActiveModelLabel = null, string? ActiveProviderIcon = null, bool Dictation = false, string! Status = "ready", bool Working = false, string? EmptyText = null, DigitalBrain.UI.ChatThreadError? Error = null, bool IsEnabled = true, string? AutomationName = null) -> void
+DigitalBrain.UI.ThreadMessagePatch.Equals(DigitalBrain.UI.ThreadMessagePatch? other) -> bool
+override DigitalBrain.UI.ThreadMessagePatch.GetHashCode() -> int
+DigitalBrain.UI.ThreadMessage.Equals(DigitalBrain.UI.ThreadMessage? other) -> bool
+override DigitalBrain.UI.ThreadMessage.GetHashCode() -> int
+DigitalBrain.UI.ThreadMessagePatch
+override DigitalBrain.UI.ThreadMessagePatch.ToString() -> string!
+static DigitalBrain.UI.ThreadMessagePatch.operator !=(DigitalBrain.UI.ThreadMessagePatch? left, DigitalBrain.UI.ThreadMessagePatch? right) -> bool
+static DigitalBrain.UI.ThreadMessagePatch.operator ==(DigitalBrain.UI.ThreadMessagePatch? left, DigitalBrain.UI.ThreadMessagePatch? right) -> bool
+override DigitalBrain.UI.ThreadMessagePatch.Equals(object? obj) -> bool
+DigitalBrain.UI.ThreadMessagePatch.<Clone>$() -> DigitalBrain.UI.ThreadMessagePatch!
+DigitalBrain.UI.ThreadMessagePatch.Deconstruct(out string? Text, out string? Status, out string? Model, out string? Failure, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ActivityNode!>? Activities, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.Node!>? Cards) -> void
+DigitalBrain.UI.ThreadMessage
+override DigitalBrain.UI.ThreadMessage.ToString() -> string!
+DigitalBrain.UI.ChatThreadError
+static DigitalBrain.UI.ThreadMessage.operator !=(DigitalBrain.UI.ThreadMessage? left, DigitalBrain.UI.ThreadMessage? right) -> bool
+override DigitalBrain.UI.ChatThreadError.ToString() -> string!
+static DigitalBrain.UI.ThreadMessage.operator ==(DigitalBrain.UI.ThreadMessage? left, DigitalBrain.UI.ThreadMessage? right) -> bool
+static DigitalBrain.UI.ChatThreadError.operator !=(DigitalBrain.UI.ChatThreadError? left, DigitalBrain.UI.ChatThreadError? right) -> bool
+override DigitalBrain.UI.ThreadMessage.Equals(object? obj) -> bool
+static DigitalBrain.UI.ChatThreadError.operator ==(DigitalBrain.UI.ChatThreadError? left, DigitalBrain.UI.ChatThreadError? right) -> bool
+DigitalBrain.UI.ThreadMessage.<Clone>$() -> DigitalBrain.UI.ThreadMessage!
+override DigitalBrain.UI.ChatThreadError.GetHashCode() -> int
+DigitalBrain.UI.ThreadMessage.Deconstruct(out string! Id, out string! Role, out string! Text, out string! Status) -> void
+override DigitalBrain.UI.ChatThreadError.Equals(object? obj) -> bool
+DigitalBrain.UI.ChatThreadError.Equals(DigitalBrain.UI.ChatThreadError? other) -> bool
+DigitalBrain.UI.ChatThreadError.<Clone>$() -> DigitalBrain.UI.ChatThreadError!
+DigitalBrain.UI.ChatThreadError.Deconstruct(out string! What, out string? Detail, out string? ActionLabel, out string? Open, out bool Retry) -> void
+DigitalBrain.UI.Controls.ChatThreadView.Retry.get -> DigitalBrain.UI.Button?
+DigitalBrain.UI.Controls.ChatThreadView.Props.get -> DigitalBrain.UI.ChatThreadProps?
+DigitalBrain.UI.Controls.ChatThreadView.Deconstruct(out string! Key, out System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>! Messages, out DigitalBrain.UI.ComposerNode! Composer, out DigitalBrain.UI.Button? Stop, out DigitalBrain.UI.Button? Retry, out DigitalBrain.UI.ChatThreadProps? Props) -> void
+DigitalBrain.UI.Controls.ChatThreadView.Stop.get -> DigitalBrain.UI.Button?
+DigitalBrain.UI.Controls.ChatThreadView.Props.init -> void
+DigitalBrain.UI.Controls.ChatThreadView.ChatThreadView(string! Key, System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.MessageNode!>! Messages, DigitalBrain.UI.ComposerNode! Composer, DigitalBrain.UI.Button? Stop = null, DigitalBrain.UI.Button? Retry = null, DigitalBrain.UI.ChatThreadProps? Props = null) -> void
+DigitalBrain.UI.Controls.ChatThreadState.ShowsStop.init -> void
+DigitalBrain.UI.Controls.ChatThreadState.ShowsRetry.init -> void
+DigitalBrain.UI.Controls.ChatThreadState.ShowsRetry.get -> bool
+DigitalBrain.UI.Controls.ChatThreadState.ShowsStop.get -> bool
+DigitalBrain.UI.Controls.ChatThreadState.AcceptsText.get -> bool
+DigitalBrain.UI.Controls.ChatThreadState.AcceptsText.init -> void
+const DigitalBrain.UI.View.ActRoute = "act" -> string!

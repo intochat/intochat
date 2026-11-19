@@ -1,0 +1,1760 @@
+[
+  {
+    "name": "message",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "message"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Message",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "message"
+      }
+    ]
+  },
+  {
+    "name": "failed-reply",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "failed-reply"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Failed reply",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "failed-reply"
+      },
+      {
+        "step": "expect",
+        "contains": "Summarise my week",
+        "target": "failed-reply"
+      },
+      {
+        "step": "expect",
+        "contains": "The model did not answer.",
+        "target": "failed-reply"
+      },
+      {
+        "step": "expect",
+        "contains": "Try again",
+        "target": "failed-reply"
+      },
+      {
+        "step": "act",
+        "signal": "control.retry",
+        "args": {
+          "id": "f2"
+        },
+        "target": "failed-reply"
+      },
+      {
+        "step": "expect",
+        "contains": "control.retry",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "card-in-chat",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "card-in-chat"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Card in chat",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "card-in-chat"
+      }
+    ]
+  },
+  {
+    "name": "activity-row",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "activity-row"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Activity row",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "activity-row"
+      }
+    ]
+  },
+  {
+    "name": "composer",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "composer"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Composer with model picker",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "composer"
+      }
+    ]
+  },
+  {
+    "name": "empty",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "empty"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Empty",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "empty"
+      }
+    ]
+  },
+  {
+    "name": "waiting",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "waiting"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Waiting",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "waiting"
+      }
+    ]
+  },
+  {
+    "name": "live-chart",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "live-chart"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Live chart",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "live-chart"
+      },
+      {
+        "step": "expect",
+        "contains": "Live points",
+        "target": "live-chart"
+      },
+      {
+        "step": "expect",
+        "contains": "Wed",
+        "target": "live-chart"
+      },
+      {
+        "step": "act",
+        "signal": "uikit.append",
+        "args": null,
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "#1",
+        "target": "live-chart"
+      }
+    ]
+  },
+  {
+    "name": "table-query",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "table-query"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "Table query",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "table-query"
+      }
+    ]
+  },
+  {
+    "name": "appShell",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "appShell"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "appShell",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The appShell node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "approvalCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "approvalCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "approvalCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The approvalCard node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "badge",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "badge"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "badge",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The badge node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "brainScene",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "brainScene"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "brainScene",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The brainScene node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "button",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "button"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "button",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Save",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "card",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "card"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "card",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Weekly report",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "chart",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "chart"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "chart",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The chart node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "chatThread",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "chatThread"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "chatThread",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "chatThread"
+      }
+    ]
+  },
+  {
+    "name": "chatThreadView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "chatThreadView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "chatThreadView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The chatThreadView node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "checkBox",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "checkBox"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "checkBox",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "checkBox"
+      }
+    ]
+  },
+  {
+    "name": "checkBoxView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "checkBoxView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "checkBoxView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The checkBoxView node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "choiceCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "choiceCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "choiceCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The choiceCard node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "collection",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "collection"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "collection",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The collection node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "column",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "column"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "column",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The column node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "comboBox",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "comboBox"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "comboBox",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "comboBox"
+      }
+    ]
+  },
+  {
+    "name": "comboBoxView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "comboBoxView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "comboBoxView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The comboBoxView node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "conversation",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "conversation"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "conversation",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The conversation node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "dataTable",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "dataTable"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "dataTable",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The dataTable node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "diffCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "diffCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "diffCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The diffCard node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "divider",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "divider"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "divider",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The divider node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "draftCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "draftCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "draftCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The draftCard node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "emptyState",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "emptyState"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "emptyState",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The emptyState node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "errorLine",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "errorLine"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "errorLine",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The errorLine node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "expander",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "expander"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "expander",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "expander"
+      }
+    ]
+  },
+  {
+    "name": "expanderView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "expanderView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "expanderView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The expanderView node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "field",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "field"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "field",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The field node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "form",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "form"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "form",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "form"
+      }
+    ]
+  },
+  {
+    "name": "formView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "formView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "formView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The formView node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "grid",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "grid"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "grid",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The grid node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "heading",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "heading"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "heading",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The heading node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "iconButton",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "iconButton"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "iconButton",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Refresh",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "infoBar",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "infoBar"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "infoBar",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Sync paused",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "intent",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "intent"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "intent",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The intent node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "jobCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "jobCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "jobCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The jobCard node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "listBox",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "listBox"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "listBox",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "listBox"
+      }
+    ]
+  },
+  {
+    "name": "listBoxView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "listBoxView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "listBoxView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The listBoxView node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "liveChart",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "liveChart"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "liveChart",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "liveChart"
+      }
+    ]
+  },
+  {
+    "name": "liveChartView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "liveChartView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "liveChartView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The liveChartView node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "markdown",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "markdown"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "markdown",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Release notes",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "metricTile",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "metricTile"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "metricTile",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The metricTile node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "navItem",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "navItem"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "navItem",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The navItem node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "neuronRef",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "neuronRef"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "neuronRef",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The neuronRef node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "progress",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "progress"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "progress",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "Uploading",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "queryTable",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "queryTable"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "queryTable",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "queryTable"
+      }
+    ]
+  },
+  {
+    "name": "queryTableView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "queryTableView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "queryTableView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The queryTableView node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "recordCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "recordCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "recordCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The recordCard node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "row",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "row"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "row",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The row node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "secretCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "secretCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "secretCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The secretCard node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "select",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "select"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "select",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The select node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "spacer",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "spacer"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "spacer",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The spacer node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "splitPane",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "splitPane"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "splitPane",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The splitPane node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "statCard",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "statCard"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "statCard",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The statCard node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "surface",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "surface"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "surface",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The surface node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "switch",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "switch"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "switch",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The switch node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "tabStrip",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "tabStrip"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "tabStrip",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "tabStrip"
+      }
+    ]
+  },
+  {
+    "name": "tabStripView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "tabStripView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "tabStripView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The tabStripView node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "tabs",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "tabs"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "tabs",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The tabs node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "tagPill",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "tagPill"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "tagPill",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The tagPill node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "text",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "text"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "text",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The text node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "toast",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "toast"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "toast",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The toast node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "toggleSwitch",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "toggleSwitch"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "toggleSwitch",
+        "target": "."
+      },
+      {
+        "step": "expectShown",
+        "target": "toggleSwitch"
+      }
+    ]
+  },
+  {
+    "name": "toggleSwitchView",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "toggleSwitchView"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "toggleSwitchView",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The toggleSwitchView node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  },
+  {
+    "name": "webBrowser",
+    "appId": "uikit",
+    "steps": [
+      {
+        "step": "act",
+        "signal": "control.select",
+        "args": {
+          "id": "webBrowser"
+        },
+        "target": "nav"
+      },
+      {
+        "step": "expect",
+        "contains": "webBrowser",
+        "target": "."
+      },
+      {
+        "step": "expect",
+        "contains": "The webBrowser node has no [Showcase] example yet.",
+        "target": "."
+      }
+    ]
+  }
+]

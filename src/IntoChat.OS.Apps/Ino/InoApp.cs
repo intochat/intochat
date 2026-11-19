@@ -8,6 +8,9 @@ using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Neurons;
 using DigitalBrain.UI;
+using DigitalBrain.UI.Commands;
+using DigitalBrain.UI.Controls;
+using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Observers;
@@ -32,6 +35,14 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     private readonly TimeProvider? _time;
     private InoSetupHost? _setupHost;
     private bool _canDictate;
+    private InoMessage[]? _messages;
+    private IReadOnlyList<ThreadMessage>? _synced;
+    private bool _threadKnown;
+    private ChatThreadProps? _syncedProps;
+    private string? _threadFailure;
+
+    /// <summary>What the person reads when Ino could not write its conversation thread.</summary>
+    public const string ThreadFailure = "The conversation could not be updated. Ino will try again with the next change.";
 
     public InoApp() : this(null, null) { }
 
@@ -44,18 +55,106 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     public static AppBundle Bundle { get; } = InoModelSetup.BuildBundle(typeof(InoApp));
 
     public new InoAppState State => base.State;
-    public View Render() => Render(State);
-    public View RenderSide() => InoView.Side(State);
-    protected override View Render(InoAppState state) => InoView.Screen(state, _canDictate);
+    public View Render() => RenderDetached(Current);
+    public View RenderSide() => InoView.Side(Current);
+
+    /// <summary>The messages Ino last projected from its chat; the conversation thread holds them (the stored state never does).</summary>
+    public IReadOnlyList<InoMessage> Messages => Current.Messages ?? [];
+
+    protected override View Render(InoAppState state)
+        => InoView.Screen(state.Messages is null && _messages is { } held ? state with { Messages = held } : state, _canDictate,
+            props => Slot<ChatThreadNeuron, ChatThreadProps>(InoView.ConversationKey, props), _threadFailure);
+
+    // Model decisions read the messages last projected; until a projection after activation, the chat revision reads 0 so the next
+    // projection runs even when the chat has not changed since the messages were last projected.
+    private InoAppState Current => State.Messages is not null ? State : _messages is { } held ? State with { Messages = held } : State with { ChatRevision = 0 };
+
+    // Saves Ino's state without its messages and writes them to the conversation thread: the whole thread once the messages are known
+    // (projected, a new conversation, or migrated), otherwise only what is new (a pending prompt) so a thread from before activation stays.
+    private async Task Commit(InoAppState next)
+    {
+        _messages = next.Messages;
+        _threadKnown |= next.Messages is not null;
+        await Show(next with { Messages = null });
+        var thread = InoView.Thread(next);
+        if (!_threadKnown && thread.Count == 0) { return; }
+        // The thread draws its stop and the error's retry from the props routed with the import: a props change writes it again too.
+        var props = InoView.ThreadProps(next, _canDictate, _threadFailure);
+        if (_synced is { } synced && synced.SequenceEqual(thread) && Equals(props, _syncedProps)) { return; }
+        // Ino's own save stands when the thread cannot be written: the slot's props say so (to the person and to MCP readers), and the
+        // next save writes the thread again.
+        try
+        {
+            await SendToThread(new ImportMessages(thread, Replace: _threadKnown));
+            _synced = thread;
+            _syncedProps = props;
+            if (_threadFailure is not null) { _threadFailure = null; await Show(next with { Messages = null }); }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _synced = null;
+            _syncedProps = null;
+            LogOptional(error, "conversation-thread");
+            if (_threadFailure is null) { _threadFailure = ThreadFailure; await Show(next with { Messages = null }); }
+        }
+    }
+
+    private Task SendToThread<TCommand>(TCommand command) where TCommand : Signal
+        => Send(new Command(InoView.ConversationKey, System.Reflection.CustomAttributeExtensions.GetCustomAttribute<SignalAttribute>(typeof(TCommand))!.Alias,
+            DigitalBrain.Invocation.RuntimeProtocol.SerializeToElement(command, typeof(TCommand))));
+
+    // Messages stored by Ino before the conversation thread held them: imported once (the import is idempotent by id), then cleared in one save.
+    private async Task MigrateMessagesAsync()
+    {
+        if (State.Messages is not { } legacy) { return; }
+        // Cleared only once the thread holds them: a failed import is tried again on the next activation.
+        try { if (legacy.Length > 0) { await SendToThread(new ImportMessages(InoView.Thread(State), Replace: false)); } }
+        catch (Exception error) when (error is not OperationCanceledException) { LogOptional(error, "conversation-thread-migration"); return; }
+        _messages = legacy;
+        _threadKnown = true;
+        _synced = null;
+        await Show(State with { Messages = null });
+    }
+
+    [On]
+    public Task OnThreadRetry(RetryRequested? requested)
+        => requested is not null && SignalSlot == InoView.ConversationKey ? RetryTurnAsync(requested.Id) : Task.CompletedTask;
+
+    [On]
+    public Task OnThreadSubmitted(Submitted? submitted)
+        => submitted is not null && SignalSlot == InoView.ConversationKey && submitted.Values.TryGetValue("text", out var text)
+            ? Send(new InoSend(Message: text)) : Task.CompletedTask;
+
+    [On]
+    public Task OnThreadStop(StopRequested? requested)
+        => requested is not null && SignalSlot == InoView.ConversationKey ? Stop(new InoStop()) : Task.CompletedTask;
+
+    // Sends a turn again: an empty id is the last prompt; a user message's id is that prompt; a reply's id is the prompt it answered.
+    private async Task RetryTurnAsync(string? id)
+    {
+        if (string.IsNullOrEmpty(id))
+        {
+            if (InoModel.DecideRetryPrompt(Current) is { IsAccepted: true, Next: var lastPrompt }) { await Send(new InoSend(Message: lastPrompt)); }
+            return;
+        }
+        if (InoModel.PromptOf(Current, id) is { } prompt) { await Send(new InoSend(Message: prompt)); }
+    }
 
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         AppActivationScope.Notify(this);
         await base.OnActivate(cancellationToken);
+        await MigrateMessagesAsync();
+        await TryOptionalAsync("conversation-thread", async () =>
+        {
+            await FollowSlot<ChatThreadNeuron, RetryRequested>(InoView.ConversationKey);
+            await FollowSlot<ChatThreadNeuron, Submitted>(InoView.ConversationKey);
+            await FollowSlot<ChatThreadNeuron, StopRequested>(InoView.ConversationKey);
+        });
         await TryOptionalAsync("settings", () => Follow<IUserSettings, UserSettingsChanged>("settings"));
         await TryOptionalAsync("confirmations-synapses", () => Context.Wires.EnsureBrainWide([typeof(ConfirmationRequested), typeof(ConfirmationResolved), typeof(FlowsChanged)]));
         _canDictate = await InoModelSetup.InitializeViewAsync(Setup);
-        var agentKey = InoModel.AgentKeyOf(State.ConversationId);
+        var agentKey = InoModel.AgentKeyOf(Current.ConversationId);
         await TryOptionalAsync("conversations-registry", () => Get<IInoConversations>(IInoConversations.DefaultKey).Use(agentKey));
         if (await InoModelSetup.EnsureChatAsync(Setup, agentKey)) { await InoModelSetup.ProjectCurrentChatAsync(Setup, agentKey); }
     }
@@ -68,23 +167,23 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         var (local, effectiveModel, displayModel) = await InoModelSetup.ResolveForSettingsAsync(Setup, settings);
         _canDictate = await InoModelSetup.ReadCanDictateAsync(Setup);
         var (nextState, migrate) = InoModel.DecideOpen(
-            State, request.Mode, settings.DisplayName, displayModel, InoModelSetup.IsSmart(settings),
-            await InoModelSetup.ReadApprovalsAsync(Setup, State.Approvals), await InoModelSetup.ReadGrantSummariesAsync(Setup, State.GrantSummaries),
+            Current, request.Mode, settings.DisplayName, displayModel, InoModelSetup.IsSmart(settings),
+            await InoModelSetup.ReadApprovalsAsync(Setup, Current.Approvals), await InoModelSetup.ReadGrantSummariesAsync(Setup, Current.GrantSummaries),
             local?.PreferredModel, local?.InstalledModels);
 
-        var agentKey = InoModel.AgentKeyOf(State.ConversationId);
-        await Show(nextState);
+        var agentKey = InoModel.AgentKeyOf(Current.ConversationId);
+        await Commit(nextState);
         await TryOptionalAsync("agent", () => InoModelSetup.ConfigureOpenAgentAsync(Setup, agentKey, settings, effectiveModel, migrate));
         if (await InoModelSetup.EnsureChatAsync(Setup, agentKey)) { await InoModelSetup.ProjectCurrentChatAsync(Setup, agentKey); }
     }
 
-    [On] public async Task OnGrantsChanged(GrantsChanged? changed) { if (changed is not null) { await Show(State with { GrantSummaries = await InoModelSetup.ReadGrantSummariesAsync(Setup, State.GrantSummaries) }); } }
+    [On] public async Task OnGrantsChanged(GrantsChanged? changed) { if (changed is not null) { await Commit(Current with { GrantSummaries = await InoModelSetup.ReadGrantSummariesAsync(Setup, Current.GrantSummaries) }); } }
     [On] public Task New(InoNew request) { ArgumentNullException.ThrowIfNull(request); return StartConversationAsync(); }
     [On] public Task NewConversation(InoNewConversation request) { ArgumentNullException.ThrowIfNull(request); return StartConversationAsync(); }
     [On] public Task OnConfirmationRequested(ConfirmationRequested? requested) => requested is { PlanId.Length: > 0 } ? RefreshApprovalsAsync() : Task.CompletedTask;
     [On] public Task OnConfirmationResolved(ConfirmationResolved? resolved) => resolved is { PlanId.Length: > 0 } ? RefreshApprovalsAsync() : Task.CompletedTask;
     [On] public Task OnFlowsChanged(FlowsChanged? changed) => changed is { FlowId.Length: > 0 } ? RefreshApprovalsAsync(skipWhenBothEmpty: true) : Task.CompletedTask;
-    [On] public Task OnChatChanged(ChatChanged? changed) => IsCurrentChat(changed?.Name) ? InoModelSetup.ProjectCurrentChatAsync(Setup, InoModel.AgentKeyOf(State.ConversationId)) : Task.CompletedTask;
+    [On] public Task OnChatChanged(ChatChanged? changed) => IsCurrentChat(changed?.Name) ? InoModelSetup.ProjectCurrentChatAsync(Setup, InoModel.AgentKeyOf(Current.ConversationId)) : Task.CompletedTask;
 
     [On]
     public async Task Link(InoPasteLink request)
@@ -98,7 +197,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         var kept = await records.Read();
         if (!kept.Links.Any(link => link.Request == id))
         { await records.Write(kept with { Links = [.. kept.Links.TakeLast(ChatAppCard.MaxLinksKept - 1), new InoLink(id, request.App!, input)] }); }
-        await Get<IAgent>(InoModel.AgentKeyOf(State.ConversationId)).Post(string.IsNullOrWhiteSpace(request.Text) ? request.App! : request.Text, ChatAppCard.LinkPostId(request.Request));
+        await Get<IAgent>(InoModel.AgentKeyOf(Current.ConversationId)).Post(string.IsNullOrWhiteSpace(request.Text) ? request.App! : request.Text, ChatAppCard.LinkPostId(request.Request));
     }
 
     [On]
@@ -110,12 +209,12 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         if (text.StartsWith('/')) { await InoModelSetup.HandleSlashCommandAsync(Setup, text, settings, StartConversationAsync); return; }
         if (await ReadOptionalAsync("compute", false, async () => (await Get<ICompute>("compute").Read()).BudgetExceeded))
         {
-            await Show(InoModel.BudgetExceeded(State));
+            await Commit(InoModel.BudgetExceeded(Current));
             return;
         }
-        var decision = InoModel.DecideSend(State, text, Guid.NewGuid().ToString("N"), NowUtc());
+        var decision = InoModel.DecideSend(Current, text, Guid.NewGuid().ToString("N"), NowUtc());
         if (decision.IsRefused || decision.Next.Pending is not { } pending) { return; }
-        await Show(decision.Next);
+        await Commit(decision.Next);
         await InoModelSetup.ExecuteTurnAsync(Setup, settings, pending);
     }
 
@@ -123,7 +222,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     public async Task Retry(InoRetry request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (InoModel.DecideRetryPrompt(State) is { IsAccepted: true, Next: var lastPrompt }) { await Send(new InoSend(Message: lastPrompt)); }
+        await RetryTurnAsync(null);
     }
 
     [On]
@@ -144,10 +243,10 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     public async Task OnChatRunChanged(ChatRunChanged? changed)
     {
         if (!IsCurrentChat(changed?.Name)) { return; }
-        await InoModelSetup.ProjectCurrentChatAsync(Setup, InoModel.AgentKeyOf(State.ConversationId));
+        await InoModelSetup.ProjectCurrentChatAsync(Setup, InoModel.AgentKeyOf(Current.ConversationId));
         if (changed!.Status == ChatRunStatus.Completed)
         {
-            await TryOptionalAsync("compute-record", () => Get<ICompute>("compute").Record("ino", Math.Max(1_000L, ((State.Messages ?? []).LastOrDefault(m => m.Role == "assistant")?.Text?.Length ?? 0) * 25L)));
+            await TryOptionalAsync("compute-record", () => Get<ICompute>("compute").Record("ino", Math.Max(1_000L, ((Current.Messages ?? []).LastOrDefault(m => m.Role == "assistant")?.Text?.Length ?? 0) * 25L)));
             await RefreshApprovalsAsync();
         }
     }
@@ -156,14 +255,14 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     public async Task OnAgentBlocked(AgentBlocked? blocked)
     {
         if (blocked is null || string.IsNullOrEmpty(blocked.Agent) || !IsCurrentAgent(blocked.Agent)) { return; }
-        await RefreshApprovalsAsync(blocked.Blocked ? InoModel.Pause(State, "An interrupt holds the agent.") : InoModel.Resume(State));
+        await RefreshApprovalsAsync(blocked.Blocked ? InoModel.Pause(Current, "An interrupt holds the agent.") : InoModel.Resume(Current));
     }
 
     [On]
     public async Task Stop(InoStop request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await TryOptionalAsync("agent", async () => { var agent = Get<IAgent>(InoModel.AgentKeyOf(State.ConversationId)); if (State.ActiveRunId is not null || (await agent.Read()).ActiveRun is not null) { await agent.Cancel(); } });
+        await TryOptionalAsync("agent", async () => { var agent = Get<IAgent>(InoModel.AgentKeyOf(Current.ConversationId)); if (Current.ActiveRunId is not null || (await agent.Read()).ActiveRun is not null) { await agent.Cancel(); } });
     }
 
     [On]
@@ -171,15 +270,15 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     {
         ArgumentNullException.ThrowIfNull(request);
         var updated = await Get<IUserSettings>("settings").SetVariable(InoModelSetup.SmartVariable, request.On ? "on" : "off");
-        await Show(State with { Smart = InoModelSetup.IsSmart(updated) });
+        await Commit(Current with { Smart = InoModelSetup.IsSmart(updated) });
     }
 
     [On]
     public async Task ConnectDb(InoConnectDb request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        try { var data = Get<IInoData>(DataKey); var result = await data.Connect(request.ConnectionString ?? string.Empty); await Show(InoModel.DecideConnectDb(State, (await data.Read()).ConnectedDatabase, result.Text, result.Card)); }
-        catch (Exception error) when (error is not OperationCanceledException) { if (_logger is { } log) { InoLog.LogDatabaseFailed(log, error, "connect-db"); } await Show(State with { Status = $"Could not connect: {error.Message}" }); }
+        try { var data = Get<IInoData>(DataKey); var result = await data.Connect(request.ConnectionString ?? string.Empty); await Commit(InoModel.DecideConnectDb(Current, (await data.Read()).ConnectedDatabase, result.Text, result.Card)); }
+        catch (Exception error) when (error is not OperationCanceledException) { if (_logger is { } log) { InoLog.LogDatabaseFailed(log, error, "connect-db"); } await Commit(Current with { Status = $"Could not connect: {error.Message}" }); }
     }
 
     [On]
@@ -187,12 +286,12 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     {
         ArgumentNullException.ThrowIfNull(request);
         var sql = string.IsNullOrWhiteSpace(request.Sql) ? InoDataCards.DefaultSql : request.Sql.Trim();
-        var database = string.IsNullOrWhiteSpace(State.ConnectedDatabase) ? InoDataCards.DefaultDatabase : State.ConnectedDatabase;
+        var database = string.IsNullOrWhiteSpace(Current.ConnectedDatabase) ? InoDataCards.DefaultDatabase : Current.ConnectedDatabase;
         DataQueryResult result;
         try { result = await DataAnalyticsEngine.ExecuteAsync(sql, database, FilesVfs, Context.Caller?.Brain ?? default); }
-        catch (Exception error) when (error is not OperationCanceledException) { if (_logger is { } log) { InoLog.LogDatabaseFailed(log, error, "query-db"); } await Show(State with { Status = $"Could not run the query: {error.Message}" }); return; }
+        catch (Exception error) when (error is not OperationCanceledException) { if (_logger is { } log) { InoLog.LogDatabaseFailed(log, error, "query-db"); } await Commit(Current with { Status = $"Could not run the query: {error.Message}" }); return; }
         if (TryGetOptional<IMemory>("memory") is { } memory) { await TryOptionalAsync("memory", () => memory.CaptureEpisode("ino.query", $"SQL: {sql} | Rows: {result.Rows.Length} | Chart: {result.ChartTitle}", importance: 6)); }
-        await Show(InoModel.DecideQueryDbSuccess(State, result, database));
+        await Commit(InoModel.DecideQueryDbSuccess(Current, result, database));
     }
 
     [On]
@@ -203,7 +302,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         var target = request.Focus is { Length: > 0 } ? request.Focus[0] : "scratch";
         if (TryGetOptional<IAppStudio>("main") is { } studio) { target = await ReadOptionalAsync("app-studio", target, async () => (await studio.Build(sentence)).Name); }
         if (TryGetOptional<IMemory>("memory") is { } memory) { await TryOptionalAsync("memory", () => memory.CaptureEpisode("ino.make", $"Target: {target} | Sentence: {sentence}", importance: 6)); }
-        await Show(InoModel.DecideMake(State, target, sentence, CurrentBrain.Value));
+        await Commit(InoModel.DecideMake(Current, target, sentence, CurrentBrain.Value));
     }
 
     [On]
@@ -214,7 +313,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     }
 
     private InoSetupHost Setup => _setupHost ??= new InoSetupHost(
-        () => State, s => Show(s), () => CurrentBrain,
+        () => Current, Commit, () => CurrentBrain,
         () => Get<IModelCatalog>(new NeuronId(CurrentBrain, "ai.models", ModelsKey)),
         () => Get<IUserSettings>("settings"), Get<IAgent>, Get<IChat>, Get<IToneObserver>,
         () => Get<ISpeechRecognizer>("default"), () => Get<IGrantsNeuron>(IGrantsNeuron.DefaultKey), () => Get<IApprovals>(ApprovalsKey),
@@ -228,22 +327,23 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     {
         var conversationId = InoModel.MintConversationId();
         var agentKey = InoModel.AgentKeyOf(conversationId);
-        await Show(InoModel.NewConversation(State, conversationId));
+        _threadKnown = true;
+        await Commit(InoModel.NewConversation(Current, conversationId));
         await InoModelSetup.FollowAgentControlSignalsAsync(Setup, agentKey);
         await InoModelSetup.EnsureChatAsync(Setup, agentKey);
     }
 
     private async Task RefreshApprovalsAsync(InoAppState? baseState = null, bool skipWhenBothEmpty = false)
     {
-        var approvals = await InoModelSetup.ReadApprovalsAsync(Setup, State.Approvals);
-        var target = baseState ?? State;
+        var approvals = await InoModelSetup.ReadApprovalsAsync(Setup, Current.Approvals);
+        var target = baseState ?? Current;
         if (skipWhenBothEmpty && baseState is null && approvals.Length == 0 && (target.Approvals?.Length ?? 0) == 0) { return; }
-        await Show(target with { Approvals = approvals });
+        await Commit(target with { Approvals = approvals });
     }
 
     private static string? ExtractSendText(InoSend r) => string.IsNullOrWhiteSpace(r.EffectiveMessage) ? null : r.EffectiveMessage.Length > InoModel.MaxMessageChars ? r.EffectiveMessage : r.EffectiveMessage.Trim();
-    private bool IsCurrentAgent(string agentId) => string.Equals(agentId, InoModel.AgentKeyOf(State.ConversationId), StringComparison.Ordinal);
-    private bool IsCurrentChat(string? chatName) => !string.IsNullOrEmpty(chatName) && string.Equals(chatName, $"{CurrentBrain.Value}/{InoModel.ChatKeyOf(State.ConversationId)}", StringComparison.Ordinal);
+    private bool IsCurrentAgent(string agentId) => string.Equals(agentId, InoModel.AgentKeyOf(Current.ConversationId), StringComparison.Ordinal);
+    private bool IsCurrentChat(string? chatName) => !string.IsNullOrEmpty(chatName) && string.Equals(chatName, $"{CurrentBrain.Value}/{InoModel.ChatKeyOf(Current.ConversationId)}", StringComparison.Ordinal);
     private DateTimeOffset NowUtc() { if (_time is not null) { return _time.GetUtcNow(); } try { return Context.Time.GetUtcNow(); } catch (InvalidOperationException error) { LogOptional(error, "clock"); return TimeProvider.System.GetUtcNow(); } }
     private BrainId CurrentBrain { get { try { return Id.Brain; } catch (InvalidOperationException error) { LogOptional(error, "brain-id"); return default; } } }
     private T? TryGetOptional<T>(string key) where T : class { try { return Get<T>(key); } catch (InvalidOperationException error) { LogOptional(error, typeof(T).Name); return null; } }

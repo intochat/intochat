@@ -12,10 +12,19 @@ Widget renderErrorLine(ErrorLineNode node, NodeContext ctx) =>
 /// Inline session or app error line: says what happened, optional detail,
 /// and the single next action button.
 class ErrorLineView extends StatelessWidget {
-  const ErrorLineView({super.key, required this.node, required this.ctx});
+  const ErrorLineView({
+    super.key,
+    required this.node,
+    required this.ctx,
+    this.onAction,
+  });
 
   final ErrorLineNode node;
   final NodeContext ctx;
+
+  /// Runs the action instead of activating its key on [ctx]'s view: an action
+  /// a parent decided, whose node is not in this view.
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +85,8 @@ class ErrorLineView extends StatelessWidget {
                 label: action.label,
                 small: true,
                 onTap: action.enabled && ctx.interactive
-                    ? () => ctx.activate(action.key, context: context)
+                    ? onAction ??
+                          () => ctx.activate(action.key, context: context)
                     : null,
               ),
             ],

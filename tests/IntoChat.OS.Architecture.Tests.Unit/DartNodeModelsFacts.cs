@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using DigitalBrain.UI;
+using static IntoChat.OS.Architecture.Tests.Unit.NodeSchema;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
 
@@ -65,31 +66,17 @@ public sealed partial class DartNodeModelsFacts
         Assert.True(offenders.Count == 0, "View fixtures hold node kinds the generated models do not know:\n" + string.Join('\n', offenders.Distinct()));
     }
 
-    internal static (Type Type, string Kind)[] DerivedKinds() => [.. typeof(Node).GetCustomAttributes<JsonDerivedTypeAttribute>()
-        .Select(attribute => (attribute.DerivedType, (string)attribute.TypeDiscriminator!))];
-
-    private static string Normalize(string source)
+    internal static string Normalize(string source)
         => TrailingComma().Replace(Whitespace().Replace(source, ""), "$1");
-
-    internal static string DartName(Type type) => type == typeof(View) ? "AppView"
-        : typeof(Node).IsAssignableFrom(type) && !type.Name.EndsWith("Node", StringComparison.Ordinal) ? type.Name + "Node"
-        : type.Name;
-
-    private static readonly NullabilityInfoContext Nullability = new();
-
-    private static PropertyInfo[] Properties(Type type) => [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-        .Where(property => property.GetMethod is not null && property.Name != "EqualityContract"
-            && property.GetCustomAttribute<JsonIgnoreAttribute>() is not { Condition: JsonIgnoreCondition.Always })
-        .OrderBy(property => property.MetadataToken)];
-
-    private static string JsonName(PropertyInfo property)
-        => property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? JsonNamingPolicy.CamelCase.ConvertName(property.Name);
 
     private static string FieldName(PropertyInfo property)
     {
         var name = JsonName(property);
         return name is "default" or "switch" or "enum" or "class" ? name + "Value" : name;
     }
+
+    // DigitalBrain.UI and its sub-namespaces (DigitalBrain.UI.Controls holds what control neurons draw).
+    private static bool IsUiModel(Type type) => type.Namespace == typeof(Node).Namespace || type.Namespace?.StartsWith(typeof(Node).Namespace + ".", StringComparison.Ordinal) == true;
 
     internal static string Generate()
     {
@@ -100,12 +87,16 @@ public sealed partial class DartNodeModelsFacts
             type = Nullable.GetUnderlyingType(type) ?? type;
             if (type.IsEnum) { enums.TryAdd(type.Name, type); return; }
             if (Element(type) is { } element) { Walk(element); return; }
-            if (type.Namespace != typeof(Node).Namespace || type == typeof(Node) || !type.IsClass) { return; }
+            if (!IsUiModel(type) || type == typeof(Node) || !type.IsClass) { return; }
             if (!records.TryAdd(DartName(type), type)) { return; }
             foreach (var property in Properties(type)) { Walk(property.PropertyType); }
         }
         Walk(typeof(View));
         foreach (var (type, _) in DerivedKinds()) { Walk(type); }
+        // A control's props ride on its slot (NeuronRef.Props as JSON); the client reads them with these models.
+        foreach (var props in typeof(DigitalBrain.UI.ControlProps).Assembly.GetTypes()
+            .Where(type => type is { IsAbstract: false } && type.IsSubclassOf(typeof(DigitalBrain.UI.ControlProps))))
+        { Walk(props); }
 
         var kinds = DerivedKinds().ToDictionary(entry => entry.Type, entry => entry.Kind);
         var dart = new StringBuilder();
@@ -120,6 +111,7 @@ public sealed partial class DartNodeModelsFacts
         dart.Append("int _int(Object? value, [int fallback = 0]) =>\n    value is num ? value.toInt() : fallback;\n\n");
         dart.Append("int? _intOrNull(Object? value) => value is num ? value.toInt() : null;\n\n");
         dart.Append("bool _bool(Object? value, [bool fallback = false]) =>\n    value is bool ? value : fallback;\n\n");
+        dart.Append("bool? _boolOrNull(Object? value) => value is bool ? value : null;\n\n");
         dart.Append("T _enum<T extends Enum>(List<T> values, Object? value) =>\n    _enumOrNull(values, value) ?? values.first;\n\n");
         dart.Append("T? _enumOrNull<T extends Enum>(List<T> values, Object? value) {\n  if (value is num) {\n    final index = value.toInt();\n    return index >= 0 && index < values.length ? values[index] : null;\n  }\n  final name = '$value'.toLowerCase();\n  for (final candidate in values) {\n    if (candidate.name.toLowerCase() == name) {\n      return candidate;\n    }\n  }\n  return null;\n}\n\n");
 
@@ -147,29 +139,10 @@ public sealed partial class DartNodeModelsFacts
             foreach (var property in properties) { dart.Append($"    {FieldName(property)}: {Read(property.PropertyType, IsNullable(property), $"json['{JsonName(property)}']", Default(type, property))},\n"); }
             dart.Append("  );\n}\n\n");
         }
+        // The chart kinds a live chart draws, from ChartRefusals.Kinds: the client refuses any other kind as the neuron does.
+        dart.Append("/// The chart kinds a live chart draws (`ChartRefusals.Kinds`).\n");
+        dart.Append($"const liveChartKinds = {{{string.Join(", ", DigitalBrain.UI.ChartRefusals.Kinds.Select(kind => $"'{kind}'"))}}};\n");
         return dart.ToString();
-    }
-
-    private static Type? Element(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IReadOnlyList<>)
-        ? type.GetGenericArguments()[0] : null;
-
-    private static bool IsNullable(PropertyInfo property) => Nullability.Create(property).ReadState == NullabilityState.Nullable;
-
-    private static string DartType(PropertyInfo property) => DartType(property.PropertyType) + (IsNullable(property) ? "?" : "");
-
-    private static string DartType(Type type)
-    {
-        type = Nullable.GetUnderlyingType(type) ?? type;
-        if (Element(type) is { } element) { return $"List<{DartType(element)}>"; }
-        if (type == typeof(string)) { return "String"; }
-        if (type == typeof(double)) { return "double"; }
-        if (type == typeof(int)) { return "int"; }
-        if (type == typeof(bool)) { return "bool"; }
-        if (type == typeof(JsonElement)) { return "Object"; }
-        if (type == typeof(Node)) { return "Node"; }
-        if (type.IsEnum) { return type.Name; }
-        if (type.Namespace == typeof(Node).Namespace) { return DartName(type); }
-        throw new NotSupportedException($"No Dart mirror for {type}.");
     }
 
     // A value the server leaves out falls back to the record's own parameter default (a button is enabled), else the type's.
@@ -199,7 +172,7 @@ public sealed partial class DartNodeModelsFacts
         if (type == typeof(string)) { return nullable ? $"_stringOrNull({value})" : $"_string({value}{or})"; }
         if (type == typeof(double)) { return nullable ? $"_doubleOrNull({value})" : $"_double({value}{or})"; }
         if (type == typeof(int)) { return nullable ? $"_intOrNull({value})" : $"_int({value}{or})"; }
-        if (type == typeof(bool)) { return $"_bool({value}{or})"; }
+        if (type == typeof(bool)) { return nullable ? $"_boolOrNull({value})" : $"_bool({value}{or})"; }
         if (type == typeof(JsonElement)) { return value; }
         if (type.IsEnum) { return nullable ? $"_enumOrNull({type.Name}.values, {value})" : $"_enum({type.Name}.values, {value})"; }
         var parse = type == typeof(Node) ? "Node.fromJson" : $"{DartName(type)}.fromJson";

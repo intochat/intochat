@@ -188,7 +188,7 @@ public sealed class ScreenDirectoryNeuronFacts
         var view = new View("Calculator", new Column(
         [
             new Text("Title"),
-            new Button("btn-add", "Add", new Emit("calc", "add", null)),
+            new Button("btn-add", "Add", new Command(".", "add", null)),
             new Field("fld-exp", "owner/apps/calc/exp", FieldKind.Text, Placeholder: "Type exp"),
             new ApprovalCardNode("card-1", "plan-99", "Approve Plan", "Summary", [], Resolve: new Resolve("plan-99")),
             new NavItemNode("nav-1", "Navigation", "icon", "nav-route", Emit: new Emit("calc", "nav", null))
@@ -226,7 +226,7 @@ public sealed class ScreenDirectoryNeuronFacts
     {
         using var person = AsPerson();
         var proxies = new MockNeuronProxies();
-        var view = new View("Calculator", new Column([new Button("btn-1", "One", new Emit("calc", "1", null))]));
+        var view = new View("Calculator", new Column([new Button("btn-1", "One", new Command(".", "1", null))]));
         var json = JsonSerializer.SerializeToElement(view, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
 
         var mockView = new MockView { Published = new PublishedView("owner/apps/calculator/view", 1L, json) };

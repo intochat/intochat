@@ -39,10 +39,10 @@ public sealed class AdversarialScreen : Screen<AdversarialScreenState>
             Root: new Column([
                 new Heading($"Visible: {state.VisibleText}"),
                 new Heading($"Caller: {state.LastCallerBy}"),
-                new Button("btn-update-visible", "Update Visible", Emits(new UpdateVisible("Updated"))),
-                new Button("btn-update-hidden", "Update Hidden", Emits(new UpdateHidden(1))),
-                new Button("btn-set-caller", "Set Caller", new Emit(Alias, "adversarial.set-caller", callerArgs.RootElement.Clone())),
-                new Button("btn-foreign", "Foreign", new Emit("other.screen", "adversarial.update-visible")),
+                new Button("btn-update-visible", "Update Visible", Sends(new UpdateVisible("Updated"))),
+                new Button("btn-update-hidden", "Update Hidden", Sends(new UpdateHidden(1))),
+                new Button("btn-set-caller", "Set Caller", new Command(".", "adversarial.set-caller", callerArgs.RootElement.Clone())),
+                new Switch("btn-foreign", "Foreign", false, new Emit("other.screen", "adversarial.update-visible")),
                 new Button("btn-no-emit", "No Emit", Intent: new Intent(IntentKind.Copy, "text")),
                 new Field("fld-input", "input-label", FieldKind.Text, state.LastCallerValue, OnSubmit: new Emit(Alias, "adversarial.set-caller", callerArgs.RootElement.Clone()))
             ])
@@ -97,7 +97,7 @@ public sealed class CasingByScreen : Screen<AdversarialScreenState>
         return new View(
             Title: "Casing By",
             Root: new Column([
-                new Button("btn-casing", "Casing Attack", new Emit(Alias, "adversarial.set-caller", jsonDoc.RootElement.Clone()))
+                new Button("btn-casing", "Casing Attack", new Command(".", "adversarial.set-caller", jsonDoc.RootElement.Clone()))
             ])
         );
     }
@@ -136,7 +136,7 @@ public sealed class MultiCasingByScreen : Screen<AdversarialScreenState>
         return new View(
             Title: "Multi Casing",
             Root: new Column([
-                new Button("btn-multi", "Multi Attack", new Emit(Alias, "adversarial.set-caller", jsonDoc.RootElement.Clone()))
+                new Button("btn-multi", "Multi Attack", new Command(".", "adversarial.set-caller", jsonDoc.RootElement.Clone()))
             ])
         );
     }
@@ -158,7 +158,7 @@ public sealed class DeeplyNestedByScreen : Screen<AdversarialScreenState>
             Root: new Column([
                 new Row([
                     new Column([
-                        new Button("btn-deep", "Deep", new Emit(Alias, "adversarial.set-caller", jsonDoc.RootElement.Clone()))
+                        new Button("btn-deep", "Deep", new Command(".", "adversarial.set-caller", jsonDoc.RootElement.Clone()))
                     ])
                 ])
             ])
@@ -406,7 +406,7 @@ public sealed class ScreenAdversarialFacts
         var preloadedView = new View(
             Title: "Adversarial Screen",
             Root: new Column([
-                new Button("btn-set-caller", "Set Caller", new Emit("app.adversarial-test", "adversarial.set-caller", jsonDoc.RootElement.Clone()))
+                new Button("btn-set-caller", "Set Caller", new Command(".", "adversarial.set-caller", jsonDoc.RootElement.Clone()))
             ])
         );
         var wire = JsonSerializer.SerializeToElement(preloadedView, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
@@ -440,7 +440,7 @@ public sealed class ScreenAdversarialFacts
         var preloadedView = new View(
             Title: "Adversarial Screen",
             Root: new Column([
-                new Button("btn-set-caller", "Set Caller", new Emit("app.adversarial-test", "adversarial.set-caller", jsonDoc.RootElement.Clone()))
+                new Button("btn-set-caller", "Set Caller", new Command(".", "adversarial.set-caller", jsonDoc.RootElement.Clone()))
             ])
         );
         var wire = JsonSerializer.SerializeToElement(preloadedView, DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(View)));
