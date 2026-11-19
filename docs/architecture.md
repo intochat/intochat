@@ -30,6 +30,8 @@ The sandbox worker in `src/IntoChat.OS.Sandbox` runs app code made at run time o
 
 Each system app has a folder in `src/IntoChat.OS.Apps`, for example `Ino`, `Creator`, `Desktop`, `Settings` and `Tasks`. A system app is a neuron. `InoApp` and `CreatorApp` derive from the framework's `Screen<TState>`: the app keeps a state record and renders it as a `View` tree. C# decides what is on screen; Flutter only draws it.
 
+A screen can slot control neurons (`src/IntoChat.OS.Apps/Controls`) into its view by key. The client sends a screen's commands to `POST /brains/{id}/act` and reads a slot's view from `GET /brains/{id}/apps/{name}/slots/{path}`, both through `AppUiEndpoints`; the host marks such a view with `acts` so the client knows. Kit, `IView` and unit apps still activate nodes by key on `POST /apps/event`; `OWED.md` tracks moving them. The shipped `UiKitApp` shows every control and data node, and its scenarios run on the kernel, Flutter and browser drivers.
+
 `ShippedShellAppsModule` (id `os-apps`) carries these neurons into the kernel. When a brain is created, `OsDefaults` installs the default apps into it. `src/IntoChat.OS.Apps/Units` holds the unit sources the product ships; `ShippedUnits` deploys them like any unit made at run time.
 
 ### Creator
