@@ -18,6 +18,7 @@ using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.Apps.Routing;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
+using IntoChat.OS.Modules.Microsoft.Roslyn;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -64,6 +65,10 @@ public sealed class AppsModule : DigitalBrain.Modules.Module, IHttpModule
         services.TryAddSingleton<Creator>();
         services.TryAddSingleton<IWorkTree, WorkTreeService>();
         services.TryAddSingleton<ICoder, LocalLlmCoder>();
+        services.TryAddSingleton<IWorktreeRoslyn>(_ => IWorktreeRoslyn.CreateDefault());
+        services.TryAddSingleton<IEngineerPlanner, EngineerPlanner>();
+        services.TryAddSingleton<IEngineerBuildVerifier, EngineerBuildVerifier>();
+        services.TryAddSingleton<ILiveVerifier, EngineerLiveVerifier>();
         services.TryAddSingleton<AppOperationCatalog>();
         services.AddHostedService<AppMenuHost>();
         services.AddNeuronProxies();

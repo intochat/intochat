@@ -9,6 +9,7 @@ using IntoChat.OS.Modules.AI;
 using IntoChat.OS.Modules.AI.Inference;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
+using IntoChat.OS.Modules.Microsoft.Roslyn;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -75,6 +76,18 @@ internal sealed class LocalLlmCoder : ICoder
                 "write_file",
                 $"Create or overwrite an allowed file ({extensions}) inside the worktree.",
                 """{"type":"object","properties":{"path":{"type":"string","description":"Repo-relative file path"},"content":{"type":"string","description":"Full UTF-8 file content"}},"required":["path","content"]}"""),
+            new(
+                "roslyn_symbols",
+                "Inspect C# types, namespaces, and members in the worktree via Roslyn syntax analysis.",
+                """{"type":"object","properties":{"filter":{"type":"string","description":"Optional relative path or filename substring filter"}}}"""),
+            new(
+                "roslyn_diagnostics",
+                "Run Roslyn C# syntax and semantic diagnostics on worktree C# files.",
+                """{"type":"object","properties":{"path":{"type":"string","description":"Optional repo-relative .cs file path to analyze"}}}"""),
+            new(
+                "roslyn_edit_member",
+                "Apply an AST-validated, Roslyn-formatted C# edit (add_using, add_or_replace_member, remove_member, create_type_file) inside the worktree.",
+                """{"type":"object","properties":{"kind":{"type":"string","description":"add_using | add_or_replace_member | remove_member | create_type_file"},"path":{"type":"string","description":"Repo-relative .cs path"},"type_name":{"type":"string"},"member_name":{"type":"string"},"namespace_name":{"type":"string"},"source":{"type":"string","description":"Complete C# member declaration or type body"}},"required":["kind","path"]}"""),
         ];
     }
 
@@ -82,8 +95,8 @@ internal sealed class LocalLlmCoder : ICoder
         You are Ino's surgical coding engine operating inside an isolated Git worktree.
         Rules:
         {policy.Describe()}
-        3. Always inspect existing files with list_files / read_file before editing, unless creating a brand-new file explicitly requested by the goal.
-        4. Prefer replace_in_file for surgical edits to existing files, or write_file when creating a new file or rewriting a small file cleanly.
+        3. Always inspect existing files with list_files / read_file / roslyn_symbols before editing, unless creating a brand-new file explicitly requested by the goal.
+        4. Prefer roslyn_edit_member + roslyn_diagnostics for C# AST-validated edits, and replace_in_file or write_file for Dart (.dart), Markdown (.md), or small file edits.
         5. Once you have made at least one real file modification that satisfies the goal, reply with a concise 1-2 sentence summary of the change and stop calling tools.
         """;
 
@@ -91,18 +104,21 @@ internal sealed class LocalLlmCoder : ICoder
     private readonly LocalLlmCoderOptions _options;
     private readonly ILogger<LocalLlmCoder> _logger;
     private readonly ChangePolicy _policy;
+    private readonly IWorktreeRoslyn _roslyn;
 
     public LocalLlmCoder(
         IServiceProvider? services = null,
         IConfiguration? configuration = null,
         LocalLlmCoderOptions? options = null,
         ILogger<LocalLlmCoder>? logger = null,
-        ChangePolicy? policy = null)
+        ChangePolicy? policy = null,
+        IWorktreeRoslyn? roslyn = null)
     {
         _services = services;
         _logger = logger ?? OsConsoleLog.For<LocalLlmCoder>();
         _options = options ?? BindOptions(configuration);
         _policy = policy ?? services?.GetService<ChangePolicy>() ?? ChangePolicy.Default;
+        _roslyn = roslyn ?? services?.GetService<IWorktreeRoslyn>() ?? IWorktreeRoslyn.CreateDefault();
     }
 
     public async Task<CoderEditResult> EditAsync(WorkTreeLease lease, string goal, CancellationToken ct = default)
@@ -110,7 +126,7 @@ internal sealed class LocalLlmCoder : ICoder
         ArgumentNullException.ThrowIfNull(lease);
         ArgumentException.ThrowIfNullOrWhiteSpace(goal);
 
-        var sandbox = new ConfinedWorkTreeSandbox(lease.TreePath, _policy);
+        var sandbox = new ConfinedWorkTreeSandbox(lease.TreePath, _policy, _roslyn);
         try
         {
             return await RunWithTimeoutAsync(sandbox, lease, goal, ct).ConfigureAwait(false);
@@ -343,12 +359,14 @@ internal sealed class LocalLlmCoder : ICoder
     {
         private readonly string _root;
         private readonly ChangePolicy _policy;
+        private readonly IWorktreeRoslyn _roslyn;
         private readonly HashSet<string> _touched = new(StringComparer.Ordinal);
 
-        public ConfinedWorkTreeSandbox(string treeRoot, ChangePolicy? policy = null)
+        public ConfinedWorkTreeSandbox(string treeRoot, ChangePolicy? policy = null, IWorktreeRoslyn? roslyn = null)
         {
             _root = Path.GetFullPath(treeRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             _policy = policy ?? ChangePolicy.Default;
+            _roslyn = roslyn ?? IWorktreeRoslyn.CreateDefault();
         }
 
         public IReadOnlyList<string> TouchedFiles => [.. _touched.OrderBy(p => p, StringComparer.Ordinal)];
@@ -376,6 +394,13 @@ internal sealed class LocalLlmCoder : ICoder
                         RequireString(args, "path"),
                         RequireString(args, "content"),
                         ct).ConfigureAwait(false),
+                    "roslyn_symbols" => await InspectRoslynSymbolsAsync(
+                        GetOptionalString(args, "filter"),
+                        ct).ConfigureAwait(false),
+                    "roslyn_diagnostics" => await InspectRoslynDiagnosticsAsync(
+                        GetOptionalString(args, "path"),
+                        ct).ConfigureAwait(false),
+                    "roslyn_edit_member" => await ApplyRoslynEditAsync(args, ct).ConfigureAwait(false),
                     _ => JsonSerializer.Serialize(new { ok = false, error = $"Unknown tool '{name}'." }),
                 };
             }
@@ -384,6 +409,67 @@ internal sealed class LocalLlmCoder : ICoder
                 OsConsoleLog.For<LocalLlmCoder>().LogSwallowed(ex, $"sandbox tool '{name}' failed");
                 return JsonSerializer.Serialize(new { ok = false, error = ex.Message });
             }
+        }
+
+        private async Task<string> InspectRoslynSymbolsAsync(string? filter, CancellationToken ct)
+        {
+            var symbols = await _roslyn.InspectSymbolsAsync(_root, filter, ct).ConfigureAwait(false);
+            return JsonSerializer.Serialize(new { ok = true, count = symbols.Count, symbols }, Json);
+        }
+
+        private async Task<string> InspectRoslynDiagnosticsAsync(string? path, CancellationToken ct)
+        {
+            string[]? paths = null;
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                var (rel, _) = ResolveConfinedPath(path, requireWriteAllowed: false, allowDirectory: false);
+                paths = [rel];
+            }
+
+            var diagnostics = await _roslyn.AnalyzeAsync(_root, paths, ct).ConfigureAwait(false);
+            return JsonSerializer.Serialize(new { ok = true, count = diagnostics.Count, diagnostics }, Json);
+        }
+
+        private async Task<string> ApplyRoslynEditAsync(JsonElement args, CancellationToken ct)
+        {
+            var rawPath = RequireString(args, "path");
+            var (rel, _) = ResolveConfinedPath(rawPath, requireWriteAllowed: true, allowDirectory: false);
+            EnforceMaxTouchedBudget(rel);
+
+            var rawKind = RequireString(args, "kind").Trim().ToLowerInvariant();
+            var kind = rawKind switch
+            {
+                "add_using" or "addusing" => WorktreeCSharpEditKind.AddUsing,
+                "add_or_replace_member" or "addorreplacemember" or "replace_member" or "add_member" => WorktreeCSharpEditKind.AddOrReplaceMember,
+                "remove_member" or "removemember" => WorktreeCSharpEditKind.RemoveMember,
+                "create_type_file" or "createtypefile" => WorktreeCSharpEditKind.CreateTypeFile,
+                _ => throw new ArgumentException($"Unsupported roslyn_edit_member kind '{rawKind}'."),
+            };
+
+            var edit = new WorktreeCSharpEdit(
+                Kind: kind,
+                RelativePath: rel,
+                TypeName: GetOptionalString(args, "type_name"),
+                MemberName: GetOptionalString(args, "member_name"),
+                NamespaceName: GetOptionalString(args, "namespace_name"),
+                Source: GetOptionalString(args, "source"),
+                TypeKind: GetOptionalString(args, "type_kind"),
+                BaseTypes: GetOptionalString(args, "base_types"));
+
+            var summary = await _roslyn.ApplyEditsAsync(_root, [edit], ct).ConfigureAwait(false);
+            foreach (var touched in summary.TouchedFiles)
+            {
+                _touched.Add(touched);
+            }
+
+            return JsonSerializer.Serialize(new
+            {
+                ok = summary.Succeeded,
+                touchedFiles = summary.TouchedFiles,
+                diagnostics = summary.Diagnostics,
+                diff = summary.Diff,
+                detail = summary.Detail,
+            }, Json);
         }
 
         public string ListFiles(string? relativeDir, string? filter, int maxItems = MaxListedFiles)

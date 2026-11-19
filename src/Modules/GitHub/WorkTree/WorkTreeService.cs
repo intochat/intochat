@@ -12,11 +12,15 @@ using Microsoft.Extensions.Logging;
 namespace IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 
 /// <summary>
-/// Options controlling <see cref="WorkTreeService"/> home directory, repository allowlist path, policy, and CLI timeouts.
+/// Options controlling <see cref="WorkTreeService"/> execution backend, home/volume directories, repository allowlist path, policy, and CLI timeouts.
 /// </summary>
 public sealed class WorkTreeOptions
 {
     public string? HomeDirectory { get; set; }
+
+    public string? VolumeMountRoot { get; set; }
+
+    public WorkTreeBackendKind Backend { get; set; } = WorkTreeBackendKind.LocalGit;
 
     public string? ReposConfigPath { get; set; }
 
@@ -37,7 +41,7 @@ public sealed class WorkTreeOptions
 
 /// <summary>
 /// Application service coordinating <see cref="RepositoryAllowlist"/>, <see cref="GitCommandRunner"/>,
-/// Triple Git Lock verification, and <see cref="ChangePolicy"/> enforcement.
+/// container/sandbox volume mirrors, N-parallel worktrees, Triple Git Lock verification, and <see cref="ChangePolicy"/> enforcement.
 /// </summary>
 public sealed partial class WorkTreeService : IWorkTree
 {
@@ -49,6 +53,7 @@ public sealed partial class WorkTreeService : IWorkTree
     private readonly ILogger<WorkTreeService> _logger;
     private readonly RepositoryAllowlist _allowlist;
     private readonly GitCommandRunner _git;
+    private readonly SandboxVolumeHost _volumes;
 
     public WorkTreeService(
         IConfiguration? configuration = null,
@@ -59,9 +64,12 @@ public sealed partial class WorkTreeService : IWorkTree
         _logger = logger ?? OsConsoleLog.For<WorkTreeService>();
         _allowlist = new RepositoryAllowlist(configuration, _options, _logger);
         _git = new GitCommandRunner(_options, _logger);
+        _volumes = new SandboxVolumeHost(_options, _logger);
     }
 
     public string HomeDirectory => _allowlist.HomeDirectory;
+
+    public WorkTreeBackendKind Backend => _options.Backend;
 
     public void RegisterRepository(RegisteredRepository repository) => _allowlist.Register(repository);
 
@@ -76,101 +84,177 @@ public sealed partial class WorkTreeService : IWorkTree
         BranchName? baseBranch = null,
         CancellationToken ct = default)
     {
+        var leases = await PrepareParallelAsync(repositoryId, runId, goal, instanceCount: 1, baseBranch, ct).ConfigureAwait(false);
+        return leases[0];
+    }
+
+    public async Task<IReadOnlyList<WorkTreeLease>> PrepareParallelAsync(
+        RepositoryId repositoryId,
+        string runId,
+        string goal,
+        int instanceCount,
+        BranchName? baseBranch = null,
+        CancellationToken ct = default)
+    {
         ArgumentNullException.ThrowIfNull(repositoryId);
         ArgumentException.ThrowIfNullOrWhiteSpace(runId);
         ArgumentException.ThrowIfNullOrWhiteSpace(goal);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(instanceCount, 0);
 
         var repo = ResolveRepository(repositoryId);
+        var sourcePath = _options.Backend == WorkTreeBackendKind.ContainerVolume
+            ? await _volumes.EnsureMirrorAsync(repo, HomeDirectory, _git, ct).ConfigureAwait(false)
+            : ResolveLocalSourcePath(repo);
+
+        var gate = _volumes.GateFor(sourcePath);
+        await gate.WaitAsync(ct).ConfigureAwait(false);
+        var created = new List<WorkTreeLease>(instanceCount);
+        try
+        {
+            var originUrl = await TryGetOriginUrlAsync(sourcePath, ct).ConfigureAwait(false);
+            var pushUrl = await TryGetOriginUrlAsync(sourcePath, ct, push: true).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(originUrl) || string.IsNullOrWhiteSpace(pushUrl))
+            {
+                throw new InvalidOperationException($"Repository '{repo.Id}' has no 'origin' remote configured.");
+            }
+
+            var githubRepo = repo.GitHubRepo ?? ParseGitHubOwnerRepo(originUrl);
+            var allowLocalFileTransport = IsLocalFilesystemRemote(originUrl);
+
+            var fetch = await _git.RunSourceGitAsync(sourcePath, allowLocalFileTransport, ct, "fetch", "origin", "--prune", "--no-tags").ConfigureAwait(false);
+            if (fetch.ExitCode != 0)
+            {
+                _logger.LogWarning("Non-fatal git fetch warning on {Repo}: {StdErr}", repo.Id, fetch.StdErr);
+            }
+
+            var requestedBase = baseBranch ?? (string.IsNullOrWhiteSpace(repo.DefaultBaseBranch)
+                ? null
+                : BranchName.FromRequestedBase(repo.DefaultBaseBranch));
+            var (resolvedBaseBranch, startRef) = await ResolveRemoteBaseBranchAsync(sourcePath, requestedBase, ct).ConfigureAwait(false);
+
+            var baseShaResult = await _git.RunSourceGitAsync(sourcePath, false, ct, "rev-parse", "--verify", $"{startRef}^{{commit}}").ConfigureAwait(false);
+            GitCommandRunner.EnsureSuccess(baseShaResult, $"resolve base commit '{startRef}'");
+            var baseSha = CommitSha.Parse(baseShaResult.StdOut);
+
+            var unpushed = await _git.RunSourceGitAsync(sourcePath, false, ct, "rev-list", "--count", baseSha.Value, "--not", "--remotes=origin").ConfigureAwait(false);
+            GitCommandRunner.EnsureSuccess(unpushed, $"compare base '{resolvedBaseBranch.Value}' with origin");
+            if (unpushed.StdOut.Trim() != "0")
+            {
+                throw new SecurityException(
+                    $"Refusing to start from base '{resolvedBaseBranch.Value}': it has {unpushed.StdOut.Trim()} commit(s) the remote does not have. Push the base first or name a branch that is on the remote.");
+            }
+
+            _ = await _git.RunSourceGitAsync(sourcePath, false, ct, "worktree", "prune").ConfigureAwait(false);
+
+            var safeRepoDir = BranchName.SanitizeSegment(repo.Id);
+            var safeRunId = BranchName.SanitizeSegment(runId);
+            var sanitizedPushUrl = WithoutCredentials(pushUrl);
+
+            for (var i = 0; i < instanceCount; i++)
+            {
+                var leaseId = WorkTreeLease.BuildLeaseId(repo.Id, runId, i);
+                var branch = instanceCount == 1
+                    ? BranchName.CreateFeatureBranch(goal, runId)
+                    : BranchName.CreateParallelFeatureBranch(goal, runId, i);
+
+                string treePath;
+                string? volumeId;
+                if (_options.Backend == WorkTreeBackendKind.ContainerVolume)
+                {
+                    var leaseRoot = _volumes.GetLeaseRoot(HomeDirectory, leaseId);
+                    treePath = Path.Combine(leaseRoot, "workspace");
+                    volumeId = "vol-" + leaseId;
+                }
+                else
+                {
+                    var runSegment = instanceCount == 1
+                        ? safeRunId
+                        : string.Create(CultureInfo.InvariantCulture, $"{safeRunId}-w{i + 1}");
+                    treePath = Path.GetFullPath(Path.Combine(HomeDirectory, "worktrees", safeRepoDir, runSegment));
+                    volumeId = null;
+                }
+
+                if (Directory.Exists(treePath))
+                {
+                    await RemoveWorktreeDirectoryAsync(sourcePath, treePath, ct).ConfigureAwait(false);
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(treePath)!);
+
+                var addResult = await _git.RunSourceGitAsync(
+                    sourcePath,
+                    false,
+                    ct,
+                    "worktree",
+                    "add",
+                    "--no-track",
+                    "-B",
+                    branch.Value,
+                    treePath,
+                    baseSha.Value).ConfigureAwait(false);
+                GitCommandRunner.EnsureSuccess(addResult, $"create isolated worktree at '{treePath}'");
+
+                var dotGitFile = Path.Combine(treePath, ".git");
+                var attr = File.GetAttributes(dotGitFile);
+                if ((attr & FileAttributes.Directory) != 0 || (attr & FileAttributes.ReparsePoint) != 0)
+                {
+                    throw new SecurityException($"Expected '{dotGitFile}' to be a regular gitdir pointer file.");
+                }
+
+                var pointerBytes = await File.ReadAllBytesAsync(dotGitFile, ct).ConfigureAwait(false);
+                var pointerHashHex = Convert.ToHexStringLower(SHA256.HashData(pointerBytes));
+                var realGitDir = ParseRealGitDirPath(treePath, pointerBytes);
+                LockDotGitPointer(dotGitFile, attr);
+
+                var instanceRunId = instanceCount == 1
+                    ? runId
+                    : string.Create(CultureInfo.InvariantCulture, $"{runId}-w{i + 1}");
+
+                created.Add(new WorkTreeLease(
+                    RunId: instanceRunId,
+                    RepositoryId: repo.Id,
+                    SourceRepoPath: sourcePath,
+                    TreePath: treePath,
+                    RealGitDirPath: realGitDir,
+                    GitPointerSha256Hex: pointerHashHex,
+                    BaseBranch: resolvedBaseBranch.Value,
+                    BaseCommitSha: baseSha.Value,
+                    BranchName: branch.Value,
+                    GitHubRepo: githubRepo,
+                    OriginUrl: sanitizedPushUrl,
+                    LeaseId: leaseId,
+                    InstanceIndex: i,
+                    Backend: _options.Backend,
+                    VolumeId: volumeId));
+            }
+
+            return created;
+        }
+        catch
+        {
+            foreach (var lease in created)
+            {
+                await RemoveWorktreeDirectoryAsync(lease.SourceRepoPath, lease.TreePath, CancellationToken.None).ConfigureAwait(false);
+                _volumes.CleanupLeaseVolumeDirectory(lease);
+            }
+
+            throw;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private static string ResolveLocalSourcePath(RegisteredRepository repo)
+    {
         var sourcePath = Path.GetFullPath(repo.LocalPath);
         if (!Directory.Exists(sourcePath))
         {
             throw new DirectoryNotFoundException($"Registered repository '{repo.Id}' path does not exist: {sourcePath}");
         }
 
-        var safeRepoDir = BranchName.SanitizeSegment(repo.Id);
-        var safeRunId = BranchName.SanitizeSegment(runId);
-        var branch = BranchName.CreateFeatureBranch(goal, runId);
-
-        var treePath = Path.GetFullPath(Path.Combine(HomeDirectory, "worktrees", safeRepoDir, safeRunId));
-        if (Directory.Exists(treePath))
-        {
-            await RemoveWorktreeDirectoryAsync(sourcePath, treePath, ct).ConfigureAwait(false);
-        }
-
-        Directory.CreateDirectory(Path.GetDirectoryName(treePath)!);
-
-        var originUrl = await TryGetOriginUrlAsync(sourcePath, ct).ConfigureAwait(false);
-        var pushUrl = await TryGetOriginUrlAsync(sourcePath, ct, push: true).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(originUrl) || string.IsNullOrWhiteSpace(pushUrl))
-        {
-            throw new InvalidOperationException($"Repository '{repo.Id}' has no 'origin' remote configured.");
-        }
-
-        var githubRepo = repo.GitHubRepo ?? ParseGitHubOwnerRepo(originUrl);
-        var allowLocalFileTransport = IsLocalFilesystemRemote(originUrl);
-
-        var fetch = await _git.RunSourceGitAsync(sourcePath, allowLocalFileTransport, ct, "fetch", "origin", "--prune", "--no-tags").ConfigureAwait(false);
-        if (fetch.ExitCode != 0)
-        {
-            _logger.LogWarning("Non-fatal git fetch warning on {Repo}: {StdErr}", repo.Id, fetch.StdErr);
-        }
-
-        var requestedBase = baseBranch ?? (string.IsNullOrWhiteSpace(repo.DefaultBaseBranch)
-            ? null
-            : BranchName.FromRequestedBase(repo.DefaultBaseBranch));
-        var (resolvedBaseBranch, startRef) = await ResolveRemoteBaseBranchAsync(sourcePath, requestedBase, ct).ConfigureAwait(false);
-
-        var baseShaResult = await _git.RunSourceGitAsync(sourcePath, false, ct, "rev-parse", "--verify", $"{startRef}^{{commit}}").ConfigureAwait(false);
-        GitCommandRunner.EnsureSuccess(baseShaResult, $"resolve base commit '{startRef}'");
-        var baseSha = CommitSha.Parse(baseShaResult.StdOut);
-
-        var unpushed = await _git.RunSourceGitAsync(sourcePath, false, ct, "rev-list", "--count", baseSha.Value, "--not", "--remotes=origin").ConfigureAwait(false);
-        GitCommandRunner.EnsureSuccess(unpushed, $"compare base '{resolvedBaseBranch.Value}' with origin");
-        if (unpushed.StdOut.Trim() != "0")
-        {
-            throw new SecurityException(
-                $"Refusing to start from base '{resolvedBaseBranch.Value}': it has {unpushed.StdOut.Trim()} commit(s) the remote does not have. Push the base first or name a branch that is on the remote.");
-        }
-
-        _ = await _git.RunSourceGitAsync(sourcePath, false, ct, "worktree", "prune").ConfigureAwait(false);
-
-        var addResult = await _git.RunSourceGitAsync(
-            sourcePath,
-            false,
-            ct,
-            "worktree",
-            "add",
-            "--no-track",
-            "-B",
-            branch.Value,
-            treePath,
-            baseSha.Value).ConfigureAwait(false);
-        GitCommandRunner.EnsureSuccess(addResult, $"create isolated worktree at '{treePath}'");
-
-        var dotGitFile = Path.Combine(treePath, ".git");
-        var attr = File.GetAttributes(dotGitFile);
-        if ((attr & FileAttributes.Directory) != 0 || (attr & FileAttributes.ReparsePoint) != 0)
-        {
-            throw new SecurityException($"Expected '{dotGitFile}' to be a regular gitdir pointer file.");
-        }
-
-        var pointerBytes = await File.ReadAllBytesAsync(dotGitFile, ct).ConfigureAwait(false);
-        var pointerHashHex = Convert.ToHexStringLower(SHA256.HashData(pointerBytes));
-        var realGitDir = ParseRealGitDirPath(treePath, pointerBytes);
-        LockDotGitPointer(dotGitFile, attr);
-
-        return new WorkTreeLease(
-            RunId: runId,
-            RepositoryId: repo.Id,
-            SourceRepoPath: sourcePath,
-            TreePath: treePath,
-            RealGitDirPath: realGitDir,
-            GitPointerSha256Hex: pointerHashHex,
-            BaseBranch: resolvedBaseBranch.Value,
-            BaseCommitSha: baseSha.Value,
-            BranchName: branch.Value,
-            GitHubRepo: githubRepo,
-            OriginUrl: WithoutCredentials(pushUrl));
+        return sourcePath;
     }
 
     public async Task<ChangeSet> VerifyAndCommitAsync(
@@ -424,7 +508,26 @@ public sealed partial class WorkTreeService : IWorkTree
     public async Task CleanupAsync(WorkTreeLease lease, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(lease);
-        await RemoveWorktreeDirectoryAsync(lease.SourceRepoPath, lease.TreePath, ct).ConfigureAwait(false);
+        var gate = _volumes.GateFor(lease.SourceRepoPath);
+        await gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await RemoveWorktreeDirectoryAsync(lease.SourceRepoPath, lease.TreePath, ct).ConfigureAwait(false);
+            _volumes.CleanupLeaseVolumeDirectory(lease);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public async Task CleanupParallelAsync(IReadOnlyList<WorkTreeLease> leases, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(leases);
+        foreach (var lease in leases)
+        {
+            await CleanupAsync(lease, ct).ConfigureAwait(false);
+        }
     }
 
     /// <summary>

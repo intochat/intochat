@@ -16,6 +16,7 @@
     <ProjectReference Include="../../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" />
     <ProjectReference Include="../../../framework/src/DigitalBrain.Simulation/DigitalBrain.Simulation.csproj" />
+    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
@@ -27,6 +28,8 @@
     <ProjectReference Include="../ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
     <ProjectReference Include="../Mcp/IntoChat.OS.Modules.Mcp.csproj" />
     <ProjectReference Include="../GitHub/IntoChat.OS.Modules.GitHub.csproj" />
+    <ProjectReference Include="../Roslyn/IntoChat.OS.Modules.Roslyn.csproj" />
+    <ProjectReference Include="../Playwright/IntoChat.OS.Modules.Playwright.csproj" />
     <ProjectReference Include="../AI/IntoChat.OS.Modules.AI.csproj" />
     <ProjectReference Include="../UI/IntoChat.OS.Modules.UI.csproj" />
   </ItemGroup>

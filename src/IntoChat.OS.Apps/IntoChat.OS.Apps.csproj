@@ -11,7 +11,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../framework/src/DigitalBrain.Capabilities.Storage/DigitalBrain.Capabilities.Storage.csproj" />
-    
+    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
     <ProjectReference Include="../../framework/src/DigitalBrain.UI/DigitalBrain.UI.csproj" />
     <ProjectReference Include="../../framework/src/DigitalBrain.Graph/DigitalBrain.Graph.csproj" />
     <ProjectReference Include="../IntoChat.OS/IntoChat.OS.csproj" />
@@ -20,6 +20,7 @@
     <ProjectReference Include="../Modules/Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
     <ProjectReference Include="../Modules/Shell/IntoChat.OS.Modules.Shell.csproj" />
     <ProjectReference Include="../Modules/Catalog/IntoChat.OS.Modules.Catalog.csproj" />
+    <ProjectReference Include="../Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
     <ProjectReference Include="../Modules/AI/IntoChat.OS.Modules.AI.csproj" />
     <ProjectReference Include="../Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
     <ProjectReference Include="../Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />

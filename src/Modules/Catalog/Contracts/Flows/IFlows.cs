@@ -12,6 +12,9 @@ public interface IFlows
     // The flow type of a feature-to-PR change run (FeatureToPrFlow).
     const string ChangeFlow = "flow.change";
 
+    // The flow type of an autonomous multi-stage engineering run across 1..N worktrees (EngineerFlow).
+    const string EngineerFlow = "flow.engineer";
+
     static DigitalBrain.NeuronId Key(string brain) => new(new DigitalBrain.BrainId(brain), "flows", "flows/index");
 
     [DigitalBrain.Contracts.ReadOnlyCall]

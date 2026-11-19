@@ -161,7 +161,7 @@ internal sealed partial class ScreenDirectoryNeuron(
         }
         else
         {
-            foreach (var standardApp in new[] { "ino", "gallery", "calculator", "creator", "photocraft", "data", "tasks", "settings", "files", "uikit" })
+            foreach (var standardApp in new[] { "ino", "gallery", "calculator", "creator", "engineer", "photocraft", "data", "tasks", "settings", "files", "uikit" })
             {
                 if (!summaries.ContainsKey(standardApp))
                 {
