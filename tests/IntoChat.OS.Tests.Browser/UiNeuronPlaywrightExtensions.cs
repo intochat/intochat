@@ -132,6 +132,30 @@ public static class UiNeuronPlaywrightExtensions
         await host.Locator("[role='button']").Last.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
     }
 
+    /// <summary>Selects a day inside an `ICalendarView` (`ui.calendar`) neuron.</summary>
+    public static async Task ToggleCalendarDayAsync(this IPage page, string key, int day, CancellationToken ct = default)
+    {
+        var host = page.Neuron("ui.calendar", key).First;
+        await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.GetByText(day.ToString(System.Globalization.CultureInfo.InvariantCulture), new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+    }
+
+    /// <summary>Selects an item tile inside an `IGridView` (`ui.grid-view`) neuron.</summary>
+    public static async Task SelectGridItemAsync(this IPage page, string key, string itemTitle, CancellationToken ct = default)
+    {
+        var host = page.Neuron("ui.grid-view", key).First;
+        await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.GetByText(itemTitle, new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+    }
+
+    /// <summary>Clicks Play/Pause inside an `IMediaPlayer` (`ui.media-player`) neuron.</summary>
+    public static async Task ToggleMediaPlaybackAsync(this IPage page, string key, CancellationToken ct = default)
+    {
+        var host = page.Neuron("ui.media-player", key).First;
+        await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.Locator("[role='button']").First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+    }
+
     /// <summary>Reads all visible rendered text inside a `Modules.UI` neuron widget.</summary>
     public static async Task<string> ReadNeuronTextAsync(this IPage page, string kind, string key, CancellationToken ct = default)
     {

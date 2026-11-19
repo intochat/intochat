@@ -15,15 +15,21 @@ using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.UI.AutoSuggestBox;
 using IntoChat.OS.Modules.UI.BreadcrumbBar;
+using IntoChat.OS.Modules.UI.CalendarView;
 using IntoChat.OS.Modules.UI.Chart;
 using IntoChat.OS.Modules.UI.Chat;
 using IntoChat.OS.Modules.UI.CheckBox;
 using IntoChat.OS.Modules.UI.ColorPicker;
+using IntoChat.OS.Modules.UI.ContextMenu;
+using IntoChat.OS.Modules.UI.DatePicker;
 using IntoChat.OS.Modules.UI.Dialog;
 using IntoChat.OS.Modules.UI.Expander;
 using IntoChat.OS.Modules.UI.Form;
+using IntoChat.OS.Modules.UI.GridView;
+using IntoChat.OS.Modules.UI.ImageViewer;
 using IntoChat.OS.Modules.UI.InfoBar;
 using IntoChat.OS.Modules.UI.ListBox;
+using IntoChat.OS.Modules.UI.MediaPlayer;
 using IntoChat.OS.Modules.UI.NumberBox;
 using IntoChat.OS.Modules.UI.Progress;
 using IntoChat.OS.Modules.UI.RadioButtons;
@@ -32,6 +38,7 @@ using IntoChat.OS.Modules.UI.Select;
 using IntoChat.OS.Modules.UI.Slider;
 using IntoChat.OS.Modules.UI.Table;
 using IntoChat.OS.Modules.UI.Tabs;
+using IntoChat.OS.Modules.UI.TimePicker;
 using IntoChat.OS.Modules.UI.Toggle;
 using IntoChat.OS.Modules.UI.TreeView;
 using IntoChat.OS.UI;
@@ -112,6 +119,7 @@ public sealed record GalleryAppState(
         "colors", "typography", "icons", "spacing",
         "toggle", "checkbox", "select", "buttons", "form", "winui-inputs",
         "tabs", "expander", "listbox", "dialog", "winui-nav",
+        "datetime", "media",
         "charts", "table",
         "chat", "cards", "graphs",
     ];
@@ -202,6 +210,8 @@ public sealed record GalleryAppState(
         "listbox" or "list" => "listbox",
         "dialog" or "modal" => "dialog",
         "winui-nav" or "breadcrumb" or "suggest" or "tree" or "progress" or "infobar" => "winui-nav",
+        "datetime" or "date" or "time" or "calendar" => "datetime",
+        "media" or "grid" or "image" or "player" or "context-menu" => "media",
         "charts" or "chart" or "data" => "charts",
         "table" or "datatable" => "table",
         "chat" or "ino" or "devui" => "chat",
@@ -227,6 +237,8 @@ public sealed record GalleryAppState(
         "listbox" => "ListBox (IListBox)",
         "dialog" => "Dialog (IDialog)",
         "winui-nav" => "WinUI 3 Nav & Status (Breadcrumb, Suggest, Tree, Progress, InfoBar)",
+        "datetime" => "Date & Time (DatePicker, TimePicker, Calendar)",
+        "media" => "Menus, Grid & Media (ContextMenu, GridView, ImageViewer, MediaPlayer)",
         "charts" => "Charts (IChart)",
         "table" => "Data Table (ITable)",
         "chat" => "DevUI Chat (IChatThread)",
@@ -266,6 +278,13 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     public const string DemoTreeViewKey = "gallery/tree-view/demo";
     public const string DemoProgressKey = "gallery/progress/demo";
     public const string DemoInfoBarKey = "gallery/info-bar/demo";
+    public const string DemoDatePickerKey = "gallery/date-picker/demo";
+    public const string DemoTimePickerKey = "gallery/time-picker/demo";
+    public const string DemoCalendarKey = "gallery/calendar/demo";
+    public const string DemoContextMenuKey = "gallery/context-menu/demo";
+    public const string DemoGridViewKey = "gallery/grid-view/demo";
+    public const string DemoImageViewerKey = "gallery/image-viewer/demo";
+    public const string DemoMediaPlayerKey = "gallery/media-player/demo";
 
     private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<GalleryApp>();
     private readonly ILogger _logger;
@@ -636,7 +655,46 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
             }
             if (TryGetOptional<IInfoBar>(DemoInfoBarKey) is { } info && (await info.Read()).Version == 0)
             {
-                await info.Show("WinUI 3 Neuron Kit", "All 21 interactive controls are real DigitalBrain neurons synced over gRPC.", severity: "success");
+                await info.Show("WinUI 3 Neuron Kit", "All 28 interactive controls are real DigitalBrain neurons synced over gRPC.", severity: "success");
+            }
+            if (TryGetOptional<IDatePicker>(DemoDatePickerKey) is { } dp && (await dp.Read()).Version == 0)
+            {
+                await dp.Configure("Release target date", "2026-11-19", minDate: "2026-01-01", maxDate: "2027-12-31");
+            }
+            if (TryGetOptional<ITimePicker>(DemoTimePickerKey) is { } tp && (await tp.Read()).Version == 0)
+            {
+                await tp.Configure("Daily digest time", 9, 30, use24Hour: true);
+            }
+            if (TryGetOptional<ICalendarView>(DemoCalendarKey) is { } cal && (await cal.Read()).Version == 0)
+            {
+                await cal.Configure("Sprint milestones", 2026, 11, ["2026-11-19", "2026-11-24"], multiSelect: true);
+            }
+            if (TryGetOptional<IContextMenu>(DemoContextMenuKey) is { } menu && (await menu.Read()).Version == 0)
+            {
+                await menu.Configure("File Actions",
+                [
+                    new ContextMenuItem("open", "Open in Editor", "file-code", "Ctrl+O"),
+                    new ContextMenuItem("rename", "Rename", "edit", "F2"),
+                    new ContextMenuItem("delete", "Delete", "trash", "Del", Destructive: true),
+                ]);
+            }
+            if (TryGetOptional<IGridView>(DemoGridViewKey) is { } gv && (await gv.Read()).Version == 0)
+            {
+                await gv.Configure("Workspace Assets",
+                [
+                    new GridViewItem("arch", "architecture.md", "14 KB · Markdown", "file-text", Badge: "DOC"),
+                    new GridViewItem("hero", "hero-banner.png", "1.2 MB · PNG", "image", Badge: "IMG"),
+                    new GridViewItem("demo", "walkthrough.mp4", "24 MB · Video", "film", Badge: "VID"),
+                    new GridViewItem("data", "q4-metrics.csv", "82 KB · Table", "table", Badge: "CSV"),
+                ], selectedId: "arch", columns: 2);
+            }
+            if (TryGetOptional<IImageViewer>(DemoImageViewerKey) is { } img && (await img.Read()).Version == 0)
+            {
+                await img.Configure("Design System Preview", "", "Interactive zoom & rotation backed by IImageViewer neuron");
+            }
+            if (TryGetOptional<IMediaPlayer>(DemoMediaPlayerKey) is { } mp && (await mp.Read()).Version == 0)
+            {
+                await mp.Configure("IntoChat OS Ambient Focus", "Neural Audio Engine", "", kind: "audio", durationSeconds: 215);
             }
         }
 #pragma warning disable CA1031 // Seeding is best-effort when running in unit tests without UI module registered.

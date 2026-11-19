@@ -2,15 +2,21 @@ import 'package:flutter/widgets.dart';
 
 import 'auto_suggest_box/auto_suggest_box_widget.dart';
 import 'breadcrumb_bar/breadcrumb_bar_widget.dart';
+import 'calendar_view/calendar_view_widget.dart';
 import 'chart/chart_widget.dart';
 import 'chat/chat_thread_widget.dart';
 import 'checkbox/checkbox_widget.dart';
 import 'color_picker/color_picker_widget.dart';
+import 'context_menu/context_menu_widget.dart';
+import 'date_picker/date_picker_widget.dart';
 import 'dialog/dialog_widget.dart';
 import 'expander/expander_widget.dart';
 import 'form/form_widget.dart';
+import 'grid_view/grid_view_widget.dart';
+import 'image_viewer/image_viewer_widget.dart';
 import 'info_bar/info_bar_widget.dart';
 import 'listbox/listbox_widget.dart';
+import 'media_player/media_player_widget.dart';
 import 'neuron_widget.dart';
 import 'number_box/number_box_widget.dart';
 import 'progress/progress_widget.dart';
@@ -20,6 +26,7 @@ import 'select/select_widget.dart';
 import 'slider/slider_widget.dart';
 import 'table/table_widget.dart';
 import 'tabs/tabs_widget.dart';
+import 'time_picker/time_picker_widget.dart';
 import 'toggle/toggle_widget.dart';
 import 'tree_view/tree_view_widget.dart';
 
@@ -45,7 +52,14 @@ bool isUiNeuronKind(String refKind) => switch (refKind.trim().toLowerCase()) {
   'ui.auto-suggest' ||
   'ui.tree-view' ||
   'ui.progress' ||
-  'ui.info-bar' => true,
+  'ui.info-bar' ||
+  'ui.date-picker' ||
+  'ui.time-picker' ||
+  'ui.calendar' ||
+  'ui.context-menu' ||
+  'ui.grid-view' ||
+  'ui.image-viewer' ||
+  'ui.media-player' => true,
   _ => false,
 };
 
@@ -180,6 +194,48 @@ Widget? buildUiNeuronWidget({
     ),
     'ui.info-bar' => InfoBarWidget(
       key: ValueKey('ui.info-bar:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.date-picker' => DatePickerNeuronWidget(
+      key: ValueKey('ui.date-picker:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.time-picker' => TimePickerNeuronWidget(
+      key: ValueKey('ui.time-picker:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.calendar' => CalendarViewNeuronWidget(
+      key: ValueKey('ui.calendar:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.context-menu' => ContextMenuNeuronWidget(
+      key: ValueKey('ui.context-menu:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.grid-view' => GridViewNeuronWidget(
+      key: ValueKey('ui.grid-view:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.image-viewer' => ImageViewerNeuronWidget(
+      key: ValueKey('ui.image-viewer:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.media-player' => MediaPlayerNeuronWidget(
+      key: ValueKey('ui.media-player:$neuronKey'),
       neuronKey: neuronKey,
       callNeuron: callNeuron,
       watch: watch,

@@ -294,4 +294,120 @@ void main() {
     await tester.pumpAndSettle();
     expect(calls, contains('IntoChat.OS.Modules.UI.TreeView.ITreeView.Select'));
   });
+
+  testWidgets(
+    'Tier 2/3 CalendarView, GridView, ImageViewer and MediaPlayer invoke gRPC methods',
+    (tester) async {
+      final calls = <String>[];
+      var playing = false;
+      var rotation = 0;
+
+      Future<Map<String, dynamic>?> callNeuron(
+        String contract,
+        String key,
+        String method,
+        List<Object?> args,
+      ) async {
+        calls.add('$contract.$method');
+        if (contract.endsWith('ICalendarView')) {
+          return {
+            'version': calls.length,
+            'title': 'Sprint',
+            'year': 2026,
+            'month': 11,
+            'selectedDates': ['2026-11-19'],
+            'multiSelect': true,
+          };
+        }
+        if (contract.endsWith('IGridView')) {
+          return {
+            'version': calls.length,
+            'title': 'Assets',
+            'selectedId': method == 'Select' ? args.first : 'arch',
+            'columns': 2,
+            'items': [
+              {'id': 'arch', 'title': 'architecture.md', 'subtitle': '14 KB', 'badge': 'DOC'},
+              {'id': 'hero', 'title': 'hero-banner.png', 'subtitle': '1.2 MB', 'badge': 'IMG'},
+            ],
+          };
+        }
+        if (contract.endsWith('IImageViewer')) {
+          if (method == 'Rotate') rotation = (rotation + 90) % 360;
+          return {
+            'version': calls.length,
+            'title': 'Preview',
+            'sourceUrl': '',
+            'zoom': 1.0,
+            'rotationDegrees': rotation,
+            'fitMode': 'contain',
+          };
+        }
+        if (contract.endsWith('IMediaPlayer')) {
+          if (method == 'Play') playing = true;
+          if (method == 'Pause') playing = false;
+          return {
+            'version': calls.length,
+            'title': 'Ambient Focus',
+            'artist': 'Neural Audio',
+            'playing': playing,
+            'positionSeconds': 15.0,
+            'durationSeconds': 180.0,
+            'volume': 0.8,
+            'muted': false,
+          };
+        }
+        return {'version': 1};
+      }
+
+      await tester.pumpWidget(
+        wrap(
+          SingleChildScrollView(
+            child: SizedBox(
+              width: 560,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  buildUiNeuronWidget(
+                    kind: 'ui.calendar',
+                    neuronKey: 'gallery/calendar/demo',
+                    callNeuron: callNeuron,
+                  )!,
+                  buildUiNeuronWidget(
+                    kind: 'ui.grid-view',
+                    neuronKey: 'gallery/grid-view/demo',
+                    callNeuron: callNeuron,
+                  )!,
+                  buildUiNeuronWidget(
+                    kind: 'ui.image-viewer',
+                    neuronKey: 'gallery/image-viewer/demo',
+                    callNeuron: callNeuron,
+                  )!,
+                  buildUiNeuronWidget(
+                    kind: 'ui.media-player',
+                    neuronKey: 'gallery/media-player/demo',
+                    callNeuron: callNeuron,
+                  )!,
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('hero-banner.png'));
+      await tester.pumpAndSettle();
+      expect(calls, contains('IntoChat.OS.Modules.UI.GridView.IGridView.Select'));
+
+      await tester.tap(find.byIcon(Icons.rotate_right));
+      await tester.pumpAndSettle();
+      expect(calls, contains('IntoChat.OS.Modules.UI.ImageViewer.IImageViewer.Rotate'));
+
+      await tester.ensureVisible(find.byIcon(Icons.play_arrow));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pumpAndSettle();
+      expect(calls, contains('IntoChat.OS.Modules.UI.MediaPlayer.IMediaPlayer.Play'));
+    },
+  );
 }

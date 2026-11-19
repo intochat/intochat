@@ -57,6 +57,8 @@ internal static class GalleryRendering
                 "listbox" => RenderListBoxPage(),
                 "dialog" => RenderDialogPage(),
                 "winui-nav" => RenderWinUiNavPage(),
+                "datetime" => RenderDateTimePage(),
+                "media" => RenderMediaPage(),
                 "charts" => RenderChartsPage(state),
                 "table" => RenderTablePage(),
                 "chat" => RenderChatPage(),
@@ -102,6 +104,8 @@ internal static class GalleryRendering
             NavButton("listbox", "ListBox (IListBox)", "list"),
             NavButton("dialog", "Dialog (IDialog)", "message-square"),
             NavButton("winui-nav", "WinUI 3 Nav & Status (5)", "compass"),
+            NavButton("datetime", "Date & Time (3)", "calendar"),
+            NavButton("media", "Menus, Grid & Media (4)", "image"),
             Divider("Data & charts"),
             NavButton("charts", "Charts (IChart)", "chart-column"),
             NavButton("table", "Data table (ITable)", "table"),
@@ -124,7 +128,7 @@ internal static class GalleryRendering
                 "Every interactive control below is a real stateful DigitalBrain Neuron in IntoChat.OS.Modules.UI rendered directly over gRPC.")[
                 VStack(Space.Md)[
                     HStack(Space.Sm)[
-                        StatusPill(StatusKind.Done, "8 live UI neurons"),
+                        StatusPill(StatusKind.Done, "28 live UI neurons"),
                         StatusPill(StatusKind.Working, "gRPC NeuronWatchMux"),
                         StatusPill(StatusKind.Idle, "WinUI 3 NavigationShell")
                     ],
@@ -585,6 +589,39 @@ internal static class GalleryRendering
             ]
         ];
     }
+
+    private static Node RenderDateTimePage() => VStack(Space.Lg)[
+        Heading("Date & Time Controls", 1, "WinUI 3 DatePicker, TimePicker, and multi-select CalendarView neurons."),
+        Grid(2, Space.Md)[
+            Card("DatePicker (IDatePicker)", $"Key: {GalleryApp.DemoDatePickerKey}")[
+                UiNeuron("ui.date-picker", GalleryApp.DemoDatePickerKey)
+            ],
+            Card("TimePicker (ITimePicker)", $"Key: {GalleryApp.DemoTimePickerKey}")[
+                UiNeuron("ui.time-picker", GalleryApp.DemoTimePickerKey)
+            ]
+        ],
+        Card("CalendarView (ICalendarView)", $"Key: {GalleryApp.DemoCalendarKey}")[
+            UiNeuron("ui.calendar", GalleryApp.DemoCalendarKey)
+        ]
+    ];
+
+    private static Node RenderMediaPage() => VStack(Space.Lg)[
+        Heading("Menus, Grid & Media Controls", 1, "WinUI 3 ContextMenu, GridView, ImageViewer, and MediaPlayer neurons."),
+        Card("ContextMenu (IContextMenu)", $"Key: {GalleryApp.DemoContextMenuKey}")[
+            UiNeuron("ui.context-menu", GalleryApp.DemoContextMenuKey)
+        ],
+        Card("GridView (IGridView)", $"Key: {GalleryApp.DemoGridViewKey}")[
+            UiNeuron("ui.grid-view", GalleryApp.DemoGridViewKey)
+        ],
+        Grid(2, Space.Md)[
+            Card("ImageViewer (IImageViewer)", $"Key: {GalleryApp.DemoImageViewerKey}")[
+                UiNeuron("ui.image-viewer", GalleryApp.DemoImageViewerKey)
+            ],
+            Card("MediaPlayer (IMediaPlayer)", $"Key: {GalleryApp.DemoMediaPlayerKey}")[
+                UiNeuron("ui.media-player", GalleryApp.DemoMediaPlayerKey)
+            ]
+        ]
+    ];
 
     // -------------------------------------------------------------------------
     // HELPERS

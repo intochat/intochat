@@ -2,16 +2,22 @@ using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.UI.AutoSuggestBox;
 using IntoChat.OS.Modules.UI.BreadcrumbBar;
+using IntoChat.OS.Modules.UI.CalendarView;
 using IntoChat.OS.Modules.UI.Chart;
 using IntoChat.OS.Modules.UI.Chart.Signals;
 using IntoChat.OS.Modules.UI.Chat;
 using IntoChat.OS.Modules.UI.CheckBox;
 using IntoChat.OS.Modules.UI.ColorPicker;
+using IntoChat.OS.Modules.UI.ContextMenu;
+using IntoChat.OS.Modules.UI.DatePicker;
 using IntoChat.OS.Modules.UI.Dialog;
 using IntoChat.OS.Modules.UI.Expander;
 using IntoChat.OS.Modules.UI.Form;
+using IntoChat.OS.Modules.UI.GridView;
+using IntoChat.OS.Modules.UI.ImageViewer;
 using IntoChat.OS.Modules.UI.InfoBar;
 using IntoChat.OS.Modules.UI.ListBox;
+using IntoChat.OS.Modules.UI.MediaPlayer;
 using IntoChat.OS.Modules.UI.NumberBox;
 using IntoChat.OS.Modules.UI.Progress;
 using IntoChat.OS.Modules.UI.RadioButtons;
@@ -20,6 +26,7 @@ using IntoChat.OS.Modules.UI.Select;
 using IntoChat.OS.Modules.UI.Slider;
 using IntoChat.OS.Modules.UI.Table;
 using IntoChat.OS.Modules.UI.Tabs;
+using IntoChat.OS.Modules.UI.TimePicker;
 using IntoChat.OS.Modules.UI.Toggle;
 using IntoChat.OS.Modules.UI.TreeView;
 
@@ -256,6 +263,49 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
         var info = os.Get<IInfoBar>(new NeuronId(Brain, "ui.info-bar", "i1"));
         Assert.True((await info.Show("Saved", "Done", "success")).IsOpen);
         Assert.False((await info.Dismiss()).IsOpen);
+    }
+
+    [Fact]
+    public async Task WinUi3Tier2And3DateTimeMenuGridAndMediaNeuronsMaintainState()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", Brain));
+        await using var os = TestOS.Local().Register(typeof(UiModule).Assembly);
+
+        var dp = os.Get<IDatePicker>(new NeuronId(Brain, "ui.date-picker", "dp1"));
+        await dp.Configure("Launch", "2026-11-19", "2026-01-01", "2026-12-31");
+        Assert.Equal("2026-12-31", (await dp.SetDate("2028-05-01")).SelectedDate); // clamped to MaxDate
+
+        var tp = os.Get<ITimePicker>(new NeuronId(Brain, "ui.time-picker", "tp1"));
+        await tp.Configure("Standup", 9, 30);
+        var tNext = await tp.SetTime(14, 45);
+        Assert.Equal((14, 45), (tNext.Hour, tNext.Minute));
+
+        var cal = os.Get<ICalendarView>(new NeuronId(Brain, "ui.calendar", "cal1"));
+        await cal.Configure("Sprint", 2026, 11, ["2026-11-19"], multiSelect: true);
+        var cNext = await cal.ToggleDate("2026-11-24");
+        Assert.Equal(2, cNext.SelectedDates.Count);
+
+        var menu = os.Get<IContextMenu>(new NeuronId(Brain, "ui.context-menu", "cm1"));
+        await menu.Configure("Actions", [new ContextMenuItem("open", "Open"), new ContextMenuItem("del", "Delete", Destructive: true)]);
+        var mNext = await menu.Invoke("open");
+        Assert.Equal(("open", 1), (mNext.LastInvokedItemId, mNext.InvokeCount));
+
+        var grid = os.Get<IGridView>(new NeuronId(Brain, "ui.grid-view", "gv1"));
+        await grid.Configure("Files", [new GridViewItem("a", "A.md"), new GridViewItem("b", "B.png")], "a", 2);
+        Assert.Equal("b", (await grid.Select("b")).SelectedId);
+
+        var img = os.Get<IImageViewer>(new NeuronId(Brain, "ui.image-viewer", "iv1"));
+        await img.Configure("Preview", "https://example.com/a.png");
+        Assert.Equal(1.5, (await img.SetZoom(1.5)).Zoom);
+        Assert.Equal(90, (await img.Rotate(90)).RotationDegrees);
+        Assert.Equal((1.0, 0), ((await img.ResetView()).Zoom, (await img.Read()).RotationDegrees));
+
+        var mp = os.Get<IMediaPlayer>(new NeuronId(Brain, "ui.media-player", "mp1"));
+        await mp.Configure("Track", "Artist", "", "audio", 200);
+        Assert.True((await mp.Play()).Playing);
+        Assert.Equal(42, (await mp.Seek(42)).PositionSeconds);
+        Assert.False((await mp.Pause()).Playing);
+        Assert.True((await mp.SetVolume(0.5, muted: true)).Muted);
     }
 
     [Fact]

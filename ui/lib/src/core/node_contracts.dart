@@ -114,6 +114,34 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.UI.InfoBar.IInfoBar',
       'InfoBarChanged',
     ),
+    'ui.date-picker': NodeContract(
+      'IntoChat.OS.Modules.UI.DatePicker.IDatePicker',
+      'DatePickerChanged',
+    ),
+    'ui.time-picker': NodeContract(
+      'IntoChat.OS.Modules.UI.TimePicker.ITimePicker',
+      'TimePickerChanged',
+    ),
+    'ui.calendar': NodeContract(
+      'IntoChat.OS.Modules.UI.CalendarView.ICalendarView',
+      'CalendarViewChanged',
+    ),
+    'ui.context-menu': NodeContract(
+      'IntoChat.OS.Modules.UI.ContextMenu.IContextMenu',
+      'ContextMenuInvoked',
+    ),
+    'ui.grid-view': NodeContract(
+      'IntoChat.OS.Modules.UI.GridView.IGridView',
+      'GridViewChanged',
+    ),
+    'ui.image-viewer': NodeContract(
+      'IntoChat.OS.Modules.UI.ImageViewer.IImageViewer',
+      'ImageViewerChanged',
+    ),
+    'ui.media-player': NodeContract(
+      'IntoChat.OS.Modules.UI.MediaPlayer.IMediaPlayer',
+      'MediaPlayerChanged',
+    ),
   };
 
   // The shell's own watches (friends' space, Ino's presence, the user settings); not UI kinds a view may reference.
