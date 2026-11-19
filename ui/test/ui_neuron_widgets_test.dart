@@ -410,4 +410,113 @@ void main() {
       expect(calls, contains('IntoChat.OS.Modules.UI.MediaPlayer.IMediaPlayer.Play'));
     },
   );
+
+  testWidgets(
+    'Wave 2 CommandBar, SplitButton, PersonPicture and TeachingTip invoke gRPC methods',
+    (tester) async {
+      final calls = <String>[];
+      var tipOpen = true;
+
+      Future<Map<String, dynamic>?> callNeuron(
+        String contract,
+        String key,
+        String method,
+        List<Object?> args,
+      ) async {
+        calls.add('$contract.$method');
+        if (contract.endsWith('ICommandBar')) {
+          return {
+            'version': calls.length,
+            'items': [
+              {'id': 'run', 'label': 'Run', 'icon': 'play', 'primary': true},
+            ],
+            'lastInvokedId': method == 'Invoke' ? args.first : null,
+            'invokeCount': method == 'Invoke' ? 1 : 0,
+          };
+        }
+        if (contract.endsWith('ISplitButton')) {
+          return {
+            'version': calls.length,
+            'primaryLabel': 'Build & Test',
+            'primaryIcon': 'play',
+            'options': [
+              {'id': 'build-test', 'label': 'Build & Test'},
+            ],
+            'invokeCount': method == 'InvokePrimary' ? 1 : 0,
+          };
+        }
+        if (contract.endsWith('IPersonPicture')) {
+          return {
+            'version': 1,
+            'displayName': 'Ada Lovelace',
+            'initials': 'AL',
+            'presence': 'online',
+            'subtitle': 'Architect',
+          };
+        }
+        if (contract.endsWith('ITeachingTip')) {
+          if (method == 'InvokeAction' || method == 'Dismiss') tipOpen = false;
+          return {
+            'version': calls.length,
+            'title': 'Direct gRPC Neurons',
+            'subtitle': 'All 34 UI controls are live.',
+            'isOpen': tipOpen,
+            'actionLabel': 'Explore Charts',
+            'actionCount': method == 'InvokeAction' ? 1 : 0,
+          };
+        }
+        return {'version': 1};
+      }
+
+      await tester.pumpWidget(
+        wrap(
+          SingleChildScrollView(
+            child: SizedBox(
+              width: 560,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  buildUiNeuronWidget(
+                    kind: 'ui.command-bar',
+                    neuronKey: 'gallery/command-bar/demo',
+                    callNeuron: callNeuron,
+                  )!,
+                  buildUiNeuronWidget(
+                    kind: 'ui.split-button',
+                    neuronKey: 'gallery/split-button/demo',
+                    callNeuron: callNeuron,
+                  )!,
+                  buildUiNeuronWidget(
+                    kind: 'ui.person-picture',
+                    neuronKey: 'gallery/person/demo',
+                    callNeuron: callNeuron,
+                  )!,
+                  buildUiNeuronWidget(
+                    kind: 'ui.teaching-tip',
+                    neuronKey: 'gallery/teaching-tip/demo',
+                    callNeuron: callNeuron,
+                  )!,
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Run'));
+      await tester.pumpAndSettle();
+      expect(calls, contains('IntoChat.OS.Modules.UI.CommandBar.ICommandBar.Invoke'));
+
+      await tester.tap(find.text('Build & Test'));
+      await tester.pumpAndSettle();
+      expect(calls, contains('IntoChat.OS.Modules.UI.SplitButton.ISplitButton.InvokePrimary'));
+
+      expect(find.text('Ada Lovelace'), findsOneWidget);
+
+      await tester.tap(find.text('Explore Charts'));
+      await tester.pumpAndSettle();
+      expect(calls, contains('IntoChat.OS.Modules.UI.TeachingTip.ITeachingTip.InvokeAction'));
+    },
+  );
 }

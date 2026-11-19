@@ -6,7 +6,9 @@ import 'calendar_view/calendar_view_widget.dart';
 import 'chart/chart_widget.dart';
 import 'chat/chat_thread_widget.dart';
 import 'checkbox/checkbox_widget.dart';
+import 'code_editor/code_editor_widget.dart';
 import 'color_picker/color_picker_widget.dart';
+import 'command_bar/command_bar_widget.dart';
 import 'context_menu/context_menu_widget.dart';
 import 'date_picker/date_picker_widget.dart';
 import 'dialog/dialog_widget.dart';
@@ -16,16 +18,20 @@ import 'grid_view/grid_view_widget.dart';
 import 'image_viewer/image_viewer_widget.dart';
 import 'info_bar/info_bar_widget.dart';
 import 'listbox/listbox_widget.dart';
+import 'markdown_viewer/markdown_viewer_widget.dart';
 import 'media_player/media_player_widget.dart';
 import 'neuron_widget.dart';
 import 'number_box/number_box_widget.dart';
+import 'person_picture/person_picture_widget.dart';
 import 'progress/progress_widget.dart';
 import 'radio_buttons/radio_buttons_widget.dart';
 import 'rating/rating_widget.dart';
 import 'select/select_widget.dart';
 import 'slider/slider_widget.dart';
+import 'split_button/split_button_widget.dart';
 import 'table/table_widget.dart';
 import 'tabs/tabs_widget.dart';
+import 'teaching_tip/teaching_tip_widget.dart';
 import 'time_picker/time_picker_widget.dart';
 import 'toggle/toggle_widget.dart';
 import 'tree_view/tree_view_widget.dart';
@@ -59,7 +65,13 @@ bool isUiNeuronKind(String refKind) => switch (refKind.trim().toLowerCase()) {
   'ui.context-menu' ||
   'ui.grid-view' ||
   'ui.image-viewer' ||
-  'ui.media-player' => true,
+  'ui.media-player' ||
+  'ui.command-bar' ||
+  'ui.code-editor' ||
+  'ui.markdown' ||
+  'ui.split-button' ||
+  'ui.person-picture' ||
+  'ui.teaching-tip' => true,
   _ => false,
 };
 
@@ -236,6 +248,42 @@ Widget? buildUiNeuronWidget({
     ),
     'ui.media-player' => MediaPlayerNeuronWidget(
       key: ValueKey('ui.media-player:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.command-bar' => CommandBarNeuronWidget(
+      key: ValueKey('ui.command-bar:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.code-editor' => CodeEditorNeuronWidget(
+      key: ValueKey('ui.code-editor:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.markdown' => MarkdownViewerNeuronWidget(
+      key: ValueKey('ui.markdown:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.split-button' => SplitButtonNeuronWidget(
+      key: ValueKey('ui.split-button:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.person-picture' => PersonPictureNeuronWidget(
+      key: ValueKey('ui.person-picture:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.teaching-tip' => TeachingTipNeuronWidget(
+      key: ValueKey('ui.teaching-tip:$neuronKey'),
       neuronKey: neuronKey,
       callNeuron: callNeuron,
       watch: watch,

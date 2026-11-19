@@ -19,7 +19,9 @@ using IntoChat.OS.Modules.UI.CalendarView;
 using IntoChat.OS.Modules.UI.Chart;
 using IntoChat.OS.Modules.UI.Chat;
 using IntoChat.OS.Modules.UI.CheckBox;
+using IntoChat.OS.Modules.UI.CodeEditor;
 using IntoChat.OS.Modules.UI.ColorPicker;
+using IntoChat.OS.Modules.UI.CommandBar;
 using IntoChat.OS.Modules.UI.ContextMenu;
 using IntoChat.OS.Modules.UI.DatePicker;
 using IntoChat.OS.Modules.UI.Dialog;
@@ -29,15 +31,19 @@ using IntoChat.OS.Modules.UI.GridView;
 using IntoChat.OS.Modules.UI.ImageViewer;
 using IntoChat.OS.Modules.UI.InfoBar;
 using IntoChat.OS.Modules.UI.ListBox;
+using IntoChat.OS.Modules.UI.MarkdownViewer;
 using IntoChat.OS.Modules.UI.MediaPlayer;
 using IntoChat.OS.Modules.UI.NumberBox;
+using IntoChat.OS.Modules.UI.PersonPicture;
 using IntoChat.OS.Modules.UI.Progress;
 using IntoChat.OS.Modules.UI.RadioButtons;
 using IntoChat.OS.Modules.UI.Rating;
 using IntoChat.OS.Modules.UI.Select;
 using IntoChat.OS.Modules.UI.Slider;
+using IntoChat.OS.Modules.UI.SplitButton;
 using IntoChat.OS.Modules.UI.Table;
 using IntoChat.OS.Modules.UI.Tabs;
+using IntoChat.OS.Modules.UI.TeachingTip;
 using IntoChat.OS.Modules.UI.TimePicker;
 using IntoChat.OS.Modules.UI.Toggle;
 using IntoChat.OS.Modules.UI.TreeView;
@@ -119,7 +125,7 @@ public sealed record GalleryAppState(
         "colors", "typography", "icons", "spacing",
         "toggle", "checkbox", "select", "buttons", "form", "winui-inputs",
         "tabs", "expander", "listbox", "dialog", "winui-nav",
-        "datetime", "media",
+        "datetime", "media", "workspace",
         "charts", "table",
         "chat", "cards", "graphs",
     ];
@@ -212,6 +218,7 @@ public sealed record GalleryAppState(
         "winui-nav" or "breadcrumb" or "suggest" or "tree" or "progress" or "infobar" => "winui-nav",
         "datetime" or "date" or "time" or "calendar" => "datetime",
         "media" or "grid" or "image" or "player" or "context-menu" => "media",
+        "workspace" or "editor" or "markdown" or "command-bar" or "split-button" or "person" or "tip" => "workspace",
         "charts" or "chart" or "data" => "charts",
         "table" or "datatable" => "table",
         "chat" or "ino" or "devui" => "chat",
@@ -239,6 +246,7 @@ public sealed record GalleryAppState(
         "winui-nav" => "WinUI 3 Nav & Status (Breadcrumb, Suggest, Tree, Progress, InfoBar)",
         "datetime" => "Date & Time (DatePicker, TimePicker, Calendar)",
         "media" => "Menus, Grid & Media (ContextMenu, GridView, ImageViewer, MediaPlayer)",
+        "workspace" => "Workspace Kit (CommandBar, CodeEditor, Markdown, SplitButton, Person, Tip)",
         "charts" => "Charts (IChart)",
         "table" => "Data Table (ITable)",
         "chat" => "DevUI Chat (IChatThread)",
@@ -285,6 +293,12 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     public const string DemoGridViewKey = "gallery/grid-view/demo";
     public const string DemoImageViewerKey = "gallery/image-viewer/demo";
     public const string DemoMediaPlayerKey = "gallery/media-player/demo";
+    public const string DemoCommandBarKey = "gallery/command-bar/demo";
+    public const string DemoCodeEditorKey = "gallery/code-editor/demo";
+    public const string DemoMarkdownKey = "gallery/markdown/demo";
+    public const string DemoSplitButtonKey = "gallery/split-button/demo";
+    public const string DemoPersonKey = "gallery/person/demo";
+    public const string DemoTeachingTipKey = "gallery/teaching-tip/demo";
 
     private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<GalleryApp>();
     private readonly ILogger _logger;
@@ -695,6 +709,43 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
             if (TryGetOptional<IMediaPlayer>(DemoMediaPlayerKey) is { } mp && (await mp.Read()).Version == 0)
             {
                 await mp.Configure("IntoChat OS Ambient Focus", "Neural Audio Engine", "", kind: "audio", durationSeconds: 215);
+            }
+            if (TryGetOptional<ICommandBar>(DemoCommandBarKey) is { } cb && (await cb.Read()).Version == 0)
+            {
+                await cb.Configure(
+                [
+                    new CommandBarItem("run", "Run", "play"),
+                    new CommandBarItem("format", "Format", "sparkles"),
+                    new CommandBarItem("share", "Share", "share-2"),
+                    new CommandBarItem("export", "Export JSON", "download", Primary: false),
+                    new CommandBarItem("reset", "Reset State", "refresh-cw", Primary: false),
+                ]);
+            }
+            if (TryGetOptional<ICodeEditor>(DemoCodeEditorKey) is { } ed && (await ed.Read()).Version == 0)
+            {
+                await ed.Configure("ChartDemo.cs", "csharp",
+                    "var chart = Get<IChart>(\"gallery/charts/stream\");\nawait chart.Append(new ChartPoint(\"T6\", 94, \"evt-6\"));");
+            }
+            if (TryGetOptional<IMarkdownViewer>(DemoMarkdownKey) is { } md && (await md.Read()).Version == 0)
+            {
+                await md.SetDocument("Architecture Note", "## IntoChat UI Neurons\nEvery interactive widget is a **durable DDD neuron** under `IntoChat.OS.Modules.UI` synced 1-to-1 over gRPC.");
+            }
+            if (TryGetOptional<ISplitButton>(DemoSplitButtonKey) is { } sb && (await sb.Read()).Version == 0)
+            {
+                await sb.Configure("Build & Test",
+                [
+                    new SplitButtonOption("build-test", "Build & Test", "play"),
+                    new SplitButtonOption("build-only", "Build Only", "hammer"),
+                    new SplitButtonOption("e2e", "Run Chromium E2E", "globe"),
+                ], "play", "build-test");
+            }
+            if (TryGetOptional<IPersonPicture>(DemoPersonKey) is { } pp && (await pp.Read()).Version == 0)
+            {
+                await pp.Configure("Ino Assistant", "Claude Sonnet 4.5 · Ready", presence: "online");
+            }
+            if (TryGetOptional<ITeachingTip>(DemoTeachingTipKey) is { } tip && (await tip.Read()).Version == 0)
+            {
+                await tip.Show("Direct gRPC Neurons", "All 34 UI controls talk directly to DigitalBrain neurons with zero host round-trips.", "Explore Charts");
             }
         }
 #pragma warning disable CA1031 // Seeding is best-effort when running in unit tests without UI module registered.

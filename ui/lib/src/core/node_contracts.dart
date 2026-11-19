@@ -142,6 +142,30 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.UI.MediaPlayer.IMediaPlayer',
       'MediaPlayerChanged',
     ),
+    'ui.command-bar': NodeContract(
+      'IntoChat.OS.Modules.UI.CommandBar.ICommandBar',
+      'CommandBarInvoked',
+    ),
+    'ui.code-editor': NodeContract(
+      'IntoChat.OS.Modules.UI.CodeEditor.ICodeEditor',
+      'CodeEditorChanged',
+    ),
+    'ui.markdown': NodeContract(
+      'IntoChat.OS.Modules.UI.MarkdownViewer.IMarkdownViewer',
+      'MarkdownChanged',
+    ),
+    'ui.split-button': NodeContract(
+      'IntoChat.OS.Modules.UI.SplitButton.ISplitButton',
+      'SplitButtonInvoked',
+    ),
+    'ui.person-picture': NodeContract(
+      'IntoChat.OS.Modules.UI.PersonPicture.IPersonPicture',
+      'PersonPictureChanged',
+    ),
+    'ui.teaching-tip': NodeContract(
+      'IntoChat.OS.Modules.UI.TeachingTip.ITeachingTip',
+      'TeachingTipChanged',
+    ),
   };
 
   // The shell's own watches (friends' space, Ino's presence, the user settings); not UI kinds a view may reference.

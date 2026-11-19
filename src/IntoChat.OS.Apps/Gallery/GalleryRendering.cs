@@ -59,6 +59,7 @@ internal static class GalleryRendering
                 "winui-nav" => RenderWinUiNavPage(),
                 "datetime" => RenderDateTimePage(),
                 "media" => RenderMediaPage(),
+                "workspace" => RenderWorkspaceKitPage(),
                 "charts" => RenderChartsPage(state),
                 "table" => RenderTablePage(),
                 "chat" => RenderChatPage(),
@@ -106,6 +107,7 @@ internal static class GalleryRendering
             NavButton("winui-nav", "WinUI 3 Nav & Status (5)", "compass"),
             NavButton("datetime", "Date & Time (3)", "calendar"),
             NavButton("media", "Menus, Grid & Media (4)", "image"),
+            NavButton("workspace", "Workspace Kit (6)", "code"),
             Divider("Data & charts"),
             NavButton("charts", "Charts (IChart)", "chart-column"),
             NavButton("table", "Data table (ITable)", "table"),
@@ -128,7 +130,7 @@ internal static class GalleryRendering
                 "Every interactive control below is a real stateful DigitalBrain Neuron in IntoChat.OS.Modules.UI rendered directly over gRPC.")[
                 VStack(Space.Md)[
                     HStack(Space.Sm)[
-                        StatusPill(StatusKind.Done, "28 live UI neurons"),
+                        StatusPill(StatusKind.Done, "34 live UI neurons"),
                         StatusPill(StatusKind.Working, "gRPC NeuronWatchMux"),
                         StatusPill(StatusKind.Idle, "WinUI 3 NavigationShell")
                     ],
@@ -619,6 +621,32 @@ internal static class GalleryRendering
             ],
             Card("MediaPlayer (IMediaPlayer)", $"Key: {GalleryApp.DemoMediaPlayerKey}")[
                 UiNeuron("ui.media-player", GalleryApp.DemoMediaPlayerKey)
+            ]
+        ]
+    ];
+
+    private static Node RenderWorkspaceKitPage() => VStack(Space.Lg)[
+        Heading("Workspace Kit (Wave 2)", 1, "CommandBar, CodeEditor, MarkdownViewer, SplitButton, PersonPicture, and TeachingTip neurons."),
+        Card("CommandBar (ICommandBar)", $"Key: {GalleryApp.DemoCommandBarKey}")[
+            UiNeuron("ui.command-bar", GalleryApp.DemoCommandBarKey)
+        ],
+        Grid(2, Space.Md)[
+            Card("SplitButton (ISplitButton)", $"Key: {GalleryApp.DemoSplitButtonKey}")[
+                UiNeuron("ui.split-button", GalleryApp.DemoSplitButtonKey)
+            ],
+            Card("PersonPicture (IPersonPicture)", $"Key: {GalleryApp.DemoPersonKey}")[
+                UiNeuron("ui.person-picture", GalleryApp.DemoPersonKey)
+            ]
+        ],
+        Card("TeachingTip (ITeachingTip)", $"Key: {GalleryApp.DemoTeachingTipKey}")[
+            UiNeuron("ui.teaching-tip", GalleryApp.DemoTeachingTipKey)
+        ],
+        Grid(2, Space.Md)[
+            Card("CodeEditor (ICodeEditor)", $"Key: {GalleryApp.DemoCodeEditorKey}")[
+                UiNeuron("ui.code-editor", GalleryApp.DemoCodeEditorKey)
+            ],
+            Card("MarkdownViewer (IMarkdownViewer)", $"Key: {GalleryApp.DemoMarkdownKey}")[
+                UiNeuron("ui.markdown", GalleryApp.DemoMarkdownKey)
             ]
         ]
     ];

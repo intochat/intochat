@@ -7,7 +7,9 @@ using IntoChat.OS.Modules.UI.Chart;
 using IntoChat.OS.Modules.UI.Chart.Signals;
 using IntoChat.OS.Modules.UI.Chat;
 using IntoChat.OS.Modules.UI.CheckBox;
+using IntoChat.OS.Modules.UI.CodeEditor;
 using IntoChat.OS.Modules.UI.ColorPicker;
+using IntoChat.OS.Modules.UI.CommandBar;
 using IntoChat.OS.Modules.UI.ContextMenu;
 using IntoChat.OS.Modules.UI.DatePicker;
 using IntoChat.OS.Modules.UI.Dialog;
@@ -17,15 +19,19 @@ using IntoChat.OS.Modules.UI.GridView;
 using IntoChat.OS.Modules.UI.ImageViewer;
 using IntoChat.OS.Modules.UI.InfoBar;
 using IntoChat.OS.Modules.UI.ListBox;
+using IntoChat.OS.Modules.UI.MarkdownViewer;
 using IntoChat.OS.Modules.UI.MediaPlayer;
 using IntoChat.OS.Modules.UI.NumberBox;
+using IntoChat.OS.Modules.UI.PersonPicture;
 using IntoChat.OS.Modules.UI.Progress;
 using IntoChat.OS.Modules.UI.RadioButtons;
 using IntoChat.OS.Modules.UI.Rating;
 using IntoChat.OS.Modules.UI.Select;
 using IntoChat.OS.Modules.UI.Slider;
+using IntoChat.OS.Modules.UI.SplitButton;
 using IntoChat.OS.Modules.UI.Table;
 using IntoChat.OS.Modules.UI.Tabs;
+using IntoChat.OS.Modules.UI.TeachingTip;
 using IntoChat.OS.Modules.UI.TimePicker;
 using IntoChat.OS.Modules.UI.Toggle;
 using IntoChat.OS.Modules.UI.TreeView;
@@ -306,6 +312,42 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
         Assert.Equal(42, (await mp.Seek(42)).PositionSeconds);
         Assert.False((await mp.Pause()).Playing);
         Assert.True((await mp.SetVolume(0.5, muted: true)).Muted);
+    }
+
+    [Fact]
+    public async Task WinUi3Wave2WorkspaceKitNeuronsMaintainState()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", Brain));
+        await using var os = TestOS.Local().Register(typeof(UiModule).Assembly);
+
+        var cb = os.Get<ICommandBar>(new NeuronId(Brain, "ui.command-bar", "cb1"));
+        await cb.Configure([new CommandBarItem("run", "Run"), new CommandBarItem("export", "Export", Primary: false)]);
+        var cbNext = await cb.Invoke("run");
+        Assert.Equal(("run", 1), (cbNext.LastInvokedId, cbNext.InvokeCount));
+
+        var ed = os.Get<ICodeEditor>(new NeuronId(Brain, "ui.code-editor", "ed1"));
+        await ed.Configure("Demo.cs", "csharp", "var x = 1;");
+        Assert.True((await ed.SetContent("var x = 2;")).Dirty);
+        Assert.False((await ed.SaveContent()).Dirty);
+
+        var md = os.Get<IMarkdownViewer>(new NeuronId(Brain, "ui.markdown", "md1"));
+        var mdNext = await md.SetDocument("Spec", "# Overview\n## Details\nBody");
+        Assert.Equal(["Overview", "Details"], mdNext.Headings);
+
+        var sb = os.Get<ISplitButton>(new NeuronId(Brain, "ui.split-button", "sb1"));
+        await sb.Configure("Build", [new SplitButtonOption("build", "Build"), new SplitButtonOption("test", "Test")]);
+        Assert.Equal(1, (await sb.InvokePrimary()).InvokeCount);
+        Assert.Equal("test", (await sb.SelectOption("test")).SelectedOptionId);
+
+        var pp = os.Get<IPersonPicture>(new NeuronId(Brain, "ui.person-picture", "pp1"));
+        var ppNext = await pp.Configure("Ada Lovelace", "Architect");
+        Assert.Equal("AL", ppNext.Initials);
+        Assert.Equal("busy", (await pp.SetPresence("busy")).Presence);
+
+        var tip = os.Get<ITeachingTip>(new NeuronId(Brain, "ui.teaching-tip", "tip1"));
+        Assert.True((await tip.Show("Welcome", "Try Charts", "Go")).IsOpen);
+        var tipAct = await tip.InvokeAction();
+        Assert.Equal((false, 1), (tipAct.IsOpen, tipAct.ActionCount));
     }
 
     [Fact]
