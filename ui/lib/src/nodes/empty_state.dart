@@ -7,6 +7,7 @@ import '../design/keys.dart';
 import '../design/tokens.dart';
 import '../theme/ui_icon.dart';
 import '../theme/wire_node_values.dart';
+import 'button.dart';
 import 'node_context.dart';
 
 Widget renderEmptyState(EmptyStateNode node, NodeContext ctx) =>
@@ -73,8 +74,12 @@ class EmptyStateView extends StatelessWidget {
                               width: cardWidth,
                               button: btn,
                               onTap: btn.enabled && ctx.interactive
-                                  ? () =>
-                                        ctx.activate(btn.key, context: context)
+                                  ? () => pressCommand(
+                                        btn.key,
+                                        btn.command,
+                                        ctx,
+                                        context,
+                                      )
                                   : null,
                             ),
                         ],

@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../design/controls.dart';
 import '../design/tokens.dart';
+import 'button.dart';
 import 'node_context.dart';
 
 Widget renderErrorLine(ErrorLineNode node, NodeContext ctx) =>
@@ -86,7 +87,12 @@ class ErrorLineView extends StatelessWidget {
                 small: true,
                 onTap: action.enabled && ctx.interactive
                     ? onAction ??
-                          () => ctx.activate(action.key, context: context)
+                          () => pressCommand(
+                                action.key,
+                                action.command,
+                                ctx,
+                                context,
+                              )
                     : null,
               ),
             ],
