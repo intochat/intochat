@@ -60,7 +60,7 @@ internal static class AppUiEndpoints
     // POST /act: one command to a neuron address. The request names a top-level screen ({scope}/apps/{name}) and a target relative
     // to it ("." , "key" or a key path "a/b"); the parent owns its children, so a child is reached only through the parent's
     // Dispatch, each hop refusing a key its current view does not show. A raw child id is not a screen name and is refused here.
-    // Responses: 200 delivered; 400 a missing or malformed field; 409 {reason} a refusal (UnknownChild, NotLoaded);
+    // Responses: 200 delivered; 400 a missing or malformed field (checked before the handler runs; a handler's ArgumentException is 422); 409 {reason} a refusal (UnknownChild, NotLoaded);
     // 422 {error} the handler failed (Dispatch awaits it, so a child's failure reaches the client).
     internal static async Task<IResult> Act(ActRequest input, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
         IHostedAppTypes? hosted = null, ILogger? logger = null)
@@ -86,10 +86,6 @@ internal static class AppUiEndpoints
         {
             return Results.Conflict(new { error = $"{input.Target} of {input.Neuron} refused the command.", reason = refused.Reason });
         }
-        catch (ArgumentException error)
-        {
-            return Results.BadRequest(new { error = error.Message });
-        }
         catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
         {
             (logger ?? ConsoleLog).LogWarning(error, "Act {Signal} on {Target} of {Neuron} failed.", input.Signal, input.Target, input.Neuron);
@@ -101,7 +97,8 @@ internal static class AppUiEndpoints
     // GET /apps/{name}/slots/{path}: the view of a slot child, reached as /act reaches it: through the top-level screen {scope}/apps/{name}
     // and its slot table, one key per hop ("a/b"), never by the child's neuron id (which the response does not carry either: its own
     // slots are named by key). Responses: 200 the view; 400 a malformed path; 404 {reason: UnknownChild} a key the view does not show;
-    // 409 {reason} the app's host is not loaded (NotLoaded) or another refusal; 422 {reason: HandlerFailed} the read failed.
+    // 409 {reason} the app's host is not loaded (NotLoaded) or another refusal; 422 {reason: HandlerFailed} the read failed
+    // (an ArgumentException from the handler included: 400 is only for the path checked before it runs).
     internal static async Task<IResult> ReadSlot(string name, string path, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
         IHostedAppTypes? hosted = null, ILogger? logger = null)
     {
@@ -134,10 +131,6 @@ internal static class AppUiEndpoints
         catch (ActivationRefusedException refused)
         {
             return Results.Conflict(new { error = $"{path} of {neuron} refused the read.", reason = refused.Reason });
-        }
-        catch (ArgumentException error)
-        {
-            return Results.BadRequest(new { error = error.Message });
         }
         catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
         {
