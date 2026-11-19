@@ -9,6 +9,7 @@ import '../flame/prefabs/signal_pulse.dart';
 import '../flame/scene_game.dart';
 import '../flame/scene_view.dart';
 import '../theme/wire_node_values.dart';
+import 'button.dart';
 import 'node_common.dart';
 import 'node_context.dart';
 
@@ -288,6 +289,23 @@ class BrainSceneViewState extends State<BrainSceneView> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      SceneView(sceneKey: 'brain', state: _state, game: game, onInput: _input);
+  Widget build(BuildContext context) => SceneView(
+    sceneKey: 'brain',
+    state: _state,
+    game: game,
+    onInput: _input,
+    onReplayKey: (key, cursor) => unawaited(
+      pressCommand(
+        key,
+        Command(
+          target: '.',
+          signal: 'creator.replay',
+          args: {'cursor': cursor},
+          props: null,
+        ),
+        widget.ctx,
+        context,
+      ),
+    ),
+  );
 }

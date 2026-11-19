@@ -230,11 +230,11 @@ public sealed class SettingsAppFacts
                 .Register<ProfileNeuron>()
                 .Register<InMemoryPortableSynapseStudio>();
 
-            var creator = await os.Install<IntoChat.OS.Apps.Creator.CreatorApp>();
             var settings = await os.Install<SettingsApp>();
             var friends = await os.Install<IntoChat.OS.Apps.Friends.FriendsApp>();
 
-            await creator.Request("seed", new IntoChat.OS.Apps.Creator.CreatorSeed("watch.web"));
+            await os.Get<IntoChat.OS.Modules.Apps.ISynapseStudio>(new DigitalBrain.NeuronId(new DigitalBrain.BrainId("local"), "ino.synapses", "ino/synapses"))
+                .DeployFiles("watch.web", IntoChat.OS.Apps.ShippedUnits.Files("watch.web"), new Dictionary<string, string>(StringComparer.Ordinal));
             Assert.Contains("watch.web", InMemoryPortableSynapseStudio.Store.Keys);
 
             await settings.Request("save-preferences", new SettingsSavePreferences(DisplayName: "Linus", Theme: "dark", DefaultModel: "claude-opus-4-6"));

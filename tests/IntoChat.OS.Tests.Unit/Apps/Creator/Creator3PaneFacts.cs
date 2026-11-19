@@ -21,43 +21,51 @@ public sealed class Creator3PaneFacts
     private static readonly DateTimeOffset T0 = new(2026, 11, 10, 10, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public void CreatorDecideExecutesStateTransitionsPurely()
+    public void CreatorWorkspaceStateExecutesAggregateTransitionsAndRuleGuardsPurely()
     {
-        var initial = new CreatorState();
+        var initial = new CreatorWorkspaceState();
         Assert.Equal("Ready", initial.Status);
+        Assert.Equal("state", initial.InspectorTab);
+        Assert.Equal("brain", initial.CanvasMode);
         Assert.Null(initial.Selected);
         Assert.Null(initial.ActiveRunId);
+        Assert.True(initial.RequiresSelectedNode.Broken);
 
-        var withNode = CreatorDecide.SelectNode(initial, "local/myunit/default");
+        var withNode = initial.SelectNode("local/myunit/default");
         Assert.NotNull(withNode.Selected);
         Assert.Equal(Selection.Node, withNode.Selected.Kind);
         Assert.Equal("local/myunit/default", withNode.Selected.Id);
+        Assert.False(withNode.RequiresSelectedNode.Broken);
 
-        var withRun = CreatorDecide.SelectRun(withNode, "run-42");
+        var withRun = withNode.SelectRun("run-42");
         Assert.Equal("run-42", withRun.ActiveRunId);
-        Assert.Contains("run-42", withRun.Status);
+        Assert.Contains("run-42", withRun.Status, StringComparison.Ordinal);
 
-        var withDraft = CreatorDecide.SetDraft(withRun, "build counter");
-        Assert.Equal("build counter", withDraft.Draft);
+        var tabAccepted = withRun.SelectInspectorTab("signals");
+        Assert.True(tabAccepted.IsAccepted);
+        Assert.Equal("signals", tabAccepted.Next!.InspectorTab);
 
-        var withChangeDraft = CreatorDecide.SetChangeDraft(withDraft, "add reset button");
-        Assert.Equal("add reset button", withChangeDraft.ChangeDraft);
+        var tabRefused = withRun.SelectInspectorTab("nonexistent");
+        Assert.True(tabRefused.IsRefused);
+        Assert.Contains("invalid_inspector_tab", tabRefused.Rejection!.Rules);
 
-        var cleared = CreatorDecide.ClearSelection(withChangeDraft);
+        var emptyStepRefused = withRun.StepTimeline("next", eventCount: 0);
+        Assert.True(emptyStepRefused.IsRefused);
+        Assert.Contains("empty_timeline", emptyStepRefused.Rejection!.Rules);
+
+        var cleared = tabAccepted.Next.ClearSelection();
         Assert.Null(cleared.Selected);
         Assert.Null(cleared.ActiveRunId);
     }
 
     [Fact]
-    public void CreatorViewRendersThreePanesWithAllComponents()
+    public void CreatorViewRendersThreePanesWithTimeTravelAndInspectorNeurons()
     {
-        var state = new CreatorState
+        var state = new CreatorWorkspaceState
         {
             Status = "Working",
             Selected = new(Selection.Node, "local/unit1/default"),
-            Draft = "my unit",
-            ChangeDraft = "optimize performance",
-            ActiveRunId = "cf-run-99"
+            ActiveRunId = "cf-run-99",
         };
 
         var topology = new BrainTopology(
@@ -66,7 +74,27 @@ public sealed class Creator3PaneFacts
 
         FlowView[] flows =
         [
-            new FlowView("cf-run-99", FeatureToPrFlow.Alias, "Update Unit1", "admin", "trace-99", FlowStatus.Waiting, ["clone", "branch", "synthesize-patch", "build", "test", "diff-review", "approval-gate"], ["clone", "branch", "synthesize-patch", "build", "test", "diff-review"], "approval-gate", null, "approval-gate", "plan-cf-99", 6.0 / 7.0, [], [], null, T0, null, "Waiting for approval", Subject: "unit1")
+            new FlowView(
+                "cf-run-99",
+                FeatureToPrFlow.Alias,
+                "Update Unit1",
+                "admin",
+                "trace-99",
+                FlowStatus.Waiting,
+                ["clone", "branch", "synthesize-patch", "build", "test", "diff-review", "approval-gate"],
+                ["clone", "branch", "synthesize-patch", "build", "test", "diff-review"],
+                "approval-gate",
+                null,
+                "approval-gate",
+                "plan-cf-99",
+                6.0 / 7.0,
+                [],
+                [],
+                null,
+                T0,
+                null,
+                "Waiting for approval",
+                Subject: "unit1")
         ];
 
         Approval[] approvals =
@@ -79,11 +107,11 @@ public sealed class Creator3PaneFacts
             Alias = "unit1",
             State = """{"count":5}""",
             View = """{"title":"Unit One"}""",
-            Files = new Dictionary<string, string>
+            Files = new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["spec.md"] = "# Unit1 Specification",
-                ["unit1.cs"] = "// unit1 code"
-            }
+                ["unit1.cs"] = "// unit1 code",
+            },
         };
 
         var view = CreatorView.Render(state, topology, flows, approvals, inspection);
@@ -93,18 +121,25 @@ public sealed class Creator3PaneFacts
         var rootSplit = Assert.IsType<SplitPane>(view.Root);
         var subSplit = Assert.IsType<SplitPane>(rootSplit.Trailing);
 
-        // Left Pane assertions
+        // Left Pane assertions (clean studio workbench, no dead template seeding)
         var leftCol = Assert.IsType<Column>(rootSplit.Leading);
         Assert.Contains(leftCol.Children.OfType<Heading>(), h => h.Value == "Catalog Units");
         Assert.Contains(leftCol.Children.OfType<Heading>(), h => h.Value == "Active Change Runs");
-        Assert.Contains(leftCol.Children.OfType<Heading>(), h => h.Value == "Make New Unit");
+        Assert.Contains(leftCol.Children.OfType<Heading>(), h => h.Value == "Studio Workbench");
 
-        // Center Pane assertions
+        // Center Pane assertions (BrainScene + Time-Travel Transport + Active Unit + Pipeline)
         var centerCol = Assert.IsType<Column>(subSplit.Leading);
         Assert.Contains(centerCol.Children.OfType<BrainSceneNode>(), _ => true);
         Assert.Contains(centerCol.Children.OfType<Heading>(), h => h.Value == "Change Pipeline (7 Stages)");
         Assert.Contains(centerCol.Children.OfType<Heading>(), h => h.Value == "Unified Diff Review");
         Assert.Contains(centerCol.Children.OfType<Heading>(), h => h.Value == "Build & Test Summary");
+
+        var allNodes = AllNodes(view).ToArray();
+        var neuronRefs = allNodes.OfType<NeuronRef>().ToArray();
+        Assert.Contains(neuronRefs, n => n.Kind == "ui.slider" && n.NeuronUri == CreatorView.ReplaySliderKey);
+        Assert.Contains(neuronRefs, n => n.Kind == "ui.command-bar" && n.NeuronUri == CreatorView.ReplayCommandBarKey);
+        Assert.Contains(neuronRefs, n => n.Kind == "ui.tabs" && n.NeuronUri == CreatorView.InspectorTabsKey);
+        Assert.Contains(neuronRefs, n => n.Kind == "ui.property-grid" && n.NeuronUri == CreatorView.InspectorStateKey);
 
         // Center pane contains active unit state, view, and source
         var centerCards = centerCol.Children.OfType<Card>().ToArray();
@@ -113,15 +148,10 @@ public sealed class Creator3PaneFacts
         Assert.Contains(centerCards, c => c.Title == "spec.md");
         Assert.Contains(centerCards, c => c.Title == "unit1.cs");
 
-        // Right Pane assertions (Inspector + Change Controls + Approvals)
-        var rightCol = Assert.IsType<Column>(subSplit.Trailing);
-        var rightButtons = rightCol.Children
-            .Concat(rightCol.Children.OfType<Row>().SelectMany(r => r.Children))
-            .OfType<Button>()
-            .ToArray();
+        // Right Pane assertions (5-tab Inspector + Approvals)
+        var rightButtons = allNodes.OfType<Button>().ToArray();
         Assert.Contains(rightButtons, b => b.Key == BrainGraph.SelectKey);
-        Assert.Contains(rightCol.Children.OfType<Field>(), f => f.Name == CreatorView.FieldKey(CreatorView.ChangeField));
-        Assert.Contains(rightButtons, b => b.Key == "change-it");
+        Assert.Contains(rightButtons, b => b.Key == "share-unit");
         Assert.Contains(rightButtons, b => b.Key == "approve:plan-cf-99");
         Assert.Contains(rightButtons, b => b.Key == "reject:plan-cf-99");
     }
@@ -129,22 +159,20 @@ public sealed class Creator3PaneFacts
     [Fact]
     public void CreatorIdleHasZeroFakeDiffsAndLiveModeMountsStudioFrameSlot()
     {
-        var idleState = new CreatorState();
+        var idleState = new CreatorWorkspaceState();
         var topology = new BrainTopology(
             [new BrainTopologyNode("owner/apps/files", "Files", BrainGraph.App)],
             []);
 
-        var idleView = CreatorView.Render(idleState, topology, [], [], new Inspection("", ""));
+        var idleView = CreatorView.Render(idleState, topology, [], [], Inspection.None);
         var idleSplit = Assert.IsType<SplitPane>(idleView.Root);
         var idleSubSplit = Assert.IsType<SplitPane>(idleSplit.Trailing);
         var idleCenter = Assert.IsType<Column>(idleSubSplit.Leading);
 
-        // When no FeatureToPrFlow is running, Creator must NOT render fake spec.md diffs or fake 100% pass cards!
         Assert.DoesNotContain(idleCenter.Children.OfType<Heading>(), h => h.Value == "Unified Diff Review");
         Assert.DoesNotContain(idleCenter.Children.OfType<Heading>(), h => h.Value == "Build & Test Summary");
         Assert.DoesNotContain(idleCenter.Children.OfType<Card>(), c => c.Title == "spec.md");
 
-        // Selecting an installed app and switching to Live Studio mode mounts its View via NeuronRef inside StudioFrame!
         var liveState = idleState
             .SelectSelection(new Selection(Selection.Node, "owner/apps/files"))
             .SetCanvasMode("live")
@@ -198,6 +226,51 @@ public sealed class Creator3PaneFacts
         Assert.Contains("plan-cf-77", proxies.Inbox.Resolved.Select(r => r.PlanId));
     }
 
+    [Fact]
+    public void CreatorViewDoesNotFabricateRoslynOrScenarioVerificationOnCompletedF2prFlow()
+    {
+        var state = new CreatorWorkspaceState();
+        var topology = new BrainTopology([], []);
+        FlowView[] flows =
+        [
+            new FlowView(
+                "cf-run-100",
+                FeatureToPrFlow.Alias,
+                "Update Unit1",
+                "admin",
+                "trace-100",
+                FlowStatus.Completed,
+                FeatureToPrFlow.Names,
+                FeatureToPrFlow.Names,
+                null,
+                null,
+                null,
+                "plan-cf-100",
+                1.0,
+                [],
+                [],
+                null,
+                T0,
+                T0,
+                "Published draft PR",
+                Subject: "unit1")
+        ];
+
+        var view = CreatorView.Render(state, topology, flows, [], Inspection.None);
+        var viewJson = System.Text.Json.JsonSerializer.Serialize(view);
+        Assert.DoesNotContain("Roslyn synapse compile passed", viewJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Scenario verification passed", viewJson, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IEnumerable<Node> AllNodes(object? value) => value switch
+    {
+        null or string => [],
+        Node node => [node, .. node.GetType().GetProperties().Where(p => p.GetIndexParameters().Length == 0).SelectMany(p => AllNodes(p.GetValue(node)))],
+        View view => AllNodes(view.Root),
+        System.Collections.IEnumerable items => items.Cast<object?>().SelectMany(AllNodes),
+        _ => [],
+    };
+
     private sealed class MockProxies : INeuronProxies
     {
         public MockInbox Inbox { get; } = new();
@@ -205,26 +278,11 @@ public sealed class Creator3PaneFacts
 
         public T Get<T>(NeuronId id) where T : class
         {
-            if (typeof(T) == typeof(IApprovals))
-            {
-                return (T)(object)Approvals;
-            }
-            if (typeof(T) == typeof(IConfirmationInbox))
-            {
-                return (T)(object)Inbox;
-            }
-            if (typeof(T) == typeof(IConfirmationRequests))
-            {
-                return (T)(object)Inbox;
-            }
-            if (typeof(T) == typeof(IWorkspace))
-            {
-                return (T)(object)new MockWorkspaceStub();
-            }
-            if (typeof(T) == typeof(IView))
-            {
-                return (T)(object)new MockViewStub();
-            }
+            if (typeof(T) == typeof(IApprovals)) { return (T)(object)Approvals; }
+            if (typeof(T) == typeof(IConfirmationInbox)) { return (T)(object)Inbox; }
+            if (typeof(T) == typeof(IConfirmationRequests)) { return (T)(object)Inbox; }
+            if (typeof(T) == typeof(IWorkspace)) { return (T)(object)new MockWorkspaceStub(); }
+            if (typeof(T) == typeof(IView)) { return (T)(object)new MockViewStub(); }
             throw new KeyNotFoundException($"Mock neuron for {id} not configured");
         }
     }
@@ -299,49 +357,13 @@ public sealed class Creator3PaneFacts
         }
     }
 
-    private sealed class MockWorkspaceStub : IntoChat.OS.Modules.Flutter.Workspace.IWorkspace
+    private sealed class MockWorkspaceStub : IWorkspace
     {
-        public Task<IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState> Apply(IntoChat.OS.Modules.Flutter.Workspace.WorkspaceUpdate next, string operationId, long expectedRevision) => Task.FromResult(new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState(1L, ["owner"], []));
-        public Task<IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState> Show(string app, string operationId, long expectedRevision) => Task.FromResult(new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState(1L, ["owner"], []));
-        public Task<IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState> Back(string operationId, long expectedRevision) => Task.FromResult(new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState(1L, ["owner"], []));
-        public Task<IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState> Home(string operationId, long expectedRevision) => Task.FromResult(new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState(1L, ["owner"], []));
-        public Task<IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState> Close(string app, string operationId, long expectedRevision) => Task.FromResult(new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState(1L, ["owner"], []));
-        public Task<IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState> Read() => Task.FromResult(new IntoChat.OS.Modules.Flutter.Workspace.WorkspaceState(1L, ["owner"], []));
-    }
-
-    [Fact]
-    public void CreatorViewDoesNotFabricateRoslynOrScenarioVerificationOnCompletedF2prFlow()
-    {
-        var state = new CreatorState();
-        var topology = new BrainTopology([], []);
-        FlowView[] flows =
-        [
-            new FlowView(
-                "cf-run-100",
-                FeatureToPrFlow.Alias,
-                "Update Unit1",
-                "admin",
-                "trace-100",
-                FlowStatus.Completed,
-                FeatureToPrFlow.Names,
-                FeatureToPrFlow.Names,
-                null,
-                null,
-                null,
-                "plan-cf-100",
-                1.0,
-                [],
-                [],
-                null,
-                T0,
-                T0,
-                "Published draft PR",
-                Subject: "unit1")
-        ];
-
-        var view = CreatorView.Render(state, topology, flows, [], new Inspection("", ""));
-        var viewJson = System.Text.Json.JsonSerializer.Serialize(view);
-        Assert.DoesNotContain("Roslyn synapse compile passed", viewJson, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Scenario verification passed", viewJson, StringComparison.OrdinalIgnoreCase);
+        public Task<WorkspaceState> Apply(WorkspaceUpdate next, string operationId, long expectedRevision) => Task.FromResult(new WorkspaceState(1L, ["owner"], []));
+        public Task<WorkspaceState> Show(string app, string operationId, long expectedRevision) => Task.FromResult(new WorkspaceState(1L, ["owner"], []));
+        public Task<WorkspaceState> Back(string operationId, long expectedRevision) => Task.FromResult(new WorkspaceState(1L, ["owner"], []));
+        public Task<WorkspaceState> Home(string operationId, long expectedRevision) => Task.FromResult(new WorkspaceState(1L, ["owner"], []));
+        public Task<WorkspaceState> Close(string app, string operationId, long expectedRevision) => Task.FromResult(new WorkspaceState(1L, ["owner"], []));
+        public Task<WorkspaceState> Read() => Task.FromResult(new WorkspaceState(1L, ["owner"], []));
     }
 }

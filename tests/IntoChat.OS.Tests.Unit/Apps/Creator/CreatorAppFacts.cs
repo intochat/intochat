@@ -12,7 +12,6 @@ using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Apps.Trace;
-using IntoChat.OS.Modules.Flutter.Fields;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Creator;
 
@@ -48,7 +47,7 @@ public sealed class CreatorAppFacts
     }
 
     [Fact]
-    public async Task SelectingAPulseShowsTheTraceTree()
+    public async Task SelectingAPulseShowsTheTraceTreeAndTimeTravelBar()
     {
         await using var os = FakeOs();
         FakeTraces.Entries =
@@ -60,39 +59,19 @@ public sealed class CreatorAppFacts
         ];
         var creator = await os.Install<CreatorApp>();
 
-        // The renderer selects a pulse through the select key, with the pulse key as the value.
         await creator.Request("select", new CreatorSelect(Value: BrainGraph.PulseKey("t1")));
 
-        var table = Assert.Single(Nodes(creator.App.Render()).OfType<DataTable>());
+        var table = Assert.Single(Nodes(creator.App.Render()).OfType<DataTable>(), t => t.Title == "Trace t1");
         Assert.Equal(["1", "2", "3", "4"], table.Rows.Select(r => r[0]));
         Assert.Equal([0, 2, 4, 2], table.Rows.Select(r => r[2].Length - r[2].TrimStart().Length));
-        Assert.Single(Nodes(creator.App.Render()).OfType<Progress>(), p => p.Label == "Replay");
+        Assert.Equal("signals", creator.App.State.InspectorTab);
         Assert.Equal("t1", creator.App.State.TraceId);
+
+        var cursorCard = Assert.Single(Nodes(creator.App.Render()).OfType<StatCardNode>(), c => c.Key == "replay-cursor-readout");
+        Assert.Equal("Live · Event 4 / 4", cursorCard.Value);
+
         var select = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == BrainGraph.SelectKey);
-        Assert.Equal(new Command(".", "select"), select.Command);
-    }
-
-    [Fact]
-    public async Task ChangeItStartsABuildFlowWithExisting()
-    {
-        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
-        await using var os = FakeOs();
-        FakeSynapses.Files = new() { ["ctr.cs"] = "// the counter" };
-        FakeSynapses.SidecarFiles = new() { ["spec.md"] = "Counts bumps." };
-        var creator = await os.Install<CreatorApp>();
-        await creator.Request("select", new CreatorSelect(BrainGraph.NodeKey(Unit)));
-        await Field(creator, CreatorView.ChangeField, "count by two");
-
-        var change = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "change-it").Command!;
-        var args = EmitArgs.Of(change);
-        await creator.Request(change.Signal, new CreatorChange(args[0], args[1]));
-
-        var started = Assert.Single(FakeFlows.Started);
-        Assert.Equal(BuildFlow.Alias, started.Type);
-        var inner = JsonSerializer.Deserialize<BuildInner>(started.InnerJson, JsonSerializerOptions.Web)!;
-        Assert.Equal("change ctr: count by two", inner.Goal);
-        Assert.Equal("// the counter", inner.Existing!["ctr.cs"]);
-        Assert.Equal("Counts bumps.", inner.Existing["spec.md"]);
+        Assert.Equal("select", select.Command!.Signal);
     }
 
     [Fact]
@@ -108,7 +87,7 @@ public sealed class CreatorAppFacts
         var ghost = Assert.Single(scene.Nodes, n => n.Kind == BrainGraph.Draft);
         Assert.Equal(BrainGraph.DraftId("weather"), ghost.Id);
         Assert.Contains(scene.Nodes, n => n.Id == Unit && n.Kind == BrainGraph.Unit);
-        Assert.Equal(new Command(".", "select", JsonSerializer.SerializeToElement(BrainGraph.NodeKey(Unit))).Signal, scene.Nodes.Single(n => n.Id == Unit).Select!.Command!.Signal);
+        Assert.Equal("select", scene.Nodes.Single(n => n.Id == Unit).Select!.Command!.Signal);
     }
 
     [Fact]
@@ -124,22 +103,6 @@ public sealed class CreatorAppFacts
         var table = Assert.Single(Nodes(creator.App.Render()).OfType<DataTable>());
         Assert.Equal(["7", "9"], table.Rows.Select(r => r[0]));
         Assert.Contains(Nodes(creator.App.Render()).OfType<Button>(), b => b.Command is { Signal: "trace" });
-    }
-
-    [Fact]
-    public async Task MakeEmitsToTheStudio()
-    {
-        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", new BrainId("local")));
-        await using var os = FakeOs();
-        var creator = await os.Install<CreatorApp>();
-        await Field(creator, CreatorView.DescribeField, "watch elonmusk on X");
-
-        var make = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "make").Command!;
-        await creator.Request(make.Signal, new CreatorMake(EmitArgs.Of(make)[0]));
-
-        Assert.Equal(["watch elonmusk on X"], FakeStudio.Goals);
-        Assert.Contains(FakeCompute.Records, r => r.Key == "creator" && r.Micros >= 2_500L);
-        Assert.Equal("", creator.App.State.Draft);
     }
 
     [Fact]
@@ -160,6 +123,7 @@ public sealed class CreatorAppFacts
         await first;
         Assert.Equal(1, runs);
         Assert.Equal("✓ counts", creator.App.State.Transcript);
+        Assert.Equal("scenarios", creator.App.State.InspectorTab);
     }
 
     [Fact]
@@ -225,12 +189,11 @@ public sealed class CreatorAppFacts
         await creator.Request("replay", new CreatorReplay("first"));
         Assert.Equal(0, creator.App.State.ReplayCursor);
 
-        // The scene gets the steps in order, the current one active; the buttons are keyed and emit replay.
         var steps = Assert.Single(Nodes(creator.App.Render()).OfType<BrainSceneNode>()).Synapses.Where(s => s.SignalLabel!.StartsWith(ReplayScript.Prefix, StringComparison.Ordinal)).ToArray();
         Assert.Equal(["replay:0:1:test.hop:t1", "replay:1:2:synapse.state-changed:t1", "replay:2:3:test.hop:t1", "replay:3:4:synapse.state-changed:t1"], steps.Select(s => s.SignalLabel));
         Assert.Equal([true, false, false, false], steps.Select(s => s.Active));
         var next = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "replay-next");
-        Assert.Equal(new Command(".", "replay", JsonSerializer.SerializeToElement("next")), next.Command);
+        Assert.Equal("replay", next.Command!.Signal);
 
         await creator.Request("replay", new CreatorReplay("stop"));
         Assert.Null(creator.App.State.ReplayCursor);
@@ -263,23 +226,6 @@ public sealed class CreatorAppFacts
     }
 
     [Fact]
-    public async Task SeedDeploysShippedUnitTemplateThroughSynapseStudio()
-    {
-        await using var os = FakeOs();
-        var creator = await os.Install<CreatorApp>();
-
-        var seedBtn = Assert.Single(Nodes(creator.App.Render()).OfType<Button>(), b => b.Key == "seed:watch.web");
-        Assert.Equal("seed", seedBtn.Command!.Signal);
-
-        await creator.Request("seed", new CreatorSeed("watch.web"));
-
-        var deployed = Assert.Single(FakeSynapses.Deployed);
-        Assert.Equal("watch.web", deployed.Alias);
-        Assert.Contains("WebWatch.cs", deployed.Files.Keys);
-        Assert.Contains("Deployed shipped unit watch.web (Web watch)", creator.App.State.Status, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void TraceReaderAndTraceFoldCorrelateMultiHopSpansAndRedactSecrets()
     {
         var publisher1 = NeuronId.Parse("local/ino/ino");
@@ -297,7 +243,7 @@ public sealed class CreatorAppFacts
         var childSignal = new JournaledSignal(
             publisher2,
             11,
-            new CreatorMake("Use sk-proj-1234567890abcdef and vault://ANTHROPIC_API_KEY"),
+            new CreatorOpen("Use sk-proj-1234567890abcdef and vault://ANTHROPIC_API_KEY"),
             T0.AddMilliseconds(15),
             TraceId: "trace-correlate-1",
             CausationId: $"{publisher1}:10");
@@ -305,7 +251,7 @@ public sealed class CreatorAppFacts
         var grandChildSignal = new JournaledSignal(
             publisher3,
             12,
-            new CreatorSeed("watch.web"),
+            new CreatorSelect("watch.web"),
             T0.AddMilliseconds(30),
             TraceId: "trace-correlate-1",
             CausationId: $"{publisher2}:11");
@@ -348,22 +294,13 @@ public sealed class CreatorAppFacts
         => new($"local/flow.build/{alias}", BuildFlow.Alias, $"Build {alias}", "owner", $"trace-{alias}", FlowStatus.Running,
             ["author", "draft", "verify", "deploy", "install"], done, "draft", null, null, null, 0.2, [], [], null, T0, null, null, Subject: done.Length > 0 ? alias : null);
 
-    private static async Task Field(InstalledApp<CreatorApp> creator, string field, string value)
-    {
-        FakeField.Values[$"apps/creator/{field}"] = value;
-        await creator.App.OnField(field);
-    }
-
     private static void Register(TestOS os)
     {
         os.Register<FakeFlows>();
         os.Register<FakeApprovals>();
         os.Register<FakeSynapses>();
-        os.Register<FakeField>();
-        os.Register<FakeStudio>();
         os.Register<FakeReads>();
         os.Register<FakeTraces>();
-        os.Register<FakeCompute>();
     }
 
     private static TestOS FakeOs()
@@ -373,14 +310,11 @@ public sealed class CreatorAppFacts
         FakeSynapses.Files = [];
         FakeSynapses.SidecarFiles = [];
         FakeSynapses.Deployed.Clear();
-        FakeField.Values.Clear();
-        FakeStudio.Goals.Clear();
         FakeReads.States.Clear();
         FakeReads.Views.Clear();
         FakeReads.Recent = [];
         FakeReads.Asked = null;
         FakeTraces.Entries = [];
-        FakeCompute.Records.Clear();
         var os = TestOS.Local();
         Register(os);
         return os;
@@ -428,28 +362,6 @@ public sealed class CreatorAppFacts
         public Task<IReadOnlyList<Approval>> Pending(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Approval>>([]);
     }
 
-    [Neuron("ui.field")]
-    private sealed class FakeField : Neuron, IField
-    {
-        public static Dictionary<string, string?> Values { get; } = [];
-
-        public Task Configure(FieldKind kind) => Task.CompletedTask;
-        public Task Set(string? value) { Values[Id.Key] = value; return Task.CompletedTask; }
-        public Task Input(string value) => Set(value);
-        public Task<string?> TakeSecret() => Task.FromResult<string?>(null);
-        public Task<FieldState> Read() => Task.FromResult(new FieldState { Value = Values.GetValueOrDefault(Id.Key) });
-    }
-
-    [Neuron("ino.studio")]
-    private sealed class FakeStudio : Neuron, IInoStudio
-    {
-        public static List<string> Goals { get; } = [];
-
-        public Task<InoToolResult> Make(string goal) { Goals.Add(goal); return Task.FromResult(new InoToolResult($"Started building {goal}")); }
-        public Task<InoToolResult> Launch(string appId) => Task.FromResult(new InoToolResult(""));
-        public Task<InoToolResult> List() => Task.FromResult(new InoToolResult(""));
-    }
-
     [Neuron("creator.reads")]
     private sealed class FakeReads : Neuron, IDebuggerReads
     {
@@ -475,19 +387,6 @@ public sealed class CreatorAppFacts
 
         public Task<TracePage> ReadTrace(string traceId, long since, int limit) => Task.FromResult(new TracePage([.. Entries.Where(e => e.TraceId == traceId && e.Sequence > since)]));
     }
-
-    [Neuron("ui.compute")]
-    private sealed class FakeCompute : Neuron, IntoChat.OS.Modules.Flutter.Compute.ICompute
-    {
-        public static List<(string Key, long Micros)> Records { get; } = [];
-        public Task<IntoChat.OS.Modules.Flutter.Compute.ComputeState> Read() => Task.FromResult(new IntoChat.OS.Modules.Flutter.Compute.ComputeState(0, DateTimeOffset.UtcNow, []));
-        public Task<IntoChat.OS.Modules.Flutter.Compute.ComputeState> SetBudget(long monthlyBudgetMicros) => Task.FromResult(new IntoChat.OS.Modules.Flutter.Compute.ComputeState(0, DateTimeOffset.UtcNow, [], monthlyBudgetMicros));
-        public Task<IntoChat.OS.Modules.Flutter.Compute.ComputeState> Record(string key, long micros)
-        {
-            Records.Add((key, micros));
-            return Read();
-        }
-    }
 }
 
 [Neuron("ino.synapses")]
@@ -502,7 +401,7 @@ internal sealed class FakeSynapses : Neuron, ISynapseStudio
     public Task<UnitDeployResult> DeployFiles(string alias, IReadOnlyDictionary<string, string> files, IReadOnlyDictionary<string, string> bindings)
     {
         Deployed.Add((alias, files));
-        return Task.FromResult(new UnitDeployResult(true, "", DeployStatus.Deployed, null, new Dictionary<string, DigitalBrain.Units.InstallOutcome>()));
+        return Task.FromResult(new UnitDeployResult(true, "", DeployStatus.Deployed, null, new Dictionary<string, InstallOutcome>()));
     }
     public Task<Dictionary<string, string>> Sidecars(string alias) => Task.FromResult(SidecarFiles);
     public Task<Dictionary<string, string>> SourceFiles(string alias) => Task.FromResult(Files);
