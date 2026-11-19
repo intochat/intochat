@@ -20,7 +20,6 @@ internal static class NodeSchema
         : typeof(Node).IsAssignableFrom(type) && !type.Name.EndsWith("Node", StringComparison.Ordinal) ? type.Name + "Node"
         : type.Name;
 
-    private static readonly NullabilityInfoContext Nullability = new();
 
     internal static PropertyInfo[] Properties(Type type) => [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
         .Where(property => property.GetMethod is not null && property.Name != "EqualityContract"
@@ -33,7 +32,9 @@ internal static class NodeSchema
     internal static Type? Element(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IReadOnlyList<>)
         ? type.GetGenericArguments()[0] : null;
 
-    internal static bool IsNullable(PropertyInfo property) => Nullability.Create(property).ReadState == NullabilityState.Nullable;
+    // NullabilityInfoContext caches without locking and is not thread-safe: one shared instance raced when the catalog, commands and
+    // UI Kit facts ran in parallel. A context per call costs little.
+    internal static bool IsNullable(PropertyInfo property) => new NullabilityInfoContext().Create(property).ReadState == NullabilityState.Nullable;
 
     internal static string DartType(PropertyInfo property) => DartType(property.PropertyType) + (IsNullable(property) ? "?" : "");
 
