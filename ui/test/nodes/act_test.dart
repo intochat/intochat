@@ -45,6 +45,59 @@ void main() {
     ]);
   });
 
+  testWidgets('a root button of a screen app sends its command to /act', (
+    tester,
+  ) async {
+    final sent = <Map<String, dynamic>>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: UiTheme.intochat(Brightness.light),
+        home: Scaffold(
+          body: ViewHost(
+            knowsApp: (_) => false,
+            kind: 'view',
+            name: 'local/apps/uikit/view',
+            watch: (_, _) => const Stream.empty(),
+            onAction: (event) async {
+              sent.add(event);
+              return {'delivered': true};
+            },
+            load: (kind, name) async => {
+              'generation': 4,
+              'view': {
+                'title': 'UI Kit',
+                'root': {
+                  'kind': 'button',
+                  'key': 'append',
+                  'label': 'Append point',
+                  'command': {
+                    'target': '.',
+                    'signal': 'uikit.append',
+                    'args': <String, Object?>{},
+                  },
+                },
+              },
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Append point'));
+    await tester.pumpAndSettle();
+
+    expect(sent, [
+      {
+        'kind': 'act',
+        'neuron': 'local/apps/uikit',
+        'target': '.',
+        'signal': 'uikit.append',
+        'args': <String, Object?>{},
+      },
+    ]);
+  });
+
   test('act on a non-interactive context sends nothing', () async {
     const ctx = NodeContext(view: 'local/apps/settings/view');
     await ctx.act('.', 'toggle.set', const {});

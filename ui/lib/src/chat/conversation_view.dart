@@ -9,6 +9,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../design/controls.dart';
 import '../design/keys.dart';
 import '../design/tokens.dart';
+import '../nodes/button.dart';
 import '../nodes/empty_state.dart';
 import '../nodes/error_line.dart';
 import '../nodes/node_common.dart';
@@ -665,7 +666,12 @@ class _AssistantMessageItem extends StatelessWidget {
                         icon: LucideIcons.rotateCcw,
                         small: true,
                         onTap: retry.enabled && ctx.interactive
-                            ? () => ctx.activate(retry.key, context: context)
+                            ? () => pressCommand(
+                                retry.key,
+                                retry.command,
+                                ctx,
+                                context,
+                              )
                             : null,
                       ),
                     ),
@@ -839,7 +845,10 @@ class _SendIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = IcTheme.of(context);
+    // Its own node: without one, the button role, label and disabled state merge
+    // into the enclosing node and mark the whole thread a disabled button.
     return Semantics(
+      container: true,
       button: true,
       enabled: enabled,
       label: 'Send message',

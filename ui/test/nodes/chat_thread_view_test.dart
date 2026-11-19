@@ -51,10 +51,9 @@ Future<List<Map<String, dynamic>>> _pump(
         body: NodeRenderer.render(
           Node.fromJson(_thread),
           NodeContext(
-            view: 'local/control.chatThread/local/app.ino/default/conversation',
+            view: 'local/apps/ino/slots/conversation',
             generation: 3,
-            actNeuron:
-                'local/control.chatThread/local/app.ino/default/conversation',
+            actNeuron: 'local/apps/ino',
             slotPath: 'conversation',
             slotProps: props,
             send: (event) async {
@@ -92,8 +91,13 @@ void main() {
     await tester.tap(find.text('Try again'));
     await tester.pumpAndSettle();
 
-    expect(sent.single['key'], 'retry:a1');
-    expect(sent.single['generation'], 3);
+    expect(sent.single, {
+      'kind': 'act',
+      'neuron': 'local/apps/ino',
+      'target': 'conversation',
+      'signal': 'control.retry',
+      'args': {'id': 'a1'},
+    });
   });
 
   testWidgets('props draw the placeholder, the stop and an error to open', (
