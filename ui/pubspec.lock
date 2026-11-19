@@ -830,7 +830,7 @@ packages:
     source: hosted
     version: "2.2.1"
   re_editor:
-    dependency: "direct overridden"
+    dependency: "direct main"
     description:
       name: re_editor
       sha256: "73e5daf7041b382c07ed707d5efd2d0a53851bb9eb6d6987260229ae0ed2f458"

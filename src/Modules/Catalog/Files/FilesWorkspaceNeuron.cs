@@ -109,6 +109,9 @@ internal sealed partial class FilesWorkspaceNeuron(
         foreach (var field in new[] { "search", "filter" })
         { await Context.Wires.Ensure<FieldChanged>(new(Id.Brain, UIVocabulary.FieldType, AppPath + "/" + field)); }
         await Context.Wires.Ensure<IntoChat.OS.Modules.UI.Dialog.Signals.DialogResolved>(new(Id.Brain, "ui.dialog", FilesDialogKey));
+        await Context.Wires.Ensure<IntoChat.OS.Modules.UI.BreadcrumbBar.Signals.BreadcrumbClicked>(new(Id.Brain, "ui.breadcrumb", FilesBreadcrumbKey));
+        await Context.Wires.Ensure<IntoChat.OS.Modules.UI.ContextMenu.Signals.ContextMenuInvoked>(new(Id.Brain, "ui.context-menu", FilesContextMenuKey));
+        await Context.Wires.Ensure<IntoChat.OS.Modules.UI.GridView.Signals.GridViewChanged>(new(Id.Brain, "ui.grid-view", FilesGridKey));
         foreach (var operation in State.Started.Where(item => !item.Done)) { await FollowOperation(operation.Id, ct); }
         await Render();
     }
@@ -299,6 +302,46 @@ internal sealed partial class FilesWorkspaceNeuron(
             return;
         }
         await Request(pending, new FilesWorkspaceInput(Name: resolved.InputValue.Trim()), State.Files.Revision, Guid.NewGuid());
+    }
+
+    [On]
+    public async Task On(IntoChat.OS.Modules.UI.BreadcrumbBar.Signals.BreadcrumbClicked clicked)
+    {
+        ArgumentNullException.ThrowIfNull(clicked);
+        if (!int.TryParse(clicked.ItemId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx)) { return; }
+        if (idx < 0 || idx >= State.Files.Breadcrumbs.Length - 1) { return; }
+        await WithAppCallerAsync(async () =>
+        {
+            try { await Request("breadcrumb", new(Index: idx), State.Files.Revision, Guid.NewGuid()); }
+            catch (StaleActionException error) { logger.LogDebug(error, "A files breadcrumb action was stale."); }
+        });
+    }
+
+    [On]
+    public async Task On(IntoChat.OS.Modules.UI.ContextMenu.Signals.ContextMenuInvoked invoked)
+    {
+        ArgumentNullException.ThrowIfNull(invoked);
+        if (invoked.ItemId is not ("mkdir" or "rename" or "copy" or "delete")) { return; }
+        await WithAppCallerAsync(async () =>
+        {
+            try { await Request(invoked.ItemId, new(), State.Files.Revision, Guid.NewGuid()); }
+            catch (StaleActionException error) { logger.LogDebug(error, "A files context-menu action was stale."); }
+        });
+    }
+
+    [On]
+    public async Task On(IntoChat.OS.Modules.UI.GridView.Signals.GridViewChanged changed)
+    {
+        ArgumentNullException.ThrowIfNull(changed);
+        if (!int.TryParse(changed.SelectedId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx)) { return; }
+        if (idx < 0 || idx >= State.Files.Items.Length) { return; }
+        var currentIdx = State.Files.Selected is { } sel ? Array.IndexOf(State.Files.Items, sel) : -1;
+        if (idx == currentIdx) { return; }
+        await WithAppCallerAsync(async () =>
+        {
+            try { await Request("select", new(Index: idx), State.Files.Revision, Guid.NewGuid()); }
+            catch (StaleActionException error) { logger.LogDebug(error, "A files grid selection action was stale."); }
+        });
     }
 
     [On]
