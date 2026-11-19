@@ -494,6 +494,7 @@ internal static class InoModelSetup
                 new("new", "Start a new conversation."),
                 new("new-conversation", "Alias for new."),
                 new("switch-conversation", "Switch to an existing conversation."),
+                new("toggle-devui", "Toggle native Modules.UI DevUI chat view."),
                 new("make", "Apply a sentence to the focused app, or Scratch."),
                 new("link", "Post a pasted workspace link: its app, opaque input and text."),
             ],

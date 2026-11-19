@@ -5,6 +5,9 @@ using DigitalBrain.Operations;
 using DigitalBrain.UI;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Logging;
+using IntoChat.OS.Modules.UI.BreadcrumbBar;
+using IntoChat.OS.Modules.UI.ContextMenu;
+using IntoChat.OS.Modules.UI.GridView;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging;
 using static IntoChat.OS.UI.Kit;
@@ -65,8 +68,17 @@ internal sealed partial class FilesWorkspaceNeuron
                 .. operations,
             ]).ToNode();
 
-        var main = VStack(Space.Md, screen.Main, extras).ToNode();
-        var full = new AppShellNode(Key: "files-shell", Sidebar: screen.Side, Body: main);
+        await SyncFilesUiNeuronsAsync(files, folderWritable);
+
+        var toolbar = HStack(Space.Md)[
+            new NeuronRef("ui.breadcrumb", FilesBreadcrumbKey),
+            new NeuronRef("ui.context-menu", FilesContextMenuKey)
+        ];
+
+        var main = string.Equals(State.ViewMode, "grid", StringComparison.OrdinalIgnoreCase)
+            ? VStack(Space.Md, new NeuronRef("ui.grid-view", FilesGridKey), screen.Main, extras).ToNode()
+            : VStack(Space.Md, screen.Main, extras).ToNode();
+        var full = new AppShellNode(Key: "files-shell", Sidebar: screen.Side, Body: main, Toolbar: toolbar);
 
         // The workspace is host code: it publishes its views cleanly in-process, whoever's call led here.
         var edge = services?.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;
@@ -76,6 +88,44 @@ internal sealed partial class FilesWorkspaceNeuron
             await View("main").Publish(files.Revision, new("Files", main));
             await View("full").Publish(files.Revision, new("Files", full));
             await View("view").Publish(files.Revision, new("Files", full));
+        }
+    }
+
+    private async Task SyncFilesUiNeuronsAsync(FilesState files, bool folderWritable)
+    {
+        try
+        {
+            var crumbs = files.Breadcrumbs
+                .Select((b, idx) => new BreadcrumbItem(idx.ToString(CultureInfo.InvariantCulture), string.IsNullOrWhiteSpace(b.Item.Name) ? "Root" : b.Item.Name))
+                .ToArray();
+            if (crumbs.Length == 0) { crumbs = [new BreadcrumbItem("0", "Workspace")]; }
+            await Get<IBreadcrumbBar>(new DigitalBrain.NeuronId(Id.Brain, "ui.breadcrumb", FilesBreadcrumbKey)).SetItems(crumbs);
+
+            await Get<IContextMenu>(new DigitalBrain.NeuronId(Id.Brain, "ui.context-menu", FilesContextMenuKey)).Configure("Actions",
+            [
+                new ContextMenuItem("mkdir", "New folder", "folder-plus", "Ctrl+Shift+N", Disabled: !folderWritable),
+                new ContextMenuItem("rename", "Rename", "edit", "F2", Disabled: !folderWritable),
+                new ContextMenuItem("copy", "Copy", "copy", "Ctrl+C"),
+                new ContextMenuItem("delete", "Delete", "trash", "Del", Destructive: true, Disabled: !folderWritable),
+            ]);
+
+            if (string.Equals(State.ViewMode, "grid", StringComparison.OrdinalIgnoreCase))
+            {
+                var gridItems = files.Items.Take(48).Select((entry, i) => new GridViewItem(
+                    i.ToString(CultureInfo.InvariantCulture),
+                    entry.Item.Name,
+                    entry.Item.Kind == ItemKind.Folder ? "Folder" : $"{entry.Item.Size ?? 0} B",
+                    entry.Item.Kind == ItemKind.Folder ? "folder" : "file-text",
+                    Badge: entry.Item.Kind == ItemKind.Folder ? "DIR" : null)).ToArray();
+                await Get<IGridView>(new DigitalBrain.NeuronId(Id.Brain, "ui.grid-view", FilesGridKey)).Configure(
+                    files.Breadcrumbs.LastOrDefault()?.Item.Name ?? "Files",
+                    gridItems,
+                    columns: 4);
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            logger.LogDebug(error, "Optional Modules.UI neuron sync skipped in minimal Files test host.");
         }
     }
 

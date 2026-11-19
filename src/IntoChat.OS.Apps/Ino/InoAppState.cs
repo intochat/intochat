@@ -66,4 +66,5 @@ public sealed record InoAppState(
     public string[]? DetectedLocalModels { get; init; }
     public string[]? RecentConversations { get; init; }
     public string? ContextSummary { get; init; }
+    public bool DevUiMode { get; init; }
 }

@@ -94,7 +94,9 @@ public static partial class InoView
         Node[] loose = [.. s.ActiveCards.Where(c => !projectedCardIds.Contains(c.Id)).SelectMany(RenderCardNodes)];
         Node[] setup = ShouldShowModelSetup(s) ? RenderModelSetupNodes(s) : [];
         Node[] approvals = s.Approvals is { Length: > 0 } pending ? [.. pending.Select(RenderApproval)] : [];
-        var conversation = thread(ThreadProps(s, dictation, threadFailure));
+        var conversation = s.DevUiMode
+            ? new NeuronRef("ui.chat", InoModel.UiChatKeyOf(s.ConversationId))
+            : thread(ThreadProps(s, dictation, threadFailure));
         if (HasUnprojectedVaultSecretPrompt(s))
         {
             Node[] above = [.. s.ActiveCards.SelectMany(RenderCardNodes)];
@@ -171,7 +173,10 @@ public static partial class InoView
                     VStack(Space.Sm)[
                         HeaderBar(state.Title, activeModel, StatusPill(statusKind, statusLabel)),
                         MutedText(state.Status).Tabular(),
-                        PrimaryButton("+ New Session", Icons.Plus).Small().Key("new-session").Emits(AppSignals.Emit("ino", "new")).ToNode()
+                        HStack(Space.Xs)[
+                            PrimaryButton("+ New Session", Icons.Plus).Small().Key("new-session").Emits(AppSignals.Emit("ino", "new")).ToNode(),
+                            (state.DevUiMode ? PrimaryButton("DevUI On", Icons.Sliders) : Button("DevUI", Icons.Sliders)).Small().Key("toggle-devui").Emits(AppSignals.Emits("ino", new InoToggleDevUi())).ToNode()
+                        ]
                     ]
                 ],
                 Divider($"SESSIONS ({recents.Length})"),

@@ -52,6 +52,9 @@ internal sealed partial class FilesWorkspaceNeuron(
     IServiceProvider services) : Neuron<FilesWorkspaceState>, IFilesWorkspace
 {
     private const string FilesDialogKey = "files/dialogs/prompt";
+    private const string FilesBreadcrumbKey = "files/breadcrumb";
+    private const string FilesGridKey = "files/grid";
+    private const string FilesContextMenuKey = "files/context-menu";
     private string AppPath => Id.Key.EndsWith("/workspace", StringComparison.Ordinal) && Id.Key.StartsWith("apps/", StringComparison.Ordinal)
         ? Id.Key[..^"/workspace".Length] : throw new InvalidOperationException("Files workspace keys belong to an app.");
     private string AppKey => Id.Brain.Value + "/" + AppPath;

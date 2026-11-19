@@ -78,5 +78,13 @@ public sealed class InoUiChatSyncFacts
         ]);
         Assert.Contains("Compacted 2 message(s)", summary, StringComparison.Ordinal);
         Assert.Contains("Explain the UI neuron architecture", summary, StringComparison.Ordinal);
+
+        // Switching Ino to DevUI mode renders the live ui.chat NeuronRef directly.
+        await ino.Request("toggle-devui", new InoToggleDevUi());
+        Assert.True(ino.App.State.DevUiMode);
+        var devUiView = ino.App.Render();
+        var devUiJson = System.Text.Json.JsonSerializer.Serialize(devUiView);
+        Assert.Contains("ui.chat", devUiJson, StringComparison.Ordinal);
+        Assert.Contains(uiChatKey, devUiJson, StringComparison.Ordinal);
     }
 }

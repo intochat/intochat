@@ -198,10 +198,13 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
 
         var agentKey = InoModel.AgentKeyOf(Current.ConversationId);
         var recents = await InoModelSetup.ReadRecentConversationsAsync(Setup, Current.RecentConversations);
-        await Commit(nextState with { RecentConversations = recents });
+        var devUi = string.Equals(request.Mode, "devui", StringComparison.OrdinalIgnoreCase) || Current.DevUiMode;
+        await Commit(nextState with { RecentConversations = recents, DevUiMode = devUi });
         await TryOptionalAsync("agent", () => InoModelSetup.ConfigureOpenAgentAsync(Setup, agentKey, settings, effectiveModel, migrate));
         if (await InoModelSetup.EnsureChatAsync(Setup, agentKey)) { await InoModelSetup.ProjectCurrentChatAsync(Setup, agentKey); }
     }
+
+    [On] public Task ToggleDevUi(InoToggleDevUi request) { ArgumentNullException.ThrowIfNull(request); return Commit(Current with { DevUiMode = !Current.DevUiMode }); }
 
     [On] public async Task OnGrantsChanged(GrantsChanged? changed) { if (changed is not null) { await Commit(Current with { GrantSummaries = await InoModelSetup.ReadGrantSummariesAsync(Setup, Current.GrantSummaries) }); } }
     [On] public Task New(InoNew request) { ArgumentNullException.ThrowIfNull(request); return StartConversationAsync(); }
