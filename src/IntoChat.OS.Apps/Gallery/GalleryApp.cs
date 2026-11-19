@@ -13,17 +13,27 @@ using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
+using IntoChat.OS.Modules.UI.AutoSuggestBox;
+using IntoChat.OS.Modules.UI.BreadcrumbBar;
 using IntoChat.OS.Modules.UI.Chart;
 using IntoChat.OS.Modules.UI.Chat;
 using IntoChat.OS.Modules.UI.CheckBox;
+using IntoChat.OS.Modules.UI.ColorPicker;
 using IntoChat.OS.Modules.UI.Dialog;
 using IntoChat.OS.Modules.UI.Expander;
 using IntoChat.OS.Modules.UI.Form;
+using IntoChat.OS.Modules.UI.InfoBar;
 using IntoChat.OS.Modules.UI.ListBox;
+using IntoChat.OS.Modules.UI.NumberBox;
+using IntoChat.OS.Modules.UI.Progress;
+using IntoChat.OS.Modules.UI.RadioButtons;
+using IntoChat.OS.Modules.UI.Rating;
 using IntoChat.OS.Modules.UI.Select;
+using IntoChat.OS.Modules.UI.Slider;
 using IntoChat.OS.Modules.UI.Table;
 using IntoChat.OS.Modules.UI.Tabs;
 using IntoChat.OS.Modules.UI.Toggle;
+using IntoChat.OS.Modules.UI.TreeView;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -100,8 +110,8 @@ public sealed record GalleryAppState(
     [
         "home",
         "colors", "typography", "icons", "spacing",
-        "toggle", "checkbox", "select", "buttons", "form",
-        "tabs", "expander", "listbox", "dialog",
+        "toggle", "checkbox", "select", "buttons", "form", "winui-inputs",
+        "tabs", "expander", "listbox", "dialog", "winui-nav",
         "charts", "table",
         "chat", "cards", "graphs",
     ];
@@ -186,10 +196,12 @@ public sealed record GalleryAppState(
         "select" or "combobox" => "select",
         "buttons" or "button" or "inputs" => "buttons",
         "form" => "form",
+        "winui-inputs" or "slider" or "radio" or "number" or "rating" or "color" => "winui-inputs",
         "tabs" or "tabstrip" => "tabs",
         "expander" => "expander",
         "listbox" or "list" => "listbox",
         "dialog" or "modal" => "dialog",
+        "winui-nav" or "breadcrumb" or "suggest" or "tree" or "progress" or "infobar" => "winui-nav",
         "charts" or "chart" or "data" => "charts",
         "table" or "datatable" => "table",
         "chat" or "ino" or "devui" => "chat",
@@ -209,10 +221,12 @@ public sealed record GalleryAppState(
         "select" => "Select (ISelect)",
         "buttons" => "Buttons & Actions",
         "form" => "Form & Vault Secrets (IForm)",
+        "winui-inputs" => "WinUI 3 Inputs (Slider, Radio, Number, Rating, Color)",
         "tabs" => "Tabs (ITabs)",
         "expander" => "Expander (IExpander)",
         "listbox" => "ListBox (IListBox)",
         "dialog" => "Dialog (IDialog)",
+        "winui-nav" => "WinUI 3 Nav & Status (Breadcrumb, Suggest, Tree, Progress, InfoBar)",
         "charts" => "Charts (IChart)",
         "table" => "Data Table (ITable)",
         "chat" => "DevUI Chat (IChatThread)",
@@ -242,6 +256,16 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     public const string DemoFormKey = "gallery/form/demo";
     public const string DemoDialogKey = "gallery/dialog/demo";
     public const string DevUiChatKey = "gallery/chat/devui";
+    public const string DemoSliderKey = "gallery/slider/demo";
+    public const string DemoRadioKey = "gallery/radio/demo";
+    public const string DemoNumberKey = "gallery/number/demo";
+    public const string DemoRatingKey = "gallery/rating/demo";
+    public const string DemoColorKey = "gallery/color/demo";
+    public const string DemoBreadcrumbKey = "gallery/breadcrumb/demo";
+    public const string DemoAutoSuggestKey = "gallery/auto-suggest/demo";
+    public const string DemoTreeViewKey = "gallery/tree-view/demo";
+    public const string DemoProgressKey = "gallery/progress/demo";
+    public const string DemoInfoBarKey = "gallery/info-bar/demo";
 
     private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<GalleryApp>();
     private readonly ILogger _logger;
@@ -558,6 +582,61 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                     new ChatContextItem("memory.recall", "Prefers WinUI 3 layout + DDD UI neurons", "owner", 140),
                     new ChatContextItem("apps.capabilities", "12 Modules.UI contracts available", "platform", 190),
                 ], "Ready · Click Compact to summarize older turns.", 1240, 215);
+            }
+
+            if (TryGetOptional<ISlider>(DemoSliderKey) is { } slider && (await slider.Read()).Version == 0)
+            {
+                await slider.Configure("Reasoning budget", min: 0, max: 100, step: 5, value: 65, unit: "%");
+            }
+            if (TryGetOptional<IRadioButtons>(DemoRadioKey) is { } radio && (await radio.Read()).Version == 0)
+            {
+                await radio.Configure("Execution topology",
+                [
+                    new RadioOption("local", "Local Orleans Silo"),
+                    new RadioOption("cloud", "Azure Cloud Control Plane"),
+                    new RadioOption("hybrid", "Hybrid Local + Cloud"),
+                ], "local");
+            }
+            if (TryGetOptional<INumberBox>(DemoNumberKey) is { } number && (await number.Read()).Version == 0)
+            {
+                await number.Configure("Monthly spend cap", value: 50, min: 5, max: 500, step: 10, prefix: "$");
+            }
+            if (TryGetOptional<IRating>(DemoRatingKey) is { } rating && (await rating.Read()).Version == 0)
+            {
+                await rating.Configure("Response quality", value: 4, max: 5);
+            }
+            if (TryGetOptional<IColorPicker>(DemoColorKey) is { } color && (await color.Read()).Version == 0)
+            {
+                await color.Configure("Accent color", "#1F5EFF");
+            }
+            if (TryGetOptional<IBreadcrumbBar>(DemoBreadcrumbKey) is { } crumb && (await crumb.Read()).Version == 0)
+            {
+                await crumb.SetItems([new BreadcrumbItem("root", "Workspace"), new BreadcrumbItem("docs", "Documents"), new BreadcrumbItem("q4", "Q4 Reports")]);
+            }
+            if (TryGetOptional<IAutoSuggestBox>(DemoAutoSuggestKey) is { } suggest && (await suggest.Read()).Version == 0)
+            {
+                await suggest.Configure("Search 21 Modules.UI neurons…",
+                    ["IChart", "ITable", "IChatThread", "IToggle", "ICheckBox", "ISelect", "ITabs", "IExpander", "IListBox", "IForm", "IDialog", "ISlider", "IRadioButtons", "INumberBox", "IRating", "IColorPicker", "IBreadcrumbBar", "IAutoSuggestBox", "ITreeView", "IProgressIndicator", "IInfoBar"]);
+            }
+            if (TryGetOptional<ITreeView>(DemoTreeViewKey) is { } tree && (await tree.Read()).Version == 0)
+            {
+                await tree.Configure(
+                [
+                    new TreeNode("src", "src", IsFolder: true),
+                    new TreeNode("ui", "Modules/UI", ParentId: "src", IsFolder: true),
+                    new TreeNode("chart", "ChartNeuron.cs", ParentId: "ui"),
+                    new TreeNode("chat", "ChatThreadNeuron.cs", ParentId: "ui"),
+                    new TreeNode("apps", "IntoChat.OS.Apps", ParentId: "src", IsFolder: true),
+                    new TreeNode("gallery", "GalleryApp.cs", ParentId: "apps"),
+                ], expandedIds: ["src", "ui"], selectedId: "chart");
+            }
+            if (TryGetOptional<IProgressIndicator>(DemoProgressKey) is { } prog && (await prog.Read()).Version == 0)
+            {
+                await prog.SetProgress("Indexing brain knowledge graph", 0.78, isIndeterminate: false, kind: "bar");
+            }
+            if (TryGetOptional<IInfoBar>(DemoInfoBarKey) is { } info && (await info.Read()).Version == 0)
+            {
+                await info.Show("WinUI 3 Neuron Kit", "All 21 interactive controls are real DigitalBrain neurons synced over gRPC.", severity: "success");
             }
         }
 #pragma warning disable CA1031 // Seeding is best-effort when running in unit tests without UI module registered.

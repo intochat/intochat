@@ -151,12 +151,31 @@ public sealed class UsageApp : AggregateScreen<UsageAppState>
         }
     }
 
+    public const string UsageSpendChartKey = "usage/charts/spend";
+
     private async Task ReadComputeAsync(string statusPrefix)
     {
         try
         {
             var compute = await Get<ICompute>("compute").Read();
             var rows = compute.Rows ?? [];
+            try
+            {
+                await Get<IntoChat.OS.Modules.UI.Chart.IChart>(UsageSpendChartKey).Render(new IntoChat.OS.Modules.UI.Chart.ChartSpec(
+                    Title: "Spend by Surface (USD)",
+                    Kind: IntoChat.OS.Modules.UI.Chart.ChartKinds.Columns,
+                    Series:
+                    [
+                        new IntoChat.OS.Modules.UI.Chart.ChartSeries("Spend",
+                        [
+                            .. rows.Select(r => new IntoChat.OS.Modules.UI.Chart.ChartPoint(r.Key, Math.Round(r.Micros / 1_000_000d, 2))),
+                        ]),
+                    ],
+                    Description: "Live metered compute spend per surface (last 30 days).",
+                    Prefix: "$",
+                    From: "Compute"));
+            }
+            catch (Exception ex) { OsConsoleLog.For<UsageApp>().LogSwallowed(ex, "Usage IChart sync skipped in minimal test host."); }
             await Show(State.ApplySnapshot(compute, $"{statusPrefix} Total: {FormatUsd(compute.SpentMicros)} / {FormatUsd(compute.MonthlyBudgetMicros)} across {rows.Length} surface(s)."));
         }
         catch (Exception ex)
@@ -194,7 +213,7 @@ public sealed class UsageApp : AggregateScreen<UsageAppState>
                 ]
             ],
             rows.Length > 0
-                ? BarChart("Spend by Surface (USD)", rows.Select(r => (r.Key, Math.Round(r.Micros / 1_000_000d, 2))).ToArray(), seriesName: "Spend", prefix: "$")
+                ? new NeuronRef("ui.chart", UsageSpendChartKey)
                 : null,
             Table(
                 "Metered Compute by Surface",

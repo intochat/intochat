@@ -226,4 +226,72 @@ void main() {
       expect(calls, contains('IntoChat.OS.Modules.UI.Chat.IChatThread.Compact'));
     },
   );
+
+  testWidgets('NumberBoxWidget and TreeViewWidget invoke typed neuron methods', (
+    tester,
+  ) async {
+    final calls = <String>[];
+
+    Future<Map<String, dynamic>?> callNeuron(
+      String contract,
+      String key,
+      String method,
+      List<Object?> args,
+    ) async {
+      calls.add('$contract.$method');
+      if (contract.endsWith('INumberBox')) {
+        return {
+          'version': 1,
+          'label': 'Spend Cap',
+          'value': method == 'Increment' ? 60.0 : 50.0,
+          'min': 10.0,
+          'max': 500.0,
+          'step': 10.0,
+          'isEnabled': true,
+          'prefix': '\$',
+        };
+      }
+      return {
+        'version': 1,
+        'expandedIds': ['src'],
+        'selectedId': method == 'Select' ? args.first : 'src',
+        'nodes': [
+          {'id': 'src', 'label': 'src', 'parentId': null, 'isFolder': true},
+          {'id': 'chart', 'label': 'ChartNeuron.cs', 'parentId': 'src', 'isFolder': false},
+        ],
+      };
+    }
+
+    await tester.pumpWidget(
+      wrap(
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            buildUiNeuronWidget(
+              kind: 'ui.number-box',
+              neuronKey: 'gallery/number/demo',
+              callNeuron: callNeuron,
+            )!,
+            buildUiNeuronWidget(
+              kind: 'ui.tree-view',
+              neuronKey: 'gallery/tree-view/demo',
+              callNeuron: callNeuron,
+            )!,
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('\$50'), findsOneWidget);
+    await tester.tap(find.byTooltip('Increment'));
+    await tester.pumpAndSettle();
+    expect(calls, contains('IntoChat.OS.Modules.UI.NumberBox.INumberBox.Increment'));
+    expect(find.text('\$60'), findsOneWidget);
+
+    expect(find.text('ChartNeuron.cs'), findsOneWidget);
+    await tester.tap(find.text('ChartNeuron.cs'));
+    await tester.pumpAndSettle();
+    expect(calls, contains('IntoChat.OS.Modules.UI.TreeView.ITreeView.Select'));
+  });
 }

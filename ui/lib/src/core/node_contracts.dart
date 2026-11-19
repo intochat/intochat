@@ -74,6 +74,46 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.UI.Chat.IChatThread',
       'ChatThreadChanged',
     ),
+    'ui.slider': NodeContract(
+      'IntoChat.OS.Modules.UI.Slider.ISlider',
+      'SliderChanged',
+    ),
+    'ui.radio-buttons': NodeContract(
+      'IntoChat.OS.Modules.UI.RadioButtons.IRadioButtons',
+      'RadioButtonsChanged',
+    ),
+    'ui.number-box': NodeContract(
+      'IntoChat.OS.Modules.UI.NumberBox.INumberBox',
+      'NumberBoxChanged',
+    ),
+    'ui.rating': NodeContract(
+      'IntoChat.OS.Modules.UI.Rating.IRating',
+      'RatingChanged',
+    ),
+    'ui.color-picker': NodeContract(
+      'IntoChat.OS.Modules.UI.ColorPicker.IColorPicker',
+      'ColorChanged',
+    ),
+    'ui.breadcrumb': NodeContract(
+      'IntoChat.OS.Modules.UI.BreadcrumbBar.IBreadcrumbBar',
+      'BreadcrumbClicked',
+    ),
+    'ui.auto-suggest': NodeContract(
+      'IntoChat.OS.Modules.UI.AutoSuggestBox.IAutoSuggestBox',
+      'AutoSuggestChanged',
+    ),
+    'ui.tree-view': NodeContract(
+      'IntoChat.OS.Modules.UI.TreeView.ITreeView',
+      'TreeViewChanged',
+    ),
+    'ui.progress': NodeContract(
+      'IntoChat.OS.Modules.UI.Progress.IProgressIndicator',
+      'ProgressChanged',
+    ),
+    'ui.info-bar': NodeContract(
+      'IntoChat.OS.Modules.UI.InfoBar.IInfoBar',
+      'InfoBarChanged',
+    ),
   };
 
   // The shell's own watches (friends' space, Ino's presence, the user settings); not UI kinds a view may reference.

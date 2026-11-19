@@ -17,6 +17,6 @@ Secrets (names only; values are sealed per brain, never configuration):
 
 None.
 
-Contracts: assembly `IntoChat.OS.Modules.UI` (`IChartSource`, `IChart`, `IChatThread`, `ICheckBox`, `IDialog`, `IExpander`, `IForm`, `IListBox`, `ISelect`, `ITableSource`, `ITable`, `ITabs`, `IToggle`).
+Contracts: assembly `IntoChat.OS.Modules.UI` (`IAutoSuggestBox`, `IBreadcrumbBar`, `IChartSource`, `IChart`, `IChatThread`, `ICheckBox`, `IColorPicker`, `IDialog`, `IExpander`, `IForm`, `IInfoBar`, `IListBox`, `INumberBox`, `IProgressIndicator`, `IRadioButtons`, `IRating`, `ISelect`, `ISlider`, `ITableSource`, `ITable`, `ITabs`, `IToggle`, `ITreeView`).
 Hosting: runs in process.
 <!-- END GENERATED -->

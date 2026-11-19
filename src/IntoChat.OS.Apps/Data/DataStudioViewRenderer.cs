@@ -53,14 +53,7 @@ internal static class DataStudioViewRenderer
                     ])
                 ]
             ],
-            new Chart(
-                state.ChartKind,
-                state.ChartTitle,
-                state.ChartPoints.Select(pt => new ChartPointNode(pt.Label, pt.Value)).ToArray(),
-                SeriesName: "Current",
-                SourceNeuronUri: state.SourceNeuronUri,
-                From: state.ActiveSource,
-                Prefix: "€"),
+            new NeuronRef("ui.chart", "data/charts/primary"),
             Table(
                 $"{state.ChartTitle} ({state.Rows.Length} row(s))",
                 state.Columns,

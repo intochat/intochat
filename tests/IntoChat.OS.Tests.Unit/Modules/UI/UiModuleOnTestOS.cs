@@ -1,17 +1,27 @@
 using DigitalBrain;
 using DigitalBrain.Testing;
+using IntoChat.OS.Modules.UI.AutoSuggestBox;
+using IntoChat.OS.Modules.UI.BreadcrumbBar;
 using IntoChat.OS.Modules.UI.Chart;
 using IntoChat.OS.Modules.UI.Chart.Signals;
 using IntoChat.OS.Modules.UI.Chat;
 using IntoChat.OS.Modules.UI.CheckBox;
+using IntoChat.OS.Modules.UI.ColorPicker;
 using IntoChat.OS.Modules.UI.Dialog;
 using IntoChat.OS.Modules.UI.Expander;
 using IntoChat.OS.Modules.UI.Form;
+using IntoChat.OS.Modules.UI.InfoBar;
 using IntoChat.OS.Modules.UI.ListBox;
+using IntoChat.OS.Modules.UI.NumberBox;
+using IntoChat.OS.Modules.UI.Progress;
+using IntoChat.OS.Modules.UI.RadioButtons;
+using IntoChat.OS.Modules.UI.Rating;
 using IntoChat.OS.Modules.UI.Select;
+using IntoChat.OS.Modules.UI.Slider;
 using IntoChat.OS.Modules.UI.Table;
 using IntoChat.OS.Modules.UI.Tabs;
 using IntoChat.OS.Modules.UI.Toggle;
+using IntoChat.OS.Modules.UI.TreeView;
 
 namespace IntoChat.OS.Modules.UI;
 
@@ -196,6 +206,56 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
         Assert.Equal("neurons_call", state.Messages[0].ToolCalls![0].Name);
         Assert.Equal(1400, state.TotalInputTokens);
         Assert.Equal("Compacted 12 turns", state.ContextSummary);
+    }
+
+    [Fact]
+    public async Task WinUi3Phase4NeuronsMaintainStateAndInvariants()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", Brain));
+        await using var os = TestOS.Local().Register(typeof(UiModule).Assembly);
+
+        var slider = os.Get<ISlider>(new NeuronId(Brain, "ui.slider", "s1"));
+        await slider.Configure("Budget", 0, 100, 5, 50, unit: "%");
+        Assert.Equal(100, (await slider.SetValue(150)).Value); // clamped to max
+
+        var radio = os.Get<IRadioButtons>(new NeuronId(Brain, "ui.radio-buttons", "r1"));
+        await radio.Configure("Mode", [new RadioOption("a", "A"), new RadioOption("b", "B")], "a");
+        Assert.Equal("b", (await radio.Select("b")).SelectedId);
+
+        var num = os.Get<INumberBox>(new NeuronId(Brain, "ui.number-box", "n1"));
+        await num.Configure("Cap", 50, 10, 100, 10, prefix: "$");
+        Assert.Equal(60, (await num.Increment()).Value);
+        Assert.Equal(50, (await num.Decrement()).Value);
+
+        var rating = os.Get<IRating>(new NeuronId(Brain, "ui.rating", "rt1"));
+        await rating.Configure("Quality", 3, 5);
+        Assert.Equal(5, (await rating.SetValue(9)).Value); // clamped to max
+
+        var color = os.Get<IColorPicker>(new NeuronId(Brain, "ui.color-picker", "c1"));
+        await color.Configure("Accent", "#1F5EFF");
+        Assert.Equal("#10B981", (await color.SetColor("10b981")).Hex);
+
+        var crumb = os.Get<IBreadcrumbBar>(new NeuronId(Brain, "ui.breadcrumb", "b1"));
+        await crumb.SetItems([new BreadcrumbItem("root", "Root"), new BreadcrumbItem("docs", "Docs"), new BreadcrumbItem("q4", "Q4")]);
+        var nav = await crumb.NavigateTo("docs");
+        Assert.Equal(2, nav.Items.Count);
+        Assert.Equal("docs", nav.ActiveId);
+
+        var suggest = os.Get<IAutoSuggestBox>(new NeuronId(Brain, "ui.auto-suggest", "as1"));
+        await suggest.Configure("Search", ["IChart", "ITable", "IToggle"]);
+        Assert.Single((await suggest.SetQuery("chart")).Suggestions);
+
+        var tree = os.Get<ITreeView>(new NeuronId(Brain, "ui.tree-view", "tv1"));
+        await tree.Configure([new TreeNode("src", "src", IsFolder: true), new TreeNode("a", "A.cs", ParentId: "src")]);
+        Assert.Contains("src", (await tree.ToggleExpand("src")).ExpandedIds);
+        Assert.Equal("a", (await tree.Select("a")).SelectedId);
+
+        var prog = os.Get<IProgressIndicator>(new NeuronId(Brain, "ui.progress", "p1"));
+        Assert.Equal(0.75, (await prog.SetProgress("Indexing", 0.75)).Value);
+
+        var info = os.Get<IInfoBar>(new NeuronId(Brain, "ui.info-bar", "i1"));
+        Assert.True((await info.Show("Saved", "Done", "success")).IsOpen);
+        Assert.False((await info.Dismiss()).IsOpen);
     }
 
     [Fact]

@@ -100,6 +100,38 @@ public static class UiNeuronPlaywrightExtensions
         await host.GetByText(columnLabel, new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
     }
 
+    /// <summary>Selects a radio option inside an `IRadioButtons` (`ui.radio-buttons`) neuron.</summary>
+    public static async Task SelectRadioAsync(this IPage page, string key, string optionLabel, CancellationToken ct = default)
+    {
+        var host = page.Neuron("ui.radio-buttons", key).First;
+        await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.GetByText(optionLabel, new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+    }
+
+    /// <summary>Clicks a tree node inside an `ITreeView` (`ui.tree-view`) neuron.</summary>
+    public static async Task SelectTreeNodeAsync(this IPage page, string key, string nodeLabel, CancellationToken ct = default)
+    {
+        var host = page.Neuron("ui.tree-view", key).First;
+        await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.GetByText(nodeLabel, new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+    }
+
+    /// <summary>Clicks a breadcrumb segment inside an `IBreadcrumbBar` (`ui.breadcrumb`) neuron.</summary>
+    public static async Task ClickBreadcrumbAsync(this IPage page, string key, string segmentLabel, CancellationToken ct = default)
+    {
+        var host = page.Neuron("ui.breadcrumb", key).First;
+        await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.GetByText(segmentLabel, new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+    }
+
+    /// <summary>Dismisses an `IInfoBar` (`ui.info-bar`) neuron.</summary>
+    public static async Task DismissInfoBarAsync(this IPage page, string key, CancellationToken ct = default)
+    {
+        var host = page.Neuron("ui.info-bar", key).First;
+        await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.Locator("[role='button']").Last.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+    }
+
     /// <summary>Reads all visible rendered text inside a `Modules.UI` neuron widget.</summary>
     public static async Task<string> ReadNeuronTextAsync(this IPage page, string kind, string key, CancellationToken ct = default)
     {

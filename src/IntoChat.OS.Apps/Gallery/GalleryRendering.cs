@@ -51,10 +51,12 @@ internal static class GalleryRendering
                 "select" => RenderSelectPage(),
                 "buttons" => RenderButtonsPage(state),
                 "form" => RenderFormPage(),
+                "winui-inputs" => RenderWinUiInputsPage(),
                 "tabs" => RenderTabsPage(),
                 "expander" => RenderExpanderPage(),
                 "listbox" => RenderListBoxPage(),
                 "dialog" => RenderDialogPage(),
+                "winui-nav" => RenderWinUiNavPage(),
                 "charts" => RenderChartsPage(state),
                 "table" => RenderTablePage(),
                 "chat" => RenderChatPage(),
@@ -93,11 +95,13 @@ internal static class GalleryRendering
             NavButton("select", "Select (ISelect)", "chevrons-up-down"),
             NavButton("buttons", "Buttons & actions", "mouse-pointer-click"),
             NavButton("form", "Form & Vault (IForm)", "key-round"),
+            NavButton("winui-inputs", "WinUI 3 Inputs (5)", "sliders"),
             Divider("Navigation & layout"),
             NavButton("tabs", "Tabs (ITabs)", "panel-top"),
             NavButton("expander", "Expander (IExpander)", "chevron-down"),
             NavButton("listbox", "ListBox (IListBox)", "list"),
             NavButton("dialog", "Dialog (IDialog)", "message-square"),
+            NavButton("winui-nav", "WinUI 3 Nav & Status (5)", "compass"),
             Divider("Data & charts"),
             NavButton("charts", "Charts (IChart)", "chart-column"),
             NavButton("table", "Data table (ITable)", "table"),
@@ -453,6 +457,32 @@ internal static class GalleryRendering
         CodeSample(
             "var dlg = Get<IDialog>(\"gallery/dialog/demo\");\n" +
             "await dlg.Open(\"Create folder\", \"Enter folder name\", \"Create\", \"Cancel\", inputLabel: \"Folder name\");")
+    ];
+
+    private static Node RenderWinUiInputsPage() => VStack(Space.Lg)[
+        Heading("WinUI 3 Basic Input Neurons", 1, "ISlider, IRadioButtons, INumberBox, IRating, and IColorPicker — each a live stateful neuron in Modules.UI."),
+        Grid(2, Space.Md)[
+            Card("ISlider", GalleryApp.DemoSliderKey)[UiNeuron("ui.slider", GalleryApp.DemoSliderKey)],
+            Card("INumberBox", GalleryApp.DemoNumberKey)[UiNeuron("ui.number-box", GalleryApp.DemoNumberKey)],
+            Card("IRadioButtons", GalleryApp.DemoRadioKey)[UiNeuron("ui.radio-buttons", GalleryApp.DemoRadioKey)],
+            Card("IRating & IColorPicker", "Interactive rating + accent swatch picker")[
+                VStack(Space.Md)[
+                    UiNeuron("ui.rating", GalleryApp.DemoRatingKey),
+                    UiNeuron("ui.color-picker", GalleryApp.DemoColorKey)
+                ]
+            ]
+        ]
+    ];
+
+    private static Node RenderWinUiNavPage() => VStack(Space.Lg)[
+        Heading("WinUI 3 Navigation, Collections & Status Neurons", 1, "IBreadcrumbBar, IAutoSuggestBox, ITreeView, IProgressIndicator, and IInfoBar."),
+        UiNeuron("ui.info-bar", GalleryApp.DemoInfoBarKey),
+        Grid(2, Space.Md)[
+            Card("IBreadcrumbBar", GalleryApp.DemoBreadcrumbKey)[UiNeuron("ui.breadcrumb", GalleryApp.DemoBreadcrumbKey)],
+            Card("IProgressIndicator", GalleryApp.DemoProgressKey)[UiNeuron("ui.progress", GalleryApp.DemoProgressKey)],
+            Card("IAutoSuggestBox", GalleryApp.DemoAutoSuggestKey)[UiNeuron("ui.auto-suggest", GalleryApp.DemoAutoSuggestKey)],
+            Card("ITreeView", GalleryApp.DemoTreeViewKey)[UiNeuron("ui.tree-view", GalleryApp.DemoTreeViewKey)]
+        ]
     ];
 
     private static Node RenderChatPage() => VStack(Space.Lg)[
