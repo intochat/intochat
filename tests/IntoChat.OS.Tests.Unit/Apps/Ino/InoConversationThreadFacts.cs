@@ -41,7 +41,9 @@ public sealed class InoConversationThreadFacts
         public Task<LocalOllamaDetection?> Detect(CancellationToken ct = default) => Task.FromResult<LocalOllamaDetection?>(null);
     }
 
-    private static TestOS SeededOs(InoAppState state)
+    private static TestOS SeededOs(InoAppState state) => SeededOs(JsonSerializer.Serialize(state, RuntimeProtocol.OptionsFor(typeof(InoAppState))));
+
+    private static TestOS SeededOs(string stateJson)
     {
         var services = new ServiceCollection()
             .AddSingleton<ISecretRedactor, NoSecrets>()
@@ -52,7 +54,7 @@ public sealed class InoConversationThreadFacts
         os.Register(typeof(AppsModule).Assembly);
         os.Register(typeof(IntoChat.OS.Modules.AI.AIModule).Assembly);
         os.Register<InoApp>();
-        os.SeedStoredState(InoId, JsonSerializer.Serialize(state, RuntimeProtocol.OptionsFor(typeof(InoAppState))));
+        os.SeedStoredState(InoId, stateJson);
         return os;
     }
 
@@ -80,6 +82,37 @@ public sealed class InoConversationThreadFacts
 
         Assert.Null(ino.App.State.Messages);
         Assert.Equal(Legacy.Select(m => m.Id), (await ThreadOf(os)).Messages.Select(m => m.Id));
+    }
+
+    // Ino's stored state exactly as the build before the conversation thread (a2fab86c0) wrote it: messages inside the state record,
+    // web-cased, with a failed reply, a reply that ran a tool and a pending prompt. It loads, migrates into the thread and loses none.
+    private const string PreThreadState = """
+        {"conversationId":"main","title":"first question","status":"Ready","voiceStatus":"idle","turns":[],"cards":[],"connectedDatabase":null,
+         "isPinned":true,"agentKey":"agent-main","activeRunId":null,"blocked":false,"grantSummaries":null,"blockedReason":null,"seenProgress":null,
+         "messages":[
+           {"id":"r1/user","role":"user","text":"first question","status":"completed","model":null,"failure":null,"activities":[],"cards":[]},
+           {"id":"r1/assistant","role":"assistant","text":"","status":"failed","model":"gpt","failure":"timed-out","activities":[],"cards":[]},
+           {"id":"r2/user","role":"user","text":"second question","status":"completed","model":null,"failure":null,"activities":[],"cards":[]},
+           {"id":"r2/assistant","role":"assistant","text":"An answer.","status":"completed","model":"gpt","failure":null,
+            "activities":[{"id":"t1","title":"Read files","result":"2 files","error":null}],"cards":[]}],
+         "chatRevision":7,"pending":null,"error":null,"approvals":null,"smart":false,"selectedModel":null,"detectedLocalModel":null,"detectedLocalModels":null}
+        """;
+
+    [Fact]
+    public async Task A_conversation_stored_before_the_thread_loads_migrated_with_no_message_lost()
+    {
+        await using var os = SeededOs(PreThreadState);
+        using var person = os.Edge.Enter(os.Edge.Person("local", "local", Brain));
+        var ino = await os.Install<InoApp>();
+
+        Assert.Null(ino.App.State.Messages);
+        Assert.Equal("main", ino.App.State.ConversationId);
+        Assert.Equal("first question", ino.App.State.Title);
+        var thread = await ThreadOf(os);
+        Assert.Equal(["r1/user", "r1/assistant", "r2/user", "r2/assistant"], thread.Messages.Select(m => m.Id));
+        Assert.Contains(thread.Messages, m => m.Id == "r1/user" && m.Text.Contains("first question", StringComparison.Ordinal));
+        Assert.Contains(thread.Messages, m => m.Id == "r2/assistant" && m.Text.Contains("An answer.", StringComparison.Ordinal));
+        Assert.NotNull(thread.Messages[1].Error);
     }
 
     [Fact]
