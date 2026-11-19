@@ -15,7 +15,7 @@ The product has four parts.
 
 ## Kernel
 
-`src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Program.cs` delegates to `KernelHost.RunAsync(args)` in `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/KernelHost.cs` (which also accepts `rootAssembly`, `configureServer`, `beforeAccountSession`, `configureApp`, and `cancellationToken` so external hosts can compose additional modules and hooks):
+`src/IntoChat.OS.Kernel/Program.cs` builds a standard `WebApplicationBuilder` using `AddIntoChatOSKernel`, `MapIntoChatOSKernel`, and `RunIntoChatOSKernelAsync` in `src/IntoChat.OS.Kernel/KernelHost.cs` (which also accepts `rootAssembly`, `configureServer`, `beforeAccountSession`, `configureApp`, and `cancellationToken` so external hosts can compose additional modules and hooks):
 
 1. When `AzureInstaller.IsInstall(args)` matches, it discovers modules with `OperatingSystemModules.Discover(rootAssembly)` and runs `AzureInstaller.Run` before exiting.
 2. Otherwise it applies `LocalRunDefaults.Apply`, reads `IntoChatOS:Topology` (`IntoChatOSNames.TopologyKey`), and discovers modules via `OperatingSystemModules.WithWindowsEdge(rootAssembly)` on Windows or `OperatingSystemModules.Discover(rootAssembly)` elsewhere, keeping only those where `module.LoadsUnder(topology)` is true.
@@ -64,4 +64,4 @@ A module adds neurons, contracts and settings to the kernel. Each lives in a fol
 4. **Neuron.** The neuron runs in the Orleans silo. It may change its state and publish signals. `SiloAccessCallFilter` is the enforcement point for who may call what: it reads the caller from `ICallerAmbient`, refuses a call with no caller on every host, refuses a call into another brain, then asks each `ICallFilterStage` in order.
 5. **Back.** The result returns as JSON in the reply. The shell also holds a `Watch` stream on the neurons it shows. A change signal tells the view to read again, and Flutter draws the new `View`.
 
-The same `OsNeuronSurface` serves two other callers. The MCP tools in `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/Mcp/Tools` use it, and so does Ino; see [Ino and memory](ino-and-memory.md).
+The same `OsNeuronSurface` serves two other callers. The MCP tools in `src/IntoChat.OS.Kernel/Mcp/Tools` use it, and so does Ino; see [Ino and memory](ino-and-memory.md).

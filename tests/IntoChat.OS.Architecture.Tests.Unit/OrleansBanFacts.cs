@@ -18,7 +18,7 @@ public sealed class OrleansBanFacts
     private static readonly string[] SiloHost =
     [
         "IntoChat.OS",
-        "IntoChat.OS.Framework",
+        "IntoChat.OS.Modules.Identity",
         "IntoChat.OS.Kernel",
     ];
 

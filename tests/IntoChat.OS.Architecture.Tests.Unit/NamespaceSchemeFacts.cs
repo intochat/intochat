@@ -14,7 +14,7 @@ public sealed class NamespaceSchemeFacts
         var ns = type.Namespace ?? "";
         if (assembly.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal) && type.IsPublic && !ns.StartsWith("IntoChat.OS.Modules.", StringComparison.Ordinal))
         {
-            if (IdentityAssembly(assembly) && KeptIdentityNamespace(ns)) { return false; }
+            if (IdentityAssembly(assembly)) { return false; }
             if ((assembly is "IntoChat.OS.Modules.Catalog" or "IntoChat.OS.Modules.Apps") && (ns == "IntoChat.Files" || ns.StartsWith("IntoChat.Files.", StringComparison.Ordinal))) { return false; }
             return true;
         }
@@ -27,11 +27,11 @@ public sealed class NamespaceSchemeFacts
         {
             return !assembly.StartsWith("DigitalBrain", StringComparison.Ordinal);
         }
-        return ns.StartsWith("IntoChat.OS.Framework", StringComparison.Ordinal) && assembly != "IntoChat.OS.Framework";
+        return ns.StartsWith("IntoChat.OS.Framework", StringComparison.Ordinal) && !IdentityAssembly(assembly);
     }
 
     private static bool IdentityAssembly(string assembly)
-        => assembly is "IntoChat.OS.Framework" or "IntoChat.OS.Modules.Identity" or "IntoChat.OS.Modules.Identity.Contracts";
+        => assembly is "IntoChat.OS.Modules.Identity" or "IntoChat.OS.Modules.Identity.Contracts";
 
     private static bool KeptIdentityNamespace(string ns)
         => ns.StartsWith("IntoChat.OS.Authority", StringComparison.Ordinal)

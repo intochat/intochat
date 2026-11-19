@@ -379,7 +379,7 @@ public sealed class FileSharesDoorFacts
     {
         public override BrainId Brain { get; } = new(Ada);
 
-        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule), typeof(IntoChat.OS.Authority.CloudModule), typeof(ProberModule)];
+        protected override IReadOnlyList<Type> Modules => [typeof(AppsModule), typeof(FlutterModule), typeof(IntoChat.OS.Modules.LocalDisk.CloudModule), typeof(ProberModule)];
 
         protected override void ConfigureSilo(IServiceCollection services)
         {

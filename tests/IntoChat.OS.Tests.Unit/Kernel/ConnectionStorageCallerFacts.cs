@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Testing;
-using IntoChat.OS.Authority;
+using IntoChat.OS.Modules.LocalDisk;
 using IntoChat.OS.Kernel.Composition.Capabilities;
 
 namespace IntoChat.OS.Tests.Unit.Kernel;

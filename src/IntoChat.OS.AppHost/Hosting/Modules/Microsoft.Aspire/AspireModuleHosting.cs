@@ -35,31 +35,6 @@ public sealed class AspireModuleHosting : ModuleHosting<IntoChat.OS.Modules.Micr
         return Path.Combine(Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..")), ".intochat-os");
     }
 
-    // Once a build is live ({Workdir}/live.json), the resource runs `dotnet {build}/{component}/{assembly}`
-    // with the build folder as its content root; null on first boot, and when live.json names a build that
-    // is gone, so the AppHost runs from source. Arguments and environment are read when the resource
-    // starts, so a restart picks up the build SetLive named.
-    public static IResourceBuilder<ExecutableResource>? AddLiveBuild(IDistributedApplicationBuilder builder, string workdir, string name, string component, string assembly)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        if (LiveBuildFile.Read(workdir) is not { } live) { return null; }
-        if (!Directory.Exists(Path.Combine(live.Path, component)))
-        {
-            Console.Error.WriteLine($"live.json names build {live.Sha}, but {Path.Combine(live.Path, component)} is gone; {name} runs from source.");
-            return null;
-        }
-        string Folder() => Path.Combine((LiveBuildFile.Read(workdir) ?? live).Path, component);
-        return builder.AddExecutable(name, "dotnet", workdir)
-            .WithArgs(context => context.Args.Add(Path.Combine(Folder(), assembly)))
-            .WithEnvironment(context =>
-            {
-                context.EnvironmentVariables[AspNetCoreContentRoot] = Folder();
-                context.EnvironmentVariables[DotnetContentRoot] = Folder();
-            })
-            .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-            .WithOtlpExporter();
-    }
-
     // One runtime and one MCP host. Fronts preserve URLs across their restarts.
     public static readonly string[] Instances = ["a"];
     public const string HealthPath = HealthProbes.ReadyPath;

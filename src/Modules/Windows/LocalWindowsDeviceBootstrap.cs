@@ -4,7 +4,7 @@ using DigitalBrain.Capabilities.Connections;
 using DigitalBrain.Capabilities.Connections.Requests;
 using DigitalBrain.Kernel;
 using DigitalBrain.Runtime.Orleans.Hosting;
-using IntoChat.OS.Authority.Identity;
+using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -168,7 +168,7 @@ internal sealed class LocalWindowsDeviceBootstrap(
             {
                 string[] brainIds;
                 var edge = services.GetService<EdgeAuthority>();
-                using (edge?.Enter(edge.RelayedPerson(AccountSession.DefaultLogin, AccountSession.DefaultLogin, new BrainId(AccountSession.DefaultLogin))))
+                using (edge?.Enter(edge.RelayedPerson(IntoChatOSNames.DefaultOwnerBrainId, IntoChatOSNames.DefaultOwnerBrainId, new BrainId(IntoChatOSNames.DefaultOwnerBrainId))))
                 {
                     brainIds = await brains.Brains(cancellationToken).ConfigureAwait(false);
                 }

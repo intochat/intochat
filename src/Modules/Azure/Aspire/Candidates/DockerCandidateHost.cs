@@ -24,7 +24,7 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     private const string AzuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.35.0";
     private const string PostgresImage = "postgres:18.3";
     private const string ClickHouseImage = "clickhouse/clickhouse-server:25.8";
-    private const string OsProject = "src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj";
+    private const string OsProject = "src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj";
     private const string PostgresDatabase = "intochat_os";
     private static readonly TimeSpan DependencyBudget = TimeSpan.FromSeconds(90);
 

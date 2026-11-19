@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Capabilities.Storage;
+using IntoChat.OS.Modules.LocalDisk;
 
 namespace IntoChat.OS.Authority;
 

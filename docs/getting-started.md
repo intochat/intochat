@@ -21,7 +21,7 @@ dotnet run intochat-os.cs local       # check, pull the model if missing, start 
 dotnet run intochat-os.cs             # default profile, includes the Flutter shell
 ```
 
-`intochat.cs` is the same launcher under a shorter name. Both start the Aspire AppHost in `src/IntoChat.OS.AppHost`, which starts the kernel.
+This starts the Aspire AppHost in `src/IntoChat.OS.AppHost`, which starts the kernel.
 
 ## Profiles
 

@@ -233,7 +233,7 @@ public static class PulumiDeploymentExtensions
 
     private static async Task SynthesizePulumiWorkspaceAsync(string repoRoot, string env, string? configPath, string? secretsFrom, string? manifestPath, bool sandboxContainer, bool dryRun, string pulumiWorkDir, CancellationToken cancellationToken)
     {
-        var kernelProject = Path.Combine(repoRoot, "src", "IntoChat.OS.Kernel", "IntoChat.OS.Kernel", "IntoChat.OS.Kernel.csproj");
+        var kernelProject = Path.Combine(repoRoot, "src", "IntoChat.OS.Kernel", "IntoChat.OS.Kernel.csproj");
         var hostProject = Directory.Exists(Path.Combine(repoRoot, "src"))
             ? Directory.EnumerateFiles(Path.Combine(repoRoot, "src"), "*.Host.csproj", SearchOption.AllDirectories).FirstOrDefault()
             : null;

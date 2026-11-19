@@ -57,9 +57,8 @@
   <Project Path="src/IntoChat.OS.Apps/IntoChat.OS.Apps.csproj" />
   <Project Path="src/IntoChat.OS.Cli/IntoChat.OS.Cli.csproj" />
   <Project Path="src/IntoChat.OS.Desktop/IntoChat.OS.Desktop.csproj" />
-  <Project Path="src/IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
-  <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
-  <Project Path="src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" />
+  <Project Path="src/IntoChat.OS.Kernel/IntoChat.OS.Kernel.csproj" />
+  <Project Path="src/IntoChat.OS.LocalSetup/IntoChat.OS.LocalSetup.csproj" />
   <Project Path="src/IntoChat.OS.Sandbox/IntoChat.OS.Sandbox.csproj" />
   <Project Path="src/IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
   <Project Path="src/IntoChat.OS/IntoChat.OS.csproj" />
@@ -73,6 +72,7 @@
   <Project Path="src/Modules/ClickHouse/IntoChat.OS.Modules.ClickHouse.csproj" />
   <Project Path="src/Modules/GitHub/IntoChat.OS.Modules.GitHub.csproj" />
   <Project Path="src/Modules/Google/IntoChat.OS.Modules.Google.csproj" />
+  <Project Path="src/Modules/Identity/IntoChat.OS.Modules.Identity.csproj" />
   <Project Path="src/Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
   <Project Path="src/Modules/Notifications/IntoChat.OS.Modules.Notifications.csproj" />
   <Project Path="src/Modules/Playwright/IntoChat.OS.Modules.Playwright.csproj" />

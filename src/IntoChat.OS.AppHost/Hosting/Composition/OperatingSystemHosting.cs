@@ -34,11 +34,8 @@ public static class OperatingSystemHosting
         var builder = os.ApplicationBuilder;
         // Cookie keys persist in the Azurite blob container on cloud; a local run keeps them in the default key ring.
         var cookieProtection = profile.Cloud ? os.AddBlobContainer(os.Identity!.ProtectionContainerName) : null;
-        var workdir = AspireModuleHosting.WorkdirOf(builder);
         var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Select(name =>
-            AspireModuleHosting.AddLiveBuild(builder, workdir, name, "os", "IntoChat.OS.Kernel.dll") is { } live
-                ? Primary(AllowLiveBuildOnNetwork(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS")))
-                : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddDotnetProject(name, projectPath)))).ToArray();
+            Primary(AspireModuleHosting.OnDynamicPorts(builder.AddDotnetProject(name, projectPath)))).ToArray();
         if (profile.FrontEnabled)
         {
             var front = AspireModuleHosting.AddFront(builder, "OperatingSystem", profile.UiPort, silos.Select(silo => silo.GetEndpoint("https")));
@@ -73,40 +70,6 @@ public static class OperatingSystemHosting
             }
             silo.WithAllocatedOrleansPorts();
             return builder.CreateResourceBuilder<IResourceWithEndpoints>(silo.Resource);
-        }
-    }
-
-    // The MCP server is an Orleans client: it starts once every silo instance is up.
-    public static IResourceBuilder<IResourceWithEndpoints>[] AddMcp(this IntoChatOSBuilder os, string projectPath, DeploymentProfile profile, IReadOnlyList<IResourceBuilder<IResourceWithEndpoints>> silos)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
-        var builder = os.ApplicationBuilder;
-        var workdir = AspireModuleHosting.WorkdirOf(builder);
-        var mcps = AspireModuleHosting.InstanceNames("intochat-os-mcp").Select(name =>
-            AspireModuleHosting.AddLiveBuild(builder, workdir, name, "mcp", "IntoChat.OS.Mcp.dll") is { } live
-                ? Mcp(AllowLiveBuildOnNetwork(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS")))
-                : Mcp(AspireModuleHosting.OnDynamicPorts(builder.AddDotnetProject(name, projectPath)))).ToArray();
-        if (profile.FrontEnabled) { AspireModuleHosting.AddFront(builder, "intochat-os-mcp", profile.McpPort, mcps.Select(mcp => mcp.GetEndpoint("http"))); }
-        return mcps;
-
-        IResourceBuilder<IResourceWithEndpoints> Mcp<T>(IResourceBuilder<T> mcp) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
-        {
-            mcp.WithReference(os.AsClient(shareHttpIdentity: true))
-                .WithOsEnvironment(IntoChatOSNames.TopologyKey, profile.Topology)
-                .WithModuleOverrides(builder, profile)
-                .WithHttpHealthCheck("/health", endpointName: "http");
-            for (var index = 0; index < silos.Count; index++)
-            {
-                var silo = silos[index];
-                mcp.WaitFor(silo);
-                // The local topology owns its allocated Orleans ports, so the client needs those gateways explicitly.
-                if (!profile.Cloud)
-                {
-                    mcp.WithEnvironment($"Orleans__Clustering__Gateways__{index}", ReferenceExpression.Create(
-                        $"127.0.0.1:{silo.GetEndpoint(RuntimeHosting.OrleansGatewayEndpoint).Property(EndpointProperty.Port)}"));
-                }
-            }
-            return builder.CreateResourceBuilder<IResourceWithEndpoints>(mcp.Resource);
         }
     }
 
@@ -149,9 +112,4 @@ public static class OperatingSystemHosting
         foreach (var key in profile.ModuleOverrides) { resource.WithOsEnvironment(key, builder.Configuration[key]!); }
         return resource;
     }
-
-    // A live build is an executable the proxy reaches through a bare port (ASPNETCORE_HTTP_PORTS), which binds every interface; the
-    // loopback-only rule for Open posture cannot be met there, so the opt-in is explicit (live builds are the candidate pipeline's).
-    private static IResourceBuilder<T> AllowLiveBuildOnNetwork<T>(IResourceBuilder<T> live) where T : IResourceWithEnvironment
-        => live.WithOsEnvironment(AuthOptions.Key(nameof(AuthOptions.AllowOpenOnNetwork)), "true");
 }

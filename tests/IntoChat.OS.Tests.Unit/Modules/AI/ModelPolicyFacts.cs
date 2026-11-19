@@ -248,7 +248,7 @@ public sealed partial class ModelPolicyFacts
         var catalogDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\Catalog", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/Catalog", StringComparison.OrdinalIgnoreCase));
         var appHostDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.AppHost", StringComparison.OrdinalIgnoreCase));
         var localSetupDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.LocalSetup", StringComparison.OrdinalIgnoreCase));
-        var frameworkDir = Assert.Single(projectDirs, d => d.EndsWith("IntoChat.OS.Framework", StringComparison.OrdinalIgnoreCase));
+        var frameworkDir = Assert.Single(projectDirs, d => d.EndsWith("Modules\\Identity", StringComparison.OrdinalIgnoreCase) || d.EndsWith("Modules/Identity", StringComparison.OrdinalIgnoreCase));
 
         string[] ownedDirectories =
         [

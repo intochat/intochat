@@ -17,18 +17,6 @@ public sealed class ArtCraftModuleHosting : ModuleHosting<ArtCraftModule>
     public const int FilmCraftWebPort = ArtCraftModuleOptions.FilmCraftWebPort;
     public const string PrebuiltRegistry = "ghcr.io/intochat";
 
-    // The studios alone, for a run with the ArtCraft module off: the shell's PhotoCraft and FilmCraft apps open these web
-    // builds, so they run from the prebuilt images (no Rust build, no MCP servers) on the same fixed ports.
-    public static void AddStudios(IntoChatOSBuilder brain)
-    {
-        ArgumentNullException.ThrowIfNull(brain);
-        var options = new ArtCraftModuleOptions { ImageRegistry = PrebuiltRegistry };
-        foreach (var (app, reference, webPort) in new[] { ("photocraft", PhotoCraftRef, PhotoCraftWebPort), ("filmcraft", FilmCraftRef, FilmCraftWebPort) })
-        {
-            Web(Image(brain, options, docker: "", app, "web", reference, "craft-web.Dockerfile"), webPort).WithParentRelationship(brain.Resource);
-        }
-    }
-
     private static IResourceBuilder<ContainerResource> Web(IResourceBuilder<ContainerResource> web, int port) => web
         .WithHttpEndpoint(port: port, targetPort: 80, name: "http", isProxied: false)
         .WithHttpHealthCheck("/", endpointName: "http")

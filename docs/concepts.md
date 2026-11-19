@@ -16,7 +16,7 @@ You choose where your brain runs:
 
 The shell speaks one protocol in all three. Only the brain's address differs. On phones the shell connects to a brain that runs elsewhere; the kernel does not run on phones.
 
-In code this choice is the topology, set with `IntoChatOS:Topology` (`IntoChatOSNames.TopologyKey`). The values are `local`, `local+cloud` and `cloud` (`IntoChatOSNames`); unset means `local`. The `local` and `local+cloud` topologies run in `IntoChat.OS.Kernel` (`Program.cs` delegates to `KernelHost.RunAsync` in `src/IntoChat.OS.Kernel/IntoChat.OS.Kernel/KernelHost.cs`, which filters discovered modules with `LoadsUnder` and applies `LocalRunDefaults`); the hosted `cloud` topology runs in IntoChat Cloud on top of `KernelHost` (container images backed by Azure Storage and Key Vault also run with `IntoChatOS__Topology=cloud`). The desktop launcher in `src/IntoChat.OS.Desktop` starts the kernel with `local` and keeps state under `~/.intochat`.
+In code this choice is the topology, set with `IntoChatOS:Topology` (`IntoChatOSNames.TopologyKey`). The values are `local`, `local+cloud` and `cloud` (`IntoChatOSNames`); unset means `local`. The `local` and `local+cloud` topologies run in `IntoChat.OS.Kernel` (`Program.cs` configures the host via `KernelHost` in `src/IntoChat.OS.Kernel/KernelHost.cs`, which filters discovered modules with `LoadsUnder` and applies `LocalRunDefaults`); the hosted `cloud` topology runs in IntoChat Cloud on top of `KernelHost` (container images backed by Azure Storage and Key Vault also run with `IntoChatOS__Topology=cloud`). The desktop launcher in `src/IntoChat.OS.Desktop` starts the kernel with `local` and keeps state under `~/.intochat`.
 
 ## Connection
 

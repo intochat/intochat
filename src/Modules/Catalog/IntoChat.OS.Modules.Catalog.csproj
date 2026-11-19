@@ -21,7 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
     <ProjectReference Include="../../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../Identity/IntoChat.OS.Modules.Identity.csproj" />
     <ProjectReference Include="../Storage/IntoChat.OS.Modules.Storage.csproj" />
     <ProjectReference Include="../Shell/Contracts/IntoChat.OS.Modules.Shell.Contracts.csproj" />
     <ProjectReference Include="../ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />

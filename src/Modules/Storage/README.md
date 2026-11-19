@@ -9,7 +9,7 @@ How to test: `dotnet test --project src/IntoChat.OS.Modules/LocalDisk/tests/Into
 Documentation: `docs/modules.md` at the repository root.
 
 <!-- BEGIN GENERATED options -->
-Configuration section: `IntoChatOS:Modules:local-disk:Options` (environment prefix `IntoChatOS__Modules__local-disk__Options__`).
+Configuration section: `IntoChatOS:Modules:cloud:Options` (environment prefix `IntoChatOS__Modules__cloud__Options__`).
 
 Options:
 

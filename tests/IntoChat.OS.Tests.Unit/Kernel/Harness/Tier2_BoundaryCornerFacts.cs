@@ -591,15 +591,6 @@ public sealed class Tier2_BoundaryCornerFacts
     [Fact]
     [Trait("Category", "Tier2_BoundaryCorner")]
     [Trait("Feature", "F13")]
-    public void F13_B02_CloudHostAssembly_NoLegacyConfigurationTypes()
-    {
-        var types = typeof(IntoChat.OS.Kernel.OperatingSystemModules).Assembly.GetTypes();
-        Assert.DoesNotContain(types, t => t.Name.Contains("LegacyConfigurationGuard"));
-    }
-
-    [Fact]
-    [Trait("Category", "Tier2_BoundaryCorner")]
-    [Trait("Feature", "F13")]
     public void F13_B03_FrameworkAssembly_ExportsOnlyValidPublicTypes()
     {
         var exported = typeof(DigitalBrain.Runtime.Orleans.Hosting.NeutralCallMapping).Assembly.GetExportedTypes();

@@ -61,11 +61,11 @@ public sealed partial class InternalsVisibleToFacts
     }
 
     [Theory]
-    [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Framework.Tests.Integration", true)]
-    [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Framework.Tests", true)]
+    [InlineData("IntoChat.OS.Modules.Identity", "IntoChat.OS.Modules.Identity.Tests.Integration", true)]
+    [InlineData("IntoChat.OS.Modules.Identity", "IntoChat.OS.Modules.Identity.Tests", true)]
     [InlineData("IntoChat.OS.Modules.AI.Aspire.Hosting", "IntoChat.OS.Modules.AI.Tests.Hosting", true)]
-    [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Runtime.InMemory", false)]
-    [InlineData("IntoChat.OS.Framework", "IntoChat.OS.Framework.TestsX", false)]
+    [InlineData("IntoChat.OS.Modules.Identity", "IntoChat.OS.Runtime.InMemory", false)]
+    [InlineData("IntoChat.OS.Modules.Identity", "IntoChat.OS.Modules.Identity.TestsX", false)]
     [InlineData("IntoChat.OS.Modules.AI.Aspire.Hosting", "IntoChat.OS.Modules.Gmail.Tests.Hosting", false)]
     public void OnlyOwnTestsMayBeGranted(string grantor, string grantee, bool expected)
         => Assert.Equal(expected, Allowed(grantor, grantee));

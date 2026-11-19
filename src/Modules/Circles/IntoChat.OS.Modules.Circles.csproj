@@ -12,7 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
-    <ProjectReference Include="../../IntoChat.OS.Framework/IntoChat.OS.Framework.csproj" />
+    <ProjectReference Include="../Identity/IntoChat.OS.Modules.Identity.csproj" />
     <ProjectReference Include="../Catalog/IntoChat.OS.Modules.Catalog.csproj" />
   </ItemGroup>
 </Project>
