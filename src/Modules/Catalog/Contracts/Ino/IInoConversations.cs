@@ -21,4 +21,8 @@ public interface IInoConversations
 
     [DigitalBrain.Contracts.ReadOnlyCall]
     Task<string[]> Current();
+
+    /// <summary>Returns all tracked conversation agent keys (most recent first, up to 64).</summary>
+    [DigitalBrain.Contracts.ReadOnlyCall]
+    Task<string[]> List();
 }

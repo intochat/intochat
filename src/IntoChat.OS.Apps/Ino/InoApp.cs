@@ -2,7 +2,7 @@
 # Ino
 Role: Shell
 Shipped: true
-Operations: open, send, retry, stop, smart, use-local, save-provider, connect-db, query-db, new, new-conversation, make, link
+Operations: open, send, retry, stop, smart, use-local, save-provider, connect-db, query-db, new, new-conversation, switch-conversation, make, link
 */
 using DigitalBrain;
 using DigitalBrain.Confirmation;
@@ -13,6 +13,7 @@ using DigitalBrain.UI.Controls;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Observers;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Media;
@@ -23,6 +24,8 @@ using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter.Chat;
 using IntoChat.OS.Modules.Flutter.Compute;
+using IntoChat.OS.Modules.UI.Chat;
+using IntoChat.OS.Modules.UI.Chat.Signals;
 using Microsoft.Extensions.Logging;
 
 namespace IntoChat.OS.Apps.Ino;
@@ -76,6 +79,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         _messages = next.Messages;
         _threadKnown |= next.Messages is not null;
         await Show(next with { Messages = null });
+        await InoModelSetup.SyncUiChatThreadAsync(Setup, next, _canDictate);
         var thread = InoView.Thread(next);
         if (!_threadKnown && thread.Count == 0) { return; }
         // The thread draws its stop and the error's retry from the props routed with the import: a props change writes it again too.
@@ -129,6 +133,26 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     public Task OnThreadStop(StopRequested? requested)
         => requested is not null && SignalSlot == InoView.ConversationKey ? Stop(new InoStop()) : Task.CompletedTask;
 
+    [On]
+    public Task OnUiChatSubmitted(ChatMessageSubmitted? submitted)
+        => submitted is not null && IsCurrentUiChat(submitted.ChatId) ? Send(new InoSend(Message: submitted.Text)) : Task.CompletedTask;
+
+    [On]
+    public Task OnUiChatStop(ChatStopRequested? requested)
+        => requested is not null && IsCurrentUiChat(requested.ChatId) ? Stop(new InoStop()) : Task.CompletedTask;
+
+    [On]
+    public Task OnUiChatRetry(ChatRetryRequested? requested)
+        => requested is not null && IsCurrentUiChat(requested.ChatId) ? RetryTurnAsync(requested.MessageId) : Task.CompletedTask;
+
+    [On]
+    public Task OnUiChatCompact(ChatCompactRequested? requested)
+        => requested is not null && IsCurrentUiChat(requested.ChatId) ? Send(new InoSend(Message: "/compact")) : Task.CompletedTask;
+
+    [On]
+    public Task OnUiChatModelSelected(ChatModelSelected? selected)
+        => selected is not null && IsCurrentUiChat(selected.ChatId) ? UseLocalModel(new InoUseLocalModel(Model: selected.ModelId)) : Task.CompletedTask;
+
     // Sends a turn again: an empty id is the last prompt; a user message's id is that prompt; a reply's id is the prompt it answered.
     private async Task RetryTurnAsync(string? id)
     {
@@ -156,6 +180,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         _canDictate = await InoModelSetup.InitializeViewAsync(Setup);
         var agentKey = InoModel.AgentKeyOf(Current.ConversationId);
         await TryOptionalAsync("conversations-registry", () => Get<IInoConversations>(IInoConversations.DefaultKey).Use(agentKey));
+        await TryOptionalAsync("ui-chat-synapses", () => FollowUiChatSignalsAsync(InoModel.UiChatKeyOf(Current.ConversationId)));
         if (await InoModelSetup.EnsureChatAsync(Setup, agentKey)) { await InoModelSetup.ProjectCurrentChatAsync(Setup, agentKey); }
     }
 
@@ -172,7 +197,8 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
             local?.PreferredModel, local?.InstalledModels);
 
         var agentKey = InoModel.AgentKeyOf(Current.ConversationId);
-        await Commit(nextState);
+        var recents = await InoModelSetup.ReadRecentConversationsAsync(Setup, Current.RecentConversations);
+        await Commit(nextState with { RecentConversations = recents });
         await TryOptionalAsync("agent", () => InoModelSetup.ConfigureOpenAgentAsync(Setup, agentKey, settings, effectiveModel, migrate));
         if (await InoModelSetup.EnsureChatAsync(Setup, agentKey)) { await InoModelSetup.ProjectCurrentChatAsync(Setup, agentKey); }
     }
@@ -180,6 +206,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     [On] public async Task OnGrantsChanged(GrantsChanged? changed) { if (changed is not null) { await Commit(Current with { GrantSummaries = await InoModelSetup.ReadGrantSummariesAsync(Setup, Current.GrantSummaries) }); } }
     [On] public Task New(InoNew request) { ArgumentNullException.ThrowIfNull(request); return StartConversationAsync(); }
     [On] public Task NewConversation(InoNewConversation request) { ArgumentNullException.ThrowIfNull(request); return StartConversationAsync(); }
+    [On] public Task SwitchConversation(InoSwitchConversation request) { ArgumentNullException.ThrowIfNull(request); return SwitchConversationAsync(request.ConversationId); }
     [On] public Task OnConfirmationRequested(ConfirmationRequested? requested) => requested is { PlanId.Length: > 0 } ? RefreshApprovalsAsync() : Task.CompletedTask;
     [On] public Task OnConfirmationResolved(ConfirmationResolved? resolved) => resolved is { PlanId.Length: > 0 } ? RefreshApprovalsAsync() : Task.CompletedTask;
     [On] public Task OnFlowsChanged(FlowsChanged? changed) => changed is { FlowId.Length: > 0 } ? RefreshApprovalsAsync(skipWhenBothEmpty: true) : Task.CompletedTask;
@@ -246,7 +273,9 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         await InoModelSetup.ProjectCurrentChatAsync(Setup, InoModel.AgentKeyOf(Current.ConversationId));
         if (changed!.Status == ChatRunStatus.Completed)
         {
-            await TryOptionalAsync("compute-record", () => Get<ICompute>("compute").Record("ino", Math.Max(1_000L, ((Current.Messages ?? []).LastOrDefault(m => m.Role == "assistant")?.Text?.Length ?? 0) * 25L)));
+            var fallbackTokens = Math.Max(1_000L, ((Current.Messages ?? []).LastOrDefault(m => m.Role == "assistant")?.Text?.Length ?? 0) * 25L);
+            var actualTokens = await InoModelSetup.ReadLastRunTokensAsync(Setup, InoModel.AgentKeyOf(Current.ConversationId), fallbackTokens);
+            await TryOptionalAsync("compute-record", () => Get<ICompute>("compute").Record("ino", actualTokens));
             await RefreshApprovalsAsync();
         }
     }
@@ -318,19 +347,48 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         () => Get<IUserSettings>("settings"), Get<IAgent>, Get<IChat>, Get<IToneObserver>,
         () => Get<ISpeechRecognizer>("default"), () => Get<IGrantsNeuron>(IGrantsNeuron.DefaultKey), () => Get<IApprovals>(ApprovalsKey),
         () => Get<IInoConversations>(IInoConversations.DefaultKey), () => Get<IProfileContextWriter>("ino/profile-writer"),
+        Get<IAgentContext>, Get<IChatThread>,
         Follow<IAgent, AgentBlocked>,
         async chatKey => { await Follow<IChat, ChatChanged>(chatKey); await Follow<IChat, ChatRunChanged>(chatKey); },
+        FollowUiChatSignalsAsync,
         TryOptionalAsync, ReadOptionalAsync, ReadOptionalAsync, ReadOptionalAsync, ReadOptionalAsync, ReadOptionalAsync, ReadOptionalAsync, ReadOptionalAsync,
         LogOptional, _logger);
+
+    private async Task FollowUiChatSignalsAsync(string uiChatKey)
+    {
+        await Follow<IChatThread, ChatMessageSubmitted>(uiChatKey);
+        await Follow<IChatThread, ChatStopRequested>(uiChatKey);
+        await Follow<IChatThread, ChatRetryRequested>(uiChatKey);
+        await Follow<IChatThread, ChatCompactRequested>(uiChatKey);
+        await Follow<IChatThread, ChatModelSelected>(uiChatKey);
+    }
 
     private async Task StartConversationAsync()
     {
         var conversationId = InoModel.MintConversationId();
         var agentKey = InoModel.AgentKeyOf(conversationId);
         _threadKnown = true;
-        await Commit(InoModel.NewConversation(Current, conversationId));
         await InoModelSetup.FollowAgentControlSignalsAsync(Setup, agentKey);
+        var recents = await InoModelSetup.ReadRecentConversationsAsync(Setup, Current.RecentConversations);
+        await Commit(InoModel.NewConversation(Current, conversationId) with { RecentConversations = recents });
+        await TryOptionalAsync("ui-chat-synapses", () => FollowUiChatSignalsAsync(InoModel.UiChatKeyOf(conversationId)));
         await InoModelSetup.EnsureChatAsync(Setup, agentKey);
+    }
+
+    private async Task SwitchConversationAsync(string? rawConversationId)
+    {
+        if (string.IsNullOrWhiteSpace(rawConversationId)) { return; }
+        var conversationId = InoModel.ConversationIdOf(rawConversationId);
+        if (string.Equals(conversationId, Current.ConversationId, StringComparison.Ordinal)) { return; }
+        var agentKey = InoModel.AgentKeyOf(conversationId);
+        _threadKnown = false;
+        _synced = null;
+        _syncedProps = null;
+        await InoModelSetup.FollowAgentControlSignalsAsync(Setup, agentKey);
+        var recents = await InoModelSetup.ReadRecentConversationsAsync(Setup, Current.RecentConversations);
+        await Commit(InoModel.SwitchConversation(Current, conversationId, recents));
+        await TryOptionalAsync("ui-chat-synapses", () => FollowUiChatSignalsAsync(InoModel.UiChatKeyOf(conversationId)));
+        if (await InoModelSetup.EnsureChatAsync(Setup, agentKey)) { await InoModelSetup.ProjectCurrentChatAsync(Setup, agentKey); }
     }
 
     private async Task RefreshApprovalsAsync(InoAppState? baseState = null, bool skipWhenBothEmpty = false)
@@ -344,6 +402,13 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
     private static string? ExtractSendText(InoSend r) => string.IsNullOrWhiteSpace(r.EffectiveMessage) ? null : r.EffectiveMessage.Length > InoModel.MaxMessageChars ? r.EffectiveMessage : r.EffectiveMessage.Trim();
     private bool IsCurrentAgent(string agentId) => string.Equals(agentId, InoModel.AgentKeyOf(Current.ConversationId), StringComparison.Ordinal);
     private bool IsCurrentChat(string? chatName) => !string.IsNullOrEmpty(chatName) && string.Equals(chatName, $"{CurrentBrain.Value}/{InoModel.ChatKeyOf(Current.ConversationId)}", StringComparison.Ordinal);
+    private bool IsCurrentUiChat(string? chatId)
+    {
+        if (string.IsNullOrWhiteSpace(chatId)) { return false; }
+        var expected = InoModel.UiChatKeyOf(Current.ConversationId);
+        return string.Equals(chatId, expected, StringComparison.Ordinal)
+            || string.Equals(chatId, $"{CurrentBrain.Value}/{expected}", StringComparison.Ordinal);
+    }
     private DateTimeOffset NowUtc() { if (_time is not null) { return _time.GetUtcNow(); } try { return Context.Time.GetUtcNow(); } catch (InvalidOperationException error) { LogOptional(error, "clock"); return TimeProvider.System.GetUtcNow(); } }
     private BrainId CurrentBrain { get { try { return Id.Brain; } catch (InvalidOperationException error) { LogOptional(error, "brain-id"); return default; } } }
     private T? TryGetOptional<T>(string key) where T : class { try { return Get<T>(key); } catch (InvalidOperationException error) { LogOptional(error, typeof(T).Name); return null; } }

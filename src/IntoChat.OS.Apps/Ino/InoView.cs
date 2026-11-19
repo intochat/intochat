@@ -142,6 +142,28 @@ public static partial class InoView
         var (statusKind, statusLabel) = ResolveSideStatus(state);
         var activeModel = ResolveModelVisual(state.SelectedModel)?.Label ?? state.SelectedModel;
 
+        var recents = (state.RecentConversations ?? [])
+            .Select(InoModel.ConversationIdOf)
+            .Where(static id => !string.IsNullOrWhiteSpace(id))
+            .Prepend(state.ConversationId)
+            .Distinct(StringComparer.Ordinal)
+            .Take(64)
+            .ToArray();
+
+        Node[] sessionNavs = [.. recents.Select(convId =>
+        {
+            var isCurrent = string.Equals(convId, state.ConversationId, StringComparison.Ordinal);
+            var label = isCurrent ? state.Title : $"Chat · {convId[..Math.Min(8, convId.Length)]}";
+            return NavItem(
+                $"session-{convId}",
+                label,
+                Icons.Sparkles,
+                "switch-conversation",
+                selected: isCurrent,
+                badge: isCurrent ? $"{count}" : null,
+                emit: AppSignals.Emits("ino", new InoSwitchConversation(convId)));
+        })];
+
         return new View(
             "Chats",
             VStack(Space.Sm)[
@@ -152,9 +174,13 @@ public static partial class InoView
                         PrimaryButton("+ New Session", Icons.Plus).Small().Key("new-session").Emits(AppSignals.Emit("ino", "new")).ToNode()
                     ]
                 ],
-                Divider("SESSIONS"),
-                NavItem($"session-{state.ConversationId}", state.Title, Icons.Sparkles, "open", selected: true, badge: $"{count}"),
-                new Collection([new Entry(state.ConversationId, state.Title, $"{count} turn(s)")]),
+                Divider($"SESSIONS ({recents.Length})"),
+                VStack(Space.Xs, sessionNavs),
+                new Collection([.. recents.Select(convId =>
+                {
+                    var isCurrent = string.Equals(convId, state.ConversationId, StringComparison.Ordinal);
+                    return new Entry(convId, isCurrent ? state.Title : $"Chat · {convId[..Math.Min(8, convId.Length)]}", isCurrent ? $"{count} turn(s)" : "Switch");
+                })]),
                 Divider("WHAT INO MAY DO"),
                 new Collection([.. (state.GrantSummaries ?? []).Select((summary, i) => new Entry($"grant-{i}", summary, null))])
             ]);
