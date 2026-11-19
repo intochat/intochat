@@ -54,9 +54,13 @@ public sealed class BrowserDriver(IPage page, ScenarioRecording recording, strin
         {
             throw new InvalidOperationException($"No control under '{step.Target}' sends {step.Signal}: the browser shows no {control}.");
         }
+        // The keyed wrapper may be a box-less group around the control: click the button inside it when there is one.
+        var button = control.Locator("xpath=descendant-or-self::*[@role='button']").First;
+        if (await button.CountAsync() > 0 && await button.IsVisibleAsync()) { control = button; }
         await Outline(control);
         await control.ClickAsync(new() { Timeout = Timeout }).WaitAsync(ct);
-        await page.WaitForTimeoutAsync(300).WaitAsync(ct);
+        // A slot child has no change stream of its own in the shell: it redraws on its refresh timer (2 s), so let one pass.
+        await page.WaitForTimeoutAsync(2_500).WaitAsync(ct);
     }
 
     public async Task<string> Read(string target, CancellationToken ct)
@@ -74,18 +78,18 @@ public sealed class BrowserDriver(IPage page, ScenarioRecording recording, strin
         return recording.EvidenceRef(scenario, stepIndex);
     }
 
-    // The control a user clicks to send the signal: a select clicks the item named by args.id, a retry the message's retry button,
-    // anything else the button keyed by the signal's last segment (the UI Kit's "Append point" is keyed "append" for uikit.append).
+    // The control a user clicks to send the signal: a select clicks the item named by args.id (a selection control's item carries
+    // "item:<id>"), a retry the message's retry button, anything else the button keyed by the signal's last segment (the UI Kit's
+    // "Append point" is keyed "append" for uikit.append).
     private static ILocator Control(ILocator scope, Act step)
     {
         var id = step.Args is { ValueKind: JsonValueKind.Object } args && args.TryGetProperty("id", out var value) ? value.GetString() : null;
-        var key = step.Signal switch
+        return step.Signal switch
         {
-            "control.select" when id is not null => id,
-            "control.retry" when id is not null => "retry:" + id,
-            _ => step.Signal[(step.Signal.LastIndexOf('.') + 1)..],
+            "control.select" when id is not null => scope.Locator($"{Identified("item:" + id)}, {Identified("key:" + id)}").First,
+            "control.retry" when id is not null => scope.Locator(Keyed("retry:" + id)).First,
+            _ => scope.Locator(Keyed(step.Signal[(step.Signal.LastIndexOf('.') + 1)..])).First,
         };
-        return scope.Locator(Keyed(key)).First;
     }
 
     private async Task<ILocator?> Find(string target, CancellationToken ct)
@@ -119,7 +123,9 @@ public sealed class BrowserDriver(IPage page, ScenarioRecording recording, strin
         catch (TimeoutException) { return false; }
     }
 
-    private static string Keyed(string key) => $"[flt-semantics-identifier=\"key:{key.Replace("\"", "\\\"", StringComparison.Ordinal)}\"]";
+    private static string Keyed(string key) => Identified("key:" + key);
+
+    private static string Identified(string identifier) => $"[flt-semantics-identifier=\"{identifier.Replace("\"", "\\\"", StringComparison.Ordinal)}\"]";
 
     // Headed runs outline the control the step is on, so a person can follow the run.
     private async Task Outline(ILocator target)
@@ -139,12 +145,15 @@ public sealed class BrowserDriver(IPage page, ScenarioRecording recording, strin
             return r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0;
           };
           const add = t => { t = (t || '').trim(); if (t) texts.push(t); };
+          // A box-less element (the semantics host, a grouping container) shows nothing itself, but its children may.
           const walk = e => {
-            if (!shown(e)) return;
-            add(e.getAttribute('aria-label'));
-            if (e instanceof HTMLInputElement || e instanceof HTMLTextAreaElement) add(e.value);
+            const visible = shown(e);
+            if (visible) {
+              add(e.getAttribute('aria-label'));
+              if (e instanceof HTMLInputElement || e instanceof HTMLTextAreaElement) add(e.value);
+            }
             for (const child of e.childNodes) {
-              if (child.nodeType === Node.TEXT_NODE) add(child.textContent);
+              if (child.nodeType === Node.TEXT_NODE) { if (visible) add(child.textContent); }
               else if (child.nodeType === Node.ELEMENT_NODE) walk(child);
             }
           };

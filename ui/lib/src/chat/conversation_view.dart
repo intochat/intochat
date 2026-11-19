@@ -11,6 +11,7 @@ import '../design/keys.dart';
 import '../design/tokens.dart';
 import '../nodes/empty_state.dart';
 import '../nodes/error_line.dart';
+import '../nodes/node_common.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
 import '../theme/brand_visuals.dart';
@@ -657,14 +658,16 @@ class _AssistantMessageItem extends StatelessWidget {
                     ),
                   if (retry != null) ...[
                     if (hasModelInfo) const SizedBox(width: 10),
-                    Btn(
-                      key: ValueKey(retry.key),
-                      label: retry.label,
-                      icon: LucideIcons.rotateCcw,
-                      small: true,
-                      onTap: retry.enabled && ctx.interactive
-                          ? () => ctx.activate(retry.key, context: context)
-                          : null,
+                    keyedControl(
+                      retry.key,
+                      Btn(
+                        label: retry.label,
+                        icon: LucideIcons.rotateCcw,
+                        small: true,
+                        onTap: retry.enabled && ctx.interactive
+                            ? () => ctx.activate(retry.key, context: context)
+                            : null,
+                      ),
                     ),
                   ],
                 ],

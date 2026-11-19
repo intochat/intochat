@@ -13,14 +13,21 @@ public sealed class BrowserScenarioFacts(WebShellHost host)
 {
     private static readonly ScenarioRecording Recording = new(TestHome.RepoRoot(), ScenarioRecording.NewRunId());
 
-    public static TheoryData<string> Names => [.. ShowcaseScenarios.All.Select(scenario => scenario.Name)];
+    // The exported list every client driver reads (ScenarioExportFacts keeps it equal to ShowcaseScenarios.All). Evaluated in this
+    // process, the data-node scenarios found no [Showcase] examples and expected their placeholder text instead (seen live).
+    private static readonly IReadOnlyList<UiScenario> Scenarios =
+        ScenarioJson.Read(File.ReadAllText(Path.Combine(TestHome.RepoRoot(), "ui", "test", "scenarios", "scenarios.json")));
+
+    // INTOCHAT_SCENARIOS=a,b runs only those scenarios (a quick subset while working on the driver).
+    public static TheoryData<string> Names => [.. Scenarios.Select(scenario => scenario.Name)
+        .Where(name => Environment.GetEnvironmentVariable("INTOCHAT_SCENARIOS") is not { Length: > 0 } only || only.Split(',').Contains(name))];
 
     [Theory]
     [MemberData(nameof(Names))]
     public async Task Every_showcase_scenario_passes_in_the_browser(string name)
     {
         var (verdict, steps) = await Run(name);
-        var scenario = ShowcaseScenarios.All.Single(item => item.Name == name);
+        var scenario = Scenarios.Single(item => item.Name == name);
         Assert.True(verdict.Passed, $"{name} failed at step {verdict.FailedStep} ({(verdict.FailedStep is { } i ? JsonSerializer.Serialize(scenario.Steps[i]) : "-")}): {verdict.Reason} [{verdict.EvidenceRef}]");
         Assert.Equal(scenario.Steps.Count, steps.Count);
         Assert.True(File.Exists(Recording.Trace(name)), $"No trace at {Recording.Trace(name)}.");
@@ -29,11 +36,11 @@ public sealed class BrowserScenarioFacts(WebShellHost host)
     [Fact]
     public async Task Every_step_has_a_screenshot()
     {
-        var name = ShowcaseScenarios.All[0].Name;
+        var name = Scenarios[0].Name;
         var (verdict, steps) = await Run(name);
 
         Assert.True(verdict.Passed, $"{name} failed at step {verdict.FailedStep}: {verdict.Reason}");
-        Assert.Equal(ShowcaseScenarios.All[0].Steps.Count, steps.Count);
+        Assert.Equal(Scenarios[0].Steps.Count, steps.Count);
         Assert.All(steps, step =>
         {
             Assert.Equal(Recording.EvidenceRef(name, step.Index), step.EvidenceRef);
@@ -44,7 +51,7 @@ public sealed class BrowserScenarioFacts(WebShellHost host)
     private async Task<(RunVerdict Verdict, IReadOnlyList<StepTaken> Steps)> Run(string name)
     {
         var ct = TestContext.Current.CancellationToken;
-        var scenario = ShowcaseScenarios.All.Single(item => item.Name == name);
+        var scenario = Scenarios.Single(item => item.Name == name);
         using var playwright = await Playwright.CreateAsync();
         await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
         await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 1600, Height = 1000 } });
@@ -70,6 +77,9 @@ public sealed class BrowserScenarioFacts(WebShellHost host)
         {
             Directory.CreateDirectory(Recording.ScenarioDirectory(name));
             await page.ScreenshotAsync(new() { Path = Path.Combine(Recording.ScenarioDirectory(name), "last.png") });
+            // The semantics tree the driver read, for a failing step's diagnosis.
+            await File.WriteAllTextAsync(Path.Combine(Recording.ScenarioDirectory(name), "semantics.html"),
+                await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.outerHTML ?? ''"), CancellationToken.None);
             await File.WriteAllLinesAsync(Path.Combine(Recording.ScenarioDirectory(name), "console.log"), console, CancellationToken.None);
             await context.Tracing.StopAsync(new() { Path = Recording.Trace(name) });
         }

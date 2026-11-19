@@ -38,18 +38,24 @@ Widget renderListBoxView(ListBoxViewNode node, NodeContext ctx) {
                 ),
               ),
             ),
-          ListTile(
-            key: ValueKey('${node.key}/${item.id}'),
-            dense: true,
-            enabled: props.isEnabled,
-            selected:
-                props.selectionMode == ListSelectionMode.single &&
-                item.id == selectedId,
-            title: Text(item.title),
-            subtitle: item.subtitle == null ? null : Text(item.subtitle!),
-            onTap: selectable && item.id != selectedId
-                ? () => actListBoxSelect(ctx, '.', id: item.id)
-                : null,
+          // A browser finds an item by its id: `flt-semantics-identifier="item:<id>"`.
+          Semantics(
+            identifier: 'item:${item.id}',
+            container: true,
+            explicitChildNodes: true,
+            child: ListTile(
+              key: ValueKey('${node.key}/${item.id}'),
+              dense: true,
+              enabled: props.isEnabled,
+              selected:
+                  props.selectionMode == ListSelectionMode.single &&
+                  item.id == selectedId,
+              title: Text(item.title),
+              subtitle: item.subtitle == null ? null : Text(item.subtitle!),
+              onTap: selectable && item.id != selectedId
+                  ? () => actListBoxSelect(ctx, '.', id: item.id)
+                  : null,
+            ),
           ),
         ],
       ],
