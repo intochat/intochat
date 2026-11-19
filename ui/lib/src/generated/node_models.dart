@@ -190,16 +190,14 @@ final class AppShellNode extends Node {
 }
 
 final class AppView {
-  const AppView({required this.title, required this.root, required this.acts});
+  const AppView({required this.title, required this.root});
 
   final String title;
   final Node root;
-  final String? acts;
 
   factory AppView.fromJson(Map<String, dynamic> json) => AppView(
     title: _string(json['title']),
     root: Node.fromJson(_map(json['root'])),
-    acts: _stringOrNull(json['acts']),
   );
 }
 
@@ -2422,3 +2420,6 @@ final class WebBrowserNode extends Node {
     executionMode: _string(json['executionMode'], 'wasm-ui'),
   );
 }
+
+/// The chart kinds a live chart draws (`ChartRefusals.Kinds`).
+const liveChartKinds = {'bar', 'line', 'area', 'pie'};

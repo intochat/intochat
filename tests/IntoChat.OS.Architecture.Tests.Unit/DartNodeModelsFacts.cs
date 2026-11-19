@@ -139,6 +139,9 @@ public sealed partial class DartNodeModelsFacts
             foreach (var property in properties) { dart.Append($"    {FieldName(property)}: {Read(property.PropertyType, IsNullable(property), $"json['{JsonName(property)}']", Default(type, property))},\n"); }
             dart.Append("  );\n}\n\n");
         }
+        // The chart kinds a live chart draws, from ChartRefusals.Kinds: the client refuses any other kind as the neuron does.
+        dart.Append("/// The chart kinds a live chart draws (`ChartRefusals.Kinds`).\n");
+        dart.Append($"const liveChartKinds = {{{string.Join(", ", DigitalBrain.UI.ChartRefusals.Kinds.Select(kind => $"'{kind}'"))}}};\n");
         return dart.ToString();
     }
 
