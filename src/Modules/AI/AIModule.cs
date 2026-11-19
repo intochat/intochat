@@ -82,7 +82,6 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
         services.AddMediaNeurons();
         AIClients.AddImageGeneration(services, options);
         VoiceToTextHosting.Add(services, options);
-        services.TryAddSingleton<IKnowledgeStore, InMemoryKnowledgeStore>();
         services.TryAddSingleton<IMemoryEmbedder, HybridMemoryEmbedder>();
         // Memory facts, tasks and agent runs join the brain graph (brain-graph-plan Phase 3 + studio-graph-plan §3.1).
         services.AddSingleton<DigitalBrain.Graph.IGraphSource, Memory.KnowledgeGraphSource>();

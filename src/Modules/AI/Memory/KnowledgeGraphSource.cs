@@ -14,16 +14,17 @@ internal sealed class KnowledgeGraphSource(IServiceProvider services) : IGraphSo
     public async Task Contribute(BrainId brain, GraphSink sink, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(sink);
+        var storeId = new NeuronId(brain, "ai.knowledge-store", StoreKey);
         KnowledgeGraphView view;
         try
         {
-            view = await SiloNeurons.Get<IKnowledgeStore>(services, brain.Value + "/" + StoreKey).GetGraphViewAsync(null, 10, cancellationToken).ConfigureAwait(false);
+            view = await SiloNeurons.Get<IKnowledgeStore>(services, storeId).GetGraphViewAsync(null, 10, cancellationToken).ConfigureAwait(false);
         }
         catch (InvalidOperationException)
         {
             return; // no knowledge store is hosted for this brain
         }
-        var store = $"{brain.Value}/ai.knowledge-store/{StoreKey}";
+        var store = storeId.ToString();
         var root = sink.IndexOf(brain.Value);
         var index = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var node in view.Nodes)

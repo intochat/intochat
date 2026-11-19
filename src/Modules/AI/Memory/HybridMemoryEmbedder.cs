@@ -205,6 +205,25 @@ internal static class HybridMemoryScorer
         return Math.Clamp(dot, 0.0, 1.0);
     }
 
+    public static double CosineSimilarity(float[]? a, float[]? b)
+    {
+        if (a is null || b is null || a.Length == 0 || a.Length != b.Length)
+        {
+            return 0;
+        }
+
+        double dot = 0, normA = 0, normB = 0;
+        for (var i = 0; i < a.Length; i++)
+        {
+            dot += (double)a[i] * b[i];
+            normA += (double)a[i] * a[i];
+            normB += (double)b[i] * b[i];
+        }
+
+        var denom = Math.Sqrt(normA) * Math.Sqrt(normB);
+        return denom <= 1e-12 ? 0.0 : dot / denom;
+    }
+
     public static double LexicalScore(string document, string[] queryTerms)
     {
         if (queryTerms.Length == 0 || string.IsNullOrWhiteSpace(document))

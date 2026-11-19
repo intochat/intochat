@@ -37,8 +37,10 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../IntoChat.OS/IntoChat.OS.csproj" />
+    <ProjectReference Include="../../IntoChat.OS.UI/IntoChat.OS.UI.csproj" />
     <ProjectReference Include="../Identity/IntoChat.OS.Modules.Identity.csproj" />
     <ProjectReference Include="../GitHub/IntoChat.OS.Modules.GitHub.csproj" />
+    <ProjectReference Include="../UI/IntoChat.OS.Modules.UI.csproj" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Pricing/models.prices.json" LogicalName="IntoChat.OS.Modules.AI.Pricing.models.prices.json" />

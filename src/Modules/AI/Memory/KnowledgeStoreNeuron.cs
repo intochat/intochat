@@ -118,21 +118,7 @@ internal sealed class KnowledgeStoreNeuron : Neuron<KnowledgeStoreState>, IKnowl
     public Task<IReadOnlyList<KnowledgeEdge>> QueryEdgesAsync(string nodeId, EdgeDirection direction = EdgeDirection.Both, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        if (string.IsNullOrWhiteSpace(nodeId))
-        {
-            return Task.FromResult<IReadOnlyList<KnowledgeEdge>>([]);
-        }
-
-        var edges = State.Edges.AsEnumerable();
-        edges = direction switch
-        {
-            EdgeDirection.Outgoing => edges.Where(e => string.Equals(e.SourceId, nodeId, StringComparison.Ordinal)),
-            EdgeDirection.Incoming => edges.Where(e => string.Equals(e.TargetId, nodeId, StringComparison.Ordinal)),
-            _ => edges.Where(e => string.Equals(e.SourceId, nodeId, StringComparison.Ordinal) || string.Equals(e.TargetId, nodeId, StringComparison.Ordinal))
-        };
-
-        var list = edges.Select(ToModel).ToList();
-        return Task.FromResult<IReadOnlyList<KnowledgeEdge>>(list);
+        return Task.FromResult(InMemoryKnowledgeStore.FilterEdges(State.Edges.Select(ToModel), nodeId, direction));
     }
 
     public async Task DeleteEdgeAsync(string sourceId, string targetId, string relation, CancellationToken ct = default)
@@ -157,64 +143,9 @@ internal sealed class KnowledgeStoreNeuron : Neuron<KnowledgeStoreState>, IKnowl
     public Task<KnowledgeGraphView> GetGraphViewAsync(string? rootId = null, int depth = 2, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        if (string.IsNullOrWhiteSpace(rootId))
-        {
-            var allNodes = State.Nodes.Select(ToModel).ToList();
-            var allEdges = State.Edges.Select(ToModel).ToList();
-            return Task.FromResult(new KnowledgeGraphView(allNodes, allEdges, rootId));
-        }
-
-        if (!State.Nodes.Any(n => string.Equals(n.Id, rootId, StringComparison.Ordinal)))
-        {
-            return Task.FromResult(new KnowledgeGraphView([], [], rootId));
-        }
-
-        var maxDepth = Math.Clamp(depth, 0, 10);
-        var visitedNodeIds = new HashSet<string>(StringComparer.Ordinal) { rootId };
-        var traversedEdges = new List<KnowledgeEdge>();
-        var currentLevel = new HashSet<string>(StringComparer.Ordinal) { rootId };
-
-        for (var d = 0; d < maxDepth && currentLevel.Count > 0; d++)
-        {
-            var nextLevel = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var currentId in currentLevel)
-            {
-                foreach (var edgeRecord in State.Edges)
-                {
-                    if (string.Equals(edgeRecord.SourceId, currentId, StringComparison.Ordinal))
-                    {
-                        var edge = ToModel(edgeRecord);
-                        traversedEdges.Add(edge);
-                        if (visitedNodeIds.Add(edgeRecord.TargetId))
-                        {
-                            nextLevel.Add(edgeRecord.TargetId);
-                        }
-                    }
-                    else if (string.Equals(edgeRecord.TargetId, currentId, StringComparison.Ordinal))
-                    {
-                        var edge = ToModel(edgeRecord);
-                        traversedEdges.Add(edge);
-                        if (visitedNodeIds.Add(edgeRecord.SourceId))
-                        {
-                            nextLevel.Add(edgeRecord.SourceId);
-                        }
-                    }
-                }
-            }
-            currentLevel = nextLevel;
-        }
-
-        var resultNodes = State.Nodes
-            .Where(n => visitedNodeIds.Contains(n.Id))
-            .Select(ToModel)
-            .ToList();
-
-        var distinctEdges = traversedEdges
-            .GroupBy(e => (e.SourceId, e.TargetId, e.Relation))
-            .Select(g => g.First())
-            .ToList();
-
-        return Task.FromResult(new KnowledgeGraphView(resultNodes, distinctEdges, rootId));
+        var nodes = State.Nodes.Select(ToModel).ToList();
+        var edges = State.Edges.Select(ToModel).ToList();
+        return Task.FromResult(InMemoryKnowledgeStore.TraverseSubgraph(nodes, edges, rootId, depth));
     }
 
     // Hybrid recall over this store's own graph: lexical and vector seeds, then personalized PageRank from the seeds along the
@@ -227,7 +158,7 @@ internal sealed class KnowledgeStoreNeuron : Neuron<KnowledgeStoreState>, IKnowl
             return Task.FromResult<IReadOnlyList<KnowledgeRecallHit>>([]);
         }
 
-        var terms = Tokenize(query);
+        var terms = HybridMemoryScorer.Tokenize(query);
         var graph = Graph();
         var seeds = new float[graph.NodeCount];
         var seeded = new List<int>();
@@ -249,7 +180,7 @@ internal sealed class KnowledgeStoreNeuron : Neuron<KnowledgeStoreState>, IKnowl
             for (var i = 0; i < State.Nodes.Length; i++)
             {
                 if (i == s || seeds[i] > 0 || State.Nodes[i].Vector is not { Length: > 0 } candidate || candidate.Length != seedVector.Length) { continue; }
-                var similarity = InMemoryKnowledgeStore.CosineSimilarity(seedVector, candidate);
+                var similarity = HybridMemoryScorer.CosineSimilarity(seedVector, candidate);
                 if (similarity > 0.5) { seeds[i] = (float)(seeds[s] * similarity * 0.5); }
             }
         }
@@ -321,28 +252,9 @@ internal sealed class KnowledgeStoreNeuron : Neuron<KnowledgeStoreState>, IKnowl
         r.CreatedAt,
         r.Writer is { } writer ? new Provenance(writer, r.Caller, r.StampedAt) : null);
 
-    private static string[] Tokenize(string text)
-        => text.Split([' ', '\t', '\r', '\n', ',', '.', ';', ':', '!', '?', '"', '\'', '(', ')', '[', ']', '{', '}'],
-                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(w => w.Length >= 2)
-            .Select(w => w.ToLowerInvariant())
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-
     private static double LexicalScore(string document, string[] queryTerms, double importance)
     {
-        if (queryTerms.Length == 0)
-        {
-            return 0;
-        }
-
-        var matched = queryTerms.Count(term => document.Contains(term, StringComparison.OrdinalIgnoreCase));
-        if (matched == 0)
-        {
-            return 0;
-        }
-
-        var lexical = (double)matched / queryTerms.Length;
-        return lexical * (1.0 + (importance / 10.0));
+        var lexical = HybridMemoryScorer.LexicalScore(document, queryTerms);
+        return lexical <= 0 ? 0 : lexical * (1.0 + (importance / 10.0));
     }
 }

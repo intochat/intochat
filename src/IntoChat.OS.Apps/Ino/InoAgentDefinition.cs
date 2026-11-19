@@ -1,4 +1,5 @@
 using IntoChat.OS.Modules.AI.Agents;
+using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
 using IntoChat.OS.Modules.AI.Routing;
@@ -49,6 +50,8 @@ public static class InoAgentDefinition
 
     When {user} states a durable preference, coding rule, convention, or project relationship, record it via `neurons_call` on contract `IntoChat.OS.Modules.AI.Memory.IMemory` at key `{brain}/memory` using method `RememberPreference` (`[scope, subject, body]` or `[scope, subject, body, importance]`), `RememberFact` (`[subject, text]`), or `LinkEntities` (`[sourceEntity, relation, targetEntity]`), using scope `owner` for personal rules or `repo:<name>` for repository-specific context.
 
+    For pinned working memory (~2.5 KB scratchpad with `ActiveThreads`, `EnvironmentNotes`, `PendingDecisions`) and lazy-loaded project/skill briefs, use `neurons_call` on contract `IntoChat.OS.Modules.AI.Memory.IWorkingMemory` at key `{brain}/default` (`UpsertScratchpad`, `RemoveScratchpad`, `SetSlice`, `PutBrief`, `GetBrief`, `ListBriefs` — lazy-load brief bodies with `GetBrief` only when needed). For daily `YYYY-MM-DD` session milestones (`Goal`, `Deliverables`, `Decisions`, `OpenThreads`), use `IntoChat.OS.Modules.AI.Memory.ISessionJournal` at key `{brain}/default` (`RecordMilestone`, `FinalizeSession`, `ReadReturningView`). To inspect live `Modules.UI` neuron states, component contracts, or Accordant `StateGraph` transitions/DOT graphs, use `IntoChat.OS.Modules.AI.Agents.Context.IUiIntrospector` at key `{brain}/default` (`Contracts`, `InspectNeuron`, `InspectLiveNeurons`, `ExploreStateGraph`).
+
     When {user} asks to inspect C# code structure, symbols, file outlines, callers, references, or compiler diagnostics, use `neurons_call` on contract `IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph` at key `{brain}/roslyn/codegraph` with `SearchSymbols`, `FileOutline`, or `FindCallers` (or contract `IntoChat.OS.Modules.Microsoft.Roslyn.IRoslyn` at key `system/microsoft.roslyn/default` with `FindSymbols`, `References`, `Callers`, `Skeleton`, `Member`, `Map`, or `Diagnostics`).
 
     When {user} asks to inspect live runtime health, endpoints, telemetry spans, or signal traces, use `neurons_call` on contract `IntoChat.OS.Modules.Microsoft.Aspire.IAspire` at key `{brain}/diagnostics/aspire` (or `{brain}/aspire`) with `GetResourcesAsync`, `GetStructuredLogsAsync`, or `GetTracesAsync`, or `Ask` with `[tool, argumentsJson]` to read the running app through Aspire's own MCP server (tools: `list_resources`, `list_console_logs`, `list_structured_logs`, `list_traces`, `list_trace_structured_logs`; for example `["list_console_logs", "{\"resourceName\":\"OperatingSystem-a\",\"search\":\"error\"}"]`), and contract `IntoChat.OS.Modules.Apps.Trace.ITraceReader` at key `{brain}/trace.reader` with `ReadTrace`. 
@@ -66,12 +69,13 @@ public static class InoAgentDefinition
             Contracts =
             [
                 typeof(IInoStudio).FullName!, typeof(IInoData).FullName!, typeof(IInoSettings).FullName!, typeof(IInoFiles).FullName!, typeof(IntoChat.OS.Modules.Apps.Runs.IRuns).FullName!, typeof(IntoChat.OS.Modules.Apps.CodeBlocks.ICodeBlockRun).FullName!, typeof(ISynapseStudio).FullName!, typeof(IInoFocus).FullName!,
-                typeof(IMemory).FullName!, typeof(IRouter).FullName!, typeof(IAspire).FullName!, typeof(ITraceReader).FullName!, typeof(IFlows).FullName!,
+                typeof(IMemory).FullName!, typeof(IWorkingMemory).FullName!, typeof(ISessionJournal).FullName!, typeof(IUiIntrospector).FullName!,
+                typeof(IRouter).FullName!, typeof(IAspire).FullName!, typeof(ITraceReader).FullName!, typeof(IFlows).FullName!,
                 "IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph",
             ],
             Contexts =
             [
-                .. new[] { "user.profile", "conversation.inference.tone", "conversation.summary", "conversation.inference", "apps.capabilities", "security.posture", "ui.focus", "ui.state", "memory.recall" }
+                .. new[] { "user.profile", "working.memory", "session.journal", "conversation.inference.tone", "conversation.summary", "conversation.inference", "apps.capabilities", "security.posture", "ui.focus", "ui.state", "memory.recall" }
                     .Select(name => "context/" + name),
             ],
         };

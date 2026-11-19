@@ -346,18 +346,34 @@ internal static class InoModelSetup
             case "new" or "clear": await startConversation(); return;
             case "compact":
                 var messages = state.Messages ?? [];
-                if (messages.Length == 0)
+                AgentCompactionResult? agentCompacted = null;
+                try
+                {
+                    agentCompacted = await host.GetAgent(InoModel.AgentKeyOf(state.ConversationId)).Compact(string.IsNullOrWhiteSpace(arg) ? null : arg);
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    host.LogOptional(error, "agent-compact");
+                }
+
+                if (messages.Length == 0 && (agentCompacted is null || agentCompacted.PreviousMessageCount == 0))
                 {
                     await host.ShowState(state with { Status = "No messages to compact yet." });
                     return;
                 }
-                var summary = InoModel.BuildCompactSummary(messages, state.ContextSummary);
-                await host.TryOptional("compact-context", () => host.GetAgentContext("default").Upsert(
-                    new ContextEntry("conversation.summary", summary, [], [ContextTags.Inference])));
+
+                var summary = agentCompacted is { Summary.Length: > 0 }
+                    ? agentCompacted.Summary
+                    : InoModel.BuildCompactSummary(messages, state.ContextSummary);
+                await host.TryOptional("compact-context", () => host.GetAgentContext("context/conversation.summary").Upsert(
+                    new ContextEntry("summary", "Earlier conversation summary: " + summary, [])));
+                var compactedCount = agentCompacted is { PreviousMessageCount: > 0 }
+                    ? agentCompacted.PreviousMessageCount - agentCompacted.KeptMessageCount
+                    : messages.Length;
                 await host.ShowState(state with
                 {
                     ContextSummary = summary,
-                    Status = $"Compacted {messages.Length} message(s) into conversation summary.",
+                    Status = $"Compacted {compactedCount} message(s) into conversation summary.",
                 });
                 return;
             case "pin": await host.ShowState(InoModel.DecideSlashPin(state)); return;
