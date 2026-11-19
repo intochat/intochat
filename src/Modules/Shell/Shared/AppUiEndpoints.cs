@@ -51,7 +51,7 @@ internal static class AppUiEndpoints
         apps.MapPost("/event", (HttpContext http, UiEvent input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
             => Deliver(input, brain, BrainScope.CurrentId(), hosted.FirstOrDefault(), ct, HttpCaller.Current(http), logger: logger));
         apps.MapGet("/{name}/slots/{**path}", (HttpContext http, string name, string path, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
-            => ReadSlot(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault()));
+            => ReadSlot(name, path, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger));
         OsBrainRoutes.Group(endpoints).AddEndpointFilter(ModuleRouteGuard.Guard).MapPost("/act", (HttpContext http, ActRequest input, INeuronProxies brain, [FromServices] IEnumerable<IHostedAppTypes> hosted, CancellationToken ct)
             => Act(input, brain, BrainScope.CurrentId(), ct, HttpCaller.Current(http), hosted.FirstOrDefault(), logger));
 
@@ -101,9 +101,9 @@ internal static class AppUiEndpoints
     // GET /apps/{name}/slots/{path}: the view of a slot child, reached as /act reaches it: through the top-level screen {scope}/apps/{name}
     // and its slot table, one key per hop ("a/b"), never by the child's neuron id (which the response does not carry either: its own
     // slots are named by key). Responses: 200 the view; 400 a malformed path; 404 {reason: UnknownChild} a key the view does not show;
-    // 409 {reason: NotLoaded} the app's host is not loaded.
+    // 409 {reason} the app's host is not loaded (NotLoaded) or another refusal; 422 {reason: HandlerFailed} the read failed.
     internal static async Task<IResult> ReadSlot(string name, string path, INeuronProxies brain, string scope, CancellationToken ct, DigitalBrain.Access.Caller? caller,
-        IHostedAppTypes? hosted = null)
+        IHostedAppTypes? hosted = null, ILogger? logger = null)
     {
         if (caller?.For?.Principal is not { Length: > 0 }) { throw new UnauthorizedAccessException("Only a signed-in person reads a screen."); }
         // The brain route admitted the caller to this brain; a caller acting in another brain never reads its screens.
@@ -131,9 +131,18 @@ internal static class AppUiEndpoints
         {
             return Results.NotFound(new { error = $"{neuron} shows no slot '{path}'.", reason = refused.Reason });
         }
+        catch (ActivationRefusedException refused)
+        {
+            return Results.Conflict(new { error = $"{path} of {neuron} refused the read.", reason = refused.Reason });
+        }
         catch (ArgumentException error)
         {
             return Results.BadRequest(new { error = error.Message });
+        }
+        catch (Exception error) when (error is not OperationCanceledException and not UnauthorizedAccessException)
+        {
+            (logger ?? ConsoleLog).LogWarning(error, "Reading slot {Path} of {Neuron} failed.", path, neuron);
+            return Results.UnprocessableEntity(new { error = error.Message, reason = "HandlerFailed" });
         }
     }
 

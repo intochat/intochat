@@ -115,12 +115,12 @@ public sealed class SlotReadEndpointFacts
     }
 
     [Theory]
-    [InlineData("panel/../panel")]
-    [InlineData("panel//leaf")]
-    [InlineData("./panel")]
-    [InlineData("owner/test.slotread-panel/owner/app.slotread/default/panel")]
-    [InlineData("owner:test.slotread-panel")]
-    public async Task A_dot_dot_empty_or_raw_id_path_is_refused(string path)
+    [InlineData("panel/../panel", StatusCodes.Status400BadRequest)]
+    [InlineData("panel//leaf", StatusCodes.Status400BadRequest)]
+    [InlineData("./panel", StatusCodes.Status400BadRequest)]
+    [InlineData("owner:test.slotread-panel", StatusCodes.Status400BadRequest)]
+    [InlineData("owner/test.slotread-panel/owner/app.slotread/default/panel", StatusCodes.Status404NotFound)]
+    public async Task A_dot_dot_empty_or_raw_id_path_is_refused(string path, int expected)
     {
         using var _ = AsPerson();
         var (os, brain) = await Start();
@@ -128,8 +128,37 @@ public sealed class SlotReadEndpointFacts
 
         var (status, body) = await Read(brain, "slotread", path);
 
-        Assert.True(status is StatusCodes.Status400BadRequest or StatusCodes.Status404NotFound, $"{path} gave {status}");
+        Assert.Equal(expected, status);
         Assert.DoesNotContain("Panel text", body, StringComparison.Ordinal);
+    }
+
+    private sealed class Unloaded : IntoChat.OS.Framework.IHostedAppTypes
+    {
+        public bool IsHostLoaded(string appKey) => false;
+    }
+
+    [Fact]
+    public async Task An_app_whose_host_is_not_loaded_is_409_NotLoaded()
+    {
+        using var _ = AsPerson();
+        var (os, brain) = await Start();
+        await using var __ = os;
+
+        var result = await AppUiEndpoints.ReadSlot("slotread", "panel", brain, Scope, Ct, Alice, new Unloaded());
+
+        Assert.Equal(StatusCodes.Status409Conflict, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Contains("NotLoaded", JsonSerializer.Serialize(Assert.IsAssignableFrom<IValueHttpResult>(result).Value), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_caller_from_another_brain_is_refused_under_this_brains_scope()
+    {
+        var (os, brain) = await Start();
+        await using var __ = os;
+        using var _ = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("bob", "bob", new BrainId("other")));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => AppUiEndpoints.ReadSlot("slotread", "panel", brain, Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
     }
 
     [Fact]
@@ -142,5 +171,21 @@ public sealed class SlotReadEndpointFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.ReadSlot("slotread", "panel", brain, "other", Ct, Alice));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.ReadSlot("slotread/view", "panel", brain, Scope, Ct, Alice));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => AppUiEndpoints.ReadSlot("slotread", "panel", brain, Scope, Ct, caller: null));
+    }
+}
+
+// Views name slots by key; a raw id that cannot be keyed never passes through.
+public sealed class SlotKeysFacts
+{
+    [Theory]
+    [InlineData("owner/control.listBox/owner/app.uikit/default/nav", "nav")]
+    [InlineData("owner/units/bank", "owner/units/bank")]
+    [InlineData("owner/control.listBox/main", "")]
+    [InlineData("not an id", "")]
+    public void A_slot_is_named_by_its_key_or_dropped(string uri, string expected)
+    {
+        var view = JsonSerializer.SerializeToElement(new { root = new { kind = "neuronRef", refKind = "slot", neuronUri = uri } });
+
+        Assert.Equal(expected, SlotKeys.Hide(view).GetProperty("root").GetProperty("neuronUri").GetString());
     }
 }

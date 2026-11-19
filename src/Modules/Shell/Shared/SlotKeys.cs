@@ -28,18 +28,23 @@ internal static class SlotKeys
                 foreach (var item in array) { if (item is not null) { Rewrite(item); } }
                 break;
             case JsonObject obj:
-                if (KeyOf(obj) is { } key) { obj["neuronUri"] = key; }
+                if (IsSlot(obj)) { obj["neuronUri"] = KeyOf((string?)obj["neuronUri"]); }
                 foreach (var (_, value) in obj.ToArray()) { if (value is not null) { Rewrite(value); } }
                 break;
         }
     }
 
-    // The slot's key: the last segment of the child's neuron key (the parent's id, '/', the key).
-    private static string? KeyOf(JsonObject obj)
+    private static bool IsSlot(JsonObject obj)
         => obj["kind"]?.GetValueKind() == JsonValueKind.String && (string?)obj["kind"] == "neuronRef"
             && obj["refKind"]?.GetValueKind() == JsonValueKind.String && (string?)obj["refKind"] == "slot"
-            && obj["neuronUri"]?.GetValueKind() == JsonValueKind.String && NeuronId.TryParse((string?)obj["neuronUri"], out var child)
-            && child.Key.LastIndexOf('/') is var slash and > 0
-                ? child.Key[(slash + 1)..]
-                : null;
+            && obj["neuronUri"]?.GetValueKind() == JsonValueKind.String;
+
+    // Fails closed: a child's id ("<parent id>/<key>") becomes its key; a public address of an app or unit
+    // ("<brain>/apps/<name>", "<brain>/units/<alias>") stays, since it names no child; anything else is dropped.
+    private static string KeyOf(string? uri)
+    {
+        if (uri is null || !NeuronId.TryParse(uri, out var id)) { return ""; }
+        if (id.Key.LastIndexOf('/') is var slash and > 0) { return id.Key[(slash + 1)..]; }
+        return id.Type is "apps" or "units" ? uri : "";
+    }
 }
