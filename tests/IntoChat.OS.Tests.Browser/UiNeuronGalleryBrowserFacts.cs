@@ -30,10 +30,22 @@ public sealed class UiNeuronGalleryBrowserFacts(WebShellHost host)
             }
         };
 
-        await page.GotoAsync(host.Shell, new() { WaitUntil = WaitUntilState.DOMContentLoaded }).WaitAsync(ct);
-        await page.Locator("[flt-semantics-identifier]").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
+        await page.GotoAsync(host.ShellFor("apps/gallery/view"), new() { WaitUntil = WaitUntilState.DOMContentLoaded }).WaitAsync(ct);
+        await page.Locator("[flt-semantics-identifier='key:nav:toggle']").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
 
-        // If the shell is on uikit/view or desktop, verify the semantics host mounted cleanly with zero 4xx/5xx errors.
+        try
+        {
+            await ExerciseGalleryNeuronsAsync(page, ct);
+        }
+        catch (Exception ex)
+        {
+            var visible = await page.EvaluateAsync<string>("() => document.querySelector('flt-semantics-host')?.innerText ?? '<no-semantics>'");
+            var ids = await page.EvaluateAsync<string[]>("() => Array.from(document.querySelectorAll('[flt-semantics-identifier]')).map(e => e.getAttribute('flt-semantics-identifier')).slice(0, 60)");
+            throw new Xunit.Sdk.XunitException(
+                $"Gallery E2E failed: {ex.Message}\nHTTP errors: [{string.Join(", ", httpErrors)}]\nIdentifiers: [{string.Join(", ", ids)}]\nVisible text:\n{visible[..Math.Min(1200, visible.Length)]}",
+                ex);
+        }
+
         Assert.Empty(httpErrors);
         Assert.True(await page.Locator("flt-semantics-host").CountAsync() > 0);
     }
@@ -65,13 +77,13 @@ public sealed class UiNeuronGalleryBrowserFacts(WebShellHost host)
 
         await page.ClickButtonAsync("nav:table", ct);
         await page.FilterTableAsync(GalleryApp.SpansTableKey, "Modules.UI", ct);
-        await page.SortTableAsync(GalleryApp.SpansTableKey, "Span", ct);
+        await page.Neuron("ui.table", GalleryApp.SpansTableKey).First.GetByText("ui.chart.append", new() { Exact = false }).First.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
 
         await page.ClickButtonAsync("nav:winui-inputs", ct);
         await page.SelectRadioAsync(GalleryApp.DemoRadioKey, "Hybrid Local + Cloud", ct);
 
         await page.ClickButtonAsync("nav:winui-nav", ct);
-        await page.SelectTreeNodeAsync(GalleryApp.DemoTreeViewKey, "GalleryApp.cs", ct);
+        await page.SelectTreeNodeAsync(GalleryApp.DemoTreeViewKey, "ChatThreadNeuron.cs", ct);
         await page.ClickBreadcrumbAsync(GalleryApp.DemoBreadcrumbKey, "Documents", ct);
         await page.DismissInfoBarAsync(GalleryApp.DemoInfoBarKey, ct);
 

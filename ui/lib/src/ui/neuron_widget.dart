@@ -150,28 +150,32 @@ class _NeuronWidgetState extends State<NeuronWidget> {
     }
     if (_error != null && _state == null) {
       final c = IcTheme.of(context);
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: c.surfaceCard,
-          borderRadius: BorderRadius.circular(IcRadius.sm),
-          border: Border.all(color: c.error.withValues(alpha: 0.4)),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.error_outline, size: 16, color: c.error),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '${widget.kind} (${widget.neuronKey}): $_error',
-                style: TextStyle(fontSize: 12, color: c.error),
+      return Semantics(
+        identifier: 'neuron:${widget.kind}:${widget.neuronKey}',
+        container: true,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: c.surfaceCard,
+            borderRadius: BorderRadius.circular(IcRadius.sm),
+            border: Border.all(color: c.error.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.error_outline, size: 16, color: c.error),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${widget.kind} (${widget.neuronKey}): $_error',
+                  style: TextStyle(fontSize: 12, color: c.error),
+                ),
               ),
-            ),
-            TextButton(
-              onPressed: () => unawaited(_read()),
-              child: const Text('Retry'),
-            ),
-          ],
+              TextButton(
+                onPressed: () => unawaited(_read()),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
         ),
       );
     }

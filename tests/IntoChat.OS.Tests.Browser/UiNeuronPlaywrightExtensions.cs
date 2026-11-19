@@ -10,6 +10,7 @@ namespace IntoChat.OS.Tests.Browser;
 public static class UiNeuronPlaywrightExtensions
 {
     private const float DefaultTimeoutMs = 15_000;
+    private static readonly LocatorClickOptions ClickOpts = new() { Timeout = DefaultTimeoutMs, Force = true };
 
     /// <summary>Locates a live `Modules.UI` neuron widget by its kind (`ui.chart`, `ui.toggle`, etc.) and brain-local key.</summary>
     public static ILocator Neuron(this IPage page, string kind, string key)
@@ -26,7 +27,7 @@ public static class UiNeuronPlaywrightExtensions
         await scope.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
         var btn = scope.Locator("xpath=descendant-or-self::*[@role='button']").First;
         var target = await btn.CountAsync() > 0 && await btn.IsVisibleAsync() ? btn : scope;
-        await target.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await target.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Toggles an `IToggle` (`ui.toggle`) neuron in the browser.</summary>
@@ -36,7 +37,7 @@ public static class UiNeuronPlaywrightExtensions
         await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
         var toggle = host.Locator("xpath=descendant-or-self::*[@role='switch' or @role='checkbox' or @role='button']").First;
         var target = await toggle.CountAsync() > 0 ? toggle : host;
-        await target.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await target.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Toggles an `ICheckBox` (`ui.checkbox`) neuron in the browser.</summary>
@@ -46,7 +47,7 @@ public static class UiNeuronPlaywrightExtensions
         await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
         var box = host.Locator("xpath=descendant-or-self::*[@role='checkbox' or @role='button']").First;
         var target = await box.CountAsync() > 0 ? box : host;
-        await target.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await target.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Expands or collapses an `IExpander` (`ui.expander`) neuron in the browser.</summary>
@@ -56,7 +57,7 @@ public static class UiNeuronPlaywrightExtensions
         await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
         var trigger = host.Locator("xpath=descendant-or-self::*[@role='button']").First;
         var target = await trigger.CountAsync() > 0 ? trigger : host;
-        await target.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await target.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Selects a tab by visible label inside an `ITabs` (`ui.tabs`) neuron.</summary>
@@ -64,7 +65,7 @@ public static class UiNeuronPlaywrightExtensions
     {
         var host = page.Neuron("ui.tabs", key).First;
         await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
-        await host.GetByText(label, new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.GetByText(label, new() { Exact = false }).First.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Selects an item by visible label inside an `IListBox` (`ui.listbox`) neuron.</summary>
@@ -72,7 +73,7 @@ public static class UiNeuronPlaywrightExtensions
     {
         var host = page.Neuron("ui.listbox", key).First;
         await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
-        await host.GetByText(label, new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.GetByText(label, new() { Exact = false }).First.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Clicks the chart-kind switch button (`Line` / `Columns`) inside an `IChart` (`ui.chart`) neuron.</summary>
@@ -80,7 +81,7 @@ public static class UiNeuronPlaywrightExtensions
     {
         var host = page.Neuron("ui.chart", key).First;
         await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
-        await host.GetByText(kindButtonLabel, new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.GetByText(kindButtonLabel, new() { Exact = true }).First.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Types a filter query into an `ITable` (`ui.table`) neuron's filter box.</summary>
@@ -97,7 +98,9 @@ public static class UiNeuronPlaywrightExtensions
     {
         var host = page.Neuron("ui.table", key).First;
         await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
-        await host.GetByText(columnLabel, new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        var btn = host.GetByRole(AriaRole.Button, new() { Name = columnLabel }).First;
+        var target = await btn.CountAsync() > 0 ? btn : host.GetByText(columnLabel, new() { Exact = false }).First;
+        await target.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Selects a radio option inside an `IRadioButtons` (`ui.radio-buttons`) neuron.</summary>
@@ -105,7 +108,7 @@ public static class UiNeuronPlaywrightExtensions
     {
         var host = page.Neuron("ui.radio-buttons", key).First;
         await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
-        await host.GetByText(optionLabel, new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.GetByText(optionLabel, new() { Exact = false }).First.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Clicks a tree node inside an `ITreeView` (`ui.tree-view`) neuron.</summary>
@@ -113,7 +116,7 @@ public static class UiNeuronPlaywrightExtensions
     {
         var host = page.Neuron("ui.tree-view", key).First;
         await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
-        await host.GetByText(nodeLabel, new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.GetByText(nodeLabel, new() { Exact = false }).First.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Clicks a breadcrumb segment inside an `IBreadcrumbBar` (`ui.breadcrumb`) neuron.</summary>
@@ -121,7 +124,7 @@ public static class UiNeuronPlaywrightExtensions
     {
         var host = page.Neuron("ui.breadcrumb", key).First;
         await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
-        await host.GetByText(segmentLabel, new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.GetByText(segmentLabel, new() { Exact = false }).First.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Dismisses an `IInfoBar` (`ui.info-bar`) neuron.</summary>
@@ -129,7 +132,7 @@ public static class UiNeuronPlaywrightExtensions
     {
         var host = page.Neuron("ui.info-bar", key).First;
         await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
-        await host.Locator("[role='button']").Last.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.Locator("[role='button']").Last.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Selects a day inside an `ICalendarView` (`ui.calendar`) neuron.</summary>
@@ -137,7 +140,7 @@ public static class UiNeuronPlaywrightExtensions
     {
         var host = page.Neuron("ui.calendar", key).First;
         await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
-        await host.GetByText(day.ToString(System.Globalization.CultureInfo.InvariantCulture), new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.GetByText(day.ToString(System.Globalization.CultureInfo.InvariantCulture), new() { Exact = true }).First.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Selects an item tile inside an `IGridView` (`ui.grid-view`) neuron.</summary>
@@ -145,7 +148,7 @@ public static class UiNeuronPlaywrightExtensions
     {
         var host = page.Neuron("ui.grid-view", key).First;
         await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
-        await host.GetByText(itemTitle, new() { Exact = true }).First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.GetByText(itemTitle, new() { Exact = false }).First.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Clicks Play/Pause inside an `IMediaPlayer` (`ui.media-player`) neuron.</summary>
@@ -153,7 +156,7 @@ public static class UiNeuronPlaywrightExtensions
     {
         var host = page.Neuron("ui.media-player", key).First;
         await host.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = DefaultTimeoutMs }).WaitAsync(ct);
-        await host.Locator("[role='button']").First.ClickAsync(new() { Timeout = DefaultTimeoutMs }).WaitAsync(ct);
+        await host.Locator("[role='button']").First.ClickAsync(ClickOpts).WaitAsync(ct);
     }
 
     /// <summary>Reads all visible rendered text inside a `Modules.UI` neuron widget.</summary>

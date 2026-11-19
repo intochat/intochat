@@ -48,6 +48,10 @@ class WorkspaceAppState extends State<WorkspaceApp>
     with WidgetsBindingObserver {
   // A connector may mount any app-authored root. Product composition stays in that app.
   static const _root = String.fromEnvironment('INTOCHATOS_ROOT');
+  static String get _effectiveRoot {
+    final q = Uri.base.queryParameters['root']?.trim() ?? '';
+    return q.isNotEmpty ? q : _root;
+  }
   static const _rootKind = String.fromEnvironment(
     'INTOCHATOS_ROOT_KIND',
     defaultValue: 'layout',
@@ -230,10 +234,11 @@ class WorkspaceAppState extends State<WorkspaceApp>
   }) async {
     if (_brain == brain && !reconnect) return;
     unawaited(_readKnownApps(brain));
-    if (_root.isNotEmpty) {
+    final root = _effectiveRoot;
+    if (root.isNotEmpty) {
       setState(() {
         _brain = brain;
-        _rootName = '$brain/$_root';
+        _rootName = '$brain/$root';
         _renderKind = _rootKind;
         _hasExplicitRoot = true;
       });
@@ -309,8 +314,8 @@ class WorkspaceAppState extends State<WorkspaceApp>
         action['input'] as String? ?? '',
       );
     }
-    // A fixed root (INTOCHATOS_ROOT) never changes on connect: say so at once.
-    if (_root.isEmpty) {
+    // A fixed root (INTOCHATOS_ROOT or ?root=...) never changes on connect: say so at once.
+    if (_effectiveRoot.isEmpty) {
       final before = _rootName;
       for (var attempt = 0; attempt < 10 && mounted; attempt++) {
         await _selectBrain(brain, reconnect: true);
@@ -753,7 +758,9 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     widget.programmingClient!.channel.call(
                                       _brain!,
                                       contract,
-                                      key,
+                                      key.startsWith('$_brain/')
+                                          ? key
+                                          : '$_brain/$key',
                                       method,
                                       args,
                                     ),
@@ -775,7 +782,9 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     widget.programmingClient!.channel.call(
                                       _brain!,
                                       contract,
-                                      key,
+                                      key.startsWith('$_brain/')
+                                          ? key
+                                          : '$_brain/$key',
                                       method,
                                       args,
                                     ),

@@ -75,7 +75,9 @@ class _ApplicationSurfaceState extends State<ApplicationSurface> {
         callNeuron: (contract, key, method, args) => widget.client.channel.call(
           widget.workspace,
           contract,
-          key,
+          key.startsWith('${widget.workspace}/')
+              ? key
+              : '${widget.workspace}/$key',
           method,
           args,
         ),

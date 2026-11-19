@@ -69,6 +69,9 @@ public sealed class WebShellHost : IAsyncLifetime
     // The shell with semantics on and the presence token in the fragment, as the brain browser opens it.
     public string Shell => $"{Origin}/?semantics=true#presence={Uri.EscapeDataString(_presence)}";
 
+    // Opens a specific app view root (e.g. "apps/gallery/view") on the same web bundle and kernel.
+    public string ShellFor(string root) => $"{Origin}/?root={Uri.EscapeDataString(root)}&semantics=true#presence={Uri.EscapeDataString(_presence)}";
+
     private async Task StartOrigin(string bundle, string kernel)
     {
         var port = FreePort();
