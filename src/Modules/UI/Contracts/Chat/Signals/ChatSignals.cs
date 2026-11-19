@@ -2,7 +2,7 @@ using DigitalBrain;
 
 namespace IntoChat.OS.Modules.UI.Chat.Signals;
 
-[Signal("ui.chat-changed")]
+[Signal("ui.chat-thread-changed")]
 public sealed record ChatThreadChanged(string ChatId, int Version, int MessageCount, bool Working) : Signal;
 
 [Signal("ui.chat-submitted")]

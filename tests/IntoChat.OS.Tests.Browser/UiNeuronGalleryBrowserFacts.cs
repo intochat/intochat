@@ -66,5 +66,20 @@ public sealed class UiNeuronGalleryBrowserFacts(WebShellHost host)
         await page.ClickButtonAsync("nav:table", ct);
         await page.FilterTableAsync(GalleryApp.SpansTableKey, "Modules.UI", ct);
         await page.SortTableAsync(GalleryApp.SpansTableKey, "Span", ct);
+
+        await page.ClickButtonAsync("nav:winui-inputs", ct);
+        await page.SelectRadioAsync(GalleryApp.DemoRadioKey, "Hybrid Local + Cloud", ct);
+
+        await page.ClickButtonAsync("nav:winui-nav", ct);
+        await page.SelectTreeNodeAsync(GalleryApp.DemoTreeViewKey, "GalleryApp.cs", ct);
+        await page.ClickBreadcrumbAsync(GalleryApp.DemoBreadcrumbKey, "Documents", ct);
+        await page.DismissInfoBarAsync(GalleryApp.DemoInfoBarKey, ct);
+
+        await page.ClickButtonAsync("nav:datetime", ct);
+        await page.ToggleCalendarDayAsync(GalleryApp.DemoCalendarKey, 21, ct);
+
+        await page.ClickButtonAsync("nav:media", ct);
+        await page.SelectGridItemAsync(GalleryApp.DemoGridViewKey, "hero-banner.png", ct);
+        await page.ToggleMediaPlaybackAsync(GalleryApp.DemoMediaPlayerKey, ct);
     }
 }
