@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
@@ -70,6 +71,31 @@ Future<List<Map<String, dynamic>>> _pump(
 }
 
 void main() {
+  testWidgets(
+    'the send button is its own node; an empty composer disables no thread control',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      await _pump(tester, {'placeholder': 'Ask anything.', 'status': 'failed'});
+
+      final send = tester.getSemantics(find.bySemanticsLabel('Send message'));
+      expect(send.label, 'Send message');
+      expect(send.hasFlag(SemanticsFlag.isButton), isTrue);
+      expect(send.hasFlag(SemanticsFlag.isEnabled), isFalse);
+
+      // No node above the retry is a disabled button: the send button's state stays on its own node.
+      var node = tester.getSemantics(find.text('Try again')).parent;
+      while (node != null) {
+        final disabledButton =
+            node.hasFlag(SemanticsFlag.isButton) &&
+            node.hasFlag(SemanticsFlag.hasEnabledState) &&
+            !node.hasFlag(SemanticsFlag.isEnabled);
+        expect(disabledButton, isFalse, reason: 'ancestor "${node.label}"');
+        node = node.parent;
+      }
+      semantics.dispose();
+    },
+  );
+
   testWidgets('a failed message draws its reason and a retry', (tester) async {
     await _pump(tester, {'placeholder': 'Ask anything.', 'status': 'failed'});
 

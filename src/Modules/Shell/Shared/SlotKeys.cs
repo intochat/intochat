@@ -11,6 +11,17 @@ internal static class SlotKeys
 {
     public static PublishedView? Hide(PublishedView? view) => view is null ? null : view with { View = Hide(view.View) };
 
+    // A screen's view, as a client reads it: slots by key, and marked so the client sends every command to the act route.
+    public static PublishedView? Screen(PublishedView? view) => view is null ? null : view with { View = Screen(view.View) };
+
+    public static JsonElement Screen(JsonElement view)
+    {
+        var hidden = Hide(view);
+        if (JsonNode.Parse(hidden.GetRawText()) is not JsonObject obj) { return hidden; }
+        obj["acts"] = DigitalBrain.UI.View.ActRoute;
+        return JsonSerializer.SerializeToElement(obj);
+    }
+
     public static JsonElement Hide(JsonElement view)
     {
         if (!view.GetRawText().Contains("\"slot\"", StringComparison.Ordinal)) { return view; }

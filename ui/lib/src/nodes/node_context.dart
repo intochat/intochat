@@ -81,6 +81,7 @@ class NodeContext {
     this.nodeKeys = const {},
     this.transcribe,
     this.slotProps = const {},
+    this.actsViaAct = false,
   });
 
   /// The view neuron's name, which every activation names.
@@ -147,6 +148,12 @@ class NodeContext {
   /// only the slot view's root reads them.
   final Map<String, dynamic> slotProps;
 
+  /// True when the server marked this view's commands for the act route
+  /// (`acts: "act"` on a screen's view): every command, a top-level button's
+  /// included, goes to `POST /brains/{brain}/act`; otherwise a top-level
+  /// button activates by key.
+  final bool actsViaAct;
+
   bool get interactive => enabled && send != null;
 
   NodeContext deeper() => NodeContext(
@@ -170,6 +177,7 @@ class NodeContext {
     buttonHints: buttonHints,
     nodeKeys: nodeKeys,
     transcribe: transcribe,
+    actsViaAct: actsViaAct,
     // Props belong to the slot's root control only; nested nodes (an
     // expander's content) never read them.
   );

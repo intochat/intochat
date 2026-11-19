@@ -189,3 +189,104 @@ public sealed class SlotKeysFacts
         Assert.Equal(expected, SlotKeys.Hide(view).GetProperty("root").GetProperty("neuronUri").GetString());
     }
 }
+
+// The server marks a screen's view for the act route; a Kit app's view (an IView) carries no mark. The slot route maps a refusal
+// other than UnknownChild to 409 with its reason and a failed read to 422.
+public sealed class ScreenViewMarkFacts
+{
+    private const string Scope = "owner";
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    private static IDisposable AsPerson()
+        => IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("alice", "alice", new BrainId(Scope)));
+
+    private sealed class Proxies(TestOS os) : INeuronProxies
+    {
+        public T Get<T>(NeuronId id) where T : class => os.Get<T>(id);
+    }
+
+    private sealed class KitView : IntoChat.OS.Modules.Flutter.Views.IView
+    {
+        public Task Publish(long generation, View view) => Task.CompletedTask;
+        public Task<PublishedView?> Read() => Task.FromResult<PublishedView?>(new("kit", 1,
+            JsonSerializer.SerializeToElement(new View("Kit", new Heading("Kit text")), JsonSerializerOptions.Web)));
+        public Task<IntoChat.OS.Modules.Flutter.Views.ViewActivation> Activate(long generation, string key, string? fieldValue)
+            => throw new NotSupportedException();
+    }
+
+    // Only the Kit app's IView answers; every other neuron is missing.
+    private sealed class KitBrain : INeuronProxies
+    {
+        public T Get<T>(NeuronId id) where T : class
+            => typeof(T) == typeof(IntoChat.OS.Modules.Flutter.Views.IView) ? (T)(object)new KitView() : throw new InvalidOperationException($"No neuron {id}.");
+    }
+
+    private static string Body(IResult result) => JsonSerializer.Serialize(Assert.IsAssignableFrom<IValueHttpResult>(result).Value, AppUiEndpoints.ViewJson);
+
+    [Fact]
+    public async Task A_screen_apps_view_is_marked_for_the_act_route()
+    {
+        using var _ = AsPerson();
+        await using var os = TestOS.Local().Register<SlotReadAppScreen>().Register<SlotReadPanelScreen>().Register<SlotReadLeafScreen>();
+        using (os.Edge.Enter(os.Edge.Person("alice", "alice", new BrainId(Scope))))
+        {
+            await os.Get<IScreen>(new NeuronId(new BrainId(Scope), "app.slotread", "default")).Open();
+        }
+        await os.Idle();
+
+        var view = Body(await AppUiEndpoints.ReadNode("view", "owner/apps/slotread/view", new Proxies(os), Scope, Ct));
+        var slot = Body(await AppUiEndpoints.ReadSlot("slotread", "panel", new Proxies(os), Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current));
+
+        Assert.Contains("\"acts\":\"act\"", view, StringComparison.Ordinal);
+        Assert.Contains("\"acts\":\"act\"", slot, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_kit_apps_view_is_not_marked()
+    {
+        var body = Body(await AppUiEndpoints.ReadNode("view", "owner/apps/creator/view", new KitBrain(), Scope, Ct));
+
+        Assert.Contains("Kit text", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"acts\"", body, StringComparison.Ordinal);
+    }
+
+    private sealed class FailingScreen(Exception error) : IScreen
+    {
+        public Task<PublishedView?> Open() => Task.FromResult<PublishedView?>(null);
+        public Task Act(ScreenAction action) => Task.CompletedTask;
+        public Task<PublishedView?> Read(string? alias = null) => Task.FromResult<PublishedView?>(null);
+        public Task Activate(string alias, long generation, string nodeKey, string? fieldValue = null, string? by = null) => Task.CompletedTask;
+        public Task Request(string signal, JsonElement? args = null) => Task.CompletedTask;
+        public Task Dispatch(Command command) => Task.CompletedTask;
+        public Task<PublishedView?> ReadSlot(string path) => Task.FromException<PublishedView?>(error);
+    }
+
+    private sealed class ScreenBrain(IScreen screen) : INeuronProxies
+    {
+        public T Get<T>(NeuronId id) where T : class => (T)screen;
+    }
+
+    [Fact]
+    public async Task A_refusal_other_than_UnknownChild_is_409_with_its_reason()
+    {
+        using var _ = AsPerson();
+        var brain = new ScreenBrain(new FailingScreen(new ActivationRefusedException(ActivationRefusedException.Stale)));
+
+        var result = await AppUiEndpoints.ReadSlot("slotread", "panel", brain, Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
+
+        Assert.Equal(StatusCodes.Status409Conflict, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Contains(ActivationRefusedException.Stale, Body(result), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_failed_read_is_422_HandlerFailed()
+    {
+        using var _ = AsPerson();
+        var brain = new ScreenBrain(new FailingScreen(new InvalidOperationException("the panel broke")));
+
+        var result = await AppUiEndpoints.ReadSlot("slotread", "panel", brain, Scope, Ct, IntoChat.OS.Tests.TestEdge.Authority.Current);
+
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Contains("HandlerFailed", Body(result), StringComparison.Ordinal);
+    }
+}

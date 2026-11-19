@@ -45,9 +45,11 @@ void main() {
     ]);
   });
 
-  testWidgets('a root button of a screen app sends its command to /act', (
-    tester,
-  ) async {
+  Future<List<Map<String, dynamic>>> pressRoot(
+    WidgetTester tester,
+    String view, {
+    String? acts,
+  }) async {
     final sent = <Map<String, dynamic>>[];
     await tester.pumpWidget(
       MaterialApp(
@@ -56,7 +58,7 @@ void main() {
           body: ViewHost(
             knowsApp: (_) => false,
             kind: 'view',
-            name: 'local/apps/uikit/view',
+            name: view,
             watch: (_, _) => const Stream.empty(),
             onAction: (event) async {
               sent.add(event);
@@ -65,7 +67,8 @@ void main() {
             load: (kind, name) async => {
               'generation': 4,
               'view': {
-                'title': 'UI Kit',
+                'title': 'Root',
+                'acts': ?acts,
                 'root': {
                   'kind': 'button',
                   'key': 'append',
@@ -83,9 +86,15 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-
     await tester.tap(find.text('Append point'));
     await tester.pumpAndSettle();
+    return sent;
+  }
+
+  testWidgets('a root button of a view the server marks for /act sends /act', (
+    tester,
+  ) async {
+    final sent = await pressRoot(tester, 'local/apps/uikit/view', acts: 'act');
 
     expect(sent, [
       {
@@ -96,6 +105,24 @@ void main() {
         'args': <String, Object?>{},
       },
     ]);
+  });
+
+  testWidgets('a root button of a Kit app (unmarked) activates by key', (
+    tester,
+  ) async {
+    final sent = await pressRoot(tester, 'local/apps/creator/view');
+
+    expect(sent.single['kind'], 'view');
+    expect(sent.single['name'], 'local/apps/creator/view');
+    expect(sent.single['key'], 'append');
+  });
+
+  testWidgets('a root button of a unit activates by key', (tester) async {
+    final sent = await pressRoot(tester, 'local/units/bank');
+
+    expect(sent.single['kind'], 'view');
+    expect(sent.single['name'], 'local/units/bank');
+    expect(sent.single['key'], 'append');
   });
 
   test('act on a non-interactive context sends nothing', () async {

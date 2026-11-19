@@ -59,7 +59,7 @@ internal sealed class KernelDriver(InstalledApp<UiKitApp> app) : IScenarioDriver
         var view = await app.Screen.Read() ?? throw new InvalidOperationException("The UI Kit has no view.");
         var slots = new SortedDictionary<string, JsonElement>(StringComparer.Ordinal);
         await Slots(view.View, "", slots, 0);
-        return JsonSerializer.SerializeToElement(new { view = IntoChat.OS.Modules.Flutter.SlotKeys.Hide(view.View), slots });
+        return JsonSerializer.SerializeToElement(new { view = IntoChat.OS.Modules.Flutter.SlotKeys.Screen(view.View), slots });
     }
 
     private async Task Slots(JsonElement json, string path, SortedDictionary<string, JsonElement> slots, int depth)
@@ -72,7 +72,7 @@ internal sealed class KernelDriver(InstalledApp<UiKitApp> app) : IScenarioDriver
                     var slotPath = path.Length == 0 ? slot.Key : path + "/" + slot.Key;
                     if (depth < MaxSlotDepth && !slots.ContainsKey(slotPath) && await ChildView(slot.Child) is { } child)
                     {
-                        slots[slotPath] = JsonSerializer.SerializeToElement(new { root = IntoChat.OS.Modules.Flutter.SlotKeys.Hide(child) });
+                        slots[slotPath] = JsonSerializer.SerializeToElement(new { root = IntoChat.OS.Modules.Flutter.SlotKeys.Hide(child), acts = DigitalBrain.UI.View.ActRoute });
                         await Slots(child, slotPath, slots, depth + 1);
                     }
                     return;

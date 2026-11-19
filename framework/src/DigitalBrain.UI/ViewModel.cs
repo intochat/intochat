@@ -39,7 +39,16 @@ public sealed class ViewNodeAttribute(string kind) : Attribute
 }
 
 /// <summary>A screen an app returns: a title and a tree of nodes. Renderer-neutral.</summary>
-public sealed record View(string Title, Node Root);
+public sealed record View(string Title, Node Root)
+{
+    /// <summary>The value of <see cref="Acts"/> for a view whose commands go to the act route.</summary>
+    public const string ActRoute = "act";
+
+    /// <summary>How a client sends this view's commands, set by the host that serves it: <see cref="ActRoute"/> when every command
+    /// (a top-level button's included) goes to the act route, which a screen's views do; absent when nodes activate by key.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? Acts { get; init; }
+}
 
 /// <summary>A node of a view.</summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]

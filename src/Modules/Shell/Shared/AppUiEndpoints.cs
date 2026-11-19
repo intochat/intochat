@@ -125,7 +125,7 @@ internal static class AppUiEndpoints
         try
         {
             var view = await brain.Get<IScreen>(new NeuronId(new BrainId(scope), alias, "default")).ReadSlot(path).WaitAsync(ct);
-            return Results.Json(SlotKeys.Hide(view), ViewJson);
+            return Results.Json(SlotKeys.Screen(view), ViewJson);
         }
         catch (ActivationRefusedException refused) when (refused.Reason == ActivationRefusedException.UnknownChild)
         {
@@ -334,7 +334,7 @@ internal static class AppUiEndpoints
                         var published = await brain.Get<IScreen>(screenId).Read().WaitAsync(ct);
                         if (published is not null)
                         {
-                            return Results.Json(SlotKeys.Hide(published), ViewJson);
+                            return Results.Json(SlotKeys.Screen(published), ViewJson);
                         }
                     }
                     catch (Exception error) when (error is InvalidOperationException or DigitalBrain.Invocation.BindingException or ArgumentException)

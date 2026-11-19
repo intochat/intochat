@@ -2,7 +2,6 @@
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 
 import '../components/kit/ui_kit_button.dart';
-import '../composition/slot_route.dart';
 import '../theme/wire_node_values.dart';
 import 'node_context.dart';
 
@@ -73,10 +72,11 @@ Future<void> pressCommand(
   NodeContext ctx,
   BuildContext? context,
 ) {
-  // A screen app takes every command through /act, a root button's too; an
-  // emit-only button and a unit's own button activate by key.
+  // A view the server marked for the act route (a screen's) sends every
+  // command through /act, a root button's too; an emit-only button, and a
+  // top-level button of any other view, activates by key.
   if (command == null ||
-      (ctx.isTopLevelSelf(command.target) && !isScreenAppNeuron(ctx.neuron))) {
+      (ctx.isTopLevelSelf(command.target) && !ctx.actsViaAct)) {
     return ctx.activate(key, context: context);
   }
   final args = command.args;

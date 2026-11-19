@@ -190,14 +190,16 @@ final class AppShellNode extends Node {
 }
 
 final class AppView {
-  const AppView({required this.title, required this.root});
+  const AppView({required this.title, required this.root, required this.acts});
 
   final String title;
   final Node root;
+  final String? acts;
 
   factory AppView.fromJson(Map<String, dynamic> json) => AppView(
     title: _string(json['title']),
     root: Node.fromJson(_map(json['root'])),
+    acts: _stringOrNull(json['acts']),
   );
 }
 

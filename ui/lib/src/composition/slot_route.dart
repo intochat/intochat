@@ -29,14 +29,3 @@ String appNodePath(String kind, String name) {
   }
   return 'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}';
 }
-
-/// True when [neuron] is a screen app's top-level neuron, `{brain}/apps/{app}`:
-/// every command its views send goes to `POST /brains/{brain}/act`, a root
-/// button's included. Units and surfaces keep the activation path.
-bool isScreenAppNeuron(String neuron) {
-  final parts = neuron.split('/');
-  return parts.length == 3 &&
-      parts[0].isNotEmpty &&
-      parts[1] == 'apps' &&
-      parts[2].isNotEmpty;
-}

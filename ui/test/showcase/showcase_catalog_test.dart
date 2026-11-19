@@ -184,9 +184,16 @@ Future<void> _check(WidgetTester tester, Map<String, dynamic> example) async {
     if (emit == null) continue;
     sent.clear();
     await _trigger(tester, find.byKey(Key(key)));
-    // A command button of a screen app acts through /act; any other control activates by key.
+    // A control activates by its key; a button whose command names another
+    // target acts through /act with that command's signal, and only that.
+    final command = node['command'];
+    final signal = command is Map ? command['signal'] : null;
     final hit = sent
-        .where((e) => e['key'] == key || e['kind'] == 'act')
+        .where(
+          (e) =>
+              e['key'] == key ||
+              (e['kind'] == 'act' && signal != null && e['signal'] == signal),
+        )
         .toList();
     expect(hit, isNotEmpty, reason: 'no activation recorded for $key');
   }

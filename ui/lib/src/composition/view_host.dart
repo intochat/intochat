@@ -436,6 +436,8 @@ class _ViewHostState extends State<ViewHost> {
           actNeuron: widget.actNeuron,
           slotPath: widget.slotPath,
           slotProps: widget.slotProps,
+          // The server marks a screen's view: its commands all go to /act.
+          actsViaAct: rawView['acts'] == 'act',
           buttonHints: buttonHints,
           nodeKeys: nodeKeys,
           transcribe: widget.transcribe,
