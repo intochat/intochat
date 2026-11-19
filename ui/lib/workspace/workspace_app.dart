@@ -749,6 +749,14 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                     .programmingClient!
                                     .channel
                                     .call(_brain!, contract, key, method, []),
+                                callNeuron: (contract, key, method, args) =>
+                                    widget.programmingClient!.channel.call(
+                                      _brain!,
+                                      contract,
+                                      key,
+                                      method,
+                                      args,
+                                    ),
                               )
                             : ViewHost(
                                 key: ValueKey(_rootName),
@@ -763,6 +771,14 @@ class WorkspaceAppState extends State<WorkspaceApp>
                                 watch: (kind, name) => widget.programmingClient!
                                     .watchNode(_brain!, kind, name)
                                     .map((_) {}),
+                                callNeuron: (contract, key, method, args) =>
+                                    widget.programmingClient!.channel.call(
+                                      _brain!,
+                                      contract,
+                                      key,
+                                      method,
+                                      args,
+                                    ),
                                 onAction: (event) => widget.programmingClient!
                                     .uiEvent(_brain!, event),
                                 onActivate: (action) =>

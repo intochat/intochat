@@ -13,6 +13,8 @@ import '../nodes/error_line.dart';
 import '../nodes/neuron_ref.dart';
 import '../nodes/node_context.dart';
 import '../nodes/node_renderer.dart';
+import '../ui/neuron_widget.dart';
+import '../ui/ui_neuron_registry.dart';
 import 'slot_route.dart';
 
 /// Hosts one node of the brain: a published view (`view`, `confirmation`), a
@@ -41,6 +43,7 @@ class ViewHost extends StatefulWidget {
     this.events,
     this.refreshEvery = const Duration(seconds: 2),
     this.watch,
+    this.callNeuron,
     this.signals,
     this.transcribe,
     this.embedded = false,
@@ -88,6 +91,7 @@ class ViewHost extends StatefulWidget {
   /// The node's change events. With a watch the host never polls: it reads once on mount and
   /// once per event. Without one it falls back to [refreshEvery].
   final Stream<void> Function(String kind, String name)? watch;
+  final NeuronMethodCaller? callNeuron;
 
   /// The brain's journal tail from its head: given, the view's brain scenes draw it as pulses ([BrainSignals]). Only the
   /// Creator's window passes one.
@@ -243,6 +247,7 @@ class _ViewHostState extends State<ViewHost> {
     events: _events,
     refreshEvery: widget.refreshEvery,
     watch: widget.watch,
+    callNeuron: widget.callNeuron,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
     slotDepth: widget.slotDepth,
     slotAncestors: widget.slotAncestors,
@@ -266,6 +271,22 @@ class _ViewHostState extends State<ViewHost> {
   ) {
     final kind = rawKind.trim().toLowerCase();
     if (kind == 'confirmation') return null;
+
+    if (isUiNeuronKind(kind)) {
+      final caller = widget.callNeuron;
+      if (caller == null) return null;
+      var key = rawName.trim();
+      if (key.startsWith('neuron://')) {
+        key = key.substring('neuron://'.length);
+      }
+      if (key.isEmpty) return null;
+      return buildUiNeuronWidget(
+        kind: kind,
+        neuronKey: key,
+        callNeuron: caller,
+        watch: widget.watch,
+      );
+    }
 
     if (_referable.contains(kind)) {
       if (NodeContracts.tryResolve(kind) == null) return null;
@@ -337,6 +358,7 @@ class _ViewHostState extends State<ViewHost> {
       knowsApp: widget.knowsApp,
       events: _events,
       refreshEvery: widget.refreshEvery,
+      callNeuron: widget.callNeuron,
       // A slot child has no watchable name of its own: it reloads with its parent's events and on the refresh timer.
       watch: isChild ? null : widget.watch,
       ancestors: {...widget.ancestors, identity},

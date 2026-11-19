@@ -29,6 +29,47 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.Flutter.Viewport.IViewport',
       'ViewportChanged',
     ),
+    // Unified DDD UI Neuron Kit (IntoChat.OS.Modules.UI)
+    'ui.chart': NodeContract(
+      'IntoChat.OS.Modules.UI.Chart.IChart',
+      'ChartChanged',
+    ),
+    'ui.toggle': NodeContract(
+      'IntoChat.OS.Modules.UI.Toggle.IToggle',
+      'ToggleChanged',
+    ),
+    'ui.checkbox': NodeContract(
+      'IntoChat.OS.Modules.UI.CheckBox.ICheckBox',
+      'CheckBoxChanged',
+    ),
+    'ui.select': NodeContract(
+      'IntoChat.OS.Modules.UI.Select.ISelect',
+      'SelectChanged',
+    ),
+    'ui.tabs': NodeContract(
+      'IntoChat.OS.Modules.UI.Tabs.ITabs',
+      'TabChanged',
+    ),
+    'ui.expander': NodeContract(
+      'IntoChat.OS.Modules.UI.Expander.IExpander',
+      'ExpanderChanged',
+    ),
+    'ui.listbox': NodeContract(
+      'IntoChat.OS.Modules.UI.ListBox.IListBox',
+      'ListBoxChanged',
+    ),
+    'ui.table': NodeContract(
+      'IntoChat.OS.Modules.UI.Table.ITable',
+      'TableChanged',
+    ),
+    'ui.form': NodeContract(
+      'IntoChat.OS.Modules.UI.Form.IForm',
+      'FormChanged',
+    ),
+    'ui.dialog': NodeContract(
+      'IntoChat.OS.Modules.UI.Dialog.IDialog',
+      'DialogChanged',
+    ),
   };
 
   // The shell's own watches (friends' space, Ino's presence, the user settings); not UI kinds a view may reference.

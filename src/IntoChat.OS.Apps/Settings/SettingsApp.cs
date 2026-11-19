@@ -25,6 +25,7 @@ using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Flutter.Compute;
+using IntoChat.OS.Modules.UI.Form;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.Logging;
 
@@ -278,6 +279,8 @@ public sealed record SettingsAppState(
 [Screen("app.settings", Title = "Settings", Icon = Icons.Sliders)]
 public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
 {
+    public const string ApiKeysFormKey = "settings/forms/api-keys";
+
     protected override async Task OnActivate(CancellationToken cancellationToken)
     {
         AppActivationScope.Notify(this);
@@ -287,6 +290,28 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         foreach (var combo in SettingsControls.Combos) { await FollowSlot<ComboBoxNeuron, SelectionChanged>(combo.Key); }
         await FollowSlot<FormNeuron, Submitted>(SettingsControls.Search);
         await FollowSlot<FormNeuron, Submitted>(SettingsControls.Regional);
+
+        try
+        {
+            var form = Get<IForm>(ApiKeysFormKey);
+            if ((await form.Read()).Version == 0)
+            {
+                await form.Configure(
+                    "Seal API keys in Secure Vault",
+                    [
+                        new FormField("ANTHROPIC_API_KEY", "Anthropic API key", FormFieldKinds.Secret, Placeholder: "sk-ant-…"),
+                        new FormField("OPENAI_API_KEY", "OpenAI API key", FormFieldKinds.Secret, Placeholder: "sk-…"),
+                        new FormField("GOOGLE_API_KEY", "Google Gemini API key", FormFieldKinds.Secret, Placeholder: "AIza…"),
+                    ],
+                    submitLabel: "Save vault references");
+            }
+        }
+#pragma warning disable CA1031 // Optional UI module in minimal test hosts.
+        catch (Exception ex)
+        {
+            IntoChat.OS.Framework.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping API keys IForm seeding in minimal test host.");
+        }
+#pragma warning restore CA1031
     }
 
     private SettingsSlots Slots => new(
@@ -295,12 +320,24 @@ public sealed class SettingsApp() : AggregateScreen<SettingsAppState>
         Slot<FormNeuron, FormProps>);
 
     [On]
-    public Task OnToggled(Toggled toggled)
+    public async Task OnToggled(Toggled toggled)
     {
         ArgumentNullException.ThrowIfNull(toggled);
-        return SettingsControls.ToggleOf(SignalSlot) is { } toggle
-            ? toggle.Get(State) == toggled.IsOn ? Task.CompletedTask : UpdateAsync(toggle.Set(State, toggled.IsOn))
-            : Task.CompletedTask;
+        if (SettingsControls.ToggleOf(SignalSlot) is not { } toggle || toggle.Get(State) == toggled.IsOn)
+        {
+            return;
+        }
+        try
+        {
+            await Get<IUserSettings>("settings").SetVariable($"settings.toggle.{toggle.Key}", toggled.IsOn ? "true" : "false");
+        }
+#pragma warning disable CA1031 // Best-effort persistence when settings neuron is absent in unit tests.
+        catch (Exception ex)
+        {
+            IntoChat.OS.Framework.Logging.OsConsoleLog.For<SettingsApp>().LogDebug(ex, "Skipping toggle persistence in minimal test host.");
+        }
+#pragma warning restore CA1031
+        await UpdateAsync(toggle.Set(State, toggled.IsOn));
     }
 
     [On]

@@ -23,6 +23,7 @@
     <ProjectReference Include="../Modules/AI/IntoChat.OS.Modules.AI.csproj" />
     <ProjectReference Include="../Modules/ArtCraft/IntoChat.OS.Modules.ArtCraft.csproj" />
     <ProjectReference Include="../Modules/Storage/IntoChat.OS.Modules.Storage.csproj" />
+    <ProjectReference Include="../Modules/UI/IntoChat.OS.Modules.UI.csproj" />
     <ProjectReference Include="../Modules/Mcp/IntoChat.OS.Modules.Mcp.csproj" />
     <ProjectReference Include="../Modules/Azure/IntoChat.OS.Modules.Azure.csproj" />
   </ItemGroup>

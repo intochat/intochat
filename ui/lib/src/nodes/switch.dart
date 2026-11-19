@@ -5,8 +5,10 @@ import 'node_context.dart';
 import '../components/kit/ui_kit_switch.dart';
 
 Widget renderSwitch(SwitchNode node, NodeContext ctx) => Row(
+  mainAxisSize: MainAxisSize.min,
   children: [
-    Expanded(child: Text(node.label)),
+    Flexible(child: Text(node.label)),
+    const SizedBox(width: 10),
     UiKitSwitch(
       value: node.isOn,
       locked: node.locked,

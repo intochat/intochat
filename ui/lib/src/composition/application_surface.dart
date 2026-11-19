@@ -70,6 +70,15 @@ class _ApplicationSurfaceState extends State<ApplicationSurface> {
         name: surface['name'] as String,
         load: (kind, name) =>
             widget.client.appRequest(widget.workspace, appNodePath(kind, name)),
+        watch: (kind, name) =>
+            widget.client.watchNode(widget.workspace, kind, name).map((_) {}),
+        callNeuron: (contract, key, method, args) => widget.client.channel.call(
+          widget.workspace,
+          contract,
+          key,
+          method,
+          args,
+        ),
         onAction: (event) => widget.client.uiEvent(widget.workspace, event),
         onActivate: widget.onActivate,
         knowsApp: widget.knowsApp,

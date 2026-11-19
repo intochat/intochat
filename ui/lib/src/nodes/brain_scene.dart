@@ -99,22 +99,26 @@ List<PulseEdge> brainEdges(BrainSceneNode node) {
 SceneState brainSceneState(BrainSceneNode node, {int revision = 1}) {
   final nodes = <SceneNode>[];
   for (final edge in brainEdges(node)) {
+    final isSelfLoop =
+        (edge.start.x - edge.end.x).abs() < 0.01 &&
+        (edge.start.y - edge.end.y).abs() < 0.01;
     final left = math.min(edge.start.x, edge.end.x);
     final top = math.min(edge.start.y, edge.end.y);
     final w = (edge.start.x - edge.end.x).abs(),
         h = (edge.start.y - edge.end.y).abs();
+    final pathD = isSelfLoop
+        ? 'M 0 0 C -26 -38 26 -38 4 0'
+        : 'M ${edge.start.x - left} ${edge.start.y - top} L ${edge.end.x - left} ${edge.end.y - top}';
     nodes.add(
       SceneNode(
         id: edge.key,
         type: 'path',
-        transform: SceneTransform(x: left + w / 2, y: top + h / 2),
-        style: '#66FFFFFF',
-        parameters: {
-          'd':
-              'M ${edge.start.x - left} ${edge.start.y - top} L ${edge.end.x - left} ${edge.end.y - top}',
-          'stroke': '2',
-          'alias': edge.alias,
-        },
+        transform: SceneTransform(
+          x: isSelfLoop ? edge.start.x : left + w / 2,
+          y: isSelfLoop ? edge.start.y - 18 : top + h / 2,
+        ),
+        style: isSelfLoop ? '#B3D97706' : '#808B9BB4',
+        parameters: {'d': pathD, 'stroke': '2', 'alias': edge.alias},
         inputs: const ['tap'],
       ),
     );
