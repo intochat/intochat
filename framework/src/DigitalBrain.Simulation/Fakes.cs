@@ -526,6 +526,20 @@ public sealed class FakeNeuronContext : INeuronContext, INeuronSeat
     /// <inheritdoc />
     public NeuronId Id { get; }
 
+    private readonly Dictionary<string, Type> _classes = new(StringComparer.Ordinal);
+
+    /// <summary>Makes <see cref="ClassOf"/> answer <paramref name="neuronClass"/> for <paramref name="neuronType"/>, as a runtime that registered it would.</summary>
+    public FakeNeuronContext RegisterClass(string neuronType, Type neuronClass)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(neuronType);
+        ArgumentNullException.ThrowIfNull(neuronClass);
+        _classes[neuronType] = neuronClass;
+        return this;
+    }
+
+    /// <inheritdoc />
+    public Type? ClassOf(string neuronType) => _classes.TryGetValue(neuronType, out var neuronClass) ? neuronClass : null;
+
     /// <inheritdoc />
     public IServiceProvider Services { get; }
 

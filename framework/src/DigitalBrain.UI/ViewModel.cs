@@ -41,13 +41,10 @@ public sealed class ViewNodeAttribute(string kind) : Attribute
 /// <summary>A screen an app returns: a title and a tree of nodes. Renderer-neutral.</summary>
 public sealed record View(string Title, Node Root)
 {
-    /// <summary>The value of <see cref="Acts"/> for a view whose commands go to the act route.</summary>
+    /// <summary>The value of the wire field <c>acts</c> on a view whose commands all go to the act route. Only the host that serves a
+    /// screen's view writes it into the outgoing JSON; a view has no such property, so app code cannot set it.</summary>
     public const string ActRoute = "act";
 
-    /// <summary>How a client sends this view's commands, set by the host that serves it: <see cref="ActRoute"/> when every command
-    /// (a top-level button's included) goes to the act route, which a screen's views do; absent when nodes activate by key.</summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public string? Acts { get; init; }
 }
 
 /// <summary>A node of a view.</summary>
@@ -207,7 +204,7 @@ public sealed record Tabs(IReadOnlyList<TabItem> Items, string SelectedId) : Nod
     public bool Equals(Tabs? other) => other is not null && SelectedId == other.SelectedId && Items.SequenceEqual(other.Items);
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(SelectedId, Items.Count);
+    public override int GetHashCode() => HashCode.Combine(SelectedId, SequenceHash.Of(Items));
 }
 
 /// <summary>A hairline section divider with an optional label.</summary>

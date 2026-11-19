@@ -2088,5 +2088,3 @@ DigitalBrain.UI.Controls.ChatThreadState.ShowsStop.get -> bool
 DigitalBrain.UI.Controls.ChatThreadState.AcceptsText.get -> bool
 DigitalBrain.UI.Controls.ChatThreadState.AcceptsText.init -> void
 const DigitalBrain.UI.View.ActRoute = "act" -> string!
-DigitalBrain.UI.View.Acts.get -> string?
-DigitalBrain.UI.View.Acts.init -> void

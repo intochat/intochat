@@ -102,7 +102,7 @@ public sealed record TabStripProps(IReadOnlyList<TabStripItem> Items, bool IsEna
     public bool Equals(TabStripProps? other) => other is not null && base.Equals(other) && SelectedId == other.SelectedId && Items.SequenceEqual(other.Items);
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Items.Count);
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), SequenceHash.Of(Items));
 }
 
 /// <summary>An option of a combo box.</summary>
@@ -128,7 +128,7 @@ public sealed record ComboBoxProps(string Header, IReadOnlyList<ComboBoxOption> 
     public bool Equals(ComboBoxProps? other) => other is not null && base.Equals(other) && Header == other.Header && SelectedId == other.SelectedId && Options.SequenceEqual(other.Options);
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Header, Options.Count);
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Header, SequenceHash.Of(Options));
 }
 
 /// <summary>An item of a list box.</summary>
@@ -170,7 +170,7 @@ public sealed record ListBoxProps(IReadOnlyList<ListBoxItem> Items, ListSelectio
     public bool Equals(ListBoxProps? other) => other is not null && base.Equals(other) && SelectionMode == other.SelectionMode && SelectedId == other.SelectedId && Items.SequenceEqual(other.Items);
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), SelectionMode, Items.Count);
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), SelectionMode, SequenceHash.Of(Items));
 }
 
 /// <summary>What a form field holds and how the client draws it.</summary>
@@ -275,7 +275,7 @@ public sealed record FormProps(IReadOnlyList<FormInput> Fields, string SubmitLab
     public bool Equals(FormProps? other) => other is not null && base.Equals(other) && SubmitLabel == other.SubmitLabel && Fields.SequenceEqual(other.Fields);
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), SubmitLabel, Fields.Count);
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), SubmitLabel, SequenceHash.Of(Fields));
 }
 
 /// <summary>The refusal reasons of a command routed to a live chart slot.</summary>
@@ -368,7 +368,7 @@ public sealed record QueryTableProps(string Title, IReadOnlyList<QueryTableColum
     public bool Equals(QueryTableProps? other) => other is not null && base.Equals(other) && Title == other.Title && SourceAddress == other.SourceAddress && Columns.SequenceEqual(other.Columns);
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Title, SourceAddress, Columns.Count);
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Title, SourceAddress, SequenceHash.Of(Columns));
 }
 
 /// <summary>What a query table asks its source for: one page of the rows matching a filter, in an order.</summary>
@@ -407,3 +407,14 @@ public sealed record TablePage(IReadOnlyList<IReadOnlyDictionary<string, string>
 public sealed record ChatThreadProps(string Placeholder = "Message", bool CanSend = true, string? ActiveModelLabel = null, string? ActiveProviderIcon = null,
     bool Dictation = false, string Status = "ready", bool Working = false, string? EmptyText = null, ChatThreadError? Error = null,
     bool IsEnabled = true, string? AutomationName = null) : ControlProps(IsEnabled, AutomationName);
+
+// Hashes a list's items in order with the same comparer SequenceEqual uses, so two lists of one length with different items hash apart.
+internal static class SequenceHash
+{
+    public static int Of<T>(IEnumerable<T> items)
+    {
+        var hash = new HashCode();
+        foreach (var item in items) { hash.Add(item); }
+        return hash.ToHashCode();
+    }
+}

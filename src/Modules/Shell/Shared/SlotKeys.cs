@@ -22,11 +22,14 @@ internal static class SlotKeys
         return JsonSerializer.SerializeToElement(obj);
     }
 
+    // Also strips a top-level "acts" mark: only Screen writes it, so a view that reached here carrying one (an app's raw JSON) loses it.
     public static JsonElement Hide(JsonElement view)
     {
-        if (!view.GetRawText().Contains("\"slot\"", StringComparison.Ordinal)) { return view; }
-        var root = JsonNode.Parse(view.GetRawText());
+        var raw = view.GetRawText();
+        if (!raw.Contains("\"slot\"", StringComparison.Ordinal) && !raw.Contains("\"acts\"", StringComparison.Ordinal)) { return view; }
+        var root = JsonNode.Parse(raw);
         if (root is null) { return view; }
+        if (root is JsonObject top) { top.Remove("acts"); }
         Rewrite(root);
         return JsonSerializer.SerializeToElement(root);
     }

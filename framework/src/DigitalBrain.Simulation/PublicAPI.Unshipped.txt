@@ -658,3 +658,5 @@ DigitalBrain.Testing.Conformance.EdgeCallerScope
 DigitalBrain.Testing.Conformance.EdgeCallerScope.EdgeCallerScope(DigitalBrain.Access.EdgeAuthority! edge) -> void
 DigitalBrain.Testing.TestOS.Callers.get -> DigitalBrain.Access.ICallerAmbient!
 override DigitalBrain.Testing.Conformance.EdgeCallerScope.As(DigitalBrain.Access.Caller! caller) -> System.IDisposable!
+DigitalBrain.Testing.FakeNeuronContext.ClassOf(string! neuronType) -> System.Type?
+DigitalBrain.Testing.FakeNeuronContext.RegisterClass(string! neuronType, System.Type! neuronClass) -> DigitalBrain.Testing.FakeNeuronContext!
