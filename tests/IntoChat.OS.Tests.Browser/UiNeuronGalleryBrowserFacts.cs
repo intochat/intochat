@@ -93,5 +93,40 @@ public sealed class UiNeuronGalleryBrowserFacts(WebShellHost host)
         await page.ClickButtonAsync("nav:media", ct);
         await page.SelectGridItemAsync(GalleryApp.DemoGridViewKey, "hero-banner.png", ct);
         await page.ToggleMediaPlaybackAsync(GalleryApp.DemoMediaPlayerKey, ct);
+
+        await page.ClickButtonAsync("nav:workspace", ct);
+        await page.Neuron("ui.command-bar", GalleryApp.DemoCommandBarKey).First.Locator("[role='button']").First.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
+        await page.Neuron("ui.split-button", GalleryApp.DemoSplitButtonKey).First.Locator("[role='button']").First.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
+        await page.Neuron("ui.teaching-tip", GalleryApp.DemoTeachingTipKey).First.Locator("[role='button']").First.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
+        await page.Neuron("ui.code-editor", GalleryApp.DemoCodeEditorKey).First.Locator("[role='button']").First.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
+    }
+
+    [Fact]
+    public async Task Settings_files_and_ino_apps_render_live_without_http_errors()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync(BrowserLaunch.Options(Environment.GetEnvironmentVariable));
+        await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 1600, Height = 1000 } });
+
+        foreach (var root in new[] { "apps/settings/view", "apps/files/view", "apps/ino/view" })
+        {
+            var page = await context.NewPageAsync();
+            var httpErrors = new List<string>();
+            page.Response += (_, response) =>
+            {
+                if (response.Status >= 400)
+                {
+                    httpErrors.Add($"{response.Status} {new Uri(response.Url).AbsolutePath}");
+                }
+            };
+
+            await page.GotoAsync(host.ShellFor(root), new() { WaitUntil = WaitUntilState.DOMContentLoaded }).WaitAsync(ct);
+            await page.Locator("[flt-semantics-identifier]").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
+
+            Assert.True(httpErrors.Count == 0, $"{root} returned HTTP errors: [{string.Join(", ", httpErrors)}]");
+            Assert.True(await page.Locator("flt-semantics-host").CountAsync() > 0);
+            await page.CloseAsync();
+        }
     }
 }
