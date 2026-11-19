@@ -96,9 +96,11 @@ public sealed class UiNeuronGalleryBrowserFacts(WebShellHost host)
 
         await page.ClickButtonAsync("nav:workspace", ct);
         await page.Neuron("ui.command-bar", GalleryApp.DemoCommandBarKey).First.Locator("[role='button']").First.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
-        await page.Neuron("ui.split-button", GalleryApp.DemoSplitButtonKey).First.Locator("[role='button']").First.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
         await page.Neuron("ui.teaching-tip", GalleryApp.DemoTeachingTipKey).First.Locator("[role='button']").First.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
         await page.Neuron("ui.code-editor", GalleryApp.DemoCodeEditorKey).First.Locator("[role='button']").First.ClickAsync(new() { Timeout = 15_000, Force = true }).WaitAsync(ct);
+        await page.Neuron("ui.split-button", GalleryApp.DemoSplitButtonKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+        await page.Neuron("ui.person-picture", GalleryApp.DemoPersonKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
+        await page.Neuron("ui.markdown", GalleryApp.DemoMarkdownKey).First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 }).WaitAsync(ct);
     }
 
     [Fact]
@@ -123,6 +125,11 @@ public sealed class UiNeuronGalleryBrowserFacts(WebShellHost host)
 
             await page.GotoAsync(host.ShellFor(root), new() { WaitUntil = WaitUntilState.DOMContentLoaded }).WaitAsync(ct);
             await page.Locator("[flt-semantics-identifier]").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 60_000 }).WaitAsync(ct);
+
+            if (root == "apps/settings/view")
+            {
+                await page.KeyedNode("settings-shell").First.WaitForAsync(new() { State = WaitForSelectorState.Attached, Timeout = 15_000 }).WaitAsync(ct);
+            }
 
             Assert.True(httpErrors.Count == 0, $"{root} returned HTTP errors: [{string.Join(", ", httpErrors)}]");
             Assert.True(await page.Locator("flt-semantics-host").CountAsync() > 0);

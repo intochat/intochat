@@ -55,6 +55,9 @@ internal sealed partial class FilesWorkspaceNeuron(
     private const string FilesBreadcrumbKey = "files/breadcrumb";
     private const string FilesGridKey = "files/grid";
     private const string FilesContextMenuKey = "files/context-menu";
+    private const string FilesEditorKey = "files/preview/editor";
+    private const string FilesMarkdownKey = "files/preview/markdown";
+    private const string FilesImageKey = "files/preview/image";
     private string AppPath => Id.Key.EndsWith("/workspace", StringComparison.Ordinal) && Id.Key.StartsWith("apps/", StringComparison.Ordinal)
         ? Id.Key[..^"/workspace".Length] : throw new InvalidOperationException("Files workspace keys belong to an app.");
     private string AppKey => Id.Brain.Value + "/" + AppPath;
@@ -112,6 +115,7 @@ internal sealed partial class FilesWorkspaceNeuron(
         await Context.Wires.Ensure<IntoChat.OS.Modules.UI.BreadcrumbBar.Signals.BreadcrumbClicked>(new(Id.Brain, "ui.breadcrumb", FilesBreadcrumbKey));
         await Context.Wires.Ensure<IntoChat.OS.Modules.UI.ContextMenu.Signals.ContextMenuInvoked>(new(Id.Brain, "ui.context-menu", FilesContextMenuKey));
         await Context.Wires.Ensure<IntoChat.OS.Modules.UI.GridView.Signals.GridViewChanged>(new(Id.Brain, "ui.grid-view", FilesGridKey));
+        await Context.Wires.Ensure<IntoChat.OS.Modules.UI.CodeEditor.Signals.CodeEditorSaved>(new(Id.Brain, "ui.code-editor", FilesEditorKey));
         foreach (var operation in State.Started.Where(item => !item.Done)) { await FollowOperation(operation.Id, ct); }
         await Render();
     }
@@ -341,6 +345,18 @@ internal sealed partial class FilesWorkspaceNeuron(
         {
             try { await Request("select", new(Index: idx), State.Files.Revision, Guid.NewGuid()); }
             catch (StaleActionException error) { logger.LogDebug(error, "A files grid selection action was stale."); }
+        });
+    }
+
+    [On]
+    public async Task On(IntoChat.OS.Modules.UI.CodeEditor.Signals.CodeEditorSaved saved)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        if (string.IsNullOrWhiteSpace(saved.Title)) { return; }
+        await WithAppCallerAsync(async () =>
+        {
+            try { await Request("write", new(Name: saved.Title, Text: saved.Content), State.Files.Revision, Guid.NewGuid()); }
+            catch (StaleActionException error) { logger.LogDebug(error, "A files code-editor save action was stale."); }
         });
     }
 

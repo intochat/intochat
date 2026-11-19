@@ -410,7 +410,7 @@ public sealed class InoApp : Screen<InoAppState>, IWithFilesVfs
         if (string.IsNullOrWhiteSpace(chatId)) { return false; }
         var expected = InoModel.UiChatKeyOf(Current.ConversationId);
         return string.Equals(chatId, expected, StringComparison.Ordinal)
-            || string.Equals(chatId, $"{CurrentBrain.Value}/{expected}", StringComparison.Ordinal);
+            || string.Equals(chatId, new NeuronId(CurrentBrain, "ui.chat", expected).FullKey(), StringComparison.Ordinal);
     }
     private DateTimeOffset NowUtc() { if (_time is not null) { return _time.GetUtcNow(); } try { return Context.Time.GetUtcNow(); } catch (InvalidOperationException error) { LogOptional(error, "clock"); return TimeProvider.System.GetUtcNow(); } }
     private BrainId CurrentBrain { get { try { return Id.Brain; } catch (InvalidOperationException error) { LogOptional(error, "brain-id"); return default; } } }
