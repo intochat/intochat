@@ -28,5 +28,6 @@
     <ProjectReference Include="../Mcp/IntoChat.OS.Modules.Mcp.csproj" />
     <ProjectReference Include="../GitHub/IntoChat.OS.Modules.GitHub.csproj" />
     <ProjectReference Include="../AI/IntoChat.OS.Modules.AI.csproj" />
+    <ProjectReference Include="../UI/IntoChat.OS.Modules.UI.csproj" />
   </ItemGroup>
 </Project>

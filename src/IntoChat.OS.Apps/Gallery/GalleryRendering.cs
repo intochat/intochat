@@ -50,11 +50,14 @@ internal static class GalleryRendering
                 "checkbox" => RenderCheckBoxPage(),
                 "select" => RenderSelectPage(),
                 "buttons" => RenderButtonsPage(state),
+                "form" => RenderFormPage(),
                 "tabs" => RenderTabsPage(),
                 "expander" => RenderExpanderPage(),
                 "listbox" => RenderListBoxPage(),
+                "dialog" => RenderDialogPage(),
                 "charts" => RenderChartsPage(state),
                 "table" => RenderTablePage(),
+                "chat" => RenderChatPage(),
                 "cards" => RenderCardsPage(),
                 "graphs" => RenderGraphsPage(state),
                 _ => RenderHomePage(state),
@@ -89,14 +92,17 @@ internal static class GalleryRendering
             NavButton("checkbox", "CheckBox (ICheckBox)", "check-square"),
             NavButton("select", "Select (ISelect)", "chevrons-up-down"),
             NavButton("buttons", "Buttons & actions", "mouse-pointer-click"),
+            NavButton("form", "Form & Vault (IForm)", "key-round"),
             Divider("Navigation & layout"),
             NavButton("tabs", "Tabs (ITabs)", "panel-top"),
             NavButton("expander", "Expander (IExpander)", "chevron-down"),
             NavButton("listbox", "ListBox (IListBox)", "list"),
+            NavButton("dialog", "Dialog (IDialog)", "message-square"),
             Divider("Data & charts"),
             NavButton("charts", "Charts (IChart)", "chart-column"),
             NavButton("table", "Data table (ITable)", "table"),
-            Divider("Cards & patterns"),
+            Divider("Agent & patterns"),
+            NavButton("chat", "DevUI Chat (IChatThread)", Icons.Sparkles),
             NavButton("cards", "Status & chat cards", "layers"),
             NavButton("graphs", "State graphs & DDD", "brain-circuit")
         ];
@@ -422,6 +428,41 @@ internal static class GalleryRendering
             "await table.Bind(\"owner/ui.sample-table-source/default\", \"Live Silo Spans\", columns, pageSize: 5);\n" +
             "await table.Filter(\"Modules.UI\");\n" +
             "await table.Sort(\"latency\");")
+    ];
+
+    private static Node RenderFormPage() => VStack(Space.Lg)[
+        ControlHeader("Form & Vault Secrets", "IntoChat.OS.Modules.UI.Form.IForm", GalleryApp.DemoFormKey,
+            "Refuses plaintext on Secret fields; stores opaque Vault SecretRef handles instead."),
+        UiNeuron("ui.form", GalleryApp.DemoFormKey),
+        CodeSample(
+            "var form = Get<IForm>(\"gallery/form/demo\");\n" +
+            "await form.SetSecretRef(\"apiKey\", new SecretRef(\"vault://ANTHROPIC_API_KEY\"));\n" +
+            "await form.Submit();")
+    ];
+
+    private static Node RenderDialogPage() => VStack(Space.Lg)[
+        ControlHeader("Dialog", "IntoChat.OS.Modules.UI.Dialog.IDialog", GalleryApp.DemoDialogKey,
+            "Confirm and prompt-with-input modal neuron emitting DialogResolved."),
+        HStack(Space.Sm)[
+            PrimaryButton("Open live IDialog", "message-square")
+                .Key("dialog:open")
+                .Small()
+                .Sends(SelectCmd("dialog:open"))
+        ],
+        UiNeuron("ui.dialog", GalleryApp.DemoDialogKey),
+        CodeSample(
+            "var dlg = Get<IDialog>(\"gallery/dialog/demo\");\n" +
+            "await dlg.Open(\"Create folder\", \"Enter folder name\", \"Create\", \"Cancel\", inputLabel: \"Folder name\");")
+    ];
+
+    private static Node RenderChatPage() => VStack(Space.Lg)[
+        ControlHeader("DevUI Chat Workbench", "IntoChat.OS.Modules.UI.Chat.IChatThread", GalleryApp.DevUiChatKey,
+            "Collapsible AiReasoning, expandable tool-call JSON cards, live inline IChart slots, Context Inspector, /compact, and model picker."),
+        UiNeuron("ui.chat", GalleryApp.DevUiChatKey),
+        CodeSample(
+            "var chat = Get<IChatThread>(\"gallery/chat/devui\");\n" +
+            "await chat.StreamDelta(\"a1\", textDelta: \"Throughput grew +66%\", reasoningDelta: \"Query SampleChartSource\");\n" +
+            "await chat.UpsertToolCall(\"a1\", new ChatToolCall(\"tc-1\", \"ui.chart.bind\", args, result, \"done\", 14));")
     ];
 
     // -------------------------------------------------------------------------

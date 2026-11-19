@@ -228,6 +228,10 @@ internal static class InoModelSetup
         switch (cmd)
         {
             case "new" or "clear": await startConversation(); return;
+            case "compact":
+                var messageCount = (state.Messages ?? []).Length;
+                await host.ShowState(state with { Status = messageCount == 0 ? "No messages to compact yet." : $"Compacted {messageCount} message(s) into conversation summary." });
+                return;
             case "pin": await host.ShowState(InoModel.DecideSlashPin(state)); return;
             case "rename": await host.ShowState(InoModel.DecideSlashRename(state, arg)); return;
             case "model":

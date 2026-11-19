@@ -70,6 +70,10 @@ abstract final class NodeContracts {
       'IntoChat.OS.Modules.UI.Dialog.IDialog',
       'DialogChanged',
     ),
+    'ui.chat': NodeContract(
+      'IntoChat.OS.Modules.UI.Chat.IChatThread',
+      'ChatThreadChanged',
+    ),
   };
 
   // The shell's own watches (friends' space, Ino's presence, the user settings); not UI kinds a view may reference.

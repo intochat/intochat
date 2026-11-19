@@ -14,8 +14,11 @@ using DigitalBrain.Rules;
 using DigitalBrain.UI;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.UI.Chart;
+using IntoChat.OS.Modules.UI.Chat;
 using IntoChat.OS.Modules.UI.CheckBox;
+using IntoChat.OS.Modules.UI.Dialog;
 using IntoChat.OS.Modules.UI.Expander;
+using IntoChat.OS.Modules.UI.Form;
 using IntoChat.OS.Modules.UI.ListBox;
 using IntoChat.OS.Modules.UI.Select;
 using IntoChat.OS.Modules.UI.Table;
@@ -97,10 +100,10 @@ public sealed record GalleryAppState(
     [
         "home",
         "colors", "typography", "icons", "spacing",
-        "toggle", "checkbox", "select", "buttons",
-        "tabs", "expander", "listbox",
+        "toggle", "checkbox", "select", "buttons", "form",
+        "tabs", "expander", "listbox", "dialog",
         "charts", "table",
-        "cards", "graphs",
+        "chat", "cards", "graphs",
     ];
 
     public BankAccount Account { get; init; } = new();
@@ -182,12 +185,15 @@ public sealed record GalleryAppState(
         "checkbox" or "check" => "checkbox",
         "select" or "combobox" => "select",
         "buttons" or "button" or "inputs" => "buttons",
+        "form" => "form",
         "tabs" or "tabstrip" => "tabs",
         "expander" => "expander",
         "listbox" or "list" => "listbox",
+        "dialog" or "modal" => "dialog",
         "charts" or "chart" or "data" => "charts",
         "table" or "datatable" => "table",
-        "cards" or "status" or "chat" => "cards",
+        "chat" or "ino" or "devui" => "chat",
+        "cards" or "status" => "cards",
         "graphs" or "graph" or "patterns" or "slots" => "graphs",
         _ => "home",
     };
@@ -202,11 +208,14 @@ public sealed record GalleryAppState(
         "checkbox" => "CheckBox (ICheckBox)",
         "select" => "Select (ISelect)",
         "buttons" => "Buttons & Actions",
+        "form" => "Form & Vault Secrets (IForm)",
         "tabs" => "Tabs (ITabs)",
         "expander" => "Expander (IExpander)",
         "listbox" => "ListBox (IListBox)",
+        "dialog" => "Dialog (IDialog)",
         "charts" => "Charts (IChart)",
         "table" => "Data Table (ITable)",
+        "chat" => "DevUI Chat (IChatThread)",
         "cards" => "Status & Chat Cards",
         "graphs" => "State Graphs & DDD Rules",
         _ => "Home",
@@ -230,6 +239,9 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
     public const string DemoExpanderKey = "gallery/expander/demo";
     public const string DemoListBoxKey = "gallery/listbox/demo";
     public const string SpansTableKey = "gallery/table/spans";
+    public const string DemoFormKey = "gallery/form/demo";
+    public const string DemoDialogKey = "gallery/dialog/demo";
+    public const string DevUiChatKey = "gallery/chat/devui";
 
     private static readonly ILogger ConsoleLogger = IntoChat.OS.Framework.Logging.OsConsoleLog.For<GalleryApp>();
     private readonly ILogger _logger;
@@ -366,6 +378,16 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
             return;
         }
 
+        if (raw == "dialog:open")
+        {
+            if (TryGetOptional<IDialog>(DemoDialogKey) is { } dlg)
+            {
+                await dlg.Open("Create folder", "Enter a folder name to test IDialog confirm-with-input.", "Create", "Cancel", inputLabel: "Folder name", inputPlaceholder: "e.g. q4-reports");
+            }
+            await Show(State with { LastAction = "Opened live IDialog neuron" });
+            return;
+        }
+
         if (raw.StartsWith("page:", StringComparison.OrdinalIgnoreCase))
         {
             await Show(State.SelectPage(raw["page:".Length..]));
@@ -495,6 +517,47 @@ public sealed class GalleryApp : AggregateScreen<GalleryAppState>
                         new TableColumn("module", "Module"),
                     ],
                     pageSize: 5);
+            }
+
+            if (TryGetOptional<IForm>(DemoFormKey) is { } form && (await form.Read()).Version == 0)
+            {
+                await form.Configure("Workspace & Vault Secret Form",
+                [
+                    new FormField("displayName", "Display name", FormFieldKinds.Text, "Alex", Required: true),
+                    new FormField("apiKey", "Provider API key (Vault SecretRef)", FormFieldKinds.Secret, "Paste token and press Enter to seal"),
+                ],
+                new Dictionary<string, string>(StringComparer.Ordinal) { ["displayName"] = "Alex" },
+                submitLabel: "Save form");
+            }
+
+            if (TryGetOptional<IChatThread>(DevUiChatKey) is { } chat && (await chat.Read()).Version == 0)
+            {
+                await chat.Configure("demo", "Ino DevUI Workbench", "claude-sonnet-4-5",
+                [
+                    new ChatModelOption("claude-sonnet-4-5", "Claude Sonnet 4.5", "Anthropic"),
+                    new ChatModelOption("gpt-5-thinking", "GPT-5 Thinking", "OpenAI"),
+                    new ChatModelOption("qwen3.5:4b", "Qwen 3.5 4B (Local)", "Ollama"),
+                ], voiceAvailable: true);
+                await chat.AppendMessage(new ChatMessage("u1", "user", "Compare Q1 vs Q2 throughput and explain the spike."));
+                await chat.AppendMessage(new ChatMessage(
+                    Id: "a1",
+                    Role: "assistant",
+                    Text: "Throughput grew +66% from Jan (68) to Jun (156). Below is the live query-bound `IChart` neuron — you can switch its kind or click any bar directly inside this chat turn.",
+                    Reasoning: "1. Query SampleChartSource via IChart.Bind.\n2. Compare 2026 Active series vs 2025 Baseline.\n3. Embed live ui.chart neuron inline in the reply.",
+                    ToolCalls:
+                    [
+                        new ChatToolCall("tc-1", "ui.chart.bind", "{\"source\":\"ui.sample-chart-source\",\"filter\":\"all\"}", "{\"series\":2,\"points\":12,\"status\":\"ready\"}", "done", 14),
+                    ],
+                    Slots: [new ChatInlineSlot("ui.chart", RevenueChartKey)],
+                    Status: "done",
+                    InputTokens: 1240,
+                    OutputTokens: 215));
+                await chat.SetContext(
+                [
+                    new ChatContextItem("user.profile", "Name: Owner · Theme: Warm Paper", "owner", 85),
+                    new ChatContextItem("memory.recall", "Prefers WinUI 3 layout + DDD UI neurons", "owner", 140),
+                    new ChatContextItem("apps.capabilities", "12 Modules.UI contracts available", "platform", 190),
+                ], "Ready · Click Compact to summarize older turns.", 1240, 215);
             }
         }
 #pragma warning disable CA1031 // Seeding is best-effort when running in unit tests without UI module registered.

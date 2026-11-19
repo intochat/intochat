@@ -51,6 +51,7 @@ internal sealed partial class FilesWorkspaceNeuron(
     ILogger<FilesWorkspaceNeuron> logger,
     IServiceProvider services) : Neuron<FilesWorkspaceState>, IFilesWorkspace
 {
+    private const string FilesDialogKey = "files/dialogs/prompt";
     private string AppPath => Id.Key.EndsWith("/workspace", StringComparison.Ordinal) && Id.Key.StartsWith("apps/", StringComparison.Ordinal)
         ? Id.Key[..^"/workspace".Length] : throw new InvalidOperationException("Files workspace keys belong to an app.");
     private string AppKey => Id.Brain.Value + "/" + AppPath;
@@ -104,6 +105,7 @@ internal sealed partial class FilesWorkspaceNeuron(
         await Field("content").Configure(DigitalBrain.UI.FieldKind.Multiline);
         foreach (var field in new[] { "search", "filter" })
         { await Context.Wires.Ensure<FieldChanged>(new(Id.Brain, UIVocabulary.FieldType, AppPath + "/" + field)); }
+        await Context.Wires.Ensure<IntoChat.OS.Modules.UI.Dialog.Signals.DialogResolved>(new(Id.Brain, "ui.dialog", FilesDialogKey));
         foreach (var operation in State.Started.Where(item => !item.Done)) { await FollowOperation(operation.Id, ct); }
         await Render();
     }
@@ -187,6 +189,21 @@ internal sealed partial class FilesWorkspaceNeuron(
                 case "mkdir" or "write" or "rename" or "delete" or "paste":
                     if (State.Started.Count(item => !item.Done) >= 8) { throw new InvalidOperationException("Wait for a running operation before starting another."); }
                     var name = input.Name ?? (await Field("name").Read()).Value ?? "";
+                    if (operation is "mkdir" or "rename" && string.IsNullOrWhiteSpace(name))
+                    {
+                        var dialog = Get<IntoChat.OS.Modules.UI.Dialog.IDialog>(new(Id.Brain, "ui.dialog", FilesDialogKey));
+                        await dialog.Open(
+                            operation == "mkdir" ? "New folder" : "Rename item",
+                            operation == "mkdir"
+                                ? "Enter a single-segment folder name to create in the current directory."
+                                : $"Enter a new name for '{State.Files.Selected?.Item.Name ?? "selected item"}'.",
+                            confirmLabel: operation == "mkdir" ? "Create" : "Rename",
+                            inputLabel: "Name",
+                            inputPlaceholder: operation == "mkdir" ? "e.g. reports" : (State.Files.Selected?.Item.Name ?? ""),
+                            initialInput: operation == "rename" ? State.Files.Selected?.Item.Name : null);
+                        await Persist(State with { PendingRequest = operation, Notice = null });
+                        break;
+                    }
                     if (operation is "mkdir" or "write" or "rename")
                     {
                         var nameRule = FilesPathRules.ValidateSingleSegmentName(name);
@@ -237,7 +254,27 @@ internal sealed partial class FilesWorkspaceNeuron(
                     }
                     await Store(app, resetPage: true);
                     break;
-                case "upload" or "download" or "open-app": break;
+                case "download":
+                    await Persist(State with
+                    {
+                        Notice = State.Files.PreviewUrl is { } dlUrl
+                            ? $"Download ready: {dlUrl}"
+                            : State.Files.Selected is { } sel
+                                ? $"Select a file to download ({sel.Item.Name})."
+                                : "Select a file to download.",
+                    });
+                    break;
+                case "upload":
+                    await Persist(State with { Notice = "Drag-and-drop or use Quick Write to save a file into the current folder." });
+                    break;
+                case "open-app":
+                    await Persist(State with
+                    {
+                        Notice = State.Files.PreviewApp is { } appName
+                            ? $"Smart App '{appName}' source folder selected."
+                            : "Select a Smart App folder to open.",
+                    });
+                    break;
                 default: throw new ArgumentException("Unknown Files action.", nameof(operation));
             }
         }
@@ -245,6 +282,20 @@ internal sealed partial class FilesWorkspaceNeuron(
         catch (ArgumentException error) { await Persist(State with { PendingRequest = null, Notice = error.Message }); }
         catch (InvalidOperationException error) { await Persist(State with { PendingRequest = null, Notice = error.Message }); }
         await Render();
+    }
+
+    [On]
+    public async Task On(IntoChat.OS.Modules.UI.Dialog.Signals.DialogResolved resolved)
+    {
+        ArgumentNullException.ThrowIfNull(resolved);
+        var pending = State.PendingRequest;
+        await Persist(State with { PendingRequest = null });
+        if (!resolved.Confirmed || string.IsNullOrWhiteSpace(pending) || string.IsNullOrWhiteSpace(resolved.InputValue))
+        {
+            await Render();
+            return;
+        }
+        await Request(pending, new FilesWorkspaceInput(Name: resolved.InputValue.Trim()), State.Files.Revision, Guid.NewGuid());
     }
 
     [On]

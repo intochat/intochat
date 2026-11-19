@@ -40,11 +40,9 @@ internal sealed partial class FilesWorkspaceNeuron
         var extras = VStack(
             Space.Md,
             [
+                new NeuronRef("ui.dialog", FilesDialogKey),
                 notice is not null
                     ? (Node)Banner("Files notice", notice, tone: "info")
-                    : null,
-                notice is not null
-                    ? Text(notice).ToNode()
                     : null,
                 files.InoHandoffPrompt is { } handoffPrompt
                     ? Card("Ino Handoff", handoffPrompt)[
@@ -68,7 +66,7 @@ internal sealed partial class FilesWorkspaceNeuron
             ]).ToNode();
 
         var main = VStack(Space.Md, screen.Main, extras).ToNode();
-        var full = ResponsiveSplit(leading: screen.Side, trailing: main, leadingExtent: 216, gap: Space.Md);
+        var full = new AppShellNode(Key: "files-shell", Sidebar: screen.Side, Body: main);
 
         // The workspace is host code: it publishes its views cleanly in-process, whoever's call led here.
         var edge = services?.GetService(typeof(DigitalBrain.Access.EdgeAuthority)) as DigitalBrain.Access.EdgeAuthority;

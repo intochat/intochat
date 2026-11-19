@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Testing;
 using IntoChat.OS.Modules.UI.Chart;
 using IntoChat.OS.Modules.UI.Chart.Signals;
+using IntoChat.OS.Modules.UI.Chat;
 using IntoChat.OS.Modules.UI.CheckBox;
 using IntoChat.OS.Modules.UI.Dialog;
 using IntoChat.OS.Modules.UI.Expander;
@@ -167,6 +168,34 @@ public sealed class UiModuleOnTestOS : ModuleOnTestOSFacts<UiModule>
         var confirmed = await dialog.Confirm("reports");
         Assert.False(confirmed.IsOpen);
         Assert.Equal("reports", confirmed.InputValue);
+    }
+
+    [Fact]
+    public async Task ChatThreadNeuronStreamsDeltasReasoningToolCallsAndContext()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("owner", "owner", Brain));
+        await using var os = TestOS.Local().Register(typeof(UiModule).Assembly);
+
+        var chat = os.Get<IChatThread>(new NeuronId(Brain, "ui.chat", "ino/main"));
+        await chat.Configure("main", "Ino Workbench", "claude-sonnet-4-5",
+            [new ChatModelOption("claude-sonnet-4-5", "Claude Sonnet 4.5"), new ChatModelOption("gpt-5-thinking", "GPT-5 Thinking")],
+            voiceAvailable: true);
+
+        await chat.StreamDelta("m1", textDelta: "Checking ", reasoningDelta: "Plan: inspect chart", status: "streaming");
+        await chat.UpsertToolCall("m1", new ChatToolCall("c1", "neurons_call", "{\"contract\":\"ui.chart\"}", "{\"ok\":true}", "done", 18));
+        await chat.StreamDelta("m1", textDelta: "revenue.", status: "done");
+        await chat.SetContext([new ChatContextItem("memory.recall", "Owner prefers warm-paper", "owner", 120)], "Compacted 12 turns", 1400, 320);
+        await chat.SelectModel("gpt-5-thinking");
+
+        var state = await chat.Read();
+        Assert.Equal("gpt-5-thinking", state.ActiveModel);
+        Assert.Single(state.Messages);
+        Assert.Equal("Checking revenue.", state.Messages[0].Text);
+        Assert.Equal("Plan: inspect chart", state.Messages[0].Reasoning);
+        Assert.Single(state.Messages[0].ToolCalls!);
+        Assert.Equal("neurons_call", state.Messages[0].ToolCalls![0].Name);
+        Assert.Equal(1400, state.TotalInputTokens);
+        Assert.Equal("Compacted 12 turns", state.ContextSummary);
     }
 
     [Fact]

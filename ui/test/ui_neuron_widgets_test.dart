@@ -131,4 +131,99 @@ void main() {
       expect(calls, contains('IntoChat.OS.Modules.UI.Chart.IChart.Read'));
     },
   );
+
+  testWidgets(
+    'ChatThreadWidget expands reasoning, tool-call JSON, and triggers Compact',
+    (tester) async {
+      final calls = <String>[];
+
+      Future<Map<String, dynamic>?> callNeuron(
+        String contract,
+        String key,
+        String method,
+        List<Object?> args,
+      ) async {
+        calls.add('$contract.$method');
+        return {
+          'version': 1,
+          'conversationId': 'demo',
+          'title': 'Ino DevUI',
+          'activeModel': 'claude-sonnet-4-5',
+          'working': false,
+          'canSend': true,
+          'totalInputTokens': 1240,
+          'totalOutputTokens': 215,
+          'contextBudgetTokens': 128000,
+          'contextSummary': 'Compacted 5 turns',
+          'contextItems': [
+            {
+              'name': 'memory.recall',
+              'summary': 'Prefers WinUI 3',
+              'trust': 'owner',
+              'tokenEstimate': 140,
+            },
+          ],
+          'availableModels': [
+            {'id': 'claude-sonnet-4-5', 'label': 'Claude Sonnet 4.5'},
+            {'id': 'gpt-5-thinking', 'label': 'GPT-5 Thinking'},
+          ],
+          'messages': [
+            {
+              'id': 'a1',
+              'role': 'assistant',
+              'text': 'Throughput grew +66%.',
+              'reasoning': 'Inspect SampleChartSource first.',
+              'status': 'done',
+              'toolCalls': [
+                {
+                  'callId': 'tc1',
+                  'name': 'ui.chart.bind',
+                  'argumentsJson': '{"filter":"all"}',
+                  'resultJson': '{"points":12}',
+                  'status': 'done',
+                  'durationMs': 14,
+                },
+              ],
+            },
+          ],
+        };
+      }
+
+      await tester.pumpWidget(
+        wrap(
+          SingleChildScrollView(
+            child: SizedBox(
+              width: 640,
+              child: buildUiNeuronWidget(
+                kind: 'ui.chat',
+                neuronKey: 'gallery/chat/devui',
+                callNeuron: callNeuron,
+              )!,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Throughput grew +66%.'), findsOneWidget);
+      expect(find.text('Inspect SampleChartSource first.'), findsNothing);
+      expect(find.text('{"filter":"all"}'), findsNothing);
+
+      // Expand reasoning
+      await tester.tap(find.textContaining('Show reasoning'));
+      await tester.pumpAndSettle();
+      expect(find.text('Inspect SampleChartSource first.'), findsOneWidget);
+
+      // Expand tool call JSON
+      await tester.tap(find.text('ui.chart.bind'));
+      await tester.pumpAndSettle();
+      expect(find.text('{"filter":"all"}'), findsOneWidget);
+      expect(find.text('{"points":12}'), findsOneWidget);
+
+      // Click Compact
+      await tester.tap(find.text('Compact'));
+      await tester.pumpAndSettle();
+      expect(calls, contains('IntoChat.OS.Modules.UI.Chat.IChatThread.Compact'));
+    },
+  );
 }

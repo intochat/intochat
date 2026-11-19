@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'chart/chart_widget.dart';
+import 'chat/chat_thread_widget.dart';
 import 'checkbox/checkbox_widget.dart';
 import 'dialog/dialog_widget.dart';
 import 'expander/expander_widget.dart';
@@ -23,7 +24,8 @@ bool isUiNeuronKind(String refKind) => switch (refKind.trim().toLowerCase()) {
   'ui.listbox' ||
   'ui.table' ||
   'ui.form' ||
-  'ui.dialog' => true,
+  'ui.dialog' ||
+  'ui.chat' => true,
   _ => false,
 };
 
@@ -92,6 +94,12 @@ Widget? buildUiNeuronWidget({
     ),
     'ui.dialog' => DialogWidget(
       key: ValueKey('ui.dialog:$neuronKey'),
+      neuronKey: neuronKey,
+      callNeuron: callNeuron,
+      watch: watch,
+    ),
+    'ui.chat' => ChatThreadWidget(
+      key: ValueKey('ui.chat:$neuronKey'),
       neuronKey: neuronKey,
       callNeuron: callNeuron,
       watch: watch,
