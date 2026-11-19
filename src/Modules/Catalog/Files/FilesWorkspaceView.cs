@@ -3,7 +3,6 @@ using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Log;
 using DigitalBrain.Operations;
 using DigitalBrain.UI;
-using IntoChat.Files;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.UI;

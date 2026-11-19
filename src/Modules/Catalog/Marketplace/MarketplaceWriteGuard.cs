@@ -1,4 +1,5 @@
 using System.Text.Json;
+using IntoChat.OS;
 using Orleans.Runtime;
 
 namespace IntoChat.OS.Modules.Apps;
@@ -42,7 +43,7 @@ internal sealed class MarketplaceWriteGuard(FeatureCatalog catalog) : IIncomingG
         var key = id.Key.ToString()!;
         if (type.StartsWith("neuron.host", StringComparison.Ordinal))
         {
-            return DigitalBrain.NeuronId.TryParse(key, out var neuron) ? (neuron.Type, $"{neuron.Brain.Value}/{neuron.Key}") : null;
+            return DigitalBrain.NeuronId.TryParse(key, out var neuron) ? (neuron.Type, neuron.FullKey()) : null;
         }
         return (type, key);
     }

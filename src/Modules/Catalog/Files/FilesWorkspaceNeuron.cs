@@ -9,7 +9,6 @@ using DigitalBrain.Kernel;
 using DigitalBrain.Neurons;
 using DigitalBrain.Operations;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.Files;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using IntoChat.OS.Primitives;

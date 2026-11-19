@@ -8,7 +8,7 @@ using PlaywrightSdk = Microsoft.Playwright;
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
 // Connects to a page owned by the desktop. It never creates or closes native pages.
-public sealed partial class PlaywrightSessionProvider(MicrosoftSdk.Extensions.Options.IOptions<PlaywrightModuleOptions> options) : IBrowserSessionProvider, IAsyncDisposable
+internal sealed partial class PlaywrightSessionProvider(MicrosoftSdk.Extensions.Options.IOptions<PlaywrightModuleOptions> options) : IBrowserSessionProvider, IAsyncDisposable
 {
     public bool IsAppPage(string url) => options.Value.IsAppPage(url);
 

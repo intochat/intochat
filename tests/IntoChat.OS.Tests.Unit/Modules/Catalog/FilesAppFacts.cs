@@ -3,7 +3,6 @@ using DigitalBrain.Capabilities;
 using DigitalBrain.Capabilities.Storage;
 using DigitalBrain.Testing;
 using DigitalBrain.Testing.Conformance.Storage;
-using IntoChat.Files;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IntoChat.OS.Modules.Apps.Tests.Unit;

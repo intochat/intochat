@@ -50,7 +50,7 @@ internal sealed class PlainInstanceRegistration(IServiceProvider services, IGrai
     {
         if (IsReadOnly(call) || !DigitalBrain.NeuronId.TryParse(context.TargetId.Key.ToString()!, out var id)) { return; }
         if (StateNameOf(id.Type) is not { } stateName) { return; }
-        var fullKey = $"{id.Brain.Value}/{id.Key}";
+        var fullKey = id.FullKey();
         if (BrainKey.ScopeOf(fullKey) is not { } brain) { return; }
         if (services.GetKeyedService<IGrainStorage>(IntoChatOSNames.ClusterGrainStorage) is not { } store) { return; }
         var state = new GrainState<JsonElement>();

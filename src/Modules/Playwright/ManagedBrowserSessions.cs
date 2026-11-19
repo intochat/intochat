@@ -2,7 +2,7 @@ using PlaywrightSdk = Microsoft.Playwright;
 
 namespace IntoChat.OS.Modules.Microsoft.Playwright;
 
-public sealed partial class PlaywrightSessionProvider
+internal sealed partial class PlaywrightSessionProvider
 {
     private readonly SemaphoreSlim _managedGate = new(1, 1);
     private readonly Dictionary<string, ManagedWorker> _workers = new(StringComparer.Ordinal);

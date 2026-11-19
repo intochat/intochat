@@ -17,7 +17,6 @@ using DigitalBrain.Invocation;
 using DigitalBrain.Testing;
 using DigitalBrain.Testing.Conformance.Storage;
 using DigitalBrain.UI;
-using IntoChat.Files;
 using IntoChat.OS.Apps.Gallery;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Modules.Apps;

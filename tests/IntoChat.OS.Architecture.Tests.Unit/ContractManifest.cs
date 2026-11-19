@@ -80,6 +80,12 @@ internal sealed record ContractManifest(
         ("IntoChat.OS.Integrations.ConnectionsChanged", typeof(DigitalBrain.Capabilities.Connections.Requests.ConnectionsChanged)),
         ("IntoChat.OS.TypeAdded", typeof(DigitalBrain.Signals.TypeAdded)),
         ("IntoChat.OS.Modules.AI.Routing.RouterDecided", typeof(IntoChat.OS.Modules.Apps.Routing.RouterDecided)),
+        ("IntoChat.Files.FilesLocation", typeof(IntoChat.OS.Modules.Apps.FilesLocation)),
+        ("IntoChat.Files.FilesMore", typeof(IntoChat.OS.Modules.Apps.FilesMore)),
+        ("IntoChat.Files.FilesOpened", typeof(IntoChat.OS.Modules.Apps.FilesOpened)),
+        ("IntoChat.Files.FilesPreview", typeof(IntoChat.OS.Modules.Apps.FilesPreview)),
+        ("IntoChat.Files.FilesSearch", typeof(IntoChat.OS.Modules.Apps.FilesSearch)),
+        ("IntoChat.Files.FilesSelected", typeof(IntoChat.OS.Modules.Apps.FilesSelected)),
     ];
 
     internal static string BaselinePath => Path.Combine(Repository.ProjectNamed("IntoChat.OS.Architecture.Tests.Unit").Directory, FileName);

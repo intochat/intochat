@@ -460,7 +460,7 @@ public sealed class HouseRules22Facts
             }
         }
 
-        const int RatchetCap = 264;
+        const int RatchetCap = 260;
         Assert.True(count <= RatchetCap, $"Raw `string brainId` parameters regressed to {count} (ratchet cap {RatchetCap}); use BrainId.");
     }
 
@@ -512,7 +512,7 @@ public sealed class HouseRules22Facts
         Assert.True(settingsOffenders.Count == 0, "Manual `$\"{...}/settings\"` key strings outside IUserSettings.Key:\n" + string.Join('\n', settingsOffenders));
         Assert.True(unitDefaultOffenders.Count == 0, "Manual `$\"{...}/{...}/default\"` unit state key strings outside UnitAlias:\n" + string.Join('\n', unitDefaultOffenders));
 
-        const int RatchetCap = 41;
+        const int RatchetCap = 28;
         Assert.True(
             brainKeyOffenders.Count <= RatchetCap,
             $"Ad-hoc brain-key string interpolations regressed to {brainKeyOffenders.Count} (ratchet cap {RatchetCap}):\n" + string.Join('\n', brainKeyOffenders));
@@ -1134,21 +1134,6 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.AI.Workflows.WorkflowDefinition",
             "IntoChat.OS.Modules.Microsoft.Azure.ArmAzure",
             "IntoChat.OS.Modules.Microsoft.Aspire.CandidateEnvironment",
-            "IntoChat.OS.Modules.Microsoft.Aspire.LiveBuild",
-            "IntoChat.OS.Modules.Microsoft.Aspire.LiveBuildFile",
-            "IntoChat.Files.FilesStorage",
-            "IntoChat.Files.FilesGroup",
-            "IntoChat.Files.FilesItem",
-            "IntoChat.Files.FilesPage",
-            "IntoChat.Files.FilesClipboard",
-            "IntoChat.Files.FilesOpened",
-            "IntoChat.Files.FilesMore",
-            "IntoChat.Files.FilesPreview",
-            "IntoChat.Files.FilesLocation",
-            "IntoChat.Files.FilesSearch",
-            "IntoChat.Files.FilesSelected",
-            "IntoChat.Files.FilesState",
-            "IntoChat.Files.FilesApp",
             "IntoChat.OS.Modules.Apps.OperationReceipt",
             "IntoChat.OS.Modules.Apps.Approvals.ApprovalsNeuron",
             "IntoChat.OS.Modules.Apps.AppState",
@@ -1160,9 +1145,7 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Apps.Debugger.ScenarioTranscripts",
             "IntoChat.OS.Modules.Apps.CompiledAppsRegistration",
             "IntoChat.OS.Modules.Apps.FeatureCatalog",
-            "IntoChat.OS.Modules.Apps.FeatureFailure",
             "IntoChat.OS.Modules.Apps.FeatureLoader",
-            "IntoChat.OS.Modules.Apps.FeatureOrigin",
             "IntoChat.OS.Modules.Apps.Features.Module",
             "IntoChat.OS.Modules.Apps.ShippedInstall",
             "IntoChat.OS.Modules.Apps.IFilesVfsService",
@@ -1189,8 +1172,6 @@ public sealed class HouseRules22Facts
             "IntoChat.OS.Modules.Apps.Notifications.INotifications",
             "IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.WorkTreeService",
             "IntoChat.OS.Modules.Tools.ToolCapabilitySource",
-            "IntoChat.OS.Modules.Microsoft.Playwright.BrowserSessionOwner",
-            "IntoChat.OS.Modules.Microsoft.Playwright.PlaywrightSessionProvider",
             "IntoChat.OS.Modules.Flutter.Settings.Choice",
             "IntoChat.OS.Modules.Microsoft.Windows.MachineIdentity",
             "IntoChat.OS.Modules.LocalDisk.LocalCloudState",

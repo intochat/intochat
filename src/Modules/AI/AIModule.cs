@@ -140,7 +140,7 @@ public sealed class AIModule : DigitalBrain.Modules.Module, IHttpModule
             return Results.Problem(error.Message, statusCode: StatusCodes.Status400BadRequest);
         }
 
-        var recognizer = brain.Get<ISpeechRecognizer>($"{caller.Brain.Value}/default");
+        var recognizer = brain.Get<ISpeechRecognizer>(caller.Brain.Value + "/default");
         try
         {
             var result = await recognizer.Recognize(

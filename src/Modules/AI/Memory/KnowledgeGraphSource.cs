@@ -17,7 +17,7 @@ internal sealed class KnowledgeGraphSource(IServiceProvider services) : IGraphSo
         KnowledgeGraphView view;
         try
         {
-            view = await SiloNeurons.Get<IKnowledgeStore>(services, $"{brain.Value}/{StoreKey}").GetGraphViewAsync(null, 10, cancellationToken).ConfigureAwait(false);
+            view = await SiloNeurons.Get<IKnowledgeStore>(services, brain.Value + "/" + StoreKey).GetGraphViewAsync(null, 10, cancellationToken).ConfigureAwait(false);
         }
         catch (InvalidOperationException)
         {
