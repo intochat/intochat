@@ -56,6 +56,11 @@ internal static class Rules
         "'{0}' is banned in a synapse assembly (no network, disk, processes, environment, reflection, native code, dynamic or thread pool); reach the outside through a [Slot] capability",
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
 
+    public static readonly DiagnosticDescriptor ToolNameTooLong = new(
+        "DB0046", "Tool name over 64 characters",
+        "Tool name '{0}' for '{1}.{2}' is {3} characters long; tool names must be at most 64 characters",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
+
     public static readonly DiagnosticDescriptor ShareableContract = new(
         "DB0031", "Cross-brain contract interface requires [Shareable]",
         "Contract interface or member '{0}' violates [Shareable] contract rules",

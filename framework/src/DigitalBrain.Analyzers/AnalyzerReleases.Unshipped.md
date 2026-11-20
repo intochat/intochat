@@ -21,3 +21,4 @@ DB0042 | DigitalBrain | Error | Synapse state declared in another assembly
 DB0043 | DigitalBrain | Warning | Synapse state carries a status-like member
 DB0044 | DigitalBrain | Error | [On] reaction in a synapse assembly
 DB0045 | DigitalBrain | Error | Banned API in a synapse assembly
+DB0046 | DigitalBrain | Error | Tool name over 64 characters
