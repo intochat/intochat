@@ -50,7 +50,7 @@ public static class CreatorInspector
         {
             "source" => RenderSourceTab(state, inspection),
             "signals" => RenderSignalsTab(state, inspection, timelineHops),
-            "state-graph" => RenderStateGraphTab(state, inspection),
+            "state-graph" => RenderStateGraphTab(state, inspection, flows),
             "scenarios" => RenderScenariosTab(state, inspection),
             _ => RenderStateTab(state, inspection, timelineHops, flows),
         });
@@ -144,9 +144,21 @@ public static class CreatorInspector
     private static IEnumerable<Node> RenderSourceTab(CreatorWorkspaceState state, Inspection inspection)
     {
         var orderedFiles = OrderedFiles(inspection.Files);
+        var selectedFile = ResolveActiveFile(state.SelectedSourceFile, orderedFiles);
+        if (selectedFile is not null)
+        {
+            var passPct = CreatorStateSpaceInspector.ResolvePassPercent(inspection, state.Transcript);
+            var buildBadge = inspection.DeployedUnit?.Hash is { Length: > 0 } hash
+                ? $"build {hash[..Math.Min(8, hash.Length)]}"
+                : (inspection.Synapse?.Form.ToString() ?? "Live Source");
+            yield return HStack(Space.Xs)[
+                StatusPill(passPct == 0 ? StatusKind.Error : StatusKind.Done, $"{selectedFile} · {passPct}%"),
+                MutedText(buildBadge)
+            ];
+        }
+
         if (orderedFiles.Length > 1)
         {
-            var selectedFile = ResolveActiveFile(state.SelectedSourceFile, orderedFiles);
             yield return HStack(Space.Xs, [.. orderedFiles.Select(file =>
                 (Node)(string.Equals(file, selectedFile, StringComparison.Ordinal)
                     ? PrimaryButton(file)
@@ -240,12 +252,13 @@ public static class CreatorInspector
         }
     }
 
-    private static IEnumerable<Node> RenderStateGraphTab(CreatorWorkspaceState state, Inspection inspection)
+    private static IEnumerable<Node> RenderStateGraphTab(CreatorWorkspaceState state, Inspection inspection, FlowView[] flows)
     {
-        if (state.Selected is { Kind: Selection.Node } && inspection.Alias is { } alias && inspection.Files.Count > 0)
+        if (CreatorStateSpaceInspector.HasInspectableUnitOrSynapse(state, inspection, flows))
         {
-            yield return CreatorStateSpaceInspector.RenderUnitSummaryCard(alias, inspection.Files);
-            yield return CreatorStateSpaceInspector.RenderUnitStateScene(alias, inspection.Files);
+            var targetAlias = inspection.Alias ?? inspection.Synapse?.Name ?? state.ActiveRunId ?? "synapse";
+            yield return CreatorStateSpaceInspector.RenderUnitSummaryCard(targetAlias, inspection.Files, inspection, state.Transcript);
+            yield return CreatorStateSpaceInspector.RenderInspectionScene(state, inspection, flows);
             yield break;
         }
 

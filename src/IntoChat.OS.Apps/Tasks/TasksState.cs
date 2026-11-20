@@ -50,7 +50,7 @@ public sealed record TasksWorkspaceState(
 
     public static readonly string[] StageIds = ["backlog", "in-progress", "review", "done"];
 
-    public static readonly string[] TabIds = ["board", "list", "details"];
+    public static readonly string[] TabIds = ["board", "table", "approvals", "list", "details"];
 
     private static readonly TimeSpan MaxProjection = TimeSpan.FromDays(30);
 
@@ -72,6 +72,10 @@ public sealed record TasksWorkspaceState(
 
     public int NextTaskSequence { get; init; } = 4;
 
+    public string? FocusedConfirmationId { get; init; }
+
+    public string? FocusedDraftPreviewId { get; init; }
+
     [JsonIgnore]
     public string View => ActiveTab;
 
@@ -83,9 +87,15 @@ public sealed record TasksWorkspaceState(
         ? Tasks.FirstOrDefault(t => string.Equals(t.Id, id, StringComparison.Ordinal))
         : null;
 
+    [JsonIgnore]
+    public string? SelectedFlowId => SelectedTask?.FlowId ?? SelectedTaskId;
+
+    [JsonIgnore]
+    public bool HasUnsavedDraft => !string.IsNullOrWhiteSpace(Draft.Title) || !string.IsNullOrWhiteSpace(Draft.Description);
+
     // ── Domain Invariants ────────────────────────────────────────────────────
 
-    [Invariant("ActiveTab is always board, list, or details."), JsonIgnore]
+    [Invariant("ActiveTab is always a valid Tasks studio tab."), JsonIgnore]
     public bool ValidActiveTab => TabIds.Contains(ActiveTab, StringComparer.Ordinal);
 
     [Invariant("Every task resides in a valid Kanban stage (backlog, in-progress, review, or done) with non-empty Id and Title."), JsonIgnore]
@@ -153,9 +163,15 @@ public sealed record TasksWorkspaceState(
         static tasks => !tasks.Any(static t => string.Equals(t.Stage, "done", StringComparison.Ordinal)),
         "There are no Done tasks to clear.");
 
+    public Rule CanDepart(bool force = false) => Decision.Rule(
+        "unsaved_task_draft",
+        (HasUnsavedDraft, force),
+        static x => x.HasUnsavedDraft && !x.force,
+        "Finish or clear the unsaved task draft before leaving Tasks.");
+
     // ── Aggregate Commands & Transitions ─────────────────────────────────────
 
-    public TasksWorkspaceState SelectTab([Sample("board", "list", "details")] string? tab)
+    public TasksWorkspaceState SelectTab([Sample("board", "table", "approvals", "list", "details")] string? tab)
     {
         var normalized = NormalizeTab(tab);
         return this with
@@ -388,6 +404,83 @@ public sealed record TasksWorkspaceState(
         => this with { Status = status ?? string.Empty };
 
     [IgnoreExplore]
+    public TasksWorkspaceState ApplyArrival(TasksNavArgs? args)
+    {
+        if (args is null)
+        {
+            return this;
+        }
+
+        var next = this;
+        if (!string.IsNullOrWhiteSpace(args.FlowId))
+        {
+            next = next.SelectTaskOrFlow(args.FlowId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(args.ConfirmationId))
+        {
+            next = next with { FocusedConfirmationId = args.ConfirmationId.Trim() };
+        }
+
+        if (!string.IsNullOrWhiteSpace(args.DraftPreviewId))
+        {
+            next = next with { FocusedDraftPreviewId = args.DraftPreviewId.Trim() };
+        }
+
+        if (!string.IsNullOrWhiteSpace(args.Tab))
+        {
+            next = next.SelectTab(args.Tab);
+        }
+        else if (!string.IsNullOrWhiteSpace(args.ConfirmationId) || !string.IsNullOrWhiteSpace(args.DraftPreviewId))
+        {
+            next = next.SelectTab("approvals");
+        }
+
+        return next;
+    }
+
+    [IgnoreExplore]
+    public TasksWorkspaceState ApplyOpen(string? input, string? flowId, string? view)
+    {
+        var next = this;
+        if (!string.IsNullOrWhiteSpace(flowId))
+        {
+            next = next.SelectTaskOrFlow(flowId);
+        }
+        else if (!string.IsNullOrWhiteSpace(input))
+        {
+            var trimmed = input.Trim();
+            var lower = trimmed.ToLowerInvariant();
+            if (lower is "board" or "kanban" or "table" or "list" or "approvals" or "confirmations" or "details")
+            {
+                next = next.SelectTab(lower);
+            }
+            else if (trimmed.StartsWith("confirm:", StringComparison.OrdinalIgnoreCase)
+                || trimmed.StartsWith("confirmation:", StringComparison.OrdinalIgnoreCase))
+            {
+                var id = trimmed[(trimmed.IndexOf(':', StringComparison.Ordinal) + 1)..].Trim();
+                next = (next with { FocusedConfirmationId = id.Length > 0 ? id : null }).SelectTab("approvals");
+            }
+            else if (trimmed.StartsWith("draft:", StringComparison.OrdinalIgnoreCase))
+            {
+                var id = trimmed["draft:".Length..].Trim();
+                next = (next with { FocusedDraftPreviewId = id.Length > 0 ? id : null }).SelectTab("approvals");
+            }
+            else
+            {
+                next = next.SelectTaskOrFlow(trimmed);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(view))
+        {
+            next = next.SelectTab(view);
+        }
+
+        return next;
+    }
+
+    [IgnoreExplore]
     public TaskWorkItem[] FilteredTasks(FlowView[] liveFlows)
     {
         var flowById = liveFlows.ToDictionary(f => f.FlowId, StringComparer.Ordinal);
@@ -442,9 +535,26 @@ public sealed record TasksWorkspaceState(
 
     public static string NormalizeTab(string? tab) => (tab ?? "board").Trim().ToLowerInvariant() switch
     {
-        "list" or "table" => "list",
+        "table" => "table",
+        "list" => "list",
+        "approvals" or "approval" or "confirmations" => "approvals",
         "details" or "detail" or "workflow" or "timeline" or "inspector" => "details",
         _ => "board",
+    };
+
+    public static string UiTabId(string? tab) => NormalizeTab(tab) switch
+    {
+        "table" or "list" => "table",
+        "approvals" or "details" => "approvals",
+        _ => "board",
+    };
+
+    public static string TabTitle(string tab) => NormalizeTab(tab) switch
+    {
+        "table" or "list" => "Task Table",
+        "approvals" => "Approvals & Triage Drafts",
+        "details" => "Workflow & Details",
+        _ => "Kanban Board",
     };
 
     public static string? TryNormalizeStage(string? stage) => stage?.Trim().ToLowerInvariant() switch
@@ -471,13 +581,6 @@ public sealed record TasksWorkspaceState(
         "review" => "Review",
         "done" => "Done",
         _ => "Backlog",
-    };
-
-    public static string TabTitle(string tab) => NormalizeTab(tab) switch
-    {
-        "list" => "Task List",
-        "details" => "Workflow & Details",
-        _ => "Kanban Board",
     };
 
     public static string StageForFlowStatus(FlowStatus status) => status switch

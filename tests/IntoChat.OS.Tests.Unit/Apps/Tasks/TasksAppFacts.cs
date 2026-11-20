@@ -11,6 +11,7 @@ using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Approvals;
 using IntoChat.OS.Modules.Apps.Flows;
 using IntoChat.OS.Modules.Flutter.Fields;
+using IntoChat.OS.Modules.Microsoft.GitHub;
 using IntoChat.OS.Modules.UI;
 using IntoChat.OS.Modules.UI.CommandBar;
 using IntoChat.OS.Modules.UI.KanbanBoard;
@@ -177,19 +178,24 @@ public sealed class TasksAppFacts
         var table = os.Get<ITable>(new NeuronId(LocalBrain, "ui.table", TasksApp.TableKey));
         var kanban = os.Get<IKanbanBoard>(new NeuronId(LocalBrain, "ui.kanban", TasksApp.KanbanKey));
 
-        // Pipelined tab switches: board -> list -> details
-        await tabs.Select("list");
-        await tabs.Select("details");
+        // Pipelined tab switches: board -> table -> approvals -> legacy list/details
+        await tabs.Select("table");
+        await tabs.Select("approvals");
         await os.Idle();
-        Assert.Equal("details", tasks.App.State.ActiveTab);
+        Assert.Equal("approvals", tasks.App.State.ActiveTab);
         var detailsWire = (await tasks.Screen.Read())!.View.GetRawText();
         Assert.Contains("Task Details", detailsWire, StringComparison.Ordinal);
 
-        await tabs.Select("list");
+        await tabs.Select("table");
         await os.Idle();
-        Assert.Equal("list", tasks.App.State.ActiveTab);
+        Assert.Equal("table", tasks.App.State.ActiveTab);
         var listWire = (await tasks.Screen.Read())!.View.GetRawText();
         Assert.Contains(TasksApp.TableKey, listWire, StringComparison.Ordinal);
+
+        await tasks.Request("view", new TasksView("list"));
+        Assert.Equal("list", tasks.App.State.ActiveTab);
+        await tasks.Request("view", new TasksView("board"));
+        Assert.Equal("board", tasks.App.State.ActiveTab);
 
         // Select row 2 ("task-3") from ITable
         await table.SelectRow(2);
@@ -491,6 +497,144 @@ public sealed class TasksAppFacts
         Assert.Equal(new FocusAction("open", "ino"), point.Action);
     }
 
+    [Fact]
+    public async Task TasksShell_RendersSingleRowToolbarFullBleedKanbanAndTableWithZeroCommandBarClutter()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
+        await using var os = FakeOsWithUi();
+        var engFlow = Flow("eng-1", FlowStatus.Running, type: "flow.engineer");
+        FakeFlows.Views = [engFlow];
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("open", new TasksOpen(FlowId: engFlow.FlowId));
+
+        var view = tasks.App.Render();
+        var shell = Assert.IsType<AppShellNode>(view.Root);
+        Assert.Equal("tasks-shell", shell.Key);
+        Assert.NotNull(shell.Sidebar);
+        Assert.NotNull(shell.Inspector);
+
+        // Single <=44px horizontal Row top bar with ui.tabs, filter chips, New Task, and Engineer/Creator deep-links
+        var topRow = Assert.IsType<Row>(shell.Toolbar);
+        var topNeuronRefs = Nodes(topRow).OfType<NeuronRef>().ToArray();
+        Assert.Contains(topNeuronRefs, n => n.Kind == "ui.tabs" && n.NeuronUri == TasksApp.TabsKey);
+        Assert.DoesNotContain(Nodes(view).OfType<NeuronRef>(), n => n.Kind == "ui.command-bar");
+        Assert.DoesNotContain(Nodes(topRow).OfType<NeuronRef>(), n => n.Kind == "ui.stepper");
+
+        var topButtons = Nodes(topRow).OfType<Button>().ToArray();
+        Assert.Contains(topButtons, b => b.Key == "tasks:add" && b.Label == "New Task");
+        Assert.Contains(topButtons, b => b.Key == "tasks:filter:all");
+        Assert.Contains(topButtons, b => b.Key == "tasks:filter:running");
+
+        var openEng = Assert.Single(topButtons, b => b.Key == "tasks:open-engineer");
+        Assert.Equal(AppSignals.OpenApp("engineer", engFlow.FlowId), openEng.Intent);
+        var openCreator = Assert.Single(topButtons, b => b.Key == "tasks:open-creator");
+        Assert.Equal(AppSignals.OpenApp("creator", engFlow.FlowId), openCreator.Intent);
+
+        // Full-bleed Kanban body: Column with Extents = [1.0] and zero wrapper Card / HeaderBar clutter
+        var boardCol = Assert.IsType<Column>(shell.Body);
+        Assert.Equal([1.0], boardCol.Extents);
+        var kanbanRef = Assert.IsType<NeuronRef>(Assert.Single(boardCol.Children));
+        Assert.Equal("ui.kanban", kanbanRef.Kind);
+        Assert.Equal(TasksApp.KanbanKey, kanbanRef.NeuronUri);
+
+        // Switch to Table tab -> full-bleed Table body: Column with Extents = [1.0]
+        await tasks.Request("view", new TasksView("table"));
+        var tableShell = Assert.IsType<AppShellNode>(tasks.App.Render().Root);
+        var tableCol = Assert.IsType<Column>(tableShell.Body);
+        Assert.Equal([1.0], tableCol.Extents);
+        var tableRef = Assert.IsType<NeuronRef>(Assert.Single(tableCol.Children));
+        Assert.Equal("ui.table", tableRef.Kind);
+        Assert.Equal(TasksApp.TableKey, tableRef.NeuronUri);
+    }
+
+    [Fact]
+    public async Task TasksInspector_SurfacesFlowStagesShaBoundConfirmationsAndGitHubIssueTriageDrafts()
+    {
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
+        await using var os = FakeOsWithUi();
+        os.Register<FakeGitHubRepository>();
+
+        const string commitSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        var planId = $"app:engineer:eng-01:{commitSha}";
+        await os.Get<IConfirmationRequests>(IConfirmationRequests.Of(LocalBrain)).Request(
+            new ConfirmationPlan(planId, ConfirmationAction.Other, false, "Publish Draft PR #42?", "Verified worktree candidate w1", "Publish", "Hold", "intochat/intochat")
+            {
+                RequiresPerson = true,
+            });
+        FakeGitHubRepository.Drafts =
+        [
+            new IssueCommentPreview(
+                "draft-issue-42",
+                42,
+                "Triaged crash in grain timer; assigning p0 label.",
+                ["bug", "p0"],
+                DateTimeOffset.UtcNow.AddMinutes(10),
+                "intochat/intochat"),
+        ];
+        var waitingFlow = Flow("eng-01", FlowStatus.Waiting, type: "flow.engineer", waiting: WaitReason.Approval) with
+        {
+            ConfirmationPlanId = planId,
+        };
+        FakeFlows.Views = [waitingFlow];
+
+        var tasks = await os.Install<TasksApp>();
+        await tasks.Request("open", new TasksOpen(FlowId: waitingFlow.FlowId));
+
+        var shell = Assert.IsType<AppShellNode>(tasks.App.Render().Root);
+        var inspectorNodes = Nodes(shell.Inspector).ToArray();
+        var inspectorText = Strings(shell.Inspector).ToArray();
+
+        // 1. Flow stages & Stepper inside collapsible right inspector
+        Assert.Contains(inspectorNodes.OfType<NeuronRef>(), n => n.Kind == "ui.stepper" && n.NeuronUri == TasksApp.StepperKey);
+        Assert.Contains(inspectorNodes.OfType<JobCardNode>(), j => j.Title == waitingFlow.Title);
+
+        // 2. SHA-bound confirmation details + human Person rule reminder
+        var approvalCard = Assert.Single(inspectorNodes.OfType<ApprovalCardNode>(), c => c.Id == planId);
+        Assert.Null(approvalCard.Resolve);
+        Assert.Contains(approvalCard.Rows, r => r.Label == "Bound SHA" && r.NewValue == commitSha);
+        Assert.Contains(inspectorText, s => s.Contains("Person-only rule enforced", StringComparison.Ordinal));
+
+        // 3. Pending GitHub issue triage comment draft discovered from connection/github/main
+        var draftCard = Assert.Single(inspectorNodes.OfType<DraftCardNode>(), d => d.Id == "draft-issue-42");
+        Assert.Equal("intochat/intochat #42", draftCard.To);
+        Assert.Contains("Triaged crash", draftCard.Body, StringComparison.Ordinal);
+        Assert.Contains("bug, p0", draftCard.Subject, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TasksNavigationLifecycle_SupportsTypedNavigateToDeepLinkTransitionAndDraftGuardedDeparture()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var person = IntoChat.OS.Tests.TestEdge.Authority.Enter(IntoChat.OS.Tests.TestEdge.Authority.Person("local", "local", LocalBrain));
+        await using var os = FakeOsWithUi();
+        var flow = Flow("nav-1", FlowStatus.Running);
+        FakeFlows.Views = [flow];
+        var tasks = await os.Install<TasksApp>();
+
+        await tasks.App.NavigateToAsync(
+            new TasksNavArgs(FlowId: flow.FlowId, Tab: "approvals"),
+            "app.engineer",
+            ViewTransition.SharedAxisX,
+            null,
+            ct);
+
+        Assert.Equal(flow.FlowId, tasks.App.State.SelectedFlowId);
+        Assert.Equal("approvals", tasks.App.State.ActiveTab);
+        var shell = Assert.IsType<AppShellNode>(tasks.App.Render().Root);
+        Assert.Equal(ViewTransition.SharedAxisX, shell.Transition);
+
+        // Clean departure succeeds when Draft is empty
+        Assert.True(await tasks.App.TryNavigateFromAsync(new NavigationDeparture("app.engineer"), ct));
+
+        // Unsaved draft blocks unforced departure with declarative Rule rejection, while Force: true succeeds
+        await Field(tasks, "title", "Unsaved architecture task");
+        Assert.False(await tasks.App.TryNavigateFromAsync(new NavigationDeparture("app.engineer", Force: false), ct));
+        Assert.NotNull(tasks.App.LastRejection);
+        Assert.Contains("unsaved_task_draft", tasks.App.LastRejection!.Rules);
+
+        Assert.True(await tasks.App.TryNavigateFromAsync(new NavigationDeparture("app.engineer", Force: true), ct));
+    }
+
     private static async Task Field(InstalledApp<TasksApp> tasks, string field, string value)
     {
         FakeField.Values[$"apps/tasks/{field}"] = value;
@@ -634,5 +778,23 @@ public sealed class TasksAppFacts
         public Task<InoToolResult> Failures(string alias) => Task.FromResult(new InoToolResult($"{alias} has no recorded failures.", Ok: true));
         public Task<InoToolResult> Retire(string alias) => Task.FromResult(new InoToolResult(""));
         public Task<DeployedSource[]> List() => Task.FromResult(Sources);
+    }
+
+    [Neuron("github")]
+    private sealed class FakeGitHubRepository : Neuron, IRepository
+    {
+        public static IssueCommentPreview[] Drafts { get; set; } = [];
+
+        public Task<RepositoryView> Refresh(RefreshRepository request) => throw new NotSupportedException();
+        public Task<RepositoryView> Read() => throw new NotSupportedException();
+        public Task<PullRequestRead> ReadPullRequest(ReadPullRequest query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PullRequestsRead> ReadPullRequests() => throw new NotSupportedException();
+        public Task<ReviewEvidenceRead> ReadReviewEvidence(ReadReviewEvidence query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<RequiredChecksRead> ReadRequiredChecks(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task PushBranch(PushBranchRequest request) => throw new NotSupportedException();
+        public Task<PullRequestView> CreatePullRequest(CreatePullRequest request) => throw new NotSupportedException();
+        public Task ReplyToReviewComment(ReplyReviewComment request) => throw new NotSupportedException();
+        public Task MergePullRequest(MergePullRequest request) => throw new NotSupportedException();
+        public Task<IssueCommentPreview[]> ReadPendingIssueDrafts() => Task.FromResult(Drafts);
     }
 }
