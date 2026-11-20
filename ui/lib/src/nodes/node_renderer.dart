@@ -65,6 +65,7 @@ abstract final class NodeRenderer {
   /// True for a root node that manages its own vertical scrolling and fills its host box.
   static bool fills(Node root) => switch (root) {
     ConversationNode() => true,
+    ChatThreadViewNode() => true,
     SplitPaneNode() => true,
     AppShellNode() => true,
     BrainSceneNode() => true,

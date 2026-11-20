@@ -120,7 +120,7 @@ public static partial class InoView
         }
 
         Node[] under = [.. approvals, .. loose, .. setup];
-        return navAbove.Length == 0 && under.Length == 0 ? conversation : Filling(navAbove, conversation, under);
+        return Filling(navAbove, conversation, under);
     }
 
     private static Node[] RenderNavigationSeedNodes(InoAppState s, Rejected? departureRejection)
@@ -553,6 +553,13 @@ public static partial class InoView
                     ],
                     Subtitle: card.Summary, LinkLabel: "Review & Install",
                     Open: PrimaryButton("Review & Install").Small().Key("review-install").WithIntent(IntentKind.OpenWindow, "os://sheet/install").ToButton());
+                break;
+
+            case "node":
+                if (!string.IsNullOrWhiteSpace(card.Node) && InoNodeCard.TryRead(card.Node, out var parsedNode, out _))
+                {
+                    yield return Card(card.Title, card.Summary)[parsedNode];
+                }
                 break;
 
             case "table" when card.Columns is { Length: > 0 } cols && card.Rows is { Length: > 0 } rows:
