@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_flutter.dart';
 import 'package:intochat_os_flutter_shell/intochat_os_ui.dart';
 
+import '../workspace/cross_window_router.dart';
 import '../workspace/spatial_app_canvas.dart';
 import 'desktop_overlays.dart';
 import 'os_bar.dart';
@@ -148,6 +149,8 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   final Set<String> _clientClosedWindowIds = {};
   final Set<String> _clientOpenedWidgets = {};
   final Set<String> _clientClosedWidgets = {};
+  final PendingOpenWindowIntentTracker _intentTracker =
+      PendingOpenWindowIntentTracker();
   Set<String> _dynamicAppIds = const {};
   String _lastDynamicSignature = '';
   bool _showDesktopOnly = false;
@@ -1165,8 +1168,9 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
   void _handleChildActivation(
     Map<String, dynamic> activation,
     List<_ParsedDesktopWindow> windows,
-    Map<String, Map<String, dynamic>> dockButtons,
-  ) {
+    Map<String, Map<String, dynamic>> dockButtons, {
+    String? sourceAppId,
+  }) {
     if (activation['kind'] == 'os_uri') {
       final uriStr = '${activation['uri'] ?? ''}';
       final sheet = DesktopSystemModalSheet.parseUri(uriStr);
@@ -1174,22 +1178,26 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         setState(() => _systemSheet = sheet);
         return;
       }
-      final uri = Uri.tryParse(uriStr);
-      final queryApp = uri?.queryParameters['app'];
-      final querySection = uri?.queryParameters['section'];
-      if (queryApp != null && queryApp.isNotEmpty) {
-        final queryInput = uri?.queryParameters['input'];
+      final fallbackFrom = sourceAppId != null && sourceAppId.isNotEmpty
+          ? '${widget.brain}/apps/$sourceAppId'
+          : null;
+      final route = _intentTracker.consumeUri(
+        uriStr,
+        fallbackFromNeuron: fallbackFrom,
+      );
+      if (route != null) {
         _launchOrFocusApp(
-          queryApp,
+          route.app,
           windows,
           dockButtons,
-          settingsSection: querySection,
-          openInput: queryInput != null && queryInput.isNotEmpty
-              ? queryInput
-              : null,
+          settingsSection: route.section,
+          openInput: route.input,
+          openRoute: route,
         );
         return;
       }
+      final uri = Uri.tryParse(uriStr);
+      final querySection = uri?.queryParameters['section'];
       if (uriStr.contains('settings')) {
         _launchOrFocusApp(
           'settings',
@@ -1199,6 +1207,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         );
         return;
       }
+      return;
     }
     final targetApp = activation['application'] as String?;
     if (targetApp != null && targetApp.isNotEmpty) {
@@ -1210,6 +1219,36 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       );
     }
     widget.onActivate({'brainId': widget.brain, ...activation});
+  }
+
+  Future<void> _dispatchWindowNavigateTo(
+    String appId, {
+    String? windowId,
+    String? input,
+    String? argsJson,
+    required String transition,
+    String? fromNeuron,
+  }) async {
+    final delivered = await dispatchNavigateTo(
+      sendAct: widget.onAction,
+      targetNeuron: '${widget.brain}/apps/$appId',
+      fromNeuron: fromNeuron,
+      argsJson: argsJson,
+      transition: transition,
+      input: input,
+    );
+    if (!delivered || !mounted) return;
+    setState(() {
+      if (windowId != null && _windowStates.containsKey(windowId)) {
+        _windowStates[windowId]?.reloadEpoch++;
+      } else {
+        for (final st in _windowStates.values) {
+          if (st.appId == appId) {
+            st.reloadEpoch++;
+          }
+        }
+      }
+    });
   }
 
   void _openAppGraph(
@@ -1232,6 +1271,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     Map<String, Map<String, dynamic>> dockButtons, {
     String? settingsSection,
     String? openInput,
+    OpenWindowRoute? openRoute,
   }) {
     setState(() => _showDesktopOnly = false);
     if (appId.startsWith('os://')) {
@@ -1252,16 +1292,42 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
     if (appId == 'settings') {
       _navigateSettingsSection(settingsSection);
     }
+    final effectiveInput =
+        openRoute?.input ??
+        (openInput != null && openInput.isNotEmpty ? openInput : null);
+    final argsJson = openRoute?.argsJson;
+    final transition = openRoute?.transition ?? 'fade-through';
+    final fromNeuron = openRoute?.fromNeuron;
+    final shouldNavigateTo =
+        appId != 'settings' &&
+        (effectiveInput != null ||
+            argsJson != null ||
+            (openRoute?.hasExplicitTransition ?? false));
+
     for (final w in windows.reversed) {
       if (w.appId == appId) {
         _focusWindow(w);
-        if (openInput != null) {
+        if (shouldNavigateTo) {
+          unawaited(
+            _dispatchWindowNavigateTo(
+              appId,
+              windowId: w.windowId,
+              input: effectiveInput,
+              argsJson: argsJson,
+              transition: transition,
+              fromNeuron: fromNeuron,
+            ),
+          );
           widget.onActivate({
             'brainId': widget.brain,
             'kind': 'workspace',
             'application': appId,
             'operation': 'open',
-            'input': openInput,
+            'input': ?effectiveInput,
+            'argsJson': ?argsJson,
+            'transition': transition,
+            'fromNeuron': ?fromNeuron,
+            'navigatedTo': true,
           });
           setState(() {
             _windowStates[w.windowId]?.reloadEpoch++;
@@ -1299,12 +1365,28 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
       });
       return;
     }
+    if (shouldNavigateTo) {
+      unawaited(
+        _dispatchWindowNavigateTo(
+          appId,
+          windowId: 'local-$appId',
+          input: effectiveInput,
+          argsJson: argsJson,
+          transition: transition,
+          fromNeuron: fromNeuron,
+        ),
+      );
+    }
     widget.onActivate({
       'brainId': widget.brain,
       'kind': 'workspace',
       'application': appId,
       'operation': 'open',
-      'input': ?openInput,
+      'input': ?effectiveInput,
+      'argsJson': ?argsJson,
+      if (shouldNavigateTo) 'transition': transition,
+      'fromNeuron': ?fromNeuron,
+      if (shouldNavigateTo) 'navigatedTo': true,
     });
   }
 
@@ -1355,7 +1437,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
         load: widget.load,
         watch: widget.watch,
         callNeuron: widget.callNeuron,
-        onAction: widget.onAction,
+        onAction: (event) => _intentTracker.wrapAction(event, widget.onAction),
         knowsApp: widget.knowsApp,
         transcribe: widget.transcribe,
         onActivate: widget.onActivate,
@@ -1689,7 +1771,13 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                         load: widget.load,
                                         watch: widget.watch,
                                         callNeuron: widget.callNeuron,
-                                        onAction: widget.onAction,
+                                        onAction: (event) =>
+                                            _intentTracker.wrapAction(
+                                              event,
+                                              widget.onAction,
+                                              fallbackFromNeuron:
+                                                  '${widget.brain}/apps/${w.appId}',
+                                            ),
                                         knowsApp: _knowsDesktopApp,
                                         transcribe: widget.transcribe,
                                         signals: _journalFor(
@@ -1700,6 +1788,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                               activation,
                                               windows,
                                               dockButtons,
+                                              sourceAppId: w.appId,
                                             ),
                                       ),
                                 },
@@ -1713,7 +1802,12 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                 load: widget.load,
                                 watch: widget.watch,
                                 callNeuron: widget.callNeuron,
-                                onAction: widget.onAction,
+                                onAction: (event) => _intentTracker.wrapAction(
+                                  event,
+                                  widget.onAction,
+                                  fallbackFromNeuron:
+                                      '${widget.brain}/apps/${spec.appId}',
+                                ),
                                 knowsApp: _knowsDesktopApp,
                                 transcribe: widget.transcribe,
                                 signals: _journalFor(
@@ -1724,6 +1818,7 @@ class _LiveDesktopShellState extends State<LiveDesktopShell> {
                                       activation,
                                       windows,
                                       dockButtons,
+                                      sourceAppId: spec.appId,
                                     ),
                               ),
                       ),

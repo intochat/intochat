@@ -150,7 +150,8 @@ internal sealed class EngineerFlow(
             Ratified: true,
             RatifiedBy: string.IsNullOrWhiteSpace(ratifiedBy) ? "owner" : ratifiedBy.Trim(),
             RatifiedAt: Context.Time.GetUtcNow(),
-            Harness: currentInner.Harness);
+            Harness: currentInner.Harness,
+            CodeGraphDigest: candidatePlan.CodeGraphDigest ?? currentInner.RatifiedPlan?.CodeGraphDigest);
 
         var nextInner = currentInner.WithPlan(candidatePlan).WithRatifiedPlan(ratified);
         await Save(
@@ -339,19 +340,47 @@ internal sealed class EngineerFlow(
         {
             var activePlanner = Planner;
             var allowed = ChangePolicy.Default.AllowedExtensions.Order(StringComparer.OrdinalIgnoreCase).ToArray();
-            plan = await Task.Run(
-                () => activePlanner.PlanAsync(inner.Repository.Value, inner.Goal, allowed, ChangePolicy.Default.MaxChangedFiles, ct),
-                ct).ConfigureAwait(true);
+            if (activePlanner is EngineerPlanner stagePlanner)
+            {
+                var wm = ResolveWorkingMemoryOnGrainTurn();
+                var preHydratedMemory = await stagePlanner.HydrateMemoryBriefAsync(
+                    inner.Repository.Value,
+                    inner.Goal,
+                    Id.Brain,
+                    wm,
+                    ct).ConfigureAwait(true);
+                var optionalWt = workTree ?? services?.GetService(typeof(IWorkTree)) as IWorkTree;
+                var activeRoslyn = Roslyn;
+                var brainId = Id.Brain;
+                plan = await Task.Run(
+                    () => stagePlanner.PlanWithContextAsync(
+                        inner.Repository.Value,
+                        inner.Goal,
+                        allowed,
+                        ChangePolicy.Default.MaxChangedFiles,
+                        brainId,
+                        optionalWt,
+                        activeRoslyn,
+                        workingMemoryOverride: null,
+                        preHydratedMemory: preHydratedMemory,
+                        repositoryPathOverride: null,
+                        ct),
+                    ct).ConfigureAwait(true);
+            }
+            else
+            {
+                plan = await Task.Run(
+                    () => activePlanner.PlanAsync(inner.Repository.Value, inner.Goal, allowed, ChangePolicy.Default.MaxChangedFiles, ct),
+                    ct).ConfigureAwait(true);
+            }
         }
 
-        var cleanupTargets = plan.CleanupTargets is { Length: > 0 }
-            ? plan.CleanupTargets
-            : inner.RequestedCleanupTargets ?? [];
-        var slices = plan.Slices is { Length: > 0 }
-            ? plan.Slices
-            : inner.RequestedSlices is { Length: > 0 }
-                ? inner.RequestedSlices
+        var slices = inner.RequestedSlices is { Length: > 0 }
+            ? inner.RequestedSlices
+            : plan.Slices is { Length: > 0 }
+                ? plan.Slices
                 : EngineerTaskSlices.FromTaskPlan(plan);
+        var cleanupTargets = MergeCleanupTargets(inner.RequestedCleanupTargets, plan.CleanupTargets, slices, ChangePolicy.Default.MaxChangedFiles);
 
         var disjointRule = new NoOverlappingFileSlices(slices);
         if (disjointRule.Broken)
@@ -379,7 +408,8 @@ internal sealed class EngineerFlow(
                 Ratified: false,
                 RatifiedBy: null,
                 RatifiedAt: null,
-                Harness: inner.Harness);
+                Harness: inner.Harness,
+                CodeGraphDigest: enrichedPlan.CodeGraphDigest);
             var waitingInner = inner.WithPlan(enrichedPlan).WithDraftPlan(draft);
             var ratifyWaitId = $"plan:ratify:{EffectiveRunId(waitingInner)}";
             return new StepResult<EngineerRun>(
@@ -396,7 +426,8 @@ internal sealed class EngineerFlow(
             Ratified: true,
             RatifiedBy: "auto",
             RatifiedAt: Context.Time.GetUtcNow(),
-            Harness: inner.Harness);
+            Harness: inner.Harness,
+            CodeGraphDigest: enrichedPlan.CodeGraphDigest);
 
         return inner.WithPlan(enrichedPlan).WithRatifiedPlan(autoRatified).Advance();
     }
@@ -711,10 +742,48 @@ internal sealed class EngineerFlow(
             policy: services?.GetService<ChangePolicy>() ?? ChangePolicy.Default);
     }
 
-    private async Task<InoHydratedBrainSnapshot> HydrateMissionBrainSnapshotAsync(
-        string repositoryId,
-        string goal,
-        CancellationToken ct)
+    private static string[] MergeCleanupTargets(
+        string[]? requestedCleanup,
+        string[]? plannedCleanup,
+        IReadOnlyList<EngineerTaskSlice> slices,
+        int maxChangedFiles)
+    {
+        if (requestedCleanup is { Length: > 0 })
+        {
+            if (plannedCleanup is not { Length: > 0 })
+            {
+                return requestedCleanup;
+            }
+
+            var sliceDistinctCount = slices
+                .SelectMany(static s => s.OwnedPaths ?? [])
+                .Select(EngineerTaskSlices.NormalizePath)
+                .Where(static p => p.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+            var merged = new List<string>(requestedCleanup);
+            foreach (var candidate in plannedCleanup)
+            {
+                if (merged.Contains(candidate, StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (sliceDistinctCount + merged.Count >= maxChangedFiles)
+                {
+                    break;
+                }
+
+                merged.Add(candidate);
+            }
+
+            return [.. merged];
+        }
+
+        return plannedCleanup ?? [];
+    }
+
+    private IWorkingMemory? ResolveWorkingMemoryOnGrainTurn()
     {
         IWorkingMemory? wm = services?.GetService<IWorkingMemory>();
         if (wm is null)
@@ -725,6 +794,16 @@ internal sealed class EngineerFlow(
                 wm = Context.Get<IWorkingMemory>(wmId);
             }
         }
+
+        return wm;
+    }
+
+    private async Task<InoHydratedBrainSnapshot> HydrateMissionBrainSnapshotAsync(
+        string repositoryId,
+        string goal,
+        CancellationToken ct)
+    {
+        var wm = ResolveWorkingMemoryOnGrainTurn();
 
         IUiIntrospector? introspector = services?.GetService<IUiIntrospector>();
         if (introspector is null)

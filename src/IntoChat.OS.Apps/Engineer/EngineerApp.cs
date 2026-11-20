@@ -2,7 +2,7 @@
 # IntoChat Engineer
 Role: Studio
 Shipped: true
-Operations: open, new-run, brainstorm, approve-plan, run-verify, approve-pr, clean-worktree, select-tab, select-instance, select-candidate, ui.command
+Operations: open, new-run, brainstorm, approve-plan, run-verify, approve-pr, clean-worktree, select-tab, select-instance, select-candidate, reply-review, ui.command
 
 Autonomous multi-worktree engineering workbench (`app.engineer`) orchestrating `flow.engineer` across 1..N isolated
 local git worktrees or cloud sandbox volumes with User + Architect + Critic brainstorming, Roslyn C# + Dart code edits,
@@ -18,6 +18,8 @@ using DigitalBrain.UI;
 using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps;
 using IntoChat.OS.Modules.Apps.Flows;
+using IntoChat.OS.Modules.Microsoft.GitHub;
+using IntoChat.OS.Modules.Microsoft.GitHub.Signals;
 using IntoChat.OS.Modules.Microsoft.GitHub.WorkTree;
 using IntoChat.OS.Modules.UI.Chat;
 using IntoChat.OS.Modules.UI.Chat.Signals;
@@ -67,6 +69,9 @@ public sealed record EngineerSelectInstance(int InstanceIndex = 0, string? FileP
 
 [Signal("engineer.select-candidate")]
 public sealed record EngineerSelectCandidate(int CandidateIndex = 0, string? FilePath = null) : Signal;
+
+[Signal("engineer.reply-review")]
+public sealed record EngineerReplyReview(int PullRequestNumber = 0, long CommentId = 0, string? Body = null) : Signal;
 
 [Neuron("app.engineer")]
 [Screen("app.engineer", Title = "IntoChat Engineer", Icon = "workflow")]
@@ -120,6 +125,7 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>, INavi
                 new("select-tab", "Switch between Plan, Code, Verification & Traces, and PR Review tabs."),
                 new("select-instance", "Focus a parallel worktree instance or changed file."),
                 new("select-candidate", "Promote a verified candidate worktree diff for PR approval."),
+                new("reply-review", "Reply to a GitHub pull request review comment thread."),
                 new(UiCommand.SignalAlias, "Dispatch a typed Engineer aggregate command."),
             ],
             Settings: [],
@@ -155,6 +161,7 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>, INavi
             : await SyncLatestOrActiveFlowAsync(State);
 
         next = next.ApplyArrival(arrival.Args);
+        next = await SyncLiveRepositoryReviewAsync(next);
         await ShowAndSyncAsync(next);
     }
 
@@ -182,6 +189,7 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>, INavi
         await base.OnActivate(cancellationToken);
         await TryFollowUiNeuronsAsync();
         var synced = await SyncLatestOrActiveFlowAsync(State);
+        synced = await SyncLiveRepositoryReviewAsync(synced);
         if (synced != State)
         {
             await Show(synced);
@@ -203,6 +211,7 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>, INavi
             next = next.SelectTab(request.Tab);
         }
 
+        next = await SyncLiveRepositoryReviewAsync(next);
         await ShowAndSyncAsync(next);
     }
 
@@ -214,6 +223,7 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>, INavi
         if (!string.IsNullOrWhiteSpace(request.Repository) && RepositoryId.TryParse(request.Repository, out var parsedRepo))
         {
             next = next with { RepositoryId = parsedRepo!.Value };
+            await FollowRepositoryNeuronsAsync(next.RepositoryId);
         }
 
         if (!string.IsNullOrWhiteSpace(request.Backend))
@@ -223,6 +233,7 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>, INavi
 
         // Start a real durable flow.engineer instance when IFlows and registered repository are present on the brain.
         next = await TryStartDurableEngineerFlowAsync(next);
+        next = await SyncLiveRepositoryReviewAsync(next);
         await ShowAndSyncAsync(next);
     }
 
@@ -309,7 +320,17 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>, INavi
     public async Task ApprovePr(EngineerApprovePr request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await ApplyDecisionAsync(State.ApproveAndPublishPr());
+        var decision = State.ApproveAndPublishPr();
+        await ApplyDecisionAsync(decision);
+        if (decision.IsAccepted)
+        {
+            var synced = await SyncLiveRepositoryReviewAsync(State);
+            if (synced != State)
+            {
+                await Show(synced);
+            }
+        }
+
         await SyncUiNeuronsAsync(State);
     }
 
@@ -349,6 +370,54 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>, INavi
     public Task ToggleViewportPeekCommand()
         => ShowAndSyncAsync(State.ToggleViewportPeek());
 
+    public Task ReplyToReviewCommentCommand(long commentId, string body)
+        => ReplyReview(new EngineerReplyReview(State.LivePullRequestNumber ?? 0, commentId, body));
+
+    [On]
+    public async Task ReplyReview(EngineerReplyReview request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var prNumber = request.PullRequestNumber > 0 ? request.PullRequestNumber : (State.LivePullRequestNumber ?? TryParsePullRequestNumber(State.PullRequestUrl) ?? 0);
+        if (prNumber <= 0 || request.CommentId <= 0 || string.IsNullOrWhiteSpace(request.Body))
+        {
+            return;
+        }
+
+        var trimmedBody = request.Body.Trim();
+        var (repo, _) = await TryResolveConnectedRepositoryAsync(State.RepositoryId);
+        if (repo is not null)
+        {
+            try
+            {
+                await repo.ReplyToReviewComment(new ReplyReviewComment(prNumber, request.CommentId, trimmedBody));
+            }
+#pragma warning disable CA1031
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                _logger.LogDebug(ex, "Live ReplyToReviewComment skipped or failed for PR #{PrNumber} comment {CommentId}.", prNumber, request.CommentId);
+                return;
+            }
+        }
+
+        await ShowAndSyncAsync(State.MarkReviewCommentReplied(request.CommentId, trimmedBody));
+    }
+
+    [On]
+    public async Task OnPullRequestChanged(PullRequestChanged changed)
+    {
+        if (changed is null || changed.Number <= 0)
+        {
+            return;
+        }
+
+        var synced = await SyncLiveRepositoryReviewAsync(State, changed.Number, changed);
+        if (synced != State)
+        {
+            await ShowAndSyncAsync(synced);
+        }
+    }
+
     [On]
     public async Task OnOperationProgressed(OperationProgressed progressed)
     {
@@ -371,7 +440,13 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>, INavi
     public async Task SelectTab(EngineerSelectTab request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await ShowAndSyncAsync(State.SelectTab(request.Tab));
+        var next = State.SelectTab(request.Tab);
+        if (next.ActiveTab == "pr")
+        {
+            next = await SyncLiveRepositoryReviewAsync(next);
+        }
+
+        await ShowAndSyncAsync(next);
     }
 
     [On]
@@ -550,6 +625,194 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>, INavi
         await TryFollowOneAsync<IChatThread, ChatMessageSubmitted>(BrainstormChatKey);
         await TryFollowOneAsync<IFlows, FlowsChanged>(FlowsKey);
         await TryFollowOneAsync<IFlows, OperationProgressed>(FlowsKey);
+        await FollowRepositoryNeuronsAsync(State.RepositoryId);
+    }
+
+    private async Task FollowRepositoryNeuronsAsync(string? repositoryId)
+    {
+        if (TryBrainOrNull() is not { } brain || !Implements<IRepository>(new NeuronId(brain, "github", "connection/github/main")))
+        {
+            return;
+        }
+
+        var slug = string.IsNullOrWhiteSpace(repositoryId) ? "main" : repositoryId.Trim();
+        await TryFollowOneAsync<IRepository, PullRequestChanged>($"connection/github/{slug}");
+        if (!string.Equals(slug, "main", StringComparison.OrdinalIgnoreCase))
+        {
+            await TryFollowOneAsync<IRepository, PullRequestChanged>("connection/github/main");
+        }
+    }
+
+    private async Task<(IRepository? Repository, RepositoryView? View)> TryResolveConnectedRepositoryAsync(string? repositoryId)
+    {
+        if (TryBrainOrNull() is not { } brain || !Implements<IRepository>(new NeuronId(brain, "github", "connection/github/main")))
+        {
+            return (null, null);
+        }
+
+        var slug = string.IsNullOrWhiteSpace(repositoryId) ? "main" : repositoryId.Trim();
+        string[] candidateKeys = string.Equals(slug, "main", StringComparison.OrdinalIgnoreCase)
+            ? [$"connection/github/{slug}"]
+            : [$"connection/github/{slug}", "connection/github/main"];
+
+        foreach (var key in candidateKeys)
+        {
+            if (TryGetOptional<IRepository>(key) is not { } repo)
+            {
+                continue;
+            }
+
+            try
+            {
+                var view = await repo.Read();
+                if (view.Connected)
+                {
+                    return (repo, view);
+                }
+            }
+#pragma warning disable CA1031
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                _logger.LogDebug(ex, "Optional GitHub repository read skipped for {Key}.", key);
+            }
+        }
+
+        return (null, null);
+    }
+
+    private async Task<EngineerWorkspaceState> SyncLiveRepositoryReviewAsync(
+        EngineerWorkspaceState basis,
+        int? preferredPrNumber = null,
+        PullRequestChanged? trigger = null)
+    {
+        var (repo, view) = await TryResolveConnectedRepositoryAsync(basis.RepositoryId);
+        if (repo is null || view is null)
+        {
+            return basis;
+        }
+
+        try
+        {
+            var requiredChecksRead = await repo.ReadRequiredChecks();
+            var requiredNames = requiredChecksRead.Checks
+                .Select(static r => r.Name)
+                .Where(static n => !string.IsNullOrWhiteSpace(n))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var parsedFromUrl = TryParsePullRequestNumber(basis.PullRequestUrl);
+            var prNumber = preferredPrNumber
+                ?? basis.LivePullRequestNumber
+                ?? (parsedFromUrl is { } urlNum && view.PullRequests.Any(p => p.Number == urlNum) ? (int?)urlNum : null)
+                ?? view.PullRequests.FirstOrDefault(static p => p.IsOpen)?.Number
+                ?? view.PullRequests.FirstOrDefault()?.Number;
+
+            if (prNumber is not > 0)
+            {
+                var baselineChecks = requiredNames
+                    .Select(static name => new EngineerPrCheckItem(name, "pending", null, IsRequired: true))
+                    .ToArray();
+                return basis.ApplyLivePullRequestReview(
+                    prNumber: null,
+                    prUrl: basis.PullRequestUrl,
+                    checks: baselineChecks,
+                    threads: basis.EffectiveLivePrReviewThreads,
+                    summary: $"Connected ({view.ConnectionId}) · {requiredNames.Count} required check(s)");
+            }
+
+            var prRead = await repo.ReadPullRequest(new ReadPullRequest(prNumber.Value));
+            var snapshot = prRead.Snapshot;
+            var evidenceRead = await repo.ReadReviewEvidence(new ReadReviewEvidence(snapshot));
+
+            var checkItems = snapshot.Checks
+                .Select(c => new EngineerPrCheckItem(
+                    Name: c.Name,
+                    Status: c.State,
+                    Conclusion: c.Conclusion,
+                    IsRequired: requiredNames.Contains(c.Name)))
+                .ToList();
+            foreach (var reqName in requiredNames)
+            {
+                if (!checkItems.Any(c => string.Equals(c.Name, reqName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    checkItems.Add(new EngineerPrCheckItem(reqName, "pending", null, IsRequired: true));
+                }
+            }
+
+            var existingReplied = basis.EffectiveLivePrReviewThreads.ToDictionary(static t => t.CommentId);
+            var threads = new List<EngineerPrReviewThread>();
+            if (evidenceRead.Evidence?.ReviewComments is { Length: > 0 } liveComments)
+            {
+                foreach (var comment in liveComments)
+                {
+                    var prev = existingReplied.GetValueOrDefault(comment.Id);
+                    threads.Add(new EngineerPrReviewThread(
+                        CommentId: comment.Id,
+                        Author: comment.Author,
+                        Body: comment.Body,
+                        FilePath: comment.Path,
+                        Replied: prev?.Replied ?? false,
+                        ReplyBody: prev?.ReplyBody));
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(trigger?.CommentBody))
+            {
+                var syntheticId = Math.Abs(HashCode.Combine(trigger.Number, trigger.CommentAuthor, trigger.CommentBody)) + 1L;
+                if (!threads.Any(t => string.Equals(t.Body, trigger.CommentBody, StringComparison.Ordinal)))
+                {
+                    threads.Add(new EngineerPrReviewThread(
+                        CommentId: syntheticId,
+                        Author: string.IsNullOrWhiteSpace(trigger.CommentAuthor) ? "reviewer" : trigger.CommentAuthor!,
+                        Body: trigger.CommentBody!));
+                }
+            }
+
+            var passedCount = checkItems.Count(static c => string.Equals(c.Conclusion, "success", StringComparison.OrdinalIgnoreCase));
+            var summary = string.Create(
+                CultureInfo.InvariantCulture,
+                $"PR #{snapshot.Number} · {snapshot.Title} · {passedCount}/{checkItems.Count} check(s) green");
+
+            return basis.ApplyLivePullRequestReview(
+                prNumber: snapshot.Number,
+                prUrl: snapshot.Url,
+                checks: checkItems.ToArray(),
+                threads: threads.ToArray(),
+                summary: summary);
+        }
+#pragma warning disable CA1031
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _logger.LogDebug(ex, "Live GitHub PR review reconciliation skipped for repository {RepositoryId}.", basis.RepositoryId);
+            return basis;
+        }
+    }
+
+    private static int? TryParsePullRequestNumber(string? pullRequestUrl)
+    {
+        if (string.IsNullOrWhiteSpace(pullRequestUrl))
+        {
+            return null;
+        }
+
+        const string marker = "/pull/";
+        var idx = pullRequestUrl.LastIndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (idx < 0)
+        {
+            return null;
+        }
+
+        var tail = pullRequestUrl[(idx + marker.Length)..];
+        var len = 0;
+        while (len < tail.Length && char.IsAsciiDigit(tail[len]))
+        {
+            len++;
+        }
+
+        return len > 0 && int.TryParse(tail[..len], NumberStyles.Integer, CultureInfo.InvariantCulture, out var num) && num > 0
+            ? num
+            : null;
     }
 
     private async Task TryFollowOneAsync<TContract, TSignal>(string key)
@@ -833,8 +1096,35 @@ public sealed class EngineerApp : AggregateScreen<EngineerWorkspaceState>, INavi
             Collaborators = summary.Collaborators is { Length: > 0 } collabs
                 ? collabs
                 : basis.Collaborators,
+            ActiveTraceId = TryExtractTraceId(summary.DiagnosticsAndTraces) ?? basis.ActiveTraceId,
             StatusBanner = banner,
         };
+    }
+
+    private static string? TryExtractTraceId(string[]? traces)
+    {
+        if (traces is not { Length: > 0 })
+        {
+            return null;
+        }
+
+        foreach (var line in traces)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            foreach (var token in line.Split([' ', ':', '=', '(', ')', ',', ';'], StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (token.Length == 32 && token.All(char.IsAsciiHexDigit))
+                {
+                    return token.ToLowerInvariant();
+                }
+            }
+        }
+
+        return null;
     }
 
     private async Task SyncUiNeuronsAsync(EngineerWorkspaceState state)

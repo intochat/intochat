@@ -38,7 +38,7 @@ public sealed class RepositoryLayoutFacts
             .Where(file =>
             {
                 var parts = file.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                return !parts.Any(p => p is ".git" or "bin" or "obj" or "artifacts" or "ephemeral");
+                return !parts.Any(p => p is ".git" or ".claude" or "bin" or "obj" or "artifacts" or "ephemeral");
             })
             .ToList();
 

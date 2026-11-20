@@ -23,7 +23,7 @@ internal sealed class GitHubAppRegistration(IModuleIntegrations<GitHubModule> in
     internal async Task<string?> ReadOptionalSecretAsync(string field, CancellationToken cancellationToken)
     {
         var snapshot = await Registration.ReadAsync(cancellationToken).ConfigureAwait(false);
-        if (snapshot.Status != IntegrationStatus.Ready) { return null; }
+        if (snapshot.Status == IntegrationStatus.Unconfigured) { return null; }
         try { return await Registration.ReadSecretAsync(field, cancellationToken).ConfigureAwait(false); }
         catch (KeyNotFoundException) { return null; }
     }

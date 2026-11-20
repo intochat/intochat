@@ -339,6 +339,180 @@ public sealed class EngineerAppFacts
         }
     }
 
+    [Fact]
+    public async Task EngineerAppReconcilesLiveGitHubPrReviewChecksThreadsReplyAndAspireTraceLink()
+    {
+        var brain = new BrainId("engprlive");
+        var prSource = new StubLivePrSource();
+        var services = new ServiceCollection();
+        IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule.ConfigureServices(
+            services,
+            new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
+        services.AddSingleton<DigitalBrain.Capabilities.Connections.Integrations.IModuleIntegrations<IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule>>(
+            new DisconnectedIntegrations());
+        services.AddSingleton<IntoChat.OS.Modules.Microsoft.GitHub.IGitHubRepositorySource>(prSource);
+
+        await using var os = TestOS.Local(o => o.Services = services.BuildServiceProvider());
+        using var person = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(UiModule).Assembly);
+        os.Register(typeof(IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule).Assembly);
+        os.Register(typeof(EngineerApp).Assembly);
+
+        var ghConnId = new NeuronId(brain, "github", "connection/github/os");
+        os.SeedStoredState(
+            ghConnId,
+            System.Text.Json.JsonSerializer.Serialize(
+                new IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepositoryState
+                {
+                    Status = DigitalBrain.Capabilities.Connections.ConnectionStatus.Connected,
+                    AppId = 77,
+                    InstallationId = 9001,
+                    RepositoryId = 12345,
+                    Owner = "intochat",
+                    Name = "os",
+                    Account = "intochat/os",
+                    PullRequests = [prSource.CurrentSnapshot],
+                },
+                DigitalBrain.Invocation.RuntimeProtocol.OptionsFor(typeof(IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepositoryState))));
+
+        var traceState = new EngineerWorkspaceState() with
+        {
+            ActiveTraceId = "4bf92f3577b34da6a3ce929d0e0e4736",
+            ActiveFlowId = "engprlive/flow.engineer/f1",
+        };
+        var renderedWithTrace = System.Text.Json.JsonSerializer.Serialize(
+            EngineerViewRenderer.RenderRoot(traceState, lastRejection: null, brain: brain));
+        Assert.Contains("4bf92f3577b34da6a3ce929d0e0e4736", renderedWithTrace, StringComparison.Ordinal);
+
+        var screen = os.Get<IScreen>(new NeuronId(brain, "app.engineer", "default"));
+        await screen.Request(new EngineerOpen(Tab: "pr"));
+        await os.Idle();
+
+        var prView = (await screen.Read())!;
+        var prRaw = prView.View.GetRawText();
+        Assert.Contains("Live GitHub PR Checks", prRaw, StringComparison.Ordinal);
+        Assert.Contains("test-unit: success [required]", prRaw, StringComparison.Ordinal);
+        Assert.Contains("Review Comment Threads", prRaw, StringComparison.Ordinal);
+        Assert.Contains("@alice", prRaw, StringComparison.Ordinal);
+        Assert.Contains("engineer:pr:reply:701", prRaw, StringComparison.Ordinal);
+
+        // Clicking Reply button invokes IRepository.ReplyToReviewComment and marks the thread replied!
+        await screen.Activate(prView.Alias, prView.Generation, "engineer:pr:reply:701");
+        await os.Idle();
+        Assert.NotNull(prSource.LastReply);
+        Assert.Equal(204, prSource.LastReply!.PullRequestNumber);
+        Assert.Equal(701L, prSource.LastReply.CommentId);
+
+        var afterReplyRaw = (await screen.Read())!.View.GetRawText();
+        Assert.Contains("Replied:", afterReplyRaw, StringComparison.Ordinal);
+
+        // Webhook delivery on connected IRepository publishes PullRequestChanged -> EngineerApp updates live!
+        prSource.CurrentSnapshot = prSource.CreatePrSnapshot("ci-rev-2", "failure");
+        var ghInbound = os.Get<IntoChat.OS.Modules.Microsoft.GitHub.IGitHubInbound>(ghConnId);
+        using (os.Edge.Enter(os.Edge.Module("github", brain)))
+        {
+            await ghInbound.AcceptRepositoryEvent(
+                new IntoChat.OS.Modules.Microsoft.GitHub.RepositoryEvent(
+                    Guid.NewGuid().ToString(),
+                    "check_run",
+                    "completed",
+                    204,
+                    "hash2",
+                    9001,
+                    12345,
+                    77),
+                Ct);
+        }
+        await os.Idle();
+
+        var afterWebhookRaw = (await screen.Read())!.View.GetRawText();
+        Assert.Contains("test-unit: failure [required]", afterWebhookRaw, StringComparison.Ordinal);
+    }
+
+    private sealed class DisconnectedIntegrations : DigitalBrain.Capabilities.Connections.Integrations.IModuleIntegrations<IntoChat.OS.Modules.Microsoft.GitHub.GitHubModule>
+    {
+        public DigitalBrain.Capabilities.Connections.Integrations.IIntegrationHandle Get(string integrationId) => throw new NotSupportedException();
+    }
+
+    private sealed class StubLivePrSource : IntoChat.OS.Modules.Microsoft.GitHub.IGitHubRepositorySource
+    {
+        public IntoChat.OS.Modules.Microsoft.GitHub.PullRequestSnapshot CurrentSnapshot { get; set; }
+        public IntoChat.OS.Modules.Microsoft.GitHub.ReplyReviewComment? LastReply { get; private set; }
+
+        public StubLivePrSource() => CurrentSnapshot = CreatePrSnapshot("ci-rev-1", "success");
+
+        public IntoChat.OS.Modules.Microsoft.GitHub.PullRequestSnapshot CreatePrSnapshot(string ciRev, string conclusion)
+            => new(
+                Number: 204,
+                Title: "Add issue webhook triage",
+                Url: "https://github.com/intochat/os/pull/204",
+                IsOpen: true,
+                IsDraft: true,
+                HeadSha: new string('a', 40),
+                BaseSha: new string('b', 40),
+                MergeSha: null,
+                CiSha: new string('a', 40),
+                Checks:
+                [
+                    new IntoChat.OS.Modules.Microsoft.GitHub.GitHubCheck("test-unit", 1, "check", "completed", conclusion, new string('a', 40), "1", DateTimeOffset.UtcNow),
+                ],
+                ChecksComplete: true,
+                ObservedAt: DateTimeOffset.UtcNow,
+                CreatedAt: DateTimeOffset.UtcNow,
+                Revision: "pr-rev-1",
+                CiRevision: ciRev,
+                RepositoryId: 12345,
+                BaseBranch: "main");
+
+        public Task<IntoChat.OS.Modules.Microsoft.GitHub.PullRequestSnapshot> GetPullRequestAsync(
+            IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepository repository,
+            int number,
+            CancellationToken cancellationToken)
+            => Task.FromResult(CurrentSnapshot);
+
+        public Task<IReadOnlyList<IntoChat.OS.Modules.Microsoft.GitHub.PullRequestSnapshot>> ListOpenPullRequestsAsync(
+            IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepository repository,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<IntoChat.OS.Modules.Microsoft.GitHub.PullRequestSnapshot>>([CurrentSnapshot]);
+
+        public Task<IntoChat.OS.Modules.Microsoft.GitHub.GitHubReviewEvidence> GetReviewEvidenceAsync(
+            IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepository repository,
+            IntoChat.OS.Modules.Microsoft.GitHub.PullRequestSnapshot snapshot,
+            CancellationToken cancellationToken)
+            => Task.FromResult(new IntoChat.OS.Modules.Microsoft.GitHub.GitHubReviewEvidence(
+                snapshot.HeadSha,
+                snapshot.BaseSha,
+                "diff --git a/Foo.cs b/Foo.cs",
+                "hash",
+                true,
+                [new IntoChat.OS.Modules.Microsoft.GitHub.GitHubReviewComment(701L, "alice", "Please check null handling here.", "modules/Foo.cs", 18, DateTimeOffset.UtcNow)]));
+
+        public Task<IntoChat.OS.Modules.Microsoft.GitHub.RequiredChecksRead> GetRequiredChecksAsync(
+            IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepository repository,
+            string? branch,
+            CancellationToken cancellationToken)
+            => Task.FromResult(new IntoChat.OS.Modules.Microsoft.GitHub.RequiredChecksRead(
+                [new IntoChat.OS.Modules.Microsoft.GitHub.GitHubCheckRequirement("test-unit", 1, "any")],
+                true,
+                null));
+
+        public Task PushBranchAsync(IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepository repository, IntoChat.OS.Modules.Microsoft.GitHub.PushBranchRequest request, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task<IntoChat.OS.Modules.Microsoft.GitHub.PullRequestView> CreatePullRequestAsync(IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepository repository, IntoChat.OS.Modules.Microsoft.GitHub.CreatePullRequest request, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task ReplyToReviewCommentAsync(IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepository repository, IntoChat.OS.Modules.Microsoft.GitHub.ReplyReviewComment request, CancellationToken cancellationToken)
+        {
+            LastReply = request;
+            return Task.CompletedTask;
+        }
+
+        public Task MergePullRequestAsync(IntoChat.OS.Modules.Microsoft.GitHub.GitHubRepository repository, IntoChat.OS.Modules.Microsoft.GitHub.MergePullRequest request, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+    }
+
     private sealed class TouchCalcCoder : IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.ICoder
     {
         public async Task<IntoChat.OS.Modules.Microsoft.GitHub.WorkTree.CoderEditResult> EditAsync(

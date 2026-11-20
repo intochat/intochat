@@ -370,10 +370,11 @@ public sealed record CreatorWorkspaceState(
     };
 }
 
-// A selection of the graph: a node (its id; a ghost is draft:<alias>), an edge (its full key) or a pulse (its trace id).
+// A selection of the graph: a node (its id; a ghost is draft:<alias>; a catalog synapse is synapse:<id>), an edge (its full key) or a pulse (its trace id).
 public sealed record Selection(string Kind, string Id)
 {
     public const string Node = "node", Edge = "edge", Pulse = "pulse";
+    public const string SynapsePrefix = "synapse:";
 
     public static Selection? Parse(string? key) => key switch
     {
@@ -386,6 +387,7 @@ public sealed record Selection(string Kind, string Id)
 
     public string GraphKey => Kind switch
     {
+        Node when Id.StartsWith(SynapsePrefix, StringComparison.Ordinal) => Id,
         Node => BrainGraph.NodeKey(Id),
         Pulse => BrainGraph.PulseKey(Id),
         _ => Id,
@@ -404,6 +406,11 @@ public sealed record Inspection(string Kind, string Id)
     public IReadOnlyList<TraceEntry> Signals { get; init; } = [];
     public IReadOnlyList<TraceHop> Hops { get; init; } = [];
     public string? Notice { get; init; }
+    public IntoChat.OS.Modules.Apps.Synapses.SynapseDefinition? Synapse { get; init; }
+    public DigitalBrain.Units.DeployedSource? DeployedUnit { get; init; }
+    public IntoChat.OS.Modules.AI.Agents.Context.UiStateGraphSnapshot? IntrospectedGraph { get; init; }
+    public double? ScenarioPassRate { get; init; }
+    public string? FailureSummary { get; init; }
 }
 
 // One journaled signal of a trace, folded: Depth is its causation chain length to a root hop.

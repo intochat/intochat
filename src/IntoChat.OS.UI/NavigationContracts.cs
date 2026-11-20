@@ -103,7 +103,8 @@ public sealed record UiNavigateTo(
     string? ArgsJson = null,
     string? FromNeuron = null,
     string Transition = ViewTransition.FadeThrough,
-    string? CorrelationId = null) : Signal
+    string? CorrelationId = null,
+    string? Input = null) : Signal
 {
     /// <summary>Frozen signal alias routed to <see cref="AggregateScreenBase{TState}"/>.</summary>
     public const string SignalAlias = "ui.navigate-to";
@@ -153,3 +154,27 @@ public sealed record StudioNavArgs(
     string? CandidateId = null,
     string? FilePath = null,
     string? Mode = null);
+
+/// <summary>
+/// Standard route deep-link payload for <c>TasksApp</c> (<c>app.tasks</c>).
+/// </summary>
+/// <param name="FlowId">Optional active engineering or build flow identifier to select.</param>
+/// <param name="Tab">Optional active Tasks tab (<c>board</c>, <c>table</c>, or <c>approvals</c>).</param>
+/// <param name="ConfirmationId">Optional confirmation plan identifier to inspect.</param>
+/// <param name="DraftPreviewId">Optional pending draft preview identifier to inspect.</param>
+public sealed record TasksNavArgs(
+    string? FlowId = null,
+    string? Tab = null,
+    string? ConfirmationId = null,
+    string? DraftPreviewId = null);
+
+/// <summary>
+/// Standard route deep-link payload for <c>InoApp</c> (<c>app.ino</c>).
+/// </summary>
+/// <param name="Prompt">Optional initial prompt or composer seed text.</param>
+/// <param name="ConversationId">Optional conversation thread identifier to open.</param>
+/// <param name="FocusTarget">Optional neuron or card focus target.</param>
+public sealed record InoNavArgs(
+    string? Prompt = null,
+    string? ConversationId = null,
+    string? FocusTarget = null);

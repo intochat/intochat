@@ -75,7 +75,7 @@ internal static class EngineerViewRenderer
             repoBranchPill,
             .. candidatePills,
             UiNeuron("ui.tabs", EngineerApp.WorkspaceTabsKey),
-            new Button("engineer:open-aspire", "Aspire ↗", Intent: AppSignals.OpenApp("aspire", state.ActiveFlowId))
+            new Button("engineer:open-aspire", "Aspire ↗", Intent: AppSignals.OpenApp("aspire", state.ActiveTraceId ?? state.ActiveFlowId ?? state.ActiveRunId))
             {
                 Small = true,
                 Icon = "activity",
@@ -386,7 +386,9 @@ internal static class EngineerViewRenderer
         var shortSha = winner?.CommitSha is { Length: >= 8 } sha ? sha[..8] : "pending";
         var planNote = string.IsNullOrWhiteSpace(state.ConfirmationPlanId) ? string.Empty : $" · Plan: {state.ConfirmationPlanId}";
 
-        return VStack(Space.Sm)[
+        var livePrNodes = RenderLivePrReviewNodes(state);
+
+        return VStack(Space.Sm, [
             SectionHeader(
                 state.PrPublished
                     ? $"Draft PR Published · {state.PullRequestUrl}"
@@ -416,8 +418,68 @@ internal static class EngineerViewRenderer
                     .Guard(state.HasActiveWorktrees())
                     .OnClickAsync<EngineerApp>(app => app.CleanWorktreeCommand())
             ],
+            .. livePrNodes,
             UiNeuron("ui.table", EngineerApp.TasksTableKey)
-        ];
+        ]);
+    }
+
+    private static Node[] RenderLivePrReviewNodes(EngineerWorkspaceState state)
+    {
+        var checks = state.EffectiveLivePrChecks;
+        var threads = state.EffectiveLivePrReviewThreads;
+        if (!state.LiveRepositoryConnected && checks.Length == 0 && threads.Length == 0)
+        {
+            return [];
+        }
+
+        var nodes = new List<Node>
+        {
+            SectionHeader(
+                "Live GitHub PR Checks",
+                state.LivePrReviewSummary ?? string.Create(CultureInfo.InvariantCulture, $"PR #{state.LivePullRequestNumber ?? 0}")),
+        };
+
+        if (checks.Length > 0)
+        {
+            var pills = checks
+                .Take(8)
+                .Select(static check =>
+                {
+                    var kind = string.Equals(check.Conclusion, "success", StringComparison.OrdinalIgnoreCase)
+                        ? StatusKind.Done
+                        : check.Conclusion is "failure" or "cancelled" or "timed_out" or "action_required"
+                            ? StatusKind.Error
+                            : StatusKind.Working;
+                    var reqTag = check.IsRequired ? " [required]" : string.Empty;
+                    var outcome = check.Conclusion ?? check.Status;
+                    return StatusPill(kind, $"{check.Name}: {outcome}{reqTag}");
+                })
+                .ToArray();
+            nodes.Add(HStack(Space.Xs, pills));
+        }
+
+        if (threads.Length > 0)
+        {
+            nodes.Add(SectionHeader(
+                "Review Comment Threads",
+                string.Create(CultureInfo.InvariantCulture, $"{threads.Length} comment(s)")));
+            foreach (var thread in threads.Take(6))
+            {
+                var location = string.IsNullOrWhiteSpace(thread.FilePath) ? string.Empty : $" ({Path.GetFileName(thread.FilePath)})";
+                var replyControl = thread.Replied
+                    ? StatusPill(StatusKind.Done, $"Replied: {thread.ReplyBody}")
+                    : (Node)GhostButton("Reply", "message-square")
+                        .Key(string.Create(CultureInfo.InvariantCulture, $"engineer:pr:reply:{thread.CommentId}"))
+                        .Small()
+                        .OnClickAsync<EngineerApp>(app => app.ReplyToReviewCommentCommand(thread.CommentId, "Addressed in verified candidate worktree."));
+                nodes.Add(HStack(Space.Xs)[
+                    MutedText($"@{thread.Author}{location}: {thread.Body}"),
+                    replyControl
+                ]);
+            }
+        }
+
+        return nodes.ToArray();
     }
 
     private static (int Additions, int Deletions) EstimateLineCounts(string? unifiedDiff, int changedLines, int fileCount)

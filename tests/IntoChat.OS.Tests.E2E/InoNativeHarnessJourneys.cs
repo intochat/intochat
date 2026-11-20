@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using DigitalBrain;
 using DigitalBrain.Confirmation;
 using DigitalBrain.Flows;
@@ -36,6 +37,20 @@ public sealed class InoNativeHarnessJourneys(TestOSFixture fixture) : E2ETestBas
         try
         {
             await RunInoNativeMissionJourneyAsync(tempHome.Path);
+        }
+        finally
+        {
+            ClearReadOnlyAttributes(tempHome.Path);
+        }
+    }
+
+    [Fact]
+    public async Task InoNativeMissionSynthesizesCodeGraphPlanAndSelfRepairsSliceDiagnosticsEndToEnd()
+    {
+        using var tempHome = new TestHome();
+        try
+        {
+            await RunCodeGraphAndSelfRepairJourneyAsync(tempHome.Path);
         }
         finally
         {
@@ -290,6 +305,161 @@ public sealed class InoNativeHarnessJourneys(TestOSFixture fixture) : E2ETestBas
         Assert.Contains(completed.PushedRef!, journalAfter.FormattedMarkdown, StringComparison.Ordinal);
     }
 
+    private async Task RunCodeGraphAndSelfRepairJourneyAsync(string homeRoot)
+    {
+        var (bareOrigin, sourceRepo, workTreeHome, volumeRoot) = SeedCompilableGitRepositoryWithDeadFile(homeRoot);
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["IntoChatOS:Engineer:RunTestSuites"] = "false",
+            })
+            .Build();
+
+        var workTree = new WorkTreeService(
+            configuration: configuration,
+            options: new WorkTreeOptions
+            {
+                HomeDirectory = workTreeHome,
+                VolumeMountRoot = volumeRoot,
+                Backend = WorkTreeBackendKind.LocalGit,
+                VerifyFormatting = false,
+            });
+        workTree.RegisterRepository(new RegisteredRepository(
+            Id: "os",
+            LocalPath: sourceRepo,
+            DefaultBaseBranch: "main",
+            RemoteCloneUrl: bareOrigin));
+
+        var roslyn = IWorktreeRoslyn.CreateDefault();
+        var observedRepairPrompts = new List<string>();
+        var coder = new SelfRepairingCodeGraphSliceCoder(roslyn, observedRepairPrompts);
+
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<IConfiguration>(configuration);
+        serviceCollection.AddSingleton<IWorkTree>(workTree);
+        serviceCollection.AddSingleton<ICoder>(coder);
+        serviceCollection.AddSingleton<IEngineerPlanner>(sp => new EngineerPlanner(sp));
+        serviceCollection.AddSingleton<ISandboxCommandRunner>(_ => ISandboxCommandRunner.CreateDefault(configuration: configuration));
+        serviceCollection.AddSingleton<IEngineerBuildVerifier>(sp =>
+            new EngineerBuildVerifier(configuration, sp.GetRequiredService<ISandboxCommandRunner>()));
+        serviceCollection.AddSingleton<ILiveVerifier>(sp =>
+            new EngineerLiveVerifier(configuration: configuration, services: sp));
+        serviceCollection.AddSingleton(roslyn);
+        await using var services = serviceCollection.BuildServiceProvider();
+
+        await using var os = fixture.CreateIsolated(o => o.Services = services);
+        var brain = NewBrain("inonativev2");
+        using var owner = os.Edge.Enter(os.Edge.Person("owner", "owner", brain));
+
+        os.Register(typeof(AIModule).Assembly);
+        os.Register(typeof(AppsModule).Assembly);
+        os.Register(typeof(UiModule).Assembly);
+        os.Register(typeof(EngineerApp).Assembly);
+
+        // Seed repo:os brief in IWorkingMemory so EngineerPlanner hydrates both CodeGraph + WorkingMemory before planning!
+        var workingMemory = os.Get<IWorkingMemory>(IWorkingMemory.NeuronIdOf(brain));
+        await workingMemory.PutBrief(
+            "repo:os",
+            "os MathKit Repository Brief",
+            "project",
+            "Delete LegacyObsoleteMath.cs and keep Calculator and Vector2Int pure value methods.");
+
+        // Start mission WITHOUT hardcoded Slices or CleanupTargets: EngineerPlanner synthesizes both from live CodeGraph + repo:os brief!
+        var flows = os.Get<IFlows>(IFlows.Key(brain.Value));
+        var started = await flows.StartEngineerRun(
+            new EngineerDelegationRequest(
+                RepoSlug: "os",
+                Goal: "Delete LegacyObsoleteMath and implement Subtract on Calculator plus Dot on Vector2Int",
+                ParallelInstances: 1,
+                Backend: "LocalGit",
+                RunId: "inonativev2run",
+                RequirePlanRatification: false,
+                Harness: EngineeringHarnessKind.InoNative),
+            Ct);
+
+        var flowId = started.FlowId;
+        EngineerRunSummary? waitingAtGate = null;
+        for (var poll = 0; poll < 160; poll++)
+        {
+            await os.Idle();
+            var snap = await flows.InspectEngineerRun(flowId, Ct);
+            if (snap.Status == FlowStatus.Waiting && snap.CurrentStage == "approval-gate")
+            {
+                waitingAtGate = snap;
+                break;
+            }
+
+            if (snap.Status is FlowStatus.Failed or FlowStatus.Completed)
+            {
+                waitingAtGate = snap;
+                break;
+            }
+
+            await Task.Delay(50, Ct);
+        }
+
+        Assert.NotNull(waitingAtGate);
+        Assert.True(
+            waitingAtGate!.Status == FlowStatus.Waiting && waitingAtGate.CurrentStage == "approval-gate",
+            $"Expected CodeGraph + self-repair mission to reach approval-gate, got {waitingAtGate.Status} ({waitingAtGate.CurrentStage}): {waitingAtGate.SummaryText}");
+
+        // 1. Assert CodeGraph-hydrated planning: <= 2 KB digest, grounded LegacyObsoleteMath cleanup, and disjoint parallel slices!
+        Assert.NotNull(waitingAtGate.RatifiedPlan);
+        Assert.False(string.IsNullOrWhiteSpace(waitingAtGate.RatifiedPlan!.CodeGraphDigest));
+        Assert.True(Encoding.UTF8.GetByteCount(waitingAtGate.RatifiedPlan.CodeGraphDigest!) <= RepositoryCodeGraphDigest.MaxBytes);
+        Assert.Contains("BRIEF[repo:os]:", waitingAtGate.RatifiedPlan.CodeGraphDigest!, StringComparison.Ordinal);
+        Assert.Contains("modules/MathKit/LegacyObsoleteMath.cs", waitingAtGate.CleanupTargets!);
+        Assert.False(waitingAtGate.RatifiedPlan.DisjointSlicesRule().Broken);
+        Assert.Contains(waitingAtGate.DiagnosticsAndTraces, static t => t.StartsWith("plan.codegraph", StringComparison.Ordinal));
+
+        // 2. Assert bounded intra-slice Roslyn self-repair telemetry end-to-end (Turn 1 CS0029 -> Turn 2 repair, SelfRepairAttempts == 1)!
+        Assert.NotEmpty(observedRepairPrompts);
+        Assert.Contains(observedRepairPrompts, static p => p.Contains("CS0029", StringComparison.Ordinal));
+        Assert.NotNull(waitingAtGate.Slices);
+        var repairedSlice = Assert.Single(waitingAtGate.Slices!, static s => s.SelfRepairAttempts > 0);
+        Assert.Equal(1, repairedSlice.SelfRepairAttempts);
+        Assert.Contains(waitingAtGate.DiagnosticsAndTraces, static t => t.StartsWith("ino.self-repair", StringComparison.Ordinal));
+
+        // Verify live brain journal recorded the OperationProgressed(Phase: "self-repair") signal!
+        var publishedProgress = os.Journal(brain)
+            .Signals(NeuronId.Parse(flowId))
+            .Select(static j => j.Signal)
+            .OfType<OperationProgressed>()
+            .ToArray();
+        Assert.Contains(
+            publishedProgress,
+            static p => p.Phase == "self-repair"
+                && p.Detail.Contains("Repairing CS0029 in modules/MathKit/Calculator.cs (attempt 1/2)", StringComparison.Ordinal));
+
+        // 3. Approve as Person and verify clean remote git publication!
+        var inbox = os.Get<IConfirmationInbox>(new NeuronId(brain, "runtime.confirmations", IConfirmations.ConfirmationsNeuronKey));
+        await inbox.Resolve(waitingAtGate.ConfirmationPlanId!, approve: true);
+
+        EngineerRunSummary? completed = null;
+        for (var poll = 0; poll < 160; poll++)
+        {
+            await os.Idle();
+            var snap = await flows.InspectEngineerRun(flowId, Ct);
+            if (snap.Status is FlowStatus.Completed or FlowStatus.Failed)
+            {
+                completed = snap;
+                break;
+            }
+
+            await Task.Delay(50, Ct);
+        }
+
+        Assert.NotNull(completed);
+        Assert.Equal(FlowStatus.Completed, completed!.Status);
+        var remoteCommitSha = RunGit(bareOrigin, ["rev-parse", completed.PushedRef!]).Trim();
+        Assert.Equal(completed.WinningCommitSha, remoteCommitSha);
+        var remoteFiles = RunGit(bareOrigin, ["ls-tree", "-r", "--name-only", remoteCommitSha]);
+        Assert.DoesNotContain("LegacyObsoleteMath.cs", remoteFiles, StringComparison.Ordinal);
+        Assert.Contains("Subtract(", RunGit(bareOrigin, ["show", $"{remoteCommitSha}:modules/MathKit/Calculator.cs"]), StringComparison.Ordinal);
+        Assert.Contains("Dot(", RunGit(bareOrigin, ["show", $"{remoteCommitSha}:modules/MathKit/Vector2Int.cs"]), StringComparison.Ordinal);
+    }
+
     private static (string BareOrigin, string SourceRepo, string WorkTreeHome, string VolumeRoot) SeedCompilableGitRepositoryWithDeadFile(string baseDir)
     {
         var bareOrigin = Path.Combine(baseDir, "origin.git");
@@ -439,6 +609,74 @@ public sealed class InoNativeHarnessJourneys(TestOSFixture fixture) : E2ETestBas
             {
                 onExit(lease.InstanceIndex);
             }
+        }
+    }
+
+    private sealed class SelfRepairingCodeGraphSliceCoder(
+        IWorktreeRoslyn roslyn,
+        List<string> observedRepairPrompts) : ICoder
+    {
+        private int _calcAttempts;
+
+        public async Task<CoderEditResult> EditAsync(WorkTreeLease lease, string goal, CancellationToken ct = default)
+        {
+            var isCalc = goal.Contains("Calculator.cs", StringComparison.Ordinal);
+            if (isCalc)
+            {
+                var attempt = Interlocked.Increment(ref _calcAttempts);
+                if (attempt == 1)
+                {
+                    // Inject a real C# type error (CS0029) on Turn 1 so InoNativeHarness triggers bounded Roslyn self-repair!
+                    var calcPath = Path.Combine(lease.WorkspacePath, "modules", "MathKit", "Calculator.cs");
+                    await File.WriteAllTextAsync(
+                        calcPath,
+                        """
+                        namespace MathKit;
+
+                        public static class Calculator
+                        {
+                            public static int Add(int a, int b) => a + b;
+                            public static int Subtract(int a, int b) => "broken_return_type";
+                        }
+                        """,
+                        ct);
+                    return new CoderEditResult("Drafted Calculator.Subtract (turn 1).", ["modules/MathKit/Calculator.cs"], "ino-native-e2e");
+                }
+
+                lock (observedRepairPrompts)
+                {
+                    observedRepairPrompts.Add(goal);
+                }
+
+                // First restore syntactically clean Calculator.cs or replace member cleanly via AST
+                var repaired = await roslyn.ApplyEditsAsync(
+                    lease.WorkspacePath,
+                    [
+                        new WorktreeCSharpEdit(
+                            WorktreeCSharpEditKind.AddOrReplaceMember,
+                            "modules/MathKit/Calculator.cs",
+                            TypeName: "Calculator",
+                            MemberName: "Subtract",
+                            Source: "public static int Subtract(int a, int b) => a - b;"),
+                    ],
+                    ct);
+                Assert.True(repaired.Succeeded, repaired.Detail);
+                return new CoderEditResult("Repaired CS0029 on Calculator.Subtract.", repaired.TouchedFiles, "ino-native-e2e");
+            }
+
+            var vecEdit = await roslyn.ApplyEditsAsync(
+                lease.WorkspacePath,
+                [
+                    new WorktreeCSharpEdit(
+                        WorktreeCSharpEditKind.AddOrReplaceMember,
+                        "modules/MathKit/Vector2Int.cs",
+                        TypeName: "Vector2Int",
+                        MemberName: "Dot",
+                        Source: "public static int Dot(Vector2Int a, Vector2Int b) => (a.X * b.X) + (a.Y * b.Y);"),
+                ],
+                ct);
+            Assert.True(vecEdit.Succeeded, vecEdit.Detail);
+            return new CoderEditResult("Added Vector2Int.Dot.", vecEdit.TouchedFiles, "ino-native-e2e");
         }
     }
 

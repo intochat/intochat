@@ -11,12 +11,14 @@ namespace IntoChat.OS.Modules.Microsoft.GitHub;
 internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposable
 {
     internal const int EvidenceBudgetBytes = 131072;
+    private const int MaxIssueBodyLength = 65536;
     private const int MaximumPages = 10;
     private static readonly ActivitySource Activities = new("IntoChat.OS.GitHub");
     private readonly GitHubInstallationTokens _tokens;
     private readonly Octokit.Internal.HttpClientAdapter _http;
     private readonly GitHubJsonSerializer _json = new();
     private readonly TimeProvider _time;
+
     public GitHubRepositorySource(GitHubInstallationTokens tokens) : this(tokens, null, null)
     {
     }
@@ -25,7 +27,8 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
     {
         _tokens = tokens;
         _time = time ?? TimeProvider.System;
-        _http = new Octokit.Internal.HttpClientAdapter(() => new BoundedResponseHandler(handler ?? GitHubInstallationTokens.CreateDefaultHandler()));
+        var ownsHandler = handler is null;
+        _http = new Octokit.Internal.HttpClientAdapter(() => new BoundedResponseHandler(handler ?? GitHubInstallationTokens.CreateDefaultHandler(), ownsHandler));
         _http.SetRequestTimeout(TimeSpan.FromSeconds(20));
     }
 
@@ -111,6 +114,118 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         }
 
         return result;
+    }
+
+    public async Task<IssueSnapshot> GetIssueAsync(GitHubRepository repository, int number, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(number, 1);
+        using var activity = Activities.StartActivity("github.issue.snapshot");
+        activity?.SetTag("github.repository.id", repository.RepositoryId).SetTag("github.issue.number", number);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(60));
+        var response = await GetAsync(repository, $"{repository.RepositoryPath}/issues/{number}", deadline.Token).ConfigureAwait(false);
+        var json = response.Json;
+        if (json.ValueKind != JsonValueKind.Object)
+        {
+            throw InvalidEvidence();
+        }
+
+        if (json.TryGetProperty("pull_request", out var prProp) && prProp.ValueKind != JsonValueKind.Null)
+        {
+            throw new GitHubUnavailableException($"GitHub item #{number} is a pull request, not an issue.");
+        }
+
+        if (json.GetProperty("number").GetInt32() != number)
+        {
+            throw InvalidEvidence();
+        }
+
+        if (OptionalString(json, "repository_url") is { Length: > 0 } repositoryUrl
+            && !repositoryUrl.EndsWith($"/{repository.Owner}/{repository.Name}", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new GitHubAccessDeniedException("The repository was renamed, transferred or no longer matches this connection. Reconnect GitHub.");
+        }
+
+        var title = BoundedString(json, "title", 1024);
+        var rawBody = OptionalString(json, "body") ?? string.Empty;
+        var body = rawBody.Length <= MaxIssueBodyLength ? rawBody : rawBody[..MaxIssueBodyLength];
+        var htmlUrl = OptionalString(json, "html_url") ?? $"https://github.com/{repository.Owner}/{repository.Name}/issues/{number}";
+        var isOpen = string.Equals(OptionalString(json, "state") ?? "open", "open", StringComparison.OrdinalIgnoreCase);
+        var author = json.TryGetProperty("user", out var user) && user.ValueKind == JsonValueKind.Object
+            ? OptionalString(user, "login") ?? "unknown"
+            : "unknown";
+        var labels = json.TryGetProperty("labels", out var labelElements) && labelElements.ValueKind == JsonValueKind.Array
+            ? labelElements.EnumerateArray()
+                .Select(static item => item.ValueKind == JsonValueKind.String ? item.GetString() : OptionalString(item, "name"))
+                .Where(static name => !string.IsNullOrWhiteSpace(name))
+                .Select(static name => name!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray()
+            : [];
+        var commentCount = json.TryGetProperty("comments", out var commentsProp) && commentsProp.ValueKind == JsonValueKind.Number
+            ? commentsProp.GetInt32()
+            : 0;
+        var createdAt = Timestamp(json, "created_at") ?? _time.GetUtcNow();
+        var updatedAt = Timestamp(json, "updated_at");
+        var revision = Hash(JsonSerializer.Serialize(new
+        {
+            repository.RepositoryId,
+            number,
+            title,
+            body,
+            isOpen,
+            labels,
+            commentCount,
+            updatedAt,
+        }));
+
+        return new IssueSnapshot(
+            number,
+            title,
+            body,
+            htmlUrl,
+            isOpen,
+            author,
+            labels,
+            commentCount,
+            _time.GetUtcNow(),
+            createdAt,
+            updatedAt,
+            revision,
+            repository.RepositoryId);
+    }
+
+    public async Task<IssueCommentResult> CommentOnIssueAsync(
+        GitHubRepository repository,
+        int issueNumber,
+        string body,
+        string[] labels,
+        string requestId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(issueNumber, 1);
+        ArgumentException.ThrowIfNullOrWhiteSpace(body);
+        ArgumentNullException.ThrowIfNull(labels);
+        ArgumentException.ThrowIfNullOrWhiteSpace(requestId);
+        using var activity = Activities.StartActivity("github.comment_on_issue");
+        activity?.SetTag("github.repository.id", repository.RepositoryId).SetTag("github.issue.number", issueNumber);
+
+        var connection = await WriteConnectionAsync(repository, GitHubWriteScope.IssuesWrite, cancellationToken).ConfigureAwait(false);
+        var client = new Octokit.GitHubClient(connection);
+        var comment = await client.Issue.Comment.Create(repository.Owner, repository.Name, issueNumber, body).WaitAsync(cancellationToken).ConfigureAwait(false);
+        string[] appliedLabels = [];
+        if (labels.Length > 0)
+        {
+            var applied = await client.Issue.Labels.AddToIssue(repository.Owner, repository.Name, issueNumber, labels).WaitAsync(cancellationToken).ConfigureAwait(false);
+            appliedLabels = applied is { Count: > 0 }
+                ? applied.Select(static l => l.Name).Where(static n => !string.IsNullOrWhiteSpace(n)).ToArray()
+                : labels;
+        }
+
+        var commentUrl = !string.IsNullOrWhiteSpace(comment.HtmlUrl)
+            ? comment.HtmlUrl
+            : $"https://github.com/{repository.Owner}/{repository.Name}/issues/{issueNumber}#issuecomment-{comment.Id}";
+        return new IssueCommentResult(issueNumber, comment.Id, commentUrl, appliedLabels, requestId, Deduplicated: false);
     }
 
     public async Task<RequiredChecksRead> GetRequiredChecksAsync(GitHubRepository repository, string? branch, CancellationToken cancellationToken)
@@ -203,7 +318,7 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         using var activity = Activities.StartActivity("github.push_branch");
         activity?.SetTag("github.repository.id", repository.RepositoryId).SetTag("github.branch", request.Branch);
 
-        var connection = await ConnectionAsync(repository, false, cancellationToken).ConfigureAwait(false);
+        var connection = await WriteConnectionAsync(repository, GitHubWriteScope.ContentsWrite, cancellationToken).ConfigureAwait(false);
         var client = new Octokit.GitHubClient(connection);
         var branchName = request.Branch.StartsWith("refs/heads/", StringComparison.Ordinal)
             ? request.Branch["refs/heads/".Length..]
@@ -228,7 +343,7 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         using var activity = Activities.StartActivity("github.create_pull_request");
         activity?.SetTag("github.repository.id", repository.RepositoryId).SetTag("github.pull_request.title", request.Title);
 
-        var connection = await ConnectionAsync(repository, false, cancellationToken).ConfigureAwait(false);
+        var connection = await WriteConnectionAsync(repository, GitHubWriteScope.PullRequestsWrite, cancellationToken).ConfigureAwait(false);
         var client = new Octokit.GitHubClient(connection);
         var newPr = new Octokit.NewPullRequest(request.Title, request.HeadBranch, request.BaseBranch)
         {
@@ -259,7 +374,7 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
             .SetTag("github.pull_request.number", request.PullRequestNumber)
             .SetTag("github.comment.id", request.CommentId);
 
-        var connection = await ConnectionAsync(repository, false, cancellationToken).ConfigureAwait(false);
+        var connection = await WriteConnectionAsync(repository, GitHubWriteScope.PullRequestsWrite, cancellationToken).ConfigureAwait(false);
         var client = new Octokit.GitHubClient(connection);
         var reply = new Octokit.PullRequestReviewCommentReplyCreate(request.Body, request.CommentId);
         await client.PullRequest.ReviewComment.CreateReply(repository.RepositoryId, request.PullRequestNumber, reply).WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -273,7 +388,7 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         using var activity = Activities.StartActivity("github.merge_pull_request");
         activity?.SetTag("github.repository.id", repository.RepositoryId).SetTag("github.pull_request.number", request.PullRequestNumber);
 
-        var connection = await ConnectionAsync(repository, false, cancellationToken).ConfigureAwait(false);
+        var connection = await WriteConnectionAsync(repository, GitHubWriteScope.PullRequestsWrite, cancellationToken).ConfigureAwait(false);
         var client = new Octokit.GitHubClient(connection);
         var mergeMethod = request.MergeMethod?.ToLowerInvariant() switch
         {
@@ -366,8 +481,47 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         complete &= seenFiles.Count == expectedFiles;
         var after = await ReadPullAsync(repository, snapshot.Number, token).ConfigureAwait(false);
         complete &= Matches(snapshot, after) && SameRevision(pull, after);
+        var reviewComments = await TryReadReviewCommentsAsync(repository, snapshot.Number, token).ConfigureAwait(false);
         var evidence = text.ToString();
-        return new GitHubReviewEvidence(snapshot.HeadSha, snapshot.BaseSha, evidence, Hash(evidence), complete);
+        return new GitHubReviewEvidence(snapshot.HeadSha, snapshot.BaseSha, evidence, Hash(evidence), complete, reviewComments);
+    }
+
+    private async Task<GitHubReviewComment[]?> TryReadReviewCommentsAsync(GitHubRepository repository, int number, CancellationToken token)
+    {
+        try
+        {
+            var page = await GetAsync(repository, $"{repository.RepositoryPath}/pulls/{number}/comments?per_page=100&page=1", token).ConfigureAwait(false);
+            if (page.Json.ValueKind != JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            var comments = new List<GitHubReviewComment>();
+            foreach (var item in page.Json.EnumerateArray())
+            {
+                if (!item.TryGetProperty("id", out var idProp) || idProp.ValueKind != JsonValueKind.Number)
+                {
+                    continue;
+                }
+
+                var author = item.TryGetProperty("user", out var user) && user.ValueKind == JsonValueKind.Object
+                    ? OptionalString(user, "login") ?? "reviewer"
+                    : "reviewer";
+                var body = OptionalString(item, "body") ?? string.Empty;
+                var path = OptionalString(item, "path");
+                var line = item.TryGetProperty("line", out var lineProp) && lineProp.ValueKind == JsonValueKind.Number
+                    ? lineProp.GetInt32()
+                    : (int?)null;
+                comments.Add(new GitHubReviewComment(idProp.GetInt64(), author, body, path, line, Timestamp(item, "created_at")));
+            }
+
+            return comments.ToArray();
+        }
+        catch (Exception error) when (error is GitHubUnavailableException or GitHubAccessDeniedException or JsonException)
+        {
+            OsConsoleLog.For<GitHubRepositorySource>().LogSwallowed(error, "reading optional GitHub pull request review comments");
+            return null;
+        }
     }
 
     private async Task<CheckEvidence> ReadChecksAsync(GitHubRepository repository, string sha, CancellationToken token)
@@ -472,7 +626,7 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
                 {
                     response = await connection.Get<JsonElement>(new Uri(path, UriKind.Relative), new Dictionary<string, string>(), "application/vnd.github+json", token).ConfigureAwait(false);
                 }
-                catch (Octokit.AuthorizationException) when (attempt == 0)
+                catch (Octokit.AuthorizationException) when (attempt == 0 && !repository.IsPersonalAccessToken)
                 {
                     continue;
                 }
@@ -516,7 +670,33 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
     internal static string Hash(string text) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
     private static GitHubUnavailableException InvalidEvidence() => new("GitHub returned incomplete or incompatible repository evidence.");
     public void Dispose() => _http.Dispose();
-    private async Task<Octokit.Connection> ConnectionAsync(GitHubRepository repository, bool refresh, CancellationToken token) => new(new Octokit.ProductHeaderValue("IntoChatOS"), repository.ApiHost, new Octokit.Internal.InMemoryCredentialStore(new Octokit.Credentials(await _tokens.GetTokenAsync(repository, refresh, token).ConfigureAwait(false))), _http, _json);
+
+    private async Task<Octokit.Connection> ConnectionAsync(GitHubRepository repository, bool refresh, CancellationToken token)
+    {
+        var credential = repository.IsPersonalAccessToken
+            ? GitHubCredentialScope.RequirePersonalAccessToken(repository.Key)
+            : await _tokens.GetTokenAsync(repository, refresh, token).ConfigureAwait(false);
+        return new Octokit.Connection(
+            new Octokit.ProductHeaderValue("IntoChatOS"),
+            repository.ApiHost,
+            new Octokit.Internal.InMemoryCredentialStore(new Octokit.Credentials(credential)),
+            _http,
+            _json);
+    }
+
+    private async Task<Octokit.Connection> WriteConnectionAsync(GitHubRepository repository, GitHubWriteScope scope, CancellationToken token)
+    {
+        var credential = repository.IsPersonalAccessToken
+            ? GitHubCredentialScope.RequirePersonalAccessToken(repository.Key)
+            : await _tokens.GetWriteTokenAsync(repository, scope, token).ConfigureAwait(false);
+        return new Octokit.Connection(
+            new Octokit.ProductHeaderValue("IntoChatOS"),
+            repository.ApiHost,
+            new Octokit.Internal.InMemoryCredentialStore(new Octokit.Credentials(credential)),
+            _http,
+            _json);
+    }
+
     // Octokit owns HTTP, error handling and provider DTO conversion. JsonElement is used only
     // for bounded consistency comparisons and rules endpoints not modeled by stable Octokit.
     private sealed class GitHubJsonSerializer : Octokit.Internal.IJsonSerializer
@@ -526,7 +706,7 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
         public T Deserialize<T>(string json) => typeof(T) == typeof(JsonElement) ? (T)(object)JsonSerializer.Deserialize<JsonElement>(json) : _native.Deserialize<T>(json);
     }
 
-    private sealed class BoundedResponseHandler(HttpMessageHandler inner) : DelegatingHandler(inner)
+    private sealed class BoundedResponseHandler(HttpMessageHandler inner, bool ownsInner) : DelegatingHandler(inner)
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -542,6 +722,8 @@ internal sealed class GitHubRepositorySource : IGitHubRepositorySource, IDisposa
                 throw;
             }
         }
+
+        protected override void Dispose(bool disposing) => base.Dispose(disposing && ownsInner);
     }
 
     private sealed record ApiPage(JsonElement Json, bool HasNext);
