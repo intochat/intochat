@@ -102,6 +102,26 @@ public sealed class InoAppFacts
     }
 
     [Fact]
+    public void InoPersonaShowsHowToDrawANodeCardAndHowToPoint()
+    {
+        var def = InoAgentDefinition.For(new UserSettingsState() with { DisplayName = "Vlad", DefaultModel = "qwen2.5-coder:14b" });
+        const string expectedShowArgs = """["Fruit", "{\"kind\":\"dataTable\",\"title\":\"Fruit\",\"columns\":[\"Fruit\",\"Colour\"],\"rows\":[[\"Apple\",\"Red\"],[\"Banana\",\"Yellow\"]]}"]""";
+        const string expectedPointArgs = """["window:settings", "Info", "Your model settings are here"]""";
+
+        Assert.Contains("`Show`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains(expectedShowArgs, def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`Point` only points at something that already exists", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains(expectedPointArgs, def.Instructions, StringComparison.Ordinal);
+
+        // The Show example in the persona must itself be valid positional arguments accepted by InoNodeCard.
+        var parsedArgs = System.Text.Json.JsonSerializer.Deserialize<string[]>(expectedShowArgs);
+        Assert.NotNull(parsedArgs);
+        Assert.Equal(2, parsedArgs!.Length);
+        Assert.True(InoNodeCard.TryRead(parsedArgs[1], out var node, out var refusal), refusal);
+        Assert.IsType<DataTable>(node);
+    }
+
+    [Fact]
     public async Task InoAndPostBddScenariosAndSystemNeuronsPass()
     {
         using var person = Edge.AsPerson();

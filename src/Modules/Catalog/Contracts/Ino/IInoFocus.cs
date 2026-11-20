@@ -16,4 +16,6 @@ public interface IInoFocus
     Task<InoToolResult> Point(string target, FocusTone tone, string reason, FocusAction? action = null);
 
     Task<InoToolResult> Clear();
+
+    Task<InoToolResult> Show(string title, string node);
 }

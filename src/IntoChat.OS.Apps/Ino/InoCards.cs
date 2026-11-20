@@ -72,7 +72,7 @@ internal static partial class InoCards
             using var payload = JsonDocument.Parse(result);
             return payload.RootElement is { ValueKind: JsonValueKind.Object } root
                 && root.TryGetProperty("card", out var card) && card.ValueKind == JsonValueKind.Object
-                ? card.Deserialize<InoCard>(JsonSerializerOptions.Web)
+                ? card.Deserialize(InoJson.Default.InoCard)
                 : null;
         }
         catch (JsonException) { return null; }

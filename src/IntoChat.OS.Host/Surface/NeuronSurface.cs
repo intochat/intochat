@@ -107,7 +107,9 @@ public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel,
             : candidates.Where(candidate => RequiredArguments(candidate) <= payload.Length && payload.Length <= TotalArguments(candidate)).ToArray();
         if (compatibleMatches.Length == 0)
         {
-            throw new ArgumentException($"{type.Name} has no method {method} taking {payload.Length} arguments.");
+            var overloads = candidates.Select(FormatSignature).Distinct(StringComparer.Ordinal).ToArray();
+            var expected = overloads.Length > 0 ? $" Expected: {string.Join(" or ", overloads)}." : string.Empty;
+            throw new ArgumentException($"{type.Name} has no method {method} taking {payload.Length} arguments.{expected}");
         }
         if (compatibleMatches.Length > 1)
         {
@@ -244,4 +246,25 @@ public sealed class OsNeuronSurface(INeuronProxies brain, IBrainObserver kernel,
         => plain ?? throw new NotSupportedException("This host cannot reach plain neurons: it registers no IPlainNeurons (the silo's kernel composition does).");
 
     private static bool IsArgument(ParameterInfo parameter) => parameter.ParameterType != typeof(CancellationToken);
+
+    private static string FormatSignature(MethodInfo candidate)
+    {
+        var required = new List<string>();
+        var optional = new List<string>();
+        foreach (var parameter in candidate.GetParameters())
+        {
+            if (!IsArgument(parameter)) { continue; }
+            var name = parameter.Name ?? "_";
+            if (parameter.HasDefaultValue) { optional.Add(name); }
+            else { required.Add(name); }
+        }
+
+        var req = string.Join(", ", required);
+        var opt = optional.Count == 0
+            ? string.Empty
+            : required.Count == 0
+                ? $"[{string.Join(", ", optional)}]"
+                : $"[, {string.Join(", ", optional)}]";
+        return $"{candidate.Name}({req}{opt})";
+    }
 }

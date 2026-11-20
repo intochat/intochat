@@ -41,6 +41,23 @@ internal sealed class InoFocusNeuron : DigitalBrain.Neurons.Neuron, IInoFocus
         }
         return new InoToolResult("Cleared the focus.");
     }
+
+    public Task<InoToolResult> Show(string title, string node)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return Task.FromResult(new InoToolResult("Title is required.", Ok: false));
+        }
+
+        if (!InoNodeCard.TryRead(node, out _, out var refusal))
+        {
+            return Task.FromResult(new InoToolResult(refusal, Ok: false));
+        }
+
+        var id = $"node-{Guid.NewGuid():N}";
+        var card = new InoCard(id, "node", title.Trim(), string.Empty, IInoFocus.DefaultKey, "done") { Node = node };
+        return Task.FromResult(new InoToolResult("Shown.", card));
+    }
 }
 
 internal sealed record FocusActionJson(string Kind, string Argument);
