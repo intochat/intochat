@@ -4,8 +4,8 @@ using DigitalBrain;
 using DigitalBrain.Neurons;
 using DigitalBrain.Rules;
 using DigitalBrain.State;
-using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Modules.AI.Agents.Signals;
+using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Modules.AI.Memory;
 

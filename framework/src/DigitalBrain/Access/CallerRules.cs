@@ -1,7 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
-using DigitalBrain.Access;
 
-namespace IntoChat.OS.Framework;
+namespace DigitalBrain.Access;
 
 // The authority checks the platform contracts make, read from the caller the kernel stamped, never from an argument.
 public static class CallerRules

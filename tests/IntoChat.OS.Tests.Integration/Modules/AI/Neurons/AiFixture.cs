@@ -1,7 +1,7 @@
 using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Testing;
-using IntoChat.OS.Connections.Platform.Secrets;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Modules.AI.Tests;
 

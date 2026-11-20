@@ -1,9 +1,9 @@
 using DigitalBrain;
 using DigitalBrain.Rules;
 using DigitalBrain.Testing;
-using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Modules.AI.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Modules.AI.Tests.Unit;
 

@@ -1,6 +1,7 @@
 using DigitalBrain.Brains;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Framework;
+using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.Postgres.Tables;
 

@@ -209,3 +209,10 @@ const DigitalBrain.Runtime.Http.Surface.JournalTailEndpoints.EventType = "journa
 static readonly DigitalBrain.Runtime.Http.Surface.JournalTailEndpoints.Window -> System.TimeSpan
 static DigitalBrain.Runtime.Http.Surface.JournalTailEndpoints.Map(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> void
 DigitalBrain.Runtime.Http.Storage.UploadPlanBook.Approve(string! planId, DigitalBrain.Access.Caller! caller) -> bool
+DigitalBrain.Runtime.Http.Surface.HttpCaller
+DigitalBrain.Runtime.Http.Surface.HttpSurfaceExtensions
+DigitalBrain.Runtime.Http.Surface.ModuleRouteGuard
+static DigitalBrain.Runtime.Http.Surface.HttpCaller.Current(Microsoft.AspNetCore.Http.HttpContext! http) -> DigitalBrain.Access.Caller?
+static DigitalBrain.Runtime.Http.Surface.HttpCaller.RequiredPerson(Microsoft.AspNetCore.Http.HttpContext! http) -> DigitalBrain.Access.Actor.Person!
+static DigitalBrain.Runtime.Http.Surface.HttpSurfaceExtensions.UseModuleHttpSurfaces(this Microsoft.AspNetCore.Builder.IApplicationBuilder! app) -> Microsoft.AspNetCore.Builder.IApplicationBuilder!
+static DigitalBrain.Runtime.Http.Surface.ModuleRouteGuard.Guard(Microsoft.AspNetCore.Http.EndpointFilterInvocationContext! context, Microsoft.AspNetCore.Http.EndpointFilterDelegate! next) -> System.Threading.Tasks.ValueTask<object?>

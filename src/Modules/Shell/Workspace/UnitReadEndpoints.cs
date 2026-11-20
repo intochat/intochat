@@ -30,7 +30,7 @@ internal static class UnitReadEndpoints
 
     // The brain the route names is data, scoped under the account of the person the stamped caller acts for.
     private static string ResolveScope(HttpContext http, string brainId)
-        => IntoChat.OS.Framework.HttpCaller.Current(http)?.For is { } person
+        => DigitalBrain.Runtime.Http.Surface.HttpCaller.Current(http)?.For is { } person
             ? BrainScope.Create(person.Account, brainId).Id
             : BrainScope.CurrentId();
 

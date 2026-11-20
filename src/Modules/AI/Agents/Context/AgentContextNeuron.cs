@@ -7,6 +7,7 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Modules.AI.Agents.Context.Rules;
 using IntoChat.OS.Modules.AI.Agents.Context.Signals;
+using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.AI.Agents.Context;
 

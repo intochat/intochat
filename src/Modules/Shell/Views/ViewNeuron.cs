@@ -71,7 +71,7 @@ internal sealed class ViewNeuron
 
     // The brain's person or platform, or the app that owns the key ({app}/…); never another brain.
     internal static bool Writes(DigitalBrain.Access.Caller caller, string name)
-        => BrainKey.BelongsTo(name, caller.Brain.Value) && (!IntoChat.OS.Framework.CallerRules.IsApp(caller, out var app) ||
+        => BrainKey.BelongsTo(name, caller.Brain.Value) && (!DigitalBrain.Access.CallerRules.IsApp(caller, out var app) ||
             !string.IsNullOrEmpty(app) && name.StartsWith(app + "/", StringComparison.Ordinal));
 }
 

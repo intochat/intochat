@@ -1,17 +1,15 @@
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
-using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Connections.Platform.Secrets;
+namespace DigitalBrain.Capabilities.Secrets;
 
 // Resolves the values at redaction time and keeps them only in locals: nothing is cached or logged.
-// When invoked under an App principal (e.g. InoApp driving AgentNeuron), SecretRedactor enters the
-// owner's relayed identity scope solely inside Values() so output masking succeeds without ever exposing raw
-// secrets to apps or relaxing VaultSecretValueSource's direct zero-token guard.
-internal sealed class SecretRedactor(IServiceProvider services) : ISecretRedactor
+// When invoked under an App principal (an app driving an agent), SecretRedactor enters the owner's relayed identity
+// scope solely inside Values() so output masking succeeds without ever exposing raw secrets to apps or relaxing the
+// value source's direct zero-token guard.
+public sealed class SecretRedactor(IServiceProvider services) : ISecretRedactor
 {
     internal const int MinimumLength = 8;
     internal const string Mask = "****";

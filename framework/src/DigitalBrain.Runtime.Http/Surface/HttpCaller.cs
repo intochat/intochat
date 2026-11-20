@@ -2,7 +2,7 @@ using DigitalBrain.Access;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Framework;
+namespace DigitalBrain.Runtime.Http.Surface;
 
 // The caller the authenticated edge entered for this request (AccountSession), read from the ambient.
 public static class HttpCaller

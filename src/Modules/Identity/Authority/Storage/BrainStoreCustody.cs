@@ -12,7 +12,7 @@ public static class BrainStoreCustody
     {
         ArgumentNullException.ThrowIfNull(services);
         var options = services.GetRequiredService<IOptions<OsBrainStoreOptions>>().Value;
-        var configured = services.GetRequiredService<IMasterKeyCustody>() is Keys.ConfiguredMasterKeyCustody;
+        var configured = services.GetRequiredService<IMasterKeyCustody>() is DigitalBrain.Identity.Local.Custody.ConfiguredMasterKeyCustody;
         if (options.Custody == MasterKeyCustodyKind.Tpm && configured)
         { throw new InvalidOperationException("TPM custody requires the Windows connector and an available TPM."); }
         if (services.GetRequiredService<IHostEnvironment>().IsProduction() && configured && !options.ConfiguredCustodyAcknowledged)

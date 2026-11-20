@@ -91,8 +91,6 @@ public enum GrantMode
 /// <summary>An owner's permission for an app to use one semantic type in a brain. Semantic type ids double as scopes.</summary>
 public sealed record Grant
 {
-    private const string UseViaPrefix = "use-via:";
-
     /// <summary>Creates an empty grant with default tuple metadata.</summary>
     [SetsRequiredMembers]
     public Grant() { }
@@ -182,7 +180,7 @@ public sealed record Grant
             scope: relation,
             expires: expires)
         {
-            Delegable = !(relation?.StartsWith(UseViaPrefix, StringComparison.Ordinal) ?? false) && delegable,
+            Delegable = !(relation?.StartsWith(GrantRelations.UseViaPrefix, StringComparison.Ordinal) ?? false) && delegable,
         };
 #pragma warning restore CS0618
     }

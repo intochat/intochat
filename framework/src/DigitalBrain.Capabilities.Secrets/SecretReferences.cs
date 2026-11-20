@@ -1,8 +1,5 @@
-using DigitalBrain.Capabilities.Secrets;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 
-namespace IntoChat.OS.Connections;
+namespace DigitalBrain.Capabilities.Secrets;
 
 public static class SecretReferences
 {

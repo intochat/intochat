@@ -13,6 +13,7 @@ using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans;
+using DigitalBrain.Access;
 
 namespace IntoChat.OS.Kernel.Composition.Registry;
 

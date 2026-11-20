@@ -14,6 +14,7 @@ using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Modules.Apps.Flows;
 

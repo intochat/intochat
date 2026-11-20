@@ -319,7 +319,7 @@ internal sealed class CircleNeuron(
                 $"brain:{source}",
                 $"brain:{CircleBrain}",
                 sourceApp.Key,
-                IntoChat.OS.Connections.Identity.GrantRelations.Run) with
+                DigitalBrain.Capabilities.Identity.GrantRelations.Run) with
             {
                 Id = $"circle:{CircleBrain}:app:{appName}",
             });

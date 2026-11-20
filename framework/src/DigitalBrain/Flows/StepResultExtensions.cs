@@ -1,7 +1,6 @@
 using DigitalBrain;
-using DigitalBrain.Flows;
 
-namespace IntoChat.OS.Primitives;
+namespace DigitalBrain.Flows;
 
 /// <summary>
 /// Fluent helpers for constructing <see cref="StepResult{T}"/> values in durable OS flows.

@@ -13,6 +13,7 @@ using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Options;
 using Idn = DigitalBrain.Capabilities.Identity;
+using DigitalBrain.Capabilities.Identity;
 
 namespace IntoChat.OS.Modules.Apps;
 

@@ -626,3 +626,15 @@ static DigitalBrain.Capabilities.Identity.Model.SessionBook.operator !=(DigitalB
 static DigitalBrain.Capabilities.Identity.Model.SessionBook.operator ==(DigitalBrain.Capabilities.Identity.Model.SessionBook? left, DigitalBrain.Capabilities.Identity.Model.SessionBook? right) -> bool
 static DigitalBrain.Capabilities.Identity.Model.SessionStarted.operator !=(DigitalBrain.Capabilities.Identity.Model.SessionStarted? left, DigitalBrain.Capabilities.Identity.Model.SessionStarted? right) -> bool
 static DigitalBrain.Capabilities.Identity.Model.SessionStarted.operator ==(DigitalBrain.Capabilities.Identity.Model.SessionStarted? left, DigitalBrain.Capabilities.Identity.Model.SessionStarted? right) -> bool
+DigitalBrain.Capabilities.Identity.CapabilityIdentity
+DigitalBrain.Capabilities.Identity.GrantRelations
+const DigitalBrain.Capabilities.Identity.GrantRelations.Admin = "admin" -> string!
+const DigitalBrain.Capabilities.Identity.GrantRelations.Install = "install" -> string!
+const DigitalBrain.Capabilities.Identity.GrantRelations.Post = "post" -> string!
+const DigitalBrain.Capabilities.Identity.GrantRelations.Run = "run" -> string!
+const DigitalBrain.Capabilities.Identity.GrantRelations.Subscribe = "subscribe" -> string!
+const DigitalBrain.Capabilities.Identity.GrantRelations.UseViaPrefix = "use-via:" -> string!
+const DigitalBrain.Capabilities.Identity.GrantRelations.View = "view" -> string!
+static DigitalBrain.Capabilities.Identity.CapabilityIdentity.Grants(this DigitalBrain.Capabilities.ICapabilityBroker! broker, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.IGrants!>!
+static DigitalBrain.Capabilities.Identity.CapabilityIdentity.Identity(this DigitalBrain.Capabilities.ICapabilityBroker! broker, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DigitalBrain.Capabilities.Identity.IIdentity!>!
+static DigitalBrain.Capabilities.Identity.GrantRelations.IsUseVia(string? scope) -> bool

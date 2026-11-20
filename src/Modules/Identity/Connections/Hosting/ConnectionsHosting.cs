@@ -1,9 +1,10 @@
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Hosting;
-using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using DigitalBrain.Capabilities.Connections;
+using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Connections;
 

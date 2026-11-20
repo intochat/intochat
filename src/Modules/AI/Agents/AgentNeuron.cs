@@ -6,7 +6,6 @@ using DigitalBrain.Capabilities.Compute;
 using DigitalBrain.Invocation;
 using DigitalBrain.Neurons;
 using DigitalBrain.State;
-using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Framework;
 using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.AI.Agents.Context;
@@ -17,6 +16,7 @@ using IntoChat.OS.Modules.AI.Memory;
 using IntoChat.OS.Modules.AI.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Modules.AI.Agents;
 

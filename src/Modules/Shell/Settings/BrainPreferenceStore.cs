@@ -33,7 +33,7 @@ internal static class BrainPreferenceStore
 
     // Installed apps (App callers or calls through the app proxy) cannot change a person's preferences,
     // as brain entries refuse them.
-    public static bool IsAppCaller(DigitalBrain.Access.Caller? caller) => IntoChat.OS.Framework.CallerRules.IsApp(caller, out _);
+    public static bool IsAppCaller(DigitalBrain.Access.Caller? caller) => DigitalBrain.Access.CallerRules.IsApp(caller, out _);
 
     public static bool IsNotificationKey(string key) => NotificationKeys.Any(known => known.Key == key);
 

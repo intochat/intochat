@@ -4482,3 +4482,15 @@ DigitalBrain.UI.Commands.UpdateMessage.UpdateMessage(string! Id, DigitalBrain.UI
 DigitalBrain.UI.Commands.ImportMessages.ImportMessages(System.Collections.Generic.IReadOnlyList<DigitalBrain.UI.ThreadMessage?>? Messages, bool Replace = false) -> void
 DigitalBrain.IScreen.ReadSlot(string! path) -> System.Threading.Tasks.Task<DigitalBrain.Units.PublishedView?>!
 DigitalBrain.Screen<TState>.ReadSlot(string! path) -> System.Threading.Tasks.Task<DigitalBrain.Units.PublishedView?>!
+DigitalBrain.Access.CallerRules
+DigitalBrain.Access.UploadScope
+DigitalBrain.Flows.StepResultExtensions
+static DigitalBrain.Access.CallerRules.ActsFor(DigitalBrain.Access.Caller? caller) -> string?
+static DigitalBrain.Access.CallerRules.IsApp(DigitalBrain.Access.Caller? caller, out string? key) -> bool
+static DigitalBrain.Access.CallerRules.IsDirectPerson(DigitalBrain.Access.Caller? caller, string! principal) -> bool
+static DigitalBrain.Access.CallerRules.IsKernel(DigitalBrain.Access.Caller? caller) -> bool
+static DigitalBrain.Access.UploadScope.Of(DigitalBrain.Access.Caller? caller) -> string!
+static DigitalBrain.Flows.StepResultExtensions.Advance<T>(this T inner, params DigitalBrain.Signal![]! signals) -> DigitalBrain.Flows.StepResult<T>!
+static DigitalBrain.Flows.StepResultExtensions.PollAt<T>(this T inner, string! step, System.DateTimeOffset wakeAt, params DigitalBrain.Signal![]! signals) -> DigitalBrain.Flows.StepResult<T>!
+static DigitalBrain.Flows.StepResultExtensions.WaitApproval<T>(this T inner, string! step, System.DateTimeOffset? expires = null, string? confirmationPlanId = null, params DigitalBrain.Signal![]! signals) -> DigitalBrain.Flows.StepResult<T>!
+static DigitalBrain.Flows.StepResultExtensions.WaitExternal<T>(this T inner, string! step, string? confirmationPlanId = null, params DigitalBrain.Signal![]! signals) -> DigitalBrain.Flows.StepResult<T>!

@@ -3,8 +3,8 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Framework.Modules;
+using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Authority.Secrets;
 

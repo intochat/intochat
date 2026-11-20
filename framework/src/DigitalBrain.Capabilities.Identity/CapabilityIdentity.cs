@@ -1,9 +1,8 @@
 // os-only: the os identity@1 capability helpers over the os capability broker.
 using DigitalBrain;
 using DigitalBrain.Capabilities;
-using DigitalBrain.Capabilities.Identity;
 
-namespace IntoChat.OS.Framework;
+namespace DigitalBrain.Capabilities.Identity;
 
 // identity@1 and its grants are single-connection capabilities: the brain argument is not a directory key.
 public static class CapabilityIdentity

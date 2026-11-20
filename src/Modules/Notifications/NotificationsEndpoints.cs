@@ -5,6 +5,7 @@ using IntoChat.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using DigitalBrain.Runtime.Http.Surface;
 
 namespace IntoChat.OS.Modules.Notifications;
 

@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.Capabilities.Connections.Integrations;
 using DigitalBrain.Testing;
-using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Inference;
@@ -12,6 +11,7 @@ using IntoChat.OS.Modules.UI;
 using IntoChat.OS.Modules.UI.Tabs;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Modules.AI.Tests.Unit;
 

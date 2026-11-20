@@ -47,7 +47,7 @@ public static class PlatformHosting
         services.AddOptions<DigitalBrain.Runtime.Orleans.BrainStoreOptions>().BindConfiguration(Storage.OsBrainStoreOptions.Key)
             .PostConfigure<Microsoft.Extensions.Configuration.IConfiguration, IServiceProvider>((options, configuration, sp) => options.Directory = DigitalBrain.Runtime.Orleans.StateHome.Resolve(configuration, sp.GetService<DigitalBrain.Runtime.Orleans.RuntimeOptions>() ?? Identity.PresenceProofValidator.DefaultRuntimeOptions).State);
         services.AddSiloDiagnostics();
-        services.TryAddSingleton<DigitalBrain.Identity.Local.Custody.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
+        services.TryAddSingleton<DigitalBrain.Identity.Local.Custody.IMasterKeyCustody>(provider => new DigitalBrain.Identity.Local.Custody.ConfiguredMasterKeyCustody(
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
         services.TryAddSingleton<DigitalBrain.Runtime.Orleans.IBrainKeyCustody>(provider =>
             new MasterKeyBrainCustodyAdapter(provider.GetRequiredService<DigitalBrain.Identity.Local.Custody.IMasterKeyCustody>()));
@@ -56,7 +56,7 @@ public static class PlatformHosting
         services.TryAddSingleton<IEdgeGrantsCache>(sp => sp.GetRequiredService<EdgeGrantsCache>());
         services.AddSingleton<IConnectionBindings, Connections.ConnectionBindings>();
         services.TryAddSingleton<IBrainSecretSealer, Secrets.BrainSecretSealer>();
-        services.TryAddSingleton<IntoChat.OS.Connections.Platform.Secrets.ISecretValueSource, Secrets.VaultSecretValueSource>();
+        services.TryAddSingleton<DigitalBrain.Capabilities.Secrets.ISecretValueSource, Secrets.VaultSecretValueSource>();
         services.TryAddSingleton<IIdentityClient, Identity.LocalIdentityClient>();
         services.TryAddSingleton<IBrainOwnerDispatch, Identity.BrainOwnerDispatch>();
         services.TryAddSingleton<AuthorityNeurons>();

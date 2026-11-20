@@ -2,12 +2,12 @@ using IntoChat.OS.Framework;
 using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Runtime.Orleans.Capabilities;
-using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Contracts.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Runtime.Http.Surface;
 
 namespace IntoChat.OS.Authority.Secrets;
 

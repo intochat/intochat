@@ -1,10 +1,7 @@
-using DigitalBrain.Runtime.Http.Surface;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace IntoChat.OS.Connections;
+namespace DigitalBrain.Runtime.Http.Surface;
 
 public static class HttpSurfaceExtensions
 {

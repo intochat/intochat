@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Access;
 using DigitalBrain.Capabilities;
 using IntoChat.OS.Framework;
+using DigitalBrain.Capabilities.Identity;
 
 namespace IntoChat.OS.Modules.Apps;
 

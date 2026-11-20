@@ -15,6 +15,7 @@ using IntoChat.OS.Connections.Platform.Connections;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Runtime;
+using DigitalBrain.Flows;
 
 namespace IntoChat.OS.Authority;
 

@@ -153,7 +153,7 @@ public sealed class KernelCapabilityConnections(IServiceProvider plain, IService
 
         var (owner, connector, connectionId) = ConnectionKeys.Parse(key);
         // Bound for the stamped caller (an app, or an agent as the assistant), never for the app id the request names.
-        var bindings = services.GetService<IntoChat.OS.Connections.IConnectionBindings>();
+        var bindings = services.GetService<DigitalBrain.Capabilities.Connections.IConnectionBindings>();
         var isBound = owner != brain.Value && bindings is not null && bindings.IsBound(key, ct).AsTask().GetAwaiter().GetResult();
         if (owner != brain.Value && !isBound)
         {

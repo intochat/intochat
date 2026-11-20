@@ -6,6 +6,7 @@ using DigitalBrain.Runtime.Orleans;
 using DigitalBrain.Testing;
 using IntoChat.OS.Tests.E2E.Harness;
 using Xunit;
+using DigitalBrain.Flows;
 
 namespace IntoChat.OS.Tests.E2E.Tier1_FeatureCoverage;
 

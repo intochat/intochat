@@ -10,6 +10,7 @@ using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework.Execution;
 using IntoChat.OS.Framework.Modules;
 using Microsoft.Extensions.Configuration;
+using DigitalBrain.Flows;
 
 namespace IntoChat.OS.Modules.Microsoft.Aspire.Candidates;
 

@@ -6,6 +6,7 @@ using DigitalBrain.Testing;
 using IntoChat.OS.Tests.E2E.Fixtures.Doubles;
 using IntoChat.OS.Tests.E2E.Harness;
 using Xunit;
+using DigitalBrain.Flows;
 
 namespace IntoChat.OS.Tests.E2E.Tier2_BoundaryCases;
 

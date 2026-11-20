@@ -8,6 +8,7 @@ using IntoChat.OS.Framework.Logging;
 using IntoChat.OS.Modules.Apps.Debugger;
 using IntoChat.OS.Modules.Apps.Trace;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Modules.Apps;
 

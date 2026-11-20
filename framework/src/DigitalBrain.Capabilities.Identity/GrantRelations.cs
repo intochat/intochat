@@ -1,4 +1,4 @@
-namespace IntoChat.OS.Connections.Identity;
+namespace DigitalBrain.Capabilities.Identity;
 
 public static class GrantRelations
 {

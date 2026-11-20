@@ -110,7 +110,7 @@ internal sealed partial class ChatNeuron(IChatAgentSource adapter) : UiNeuron<Ch
     [DigitalBrain.Contracts.ReadOnlyCall]
     public Task<ChatState> Read()
     {
-        var principal = IntoChat.OS.Framework.CallerRules.ActsFor(Context.Caller);
+        var principal = DigitalBrain.Access.CallerRules.ActsFor(Context.Caller);
         var projection = Snapshot.Projection;
         var unread = projection is null || principal is null ? [] : projection.Messages
             .Where(message => message.Role == ChatRole.Assistant && message.Status == "completed"

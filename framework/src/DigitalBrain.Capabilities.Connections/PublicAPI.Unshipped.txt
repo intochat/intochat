@@ -893,3 +893,8 @@ override DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable
 override sealed DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.Equals(DigitalBrain.Rules.Rule? other) -> bool
 static DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.operator !=(DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable? left, DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable? right) -> bool
 static DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable.operator ==(DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable? left, DigitalBrain.Capabilities.Connections.Connectors.IntegrationIsAvailable? right) -> bool
+DigitalBrain.Capabilities.Connections.IConnectionBindings
+DigitalBrain.Capabilities.Connections.IConnectionBindings.IsBound(string! connectionKey, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
+DigitalBrain.Capabilities.Connections.NoConnectionBindings
+DigitalBrain.Capabilities.Connections.NoConnectionBindings.IsBound(string! connectionKey, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
+DigitalBrain.Capabilities.Connections.NoConnectionBindings.NoConnectionBindings() -> void

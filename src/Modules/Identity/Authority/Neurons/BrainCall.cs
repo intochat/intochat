@@ -13,6 +13,7 @@ using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Runtime.Http.Surface;
 
 namespace IntoChat.OS.Authority.Neurons;
 

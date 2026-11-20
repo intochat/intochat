@@ -1,11 +1,9 @@
 using DigitalBrain;
 using DigitalBrain.Errors;
 using DigitalBrain.Neurons;
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 using Microsoft.AspNetCore.Http;
 
-namespace IntoChat.OS.Connections;
+namespace DigitalBrain.Runtime.Http.Surface;
 
 // The map from a module route's exceptions to HTTP; a group that throws plain neuron errors adds it once.
 public static class ModuleRouteGuard

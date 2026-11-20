@@ -20,6 +20,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using IntoChat.OS.Modules.AI.Routing;
+using DigitalBrain.Access;
 
 namespace IntoChat.OS.Modules.Apps.Routing;
 

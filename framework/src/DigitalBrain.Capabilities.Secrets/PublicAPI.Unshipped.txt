@@ -79,3 +79,17 @@ override DigitalBrain.Capabilities.Secrets.SealedSecret.GetHashCode() -> int
 override DigitalBrain.Capabilities.Secrets.SealedSecret.ToString() -> string!
 static DigitalBrain.Capabilities.Secrets.SealedSecret.operator !=(DigitalBrain.Capabilities.Secrets.SealedSecret? left, DigitalBrain.Capabilities.Secrets.SealedSecret? right) -> bool
 static DigitalBrain.Capabilities.Secrets.SealedSecret.operator ==(DigitalBrain.Capabilities.Secrets.SealedSecret? left, DigitalBrain.Capabilities.Secrets.SealedSecret? right) -> bool
+DigitalBrain.Capabilities.Secrets.ISecretRedactor
+DigitalBrain.Capabilities.Secrets.ISecretRedactor.Redact(string? text, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
+DigitalBrain.Capabilities.Secrets.ISecretRedactor.TailLength(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+DigitalBrain.Capabilities.Secrets.ISecretValueSource
+DigitalBrain.Capabilities.Secrets.ISecretValueSource.CurrentValues(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<string!>!>
+DigitalBrain.Capabilities.Secrets.SecretRedactor
+DigitalBrain.Capabilities.Secrets.SecretRedactor.Redact(string? text, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
+DigitalBrain.Capabilities.Secrets.SecretRedactor.SecretRedactor(System.IServiceProvider! services) -> void
+DigitalBrain.Capabilities.Secrets.SecretRedactor.TailLength(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+DigitalBrain.Capabilities.Secrets.SecretReferences
+static DigitalBrain.Capabilities.Secrets.SecretReferences.For(string! owner, string! secretId, string! label, bool isSet) -> DigitalBrain.Capabilities.Secrets.SecretRef!
+static DigitalBrain.Capabilities.Secrets.SecretReferences.FromReference(string! reference, string! label = "") -> DigitalBrain.Capabilities.Secrets.SecretRef!
+static DigitalBrain.Capabilities.Secrets.SecretReferences.IsReference(string? reference) -> bool
+static DigitalBrain.Capabilities.Secrets.SecretReferences.OwnerOf(this DigitalBrain.Capabilities.Secrets.SecretRef! value) -> string!

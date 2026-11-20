@@ -19,7 +19,6 @@ using IntoChat.OS.Apps.PhotoCraft;
 using IntoChat.OS.Apps.Settings;
 using IntoChat.OS.Authority.Identity.Grants;
 using IntoChat.OS.Connections.Identity;
-using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Context;
 using IntoChat.OS.Modules.AI.Agents.Signals;
@@ -36,6 +35,7 @@ using IntoChat.OS.Primitives;
 using IntoChat.OS.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 

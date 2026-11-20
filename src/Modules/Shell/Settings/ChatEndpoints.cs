@@ -58,7 +58,7 @@ internal static class ChatEndpoints
 
     // No caller, or an installed app, may not read or change a person's chats.
     private static bool Refused(HttpContext http)
-        => IntoChat.OS.Framework.HttpCaller.Current(http) is not { } caller || IntoChat.OS.Framework.CallerRules.IsApp(caller, out _);
+        => DigitalBrain.Runtime.Http.Surface.HttpCaller.Current(http) is not { } caller || DigitalBrain.Access.CallerRules.IsApp(caller, out _);
 
     private static async Task<IChatIndex> Index(INeuronProxies brain, CancellationToken ct)
     {

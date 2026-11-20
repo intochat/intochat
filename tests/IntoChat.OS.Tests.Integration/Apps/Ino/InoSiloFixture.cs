@@ -35,7 +35,6 @@ using IntoChat.OS.Authority.Identity;
 using IntoChat.OS.Connections;
 using IntoChat.OS.Connections.Contracts;
 using IntoChat.OS.Connections.Platform.Entries;
-using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Connections.Surface;
 using IntoChat.OS.Contracts.Configuration;
 using IntoChat.OS.Framework;

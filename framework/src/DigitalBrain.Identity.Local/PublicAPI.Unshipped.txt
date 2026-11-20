@@ -236,3 +236,7 @@ DigitalBrain.Identity.Local.Vault.LocalVaultPort.Set(string! name, string! label
 DigitalBrain.Identity.Local.Machine.MachineId
 DigitalBrain.Identity.Local.Machine.MachineId.MachineId(string! file) -> void
 DigitalBrain.Identity.Local.Machine.MachineId.Value.get -> string!
+DigitalBrain.Identity.Local.Custody.ConfiguredMasterKeyCustody
+DigitalBrain.Identity.Local.Custody.ConfiguredMasterKeyCustody.ConfiguredMasterKeyCustody(byte[]! root) -> void
+DigitalBrain.Identity.Local.Custody.ConfiguredMasterKeyCustody.Unwrap(string! accountId, string! context, byte[]! wrapped) -> byte[]!
+DigitalBrain.Identity.Local.Custody.ConfiguredMasterKeyCustody.Wrap(string! accountId, string! context, byte[]! secret) -> byte[]!

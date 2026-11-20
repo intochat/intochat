@@ -6,12 +6,12 @@ using DigitalBrain.UI;
 using DigitalBrain.UI.Controls;
 using IntoChat.OS.Apps.Controls;
 using IntoChat.OS.Apps.Ino;
-using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Modules.AI.Agents;
 using IntoChat.OS.Modules.AI.Agents.Signals;
 using IntoChat.OS.Modules.AI.Models.Ollama;
 using IntoChat.OS.Modules.Apps;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Apps.Tests.Unit.Ino;
 

@@ -1,7 +1,5 @@
-using IntoChat.OS.Framework;
-using IntoChat.OS.Framework.Modules;
 
-namespace IntoChat.OS.Connections.Platform.Secrets;
+namespace DigitalBrain.Capabilities.Secrets;
 
 // Masks the calling brain's vault values in text before it is announced, stored or exported.
 public interface ISecretRedactor

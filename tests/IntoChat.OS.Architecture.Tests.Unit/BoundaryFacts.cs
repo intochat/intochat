@@ -3,7 +3,6 @@ using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
 using DigitalBrain.Modules;
 using IntoChat.OS.Connections.Platform.Integrations;
-using IntoChat.OS.Connections.Platform.Secrets;
 using IntoChat.OS.Framework.Modules.Platform.Identity;
 
 namespace IntoChat.OS.Architecture.Tests.Unit;
@@ -112,14 +111,13 @@ public sealed class BoundaryFacts
         Assert.Contains(typeof(IIdentityDirectory), contracts);
         foreach (var contract in contracts)
         {
-            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(ISecretRedactor).Assembly, typeof(IntoChat.OS.Framework.Modules.OsModule).Assembly)
+            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(IIdentityDirectory).Assembly, typeof(IntoChat.OS.Framework.Modules.OsModule).Assembly)
                 .Check(ProductionArchitecture.Graph.Value);
         }
     }
 
     internal static bool IsCredentialContract(Type type) => type.IsInterface && (
-        InNamespace(type, "IntoChat.OS.Connections.Platform.Secrets")
-        || InNamespace(type, "IntoChat.OS.Connections.Platform.Identity") || InNamespace(type, "IntoChat.OS.Framework.Modules.Platform.Identity")
+        InNamespace(type, "IntoChat.OS.Connections.Platform.Identity") || InNamespace(type, "IntoChat.OS.Framework.Modules.Platform.Identity")
         || InNamespace(type, "IntoChat.OS.Connections.Platform.Integrations") || InNamespace(type, "IntoChat.OS.Framework.Modules.Platform.Integrations"));
 
     private static bool InNamespace(Type type, string name) =>

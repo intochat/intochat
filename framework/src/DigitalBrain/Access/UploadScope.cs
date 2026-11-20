@@ -1,7 +1,6 @@
 using System.Text.Json;
-using DigitalBrain.Access;
 
-namespace IntoChat.OS.Framework;
+namespace DigitalBrain.Access;
 
 // The owner key an upload session is bound to: who the stamped caller is, so only the same caller continues the upload.
 public static class UploadScope

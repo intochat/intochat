@@ -1,11 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
-using DigitalBrain.Identity.Local.Custody;
 
-namespace IntoChat.OS.Authority.Keys;
+namespace DigitalBrain.Identity.Local.Custody;
 
 // Development custody: one configured root, an HKDF-derived master key per account. Not user-held; Task 19 is.
-internal sealed class ConfiguredMasterKeyCustody(byte[] root) : IMasterKeyCustody
+public sealed class ConfiguredMasterKeyCustody(byte[] root) : IMasterKeyCustody
 {
     public byte[] Wrap(string accountId, string context, byte[] secret) => SegmentSeal.Close(Master(accountId), context, secret);
 

@@ -230,7 +230,7 @@ internal sealed class KnowledgeStoreNeuron : Neuron<KnowledgeStoreState>, IKnowl
         return _graph;
     }
 
-    private string? StampedCaller() => IntoChat.OS.Framework.CallerRules.ActsFor(Context.Caller);
+    private string? StampedCaller() => DigitalBrain.Access.CallerRules.ActsFor(Context.Caller);
 
     private static KnowledgeNode ToModel(KnowledgeNodeRecord r) => new(
         r.Id,

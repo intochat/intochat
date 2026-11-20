@@ -32,6 +32,16 @@
       "persisted": true
     },
     {
+      "old": "IntoChat.OS.Connections.HttpSurfaceExtensions",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.IConnectionBindings",
+      "alias": null,
+      "persisted": false
+    },
+    {
       "old": "IntoChat.OS.Connections.Identity.Configuration.IdentityPosture",
       "alias": null,
       "persisted": false
@@ -43,6 +53,16 @@
     },
     {
       "old": "IntoChat.OS.Connections.Identity.GrantMode",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Identity.GrantRelations",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.ModuleRouteGuard",
       "alias": null,
       "persisted": false
     },
@@ -232,9 +252,24 @@
       "persisted": true
     },
     {
+      "old": "IntoChat.OS.Connections.Platform.Secrets.ISecretRedactor",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Connections.Platform.Secrets.ISecretValueSource",
+      "alias": null,
+      "persisted": false
+    },
+    {
       "old": "IntoChat.OS.Connections.SecretRef",
       "alias": "semantic.secret-ref",
       "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Connections.SecretReferences",
+      "alias": null,
+      "persisted": false
     },
     {
       "old": "IntoChat.OS.Contracts.Compute.BudgetExhaustedException",
@@ -402,6 +437,16 @@
       "persisted": false
     },
     {
+      "old": "IntoChat.OS.Framework.CallerRules",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.CapabilityIdentity",
+      "alias": null,
+      "persisted": false
+    },
+    {
       "old": "IntoChat.OS.Framework.Compute.TraceContext",
       "alias": null,
       "persisted": false
@@ -418,6 +463,11 @@
     },
     {
       "old": "IntoChat.OS.Framework.Diagnostics.Swallow",
+      "alias": null,
+      "persisted": false
+    },
+    {
+      "old": "IntoChat.OS.Framework.HttpCaller",
       "alias": null,
       "persisted": false
     },
@@ -622,6 +672,11 @@
       "persisted": false
     },
     {
+      "old": "IntoChat.OS.Framework.UploadScope",
+      "alias": null,
+      "persisted": false
+    },
+    {
       "old": "IntoChat.OS.IBrain",
       "alias": "brain",
       "persisted": false
@@ -680,6 +735,11 @@
       "old": "IntoChat.OS.Owner",
       "alias": "brain.owner",
       "persisted": true
+    },
+    {
+      "old": "IntoChat.OS.Primitives.StepResultExtensions",
+      "alias": null,
+      "persisted": false
     },
     {
       "old": "IntoChat.OS.Runtime.ConnectionContractAttribute",

@@ -7,6 +7,7 @@ using IntoChat.OS.Tests.E2E.Harness;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
+using DigitalBrain.Capabilities.Secrets;
 
 namespace IntoChat.OS.Tests.E2E.Tier2_BoundaryCases;
 
