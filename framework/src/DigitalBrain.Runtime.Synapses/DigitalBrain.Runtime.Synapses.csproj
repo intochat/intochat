@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <RootNamespace>DigitalBrain.Runtime.Synapses</RootNamespace>
     <PackageId>DigitalBrain.Runtime.Synapses</PackageId>
     <Description>Compiles synapse source to assemblies with the shipped DigitalBrain analyzers, including the synapse rules DB0041-DB0044, and loads them into collectible contexts. No Orleans.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>

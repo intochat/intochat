@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <RootNamespace>DigitalBrain.Runtime.Orleans</RootNamespace>
     <PackageId>DigitalBrain.Runtime.Orleans</PackageId>
     <Description>Orleans runtime for DigitalBrain: topology, storage, reminders, hosting.</Description>
   </PropertyGroup>

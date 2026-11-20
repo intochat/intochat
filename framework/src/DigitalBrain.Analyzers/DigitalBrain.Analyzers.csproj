@@ -7,7 +7,6 @@
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <IsPackable>true</IsPackable>
     <PackageId>DigitalBrain.Analyzers</PackageId>
-    <RootNamespace>DigitalBrain.Analyzers</RootNamespace>
     <Description>Build-time rules for DigitalBrain modules, screens and neurons.</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>

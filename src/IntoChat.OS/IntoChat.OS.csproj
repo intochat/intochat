@@ -2,7 +2,6 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <Description>Neuron, signal, synapse, brain.</Description>
-    <RootNamespace>IntoChat.OS</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../framework/src/DigitalBrain/DigitalBrain.csproj" PrivateAssets="none" />

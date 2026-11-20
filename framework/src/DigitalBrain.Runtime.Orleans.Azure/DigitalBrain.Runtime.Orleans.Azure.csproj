@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <RootNamespace>DigitalBrain.Runtime.Orleans.Azure</RootNamespace>
     <PackageId>DigitalBrain.Runtime.Orleans.Azure</PackageId>
     <Description>Cloud topology for DigitalBrain on Azure: Table clustering and reminders, Blob grain storage, Queue streams, Key Vault secrets and blob-lease brain ownership.</Description>
   </PropertyGroup>

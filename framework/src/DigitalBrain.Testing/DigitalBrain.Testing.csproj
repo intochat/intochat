@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <RootNamespace>DigitalBrain.Testing</RootNamespace>
     <PackageId>DigitalBrain.Testing</PackageId>
     <Description>Fakes, assertion helpers and the in-process host entry point for testing DigitalBrain neurons and modules.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>

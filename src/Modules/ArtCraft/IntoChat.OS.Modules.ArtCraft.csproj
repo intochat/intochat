@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <RootNamespace>IntoChat.OS.Modules.ArtCraft</RootNamespace>
     <Description>ArtCraft apps (PhotoCraft, FilmCraft): their MCP servers and web builds as brain capabilities.</Description>
   </PropertyGroup>
   <ItemGroup>

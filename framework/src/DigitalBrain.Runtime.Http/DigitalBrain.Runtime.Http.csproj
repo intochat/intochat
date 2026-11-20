@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <RootNamespace>DigitalBrain.Runtime.Http</RootNamespace>
     <PackageId>DigitalBrain.Runtime.Http</PackageId>
     <Description>The HTTP edge seam for DigitalBrain modules on ASP.NET Core: module HTTP surfaces, brain route groups and the session cookie issuer. No Orleans.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>

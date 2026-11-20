@@ -1,14 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <RootNamespace>DigitalBrain.Capabilities.Tools</RootNamespace>
     <PackageId>DigitalBrain.Capabilities.Tools</PackageId>
     <Description>Tool capability contract, version 1.</Description>
-    <PackageReadmeFile Condition="Exists('README.md')">README.md</PackageReadmeFile>
   </PropertyGroup>
-  <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="/" Condition="Exists('README.md')" />
-  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain/DigitalBrain.csproj" />
   </ItemGroup>
