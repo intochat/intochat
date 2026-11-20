@@ -638,6 +638,39 @@ public sealed class EngineerPipelineAndWorkTreeFacts : IDisposable
     }
 
     [Fact]
+    public async Task EngineerLiveVerifierIgnoresErrorSpansOfOtherTraces()
+    {
+        var treeDir = Path.Combine(_root, "live-verify-other-trace");
+        Directory.CreateDirectory(treeDir);
+
+        using var verifier = new EngineerLiveVerifier();
+        var cleanTrace = new FakeTraceReader(
+        [
+            new TraceEntry("owner/flow.engineer/r2", 1, "flow.started", DateTimeOffset.UtcNow, "trace-mine", null, "{\"title\":\"Run\"}"),
+        ]);
+        var healthyScreen = new FakeVerifyScreen(
+            JsonDocument.Parse("""{"kind":"appShell","children":[{"kind":"banner","tone":"info","title":"Healthy"}]}""").RootElement.Clone());
+
+        // Another brain's call fails in the same process (another agent, another test): its error span carries its own trace.
+        verifier.ClearCapturedSpans();
+        using (var other = EngineerTelemetry.Source.StartActivity("engineer.unrelated-failure"))
+        {
+            other?.SetTag("brain.trace_id", "trace-someone-else");
+            other?.SetStatus(ActivityStatusCode.Error, "Unrelated failure");
+        }
+
+        var report = await verifier.VerifyLiveAsync(
+            treeDir,
+            "Verify only this run's spans count",
+            ["code/Calculator.cs"],
+            new EngineerLiveContext("trace-mine", cleanTrace, [("app.engineer", healthyScreen)]),
+            Ct);
+
+        Assert.True(report.Succeeded, report.Summary);
+        Assert.Equal(0, report.ErrorSpanCount);
+    }
+
+    [Fact]
     public async Task FlowsNeuronAndInoStudioDelegateAndInspectMultiWorktreeEngineerRun()
     {
         var (bareOrigin, checkout, home) = CreateBareOriginAndCheckout("ino-delegate-unit");

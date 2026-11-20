@@ -2149,19 +2149,17 @@ internal sealed class EngineerLiveVerifier : ILiveVerifier, IDisposable
             all = [.. _capturedSpans];
         }
 
-        if (!string.IsNullOrWhiteSpace(brainTraceId))
+        // The listener sees every span in the process. A run with a trace judges only its own spans: an unrelated brain's
+        // failing call (another agent, another test) must not fail this run's live verification. Without a trace there is
+        // nothing to scope by, so every captured span counts.
+        if (string.IsNullOrWhiteSpace(brainTraceId))
         {
-            var scoped = all.Where(s =>
-                string.Equals(s.BrainTraceId, brainTraceId, StringComparison.Ordinal)
-                || string.Equals(s.OtelTraceId, brainTraceId, StringComparison.Ordinal)
-                || s.IsError).ToArray();
-            if (scoped.Length > 0)
-            {
-                return scoped;
-            }
+            return all;
         }
 
-        return all;
+        return [.. all.Where(s =>
+            string.Equals(s.BrainTraceId, brainTraceId, StringComparison.Ordinal)
+            || string.Equals(s.OtelTraceId, brainTraceId, StringComparison.Ordinal))];
     }
 
     private static bool IsErrorTraceEntry(TraceEntry entry)
