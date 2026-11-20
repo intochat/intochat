@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using DigitalBrain.Contracts;
 
 namespace DigitalBrain.Runtime.Http.Surface;
@@ -10,6 +11,8 @@ namespace DigitalBrain.Runtime.Http.Surface;
 public static class LoadedContracts
 {
     private static readonly string[] DefaultPrefixes = ["DigitalBrain"];
+    private static readonly IReadOnlyDictionary<string, Type> EmptyFormer = new Dictionary<string, Type>(StringComparer.Ordinal);
+    private static readonly ConditionalWeakTable<Assembly, IReadOnlyDictionary<string, Type>> FormerByAssembly = [];
     private static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Type?>> Found = new(StringComparer.Ordinal);
 
     public static Type Find(string name)
@@ -23,6 +26,16 @@ public static class LoadedContracts
         var cache = Found.GetOrAdd(cacheKey, static _ => new ConcurrentDictionary<string, Type?>(StringComparer.Ordinal));
         return cache.GetOrAdd(name, static (typeName, p) => Search(typeName, p), prefixes)
             ?? throw new TypeLoadException($"{name} is a neuron type of this brain, but this host does not carry its contract.");
+    }
+
+    /// <summary>Maps a contract's former alias or full type name to its current full type name, or returns <paramref name="name"/> unchanged.</summary>
+    public static string CurrentName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return name;
+        }
+        return Search(name, DefaultPrefixes)?.FullName ?? name;
     }
 
     private static string[] NormalizePrefixes(string[]? allowedPrefixes)
@@ -39,9 +52,71 @@ public static class LoadedContracts
     private static Type? Search(string name, string[] prefixes)
         => Loaded(name) ?? (LoadReferenced(prefixes) ? Loaded(name) : null);
 
-    private static Type? Loaded(string name) => AppDomain.CurrentDomain.GetAssemblies()
-        .Where(assembly => !assembly.IsDynamic).Select(assembly => assembly.GetType(name, throwOnError: false))
-        .FirstOrDefault(type => type is not null && PlainNeuronContracts.Is(type));
+    private static Type? Loaded(string name)
+    {
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies().Where(static assembly => !assembly.IsDynamic).ToArray();
+        var exact = assemblies
+            .Select(assembly => assembly.GetType(name, throwOnError: false))
+            .FirstOrDefault(static type => type is not null && PlainNeuronContracts.Is(type));
+        if (exact is not null)
+        {
+            return exact;
+        }
+
+        foreach (var assembly in assemblies)
+        {
+            if (FormerNamesOf(assembly).TryGetValue(name, out var matched))
+            {
+                return matched;
+            }
+        }
+        return null;
+    }
+
+    private static IReadOnlyDictionary<string, Type> FormerNamesOf(Assembly assembly)
+        => FormerByAssembly.GetValue(assembly, static asm => BuildFormerMap(asm));
+
+    private static IReadOnlyDictionary<string, Type> BuildFormerMap(Assembly assembly)
+    {
+        Dictionary<string, Type>? map = null;
+        foreach (var type in SafeTypes(assembly))
+        {
+            if (!type.IsInterface || !PlainNeuronContracts.Is(type))
+            {
+                continue;
+            }
+            var alias = type.GetCustomAttribute<NeuronAliasAttribute>(inherit: false);
+            if (alias is not { Formerly.Length: > 0 })
+            {
+                continue;
+            }
+            foreach (var former in alias.Formerly)
+            {
+                if (!string.IsNullOrWhiteSpace(former))
+                {
+                    map ??= new Dictionary<string, Type>(StringComparer.Ordinal);
+                    map.TryAdd(former, type);
+                }
+            }
+        }
+        return map ?? EmptyFormer;
+    }
+
+    private static IEnumerable<Type> SafeTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException error)
+        {
+            return error.Types.Where(static t => t is not null)!;
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
 
     private static bool LoadReferenced(string[] prefixes)
     {

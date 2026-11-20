@@ -6,6 +6,9 @@ public sealed class NeuronAliasAttribute(string alias) : Attribute
 {
     /// <summary>The frozen alias.</summary>
     public string Alias { get; } = alias;
+
+    /// <summary>Earlier aliases and full type names this contract answered to; read, never written.</summary>
+    public string[] Formerly { get; init; } = [];
 }
 
 /// <summary>The neuron type an interface resolves to by default.</summary>
