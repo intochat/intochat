@@ -414,32 +414,37 @@ class _ConversationViewState extends State<ConversationView> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Focus(
-                                onKeyEvent: _handleComposerKey,
-                                child: TextField(
-                                  controller: _controller,
-                                  focusNode: _composerFocus,
-                                  enabled:
-                                      composer.enabled &&
-                                      widget.ctx.interactive,
-                                  minLines: 1,
-                                  maxLines: 6,
-                                  keyboardType: TextInputType.multiline,
-                                  textInputAction: TextInputAction.newline,
-                                  style: IcType.text(
-                                    14,
-                                    color: c.textStrong,
-                                    height: 1.45,
+                            child: Focus(
+                              onKeyEvent: _handleComposerKey,
+                              child: TextField(
+                                controller: _controller,
+                                focusNode: _composerFocus,
+                                enabled:
+                                    composer.enabled && widget.ctx.interactive,
+                                minLines: 1,
+                                maxLines: 6,
+                                keyboardType: TextInputType.multiline,
+                                textInputAction: TextInputAction.newline,
+                                style: IcType.text(
+                                  14,
+                                  color: c.textStrong,
+                                  height: 1.45,
+                                ),
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  filled: false,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  disabledBorder: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 7,
                                   ),
-                                  decoration: InputDecoration.collapsed(
-                                    hintText: composer.placeholder,
-                                    hintStyle: IcType.text(
-                                      14,
-                                      color: c.textSubtle,
-                                      height: 1.45,
-                                    ),
+                                  hintText: composer.placeholder,
+                                  hintStyle: IcType.text(
+                                    14,
+                                    color: c.textSubtle,
+                                    height: 1.45,
                                   ),
                                 ),
                               ),
@@ -447,15 +452,17 @@ class _ConversationViewState extends State<ConversationView> {
                           ),
                           if (hasActiveModel) ...[
                             const SizedBox(width: 8),
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 3),
-                              child: IcBrandChip(
-                                key: const ValueKey('composer-active-model'),
-                                spec: BrandVisuals.fromNode(
-                                  label: composer.activeModelLabel,
-                                  iconKey: composer.activeProviderIcon,
+                            SizedBox(
+                              height: 34,
+                              child: Center(
+                                child: IcBrandChip(
+                                  key: const ValueKey('composer-active-model'),
+                                  spec: BrandVisuals.fromNode(
+                                    label: composer.activeModelLabel,
+                                    iconKey: composer.activeProviderIcon,
+                                  ),
+                                  compact: true,
                                 ),
-                                compact: true,
                               ),
                             ),
                           ],
