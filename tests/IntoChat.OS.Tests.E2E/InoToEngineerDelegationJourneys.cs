@@ -117,7 +117,7 @@ public sealed class InoToEngineerDelegationJourneys(TestOSFixture fixture) : E2E
         Assert.NotNull(await inoScreen.Read());
         var personaDef = InoAgentDefinition.For(new UserSettingsState() with { DisplayName = "Owner", DefaultModel = "qwen2.5-coder:14b" });
         Assert.Contains(typeof(IFlows).FullName!, personaDef.Contracts);
-        Assert.Contains("StartEngineerRun", personaDef.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`flows_start_engineer_run`", personaDef.Instructions, StringComparison.Ordinal);
 
         // 1. Ino delegates a 2-worktree ContainerVolume IntoChat-Engineer run on behalf of the user.
         var flows = os.Get<IFlows>(IFlows.Key(brain.Value));

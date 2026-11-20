@@ -90,14 +90,14 @@ public sealed class InoAppFacts
         Assert.Contains(typeof(ITraceReader).FullName!, def.Contracts);
         Assert.Contains(typeof(IFlows).FullName!, def.Contracts);
         Assert.Contains("IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph", def.Contracts);
-        Assert.Contains("ProposeChange", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains("StartEngineerRun", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains("InspectEngineerRun", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains("CreateIssueTriageSynapse", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains("DismissIssueDraft", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains("RememberPreference", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains("GetTracesAsync", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains("IntoChat.OS.Modules.Microsoft.Roslyn.ICodeGraph", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`studio_propose_change`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`flows_start_engineer_run`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`flows_inspect_engineer_run`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`studio_create_issue_triage_synapse`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`github_repository_dismiss_issue_draft`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`ai_memory_remember_preference`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`aspire_get_traces_async`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`roslyn_codegraph_search_symbols`", def.Instructions, StringComparison.Ordinal);
         Assert.DoesNotContain("IntoChat.OS.Modules.Roslyn.ICodeGraph", def.Instructions, StringComparison.Ordinal);
     }
 
@@ -105,20 +105,42 @@ public sealed class InoAppFacts
     public void InoPersonaShowsHowToDrawANodeCardAndHowToPoint()
     {
         var def = InoAgentDefinition.For(new UserSettingsState() with { DisplayName = "Vlad", DefaultModel = "qwen2.5-coder:14b" });
-        const string expectedShowArgs = """["Fruit", "{\"kind\":\"dataTable\",\"title\":\"Fruit\",\"columns\":[\"Fruit\",\"Colour\"],\"rows\":[[\"Apple\",\"Red\"],[\"Banana\",\"Yellow\"]]}"]""";
-        const string expectedPointArgs = """["window:settings", "Info", "Your model settings are here"]""";
+        const string expectedNode = """{"kind":"dataTable","title":"Fruit","columns":["Fruit","Colour"],"rows":[["Apple","Red"],["Banana","Yellow"]]}""";
 
-        Assert.Contains("`Show`", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains(expectedShowArgs, def.Instructions, StringComparison.Ordinal);
-        Assert.Contains("`Point` only points at something that already exists", def.Instructions, StringComparison.Ordinal);
-        Assert.Contains(expectedPointArgs, def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`focus_show`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains(expectedNode, def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("`focus_point`", def.Instructions, StringComparison.Ordinal);
+        Assert.Contains("only points at something that already exists", def.Instructions, StringComparison.Ordinal);
 
-        // The Show example in the persona must itself be valid positional arguments accepted by InoNodeCard.
-        var parsedArgs = System.Text.Json.JsonSerializer.Deserialize<string[]>(expectedShowArgs);
-        Assert.NotNull(parsedArgs);
-        Assert.Equal(2, parsedArgs!.Length);
-        Assert.True(InoNodeCard.TryRead(parsedArgs[1], out var node, out var refusal), refusal);
+        // The node example in the persona must itself be valid JSON accepted by InoNodeCard.
+        Assert.True(InoNodeCard.TryRead(expectedNode, out var node, out var refusal), refusal);
         Assert.IsType<DataTable>(node);
+    }
+
+    [Fact]
+    public void PersonaTeachesNoArgumentArrays()
+    {
+        var text = InoAgentDefinition.For(new()).Instructions;
+        Assert.DoesNotContain("neurons_call", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("arguments `[", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("IIno", text, StringComparison.Ordinal);
+        Assert.True(text.Length <= 4_000, $"Persona is {text.Length} chars (budget <= 4000).");
+    }
+
+    [Fact]
+    public void EveryToolThePersonaNamesExists()
+    {
+        var names = IntoChat.OS.Tests.Unit.Apps.Ino.InoToolBudgetFacts.InoTools()
+            .Select(static t => t.Name)
+            .Concat(["neurons_search", "neurons_list", "neurons_context"])
+            .ToHashSet(StringComparer.Ordinal);
+        var named = System.Text.RegularExpressions.Regex.Matches(
+                InoAgentDefinition.For(new()).Instructions,
+                @"`([a-z][a-z0-9]*(?:_[a-z0-9]+)+)`")
+            .Select(static m => m.Groups[1].Value)
+            .ToArray();
+        Assert.NotEmpty(named);
+        Assert.All(named, n => Assert.Contains(n, names));
     }
 
     [Fact]
